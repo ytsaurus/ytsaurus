@@ -1553,6 +1553,20 @@ TEST_F(TVersionedRowMergerTest, DeleteTimestampsPrunedOnFlush2)
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
+TEST_F(TVersionedRowMergerTest, MergeWithLimit)
+{
+    auto merger = GetTypicalMerger(nullptr, SyncLastCommittedTimestamp, MaxTimestamp);
+
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=10>1;<id=1;ts=20>2", {12}), 20);
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "<id=1;ts=15>3;<id=1;ts=30>4", {25}), 20);
+    merger->AddPartialRow(BuildVersionedRow("<id=0> 0", "", {17}), 20);
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{BuildVersionedRow(
+            "<id=0> 0", "<id=1;ts=10>1;<id=1;ts=15>3", {12, 17})},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMockVersionedReader

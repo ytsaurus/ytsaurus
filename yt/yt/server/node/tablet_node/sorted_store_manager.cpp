@@ -674,30 +674,54 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             chunkWriter,
             blockCache);
 
-        TVersionedRowMerger rowMerger(
+        TVersionedRowMerger onFlushRowMerger(
             New<TRowBuffer>(TMergeRowsOnFlushTag()),
             tabletSnapshot->QuerySchema->GetColumnCount(),
             tabletSnapshot->QuerySchema->GetKeyColumnCount(),
             TColumnFilter(),
             tabletSnapshot->Config,
             currentTimestamp,
-            0,
+            MinTimestamp,
             tabletSnapshot->ColumnEvaluator,
             /*lookup*/ false,
             /*mergeRowsOnFlush*/ true,
             /*mergeDeletionsOnFlush*/ tabletSnapshot->Config->MergeDeletionsOnFlush);
 
+        auto unflushedTimestamp = MaxTimestamp;
+        auto edenStores = tabletSnapshot->GetEdenStores();
+        for (const auto& store : edenStores) {
+            if (store->IsDynamic()) {
+                unflushedTimestamp = std::min(unflushedTimestamp, store->GetMinTimestamp());
+            }
+        }
+
+        auto majorTimestamp = std::min(unflushedTimestamp, tabletSnapshot->RetainedTimestamp);
+
+        TVersionedRowMerger compactionRowMerger(
+            New<TRowBuffer>(TMergeRowsOnFlushTag()),
+            tabletSnapshot->QuerySchema->GetColumnCount(),
+            tabletSnapshot->QuerySchema->GetKeyColumnCount(),
+            TColumnFilter(),
+            tabletSnapshot->Config,
+            currentTimestamp,
+            majorTimestamp,
+            tabletSnapshot->ColumnEvaluator,
+            /*lookup*/ false,
+            /*mergeRowsOnFlush*/ false);
+
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
+        const auto& rowCache = tabletSnapshot->RowCache;
+
         YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "
-            "MergeDeletionsOnFlush: %v, RetentionConfig: %v)",
+            "MergeDeletionsOnFlush: %v, RetentionConfig: %v, HaveRowCache: %v, RetainedTimestamp: %v)",
             store->GetId(),
             tabletSnapshot->Config->MergeRowsOnFlush,
             tabletSnapshot->Config->MergeDeletionsOnFlush,
-            ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
-
-        const auto& rowCache = tabletSnapshot->RowCache;
+            ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config),
+            static_cast<bool>(rowCache),
+            tabletSnapshot->RetainedTimestamp);
 
         THazardPtrFlushGuard flushGuard;
 
@@ -710,9 +734,9 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
             if (tabletSnapshot->Config->MergeRowsOnFlush) {
                 auto outputIt = rows.begin();
-                for (auto& row : rows) {
-                    rowMerger.AddPartialRow(row);
-                    auto mergedRow = rowMerger.BuildMergedRow();
+                for (auto row : rows) {
+                    onFlushRowMerger.AddPartialRow(row);
+                    auto mergedRow = onFlushRowMerger.BuildMergedRow();
                     if (mergedRow) {
                         *outputIt++ = mergedRow;
                     }
@@ -723,19 +747,18 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             if (rowCache) {
                 auto accessor = rowCache->Cache.GetLookupAccessor();
 
-                for (auto& row : rows) {
+                for (auto row : rows) {
                     // TODO(lukyan): Get here address of cell and use it in update. Or use Update with callback.
-                    auto found = accessor.Lookup(row);
+                    auto foundRow = accessor.Lookup(row);
 
-                    if (found) {
-                        rowMerger.AddPartialRow(found->GetVersionedRow());
-                        rowMerger.AddPartialRow(row);
-
-                        row = rowMerger.BuildMergedRow();
+                    if (foundRow) {
+                        compactionRowMerger.AddPartialRow(foundRow->GetVersionedRow());
+                        compactionRowMerger.AddPartialRow(row);
+                        auto mergedRow = compactionRowMerger.BuildMergedRow();
 
                         auto cachedRow = CachedRowFromVersionedRow(
                             &rowCache->Allocator,
-                            row);
+                            mergedRow);
 
                         bool updated = accessor.Update(cachedRow);
 
@@ -752,7 +775,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             }
-            rowMerger.Reset();
+            onFlushRowMerger.Reset();
+            compactionRowMerger.Reset();
         }
 
         if (tableWriter->GetRowCount() == 0) {

@@ -29,7 +29,7 @@ public:
         TTimestamp retentionTimestamp = NullTimestamp);
 
     void AddPartialRow(TVersionedRow row);
-    void AddPartialRow(TVersionedRow row, TTimestamp timestamp);
+    void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit);
     TUnversionedRow BuildMergedRow();
     void Reset();
 
@@ -105,6 +105,7 @@ public:
         bool mergeDeletionsOnFlush = false);
 
     void AddPartialRow(TVersionedRow row);
+    void AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit);
     TVersionedRow BuildMergedRow();
     void Reset();
 
