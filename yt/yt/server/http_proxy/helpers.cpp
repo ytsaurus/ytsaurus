@@ -294,8 +294,17 @@ std::optional<i64> DetectGo(const TString& userAgent)
     return {};
 }
 
-bool IsClientBuggy(const NHttp::IRequestPtr& req)
+bool IsBrowserRequest(const NHttp::IRequestPtr& req)
 {
+    return req->GetHeaders()->Find("Cookie");
+}
+
+bool EnableRequestBodyWorkaround(const NHttp::IRequestPtr& req)
+{
+    if (IsBrowserRequest(req)) {
+        return true;
+    }
+
     auto userAgent = req->GetHeaders()->Find("User-Agent");
     if (!userAgent) {
         return false;
