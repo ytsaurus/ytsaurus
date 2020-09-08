@@ -1024,6 +1024,23 @@ REGISTER_MAPPER(TIdTRowVer2Mapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMapperForOrderedDynamicTables : public IMapper<TNodeReader, TNodeWriter>
+{
+    void Do(TReader* reader, TWriter* writer) {
+        for (; reader->IsValid(); reader->Next()) {
+            auto row = reader->GetRow();
+            row["range_index"] = reader->GetRangeIndex();
+            row["tablet_index"] = reader->GetTabletIndex();
+            row["row_index"] = reader->GetRowIndex();
+            writer->AddRow(row);
+        }
+    }
+};
+
+REGISTER_MAPPER(TMapperForOrderedDynamicTables)
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_UNIT_TEST_SUITE(Operations)
 {
     void TestRenameColumns(ENodeReaderFormat nodeReaderFormat)
@@ -2831,6 +2848,100 @@ Y_UNIT_TEST_SUITE(Operations)
     Y_UNIT_TEST(RangeIndices_Ydl)
     {
         TestRangeIndices<NYdlRows::TMessage>(ENodeReaderFormat::Yson);
+    }
+
+    Y_UNIT_TEST(OrderedDynamicTableReadLimits)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto schema = TNode()
+            .Add(TNode()("name", "key")("type", "int64"))
+            .Add(TNode()("name", "value")("type", "int64"));
+        const auto inputPath = workingDir + "/input";
+        const auto outputPath = workingDir + "/output";
+        client->Create(inputPath, NT_TABLE, TCreateOptions().Attributes(
+            TNode()("dynamic", true)("schema", schema)));
+
+        client->ReshardTable(inputPath, 2);
+        client->MountTable(inputPath);
+        WaitForTabletsState(client, inputPath, TS_MOUNTED, TWaitForTabletsStateOptions()
+            .Timeout(TDuration::Seconds(30))
+            .CheckInterval(TDuration::MilliSeconds(50)));
+        
+        client->InsertRows(inputPath, {TNode()("key", 1)("value", 2)("$tablet_index", 0)});
+        client->InsertRows(inputPath, {TNode()("key", 3)("value", 4)("$tablet_index", 1)});
+        client->InsertRows(inputPath, {TNode()("key", 5)("value", 6)("$tablet_index", 1)});
+
+        client->FreezeTable(inputPath);
+        WaitForTabletsState(client, inputPath, TS_FROZEN, TWaitForTabletsStateOptions()
+            .Timeout(TDuration::Seconds(30))
+            .CheckInterval(TDuration::MilliSeconds(50)));
+        client->UnfreezeTable(inputPath);
+        WaitForTabletsState(client, inputPath, TS_MOUNTED, TWaitForTabletsStateOptions()
+            .Timeout(TDuration::Seconds(30))
+            .CheckInterval(TDuration::MilliSeconds(50)));
+
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Auto;
+
+        TRichYPath path;
+        auto runOperation = [&] () {
+            auto spec = TNode::CreateMap();
+            spec["job_io"]["control_attributes"]["enable_tablet_index"] = TNode(true);
+
+            return client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>(path)
+                    .AddOutput<TNode>(outputPath),
+                ::MakeIntrusive<TMapperForOrderedDynamicTables>(),
+                TOperationOptions()
+                    .Spec(std::move(spec)));
+        };
+
+        // We cannot specify row index without tablet index.
+        path = TRichYPath(inputPath)
+            .AddRange(TReadRange()
+                .LowerLimit(TReadLimit().RowIndex(0)));
+        UNIT_ASSERT_EXCEPTION(
+            runOperation(),
+            TOperationFailedError);
+
+        path = TRichYPath(inputPath)
+            .AddRange(TReadRange()
+                .UpperLimit(TReadLimit().TabletIndex(0).RowIndex(0))
+            )
+            .AddRange(TReadRange()
+                .UpperLimit(TReadLimit().TabletIndex(0))
+            )
+            .AddRange(TReadRange()
+                .LowerLimit(TReadLimit().TabletIndex(1))
+            )
+            .AddRange(TReadRange()
+                .LowerLimit(TReadLimit().TabletIndex(0).RowIndex(0))
+                .UpperLimit(TReadLimit().TabletIndex(1))
+            )
+            .AddRange(TReadRange()
+                .LowerLimit(TReadLimit().TabletIndex(1))
+                .UpperLimit(TReadLimit().TabletIndex(1).RowIndex(1))
+            );
+        UNIT_ASSERT_NO_EXCEPTION(runOperation());
+
+        TVector<TNode> expected = {
+            // Empty range
+
+            TNode()("key", 1)("value", 2)("row_index", 0u)("tablet_index", 0)("range_index", 1u),
+
+            TNode()("key", 3)("value", 4)("row_index", 0u)("tablet_index", 1)("range_index", 2u),
+            TNode()("key", 5)("value", 6)("row_index", 1u)("tablet_index", 1)("range_index", 2u),
+
+            TNode()("key", 1)("value", 2)("row_index", 0u)("tablet_index", 0)("range_index", 3u),
+            TNode()("key", 3)("value", 4)("row_index", 0u)("tablet_index", 1)("range_index", 3u),
+            TNode()("key", 5)("value", 6)("row_index", 1u)("tablet_index", 1)("range_index", 3u),
+
+            TNode()("key", 3)("value", 4)("row_index", 0u)("tablet_index", 1)("range_index", 4u),
+        };
+        auto actual = ReadTable(client, outputPath);
+        UNIT_ASSERT_VALUES_EQUAL(expected, actual);
     }
 
     Y_UNIT_TEST(SkiffForInputQuery)

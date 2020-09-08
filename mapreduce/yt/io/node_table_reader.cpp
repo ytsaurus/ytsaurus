@@ -322,6 +322,8 @@ void TNodeTableReader::NextImpl()
                     RowIndex_ = static_cast<ui64>(entry.second.AsInt64());
                 } else if (entry.first == "range_index") {
                     RangeIndex_ = static_cast<ui32>(entry.second.AsInt64());
+                } else if (entry.first == "tablet_index") {
+                    TabletIndex_ = entry.second.AsInt64();
                 }
             }
 
@@ -360,6 +362,12 @@ ui64 TNodeTableReader::GetRowIndex() const
 {
     CheckValidity();
     return RowIndex_.GetOrElse(0UL);
+}
+
+i64 TNodeTableReader::GetTabletIndex() const
+{
+    CheckValidity();
+    return TabletIndex_.GetOrElse(0L);
 }
 
 void TNodeTableReader::NextKey()

@@ -80,6 +80,7 @@ public:
     ui32 GetTableIndex() const override;
     ui32 GetRangeIndex() const override;
     ui64 GetRowIndex() const override;
+    i64 GetTabletIndex() const override;
     void NextKey() override;
     TMaybe<size_t> GetReadByteCount() const override;
 
@@ -100,6 +101,7 @@ private:
     ui32 TableIndex_ = 0;
     TMaybe<ui64> RowIndex_;
     TMaybe<ui32> RangeIndex_;
+    TMaybe<i64> TabletIndex_;
     bool AtStart_ = true;
 
     TMaybe<TRowElement> Row_;

@@ -401,7 +401,7 @@ TTableSchema CreateTableSchema(NTi::TTypePtr type)
 
 bool IsTrivial(const TReadLimit& readLimit)
 {
-    return !readLimit.Key_ && !readLimit.RowIndex_ && !readLimit.Offset_;
+    return !readLimit.Key_ && !readLimit.RowIndex_ && !readLimit.Offset_ && !readLimit.TabletIndex_;
 }
 
 EValueType NodeTypeToValueType(TNode::EType nodeType)

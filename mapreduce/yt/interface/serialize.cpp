@@ -256,6 +256,9 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
         .DoIf(readLimit.Offset_.Defined(), [&] (TFluentMap fluent) {
             fluent.Item("offset").Value(*readLimit.Offset_);
         })
+        .DoIf(readLimit.TabletIndex_.Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("tablet_index").Value(*readLimit.TabletIndex_);
+        })
     .EndMap();
 }
 
@@ -265,6 +268,7 @@ void Deserialize(TReadLimit& readLimit, const TNode& node)
     DESERIALIZE_ITEM("key", readLimit.Key_);
     DESERIALIZE_ITEM("row_index", readLimit.RowIndex_);
     DESERIALIZE_ITEM("offset", readLimit.Offset_);
+    DESERIALIZE_ITEM("tablet_index", readLimit.TabletIndex_);
 }
 
 void Serialize(const TReadRange& readRange, IYsonConsumer* consumer)

@@ -182,6 +182,9 @@ public:
 
     /// Get current row index (zero if it unknown).
     ui64 GetRowIndex() const;
+
+    /// Get current tablet index (for ordered dynamic tables).
+    i64 GetTabletIndex() const;
 };
 
 /// @brief Iterator for use in range-based-for.
