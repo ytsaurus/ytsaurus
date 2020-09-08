@@ -38,6 +38,10 @@ func do() error {
 		ResultFile:     yatest.OutputPath("result.json"),
 	}
 
+	if os.Getenv("YT_TOKEN") != "" {
+		execConfig.Exec.YTTokenEnv = "YT_TOKEN"
+	}
+
 	env, err := ytrecipe.CaptureEnv()
 	if err != nil {
 		return err

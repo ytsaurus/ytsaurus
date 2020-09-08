@@ -114,14 +114,8 @@ FORK_TEST_FILES()
 FORK_SUBTESTS()
 SPLIT_FACTOR(12)
 
-REQUIREMENTS(
-    ram_disk:4
-    cpu:4
-)
-
 TAG(
     ya:fat
-    ya:force_distbuild
     ya:huge_logs
     ya:full_logs
     ya:sys_info
