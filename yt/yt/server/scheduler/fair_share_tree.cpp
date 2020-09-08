@@ -1704,8 +1704,11 @@ auto TFairShareTree<TFairShareImpl>::DoBuildFairShareInfo(
     NYTree::TFluentMap fluent) const -> void
 {
     if (!rootElementSnapshot) {
+        YT_LOG_DEBUG("Skipping construction of fair share info: no root element snapshot");
         return;
     }
+
+    YT_LOG_DEBUG("Constructing fair share info for orchid");
 
     auto buildOperationsInfo = [&] (TFluentMap fluent, const typename TRawOperationElementMap::value_type& pair) {
         const auto& [operationId, element] = pair;
@@ -2603,22 +2606,22 @@ auto TFairShareTree<TFairShareImpl>::BuildPersistentTreeState() const -> TPersis
 template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) -> void
 {
-    for (const auto& [poolName, volume] : persistentTreeState->PoolStates) {
+    for (const auto& [poolName, poolState] : persistentTreeState->PoolStates) {
         auto poolIt = Pools_.find(poolName);
         if (poolIt != Pools_.end()) {
             if (poolIt->second->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
-                poolIt->second->InitAccumulatedResourceVolume(volume->AccumulatedResourceVolume);
+                poolIt->second->InitAccumulatedResourceVolume(poolState->AccumulatedResourceVolume);
             } else {
                 YT_LOG_INFO("Pool is not integral and cannot accept integral resource volume (Pool: %v, PoolTree: %v, Volume: %v)",
                     poolName,
                     TreeId_,
-                    volume);
+                    poolState->AccumulatedResourceVolume);
             }
         } else {
             YT_LOG_INFO("Unknown pool in tree; dropping its integral resource volume (Pool: %v, PoolTree: %v, Volume: %v)",
                 poolName,
                 TreeId_,
-                volume);
+                poolState->AccumulatedResourceVolume);
         }
     }
 }

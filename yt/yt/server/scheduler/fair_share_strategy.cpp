@@ -1545,7 +1545,8 @@ private:
 
     void InitPersistentStrategyState(const TPersistentStrategyStatePtr& persistentStrategyState)
     {
-        YT_LOG_INFO("Initializing persistent strategy state");
+        YT_LOG_INFO("Initializing persistent strategy state %v",
+            ConvertToYsonString(persistentStrategyState, EYsonFormat::Text));
         for (auto& [treeId, treeState] : persistentStrategyState->TreeStates) {
             auto treeIt = IdToTree_.find(treeId);
             if (treeIt != IdToTree_.end()) {
@@ -1553,7 +1554,7 @@ private:
             } else {
                 YT_LOG_INFO("Unknown tree %Qv; dropping its persistent state %Qv",
                     treeId,
-                    ConvertToYsonString(treeState));
+                    ConvertToYsonString(treeState, EYsonFormat::Text));
             }
         }
     }
