@@ -202,7 +202,6 @@ private:
 
     std::atomic<TTosLevel> TosLevel_ = DefaultTosLevel;
 
-
     void Open();
     void Close();
 

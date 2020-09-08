@@ -56,6 +56,9 @@ public:
 
     NConcurrency::IPollerPtr GetXferPoller();
 
+    //! Disables all networking. Safety measure for local runs and snapshot validation.
+    void DisableNetworking();
+
 private:
     TTcpDispatcher();
 

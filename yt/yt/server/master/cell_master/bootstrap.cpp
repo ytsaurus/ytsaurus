@@ -618,8 +618,6 @@ void TBootstrap::DoInitialize()
         CreateLocalChannel(RpcServer_),
         CellId_);
 
-    ClusterConnection_ = CreateClusterConnection();
-
     CellManager_ = New<TCellManager>(
         localCellConfig,
         ChannelFactory_,
@@ -715,9 +713,6 @@ void TBootstrap::DoInitialize()
         }
     }
 
-    // Initialize periodic latest timestamp update.
-    TimestampProvider_->GetLatestTimestamp();
-
     TransactionSupervisor_ = CreateTransactionSupervisor(
         Config_->TransactionSupervisor,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor),
@@ -767,7 +762,6 @@ void TBootstrap::DoInitialize()
         ChannelFactory_,
         DiscoveryQueue_->GetInvoker(),
         DiscoveryQueue_->GetInvoker());
-    DiscoveryServer_->Initialize();
 
     if (TimestampManager_) {
         RpcServer_->RegisterService(TimestampManager_->GetRpcService()); // null realm
@@ -839,6 +833,13 @@ void TBootstrap::DoInitialize()
 
 void TBootstrap::DoRun()
 {
+    ClusterConnection_ = CreateClusterConnection();
+
+    // Initialize periodic update of latest timestamp.
+    TimestampProvider_->GetLatestTimestamp();
+
+    DiscoveryServer_->Initialize();
+
     HydraFacade_->Initialize();
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
