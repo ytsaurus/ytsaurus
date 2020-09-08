@@ -450,62 +450,52 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IOperationControllerPtr CreateControllerForOperation(
-    TControllerAgentConfigPtr config,
+static bool ShouldUseLegacyController(
+    const TControllerAgentConfigPtr& config,
     TOperation* operation)
 {
-    auto salt = operation->GetId().Parts64[1] & 255;
-
-    INodePtr specTemplate;
-    switch (operation->GetType()) {
-        case EOperationType::Map: {
-            specTemplate = config->MapOperationOptions->SpecTemplate;
-            break;
-        }
-        case EOperationType::Merge: {
-            auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(operation->GetSpec());
-            switch (baseSpec->Mode) {
-                case EMergeMode::Ordered:
-                    specTemplate = config->OrderedMergeOperationOptions->SpecTemplate;
-                    break;
-                case EMergeMode::Sorted:
-                    specTemplate = config->SortedMergeOperationOptions->SpecTemplate;
-                    break;
-                case EMergeMode::Unordered:
-                    specTemplate = config->UnorderedMergeOperationOptions->SpecTemplate;
-                    break;
-                }
-            break;
-        }
-        case EOperationType::Erase: {
-            specTemplate = config->EraseOperationOptions->SpecTemplate;
-            break;
-        }
-        case EOperationType::Sort: {
-            specTemplate = config->SortOperationOptions->SpecTemplate;
-            break;
-        }
-        case EOperationType::Reduce: {
-            specTemplate = config->ReduceOperationOptions->SpecTemplate;
-            break;
-        }
-        case EOperationType::JoinReduce: {
-            specTemplate = config->JoinReduceOperationOptions->SpecTemplate;
-            break;
-        }
-        case EOperationType::MapReduce: {
-            specTemplate = config->MapReduceOperationOptions->SpecTemplate;
-            break;
-        }
-        case EOperationType::RemoteCopy: {
-            specTemplate = config->RemoteCopyOperationOptions->SpecTemplate;
-            break;
-        }
-        case EOperationType::Vanilla: {
-            specTemplate = config->VanillaOperationOptions->SpecTemplate;
-            break;
-        }
+    // COMPAT(levysotsky): Remove when new controllers can handle schemaful map_reduce.
+    if (operation->GetType() == EOperationType::MapReduce &&
+        ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec())->HasSchemafulIntermediateStreams())
+    {
+        YT_LOG_INFO("Using legacy controller because the operation is schemaful MapReduce (OperationId: %v)",
+            operation->GetId());
+        return true;
     }
+
+    auto specTemplate = [&] {
+        switch (operation->GetType()) {
+            case EOperationType::Map:
+                return config->MapOperationOptions->SpecTemplate;
+            case EOperationType::Merge: {
+                auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(operation->GetSpec());
+                switch (baseSpec->Mode) {
+                    case EMergeMode::Ordered:
+                        return config->OrderedMergeOperationOptions->SpecTemplate;
+                    case EMergeMode::Sorted:
+                        return config->SortedMergeOperationOptions->SpecTemplate;
+                    case EMergeMode::Unordered:
+                        return config->UnorderedMergeOperationOptions->SpecTemplate;
+                }
+                YT_ABORT();
+            }
+            case EOperationType::Erase:
+                return config->EraseOperationOptions->SpecTemplate;
+            case EOperationType::Sort:
+                return config->SortOperationOptions->SpecTemplate;
+            case EOperationType::Reduce:
+                return config->ReduceOperationOptions->SpecTemplate;
+            case EOperationType::JoinReduce:
+                return config->JoinReduceOperationOptions->SpecTemplate;
+            case EOperationType::MapReduce:
+                return config->MapReduceOperationOptions->SpecTemplate;
+            case EOperationType::RemoteCopy:
+                return config->RemoteCopyOperationOptions->SpecTemplate;
+            case EOperationType::Vanilla:
+                return config->VanillaOperationOptions->SpecTemplate;
+        }
+        YT_ABORT();
+    }();
 
     int legacyControllerFraction = 256;
     if (specTemplate) {
@@ -516,13 +506,28 @@ IOperationControllerPtr CreateControllerForOperation(
     if (auto legacyControllerFractionNode = operation->GetSpec()->FindChild("legacy_controller_fraction")) {
         legacyControllerFraction = legacyControllerFractionNode->AsInt64()->GetValue();
     }
-    bool useLegacyController = (salt < legacyControllerFraction);
-    if (useLegacyController) {
-        YT_LOG_INFO("Using legacy controller (Salt: %v, LegacyControllerFraction: %v)", salt, legacyControllerFraction);
-    } else {
-        YT_LOG_INFO("Using new controller (Salt: %v, LegacyControllerFraction: %v)", salt, legacyControllerFraction);
-    }
 
+    auto salt = operation->GetId().Parts64[1] & 255;
+    auto useLegacyController = (salt < legacyControllerFraction);
+    if (useLegacyController) {
+        YT_LOG_INFO("Using legacy controller (OperationId: %v, Salt: %v, LegacyControllerFraction: %v)",
+            operation->GetId(),
+            salt,
+            legacyControllerFraction);
+    } else {
+        YT_LOG_INFO("Using new controller (OperationId: %v, Salt: %v, LegacyControllerFraction: %v)",
+            operation->GetId(),
+            salt,
+            legacyControllerFraction);
+    }
+    return useLegacyController;
+}
+
+IOperationControllerPtr CreateControllerForOperation(
+    TControllerAgentConfigPtr config,
+    TOperation* operation)
+{
+    auto useLegacyController = ShouldUseLegacyController(config, operation);
     IOperationControllerPtr controller;
     auto host = operation->GetHost();
     switch (operation->GetType()) {

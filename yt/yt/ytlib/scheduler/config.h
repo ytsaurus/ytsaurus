@@ -758,6 +758,19 @@ DEFINE_REFCOUNTED_TYPE(TOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTaskOutputStreamConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NTableClient::TTableSchemaPtr Schema;
+
+    TTaskOutputStreamConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUserJobSpec
     : public NYTree::TYsonSerializable
 {
@@ -772,6 +785,8 @@ public:
     std::optional<NFormats::TFormat> Format;
     std::optional<NFormats::TFormat> InputFormat;
     std::optional<NFormats::TFormat> OutputFormat;
+
+    std::vector<TTaskOutputStreamConfigPtr> OutputStreams;
 
     std::optional<bool> EnableInputTableIndex;
 
@@ -1265,6 +1280,7 @@ public:
 
     bool HasNontrivialMapper() const;
     bool HasNontrivialReduceCombiner() const;
+    bool HasSchemafulIntermediateStreams() const;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec, 0x99837bbc);

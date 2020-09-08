@@ -687,7 +687,9 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
                 *row.End() = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
                 row.SetCount(row.GetCount() + 1);
             }
-            if (Options_->EnableTableIndex) {
+            // NB(levysotsky): We don't always set table_index
+            // (e.g. for intermediate chunks we write table indices directly in rows).
+            if (Options_->EnableTableIndex && ChunkSpec_.has_table_index()) {
                 *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
                 row.SetCount(row.GetCount() + 1);
             }

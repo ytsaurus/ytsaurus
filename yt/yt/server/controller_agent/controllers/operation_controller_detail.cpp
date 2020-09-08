@@ -8478,7 +8478,7 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         // so we need to specify several unused data sources before actual one.
         dataSourceDirectory->DataSources().resize(tableIndex);
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
-            IntermediatePath,
+            GetIntermediatePath(tableIndex),
             OutputTables_[tableIndex]->TableUploadOptions.TableSchema,
             /* columns */ std::nullopt,
             /* omittedInaccessibleColumns */ {}));

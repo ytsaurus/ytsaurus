@@ -20,6 +20,11 @@ struct IUnversionedRowsetWriter
     : public virtual NChunkClient::IWriterBase
 {
     /*!
+     *  Writes given rows.
+     *
+     *  The returned value is |true| iff one can write next rowset immediately,
+     *  otherwise one should wait for |GetReadyEvent()| future.
+     *
      *  Every row must contain exactly one value for each column in schema, in the same order.
      */
     virtual bool Write(TRange<TUnversionedRow> rows) = 0;
@@ -37,8 +42,6 @@ DEFINE_REFCOUNTED_TYPE(IUnversionedRowsetWriter)
 struct IUnversionedWriter
     : public IUnversionedRowsetWriter
 {
-    virtual bool Write(TRange<TUnversionedRow> rows) = 0;
-
     virtual const TNameTablePtr& GetNameTable() const = 0;
     virtual const TTableSchemaPtr& GetSchema() const = 0;
 };

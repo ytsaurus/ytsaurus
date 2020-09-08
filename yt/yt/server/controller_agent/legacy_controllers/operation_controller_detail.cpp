@@ -8716,7 +8716,7 @@ void TOperationControllerBase::InitAutoMergeJobSpecTemplates()
         // so we need to specify several unused data sources before actual one.
         dataSourceDirectory->DataSources().resize(tableIndex);
         dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
-            IntermediatePath,
+            GetIntermediatePath(tableIndex),
             OutputTables_[tableIndex]->TableUploadOptions.TableSchema,
             /* columns */ std::nullopt,
             /* omittedInaccessibleColumns */ {}));
@@ -8790,7 +8790,8 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     options->CompressionCodec = Spec_->IntermediateCompressionCodec;
     // Distribute intermediate chunks uniformly across storage locations.
     options->PlacementId = GetOperationId();
-    options->TableIndex = 0;
+    // NB(levysotsky): Don't set table_index for intermediate streams
+    // as we store table indices directly in rows of intermediate chunk.
     return options;
 }
 

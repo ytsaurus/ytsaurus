@@ -311,6 +311,8 @@ private:
 
     double GetJobProxyMemoryReserveFactor() const;
     double GetUserJobMemoryReserveFactor() const;
+
+    TString GetOrCacheSerializedSchema(const NTableClient::TTableSchemaPtr& schema);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

@@ -1,46 +1,9 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto
+from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
+from skiff_format import (skiff_simple, skiff_optional,
+                          skiff_repeated_variant8, skiff_tuple)
 
-from yt.test_helpers import assert_items_equal, are_almost_equal
-
-import pytest
-import time
-
-def with_name(skiff_type, name=None):
-    if name is not None:
-        skiff_type["name"] = name
-    return skiff_type
-
-
-def skiff_simple(wire_type, name=None):
-    return with_name({
-        "wire_type": wire_type,
-    }, name)
-
-
-def skiff_optional(inner, name=None):
-    return with_name({
-        "wire_type": "variant8",
-        "children": [
-            {
-                "wire_type": "nothing",
-            },
-            inner
-        ]
-    }, name)
-
-
-def skiff_tuple(children, name=None):
-    return with_name({
-        "wire_type": "tuple",
-        "children": children,
-    }, name)
-
-def skiff_repeated_variant8(children, name=None):
-    return with_name({
-        "wire_type": "repeated_variant8",
-        "children": children,
-    }, name)
+from random import shuffle
 
 
 class TestSkiffFormat(YTEnvSetup):
@@ -428,6 +391,121 @@ class TestSkiffFormat(YTEnvSetup):
         )
         assert [{"key": "bar", "value": []}, {"key": "foo", "value": [1 ,2 ,3]}] == list(sorted(read_table("//tmp/t_out_reducer"), key=lambda x: x["key"]))
         assert [{"key": "baz", "value": [0x42]}] == read_table("//tmp/t_out_mapper")
+
+    @authors("levysotsky")
+    def test_map_reduce_trivial_mapper_schematized_streams(self):
+        first_schema = [
+            {"name": "key1", "type_v3": "int64"},
+            {"name": "key3", "type_v3": "int64"},
+        ]
+        second_schema = [
+            {"name": "key1", "type_v3": "int64"},
+            {"name": "key2", "type_v3": "int64"},
+        ]
+        output_schema = [
+            {"name": "key1", "type_v3": "int64"},
+            {"name": "key2", "type_v3": optional_type("int64")},
+            {"name": "key3", "type_v3": optional_type("int64")},
+            {"name": "table_index", "type_v3": "int64"},
+        ]
+        create("table", "//tmp/in1", attributes={"schema": first_schema})
+        create("table", "//tmp/in2", attributes={"schema": second_schema})
+        create("table", "//tmp/out", attributes={"schema": output_schema})
+
+        row_count = 2
+        first_rows = [
+            {
+                "key1": 2*i,
+                "key3": i,
+            }
+            for i in xrange(row_count)
+        ]
+        shuffle(first_rows)
+        write_table("//tmp/in1", first_rows)
+        second_rows = [
+            {
+                "key1": 2*i + 1,
+                "key2": i,
+            }
+            for i in xrange(row_count)
+        ]
+        shuffle(second_rows)
+        write_table("//tmp/in2", second_rows)
+
+        reducer = """
+import sys, json, struct
+
+def read(n):
+    bufs = []
+    left = n
+    while left > 0:
+        bufs.append(sys.stdin.read(left))
+        left -= len(bufs[-1])
+        if len(bufs[-1]) == 0:
+            assert left == n or left == 0
+            break
+    return b"".join(bufs)
+
+while True:
+    table_index_buf = read(2)
+    if not table_index_buf:
+        break
+    (table_index,) = struct.unpack("<H", table_index_buf)
+    (one_key,) = struct.unpack("<q", read(8))
+    (another_key,) = struct.unpack("<q", read(8))
+    row = {"table_index": table_index}
+    if table_index == 0:
+        row["key1"] = one_key
+        row["key3"] = another_key
+    else:
+        row["key1"] = one_key
+        row["key2"] = another_key
+    sys.stderr.write(json.dumps(row) + "\\n")
+    sys.stdout.write(json.dumps(row) + "\\n")
+"""
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", reducer)
+        input_format = yson.YsonString("skiff")
+        input_format.attributes["table_skiff_schemas"] = [
+            skiff_tuple([
+                skiff_simple("int64", name="key1"),
+                skiff_simple("nothing", name="key2"),
+                skiff_simple("int64", name="key3"),
+            ]),
+            skiff_tuple([
+                skiff_simple("int64", name="key1"),
+                skiff_simple("int64", name="key2"),
+                skiff_simple("nothing", name="key3"),
+            ]),
+        ]
+        map_reduce(
+            in_=["//tmp/in1", "//tmp/in2"],
+            out="//tmp/out",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=["key1", "key2", "key3"],
+            spec={
+                "reduce_job_io": {
+                    "control_attributes": {
+                        "enable_table_index": True,
+                    },
+                },
+                "reducer": {
+                    "input_format": input_format,
+                    "output_format": "json",
+                },
+                "max_failed_job_count": 1,
+            },
+        )
+        result_rows = read_table("//tmp/out")
+        expected_rows = []
+        for r in first_rows:
+            r.update({"table_index": 0, "key2": None})
+            expected_rows.append(r)
+        for r in second_rows:
+            r.update({"table_index": 1, "key3": None})
+            expected_rows.append(r)
+        assert sorted(expected_rows) == sorted(result_rows)
 
     @authors("ermolovd")
     def test_read_write_empty_tuple(self):

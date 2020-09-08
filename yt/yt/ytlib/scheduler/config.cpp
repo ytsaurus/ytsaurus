@@ -5,6 +5,8 @@
 #include <yt/client/security_client/acl.h>
 #include <yt/client/security_client/helpers.h>
 
+#include <yt/client/table_client/schema.h>
+
 #include <yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/core/ytree/convert.h>
@@ -19,6 +21,7 @@ namespace NYT::NScheduler {
 using namespace NYson;
 using namespace NYTree;
 using namespace NSecurityClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,7 +42,7 @@ static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
     }
 }
 
-void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<TString>* owners)
+static void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<TString>* owners)
 {
     if (!acl->Entries.empty() && !owners->empty()) {
         // COMPAT(levysotsky): Priority is given to |acl| currently.
@@ -50,6 +53,14 @@ void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vec
             *owners,
             EPermissionSet(EPermission::Read | EPermission::Manage));
         owners->clear();
+    }
+}
+
+static void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType operationType)
+{
+    if (!spec->OutputStreams.empty()) {
+        THROW_ERROR_EXCEPTION("\"output_streams\" are currently not allowed in %Qlv operations",
+            operationType);
     }
 }
 
@@ -551,6 +562,14 @@ TOperationSpecBase::TOperationSpecBase()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTaskOutputStreamConfig::TTaskOutputStreamConfig()
+{
+    RegisterParameter("schema", Schema)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TUserJobSpec::TUserJobSpec()
 {
     RegisterParameter("task_title", TaskTitle)
@@ -564,6 +583,8 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("input_format", InputFormat)
         .Default();
     RegisterParameter("output_format", OutputFormat)
+        .Default();
+    RegisterParameter("output_streams", OutputStreams)
         .Default();
     RegisterParameter("enable_input_table_index", EnableInputTableIndex)
         .Default();
@@ -917,6 +938,8 @@ TMapOperationSpec::TMapOperationSpec()
 
         Mapper->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
         Mapper->TaskTitle = "Mapper";
+
+        ValidateNoOutputStreams(Mapper, EOperationType::Map);
     });
 }
 
@@ -1029,6 +1052,8 @@ TReduceOperationSpec::TReduceOperationSpec()
 
         Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
         Reducer->TaskTitle = "Reducer";
+
+        ValidateNoOutputStreams(Reducer, EOperationType::Reduce);
     });
 }
 
@@ -1250,9 +1275,6 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
                 jobType);
         };
         auto validateControlAttributes = [&] (const NFormats::TControlAttributesConfigPtr& attributes, const TString& jobType) {
-            if (attributes->EnableTableIndex) {
-                throwError(NTableClient::EControlAttribute::TableIndex, jobType);
-            }
             if (attributes->EnableRowIndex) {
                 throwError(NTableClient::EControlAttribute::RowIndex, jobType);
             }
@@ -1269,19 +1291,35 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
         validateControlAttributes(MergeJobIO->ControlAttributes, "reduce");
         validateControlAttributes(SortJobIO->ControlAttributes, "reduce_combiner");
 
+        if (HasNontrivialReduceCombiner()) {
+            if (MergeJobIO->ControlAttributes->EnableTableIndex != SortJobIO->ControlAttributes->EnableTableIndex) {
+                THROW_ERROR_EXCEPTION("%Qlv control attribute must be the same for \"reduce\" and \"reduce_combiner\" jobs",
+                    NTableClient::EControlAttribute::TableIndex);
+            }
+        }
+
         if (!ReduceBy.empty()) {
             NTableClient::ValidateKeyColumns(ReduceBy);
         }
 
-        if (MapperOutputTableCount >= OutputTablePaths.size()) {
-            THROW_ERROR_EXCEPTION(
-                "There should be at least one non-mapper output table; maybe you need Map operation instead?")
-                << TErrorAttribute("mapper_output_table_count", MapperOutputTableCount)
-                << TErrorAttribute("output_table_count", OutputTablePaths.size());
-        }
-
         if (ReduceBy.empty()) {
             ReduceBy = SortBy;
+        }
+
+        if (HasNontrivialMapper()) {
+            for (const auto& stream : Mapper->OutputStreams) {
+                if (stream->Schema->GetKeyColumns() != SortBy) {
+                    THROW_ERROR_EXCEPTION("Schemas of mapper output streams should have exactly "
+                        "\"sort_by\" key column prefix")
+                        << TErrorAttribute("violating_schema", stream->Schema);
+                }
+                const auto& firstStream = Mapper->OutputStreams.front();
+                if (*stream->Schema->Filter(SortBy) != *firstStream->Schema->Filter(SortBy)) {
+                    THROW_ERROR_EXCEPTION("Key columns of mapper output streams should have the same names and types")
+                        << TErrorAttribute("lhs_schema", firstStream->Schema)
+                        << TErrorAttribute("rhs_schema", stream->Schema);
+                }
+            }
         }
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
@@ -1291,15 +1329,49 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
             Mapper->InitEnableInputTableIndex(InputTablePaths.size(), PartitionJobIO);
             Mapper->TaskTitle = "Mapper";
         }
+
+        auto intermediateStreamCount = 1;
+        if (HasNontrivialMapper()) {
+            if (!Mapper->OutputStreams.empty()) {
+                intermediateStreamCount = Mapper->OutputStreams.size();
+            }
+        } else {
+            if (MergeJobIO->ControlAttributes->EnableTableIndex) {
+                intermediateStreamCount = InputTablePaths.size();
+            }
+        }
+
+        if (intermediateStreamCount > 1) {
+            if (!HasNontrivialMapper()) {
+                PartitionJobIO->ControlAttributes->EnableTableIndex = true;
+            }
+            MergeJobIO->ControlAttributes->EnableTableIndex = true;
+            SortJobIO->ControlAttributes->EnableTableIndex = true;
+        }
+
         if (HasNontrivialReduceCombiner()) {
+            if (intermediateStreamCount > 1) {
+                THROW_ERROR_EXCEPTION("Nontrivial reduce combiner is not allowed with several intermediate streams");
+            }
+            ReduceCombiner->InitEnableInputTableIndex(intermediateStreamCount, SortJobIO);
             ReduceCombiner->TaskTitle = "Reduce combiner";
         }
+
+        Reducer->InitEnableInputTableIndex(intermediateStreamCount, MergeJobIO);
         Reducer->TaskTitle = "Reducer";
-        // NB(psushin): don't init input table index for reduce jobs,
-        // they cannot have table index.
 
         if (Sampling && Sampling->SamplingRate) {
             MapSelectivityFactor *= *Sampling->SamplingRate;
+        }
+
+        if (MapperOutputTableCount >= OutputTablePaths.size() ||
+            (HasNontrivialMapper() && !Mapper->OutputStreams.empty() && MapperOutputTableCount >= Mapper->OutputStreams.size()))
+        {
+            THROW_ERROR_EXCEPTION(
+                "There should be at least one non-mapper output table; maybe you need Map operation instead?")
+                << TErrorAttribute("mapper_output_table_count", MapperOutputTableCount)
+                << TErrorAttribute("output_table_count", OutputTablePaths.size())
+                << TErrorAttribute("mapper_output_stream_count", Mapper->OutputStreams.size());
         }
     });
 }
@@ -1312,6 +1384,14 @@ bool TMapReduceOperationSpec::HasNontrivialMapper() const
 bool TMapReduceOperationSpec::HasNontrivialReduceCombiner() const
 {
     return ReduceCombiner && ReduceCombiner->IsNontrivial();
+}
+
+bool TMapReduceOperationSpec::HasSchemafulIntermediateStreams() const
+{
+    if (HasNontrivialMapper()) {
+        return !Mapper->OutputStreams.empty();
+    }
+    return MergeJobIO->ControlAttributes->EnableTableIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1377,6 +1457,8 @@ TVanillaOperationSpec::TVanillaOperationSpec()
             }
 
             taskSpec->TaskTitle = taskName;
+
+            ValidateNoOutputStreams(taskSpec, EOperationType::Vanilla);
         }
 
         if (Sampling && Sampling->SamplingRate) {

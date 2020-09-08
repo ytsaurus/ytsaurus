@@ -465,7 +465,6 @@ private:
     TDuration MemoryWatchdogPeriod_;
 
     std::vector<std::unique_ptr<IOutputStream>> TableOutputs_;
-    std::vector<std::unique_ptr<TWritingValueConsumer>> WritingValueConsumers_;
 
     // Writes stderr data to Cypress file.
     std::unique_ptr<TStderrWriter> ErrorOutput_;
@@ -820,16 +819,6 @@ private:
         }
     }
 
-    std::vector<IValueConsumer*> CreateValueConsumers(TTypeConversionConfigPtr typeConversionConfig)
-    {
-        std::vector<IValueConsumer*> valueConsumers;
-        for (const auto& writer : UserJobWriteController_->GetWriters()) {
-            WritingValueConsumers_.emplace_back(new TWritingValueConsumer(writer, typeConversionConfig));
-            valueConsumers.push_back(WritingValueConsumers_.back().get());
-        }
-        return valueConsumers;
-    }
-
     void UploadStderrFile()
     {
         if (JobErrorPromise_.IsSet() || UserJobSpec_.upload_stderr_if_completed()) {
@@ -846,13 +835,13 @@ private:
     void PrepareOutputTablePipes()
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
-        auto valueConsumers = CreateValueConsumers(ConvertTo<TTypeConversionConfigPtr>(format.Attributes()));
+        auto typeConversionConfig = ConvertTo<TTypeConversionConfigPtr>(format.Attributes());
+        auto valueConsumers = UserJobWriteController_->CreateValueConsumers(typeConversionConfig);
         auto parsers = CreateParsersForFormat(format, valueConsumers);
 
-        const auto& writers = UserJobWriteController_->GetWriters();
-
-        TableOutputs_.reserve(writers.size());
-        for (int i = 0; i < writers.size(); ++i) {
+        auto outputStreamCount = UserJobWriteController_->GetOutputStreamCount();
+        TableOutputs_.reserve(outputStreamCount);
+        for (int i = 0; i < outputStreamCount; ++i) {
             TableOutputs_.emplace_back(std::make_unique<TTableOutput>(std::move(parsers[i])));
 
             int jobDescriptor = UserJobSpec_.use_yamr_descriptors()
@@ -874,7 +863,7 @@ private:
             };
 
             std::vector<TFuture<void>> flushResults;
-            for (const auto& valueConsumer : WritingValueConsumers_) {
+            for (const auto& valueConsumer : UserJobWriteController_->GetAllValueConsumers()) {
                 flushResults.push_back(valueConsumer->Flush());
             }
             checkErrors(flushResults);

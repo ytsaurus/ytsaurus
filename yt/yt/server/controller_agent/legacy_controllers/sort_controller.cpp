@@ -2979,6 +2979,10 @@ private:
     i64 MapStartRowIndex = 0;
     i64 ReduceStartRowIndex = 0;
 
+
+    std::vector<TTableSchemaPtr> IntermediateStreamSchemas_;
+    TTableSchemaPtr IntermediateChunkSchema_;
+
     // Custom bits of preparation pipeline.
 
     virtual void DoInitialize() override
@@ -3052,9 +3056,96 @@ private:
         return result;
     }
 
+    static bool AreAllEqual(const std::vector<TTableSchemaPtr>& schemas)
+    {
+        for (const auto& schema : schemas) {
+            if (*schemas.front() != *schema) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void InitIntermediateSchemas()
+    {
+        if (!Spec->HasSchemafulIntermediateStreams()) {
+            IntermediateStreamSchemas_ = {New<TTableSchema>()};
+            IntermediateChunkSchema_ = TTableSchema::FromKeyColumns(Spec->SortBy);
+            return;
+        }
+
+        auto toStreamSchema = [] (const TTableSchemaPtr& schema, const TKeyColumns& keyColumns) {
+            auto columns = schema->Columns();
+            for (const auto& keyColumn : keyColumns) {
+                if (!schema->FindColumn(keyColumn)) {
+                    columns.push_back(TColumnSchema(keyColumn, SimpleLogicalType(ESimpleLogicalValueType::Null)));
+                }
+            }
+            return New<TTableSchema>(std::move(columns), schema->GetStrict())->ToSorted(keyColumns);
+        };
+
+        auto inferColumnType = [] (const std::vector<TInputTablePtr>& tables, TStringBuf keyColumn) -> TLogicalTypePtr {
+            TLogicalTypePtr type;
+            bool missingInSomeSchema = false;
+            for (const auto& table : tables) {
+                auto column = table->Schema->FindColumn(keyColumn);
+                if (!column) {
+                    missingInSomeSchema = true;
+                    continue;
+                }
+                if (!type) {
+                    type = column->LogicalType();
+                } else if (*type != *column->LogicalType()) {
+                    THROW_ERROR_EXCEPTION("Type mismatch for key column %Qv in input schemas", keyColumn)
+                        << TErrorAttribute("lhs_type", type)
+                        << TErrorAttribute("rhs_type", column->LogicalType());
+                }
+            }
+            if (!type) {
+                return SimpleLogicalType(ESimpleLogicalValueType::Null);
+            }
+            if (missingInSomeSchema && !type->IsNullable()) {
+                return OptionalLogicalType(std::move(type));
+            }
+            return type;
+        };
+
+        std::vector<TColumnSchema> chunkSchemaColumns;
+        if (Spec->HasNontrivialMapper()) {
+            YT_VERIFY(Spec->Mapper->OutputStreams.size() > Spec->MapperOutputTableCount);
+            auto intermediateStreamCount = Spec->Mapper->OutputStreams.size() - Spec->MapperOutputTableCount;
+            for (int i = 0; i < intermediateStreamCount; ++i) {
+                IntermediateStreamSchemas_.push_back(Spec->Mapper->OutputStreams[i]->Schema);
+            }
+            if (AreAllEqual(IntermediateStreamSchemas_)) {
+                chunkSchemaColumns = IntermediateStreamSchemas_.front()->Columns();
+            } else {
+                chunkSchemaColumns = IntermediateStreamSchemas_.front()->Filter(Spec->SortBy)->Columns();
+            }
+        } else {
+            YT_VERIFY(!InputTables_.empty());
+            for (const auto& inputTable : InputTables_) {
+                IntermediateStreamSchemas_.push_back(toStreamSchema(inputTable->Schema, Spec->SortBy));
+            }
+            if (AreAllEqual(IntermediateStreamSchemas_)) {
+                chunkSchemaColumns = IntermediateStreamSchemas_.front()->Columns();
+            } else {
+                for (const auto& keyColumn : Spec->SortBy) {
+                    auto type = inferColumnType(InputTables_, keyColumn);
+                    chunkSchemaColumns.emplace_back(keyColumn, std::move(type), ESortOrder::Ascending);
+                }
+            }
+        }
+
+        chunkSchemaColumns.emplace_back(TableIndexColumnName, ESimpleLogicalValueType::Int64);
+        IntermediateChunkSchema_ = New<TTableSchema>(std::move(chunkSchemaColumns), /* strict */ false);
+    }
+
     virtual void CustomPrepare() override
     {
         TSortControllerBase::CustomPrepare();
+
+        InitIntermediateSchemas();
 
         if (TotalEstimatedInputDataWeight == 0)
             return;
@@ -3110,12 +3201,15 @@ private:
         std::vector<TEdgeDescriptor> partitionEdgeDescriptors;
 
         // Primary edge descriptor for shuffled output of the mapper.
-        TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
+
+        auto shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
         shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput;
         shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
         shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
+        shuffleEdgeDescriptor.TableUploadOptions.TableSchema = IntermediateChunkSchema_;
+        shuffleEdgeDescriptor.StreamSchemas = IntermediateStreamSchemas_;
+        partitionEdgeDescriptors.push_back(std::move(shuffleEdgeDescriptor));
 
-        partitionEdgeDescriptors.emplace_back(std::move(shuffleEdgeDescriptor));
         partitionEdgeDescriptors.insert(
             partitionEdgeDescriptors.end(),
             MapperSinkEdges_.begin(),
@@ -3243,13 +3337,16 @@ private:
             }
         }
 
+        auto intermediateDataSourceDirectory = BuildIntermediateDataSourceDirectory(IntermediateStreamSchemas_);
+        const auto castAnyToComposite = !AreAllEqual(IntermediateStreamSchemas_);
+
         auto intermediateReaderOptions = New<TTableReaderOptions>();
         {
             auto* schedulerJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig).GetData());
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
+            SetDataSourceDirectory(schedulerJobSpecExt, intermediateDataSourceDirectory);
 
             if (Spec->HasNontrivialReduceCombiner()) {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::ReduceCombiner));
@@ -3263,6 +3360,7 @@ private:
                     Spec->ReduceCombiner,
                     ReduceCombinerFiles,
                     Spec->JobNodeAccount);
+                schedulerJobSpecExt->mutable_user_job_spec()->set_cast_input_any_to_composite(castAnyToComposite);
             } else {
                 IntermediateSortJobSpecTemplate.set_type(static_cast<int>(EJobType::IntermediateSort));
                 auto* sortJobSpecExt = IntermediateSortJobSpecTemplate.MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
@@ -3277,7 +3375,7 @@ private:
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
+            SetDataSourceDirectory(schedulerJobSpecExt, intermediateDataSourceDirectory);
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig).GetData());
 
@@ -3289,6 +3387,7 @@ private:
                 Spec->Reducer,
                 ReducerFiles,
                 Spec->JobNodeAccount);
+            schedulerJobSpecExt->mutable_user_job_spec()->set_cast_input_any_to_composite(castAnyToComposite);
         }
 
         {
@@ -3298,7 +3397,7 @@ private:
             auto* reduceJobSpecExt = SortedMergeJobSpecTemplate.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
             schedulerJobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).GetData());
-            SetDataSourceDirectory(schedulerJobSpecExt, BuildIntermediateDataSourceDirectory());
+            SetDataSourceDirectory(schedulerJobSpecExt, intermediateDataSourceDirectory);
 
             schedulerJobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig).GetData());
 
@@ -3310,6 +3409,7 @@ private:
                 Spec->Reducer,
                 ReducerFiles,
                 Spec->JobNodeAccount);
+            schedulerJobSpecExt->mutable_user_job_spec()->set_cast_input_any_to_composite(castAnyToComposite);
         }
     }
 

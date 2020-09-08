@@ -154,14 +154,31 @@ void BuildFileSpecs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory()
+TString GetIntermediatePath(int streamIndex)
+{
+    return Format("<intermediate_%d>", streamIndex);
+}
+
+TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas)
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
-    dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
-        IntermediatePath,
-        nullptr,
-        /* columns */ std::nullopt,
-        /* omittedInaccessibleColumns */ {}));
+    if (schemas.empty()) {
+        dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+            GetIntermediatePath(0),
+            /* schema */ nullptr,
+            /* columns */ std::nullopt,
+            /* omittedInaccessibleColumns */ {}));
+    } else {
+        for (int i = 0; i < schemas.size(); ++i) {
+            dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
+                GetIntermediatePath(i),
+                schemas[i],
+                /* columns */ std::nullopt,
+                /* omittedInaccessibleColumns */ {}));
+        }
+    }
+
     return dataSourceDirectory;
 }
 

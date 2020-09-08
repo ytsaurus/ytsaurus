@@ -1,4 +1,5 @@
 import pytest
+from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 
 from yt_env_setup import YTEnvSetup, unix_only, wait, parametrize_external
 from yt.environment.helpers import assert_items_equal
@@ -28,6 +29,39 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
             "enable_partition_map_job_size_adjustment" : True
         }
     }
+
+    TWO_INPUT_SCHEMAFUL_REDUCER_TEMPLATE = """
+import os, sys, json
+table_index = 0
+rows_got = 0
+for l in sys.stdin:
+    row = json.loads(l)
+    if "$attributes" in row:
+        assert row["$value"] is None
+        table_index = row["$attributes"]["table_index"]
+        continue
+    if rows_got == 0:
+        s = 0
+    if table_index == 0:
+        s += row["struct"]["a"]
+        b = row["struct"]["b"]
+    else:
+        assert table_index == 1
+        s += row["{second_struct}"]["{second_struct_a}"]
+    rows_got += 1
+    if rows_got == 2:
+        sys.stdout.write(json.dumps({{"a": row["a"], "struct2": {{"a2": s, "b2": b}}}}) + "\\n")
+        rows_got = 0
+"""
+
+    TWO_INPUT_SCHEMAFUL_REDUCER = TWO_INPUT_SCHEMAFUL_REDUCER_TEMPLATE.format(
+        second_struct="struct1",
+        second_struct_a="a1",
+    )
+    TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS = TWO_INPUT_SCHEMAFUL_REDUCER_TEMPLATE.format(
+        second_struct="struct",
+        second_struct_a="a",
+    )
 
     @pytest.mark.parametrize("method", ["map_sort_reduce", "map_reduce", "map_reduce_1p", "reduce_combiner_dev_null",
                                         "force_reduce_combiners", "ordered_map_reduce", "map_reduce_with_hierarchical_partitions"])
@@ -690,7 +724,7 @@ print "x={0}\ty={1}".format(x, y)
             map_reduce(mapper_command="cat", reducer_command="cat",
                        in_="//tmp/t1", out="//tmp/t2",
                        sort_by=["foo"],
-                       spec={"reduce_job_io": {"control_attributes" : {"enable_table_index" : "true"}}})
+                       spec={"reduce_job_io": {"control_attributes" : {"enable_row_index" : "true"}}})
 
     @authors("savrus")
     def test_schema_validation(self):
@@ -983,10 +1017,895 @@ print "x={0}\ty={1}".format(x, y)
 
         assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
+    @authors("levysotsky")
+    def test_intermediate_schema(self):
+        schema = [
+            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "struct", "type_v3": struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+                ("c", "bool"),
+            ])},
+        ]
+        output_schema = [
+            {"name": "a", "type_v3": "int64"},
+            {"name": "struct", "type_v3": struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+                ("c", "bool"),
+            ])},
+        ]
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2", attributes={"schema": output_schema})
+
+        rows = [{"a": i, "b": str(i)*3} for i in range(50)]
+        write_table("//tmp/t1", rows)
+
+        mapper = """
+import sys, json
+for l in sys.stdin:
+    row = json.loads(l)
+    a, b = row["a"], row["b"]
+    sys.stdout.write(json.dumps({"a": a, "struct": {"a": a, "b": b, "c": True}}))
+"""
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
+
+        op = map_reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            mapper_file=["//tmp/mapper.py"],
+            mapper_command="python mapper.py",
+            reducer_command="cat",
+            reduce_combiner_command="cat",
+            sort_by=["a"],
+            spec={
+                "mapper": {
+                    "output_streams": [
+                        {"schema": schema},
+                    ],
+                    "format": "json",
+                },
+                "reducer": {"format": "json"},
+                "reduce_combiner": {
+                    "format": "json",
+                },
+                "max_failed_job_count": 1,
+                "force_reduce_combiners": True,
+            },
+        )
+        # Controller is always switched to legacy for schemaful map_reduce.
+        assert get(op.get_path() + "/@progress/legacy_controller") == True
+
+        result_rows = read_table("//tmp/t2")
+        expected_rows = [{"a": r["a"], "struct": {"a": r["a"], "b": r["b"], "c": True}} for r in rows]
+        assert sorted(expected_rows) == sorted(result_rows)
+
+    @authors("levysotsky")
+    def test_several_intermediate_schemas_trivial_mapper(self):
+        first_schema = [
+            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "struct", "type_v3": struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+            ])},
+        ]
+        second_schema = [
+            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "struct1", "type_v3": struct_type([
+                ("a1", "int64"),
+            ])},
+        ]
+        output_schema = [
+            {"name": "a", "type_v3": "int64"},
+            {"name": "struct2", "type_v3": struct_type([
+                ("a2", "int64"),
+                ("b2", "string"),
+            ])},
+        ]
+
+        create("table", "//tmp/in1", attributes={"schema": first_schema})
+        create("table", "//tmp/in2", attributes={"schema": second_schema})
+        create("table", "//tmp/out", attributes={"schema": output_schema})
+
+        row_count = 50
+        rows1 = [{"a": i, "struct": {"a": i**2, "b": str(i)*3}} for i in range(row_count)]
+        write_table("//tmp/in1", rows1)
+        rows2 = [{"a": i, "struct1": {"a1": i**3}} for i in range(row_count)]
+        write_table("//tmp/in2", rows2)
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER)
+
+        op = map_reduce(
+            in_=["//tmp/in1", "//tmp/in2"],
+            out="//tmp/out",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=["a"],
+            spec={
+                "reduce_job_io": {
+                    "control_attributes": {
+                        "enable_table_index": True,
+                    },
+                },
+                "reducer": {"format": "json"},
+                "max_failed_job_count": 1,
+            },
+        )
+        # Controller is always switched to legacy for schemaful map_reduce.
+        assert get(op.get_path() + "/@progress/legacy_controller") == True
+
+        result_rows = read_table("//tmp/out")
+        expected_rows = []
+        for a in xrange(row_count):
+            row = {"a": a, "struct2": {"a2": a**2 + a**3, "b2": 3 * str(a)}}
+            expected_rows.append(row)
+        assert sorted(expected_rows) == sorted(result_rows)
+
 ##################################################################
 
 class TestSchedulerMapReduceCommandsLegacy(TestSchedulerMapReduceCommands):
     USE_LEGACY_CONTROLLERS = True
+
+    DROP_TABLE_INDEX_REDUCER = """
+import sys, json
+for l in sys.stdin:
+    row = json.loads(l)
+    if "$attributes" in row:
+        assert row["$value"] is None
+        assert "table_index" in row["$attributes"]
+        continue
+    sys.stdout.write(json.dumps(row) + "\\n")
+"""
+
+    @authors("levysotsky")
+    def test_several_intermediate_schemas(self):
+        first_schema = [
+            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "struct", "type_v3": struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+            ])},
+        ]
+        second_schema = [
+            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "struct1", "type_v3": struct_type([
+                ("a1", "int64"),
+            ])},
+        ]
+        output_schema = [
+            {"name": "a", "type_v3": "int64"},
+            {"name": "struct2", "type_v3": struct_type([
+                ("a2", "int64"),
+                ("b2", "string"),
+            ])},
+        ]
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2", attributes={"schema": output_schema})
+
+        row_count = 50
+        rows = [{"a": i, "b": str(i)*3} for i in range(row_count)]
+        write_table("//tmp/t1", rows)
+
+        mapper = """
+import os, sys, json
+for l in sys.stdin:
+    row = json.loads(l)
+    a, b = row["a"], row["b"]
+    if a % 2 == 0:
+        out_row = {"a": a // 2, "struct": row}
+        os.write(1, json.dumps(out_row) + "\\n")
+    else:
+        out_row = {"a": a // 2, "struct1": {"a1": a - 1}}
+        os.write(4, json.dumps(out_row) + "\\n")
+"""
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER)
+
+        map_reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            mapper_file=["//tmp/mapper.py"],
+            mapper_command="python mapper.py",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=["a"],
+            spec={
+                "mapper": {
+                    "output_streams": [
+                        {"schema": first_schema},
+                        {"schema": second_schema},
+                    ],
+                    "format": "json",
+                },
+                "reducer": {"format": "json"},
+                "max_failed_job_count": 1,
+            },
+        )
+
+        result_rows = read_table("//tmp/t2")
+        expected_rows = []
+        for a in xrange(row_count // 2):
+            row = {"a": a, "struct2": {"a2": 4 * a, "b2": 3 * str(2 * a)}}
+            expected_rows.append(row)
+        assert sorted(expected_rows) == sorted(result_rows)
+
+    @authors("levysotsky")
+    @pytest.mark.parametrize("cat_combiner", [False, True])
+    @pytest.mark.xfail(reason="several streams with combiner are not currently supported")
+    def test_several_intermediate_schemas_with_combiner(self, cat_combiner):
+        first_schema = [
+            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "struct", "type_v3": struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+            ])},
+        ]
+        second_schema = [
+            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "struct1", "type_v3": struct_type([
+                ("a1", "int64"),
+            ])},
+        ]
+        output_schema = [
+            {"name": "a", "type_v3": "int64"},
+            {"name": "struct2", "type_v3": struct_type([
+                ("a2", "int64"),
+                ("b2", "string"),
+            ])},
+        ]
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2", attributes={"schema": output_schema})
+
+        row_count = 50
+        rows = [{"a": i, "b": str(i)*3} for i in range(row_count)]
+        write_table("//tmp/t1", rows)
+
+        mapper = """
+import os, sys, json
+for l in sys.stdin:
+    row = json.loads(l)
+    a, b = row["a"], row["b"]
+    if a % 2 == 0:
+        out_row = {"a": a // 2, "struct": row}
+        os.write(1, json.dumps(out_row) + "\\n")
+    else:
+        out_row = {"a": a // 2, "struct1": {"a1": a - 1}}
+        os.write(4, json.dumps(out_row) + "\\n")
+"""
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
+
+        reduce_combiner = """
+import os, sys, json
+table_index = 0
+for l in sys.stdin:
+    row = json.loads(l)
+    if "$attributes" in row:
+        assert row["$value"] is None
+        table_index = row["$attributes"]["table_index"]
+        continue
+    if table_index == 0:
+        row["struct"]["b"] += "_after_combiner"
+    else:
+        assert table_index == 1
+        row["struct1"]["a1"] += 100
+    os.write(table_index * 3 + 1, json.dumps(row))
+"""
+        create("file", "//tmp/reduce_combiner.py")
+        write_file("//tmp/reduce_combiner.py", reduce_combiner)
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER)
+
+        map_reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            mapper_file=["//tmp/mapper.py"],
+            mapper_command="python mapper.py",
+            reduce_combiner_file=["//tmp/reduce_combiner.py"],
+            reduce_combiner_command="cat" if cat_combiner else "python reduce_combiner.py",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=["a"],
+            spec={
+                "mapper": {
+                    "output_streams": [
+                        {"schema": first_schema},
+                        {"schema": second_schema},
+                    ],
+                    "format": "json",
+                },
+                "reducer": {"format": "json"},
+                "reduce_combiner": {"format": "json"},
+                "force_reduce_combiners": True,
+                "max_failed_job_count": 1,
+            },
+        )
+
+        result_rows = read_table("//tmp/t2")
+        expected_rows = []
+        for a in xrange(row_count // 2):
+            if cat_combiner:
+                row = {"a": a, "struct2": {"a2": 4 * a, "b2": 3 * str(2 * a)}}
+            else:
+                row = {"a": a, "struct2": {"a2": 4 * a + 100, "b2": 3 * str(2 * a) + "_after_combiner"}}
+            expected_rows.append(row)
+        assert sorted(expected_rows) == sorted(result_rows)
+
+    @authors("levysotsky")
+    def test_identical_intermediate_schemas(self):
+        schema = [
+            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "struct", "type_v3": struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+            ])},
+        ]
+        output_schema = [
+            {"name": "a", "type_v3": "int64"},
+            {"name": "struct2", "type_v3": struct_type([
+                ("a2", "int64"),
+                ("b2", "string"),
+            ])},
+        ]
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2", attributes={"schema": output_schema})
+
+        row_count = 50
+        rows = [{"a": i, "b": str(i)*3} for i in range(row_count)]
+        write_table("//tmp/t1", rows)
+
+        mapper = """
+import os, sys, json
+for l in sys.stdin:
+    row = json.loads(l)
+    a, b = row["a"], row["b"]
+    out_row = {"a": a, "struct": {"a": a**2, "b": str(a) * 3}}
+    os.write(1, json.dumps(out_row) + "\\n")
+    out_row = {"a": a, "struct": {"a": a**3, "b": str(a) * 5}}
+    os.write(4, json.dumps(out_row) + "\\n")
+"""
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS)
+
+        map_reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            mapper_file=["//tmp/mapper.py"],
+            mapper_command="python mapper.py",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=["a"],
+            spec={
+                "mapper": {
+                    "output_streams": [
+                        {"schema": schema},
+                        {"schema": schema},
+                    ],
+                    "format": "json",
+                },
+                "reducer": {"format": "json"},
+                "max_failed_job_count": 1,
+            },
+        )
+
+        result_rows = read_table("//tmp/t2")
+        expected_rows = []
+        for a in xrange(row_count):
+            row = {"a": a, "struct2": {"a2": a**2 + a**3, "b2": 3 * str(a)}}
+            expected_rows.append(row)
+        assert sorted(expected_rows) == sorted(result_rows)
+
+    @authors("levysotsky")
+    def test_identical_intermediate_schemas_trivial_mapper(self):
+        input_schema = [
+            {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+            {"name": "struct", "type_v3": struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+            ])},
+        ]
+        output_schema = [
+            {"name": "a", "type_v3": "int64"},
+            {"name": "struct2", "type_v3": struct_type([
+                ("a2", "int64"),
+                ("b2", "string"),
+            ])},
+        ]
+
+        create("table", "//tmp/in1", attributes={"schema": input_schema})
+        create("table", "//tmp/in2", attributes={"schema": input_schema})
+        create("table", "//tmp/out", attributes={"schema": output_schema})
+
+        row_count = 50
+        rows1 = [{"a": i, "struct": {"a": i**2, "b": str(i)*3}} for i in range(row_count)]
+        write_table("//tmp/in1", rows1)
+        rows2 = [{"a": i, "struct": {"a": i**3, "b": str(i)*5}} for i in range(row_count)]
+        write_table("//tmp/in2", rows2)
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS)
+
+        map_reduce(
+            in_=["//tmp/in1", "//tmp/in2"],
+            out="//tmp/out",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=["a"],
+            spec={
+                "reduce_job_io": {
+                    "control_attributes": {
+                        "enable_table_index": True,
+                    },
+                },
+                "reducer": {"format": "json"},
+                "max_failed_job_count": 1,
+            },
+        )
+
+        result_rows = read_table("//tmp/out")
+        expected_rows = []
+        for a in xrange(row_count):
+            row = {"a": a, "struct2": {"a2": a**2 + a**3, "b2": 3 * str(a)}}
+            expected_rows.append(row)
+        assert sorted(expected_rows) == sorted(result_rows)
+
+    @authors("levysotsky")
+    def test_several_intermediate_schemas_composite_in_key(self):
+        key_columns = [
+            {"name": "key1", "type_v3": tuple_type(["int64", "string"]), "sort_order": "ascending"},
+            {"name": "key2", "type_v3": list_type("int64"), "sort_order": "ascending"},
+            {"name": "key3", "type_v3": "string", "sort_order": "ascending"},
+        ]
+        first_schema = key_columns + [
+            {"name": "struct", "type_v3": struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+            ])},
+        ]
+        second_schema = key_columns + [
+            {"name": "struct1", "type_v3": struct_type([
+                ("a1", "int64"),
+                ("list1", list_type("int64")),
+            ])},
+        ]
+        output_schema = [
+            {"name": "key1", "type_v3": tuple_type(["int64", "string"])},
+            {"name": "struct2", "type_v3": struct_type([
+                ("a2", "int64"),
+                ("b2", "string"),
+                ("list2", list_type("int64")),
+            ])},
+        ]
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2", attributes={"schema": output_schema})
+
+        row_count = 50
+        rows = [{"a": i} for i in range(row_count)]
+        write_table("//tmp/t1", rows)
+
+        mapper = """
+import os, sys, json
+row_count = {row_count}
+for l in sys.stdin:
+    a = json.loads(l)["a"]
+    key = {{
+        "key1": [(row_count - a - 1) // 10, str(a)],
+        "key2": [a] * (a // 10),
+        "key3": str(a) * 3,
+    }}
+    out_row_1 = {{
+        "struct": {{
+            "a": a,
+            "b": str(a) * 3,
+        }},
+    }}
+    out_row_1.update(key)
+    os.write(1, json.dumps(out_row_1) + "\\n")
+    out_row_2 = {{
+        "struct1": {{
+            "a1": a,
+            "list1": [a] * (a // 10),
+        }},
+    }}
+    out_row_2.update(key)
+    os.write(4, json.dumps(out_row_2) + "\\n")
+"""
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper.format(row_count=row_count))
+
+        reducer = """
+import os, sys, json
+table_index = 0
+rows_got = 0
+for l in sys.stdin:
+    row = json.loads(l)
+    if "$attributes" in row:
+        assert row["$value"] is None
+        table_index = row["$attributes"]["table_index"]
+        continue
+    if rows_got == 0:
+        key2_sum = 0
+    key2_sum += sum(row["key2"])
+    if table_index == 0:
+        b = row["struct"]["b"]
+    else:
+        assert table_index == 1
+        list2 = row["struct1"]["list1"]
+    rows_got += 1
+    if rows_got == 2:
+        out_row = {{
+            "key1": row["key1"],
+            "struct2": {{
+                "a2": key2_sum,
+                "b2": b,
+                "list2": list2,
+            }},
+        }}
+        sys.stdout.write(json.dumps(out_row) + "\\n")
+        rows_got = 0
+"""
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", reducer.format())
+
+        map_reduce(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            mapper_file=["//tmp/mapper.py"],
+            mapper_command="python mapper.py",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=["key1", "key2", "key3"],
+            spec={
+                "mapper": {
+                    "output_streams": [
+                        {"schema": first_schema},
+                        {"schema": second_schema},
+                    ],
+                    "format": "json",
+                },
+                "reducer": {"format": "json"},
+                "max_failed_job_count": 1,
+            },
+        )
+
+        result_rows = read_table("//tmp/t2")
+        expected_rows = []
+        for a in xrange(row_count):
+            row = {
+                "key1": [(row_count - a - 1) // 10, str(a)],
+                "struct2": {
+                    "a2": 2 * a * (a // 10),
+                    "b2": str(a) * 3,
+                    "list2": [a] * (a // 10),
+                },
+            }
+            expected_rows.append(row)
+        assert sorted(expected_rows) == sorted(result_rows)
+
+    @authors("levysotsky")
+    def test_distinct_intermediate_schemas_trivial_mapper_json(self):
+        first_schema = [
+            {"name": "key1", "type_v3": tuple_type(["int64", "string"])},
+            {"name": "key3", "type_v3": "string"},
+            {"name": "struct", "type_v3": struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+            ])},
+        ]
+        second_schema = [
+            {"name": "key2", "type_v3": list_type("int64")},
+            {"name": "key3", "type_v3": "string"},
+            {"name": "struct1", "type_v3": struct_type([
+                ("a1", "int64"),
+                ("list1", list_type("int64")),
+            ])},
+        ]
+        output_schema = [
+            {"name": "key1", "type_v3": tuple_type(["int64", "string"])},
+            {"name": "struct2", "type_v3": struct_type([
+                ("a2", "int64"),
+                ("b2", "string"),
+                ("list2", list_type("int64")),
+            ])},
+        ]
+
+        create("table", "//tmp/in1", attributes={"schema": first_schema})
+        create("table", "//tmp/in2", attributes={"schema": second_schema})
+        create("table", "//tmp/out", attributes={"schema": output_schema})
+
+        row_count = 50
+        first_rows = [
+            {
+                "key1": [(row_count - a - 1) // 10, str(a)],
+                "key3": str(a) * 3,
+                "struct": {
+                    "a": a,
+                    "b": str(a) * 3,
+                },
+            }
+            for a in xrange(row_count)
+        ]
+        shuffle(first_rows)
+        write_table("//tmp/in1", first_rows)
+        second_rows = [
+            {
+                "key2": [a] * (a // 10),
+                "key3": str(a) * 3,
+                "struct1": {
+                    "a1": a,
+                    "list1": [a] * (a // 10),
+                },
+            }
+            for a in xrange(row_count)
+        ]
+        shuffle(second_rows)
+        write_table("//tmp/in2", second_rows)
+
+        reducer = """
+import os, sys, json
+key2_sum = 0
+list2 = []
+first_batch_sent = False
+for l in sys.stdin:
+    row = json.loads(l)
+    if "$attributes" in row:
+        assert row["$value"] is None
+        table_index = row["$attributes"]["table_index"]
+        continue
+    if row.get("key1") is None:
+        assert table_index == 1
+        list2 += row["struct1"]["list1"]
+        key2_sum += sum(row["key2"])
+    else:
+        if not first_batch_sent:
+            out_row = {{
+                "key1": [-111, "-111"],
+                "struct2": {{
+                    "a2": key2_sum,
+                    "b2": "nothing",
+                    "list2": list2,
+                }},
+            }}
+            sys.stdout.write(json.dumps(out_row) + "\\n")
+            first_batch_sent = True
+        b = row["struct"]["b"]
+        assert table_index == 0
+        out_row = {{
+            "key1": row.get("key1"),
+            "struct2": {{
+                "a2": 0,
+                "b2": b,
+                "list2": [],
+            }},
+        }}
+        sys.stdout.write(json.dumps(out_row) + "\\n")
+"""
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", reducer.format())
+
+        map_reduce(
+            in_=["//tmp/in1", "//tmp/in2"],
+            out="//tmp/out",
+            reducer_file=["//tmp/reducer.py"],
+            reducer_command="python reducer.py",
+            sort_by=["key1", "key2", "key3"],
+            spec={
+                "reduce_job_io": {
+                    "control_attributes": {
+                        "enable_table_index": True,
+                    },
+                },
+                "reducer": {"format": "json"},
+                "max_failed_job_count": 1,
+            },
+        )
+
+        result_rows = read_table("//tmp/out")
+        expected_rows = []
+        for a in xrange(row_count):
+            row_1 = {
+                "key1": [(row_count - a - 1) // 10, str(a)],
+                "struct2": {
+                    "a2": 0,
+                    "b2": str(a) * 3,
+                    "list2": [],
+                },
+            }
+            expected_rows.append(row_1)
+        row_2 = {
+            "key1": [-111, "-111"],
+            "struct2": {
+                "a2": sum(a * (a // 10) for a in xrange(row_count)),
+                "b2": "nothing",
+                "list2": sum(([a] * (a // 10) for a in xrange(row_count)), []),
+            },
+        }
+        expected_rows.append(row_2)
+        assert sorted(expected_rows) == sorted(result_rows)
+
+    @authors("levysotsky")
+    def test_wrong_intermediate_schemas(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        rows = [{"a": i, "b": str(i)*3} for i in range(50)]
+        write_table("//tmp/t1", rows)
+
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.DROP_TABLE_INDEX_REDUCER)
+
+        def run(sort_by, schemas):
+            map_reduce(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                mapper_command="cat",
+                reducer_file=["//tmp/reducer.py"],
+                reducer_command="python reducer.py",
+                sort_by=sort_by,
+                spec={
+                    "mapper": {
+                        "format": "json",
+                        "output_streams": [
+                            {"schema": schema}
+                            for schema in schemas
+                        ],
+                    },
+                    "reducer": {"format": "json"},
+                    "max_failed_job_count": 1,
+                },
+            )
+
+        with pytest.raises(YtError):
+            # Key column types must not differ.
+            run(
+                ["a", "b"],
+                [
+                    [
+                        {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+                        {"name": "b", "type_v3": "bool", "sort_order": "ascending"},
+                    ],
+                    [
+                        {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+                        {"name": "b", "type_v3": "string", "sort_order": "ascending"},
+                    ],
+                ]
+            )
+
+        # Non-key columns can differ.
+        run(
+            ["a"],
+            [
+                [
+                    {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type_v3": "bool"},
+                ],
+                [
+                    {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type_v3": "string"},
+                ],
+            ]
+        )
+
+        with pytest.raises(YtError):
+            # Key columns must correspond to sort_by.
+            run(
+                ["a"],
+                [
+                    [
+                        {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+                        {"name": "b", "type_v3": "bool", "sort_order": "ascending"},
+                    ],
+                    [
+                        {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
+                        {"name": "b", "type_v3": "bool", "sort_order": "ascending"},
+                    ],
+                ]
+            )
+
+    @authors("levysotsky")
+    def test_wrong_intermediate_schemas_trivial_mapper(self):
+        create("file", "//tmp/reducer.py")
+        write_file("//tmp/reducer.py", self.DROP_TABLE_INDEX_REDUCER)
+
+        def run(sort_by, schemas, rows):
+            inputs = ["//tmp/in{}".format(i) for i in xrange(len(schemas))]
+            for path, schema, table_rows in zip(inputs, schemas, rows):
+                remove(path, force=True)
+                create("table", path, attributes={"schema": schema})
+                write_table(path, table_rows)
+            remove("//tmp/out", force=True)
+            create("table", "//tmp/out")
+            map_reduce(
+                in_=inputs,
+                out="//tmp/out",
+                reducer_file=["//tmp/reducer.py"],
+                reducer_command="python reducer.py",
+                sort_by=sort_by,
+                spec={
+                    "reduce_job_io": {
+                        "control_attributes": {
+                            "enable_table_index": True,
+                        },
+                    },
+                    "reducer": {"format": "json"},
+                    "max_failed_job_count": 1,
+                },
+            )
+
+        with pytest.raises(YtError):
+            # Key column types must not differ.
+            run(
+                ["a", "b"],
+                [
+                    [
+                        {"name": "a", "type_v3": "int64"},
+                        {"name": "b", "type_v3": "bool"},
+                    ],
+                    [
+                        {"name": "a", "type_v3": "int64"},
+                        {"name": "b", "type_v3": "string"},
+                    ],
+                ],
+                [
+                    [{"a": 10, "b": False}],
+                    [{"a": 12, "b": "NotBool"}],
+                ],
+            )
+
+        # Non-key columns can differ.
+        run(
+            ["a"],
+            [
+                [
+                    {"name": "a", "type_v3": "int64"},
+                    {"name": "b", "type_v3": "bool"},
+                ],
+                [
+                    {"name": "a", "type_v3": "int64"},
+                    {"name": "b", "type_v3": "string"},
+                ],
+            ],
+            [
+                [{"a": 10, "b": False}],
+                [{"a": 12, "b": "NotBool"}],
+            ],
+        )
+
+        # Key columns can intersect freely.
+        run(
+            ["a", "b", "c"],
+            [
+                [
+                    {"name": "a", "type_v3": "int64"},
+                    {"name": "b", "type_v3": "bool"},
+                    {"name": "d", "type_v3": "string"},
+                ],
+                [
+                    {"name": "b", "type_v3": "bool"},
+                    {"name": "c", "type_v3": "string"},
+                    {"name": "d", "type_v3": "double"},
+                ],
+            ],
+            [
+                [{"a": 10, "b": False, "d": "blh"}],
+                [{"b": True, "c": "booh", "d": 2.71}],
+            ],
+        )
 
 ##################################################################
 
@@ -999,4 +1918,3 @@ class TestSchedulerMapReduceCommandsPortal(TestSchedulerMapReduceCommandsMultice
     ENABLE_TMP_PORTAL = True
 
 ##################################################################
-
