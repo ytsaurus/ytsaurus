@@ -99,6 +99,7 @@ TEST_SRCS(
     test_rff.py
     test_rpc_proxy.py
     test_run.py
+    test_snapshot_validation.py
     test_scheduler_acls.py
     test_scheduler_alerts.py
     test_scheduler_auto_merge.py

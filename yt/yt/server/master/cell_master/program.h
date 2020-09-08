@@ -16,9 +16,11 @@
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
-#include <yt/core/ytalloc/bindings.h>
+#include <yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
+
+#include <yt/core/ytalloc/bindings.h>
 
 namespace NYT {
 
@@ -63,6 +65,10 @@ public:
             .AddLongOption("report-total-write-count")
             .SetFlag(&EnableTotalWriteCountReport_)
             .NoArgument();
+        Opts_
+            .AddLongOption("sleep-after-initialize", "sleep for 10s after calling TBootstrap::Initialize()")
+            .SetFlag(&SleepAfterInitialize_)
+            .NoArgument();
     }
 
 protected:
@@ -102,6 +108,10 @@ protected:
             return;
         }
 
+        if (dumpSnapshot || validateSnapshot || exportSnapshot) {
+            NBus::TTcpDispatcher::Get()->DisableNetworking();
+        }
+
         auto config = GetConfig();
 
         if (dumpSnapshot) {
@@ -118,6 +128,10 @@ protected:
         // may be holding a reference to it and continue running some actions in background threads.
         auto* bootstrap = new NCellMaster::TBootstrap(std::move(config));
         bootstrap->Initialize();
+
+        if (SleepAfterInitialize_) {
+            NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(10));
+        }
 
         if (dumpSnapshot) {
             bootstrap->TryLoadSnapshot(DumpSnapshot_, true, false, DumpConfig_);
@@ -137,6 +151,7 @@ private:
     TString ExportSnapshotConfig_;
     TString DumpConfig_;
     bool EnableTotalWriteCountReport_ = false;
+    bool SleepAfterInitialize_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

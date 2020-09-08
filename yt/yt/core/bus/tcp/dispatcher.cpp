@@ -41,6 +41,11 @@ NConcurrency::IPollerPtr TTcpDispatcher::GetXferPoller()
     return Impl_->GetXferPoller();
 }
 
+void TTcpDispatcher::DisableNetworking()
+{
+    Impl_->DisableNetworking();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 REGISTER_SHUTDOWN_CALLBACK(6, TTcpDispatcher::StaticShutdown);

@@ -13,9 +13,11 @@
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
-#include <yt/core/ytalloc/bindings.h>
+#include <yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
+
+#include <yt/core/ytalloc/bindings.h>
 
 namespace NYT::NClusterNode {
 
@@ -78,6 +80,10 @@ protected:
 
         if (HandleConfigOptions()) {
             return;
+        }
+
+        if (ValidateSnapshot_) {
+            NBus::TTcpDispatcher::Get()->DisableNetworking();
         }
 
         auto config = GetConfig();

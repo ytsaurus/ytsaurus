@@ -443,6 +443,8 @@ TTcpDispatcherStatistics TTcpConnection::GetStatistics() const
 
 TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& options)
 {
+    TTcpDispatcher::TImpl::Get()->ValidateNetworkingNotDisabled(EMessageDirection::Outcoming);
+
     if (message.Size() > MaxMessagePartCount) {
         return MakeFuture<void>(TError(
             NRpc::EErrorCode::TransportError,
@@ -635,6 +637,8 @@ void TTcpConnection::OnShutdown()
 void TTcpConnection::OnSocketRead()
 {
     YT_LOG_TRACE("Started serving read request");
+
+    TTcpDispatcher::TImpl::Get()->ValidateNetworkingNotDisabled(EMessageDirection::Incoming);
 
     size_t bytesReadTotal = 0;
     while (true) {
@@ -1234,4 +1238,3 @@ void TTcpConnection::InitSocketTosLevel(TTosLevel tosLevel)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NBus
-

@@ -35,6 +35,8 @@ public:
 
     void RegisterConnection(TTcpConnectionPtr connection);
 
+    void ValidateNetworkingNotDisabled(EMessageDirection messageDirection);
+
 private:
     friend class TTcpDispatcher;
 
@@ -49,6 +51,8 @@ private:
         int threadCount,
         const TString& threadNamePrefix);
     void ShutdownPoller(NConcurrency::IPollerPtr* poller);
+
+    void DisableNetworking();
 
     mutable NConcurrency::TReaderWriterSpinLock PollerLock_;
     bool Terminated_ = false;
@@ -71,6 +75,8 @@ private:
     TSpinLock PeriodicExecutorsLock_;
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     NConcurrency::TPeriodicExecutorPtr LivenessCheckExecutor_;
+
+    std::atomic<bool> NetworkingDisabled_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,6 +18,7 @@ using namespace NNet;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = BusProfiler;
+static const auto& Logger = BusLogger;
 
 static constexpr auto XferThreadCount = 8;
 static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
@@ -153,6 +154,19 @@ void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* poller)
     }
     if (swappedPoller) {
         swappedPoller->Shutdown();
+    }
+}
+
+void TTcpDispatcher::TImpl::DisableNetworking()
+{
+    NetworkingDisabled_.store(true);
+}
+
+void TTcpDispatcher::TImpl::ValidateNetworkingNotDisabled(EMessageDirection messageDirection)
+{
+    if (Y_UNLIKELY(NetworkingDisabled_.load())) {
+        YT_LOG_FATAL("Networking is disabled with global switch, %lv message detected",
+            messageDirection);
     }
 }
 
