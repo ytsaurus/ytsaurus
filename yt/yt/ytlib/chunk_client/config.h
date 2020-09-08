@@ -97,6 +97,9 @@ class TMultiChunkWriterOptions
     , public virtual TRemoteWriterOptions
 {
 public:
+    static constexpr int InvalidTableIndex = -1;
+
+public:
     int ReplicationFactor;
     TString Account;
     bool ChunksVital;
@@ -135,7 +138,7 @@ public:
         RegisterParameter("erasure_codec", ErasureCodec)
             .Default(NErasure::ECodec::None);
         RegisterParameter("table_index", TableIndex)
-            .Default(-1);
+            .Default(InvalidTableIndex);
         RegisterParameter("table_key_column_count", TableKeyColumnCount)
             .Default();
         RegisterParameter("table_unique_keys", TableUniqueKeys)

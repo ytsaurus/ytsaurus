@@ -181,6 +181,10 @@ message TUserJobSpec
     optional bool make_rootfs_writable = 54 [default = false];
 
     optional int32 restart_exit_code = 55;
+
+    // Cast Any values from input row stream to Composite
+    // according to schemas from data source directory.
+    optional bool cast_input_any_to_composite = 56 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -221,6 +225,9 @@ message TTableOutputSpec
 
     // Serialized NTableClient.NProto.TTableSchemaExt with output table schema.
     required bytes table_schema = 8;
+
+    // Serialized NTableClient.NProto.TTableSchemaExt with stream schemas.
+    repeated bytes stream_schemas = 12;
 }
 
 // Describes a job submitted by a scheduler.

@@ -61,7 +61,10 @@ void BuildFileSpecs(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory();
+TString GetIntermediatePath(int streamIndex);
+
+NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas = {});
 
 void SetDataSourceDirectory(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec, const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory);
 

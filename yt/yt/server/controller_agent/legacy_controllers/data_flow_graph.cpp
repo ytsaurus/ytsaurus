@@ -62,6 +62,10 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, LivePreviewIndex);
     Persist(context, TargetDescriptor);
     Persist(context, PartitionTag);
+    // COMPAT(levysotsky)
+    if (context.GetVersion() >= ESnapshotVersion::SchemafulMapReduce) {
+        Persist<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>(context, StreamSchemas);
+    }
 }
 
 TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
@@ -79,6 +83,7 @@ TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
     IsOutputTableDynamic = other.IsOutputTableDynamic;
     LivePreviewIndex = other.LivePreviewIndex;
     TargetDescriptor = other.TargetDescriptor;
+    StreamSchemas = other.StreamSchemas;
 
     return *this;
 }

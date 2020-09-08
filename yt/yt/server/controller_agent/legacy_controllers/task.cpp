@@ -967,6 +967,18 @@ void TTask::UpdateInputSpecTotals(
         list->TotalRowCount);
 }
 
+TString TTask::GetOrCacheSerializedSchema(const TTableSchemaPtr& schema)
+{
+    auto it = TableSchemaToProtobufTableSchema_.find(schema);
+    if (it == TableSchemaToProtobufTableSchema_.end()) {
+        auto serializedSchema = SerializeToWireProto(schema);
+        YT_VERIFY(TableSchemaToProtobufTableSchema_.emplace(schema, serializedSchema).second);
+        return serializedSchema;
+    } else {
+        return it->second;
+    }
+}
+
 void TTask::AddOutputTableSpecs(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
@@ -982,22 +994,15 @@ void TTask::AddOutputTableSpecs(
             outputSpec->set_table_writer_config(edgeDescriptor.TableWriterConfig.GetData());
         }
         const auto& outputTableSchema = edgeDescriptor.TableUploadOptions.TableSchema;
-        TString serializedSchema;
-        {
-            auto it = TableSchemaToProtobufTableSchema_.find(outputTableSchema);
-            if (it == TableSchemaToProtobufTableSchema_.end()) {
-                serializedSchema = SerializeToWireProto(outputTableSchema);
-                YT_VERIFY(TableSchemaToProtobufTableSchema_.emplace(outputTableSchema, serializedSchema).second);
-            } else {
-                serializedSchema = it->second;
-            }
-        }
-        outputSpec->set_table_schema(serializedSchema);
+        outputSpec->set_table_schema(GetOrCacheSerializedSchema(outputTableSchema));
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
         if (edgeDescriptor.Timestamp) {
             outputSpec->set_timestamp(*edgeDescriptor.Timestamp);
         }
         outputSpec->set_dynamic(edgeDescriptor.IsOutputTableDynamic);
+        for (const auto& streamSchema : edgeDescriptor.StreamSchemas) {
+            outputSpec->add_stream_schemas(GetOrCacheSerializedSchema(streamSchema));
+        }
     }
 }
 

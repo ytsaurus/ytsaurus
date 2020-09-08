@@ -1,5 +1,6 @@
 #include "user_job_read_controller.h"
 
+#include "any_to_composite_converter.h"
 #include "helpers.h"
 #include "job_spec_helper.h"
 #include "user_job_io_factory.h"
@@ -187,6 +188,12 @@ private:
             true,
             JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
             JobSpecHelper_->GetKeySwitchColumnCount());
+
+        if (JobSpecHelper_->GetSchedulerJobSpecExt().user_job_spec().cast_input_any_to_composite()) {
+            // Intermediate chunks have incomplete schema, so Composite value type is not
+            // restored in block reader. We need to restore it here.
+            writer = New<TAnyToCompositeConverter>(std::move(writer), schemas, Reader_->GetNameTable());
+        }
 
         FormatWriters_.push_back(writer);
 

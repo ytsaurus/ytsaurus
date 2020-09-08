@@ -5,16 +5,23 @@
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/job_proxy/user_job_io_factory.h>
 
 #include <yt/ytlib/table_client/blob_table_writer.h>
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/value_consumer.h>
+
+#include <yt/core/actions/invoker_util.h>
+
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/ytree/convert.h>
@@ -36,6 +43,136 @@ using namespace NObjectClient;
 using namespace NYTree;
 
 using NChunkClient::TDataSliceDescriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Allows to write to single underlying writer rows
+// that correspond to several streams and possibly have different schemas.
+DECLARE_REFCOUNTED_CLASS(TMultiplexingWriter)
+
+class TMultiplexingWriter
+    : public TRefCounted
+{
+public:
+    TMultiplexingWriter(
+        TTypeConversionConfigPtr typeConversionConfig,
+        ISchemalessMultiChunkWriterPtr underlying)
+        : TypeConversionConfig_(std::move(typeConversionConfig))
+        , Underlying_(std::move(underlying))
+        , SerializedInvoker_(CreateSerializedInvoker(GetCurrentInvoker()))
+    { }
+
+    // Create consumer corresponding to a stream no. |index| and having given schema.
+    // Returned consumers can be safely used from different threads.
+    std::unique_ptr<IFlushableValueConsumer> CreateConsumer(int index, TTableSchemaPtr schema)
+    {
+        YT_VERIFY(!Closed_);
+        ++OpenWriterCount_;
+        return std::make_unique<TStreamWritingValueConsumer>(
+            this,
+            index,
+            Underlying_->GetNameTable(),
+            std::move(schema),
+            TypeConversionConfig_);
+    }
+
+private:
+    const TTypeConversionConfigPtr TypeConversionConfig_;
+    const ISchemalessMultiChunkWriterPtr Underlying_;
+    const IInvokerPtr SerializedInvoker_;
+
+    bool Closed_ = false;
+    int OpenWriterCount_ = 0;
+
+private:
+    using TMultiplexingWriterPtr = TIntrusivePtr<TMultiplexingWriter>;
+
+    struct TStreamWritingValueConsumerBufferTag
+    { };
+
+    class TStreamWritingValueConsumer
+        : public IFlushableValueConsumer
+        , public TValueConsumerBase
+    {
+    public:
+        TStreamWritingValueConsumer(
+            TMultiplexingWriterPtr owner,
+            int tableIndex,
+            TNameTablePtr nameTable,
+            TTableSchemaPtr schema,
+            TTypeConversionConfigPtr typeConversionConfig)
+            : TValueConsumerBase(std::move(schema), std::move(typeConversionConfig))
+            , Owner_(std::move(owner))
+            , NameTable_(std::move(nameTable))
+            , RowBuffer_(New<TRowBuffer>(TStreamWritingValueConsumerBufferTag()))
+            , TableIndexValue_(MakeUnversionedInt64Value(
+                tableIndex,
+                NameTable_->GetIdOrRegisterName(TableIndexColumnName)))
+        {
+            InitializeIdToTypeMapping();
+        }
+
+        virtual TFuture<void> Flush() override
+        {
+            if (RowBuffer_->GetSize() == 0) {
+                return VoidFuture;
+            }
+
+            return
+                BIND([writer = Owner_->Underlying_, rowBuffer = RowBuffer_, rows = std::move(Rows_)] {
+                    writer->Write(rows);
+                    rowBuffer->Clear();
+                    return writer->GetReadyEvent();
+                })
+                .AsyncVia(Owner_->SerializedInvoker_)
+                .Run();
+        }
+
+        virtual const TNameTablePtr& GetNameTable() const override
+        {
+            return NameTable_;
+        }
+
+        virtual bool GetAllowUnknownColumns() const override
+        {
+            return true;
+        }
+
+        virtual void OnBeginRow() override
+        { }
+
+        virtual void OnMyValue(const TUnversionedValue& value) override
+        {
+            RowBuilder_.AddValue(RowBuffer_->Capture(value));
+        }
+
+        virtual void OnEndRow() override
+        {
+            RowBuilder_.AddValue(TableIndexValue_);
+            auto row = RowBuffer_->Capture(RowBuilder_.GetRow(), /* deep */ false);
+            Rows_.push_back(row);
+            RowBuilder_.Reset();
+
+            if (RowBuffer_->GetSize() >= MaxRowBufferSize_) {
+                auto error = WaitFor(Flush());
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Table writer failed")
+            }
+        }
+
+    private:
+        static constexpr i64 MaxRowBufferSize_ = 1_MB;
+
+        const TMultiplexingWriterPtr Owner_;
+        const TNameTablePtr NameTable_;
+        const TRowBufferPtr RowBuffer_;
+        const TUnversionedValue TableIndexValue_;
+
+        TUnversionedRowBuilder RowBuilder_;
+        std::vector<TUnversionedRow> Rows_;
+    };
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiplexingWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,6 +266,58 @@ std::vector<ISchemalessMultiChunkWriterPtr> TUserJobWriteController::GetWriters(
     } else {
         return {};
     }
+}
+
+int TUserJobWriteController::GetOutputStreamCount() const
+{
+    int count = 0;
+    for (const auto& outputTableSpec : Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt().output_table_specs()) {
+        if (outputTableSpec.stream_schemas_size() > 0) {
+            count += outputTableSpec.stream_schemas_size();
+        } else {
+            count += 1;
+        }
+    }
+    return count;
+}
+
+std::vector<IValueConsumer*> TUserJobWriteController::CreateValueConsumers(
+    TTypeConversionConfigPtr typeConversionConfig)
+{
+    if (!Initialized_) {
+        return {};
+    }
+
+    const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
+
+    std::vector<IValueConsumer*> consumers;
+    consumers.reserve(schedulerJobSpecExt.output_table_specs_size());
+    YT_VERIFY(Writers_.size() == schedulerJobSpecExt.output_table_specs_size());
+    for (int outputIndex = 0; outputIndex < schedulerJobSpecExt.output_table_specs_size(); ++outputIndex) {
+        const auto& outputSpec = schedulerJobSpecExt.output_table_specs(outputIndex);
+        const auto& writer = Writers_[outputIndex];
+        if (outputSpec.stream_schemas_size() > 1) {
+            // NB(levysotsky): Currently only first output is supposed to have several streams.
+            YT_VERIFY(outputIndex == 0);
+
+            auto multiplexingWriter = New<TMultiplexingWriter>(typeConversionConfig, writer);
+            for (int streamIndex = 0; streamIndex < outputSpec.stream_schemas_size(); ++streamIndex) {
+                TTableSchemaPtr schema;
+                DeserializeFromWireProto(&schema, outputSpec.stream_schemas(streamIndex));
+                ValueConsumers_.push_back(multiplexingWriter->CreateConsumer(streamIndex, schema));
+                consumers.push_back(ValueConsumers_.back().get());
+            }
+        } else {
+            ValueConsumers_.push_back(std::make_unique<TWritingValueConsumer>(writer, typeConversionConfig));
+            consumers.push_back(ValueConsumers_.back().get());
+        }
+    }
+    return consumers;
+}
+
+const std::vector<std::unique_ptr<IFlushableValueConsumer>>& TUserJobWriteController::GetAllValueConsumers() const
+{
+    return ValueConsumers_;
 }
 
 IOutputStream* TUserJobWriteController::GetStderrTableWriter() const

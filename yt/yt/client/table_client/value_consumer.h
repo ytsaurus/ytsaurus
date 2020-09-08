@@ -30,10 +30,16 @@ struct IValueConsumer
     virtual void OnEndRow() = 0;
 };
 
+struct IFlushableValueConsumer
+    : public virtual IValueConsumer
+{
+    virtual TFuture<void> Flush() = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TValueConsumerBase
-    : public IValueConsumer
+    : public virtual IValueConsumer
 {
 public:
     TValueConsumerBase(
@@ -115,6 +121,7 @@ private:
 
 class TWritingValueConsumer
     : public TValueConsumerBase
+    , public IFlushableValueConsumer
 {
 public:
     explicit TWritingValueConsumer(
@@ -122,7 +129,14 @@ public:
         TTypeConversionConfigPtr typeConversionConfig = New<TTypeConversionConfig>(),
         i64 maxRowBufferSize = 1_MB);
 
-    TFuture<void> Flush();
+    virtual TFuture<void> Flush() override;
+    virtual const TNameTablePtr& GetNameTable() const override;
+
+    virtual bool GetAllowUnknownColumns() const override;
+
+    virtual void OnBeginRow() override;
+    virtual void OnMyValue(const TUnversionedValue& value) override;
+    virtual void OnEndRow() override;
 
 private:
     const IUnversionedWriterPtr Writer_;
@@ -132,14 +146,6 @@ private:
 
     std::vector<TUnversionedRow> Rows_;
     SmallVector<TUnversionedValue, TypicalColumnCount> Values_;
-
-    virtual const TNameTablePtr& GetNameTable() const override;
-
-    virtual bool GetAllowUnknownColumns() const override;
-
-    virtual void OnBeginRow() override;
-    virtual void OnMyValue(const TUnversionedValue& value) override;
-    virtual void OnEndRow() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

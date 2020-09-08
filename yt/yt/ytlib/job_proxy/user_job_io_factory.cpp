@@ -482,10 +482,6 @@ public:
         const auto& jobSpec = JobSpecHelper_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
         auto partitioner = CreatePartitioner(jobSpecExt);
-        auto keyColumns = FromProto<TKeyColumns>(jobSpecExt.sort_key_columns());
-
-        auto nameTable = TNameTable::FromKeyColumns(keyColumns);
-        nameTable->SetEnableColumnNameValidation();
 
         // We pass partitioning columns through schema but input stream is not sorted.
         options->ValidateSorted = false;
@@ -493,12 +489,19 @@ public:
         // TODO(max42): currently ReturnBoundaryKeys are set exactly for the writers
         // that correspond to the map-sink edge. Think more about how this may be done properly.
         if (!options->ReturnBoundaryKeys) {
+            auto keyColumns = FromProto<TKeyColumns>(jobSpecExt.sort_key_columns());
+            auto nameTable = TNameTable::FromKeyColumns(keyColumns);
+            nameTable->SetEnableColumnNameValidation();
+            if (tableSchema->Columns().empty()) {
+                tableSchema = TTableSchema::FromKeyColumns(keyColumns);
+            }
+
             // This writer is used for partitioning.
             return CreatePartitionMultiChunkWriter(
-                config,
-                options,
-                nameTable,
-                TTableSchema::FromKeyColumns(keyColumns),
+                std::move(config),
+                std::move(options),
+                std::move(nameTable),
+                std::move(tableSchema),
                 std::move(client),
                 CellTagFromId(chunkListId),
                 transactionId,
@@ -515,7 +518,7 @@ public:
                 std::move(options),
                 chunkListId,
                 transactionId,
-                tableSchema,
+                std::move(tableSchema),
                 chunkTimestamps,
                 TrafficMeter_,
                 OutBandwidthThrottler_);
@@ -535,7 +538,7 @@ class TPartitionReduceJobIOFactory
     : public TUserJobIOFactoryBase
 {
 public:
-    explicit TPartitionReduceJobIOFactory(
+    TPartitionReduceJobIOFactory(
         IJobSpecHelperPtr jobSpecHelper,
         const TClientBlockReadOptions& blockReadOptions,
         TTrafficMeterPtr trafficMeter,

@@ -90,6 +90,10 @@ struct TEdgeDescriptor
     bool ImmediatelyUnstageChunkLists = false;
     bool IsFinalOutput = false;
     bool IsOutputTableDynamic = false;
+
+    // An edge can correspond to several streams.
+    std::vector<NTableClient::TTableSchemaPtr> StreamSchemas;
+
     // In most situations coincides with the index of an edge descriptor,
     // but in some situations may differ. For example, an auto merge task
     // may have the only output descriptor, but we would like to attach

@@ -48,6 +48,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((MergeRowCountValidation)              (300415))
     ((FixDataFlowGraphPersistence)          (300416))
     ((JobResourcesIntToLong)                (300417))
+    ((SchemafulMapReduce)                   (300418))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

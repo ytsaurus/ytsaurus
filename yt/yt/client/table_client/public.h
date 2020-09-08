@@ -249,6 +249,7 @@ DECLARE_REFCOUNTED_STRUCT(IUnversionedRowBatch)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedColumnarRowBatch)
 
 struct IValueConsumer;
+struct IFlushableValueConsumer;
 
 class TComplexTypeFieldDescriptor;
 
