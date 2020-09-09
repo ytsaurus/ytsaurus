@@ -17,6 +17,7 @@ import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.rpcproxy.ERowsetFormat
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentByteBufferReader
 import ru.yandex.yt.ytclient.proxy.request._
 
 import scala.concurrent.duration._

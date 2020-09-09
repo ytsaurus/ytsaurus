@@ -10,7 +10,10 @@ class PythonUtilsTest extends FlatSpec with Matchers with LocalSpark with TmpDir
   import spark.implicits._
 
   it should "serializeColumnToYson" in {
-    val df = Seq(B(A("1", "2")), B(A("3", "4"))).toDF()
+    val df = Seq(
+      PythonUtilsTestB(PythonUtilsTestA("1", "2")),
+      PythonUtilsTestB(PythonUtilsTestA("3", "4"))
+    ).toDF()
     val res = PythonUtils
       .serializeColumnToYson(df, "value", "ser_value", skipNulls = true)
 
@@ -19,8 +22,7 @@ class PythonUtilsTest extends FlatSpec with Matchers with LocalSpark with TmpDir
      Array(123,1,2,97,61,1,2,51,59,1,2,98,61,1,2,52,125).map(_.toByte),
    )
   }
-
 }
 
-case class A(a: String, b: String)
-case class B(value: A)
+case class PythonUtilsTestA(a: String, b: String)
+case class PythonUtilsTestB(value: PythonUtilsTestA)
