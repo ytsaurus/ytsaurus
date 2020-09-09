@@ -11,6 +11,8 @@ import ru.yandex.spark.yt.wrapper.client.YtRpcClient
 trait LocalSpark extends LocalYtClient {
   self: TestSuite =>
 
+  def numExecutors: Int = 4
+
   def sparkConf: SparkConf = new SparkConf()
     .set("fs.ytTable.impl", "ru.yandex.spark.yt.fs.YtTableFileSystem")
     .set("fs.yt.impl", "ru.yandex.spark.yt.fs.YtFileSystem")
@@ -32,7 +34,7 @@ trait LocalSpark extends LocalYtClient {
   }
 
   lazy val spark: SparkSession = SparkSession.builder()
-    .master("local[4]")
+    .master(s"local[$numExecutors]")
     .config(sparkConf)
     .withExtensions(_.injectPlannerStrategy(_ => plannerStrategy))
     .getOrCreate()
