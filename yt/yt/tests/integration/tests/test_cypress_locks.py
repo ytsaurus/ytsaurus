@@ -399,12 +399,12 @@ class TestCypressLocks(YTEnvSetup):
     def test_unlock_deeply_nested_node1(self, mode):
         create("map_node", "//tmp/m1")
 
-        tx1 = start_transaction()
-        tx2 = start_transaction(tx=tx1)
-        tx3 = start_transaction(tx=tx2)
-        tx4 = start_transaction(tx=tx3)
-        tx5 = start_transaction(tx=tx4)
-        tx6 = start_transaction(tx=tx5)
+        tx1 = start_transaction(timeout=60000)
+        tx2 = start_transaction(tx=tx1, timeout=60000)
+        tx3 = start_transaction(tx=tx2, timeout=60000)
+        tx4 = start_transaction(tx=tx3, timeout=60000)
+        tx5 = start_transaction(tx=tx4, timeout=60000)
+        tx6 = start_transaction(tx=tx5, timeout=60000)
 
         if mode == "shared":
             kwargs2 = {"child_key": "c2"}
@@ -465,9 +465,9 @@ class TestCypressLocks(YTEnvSetup):
                 transactions[i] = None
             else:
                 if prev_tx is None:
-                    prev_tx = start_transaction()
+                    prev_tx = start_transaction(timeout=60000)
                 else :
-                    prev_tx = start_transaction(tx=prev_tx)
+                    prev_tx = start_transaction(tx=prev_tx, timeout=60000)
                 transactions[i] = prev_tx
 
         tx1, tx2, tx3, tx4, tx5, tx6 = transactions
