@@ -36,6 +36,10 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
         buffer = new byte[limit];
     }
 
+    /**
+     * Flushes all buffered data to underlying stream
+     * and closes both YsonBinary writer and underlying stream.
+     */
     @Override
     public void close() {
         try {
@@ -188,6 +192,17 @@ public class YsonBinaryWriter implements ClosableYsonConsumer {
             throw new UncheckedIOException(e);
         }
         firstItem = false;
+    }
+
+    /**
+     * Flushes all buffered data to underlying stream.
+     */
+    public void flush() {
+        try {
+            doFlush();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private void writeItemSeparator() throws IOException {
