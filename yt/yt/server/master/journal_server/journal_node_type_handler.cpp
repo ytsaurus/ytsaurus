@@ -129,8 +129,8 @@ protected:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
-        YT_LOG_DEBUG_UNLESS(
-            IsRecovery(),
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
             "PrimaryMedium: %v, Replication: %v, ErasureCodec: %v, ReadQuorum: %v, WriteQuorum: %v, "
             "Mode: %v, LockTimestamp: %llx)",
@@ -169,8 +169,8 @@ protected:
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        YT_LOG_DEBUG_UNLESS(
-            IsRecovery(),
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
             "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
@@ -192,8 +192,8 @@ protected:
         TJournalNode* originatingNode,
         TJournalNode* branchedNode) override
     {
-        YT_LOG_DEBUG_UNLESS(
-            IsRecovery(),
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
             "Node unbranched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
@@ -253,8 +253,8 @@ protected:
         if (!trunkNode->IsExternal()) {
             auto* trailingChunk = trunkNode->GetTrailingChunk();
             if (trailingChunk && !trailingChunk->IsSealed()) {
-                YT_LOG_DEBUG_UNLESS(
-                    IsRecovery(),
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
                     "Waiting for the trailing journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
                     trunkNode->GetId(),
                     trailingChunk->GetId());

@@ -141,7 +141,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table mount (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Preparing table mount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
@@ -211,7 +211,7 @@ private:
         const auto& path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table mount (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing table mount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
@@ -258,7 +258,7 @@ private:
         auto tableId = FromProto<TTableId>(request->table_id());
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table mount (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting table mount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
@@ -292,7 +292,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unmount (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Preparing table unmount (TableId: %v, TransactionId: %v, %v, "
             "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -338,7 +338,7 @@ private:
         bool force = request->force();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unmount (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing table unmount (TableId: %v, TransactionId: %v, %v, "
             "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -375,7 +375,7 @@ private:
         bool force = request->force();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table unmount (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting table unmount (TableId: %v, TransactionId: %v, %v, "
             "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -405,7 +405,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table freeze (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Preparing table freeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -443,7 +443,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table freeze (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing table freeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -477,7 +477,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table freeze (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting table freeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -506,7 +506,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unfreeze (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Preparing table unfreeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -544,7 +544,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unfreeze (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing table unfreeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -579,7 +579,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table unfreeze (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting table unfreeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -608,7 +608,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table remount (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Preparing table remount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -646,7 +646,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table remount (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing table remount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -678,7 +678,7 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table remount (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting table remount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -709,7 +709,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table reshard (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Preparing table reshard (TableId: %v, TransactionId: %v, %v, "
             "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -753,7 +753,7 @@ private:
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table reshard (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing table reshard (TableId: %v, TransactionId: %v, %v, "
             "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
@@ -793,7 +793,7 @@ private:
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table reshard (TableId: %v, TransactionId: %v, %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting table reshard (TableId: %v, TransactionId: %v, %v, "
             "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),

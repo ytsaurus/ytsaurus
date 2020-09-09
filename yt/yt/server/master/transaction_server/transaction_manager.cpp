@@ -423,7 +423,7 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "ReplicatedToCellTags: %v, Timeout: %v, Deadline: %v, User: %v, Title: %v, WallTime: %v)",
             transactionId,
             GetObjectId(parent),
@@ -456,7 +456,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction is already committed (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -482,7 +482,7 @@ public:
             transaction->NestedTransactions().end());
         std::sort(nestedTransactions.begin(), nestedTransactions.end(), TObjectRefComparer::Compare);
         for (auto* nestedTransaction : nestedTransactions) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting nested transaction on parent commit (TransactionId: %v, ParentId: %v)",
                 nestedTransaction->GetId(),
                 transactionId);
             AbortTransaction(nestedTransaction, true);
@@ -546,7 +546,7 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %llx, WallTime: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %llx, WallTime: %v)",
             transactionId,
             user->GetName(),
             commitTimestamp,
@@ -638,7 +638,7 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, User: %v, Force: %v, WallTime: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, User: %v, Force: %v, WallTime: %v)",
             transactionId,
             user->GetName(),
             force,
@@ -733,14 +733,14 @@ public:
                 effectiveTransactionId = MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag());
                 effectiveParentTransactionId = MakeExternalizedTransactionId(parentTransactionId, multicellManager->GetCellTag());
 
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Externalizing transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTag: %v, ExternalizedTransactionId: %v, ExternalizedParentTransactionId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Externalizing transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTag: %v, ExternalizedTransactionId: %v, ExternalizedParentTransactionId: %v)",
                     transactionId,
                     parentTransactionId,
                     dstCellTag,
                     effectiveTransactionId,
                     effectiveParentTransactionId);
             } else {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Replicating transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTag: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Replicating transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTag: %v)",
                     transactionId,
                     parentTransactionId,
                     dstCellTag);
@@ -981,7 +981,7 @@ public:
             ? ETransactionState::PersistentCommitPrepared
             : ETransactionState::TransientCommitPrepared);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
             transactionId,
             persistent,
             prepareTimestamp);
@@ -1256,7 +1256,7 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
                 data.Type);
         }

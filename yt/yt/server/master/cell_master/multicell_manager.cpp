@@ -624,7 +624,7 @@ private:
 
         auto cellTag = request->cell_tag();
         if (!IsValidSecondaryCellTag(cellTag)) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Receieved registration request from an unknown secondary cell, ignored (CellTag: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Receieved registration request from an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
         }
@@ -638,7 +638,7 @@ private:
 
             ValidateSecondaryMasterRegistration_.Fire(cellTag);
         } catch (const std::exception& ex) {
-            YT_LOG_WARNING_UNLESS(IsRecovery(), ex, "Error registering secondary master (CellTag: %v)",
+            YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), ex, "Error registering secondary master (CellTag: %v)",
                 cellTag);
             NProto::TRspRegisterSecondaryMasterAtPrimary response;
             ToProto(response.mutable_error(), TError(ex).Sanitize());
@@ -684,14 +684,14 @@ private:
 
         auto error = FromProto<TError>(response->error());
         if (!error.IsOK()) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), error, "Error registering at primary master, will retry");
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), error, "Error registering at primary master, will retry");
             RegisterState_ = EPrimaryRegisterState::None;
             return;
         }
 
         RegisterState_ = EPrimaryRegisterState::Registered;
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Successfully registered at primary master");
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Successfully registered at primary master");
     }
 
     void HydraRegisterSecondaryMasterAtSecondary(NProto::TReqRegisterSecondaryMasterAtSecondary* request) noexcept
@@ -701,13 +701,13 @@ private:
 
         auto cellTag = request->cell_tag();
         if (!IsValidSecondaryCellTag(cellTag)) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Receieved registration request for an unknown secondary cell, ignored (CellTag: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Receieved registration request for an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
         }
 
         if (FindMasterEntry(cellTag))  {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempted to re-register secondary master, ignored (CellTag: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempted to re-register secondary master, ignored (CellTag: %v)",
                 cellTag);
             return;
         }
@@ -725,7 +725,7 @@ private:
             return;
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Registering at primary master");
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Registering at primary master");
 
         RegisterState_ = EPrimaryRegisterState::Registering;
         RegisterMasterMailbox(GetPrimaryCellTag());
@@ -742,7 +742,7 @@ private:
         YT_VERIFY(IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Received cell statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell statistics gossip message (CellTag: %v)",
             cellTag);
 
         auto* entry = GetMasterEntry(cellTag);
@@ -810,7 +810,7 @@ private:
 
         RecomputeMasterCellRoles();
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Master cell registered (CellTag: %v, CellIndex: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Master cell registered (CellTag: %v, CellIndex: %v)",
             cellTag,
             index);
     }

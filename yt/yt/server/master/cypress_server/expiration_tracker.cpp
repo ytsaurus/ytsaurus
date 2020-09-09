@@ -95,12 +95,12 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
     }
 
     if (auto expirationTime = trunkNode->TryGetExpirationTime()) {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time set (NodeId: %v, ExpirationTime: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node expiration time set (NodeId: %v, ExpirationTime: %v)",
             trunkNode->GetId(),
             *expirationTime);
         RegisterNodeExpirationTime(trunkNode, *expirationTime);
     } else {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time reset (NodeId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node expiration time reset (NodeId: %v)",
             trunkNode->GetId());
     }
 }
@@ -119,14 +119,14 @@ void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode)
     }
 
     if (auto expirationTimeout = trunkNode->TryGetExpirationTimeout()) {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration timeout set (NodeId: %v, ExpirationTimeout: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node expiration timeout set (NodeId: %v, ExpirationTimeout: %v)",
             trunkNode->GetId(),
             *expirationTimeout);
         if (!IsNodeLocked(trunkNode)) {
             RegisterNodeExpirationTimeout(trunkNode, TInstant::Now() + *expirationTimeout);
         }
     } else {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration timeout reset (NodeId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node expiration timeout reset (NodeId: %v)",
             trunkNode->GetId());
     }
 }
@@ -148,7 +148,7 @@ void TExpirationTracker::OnNodeTouched(TCypressNode* trunkNode)
     if (!IsNodeLocked(trunkNode)) {
         auto expirationTimeout = trunkNode->GetExpirationTimeout();
         auto expirationTime = TInstant::Now() + expirationTimeout;
-        YT_LOG_TRACE_UNLESS(IsRecovery(), "Node is scheduled to expire by timeout (NodeId: %v, ExpirationTimeout: %v, AnticipatedExpirationTime: %v)",
+        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Node is scheduled to expire by timeout (NodeId: %v, ExpirationTimeout: %v, AnticipatedExpirationTime: %v)",
             trunkNode->GetId(),
             expirationTimeout,
             expirationTime);
@@ -287,6 +287,11 @@ void TExpirationTracker::OnCheck()
 bool TExpirationTracker::IsRecovery() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
+}
+
+bool TExpirationTracker::IsMutationLoggingEnabled() const
+{
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
 }
 
 const TDynamicCypressManagerConfigPtr& TExpirationTracker::GetDynamicConfig()

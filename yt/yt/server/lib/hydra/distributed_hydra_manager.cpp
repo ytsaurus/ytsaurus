@@ -306,6 +306,13 @@ public:
         return DecoratedAutomaton_->GetState() == EPeerState::Following && FollowerRecovered_;
     }
 
+    virtual bool IsMutationLoggingEnabled() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return !IsRecovery() || Config_->ForceMutationLogging;
+    }
+
     virtual TCancelableContextPtr GetControlCancelableContext() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

@@ -323,7 +323,8 @@ private:
     TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer);
     void MaybeStartSnapshotBuilder();
 
-    bool IsRecovery();
+    bool IsRecovery() const;
+    bool IsMutationLoggingEnabled() const;
 
     void UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError);
     void UpdateSnapshotBuildDeadline();

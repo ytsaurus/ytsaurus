@@ -87,6 +87,12 @@ struct IHydraManager
      */
     virtual bool IsActiveFollower() const = 0;
 
+    //! Returns |true| if mutation logging is enabled.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool IsMutationLoggingEnabled() const = 0;
+
     //! Returns the cancelable context for the current epoch, as viewed by the Control Thread.
     /*!
      *  \note Thread affinity: ControlThread

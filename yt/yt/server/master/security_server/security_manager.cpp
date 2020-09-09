@@ -763,13 +763,13 @@ public:
         }
 
         auto delta = currentMasterMemoryUsage - node->GetChargedMasterMemoryUsage();
-        YT_LOG_TRACE_UNLESS(IsRecovery(), "Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
+        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
             account->GetName(),
             account->GetMasterMemoryUsage(),
             delta);
         account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + delta);
         if (account->GetMasterMemoryUsage() < 0) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Master memory usage is negative (MasterMemoryUsage: %v, Account: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Master memory usage is negative (MasterMemoryUsage: %v, Account: %v)",
                 account->GetMasterMemoryUsage(),
                 account->GetName());
         }
@@ -1171,7 +1171,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::NetworkProject, hintId);
         auto* networkProject = DoCreateNetworkProject(id, name);
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Network project created (NetworkProject: %v)", name);
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Network project created (NetworkProject: %v)", name);
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::NetworkProjectCreated)
             .Item("name").Value(networkProject->GetName());
@@ -1182,7 +1182,7 @@ public:
     {
         YT_VERIFY(NetworkProjectNameMap_.erase(networkProject->GetName()) == 1);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Network project destroyed (NetworkProject: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Network project destroyed (NetworkProject: %v)",
             networkProject->GetName());
         LogStructuredEventFluently(Logger, ELogLevel::Info)
             .Item("event").Value(EAccessControlEvent::NetworkProjectDestroyed)
@@ -1282,7 +1282,7 @@ public:
         YT_VERIFY(NetworkProjectNameMap_.erase(networkProject->GetName()) == 1);
         YT_VERIFY(NetworkProjectNameMap_.emplace(newName, networkProject).second);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Network project renamed (NetworkProject: %v, OldName: %v, NewName: %v",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Network project renamed (NetworkProject: %v, OldName: %v, NewName: %v",
             networkProject->GetId(),
             networkProject->GetName(),
             newName);
@@ -1315,7 +1315,7 @@ public:
         DoAddMember(group, member);
         MaybeRecomputeMembershipClosure();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member added (Group: %v, Member: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Group member added (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
 
@@ -1342,7 +1342,7 @@ public:
         DoRemoveMember(group, member);
         MaybeRecomputeMembershipClosure();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Group member removed (Group: %v, Member: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Group member removed (Group: %v, Member: %v)",
             group->GetName(),
             member->GetName());
 
@@ -1466,7 +1466,7 @@ public:
         TPermissionCheckOptions options = {})
     {
         if (IsVersionedType(object->GetType()) && object->IsForeign()) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Checking permission for a versioned foreign object (ObjectId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Checking permission for a versioned foreign object (ObjectId: %v)",
                 object->GetId());
         }
 
@@ -1826,9 +1826,9 @@ public:
         if (user->GetBanned() != banned) {
             user->SetBanned(banned);
             if (banned) {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "User is banned (User: %v)", user->GetName());
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "User is banned (User: %v)", user->GetName());
             } else {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "User is no longer banned (User: %v)", user->GetName());
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "User is no longer banned (User: %v)", user->GetName());
             }
         }
     }
@@ -2220,7 +2220,7 @@ private:
         if (dynamicConfig->EnableDelayedMembershipClosureRecomputation) {
             if (!MustRecomputeMembershipClosure_) {
                 MustRecomputeMembershipClosure_ = true;
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Will recompute membership closure");
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Will recompute membership closure");
             }
         } else {
             DoRecomputeMembershipClosure();
@@ -2229,7 +2229,7 @@ private:
 
     void DoRecomputeMembershipClosure()
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Started recomputing membership closure");
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Started recomputing membership closure");
 
         for (auto [userId, user] : UserMap_) {
             user->RecursiveMemberOf().clear();
@@ -2247,7 +2247,7 @@ private:
 
         MustRecomputeMembershipClosure_ = false;
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Finished recomputing membership closure");
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Finished recomputing membership closure");
     }
 
     void OnRecomputeMembershipClosure()
@@ -3073,12 +3073,12 @@ private:
         YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Received account statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Received account statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received account statistics gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {

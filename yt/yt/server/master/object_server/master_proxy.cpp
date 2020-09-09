@@ -109,7 +109,7 @@ private:
 
         const auto& objectId = object->GetId();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object created (Id: %v, Type: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object created (Id: %v, Type: %v)",
             objectId,
             type);
 

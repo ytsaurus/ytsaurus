@@ -77,7 +77,7 @@ void TExpirationTracker::ScheduleExpiration(TChunk* chunk)
 
     auto expirationTime = chunk->GetExpirationTime();
     YT_VERIFY(expirationTime);
-    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk expiration time set (ChunkId: %v, ExpirationTime: %v)",
+    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk expiration time set (ChunkId: %v, ExpirationTime: %v)",
         chunk->GetId(),
         expirationTime);
     RegisterChunkExpiration(chunk, expirationTime);
@@ -155,6 +155,11 @@ void TExpirationTracker::OnCheck()
 bool TExpirationTracker::IsRecovery() const
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
+}
+
+bool TExpirationTracker::IsMutationLoggingEnabled() const
+{
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
 }
 
 const TDynamicChunkManagerConfigPtr& TExpirationTracker::GetDynamicConfig()

@@ -124,6 +124,7 @@ protected:
         TInMemoryChunkDataPtr chunkData);
 
     bool IsRecovery() const;
+    bool IsMutationLoggingEnabled() const;
 
     TTimestamp GenerateMonotonicCommitTimestamp(TTimestamp timestampHint);
 

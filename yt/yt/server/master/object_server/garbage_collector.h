@@ -101,6 +101,7 @@ private:
     void OnSweep();
     void OnObjectRemovalCellsSync();
     bool IsRecovery();
+    bool IsMutationLoggingEnabled();
 
     const TDynamicObjectManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged();

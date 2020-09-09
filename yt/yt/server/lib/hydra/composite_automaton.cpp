@@ -158,6 +158,11 @@ bool TCompositeAutomatonPart::IsRecovery() const
     return HydraManager_->IsRecovery();
 }
 
+bool TCompositeAutomatonPart::IsMutationLoggingEnabled() const
+{
+    return HydraManager_->IsMutationLoggingEnabled();
+}
+
 void TCompositeAutomatonPart::OnStartLeading()
 {
     StartEpoch();
@@ -453,12 +458,12 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     }
 
     if (mutationType.empty()) {
-        YT_LOG_DEBUG_UNLESS(isRecovery, "Skipping heartbeat mutation (Version: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Skipping heartbeat mutation (Version: %v)",
             version);
     } else {
         NProfiling::TWallTimer timer;
 
-        YT_LOG_DEBUG_UNLESS(isRecovery, "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %llx, PrevRandomSeed: %llx, StateHash: %llx, MutationType: %v, MutationId: %v, WaitTime: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying mutation (Version: %v, SequenceNumber: %v, RandomSeed: %llx, PrevRandomSeed: %llx, StateHash: %llx, MutationType: %v, MutationId: %v, WaitTime: %v)",
             version,
             context->GetSequenceNumber(),
             context->GetRandomSeed(),
@@ -571,6 +576,11 @@ void TCompositeAutomaton::LogHandlerError(const TError& error)
 bool TCompositeAutomaton::IsRecovery() const
 {
     return HydraManager_->IsRecovery();
+}
+
+bool TCompositeAutomaton::IsMutationLoggingEnabled() const
+{
+    return HydraManager_->IsMutationLoggingEnabled();
 }
 
 EFinalRecoveryAction TCompositeAutomaton::GetFinalRecoveryAction()

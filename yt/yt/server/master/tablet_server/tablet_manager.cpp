@@ -296,7 +296,7 @@ public:
         auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
         objectManager->RefObject(tablet);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet created (TableId: %v, TabletId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet created (TableId: %v, TabletId: %v)",
             table->GetId(),
             tablet->GetId());
 
@@ -309,7 +309,7 @@ public:
 
         // XXX(savrus): this is a workaround for YTINCIDENTS-42
         if (auto* cell = tablet->GetCell()) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Destroying tablet with non-null tablet cell (TabletId: %v, CellId: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Destroying tablet with non-null tablet cell (TabletId: %v, CellId: %v)",
                 tablet->GetId(),
                 cell->GetId());
 
@@ -317,13 +317,13 @@ public:
             YT_VERIFY(tablet->Replicas().empty());
 
             if (cell->Tablets().erase(tablet) > 0) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(), "Unbinding tablet from tablet cell since tablet is destroyed (TabletId: %v, CellId: %v)",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unbinding tablet from tablet cell since tablet is destroyed (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     cell->GetId());
             }
 
             if (tablet->GetState() == ETabletState::Mounted) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(), "Sending force unmount request to node since tablet is destroyed (TabletId: %v, CellId: %v)",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Sending force unmount request to node since tablet is destroyed (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     cell->GetId());
 
@@ -399,7 +399,7 @@ public:
 
         YT_VERIFY(table->Replicas().insert(replica).second);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %llx)",
             table->GetId(),
             replica->GetId(),
             mode,
@@ -528,7 +528,7 @@ public:
             preserveTimestamps = std::nullopt;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica updated (TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica updated (TableId: %v, ReplicaId: %v, Enabled: %v, Mode: %v, Atomicity: %v, PreserveTimestamps: %v)",
             table->GetId(),
             replica->GetId(),
             enabled,
@@ -550,12 +550,12 @@ public:
 
         if (enabled) {
             if (*enabled) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Enabling table replica (TableId: %v, ReplicaId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Enabling table replica (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Enabling);
             } else {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Disabling table replica (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Disabling);
@@ -745,7 +745,7 @@ public:
             }
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action destroyed (ActionId: %v, TabletBalancerCorrelationId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet action destroyed (ActionId: %v, TabletBalancerCorrelationId: %v)",
             action->GetId(),
             action->GetCorrelationId());
     }
@@ -1155,7 +1155,7 @@ public:
             auto state = tablet->GetState();
 
             if (state != ETabletState::Unmounted) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Remounting tablet (TableId: %v, TabletId: %v, CellId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     cell->GetId());
@@ -1911,7 +1911,7 @@ public:
                     YT_ABORT();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), ex, "Error cloning table (TableId: %v, %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Error cloning table (TableId: %v, %v)",
                 sourceTable->GetId(),
                 NRpc::GetCurrentAuthenticationIdentity());
         }
@@ -2071,7 +2071,7 @@ public:
 
         table->AccountTabletStatistics(GetTabletStatistics(tablet));
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table is switched to dynamic mode (TableId: %v)",
             table->GetId());
     }
 
@@ -2149,7 +2149,7 @@ public:
         securityManager->UpdateMasterMemoryUsage(table);
         ScheduleTableStatisticsUpdate(table, false);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table is switched to static mode (TableId: %v)",
             table->GetId());
     }
 
@@ -2194,7 +2194,7 @@ public:
         transaction->LockedDynamicTables().insert(table);
         table->AddDynamicTableLock(transaction->GetId(), timestamp, pendingTabletCount);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Waiting for tablet lock confirmation (TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Waiting for tablet lock confirmation (TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
             table->GetId(),
             transaction->GetId(),
             pendingTabletCount);
@@ -2560,7 +2560,7 @@ private:
         bundle->TabletActions().insert(action);
         bundle->IncreaseActiveTabletActionCount();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet action created (%v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet action created (%v)",
             *action);
 
         return action;
@@ -2705,7 +2705,7 @@ private:
                             tablet->GetState());
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error mounting missed in action tablet "
+                YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error mounting missed in action tablet "
                     "(TabletId: %v, TableId: %v, Bundle: %v, ActionId: %v, TabletBalancerCorrelationId: %v)",
                     tablet->GetId(),
                     tablet->GetTable()->GetId(),
@@ -2774,7 +2774,7 @@ private:
         auto tableId = action->Tablets().empty()
             ? TTableId{}
             : action->Tablets()[0]->GetTable()->GetId();
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Change tablet action state (ActionId: %v, State: %v, "
             "TableId: %v, Bundle: %v, TabletBalancerCorrelationId: %v),",
             action->GetId(),
             state,
@@ -3051,7 +3051,7 @@ private:
             }
 
             case ETabletActionState::Failing: {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), action->Error(), "Tablet action failed (ActionId: %v, TabletBalancerCorrelationId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), action->Error(), "Tablet action failed (ActionId: %v, TabletBalancerCorrelationId: %v)",
                     action->GetId(),
                     action->GetCorrelationId());
 
@@ -3274,7 +3274,7 @@ private:
                 auto* mountHint = req.mutable_mount_hint();
                 ToProto(mountHint->mutable_eden_store_ids(), tablet->EdenStoreIds());
 
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
                     "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v)",
                     table->GetId(),
                     tablet->GetId(),
@@ -3342,7 +3342,7 @@ private:
             state == ETabletState::Freezing);
 
         if (tablet->GetState() == ETabletState::Mounted) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Freezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId(),
                 cell->GetId());
@@ -3367,7 +3367,7 @@ private:
             state == ETabletState::Unfreezing);
 
         if (tablet->GetState() == ETabletState::Frozen) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unfreezing tablet (TableId: %v, TabletId: %v, CellId: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId(),
                 cell->GetId());
@@ -3409,7 +3409,7 @@ private:
                     pendingTabletCount = it->second.PendingTabletCount;
                 }
 
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Confirmed tablet lock (TabletId: %v, TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Confirmed tablet lock (TabletId: %v, TableId: %v, TransactionId: %v, PendingTabletCount: %v)",
                     tabletId,
                     table->GetId(),
                     transactionId,
@@ -3549,7 +3549,7 @@ private:
 
         int oldTabletCount = lastTabletIndex - firstTabletIndex + 1;
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Resharding table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Resharding table (TableId: %v, FirstTabletIndex: %v, LastTabletIndex: %v, "
             "TabletCount %v, PivotKeys: %v)",
             table->GetId(),
             firstTabletIndex,
@@ -3913,7 +3913,7 @@ private:
 
         newConfig->CompatibilityVersion = 1;
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Updating dynamic tablet config (NewConfig: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Updating dynamic tablet config (NewConfig: %v)",
             ConvertToYsonString(newConfig, EYsonFormat::Text).GetData());
 
         auto req = TYPathProxy::Set("//sys/@config/tablet_manager");
@@ -4136,7 +4136,7 @@ private:
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsSecondaryMaster()) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Schedule table statistics update (TableId: %v, UpdateDataStatistics: %v, UpdateTabletStatistics: %v)",
                 table->GetId(),
                 updateDataStatistics,
                 updateTabletStatistics);
@@ -4169,7 +4169,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (TableId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending table statistics update (TableId: %v)",
             table->GetId());
 
         NProto::TReqUpdateTableStatistics req;
@@ -4224,7 +4224,7 @@ private:
             tableIds.push_back(tableId);
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (RequestedTableCount: %v, TableIds: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Sending table statistics update (RequestedTableCount: %v, TableIds: %v)",
             request->table_count(),
             tableIds);
 
@@ -4241,7 +4241,7 @@ private:
             tableIds.push_back(FromProto<TTableId>(entry.table_id()));
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received table statistics update (TableIds: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received table statistics update (TableIds: %v)",
             tableIds);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -4322,12 +4322,12 @@ private:
         YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == multicellManager->GetPrimaryCellTag());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received tablet cell statistics gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Received tablet cell statistics gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Received tablet cell statistics gossip message (CellTag: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received tablet cell statistics gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -4479,7 +4479,7 @@ private:
         YT_VERIFY(IsTableType(node->GetType()));
         auto* table = node->As<TTableNode>();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Received update upstream tablet state request "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Received update upstream tablet state request "
             "(TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, ExpectedLastMountTransactionId: %v, ActualLastMountTransactionId: %v)",
             tableId,
             actualState,
@@ -4516,7 +4516,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         table->SetPrimaryLastMountTransactionId(transactionId);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state check request received (TableId: %v, LastMountTransactionId %v, PrimaryLastMountTransactionId %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table tablet state check request received (TableId: %v, LastMountTransactionId %v, PrimaryLastMountTransactionId %v)",
             table->GetId(),
             table->GetLastMountTransactionId(),
             table->GetPrimaryLastMountTransactionId());
@@ -4544,7 +4544,7 @@ private:
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, table->GetExternalCellTag());
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state check requested (TableId: %v, LastMountTransactionId %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table tablet state check requested (TableId: %v, LastMountTransactionId %v)",
                 table->GetId(),
                 table->GetLastMountTransactionId());
             return;
@@ -4590,7 +4590,7 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table tablet state updated "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table tablet state updated "
             "(TableId: %v, ActualTabletState: %v, ExpectedTabletState: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v)",
             table->GetId(),
             actualState,
@@ -4646,7 +4646,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Mounting && state != ETabletState::FrozenMounting) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -4657,14 +4657,14 @@ private:
         auto* cell = tablet->GetCell();
 
         // FIXME(savrus) Remove this.
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %llx, CellId: %v, Frozen: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet mounted (TableId: %v, TabletId: %v, MountRevision: %llx, CellId: %v, Frozen: %v)",
             table->GetId(),
             tablet->GetId(),
             tablet->GetMountRevision(),
             cell->GetId(),
             frozen);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet static memory usage (TableId: %v, TabletMemorySize: %v, TabletStaticUsage: %v, ExternalTabletResourceUsage: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet static memory usage (TableId: %v, TabletMemorySize: %v, TabletStaticUsage: %v, ExternalTabletResourceUsage: %v)",
             table->GetId(),
             tablet->GetTabletStaticMemorySize(),
             table->GetTabletResourceUsage().TabletStaticMemory,
@@ -4686,7 +4686,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unmounting) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -4712,7 +4712,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Freezing) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -4722,7 +4722,7 @@ private:
 
         DiscardDynamicStores(tablet);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
@@ -4745,13 +4745,13 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unfreezing) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet unfrozen (TableId: %v, TabletId: %v, CellId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet unfrozen (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
@@ -4783,7 +4783,7 @@ private:
         auto* replicaInfo = tablet->GetReplicaInfo(replica);
         PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
             "CurrentReplicationRowIndex: %v, CurrentReplicationTimestamp: %llx)",
             tabletId,
             replicaId,
@@ -4812,7 +4812,7 @@ private:
 
         auto* replicaInfo = tablet->GetReplicaInfo(replica);
         if (replicaInfo->GetState() != ETableReplicaState::Enabling) {
-            YT_LOG_WARNING_UNLESS(IsRecovery(), "Enabled replica notification received for a replica in a wrong state, "
+            YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Enabled replica notification received for a replica in a wrong state, "
                 "ignored (TabletId: %v, ReplicaId: %v, State: %v)",
                 tabletId,
                 replicaId,
@@ -4845,7 +4845,7 @@ private:
 
         auto* replicaInfo = tablet->GetReplicaInfo(replica);
         if (replicaInfo->GetState() != ETableReplicaState::Disabling) {
-            YT_LOG_WARNING_UNLESS(IsRecovery(), "Disabled replica notification received for a replica in a wrong state, "
+            YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Disabled replica notification received for a replica in a wrong state, "
                 "ignored (TabletId: %v, ReplicaId: %v, State: %v)",
                 tabletId,
                 replicaId,
@@ -4859,7 +4859,7 @@ private:
 
     void StartReplicaTransition(TTablet* tablet, TTableReplica* replica, TTableReplicaInfo* replicaInfo, ETableReplicaState newState)
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica is now transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica is now transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
             tablet->GetTable()->GetId(),
             tablet->GetId(),
             replica->GetId(),
@@ -4871,7 +4871,7 @@ private:
 
     void StopReplicaTransition(TTablet* tablet, TTableReplica* replica, TTableReplicaInfo* replicaInfo, ETableReplicaState newState)
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica is no longer transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica is no longer transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
             tablet->GetTable()->GetId(),
             tablet->GetId(),
             replica->GetId(),
@@ -4896,14 +4896,14 @@ private:
 
         switch (state) {
             case ETableReplicaState::Enabling:
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica enabled (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Enabled);
                 break;
 
             case ETableReplicaState::Disabling:
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica disabled (TableId: %v, ReplicaId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica disabled (TableId: %v, ReplicaId: %v)",
                     table->GetId(),
                     replica->GetId());
                 replica->SetState(ETableReplicaState::Disabled);
@@ -4961,7 +4961,7 @@ private:
         auto* table = tablet->GetTable();
         auto* cell = tablet->GetCell();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet unmounted (TableId: %v, TabletId: %v, CellId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet unmounted (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId());
@@ -4990,13 +4990,13 @@ private:
             auto* replica = it->first;
             auto& replicaInfo = it->second;
             if (replica->TransitioningTablets().erase(tablet) == 1) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(), "Table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
                     tablet->GetTable()->GetId(),
                     tablet->GetId(),
                     replica->GetId(),
                     replicaInfo.GetState());
             } else {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table replica state updated (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica state updated (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v -> %v)",
                     tablet->GetTable()->GetId(),
                     tablet->GetId(),
                     replica->GetId(),
@@ -5039,7 +5039,7 @@ private:
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager->AttachToChunkList(tablet->GetChunkList(), dynamicStore);
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store attached to tablet (TabletId: %v, DynamicStoreId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store attached to tablet (TabletId: %v, DynamicStoreId: %v)",
             tablet->GetId(),
             dynamicStore->GetId());
 
@@ -5126,7 +5126,7 @@ private:
             oldRootChunkList->RemoveOwningNode(table);
             objectManager->UnrefObject(oldRootChunkList);
             if (!checkStatisticsMatch(newRootChunkList->Statistics(), statistics)) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(),
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                     "Invalid new root chunk list statistics "
                     "(TableId: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
@@ -5156,7 +5156,7 @@ private:
             }
 
             if (!checkStatisticsMatch(oldRootChunkList->Statistics(), statistics)) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(),
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
                     "Invalid old root chunk list statistics "
                     "(TableId: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
@@ -5271,7 +5271,7 @@ private:
 
         tablet->SetStoresUpdatePreparedTransaction(transaction);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
             transaction->GetId(),
             table->GetId(),
             tabletId);
@@ -5350,7 +5350,7 @@ private:
         }
 
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly prepared tablet; ignored "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update commit for an improperly prepared tablet; ignored "
                 "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
                 tabletId,
                 transaction->GetId(),
@@ -5362,7 +5362,7 @@ private:
 
         auto mountRevision = request->mount_revision();
         if (tablet->GetMountRevision() != mountRevision) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invalid mount revision on tablet stores update commit; ignored "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Invalid mount revision on tablet stores update commit; ignored "
                 "(TabletId: %v, TransactionId: %v, ExpectedMountRevision: %llx, ActualMountRevision: %llx)",
                 tabletId,
                 transaction->GetId(),
@@ -5406,7 +5406,7 @@ private:
                 chunksToAttach.push_back(chunk);
             } else if (IsDynamicTabletStoreType(type)) {
                 if (IsDynamicStoreReadEnabled(table)) {
-                    YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempting to add dynamic store in UpdateTabletStores to a table "
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempting to add dynamic store in UpdateTabletStores to a table "
                         "with readable dynamic stores (TableId: %v, TabletId: %v, StoreId: %v, Reason: %v)",
                         table->GetId(),
                         tablet->GetId(),
@@ -5432,7 +5432,7 @@ private:
                         : EObjectType::OrderedDynamicTabletStore);
                 auto* dynamicStore = CreateDynamicStore(tablet, storeId);
                 chunksToAttach.push_back(dynamicStore);
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store attached to tablet during flush (TableId: %v, TabletId: %v, StoreId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store attached to tablet during flush (TableId: %v, TabletId: %v, StoreId: %v)",
                     table->GetId(),
                     tablet->GetId(),
                     storeId);
@@ -5545,7 +5545,7 @@ private:
                 storeCount);
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
             "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %llx, UpdateReason: %v)",
             transaction->GetId(),
@@ -5580,7 +5580,7 @@ private:
 
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update aborted (TransactionId: %v, TableId: %v, TabletId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update aborted (TransactionId: %v, TableId: %v, TabletId: %v)",
             transaction->GetId(),
             table->GetId(),
             tabletId);
@@ -5603,7 +5603,7 @@ private:
 
         tablet->SetTrimmedRowCount(trimmedRowCount);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet trimmed row count updated (TabletId: %v, TrimmedRowCount: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet trimmed row count updated (TabletId: %v, TrimmedRowCount: %v)",
             tabletId,
             trimmedRowCount);
     }
@@ -5629,7 +5629,7 @@ private:
         ToProto(rsp.mutable_tablet_id(), tabletId);
         rsp.set_mount_revision(tablet->GetMountRevision());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store allocated (StoreId: %v, TabletId: %v, TableId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store allocated (StoreId: %v, TabletId: %v, TableId: %v)",
             dynamicStore->GetId(),
             tabletId,
             tablet->GetTable()->GetId());
@@ -5681,7 +5681,7 @@ private:
                 correlationId,
                 expirationTime);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), TError(ex), "Error creating tablet action (Kind: %v, "
                 "Tablets: %v, TabletCells: %v, PivotKeys: %v, TabletCount: %v, TabletBalancerCorrelationId: %v)",
                 kind,
                 tablets,
@@ -5951,7 +5951,7 @@ private:
         auto* cell = tablet->GetCell();
         YT_VERIFY(cell);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unmounting tablet (TableId: %v, TabletId: %v, CellId: %v, Force: %v)",
             table->GetId(),
             tablet->GetId(),
             cell->GetId(),

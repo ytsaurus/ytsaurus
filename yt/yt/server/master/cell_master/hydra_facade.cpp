@@ -205,7 +205,7 @@ public:
             if (HasMutationContext()) {
                 // Just a precaution, not really expected to happen.
                 auto error = TError("Request can only be served at leaders");
-                YT_LOG_ERROR_UNLESS(HydraManager_->IsRecovery(), error, "Unexpected error");
+                YT_LOG_ERROR_IF(HydraManager_->IsMutationLoggingEnabled(), error, "Unexpected error");
                 THROW_ERROR error;
             } else {
                 throw TLeaderFallbackException();

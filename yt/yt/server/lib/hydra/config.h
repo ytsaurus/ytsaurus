@@ -356,6 +356,9 @@ public:
     //! Abandon leader lease request timeout.
     TDuration AbandonLeaderLeaseRequestTimeout;
 
+    //! Enables logging in mutation handlers even during recovery.
+    bool ForceMutationLogging;
+
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -442,6 +445,9 @@ public:
 
         RegisterParameter("abandon_leader_lease_request_timeout", AbandonLeaderLeaseRequestTimeout)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("force_mutation_logging", ForceMutationLogging)
+            .Default(false);
 
         RegisterPostprocessor([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {
