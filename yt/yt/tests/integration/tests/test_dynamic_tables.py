@@ -1937,6 +1937,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         chunk_replica_address = list([str(r) for r in get("#{}/@stored_replicas".format(chunk_id)) if r.attributes["index"] == 0])[0]
         set("//sys/cluster_nodes/{0}/@banned".format(chunk_replica_address), True)
 
+        self._wait_cell_good(cell_id, [chunk_replica_address])
+
         tablet_address = get("#{}/@peers/0/address".format(cell_id))	
         set("//sys/cluster_nodes/{0}/@decommissioned".format(tablet_address), True)
 
