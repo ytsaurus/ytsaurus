@@ -55,6 +55,7 @@ private:
     void OnCheck();
 
     bool IsRecovery() const;
+    bool IsMutationLoggingEnabled() const;
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged();

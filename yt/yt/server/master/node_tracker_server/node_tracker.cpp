@@ -367,7 +367,7 @@ public:
         if (node->GetBanned() != value) {
             node->SetBanned(value);
             if (value) {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Node banned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -378,7 +378,7 @@ public:
                     }
                 }
             } else {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Node is no longer banned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is no longer banned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -391,11 +391,11 @@ public:
         if (node->GetDecommissioned() != value) {
             node->SetDecommissioned(value);
             if (value) {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Node decommissioned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             } else {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -408,11 +408,11 @@ public:
         if (node->GetDisableWriteSessions() != value) {
             node->SetDisableWriteSessions(value);
             if (value) {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             } else {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -424,11 +424,11 @@ public:
         if (node->GetDisableTabletCells() != value) {
             node->SetDisableTabletCells(value);
             if (value) {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             } else {
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Enabled tablet cells on node (NodeId: %v, Address: %v)",
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Enabled tablet cells on node (NodeId: %v, Address: %v)",
                     node->GetId(),
                     node->GetDefaultAddress());
             }
@@ -442,7 +442,7 @@ public:
             auto* oldRack = node->GetRack();
             UpdateNodeCounters(node, -1);
             node->SetRack(rack);
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node rack changed (NodeId: %v, Address: %v, Rack: %v)",
                 node->GetId(),
                 node->GetDefaultAddress(),
                 rack ? std::make_optional(rack->GetName()) : std::nullopt);
@@ -574,7 +574,7 @@ public:
                 UpdateNodeCounters(node, +1);
             }
 
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Rack data center changed (Rack: %v, DataCenter: %v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Rack data center changed (Rack: %v, DataCenter: %v)",
                 std::make_optional(rack->GetName()),
                 dataCenter ? std::make_optional(dataCenter->GetName()) : std::nullopt);
 
@@ -861,7 +861,7 @@ private:
             if (multicellManager->IsPrimaryMaster()) {
                 auto localState = node->GetLocalState();
                 if (localState == ENodeState::Registered || localState == ENodeState::Online) {
-                    YT_LOG_INFO_UNLESS(IsRecovery(), "Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
+                    YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Kicking node out due to address conflict (NodeId: %v, Address: %v, State: %v)",
                         node->GetId(),
                         address,
                         localState);
@@ -918,7 +918,7 @@ private:
                 node->GetId());
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
             node->GetId(),
             address,
             tags,
@@ -989,7 +989,7 @@ private:
         }
 
         PROFILE_AGGREGATED_TIMING (FullHeartbeatTimeCounter) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
@@ -1003,7 +1003,7 @@ private:
 
             UpdateLastSeenTime(node);
 
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Node online (NodeId: %v, Address: %v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node online (NodeId: %v, Address: %v)",
                 nodeId,
                 node->GetDefaultAddress());
 
@@ -1028,7 +1028,7 @@ private:
         }
 
         PROFILE_AGGREGATED_TIMING (IncrementalHeartbeatTimeCounter) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
@@ -1075,12 +1075,12 @@ private:
 
         auto cellTag = request->cell_tag();
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Received cell node descriptor gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Received cell node descriptor gossip message (CellTag: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell node descriptor gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -1100,7 +1100,7 @@ private:
     {
         auto* node = FindNode(request->node_id());
         if (!node) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(),
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(),
                 "Error updating cluster node resource usage and limits: node not found (NodeId: %v)",
                 request->node_id());
             return;
@@ -1121,13 +1121,13 @@ private:
             if (IsObjectAlive(node)) {
                 nodeList.push_back(node);
             } else {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "New node is dead, ignoring (NodeRole: %v, NodeId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "New node is dead, ignoring (NodeRole: %v, NodeId: %v)",
                     nodeRole,
                     node->GetId());
             }
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Update nodes (NodeRole: %v, Nodes: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Update nodes (NodeRole: %v, Nodes: %v)",
             nodeRole,
             MakeFormattableView(nodeList, TNodePtrAddressFormatter()));
 
@@ -1396,7 +1396,7 @@ private:
             return;
 
         auto* node = it->second;
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Node lease transaction finished (NodeId: %v, Address: %v, TransactionId: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node lease transaction finished (NodeId: %v, Address: %v, TransactionId: %v)",
             node->GetId(),
             node->GetDefaultAddress(),
             transaction->GetId());
@@ -1446,7 +1446,7 @@ private:
                 SyncExecuteVerb(rootService, req);
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error registering cluster node in Cypress");
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error registering cluster node in Cypress");
         }
 
         UpdateNode(node, nodeAddresses);
@@ -1469,7 +1469,7 @@ private:
             req->set_value(ConvertToYsonString(node->GetAddressesOrThrow(EAddressType::InternalRpc)).GetData());
             SyncExecuteVerb(rootService, req);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error updating cluster node in Cypress");
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error updating cluster node in Cypress");
         }
     }
 
@@ -1499,7 +1499,7 @@ private:
                 }
             }
 
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Node unregistered (NodeId: %v, Address: %v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node unregistered (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
         }
@@ -1511,7 +1511,7 @@ private:
             node->SetLocalState(ENodeState::Offline);
             NodeDisposed_.Fire(node);
 
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Node offline (NodeId: %v, Address: %v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node offline (NodeId: %v, Address: %v)",
                 node->GetId(),
                 node->GetDefaultAddress());
         }

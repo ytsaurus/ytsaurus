@@ -1429,11 +1429,16 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
     SnapshotParamsPromise_.SetFrom(buildResult);
 }
 
-bool TDecoratedAutomaton::IsRecovery()
+bool TDecoratedAutomaton::IsRecovery() const
 {
     return
         State_ == EPeerState::LeaderRecovery ||
         State_ == EPeerState::FollowerRecovery;
+}
+
+bool TDecoratedAutomaton::IsMutationLoggingEnabled() const
+{
+    return !IsRecovery() || Config_->ForceMutationLogging;
 }
 
 bool TDecoratedAutomaton::IsBuildingSnapshotNow() const

@@ -165,7 +165,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (RemovedCellIds_.erase(cellId) != 0) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Mailbox has been resurrected (SelfCellId: %v, CellId: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mailbox has been resurrected (SelfCellId: %v, CellId: %v)",
                 SelfCellId_,
                 cellId);
         }
@@ -177,7 +177,7 @@ public:
             SendPeriodicPing(mailbox);
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox created (SelfCellId: %v, CellId: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Mailbox created (SelfCellId: %v, CellId: %v)",
             SelfCellId_,
             mailbox->GetCellId());
         return mailbox;
@@ -222,12 +222,12 @@ public:
         MailboxMap_.Remove(cellId);
 
         if (!RemovedCellIds_.insert(cellId).second) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 cellId);
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox removed (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Mailbox removed (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             cellId);
     }
@@ -399,7 +399,7 @@ private:
         auto nextTransientIncomingMessageId = mailbox->GetNextTransientIncomingMessageId();
         YT_VERIFY(nextTransientIncomingMessageId >= 0);
         if (nextTransientIncomingMessageId == firstMessageId && messageCount > 0) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing reliable incoming messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing reliable incoming messages (SrcCellId: %v, DstCellId: %v, "
                 "MessageIds: %v-%v)",
                 srcCellId,
                 SelfCellId_,
@@ -435,7 +435,7 @@ private:
 
         ValidatePeer(EPeerKind::Leader);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing unreliable incoming messages (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing unreliable incoming messages (SrcCellId: %v, DstCellId: %v, "
             "MessageCount: %v)",
             srcCellId,
             SelfCellId_,
@@ -482,7 +482,7 @@ private:
         auto nextPersistentIncomingMessageId = request->next_persistent_incoming_message_id();
         auto acknowledgeCount = nextPersistentIncomingMessageId - mailbox->GetFirstOutcomingMessageId();
         if (acknowledgeCount <= 0) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "No messages acknowledged (SrcCellId: %v, DstCellId: %v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -493,7 +493,7 @@ private:
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
         if (acknowledgeCount > outcomingMessages.size()) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -506,7 +506,7 @@ private:
         outcomingMessages.erase(outcomingMessages.begin(), outcomingMessages.begin() + acknowledgeCount);
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + acknowledgeCount);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, "
             "FirstOutcomingMessageId: %v)",
             SelfCellId_,
             mailbox->GetCellId(),
@@ -525,7 +525,7 @@ private:
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
             if (firstMessageId != 0) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(), "Received a non-initial message to a missing mailbox (SrcCellId: %v, MessageId: %v)",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received a non-initial message to a missing mailbox (SrcCellId: %v, MessageId: %v)",
                     srcCellId,
                     firstMessageId);
                 return;
@@ -554,7 +554,7 @@ private:
 
         auto cellId = FromProto<TCellId>(request->cell_id());
         if (RemovedCellIds_.contains(cellId)) {
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 cellId);
             return;
@@ -626,7 +626,7 @@ private:
         }
 
         logMessageBuilder.AppendString(AsStringBuf("})"));
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), logMessageBuilder.Flush());
     }
 
     void UnreliablePostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message)
@@ -673,7 +673,7 @@ private:
         }
 
         logMessageBuilder.AppendString(AsStringBuf("])"));
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), logMessageBuilder.Flush());
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), logMessageBuilder.Flush());
     }
 
 
@@ -1236,7 +1236,7 @@ private:
     bool CheckRequestedMessageIdAgainstMailbox(TMailbox* mailbox, TMessageId requestedMessageId)
     {
         if (requestedMessageId < mailbox->GetFirstOutcomingMessageId()) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -1247,7 +1247,7 @@ private:
         }
 
         if (requestedMessageId > mailbox->GetFirstOutcomingMessageId() + mailbox->OutcomingMessages().size()) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -1281,7 +1281,7 @@ private:
 
         mailbox->SetAcknowledgeInProgress(true);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing reliable messages acknowledgement (SrcCellId: %v, DstCellId: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing reliable messages acknowledgement (SrcCellId: %v, DstCellId: %v, "
             "MessageIds: %v-%v)",
             SelfCellId_,
             mailbox->GetCellId(),
@@ -1316,7 +1316,7 @@ private:
     void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
     {
         if (messageId != mailbox->GetNextPersistentIncomingMessageId()) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
                 "ExpectedMessageId: %v, ActualMessageId: %v, MutationType: %v)",
                 mailbox->GetCellId(),
                 SelfCellId_,
@@ -1333,7 +1333,7 @@ private:
             : nullptr;
         TTraceContextGuard traceContextGuard(std::move(traceContext));
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Applying reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying reliable incoming message (SrcCellId: %v, DstCellId: %v, MessageId: %v, MutationType: %v)",
             mailbox->GetCellId(),
             SelfCellId_,
             messageId,
@@ -1355,7 +1355,7 @@ private:
 
     void ApplyUnreliableIncomingMessage(TMailbox* mailbox, const TEncapsulatedMessage& message)
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Applying unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Applying unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
             mailbox->GetCellId(),
             SelfCellId_,
             message.type());

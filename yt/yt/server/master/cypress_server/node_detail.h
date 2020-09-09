@@ -60,6 +60,7 @@ protected:
 
     bool IsLeader() const;
     bool IsRecovery() const;
+    bool IsMutationLoggingEnabled() const;
     const TDynamicCypressManagerConfigPtr& GetDynamicCypressManagerConfig() const;
 
     void DestroyCore(TCypressNode* node);
@@ -353,8 +354,8 @@ protected:
         const TLockRequest& lockRequest)
     {
         const auto& Logger = CypressServerLogger;
-        YT_LOG_DEBUG_UNLESS(
-            IsRecovery(),
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, Mode: %v, LockTimestamp: %llx)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
@@ -391,8 +392,8 @@ protected:
         TImpl* branchedNode)
     {
         const auto& Logger = CypressServerLogger;
-        YT_LOG_DEBUG_UNLESS(
-            IsRecovery(),
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
             "Node merged (OriginatingNodeId: %v, BranchedNodeId: %v)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId());

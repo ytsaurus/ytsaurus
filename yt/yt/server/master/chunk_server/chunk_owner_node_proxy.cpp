@@ -858,7 +858,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             securityTags.Validate();
 
             // TODO(babenko): audit
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
                 node->GetVersionedId(),
                 node->GetSecurityTags().Items,
                 securityTags.Items);
@@ -942,8 +942,8 @@ void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
 
     const auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
 
-    YT_LOG_DEBUG_UNLESS(
-        IsRecovery(),
+    YT_LOG_DEBUG_IF(
+        IsMutationLoggingEnabled(),
         "Chunk owner replication changed (NodeId: %v, PrimaryMedium: %v, Replication: %v)",
         node->GetId(),
         primaryMedium->GetName(),
@@ -973,8 +973,8 @@ void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium)
         chunkManager->ScheduleChunkRequisitionUpdate(node->GetChunkList());
     }
 
-    YT_LOG_DEBUG_UNLESS(
-        IsRecovery(),
+    YT_LOG_DEBUG_IF(
+        IsMutationLoggingEnabled(),
         "Chunk owner primary medium changed (NodeId: %v, PrimaryMedium: %v)",
         node->GetId(),
         medium->GetName());
@@ -1135,8 +1135,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     switch (uploadContext.Mode) {
         case EUpdateMode::Append: {
             if (node->IsExternal() || node->GetType() == EObjectType::Journal) {
-                YT_LOG_DEBUG_UNLESS(
-                    IsRecovery(),
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
                     "Node is switched to \"append\" mode (NodeId: %v)",
                     lockedNode->GetId());
             } else {
@@ -1157,8 +1157,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                     objectManager->UnrefObject(snapshotChunkList);
 
-                    YT_LOG_DEBUG_UNLESS(
-                        IsRecovery(),
+                    YT_LOG_DEBUG_IF(
+                        IsMutationLoggingEnabled(),
                         "Node is switched to \"append\" mode (NodeId: %v, NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v)",
                         node->GetId(),
                         newChunkList->GetId(),
@@ -1189,8 +1189,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
         case EUpdateMode::Overwrite: {
             if (node->IsExternal() || node->GetType() == EObjectType::Journal) {
-                YT_LOG_DEBUG_UNLESS(
-                    IsRecovery(),
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
                     "Node is switched to \"overwrite\" mode (NodeId: %v)",
                     node->GetId());
             } else {
@@ -1215,8 +1215,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                 objectManager->UnrefObject(oldChunkList);
 
-                YT_LOG_DEBUG_UNLESS(
-                    IsRecovery(),
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
                     "Node is switched to \"overwrite\" mode (NodeId: %v, NewChunkListId: %v)",
                     node->GetId(),
                     newChunkList->GetId());

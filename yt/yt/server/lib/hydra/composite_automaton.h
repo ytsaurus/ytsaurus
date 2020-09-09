@@ -102,6 +102,7 @@ protected:
     bool IsLeader() const;
     bool IsFollower() const;
     bool IsRecovery() const;
+    bool IsMutationLoggingEnabled() const;
 
     virtual bool ValidateSnapshotVersion(int version);
     virtual int GetCurrentSnapshotVersion();
@@ -267,6 +268,7 @@ private:
     void LogHandlerError(const TError& error);
 
     bool IsRecovery() const;
+    bool IsMutationLoggingEnabled() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeAutomaton)

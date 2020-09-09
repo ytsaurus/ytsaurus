@@ -246,7 +246,7 @@ public:
             CreateLease(transaction);
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction started (TransactionId: %v, StartTimestamp: %llx, StartTime: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, StartTimestamp: %llx, StartTime: %v, "
             "Timeout: %v, Transient: %v)",
             transactionId,
             startTimestamp,
@@ -268,7 +268,7 @@ public:
             }
             auto transactionHolder = TransientTransactionMap_.Release(transactionId);
             PersistentTransactionMap_.Insert(transactionId, std::move(transactionHolder));
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction became persistent (TransactionId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction became persistent (TransactionId: %v)",
                 transactionId);
             return transaction;
         }
@@ -389,7 +389,7 @@ public:
             TransactionPrepared_.Fire(transaction, persistent);
             RunPrepareTransactionActions(transaction, persistent);
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, "
                 "PrepareTimestamp: %llx)",
                 transactionId,
                 persistent,
@@ -431,7 +431,7 @@ public:
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction is already committed (TransactionId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction is already committed (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -452,7 +452,7 @@ public:
         TransactionCommitted_.Fire(transaction);
         RunCommitTransactionActions(transaction);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction committed (TransactionId: %v, CommitTimestamp: %llx)",
             transactionId,
             commitTimestamp);
 
@@ -464,7 +464,7 @@ public:
             AdjustHeapBack(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
             UpdateMinCommitTimestamp(heap);
         } else {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction removed without serialization (TransactionId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction removed without serialization (TransactionId: %v)",
                 transactionId);
             PersistentTransactionMap_.Remove(transactionId);
         }
@@ -494,7 +494,7 @@ public:
         TransactionAborted_.Fire(transaction);
         RunAbortTransactionActions(transaction);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, Force: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
             force);
 
@@ -891,7 +891,7 @@ private:
             auto data = FromProto<TTransactionActionData>(protoData);
             transaction->Actions().push_back(data);
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
                 data.Type);
         }
@@ -915,7 +915,7 @@ private:
     {
         auto barrierTimestamp = request->timestamp();
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Handling transaction barrier (Timestamp: %llx)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Handling transaction barrier (Timestamp: %llx)",
             barrierTimestamp);
 
         for (auto& pair : SerializingTransactionHeaps_) {
@@ -931,7 +931,7 @@ private:
                 UpdateLastSerializedCommitTimestamp(transaction);
 
                 auto transactionId = transaction->GetId();
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction serialized (TransactionId: %v, CommitTimestamp: %llx)",
                     transaction->GetId(),
                     commitTimestamp);
 

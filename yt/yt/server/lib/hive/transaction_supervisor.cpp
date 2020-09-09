@@ -1089,7 +1089,7 @@ private:
         auto* commit = FindCommit(transactionId);
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit simple transaction in wrong state; ignored "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requested to commit simple transaction in wrong state; ignored "
                 "(TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
@@ -1109,7 +1109,7 @@ private:
                 SetCommitFailed(commit, ex);
                 RemoveTransientCommit(commit);
             }
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error committing simple transaction (TransactionId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Error committing simple transaction (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -1175,13 +1175,13 @@ private:
         }
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requested to commit distributed transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
             return;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(),
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Distributed commit phase one started (TransactionId: %v, %v, ParticipantCellIds: %v, PrepareTimestamp: %llx)",
             transactionId,
             NRpc::GetCurrentAuthenticationIdentity(),
@@ -1195,7 +1195,7 @@ private:
             YT_VERIFY(prerequisiteTransactionIds.empty());
             TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp, prerequisiteTransactionIds);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v, %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 ECommitState::Prepare,
                 NRpc::GetCurrentAuthenticationIdentity());
@@ -1204,14 +1204,14 @@ private:
             try {
                 TransactionManager_->AbortTransaction(transactionId, true);
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, %v)",
                     transactionId,
                     NRpc::GetCurrentAuthenticationIdentity());
             }
             return;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator success (TransactionId: %v, State: %v)",
             transactionId,
             ECommitState::Prepare);
 
@@ -1226,12 +1226,12 @@ private:
 
         auto* commit = FindPersistentCommit(transactionId);
         if (!commit) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Requested to execute phase two commit for a non-existing transaction; ignored (TransactionId: %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Requested to execute phase two commit for a non-existing transaction; ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(),
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Distributed commit phase two started "
             "(TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CommitTimestamps: %v)",
             transactionId,
@@ -1243,7 +1243,7 @@ private:
         YT_VERIFY(commit->GetPersistent());
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(),
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(),
                 "Requested to execute phase two commit for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
@@ -1266,7 +1266,7 @@ private:
 
         auto* commit = FindPersistentCommit(transactionId);
         if (!commit) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(),
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(),
                 "Requested to execute phase two abort for a non-existing transaction; ignored (TransactionId: %v)",
                 transactionId);
             return;
@@ -1276,7 +1276,7 @@ private:
         YT_VERIFY(commit->GetPersistent());
 
         if (commit->GetPersistentState() != ECommitState::Prepare) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(),
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(),
                 "Requested to execute phase two abort for transaction in wrong state; ignored (TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
@@ -1291,7 +1291,7 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->AbortTransaction(transactionId, true);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, State: %v, %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error aborting transaction at coordinator; ignored (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 ECommitState::Abort,
                 NRpc::GetCurrentAuthenticationIdentity());
@@ -1301,7 +1301,7 @@ private:
         ChangeCommitPersistentState(commit, ECommitState::Abort);
         ChangeCommitTransientState(commit, ECommitState::Abort);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator aborted (TransactionId: %v, State: %v, %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator aborted (TransactionId: %v, State: %v, %v)",
             transactionId,
             ECommitState::Abort,
             NRpc::GetCurrentAuthenticationIdentity());
@@ -1324,7 +1324,7 @@ private:
         } catch (const std::exception& ex) {
             SetAbortFailed(abort, ex);
             RemoveAbort(abort);
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Error aborting transaction; ignored (TransactionId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Error aborting transaction; ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -1351,7 +1351,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto* commit = FindPersistentCommit(transactionId);
         if (!commit) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requested to finish a non-existing transaction commit; ignored (TransactionId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requested to finish a non-existing transaction commit; ignored (TransactionId: %v)",
                 transactionId);
             return;
         }
@@ -1365,7 +1365,7 @@ private:
 
         RemovePersistentCommit(commit);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Distributed transaction commit finished (TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Distributed transaction commit finished (TransactionId: %v)",
             transactionId);
     }
 
@@ -1381,14 +1381,14 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp, {});
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 ECommitState::Prepare,
                 NRpc::GetCurrentAuthenticationIdentity());
             throw;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Participant success (TransactionId: %v, State: %v, %v)",
             transactionId,
             ECommitState::Prepare,
             NRpc::GetCurrentAuthenticationIdentity());
@@ -1406,14 +1406,14 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 ECommitState::Commit,
                 NRpc::GetCurrentAuthenticationIdentity());
             throw;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Participant success (TransactionId: %v, State: %v, %v)",
             transactionId,
             ECommitState::Commit,
             NRpc::GetCurrentAuthenticationIdentity());
@@ -1430,14 +1430,14 @@ private:
             // Any exception thrown here is caught below.
             TransactionManager_->AbortTransaction(transactionId, true);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 ECommitState::Abort,
                 NRpc::GetCurrentAuthenticationIdentity());
             throw;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Participant success (TransactionId: %v, State: %v, %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Participant success (TransactionId: %v, State: %v, %v)",
             transactionId,
             ECommitState::Abort,
             NRpc::GetCurrentAuthenticationIdentity());
@@ -1548,7 +1548,7 @@ private:
 
     void SetCommitFailed(TCommit* commit, const TError& error)
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), error, "Transaction commit failed (TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error, "Transaction commit failed (TransactionId: %v)",
             commit->GetTransactionId());
 
         auto responseMessage = CreateErrorResponseMessage(error);
@@ -1557,7 +1557,7 @@ private:
 
     void SetCommitSucceeded(TCommit* commit)
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit succeeded (TransactionId: %v, CommitTimestamps: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit succeeded (TransactionId: %v, CommitTimestamps: %v)",
             commit->GetTransactionId(),
             commit->CommitTimestamps());
 
@@ -1595,12 +1595,12 @@ private:
             auto commitTimestamp = commit->CommitTimestamps().GetTimestamp(CellTagFromId(SelfCellId_));
             TransactionManager_->CommitTransaction(transactionId, commitTimestamp);
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Coordinator success (TransactionId: %v, State: %v, %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Coordinator success (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 commit->GetPersistentState(),
                 NRpc::GetCurrentAuthenticationIdentity());
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), ex, "Coordinator failure; ignored (TransactionId: %v, State: %v, %v)",
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Coordinator failure; ignored (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 commit->GetPersistentState(),
                 NRpc::GetCurrentAuthenticationIdentity());
@@ -1623,7 +1623,7 @@ private:
 
     void SetAbortFailed(TAbort* abort, const TError& error)
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), error, "Transaction abort failed (TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), error, "Transaction abort failed (TransactionId: %v)",
             abort->GetTransactionId());
 
         auto responseMessage = CreateErrorResponseMessage(error);
@@ -1632,7 +1632,7 @@ private:
 
     void SetAbortSucceeded(TAbort* abort)
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction abort succeeded (TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction abort succeeded (TransactionId: %v)",
             abort->GetTransactionId());
 
         NHiveClient::NProto::NTransactionSupervisor::TRspAbortTransaction response;
@@ -1848,7 +1848,7 @@ private:
 
     void ChangeCommitPersistentState(TCommit* commit, ECommitState state)
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Commit persistent state changed (TransactionId: %v, State: %v -> %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Commit persistent state changed (TransactionId: %v, State: %v -> %v)",
             commit->GetTransactionId(),
             commit->GetPersistentState(),
             state);

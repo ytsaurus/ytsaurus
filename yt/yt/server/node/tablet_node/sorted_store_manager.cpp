@@ -585,13 +585,13 @@ void TSortedStoreManager::CreateActiveStore()
         Tablet_->GetState() == ETabletState::FreezeFlushing)
     {
         ActiveStore_->SetStoreState(EStoreState::PassiveDynamic);
-        YT_LOG_INFO_UNLESS(IsRecovery(),
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
             "Rotation request received while tablet is in flushing state, "
             "active store created as passive (StoreId: %v, TabletState: %v)",
             storeId,
             Tablet_->GetState());
     } else {
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Active store created (StoreId: %v)",
             storeId);
     }
 }

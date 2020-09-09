@@ -175,6 +175,7 @@ protected:
     void ValidateAnnotation(const TString& annotation);
 
     bool IsRecovery() const;
+    bool IsMutationLoggingEnabled() const;
     bool IsLeader() const;
     bool IsFollower() const;
     void RequireLeader() const;

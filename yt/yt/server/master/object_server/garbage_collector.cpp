@@ -235,12 +235,12 @@ int TGarbageCollector::WeakUnrefObject(TObject* object, TEpoch epoch)
             YT_VERIFY(!object->IsAlive());
 
             if (ephemeralRefCounter == 0) {
-                YT_LOG_TRACE_UNLESS(IsRecovery(), "Weak ghost disposed (ObjectId: %v)",
+                YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Weak ghost disposed (ObjectId: %v)",
                     object->GetId());
                 YT_VERIFY(WeakGhosts_.erase(object->GetId()) == 1);
                 delete object;
             } else {
-                YT_LOG_TRACE_UNLESS(IsRecovery(), "Weak ghost became ephemeral ghost (ObjectId: %v)",
+                YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Weak ghost became ephemeral ghost (ObjectId: %v)",
                     object->GetId());
                 YT_VERIFY(WeakGhosts_.erase(object->GetId()) == 1);
                 YT_VERIFY(EphemeralGhosts_.insert(object).second);
@@ -260,7 +260,7 @@ void TGarbageCollector::RegisterZombie(TObject* object)
         CollectPromise_ = NewPromise<void>();
     }
 
-    YT_LOG_TRACE_UNLESS(IsRecovery(), "Object has become zombie (ObjectId: %v)",
+    YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Object has become zombie (ObjectId: %v)",
         object->GetId());
     YT_VERIFY(Zombies_.insert(object).second);
 }
@@ -291,7 +291,7 @@ void TGarbageCollector::DestroyZombie(TObject* object)
     handler->DestroyObject(object);
 
     if (weakRefCounter > 0) {
-        YT_LOG_TRACE_UNLESS(IsRecovery(), "Zombie has become weak ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Zombie has become weak ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
             object->GetId(),
             ephemeralRefCounter,
             weakRefCounter);
@@ -299,14 +299,14 @@ void TGarbageCollector::DestroyZombie(TObject* object)
         object->SetDestroyed();
     } else if (ephemeralRefCounter > 0) {
         YT_ASSERT(weakRefCounter == 0);
-        YT_LOG_TRACE_UNLESS(IsRecovery(), "Zombie has become ephemeral ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
+        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Zombie has become ephemeral ghost (ObjectId: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
             object->GetId(),
             ephemeralRefCounter,
             weakRefCounter);
         YT_VERIFY(EphemeralGhosts_.insert(object).second);
         object->SetDestroyed();
     } else {
-        YT_LOG_TRACE_UNLESS(IsRecovery(), "Zombie disposed (ObjectId: %v)",
+        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Zombie disposed (ObjectId: %v)",
             object->GetId());
         delete object;
     }
@@ -318,7 +318,7 @@ void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object)
 
     YT_VERIFY(RemovalAwaitingCellsSyncObjects_.insert(object).second);
 
-    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removal awaiting cells sync object registered (ObjectId: %v)",
+    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removal awaiting cells sync object registered (ObjectId: %v)",
         object->GetId());
 }
 
@@ -327,10 +327,10 @@ void TGarbageCollector::UnregisterRemovalAwaitingCellsSyncObject(TObject* object
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (RemovalAwaitingCellsSyncObjects_.erase(object) == 1) {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removal awaiting cells sync object unregistered (ObjectId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removal awaiting cells sync object unregistered (ObjectId: %v)",
             object->GetId());
     } else {
-        YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempt to unregister an unknown removal awaiting cells sync object (ObjectId: %v)",
+        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to unregister an unknown removal awaiting cells sync object (ObjectId: %v)",
             object->GetId());
     }
 }
@@ -387,7 +387,7 @@ void TGarbageCollector::CheckEmpty()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (Zombies_.empty() && CollectPromise_ && !CollectPromise_.IsSet()) {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Zombie queue is empty");
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Zombie queue is empty");
         CollectPromise_.Set();
     }
 }
@@ -496,6 +496,11 @@ int TGarbageCollector::GetLockedCount() const
 bool TGarbageCollector::IsRecovery()
 {
     return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsRecovery();
+}
+
+bool TGarbageCollector::IsMutationLoggingEnabled()
+{
+    return Bootstrap_->GetHydraFacade()->GetHydraManager()->IsMutationLoggingEnabled();
 }
 
 const TDynamicObjectManagerConfigPtr& TGarbageCollector::GetDynamicConfig()

@@ -567,7 +567,7 @@ public:
         const auto& id = chunk->GetId();
 
         if (chunk->IsConfirmed()) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk is already confirmed (ChunkId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk is already confirmed (ChunkId: %v)",
                 id);
             return;
         }
@@ -585,7 +585,7 @@ public:
             auto nodeId = replica.GetNodeId();
             auto* node = nodeTracker->FindNode(nodeId);
             if (!IsObjectAlive(node)) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at an unknown node (ChunkId: %v, NodeId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tried to confirm chunk at an unknown node (ChunkId: %v, NodeId: %v)",
                     id,
                     replica.GetNodeId());
                 continue;
@@ -594,7 +594,7 @@ public:
             auto mediumIndex = replica.GetMediumIndex();
             const auto* medium = GetMediumByIndexOrThrow(mediumIndex);
             if (medium->GetCache()) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at a cache medium (ChunkId: %v, Medium: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tried to confirm chunk at a cache medium (ChunkId: %v, Medium: %v)",
                     id,
                     medium->GetName());
                 continue;
@@ -607,7 +607,7 @@ public:
                 chunk->IsJournal() ? EChunkReplicaState::Active : EChunkReplicaState::Generic);
 
             if (node->GetLocalState() != ENodeState::Online) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at non-online node (ChunkId: %v, Address: %v, State: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tried to confirm chunk at non-online node (ChunkId: %v, Address: %v, State: %v)",
                     id,
                     node->GetDefaultAddress(),
                     node->GetLocalState());
@@ -674,7 +674,7 @@ public:
         }
 
         if (chunk->IsSealed()) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk is already sealed (ChunkId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk is already sealed (ChunkId: %v)",
                 chunk->GetId());
             return;
         }
@@ -692,7 +692,7 @@ public:
             case EObjectType::ErasureChunk: {
                 auto* underlyingChunk = underlyingTree->As<TChunk>();
                 auto* chunkView = DoCreateChunkView(underlyingChunk, std::move(readRange), transactionId);
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v, TransactionId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk view created (Id: %v, ChunkId: %v, TransactionId: %v)",
                     chunkView->GetId(),
                     underlyingChunk->GetId(),
                     transactionId);
@@ -704,7 +704,7 @@ public:
 
                 auto* underlyingChunkView = underlyingTree->As<TChunkView>();
                 auto* chunkView = DoCreateChunkView(underlyingChunkView, std::move(readRange));
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk view created (Id: %v, ChunkId: %v, BaseChunkViewId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk view created (Id: %v, ChunkId: %v, BaseChunkViewId: %v)",
                     chunkView->GetId(),
                     underlyingChunkView->GetUnderlyingChunk()->GetId(),
                     underlyingChunkView->GetId());
@@ -724,7 +724,7 @@ public:
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const TTablet* tablet)
     {
         auto* dynamicStore = DoCreateDynamicStore(storeId, tablet);
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store created (StoreId: %v, TabletId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dynamic store created (StoreId: %v, TabletId: %v)",
             dynamicStore->GetId(),
             tablet->GetId());
         return dynamicStore;
@@ -733,7 +733,7 @@ public:
     TChunkList* CreateChunkList(EChunkListKind kind)
     {
         auto* chunkList = DoCreateChunkList(kind);
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list created (Id: %v, Kind: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list created (Id: %v, Kind: %v)",
             chunkList->GetId(),
             chunkList->GetKind());
         return chunkList;
@@ -860,10 +860,10 @@ public:
             return;
 
         PROFILE_AGGREGATED_TIMING (ChunkTreeRebalanceTimeCounter) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk tree rebalancing started (RootId: %v)",
                 chunkList->GetId());
             ChunkTreeBalancer_.Rebalance(chunkList);
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing completed");
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk tree rebalancing completed");
         }
     }
 
@@ -1047,7 +1047,7 @@ public:
         chunkList->Children().clear();
         ResetChunkListStatistics(chunkList);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list cleared (ChunkListId: %v)", chunkList->GetId());
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list cleared (ChunkListId: %v)", chunkList->GetId());
     }
 
 
@@ -1165,7 +1165,7 @@ public:
 
         ChunkListsAwaitingRequisitionTraverse_.insert(chunkList);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk list is awaiting requisition traverse (ChunkListId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk list is awaiting requisition traverse (ChunkListId: %v)",
             chunkList->GetId());
 
         if (ChunkReplicator_) {
@@ -1946,21 +1946,21 @@ private:
     {
         auto chunkListIds = FromProto<std::vector<TChunkListId>>(request->chunk_list_ids());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Confirming finished chunk lists requisition traverse (ChunkListIds: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Confirming finished chunk lists requisition traverse (ChunkListIds: %v)",
             chunkListIds);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto chunkListId : chunkListIds) {
             auto* chunkList = FindChunkList(chunkListId);
             if (!chunkList) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(), "Chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
 
             auto it = ChunkListsAwaitingRequisitionTraverse_.find(chunkList);
             if (it == ChunkListsAwaitingRequisitionTraverse_.end()) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(), "Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
@@ -2058,7 +2058,7 @@ private:
             auto& request = pair.second;
             FillChunkRequisitionDict(&request, *requisitionRegistry);
             multicellManager->PostToMaster(request, cellTag);
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting to update requisition of imported chunks (CellTag: %v, Count: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requesting to update requisition of imported chunks (CellTag: %v, Count: %v)",
                 cellTag,
                 request.updates_size());
         }
@@ -2156,7 +2156,7 @@ private:
             chunkIds.push_back(chunk->GetId());
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunks exported (TransactionId: %v, ChunkIds: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunks exported (TransactionId: %v, ChunkIds: %v)",
             transactionId,
             chunkIds);
     }
@@ -2194,7 +2194,7 @@ private:
             chunkIds.push_back(chunk->GetId());
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunks imported (TransactionId: %v, ChunkIds: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunks imported (TransactionId: %v, ChunkIds: %v)",
             transactionId,
             chunkIds);
     }
@@ -2220,7 +2220,7 @@ private:
 
             transactionManager->UnstageObject(chunk->GetStagingTransaction(), chunk, false /*recursive*/);
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unstaged expired chunk (ChunkId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unstaged expired chunk (ChunkId: %v)",
                 chunkId);
         }
     }
@@ -2238,7 +2238,7 @@ private:
                 try {
                     (this->*handler)(&subrequest, subresponse);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG_UNLESS(IsRecovery(), TError(errorMessage) << ex);
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), TError(errorMessage) << ex);
                     if (subresponse) {
                         ToProto(subresponse->mutable_error(), TError(ex));
                     }
@@ -2360,7 +2360,7 @@ private:
             ToProto(subresponse->mutable_session_id(), sessionId);
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(),
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Chunk created "
             "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, "
             "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
@@ -2395,7 +2395,7 @@ private:
             *subresponse->mutable_statistics() = chunk->GetStatistics().ToDataStatistics();
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk confirmed (ChunkId: %v, Replicas: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk confirmed (ChunkId: %v, Replicas: %v)",
             chunkId,
             replicas);
     }
@@ -2413,7 +2413,7 @@ private:
             chunk,
             miscExt);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk sealed "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk sealed "
             "(ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             chunk->GetId(),
             miscExt.row_count(),
@@ -2441,7 +2441,7 @@ private:
             chunkListIds.push_back(chunkList->GetId());
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(),
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Chunk lists created (ChunkListIds: %v, TransactionId: %v)",
             chunkListIds,
             transaction->GetId());
@@ -2458,7 +2458,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->UnstageObject(chunkTree->GetStagingTransaction(), chunkTree, recursive);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree unstaged (ChunkTreeId: %v, Recursive: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk tree unstaged (ChunkTreeId: %v, Recursive: %v)",
             chunkTreeId,
             recursive);
     }
@@ -2507,7 +2507,7 @@ private:
             *subresponse->mutable_statistics() = parent->Statistics().ToDataStatistics();
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk trees attached (ParentId: %v, ChildIds: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk trees attached (ParentId: %v, ChildIds: %v, TransactionId: %v)",
             parentId,
             MakeFormattableView(children, TObjectIdFormatter()),
             transactionId);
@@ -3076,7 +3076,7 @@ private:
 
         chunk->AddReplica(nodeWithIndexes, medium);
 
-        if (!IsRecovery()) {
+        if (IsMutationLoggingEnabled()) {
             YT_LOG_EVENT(
                 Logger,
                 reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
@@ -3140,7 +3140,7 @@ private:
                 YT_ABORT();
         }
 
-        if (!IsRecovery()) {
+        if (IsMutationLoggingEnabled()) {
             YT_LOG_EVENT(
                 Logger,
                 reason == ERemoveReplicaReason::NodeDisposed ||
@@ -3190,7 +3190,7 @@ private:
 
         auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
         if (!IsObjectAlive(medium)) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Cannot add chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot add chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkIdWithIndexes);
@@ -3208,7 +3208,7 @@ private:
             }
 
             auto isUnknown = node->AddDestroyedReplica(chunkIdWithIndexes);
-            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "%v removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
                 isUnknown ? "Unknown chunk added," : "Destroyed chunk",
                 nodeId,
@@ -3227,7 +3227,7 @@ private:
         TNodePtrWithIndexes nodeWithIndexes(node, chunkIdWithIndexes.ReplicaIndex, chunkIdWithIndexes.MediumIndex, state);
 
         if (!cached && node->HasUnapprovedReplica(chunkWithIndexes)) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkWithIndexes);
@@ -3254,7 +3254,7 @@ private:
 
         auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
         if (!IsObjectAlive(medium)) {
-            YT_LOG_WARNING_UNLESS(IsRecovery(), "Cannot remove chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
+            YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), "Cannot remove chunk with unknown medium (NodeId: %v, Address: %v, ChunkId: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkIdWithIndexes);
@@ -3265,7 +3265,7 @@ private:
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
             auto isDestroyed = node->RemoveDestroyedReplica(chunkIdWithIndexes);
-            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "%v chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
                 isDestroyed ? "Destroyed" : "Unknown",
                 chunkIdWithIndexes,

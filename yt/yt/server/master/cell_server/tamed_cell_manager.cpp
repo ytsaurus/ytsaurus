@@ -291,7 +291,7 @@ public:
                             SyncExecuteVerb(cellNode, req);
                         }
                     } catch (const std::exception& ex) {
-                        YT_LOG_ALERT_UNLESS(IsRecovery(), ex,
+                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex,
                             "Unexpected error: caught exception while changing ACL (Bundle: %v, TabletCellId: %v)",
                             cellBundle->GetName(),
                             cell->GetId());
@@ -378,8 +378,8 @@ public:
                 }
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR_UNLESS(
-                IsRecovery(),
+            YT_LOG_ERROR_IF(
+                IsMutationLoggingEnabled(),
                 ex,
                 "Error registering tablet cell in Cypress (CellId: %v)",
                 cell->GetId());
@@ -438,7 +438,7 @@ public:
                 // NB: Subtree transactions were already aborted in AbortPrerequisiteTransaction.
                 cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error unregisterting tablet cell from Cypress");
+                YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), ex, "Error unregisterting tablet cell from Cypress");
             }
         }
     }
@@ -554,7 +554,7 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Removing tablet cell (CellId: %v, Force: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removing tablet cell (CellId: %v, Force: %v)",
             cell->GetId(),
             force);
 
@@ -603,7 +603,7 @@ public:
 
         // Decommission tablet cell on node.
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requesting tablet cell decommission on node (CellId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requesting tablet cell decommission on node (CellId: %v)",
             cell->GetId());
 
         cell->SetCellLifeStage(ECellLifeStage::DecommissioningOnNode);
@@ -674,7 +674,7 @@ public:
 
         cell->SetCellLifeStage(ECellLifeStage::Decommissioned);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell decommissioned (CellId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell decommissioned (CellId: %v)",
             cell->GetId());
     }
 
@@ -950,12 +950,12 @@ private:
         YT_VERIFY(multicellManager->IsPrimaryMaster() || cellTag == Bootstrap_->GetPrimaryCellTag());
 
         if (!multicellManager->IsRegisteredMasterCell(cellTag)) {
-            YT_LOG_ERROR_UNLESS(IsRecovery(), "Received cell status gossip message from unknown cell (CellTag: %v)",
+            YT_LOG_ERROR_IF(IsMutationLoggingEnabled(), "Received cell status gossip message from unknown cell (CellTag: %v)",
                 cellTag);
             return;
         }
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Received cell status gossip message (CellTag: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell status gossip message (CellTag: %v)",
             cellTag);
 
         for (const auto& entry : request->entries()) {
@@ -1051,7 +1051,7 @@ private:
                 const auto& slot = node->TabletSlots()[slotIndex];
                 auto* cell = slot.Cell;
                 if (cell) {
-                    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot destroyed, detaching tablet cell peer (Address: %v, CellId: %v, PeerId: %v)",
+                    YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot destroyed, detaching tablet cell peer (Address: %v, CellId: %v, PeerId: %v)",
                         node->GetDefaultAddress(),
                         cell->GetId(),
                         slot.PeerId);
@@ -1066,7 +1066,7 @@ private:
 
     void OnNodeUnregistered(TNode* node)
     {
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node unregistered (Address: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node unregistered (Address: %v)",
             node->GetDefaultAddress());
 
         UpdateNodeTabletSlotCount(node, 0);
@@ -1103,7 +1103,7 @@ private:
 
             protoInfo->set_tablet_cell_bundle(cellBundle->GetName());
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot creation requested (Address: %v, CellId: %v, PeerId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 peerId);
@@ -1135,7 +1135,7 @@ private:
             protoInfo->set_options(ConvertToYsonString(cell->GetCellBundle()->GetOptions()).GetData());
 
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot configuration update requested "
                 "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v, AbandonLeaderLeaseDuringRecovery: %v)",
                 node->GetDefaultAddress(),
                 cellId,
@@ -1165,7 +1165,7 @@ private:
             protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
             protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).GetData());
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 cellBundle->GetDynamicConfigVersion());
@@ -1184,7 +1184,7 @@ private:
             auto* protoInfo = response->add_tablet_slots_to_remove();
             ToProto(protoInfo->mutable_cell_id(), cellId);
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot removal requested (Address: %v, CellId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet slot removal requested (Address: %v, CellId: %v)",
                 node->GetDefaultAddress(),
                 cellId);
         };
@@ -1225,7 +1225,7 @@ private:
             auto cellId = cellInfo.CellId;
             auto* cell = FindCell(cellId);
             if (!IsObjectAlive(cell)) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unknown tablet slot is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -1234,7 +1234,7 @@ private:
 
             auto peerId = cell->FindPeerId(address);
             if (peerId == InvalidPeerId) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unexpected tablet cell is running (Address: %v, CellId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Unexpected tablet cell is running (Address: %v, CellId: %v)",
                     address,
                     cellId);
                 requestRemoveSlot(cellId);
@@ -1242,8 +1242,8 @@ private:
             }
 
             if (CountVotingPeers(cell) > 1 && slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId) {
-                YT_LOG_DEBUG_UNLESS(
-                    IsRecovery(),
+                YT_LOG_DEBUG_IF(
+                    IsMutationLoggingEnabled(),
                     "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     peerId,
@@ -1254,7 +1254,7 @@ private:
             }
 
             if (state == EPeerState::Stopped) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Peer is stopped, removing (PeerId: %v, Address: %v, CellId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Peer is stopped, removing (PeerId: %v, Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     address,
                     cellId);
@@ -1265,7 +1265,7 @@ private:
             auto expectedIt = expectedCells.find(cell);
             if (expectedIt == expectedCells.end()) {
                 cell->AttachPeer(node, peerId);
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell peer online (Address: %v, CellId: %v, PeerId: %v)",
                     address,
                     cellId,
                     peerId);
@@ -1286,7 +1286,7 @@ private:
             slot.PreloadCompletedStoreCount = slotInfo.preload_completed_store_count();
             slot.PreloadFailedStoreCount = slotInfo.preload_failed_store_count();
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
                 address,
                 cell->GetId(),
                 slot.PeerId,
@@ -1307,7 +1307,7 @@ private:
         // Check for expected slots that are missing.
         for (auto* cell : expectedCells) {
             if (actualCells.find(cell) == actualCells.end()) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: slot is missing (CellId: %v, Address: %v)",
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell peer offline: slot is missing (CellId: %v, Address: %v)",
                     cell->GetId(),
                     address);
                 cell->DetachPeer(node);
@@ -1400,7 +1400,7 @@ private:
             AddToAddressToCellMap(descriptor, cell, peerId);
             cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
                 cellId,
                 descriptor.GetDefaultAddress(),
                 peerId);
@@ -1490,7 +1490,7 @@ private:
         cell->SetLeadingPeerId(peerId);
 
         const auto& descriptor = cell->Peers()[peerId].Descriptor;
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell leading peer updated (CellId: %v, Address: %v, PeerId: %v)",
             cellId,
             descriptor.GetDefaultAddress(),
             peerId);
@@ -1562,8 +1562,8 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_UNLESS(
-            IsRecovery(),
+        YT_LOG_DEBUG_IF(
+            IsMutationLoggingEnabled(),
             "Tablet cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
@@ -1634,7 +1634,7 @@ private:
         ToProto(request.mutable_transaction_id(), transaction->GetId());
         multicellManager->PostToMasters(request, multicellManager->GetRegisteredMasterCellTags());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction started (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
     }
@@ -1663,7 +1663,7 @@ private:
 
         YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transaction->GetId());
     }
@@ -1703,7 +1703,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->AbortTransaction(transaction, true);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
             cell->GetId(),
             transactionId);
     }
@@ -1728,7 +1728,7 @@ private:
         // COMPAT(savrus) Don't check since we didn't have them in earlier versions.
         TransactionToCellMap_.erase(transaction);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction aborted (CellId: %v, TransactionId: %v)",
             cellId,
             transactionId);
     }
@@ -1759,7 +1759,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), reason, "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), reason, "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
             descriptor.GetDefaultAddress(),
             peerId);

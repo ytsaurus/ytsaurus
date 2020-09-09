@@ -156,7 +156,7 @@ void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
             auto chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
             if (!TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
                 Tablet_->PreloadStoreIds().push_back(store->GetId());
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v)",store->GetId());
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Scheduled preload of in-memory store (StoreId: %v)",store->GetId());
             }
         }
     }
@@ -287,16 +287,16 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     TInMemoryChunkDataPtr chunkData)
 {
     if (!chunkData) {
-        YT_LOG_WARNING_UNLESS(
-            IsRecovery(),
+        YT_LOG_WARNING_IF(
+            IsMutationLoggingEnabled(),
             "Intercepted chunk data for in-memory store is missing (StoreId: %v)",
             store->GetId());
         return false;
     }
 
     if(!chunkData->Finalized) {
-        YT_LOG_WARNING_UNLESS(
-            IsRecovery(),
+        YT_LOG_WARNING_IF(
+            IsMutationLoggingEnabled(),
             "Intercepted chunk data for in-memory store is not finalized (StoreId: %v)",
             store->GetId());
         return false;
@@ -304,8 +304,8 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
 
     auto mode = Tablet_->GetConfig()->InMemoryMode;
     if (mode != chunkData->InMemoryMode) {
-        YT_LOG_WARNING_UNLESS(
-            IsRecovery(),
+        YT_LOG_WARNING_IF(
+            IsMutationLoggingEnabled(),
             "Intercepted chunk data for in-memory store has invalid mode (StoreId: %v, ExpectedMode: %v, ActualMode: %v)",
             store->GetId(),
             mode,
@@ -316,7 +316,7 @@ bool TStoreManagerBase::TryPreloadStoreFromInterceptedData(
     store->Preload(chunkData);
     store->SetPreloadState(EStorePreloadState::Complete);
 
-    YT_LOG_INFO_UNLESS(IsRecovery(), "In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
+    YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "In-memory store preloaded from intercepted chunk data (StoreId: %v, Mode: %v)",
         store->GetId(),
         mode);
 
@@ -446,17 +446,17 @@ void TStoreManagerBase::Rotate(bool createNewStore)
     if (activeStore) {
         activeStore->SetStoreState(EStoreState::PassiveDynamic);
 
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v)",
             activeStore->GetId(),
             activeStore->GetDynamicMemoryUsage());
 
         if (activeStore->GetLockCount() > 0) {
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
                 activeStore->GetId(),
                 activeStore->GetLockCount());
             YT_VERIFY(LockedStores_.insert(IStorePtr(activeStore)).second);
         } else {
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is not locked and will be dropped (StoreId: %v)",
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Active store is not locked and will be dropped (StoreId: %v)",
                 activeStore->GetId(),
                 activeStore->GetLockCount());
         }
@@ -471,7 +471,7 @@ void TStoreManagerBase::Rotate(bool createNewStore)
         Tablet_->SetActiveStore(nullptr);
     }
 
-    YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet stores rotated");
+    YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet stores rotated");
 }
 
 bool TStoreManagerBase::IsStoreLocked(IStorePtr store) const
@@ -624,7 +624,7 @@ void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)
         return;
     }
 
-    YT_LOG_INFO_UNLESS(IsRecovery(), "Store unlocked and will be dropped (StoreId: %v)",
+    YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Store unlocked and will be dropped (StoreId: %v)",
         store->GetId());
     YT_VERIFY(LockedStores_.erase(store) == 1);
 }
@@ -642,7 +642,7 @@ void TStoreManagerBase::UpdateInMemoryMode()
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
                 chunkStore->UpdatePreloadAttempt(false);
                 Tablet_->PreloadStoreIds().push_back(store->GetId());
-                YT_LOG_INFO_UNLESS(IsRecovery(), "Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
+                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
             }
         }
     }
@@ -652,6 +652,12 @@ bool TStoreManagerBase::IsRecovery() const
 {
     // NB: HydraManager is null in tests.
     return HydraManager_ ? HydraManager_->IsRecovery() : false;
+}
+
+bool TStoreManagerBase::IsMutationLoggingEnabled() const
+{
+    // NB: HydraManager is null in tests.
+    return HydraManager_ ? HydraManager_->IsMutationLoggingEnabled() : false;
 }
 
 TTimestamp TStoreManagerBase::GenerateMonotonicCommitTimestamp(TTimestamp timestampHint)
