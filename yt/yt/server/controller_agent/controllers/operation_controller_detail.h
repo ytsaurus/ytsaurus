@@ -60,6 +60,7 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/atomic_object.h>
 #include <yt/core/misc/digest.h>
 #include <yt/core/misc/histogram.h>
 #include <yt/core/misc/id_generator.h>
@@ -955,8 +956,7 @@ private:
     NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;
     TJobResources CachedNeededResources;
 
-    NConcurrency::TReaderWriterSpinLock CachedMinNeededResourcesJobLock;
-    NScheduler::TJobResourcesWithQuotaList CachedMinNeededJobResources;
+    TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededJobResources;
 
     mutable TInstant CachedRunningJobsUpdateTime_;
     mutable NYson::TYsonString CachedRunningJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
