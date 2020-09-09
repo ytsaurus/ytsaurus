@@ -1638,13 +1638,9 @@ void TObjectManager::TImpl::HydraExecuteLeader(
         // interval. If the boomerang's "begin" has been lost due to a recent
         // leader change, we get here.
 
-        if (!mutationContext->GetResponseKeeperSuppressed()) {
-            auto keptResult = responseKeeper->FindRequest(mutationId, rpcContext->IsRetry());
-            if (keptResult) {
-                rpcContext->ReplyFrom(keptResult);
-            }
-        }
-        if (!rpcContext->IsReplied()) {
+        if (auto keptResult = responseKeeper->FindRequest(mutationId, rpcContext->IsRetry())) {
+            rpcContext->ReplyFrom(keptResult);
+        } else {
             rpcContext->Reply(TError("Mutation is already applied")
                 << TErrorAttribute("mutation_id", mutationId));
         }
@@ -1670,15 +1666,13 @@ void TObjectManager::TImpl::HydraExecuteLeader(
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, timer.GetElapsedTime()});
     }
 
-    if (mutationId) {
+    if (mutationId && !mutationContext->GetResponseKeeperSuppressed()) {
         MutationIdempotizer_->SetMutationApplied(mutationId);
 
-        if (!mutationContext->GetResponseKeeperSuppressed()) {
-            const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-            const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-            // NB: Context must already be replied by now.
-            responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
-        }
+        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+        const auto& responseKeeper = hydraFacade->GetResponseKeeper();
+        // NB: Context must already be replied by now.
+        responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
     }
 }
 
