@@ -238,7 +238,10 @@ public:
         , ThrottlerShards_(ShardCount_)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Throttle));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Throttle)
+            .SetCancelable(true)
+            .SetConcurrencyLimit(10000)
+            .SetQueueSizeLimit(20000));
     }
 
     void Initialize()
