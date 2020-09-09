@@ -4665,8 +4665,7 @@ TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededJobResources() 
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    NConcurrency::TReaderGuard guard(CachedMinNeededResourcesJobLock);
-    return CachedMinNeededJobResources;
+    return CachedMinNeededJobResources.Load();
 }
 
 void TOperationControllerBase::DoUpdateMinNeededJobResources()
@@ -4707,10 +4706,7 @@ void TOperationControllerBase::DoUpdateMinNeededJobResources()
             FormatResources(resources, GetMediumDirectory()));
     }
 
-    {
-        NConcurrency::TWriterGuard guard(CachedMinNeededResourcesJobLock);
-        CachedMinNeededJobResources.swap(result);
-    }
+    CachedMinNeededJobResources.Exchange(result);
 }
 
 void TOperationControllerBase::UpdateMinNeededJobResources()
