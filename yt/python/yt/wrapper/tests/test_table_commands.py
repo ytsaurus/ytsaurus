@@ -9,6 +9,7 @@ import yt.wrapper.format as yt_format
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.py_wrapper import OperationParameters
 from yt.wrapper.table import TempTable
+from yt.wrapper.schema import TableSchema
 from yt.wrapper.common import MB
 from yt.wrapper import heavy_commands, parallel_writer
 
@@ -19,6 +20,8 @@ from yt.packages.six.moves import xrange, map as imap
 from yt.local import start, stop
 
 import yt.wrapper as yt
+
+from yandex.type_info import typing
 
 import os
 import pytest
@@ -112,6 +115,53 @@ class TestTableCommands(object):
                         for _ in iterator:
                             pass
 
+    @authors("levysotsky")
+    def test_read_write_with_schema(self, yt_env_with_rpc):
+        if yt.config["backend"] == "rpc":
+            return
+
+        table = TEST_DIR + "/table"
+        schema = TableSchema() \
+            .add_column("x", typing.Int64) \
+            .add_column("y", typing.Optional[typing.Double]) \
+            .add_column("z", typing.Struct[
+                "foo": typing.Variant["a": typing.Uint8, "b": typing.String],
+                "bar": typing.String,
+            ])
+        yt.create("table", table, attributes={"schema": schema})
+        check([], yt.read_table(table))
+
+        row = {"x": 1, "y": 0.125, "z": {"foo": ["a", yt.yson.YsonUint64(255)], "bar": "BAR"}}
+        yt.write_table(table, [row])
+        check([row], yt.read_table(table))
+
+        yt.write_table(table, [row])
+        check([row], yt.read_table(table))
+
+        yt.write_table(table, [row], raw=False)
+        check([row], yt.read_table(table))
+
+        yt.write_table(table, iter([row]))
+        check([row], yt.read_table(table))
+
+        other_row = {"x": 2, "z": {"bar": "", "foo": ["b", "xxx"]}}
+        other_row_with_y = {"x": 2, "y": None, "z": {"bar": "", "foo": ["b", "xxx"]}}
+        yt.write_table(yt.TablePath(table, append=True), [other_row])
+        check([row, other_row_with_y], yt.read_table(table))
+
+        yt.write_table(yt.TablePath(table), [row, other_row])
+        check([row, other_row_with_y], yt.read_table(table))
+
+        yt.write_table(table, [other_row])
+        check([other_row_with_y], yt.read_table(table))
+
+        yt.write_table(
+            table,
+            BytesIO(b'{"x": 3, "y": -3.25, "z": {"foo": ["b", "bbb"], "bar": "fff"}}\n'),
+            raw=True,
+            format=yt.JsonFormat())
+        check([{"x": 3, "y": -3.25, "z": {"foo": ["b", "bbb"], "bar": "fff"}}], yt.read_table(table))
+
     @authors("ignat")
     def test_table_path(self, yt_env_with_rpc):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
@@ -175,6 +225,16 @@ class TestTableCommands(object):
                         {"name": "value", "type": "double"},
                     ]
             })
+
+        data = [{"id": i, "value": 0.9 * i} for i in xrange(64)]
+        with set_config_option("write_parallel/enable", True):
+            with set_config_option("write_retries/chunk_size", 256):
+                yt.write_table("//tmp/table", data)
+
+    @authors("levysotsky")
+    def test_schemaful_parallel_write_typed_schema(self):
+        schema = TableSchema().add_column("id", typing.Int64).add_column("value", typing.Double)
+        yt.create("table", "//tmp/table", recursive=True, attributes={"schema": schema})
 
         data = [{"id": i, "value": 0.9 * i} for i in xrange(64)]
         with set_config_option("write_parallel/enable", True):

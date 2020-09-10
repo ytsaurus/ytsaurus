@@ -10,10 +10,14 @@ import yt.yson as yson
 
 from yt.common import datetime_to_string
 import yt.wrapper as yt
+from yt.wrapper.schema import TableSchema, ColumnSchema
 from yt.packages.six import PY3
+
+from yandex.type_info import typing
 
 from flaky import flaky
 
+import copy
 import sys
 import time
 import pytest
@@ -40,6 +44,22 @@ class TestCypressCommands(object):
         assert repr(path).endswith("#123")
         assert path.append is None
         assert path.attributes == {"ranges": []}
+
+    @authors("levysotsky")
+    def test_table_schema(self):
+        schema = TableSchema(unique_keys=True) \
+            .add_column(ColumnSchema("a", typing.String, sort_order="ascending")) \
+            .add_column("b", typing.Struct["field1": typing.Optional[typing.Yson], "field2": typing.Int8])
+        schema.strict = False
+        schema.add_column("c", typing.Null)
+        path = yt.TablePath(TEST_DIR + "/my/table", schema=schema)
+        yt.create("table", path, recursive=True, attributes={"schema": schema})
+        schema_from_attr = TableSchema.from_yson_type(yt.get(path + "/@schema"))
+        assert schema == schema_from_attr
+        wrong_schema = copy.deepcopy(schema)
+        wrong_schema.add_column("new", typing.Int64)
+        assert wrong_schema != schema
+        assert wrong_schema != schema_from_attr
 
     @authors("asaitgalin")
     def test_get_set_exists(self):
@@ -721,7 +741,7 @@ class TestCypressCommands(object):
 
         with set_config_option("structured_data_format", yt.YsonFormat(encoding=None)):
             assert yt.get(TEST_DIR + "/some_node", attributes=["encoding"]) == value
-    
+
     @authors("ignat")
     def test_utf8_node(self):
         unicode_symbol = json.loads('"\\u00A9"')
@@ -747,7 +767,7 @@ class TestCypressCommands(object):
 
         # JSON applies encode_utf8 decoding on the server side.
         assert yt.get(TEST_DIR + "/some_node", format="json") == b'{"\xc3\x82\xc2\xa9":"\xc3\x82\xc2\xa9"}'
-        
+
         assert search_result == list(yt.search(TEST_DIR))
 
         # NB: JsonFormat is used since 'Encoding parameter is not supported for Python 2'.

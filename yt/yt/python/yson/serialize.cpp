@@ -288,6 +288,9 @@ void Serialize(
         consumer->OnDoubleScalar(Py::Float(obj));
     } else if (obj.isNone() || PyObject_IsInstance(obj.ptr(), YsonEntityClass)) {
         consumer->OnEntity();
+    } else if (obj.hasAttr("to_yson_type") && obj.getAttr("to_yson_type").isCallable()) {
+        auto repr = obj.callMemberFunction("to_yson_type");
+        Serialize(repr, consumer, encoding, ignoreInnerAttributes, ysonType, sortKeys, depth, context);
     } else {
         throw CreateYsonError(
             Format(

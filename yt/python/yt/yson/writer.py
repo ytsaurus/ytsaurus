@@ -150,6 +150,8 @@ class Dumper(object):
         return hasattr(obj, "attributes")
 
     def dumps(self, obj, context):
+        if hasattr(obj, "to_yson_type") and callable(obj.to_yson_type):
+            return self.dumps(obj.to_yson_type(), context)
         self._level += 1
         attributes = b""
         if self._has_attributes(obj):
