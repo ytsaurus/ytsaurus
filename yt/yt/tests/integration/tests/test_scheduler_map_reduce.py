@@ -975,13 +975,21 @@ print "x={0}\ty={1}".format(x, y)
         shuffle(rows)
         write_table("//tmp/t1", rows)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Pivot keys should be sorted"):
             map_reduce(in_="//tmp/t1",
                        out="//tmp/t2",
                        mapper_command="cat",
                        reducer_command="cat",
                        sort_by=["key"],
                        spec={"pivot_keys": [["73"], ["37"]]})
+
+        with raises_yt_error("Pivot key cannot be longer"):
+            map_reduce(in_="//tmp/t1",
+                       out="//tmp/t2",
+                       mapper_command="cat",
+                       reducer_command="cat",
+                       sort_by=["key"],
+                       spec={"pivot_keys": [["37", 42], ["73", 10]]})
 
     @authors("gritukan")
     def test_pivot_keys_with_hierarchical_partitions(self):

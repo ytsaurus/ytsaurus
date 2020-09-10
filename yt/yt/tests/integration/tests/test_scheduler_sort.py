@@ -97,7 +97,7 @@ def sort_3_phase_depth_2(in_, out, sort_by):
     assert check_operation_tasks(op, ["partition(0)", "partition(1)", "intermediate_sort", "sorted_merge"])
     return op
 
-def sort_maniac(in_, out, sort_by):
+def sort_maniac(in_, out, sort_by, allow_non_maniac=False):
     if isinstance(sort_by, str):
         sort_by = [sort_by]
 
@@ -137,8 +137,14 @@ def sort_maniac(in_, out, sort_by):
         "data_weight_per_sort_job": 1,
     })
     op.track()
-    assert __builtin__.set(get_operation_job_types(op.id)) == {"unordered_merge", "partition"}
-    assert check_operation_tasks(op, ["partition(0)", "unordered_merge"])
+    job_types = {"unordered_merge", "partition"}
+    if allow_non_maniac:
+        job_types.add("final_sort")
+    assert __builtin__.set(get_operation_job_types(op.id)) == job_types
+    task_names = ["partition(0)", "unordered_merge"]
+    if allow_non_maniac:
+        task_names.append("final_sort")
+    assert check_operation_tasks(op, task_names)
     return op
 
 class TestSchedulerSortCommands(YTEnvSetup):
@@ -201,7 +207,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_="//tmp/t_in",
                  out="//tmp/t_out",
                  sort_by="key",
-                 spec={"max_shuffle_data_slice_count" : 1, 
+                 spec={"max_shuffle_data_slice_count" : 1,
                        "partition_job_count" : 2,
                        "partition_count" : 2})
 
@@ -209,7 +215,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_="//tmp/t_in",
                  out="//tmp/t_out",
                  sort_by="key",
-                 spec={"max_shuffle_job_count" : 1, 
+                 spec={"max_shuffle_job_count" : 1,
                        "partition_job_count" : 2,
                        "partition_count" : 2})
 
@@ -217,7 +223,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort(in_="//tmp/t_in",
                  out="//tmp/t_out",
                  sort_by="key",
-                 spec={"max_merge_data_slice_count" : 1, 
+                 spec={"max_merge_data_slice_count" : 1,
                        "partition_job_count" : 2,
                        "partition_count" : 2,
                        "data_weight_per_sort_job" : 3})
@@ -1288,6 +1294,22 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert data_flow_graph["edges"][partition_vertex]["unordered_merge"]["statistics"]["data_weight"] == data_weight
         assert data_flow_graph["edges"]["unordered_merge"]["sink"]["statistics"]["data_weight"] == data_weight
 
+    @authors("max42")
+    def test_proper_key_comparison(self):
+        # YT-13530.
+        create("table", "//tmp/in", attributes={"schema": [{"name": "x", "type": "int64"},
+                                                           {"name": "d", "type": "double"}]})
+        create("table", "//tmp/out")
+
+        n = 47
+        nan = float('nan')
+        rows = [{"x": x, "d": nan} for x in [20, 60] + [42] * (n - 2)]
+        shuffle(rows)
+        write_table("//tmp/in", rows)
+
+        sort_maniac("//tmp/in", "//tmp/out", "x", allow_non_maniac=True)
+        assert len(read_table("//tmp/out")) == n
+
     @authors("ermolovd")
     @pytest.mark.parametrize("sort_func", [simple_sort_1_phase, simple_sort_2_phase, sort_2_phase, sort_2_phase_depth_2, sort_3_phase, sort_3_phase_depth_2, sort_maniac])
     def test_sort_nonkey_complex_type(self, sort_func):
@@ -1436,7 +1458,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                             "desired_chunk_size" : 1,
                             "block_size" : 1024,
                         }
-                    }            
+                    }
                 })
                 op.track()
 
@@ -1448,7 +1470,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     expected_vertices += ["intermediate_sort", "sorted_merge", "output"]
 
                 directions = get_directions(op)
-                assert len(directions) == len(expected_vertices) - 1    
+                assert len(directions) == len(expected_vertices) - 1
                 for i in range(len(expected_vertices) - 1):
                     from_, to = expected_vertices[i], expected_vertices[i + 1]
                     job_row_count = 0 if from_ == "input" else 100

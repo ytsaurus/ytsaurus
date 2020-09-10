@@ -1123,6 +1123,14 @@ TSortOperationSpecBase::TSortOperationSpecBase()
                     << TErrorAttribute("current_key", PivotKeys[index]);
             }
         }
+
+        for (const auto& pivotKey : PivotKeys) {
+            if (pivotKey.GetCount() > SortBy.size()) {
+                THROW_ERROR_EXCEPTION("Pivot key cannot be longer than sort_by")
+                    << TErrorAttribute("key", pivotKey)
+                    << TErrorAttribute("sort_by", SortBy);
+            }
+        }
     });
 }
 
