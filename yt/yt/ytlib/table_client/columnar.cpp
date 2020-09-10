@@ -16,6 +16,9 @@ namespace {
 
 ui64 SafeReadQword(const ui64* ptr, const char* end)
 {
+    if (reinterpret_cast<const char*>(ptr) >= end) {
+        return 0;
+    }
     ui64 qword = 0;
     ::memcpy(&qword, ptr, std::min<size_t>(sizeof(ui64), end - reinterpret_cast<const char*>(ptr)));
     return qword;
@@ -23,6 +26,9 @@ ui64 SafeReadQword(const ui64* ptr, const char* end)
 
 void SafeWriteQword(ui64* ptr, char* end, ui64 qword)
 {
+    if (reinterpret_cast<char*>(ptr) >= end) {
+        return;
+    }
     ::memcpy(ptr, &qword, std::min<size_t>(sizeof(ui64), end - reinterpret_cast<char*>(ptr)));
 }
 
@@ -36,7 +42,7 @@ auto MaybeNegateValue(T value)
 }
 
 template <class T, bool Negate>
-std::tuple<const T*, T*> MaybeNegaveAndCopyValues(
+std::tuple<const T*, T*> MaybeNegateAndCopyValues(
     const void* beginInput,
     const void* endInput,
     void* output)
@@ -82,11 +88,11 @@ void CopyBitmapRangeToBitmapImpl(
         const auto* endByteInput = beginByteInput + byteCount;
         auto* beginByteOutput = reinterpret_cast<ui8*>(dst.Begin());
         if constexpr(Negate) {
-            std::tie(currentQwordInput, currentQwordOutput) = MaybeNegaveAndCopyValues<ui64, Negate>(
+            std::tie(currentQwordInput, currentQwordOutput) = MaybeNegateAndCopyValues<ui64, Negate>(
                 currentQwordInput,
                 endQwordInput - 1,
                 currentQwordOutput);
-            MaybeNegaveAndCopyValues<ui8, Negate>(
+            MaybeNegateAndCopyValues<ui8, Negate>(
                 currentQwordInput,
                 endByteInput,
                 currentQwordOutput);
@@ -96,23 +102,29 @@ void CopyBitmapRangeToBitmapImpl(
         return;
     }
 
-    // Head
-    while (currentQwordInput < endQwordInput) {
-        auto qword1 = currentQwordInput[0];
-        auto qword2 = currentQwordInput[1];
-        ++currentQwordInput;
+    auto buildOutputQWord = [&] (ui64 qword1, ui64 qword2) {
         qword1 >>= qwordShift;
         qword2 &= (1ULL << qwordShift) - 1;
         qword2 <<= qwordCoshift;
-        *currentQwordOutput++ = MaybeNegateValue<Negate>(qword1 | qword2);
+        return MaybeNegateValue<Negate>(qword1 | qword2);
+    };
+
+    // Head
+    while (currentQwordInput < endQwordInput - 1) {
+        auto qword1 = currentQwordInput[0];
+        auto qword2 = currentQwordInput[1];
+        *currentQwordOutput = buildOutputQWord(qword1, qword2);
+        ++currentQwordInput;
+        ++currentQwordOutput;
     }
 
     // Tail
-    {
-        auto qword = currentQwordInput[0];
-        qword >>= qwordShift;
-        qword = MaybeNegateValue<Negate>(qword);
-        SafeWriteQword(currentQwordOutput, dst.End(), qword);
+    while (currentQwordInput <= endQwordInput) {
+        auto qword1 = SafeReadQword(currentQwordInput, bitmap.End());
+        auto qword2 = SafeReadQword(currentQwordInput + 1, bitmap.End());
+        SafeWriteQword(currentQwordOutput, dst.End(), buildOutputQWord(qword1, qword2));
+        ++currentQwordInput;
+        ++currentQwordOutput;
     }
 }
 
