@@ -92,7 +92,7 @@ IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecEx
 {
     if (partitionJobSpecExt.has_wire_partition_keys()) {
         auto wirePartitionKeys = TSharedRef::FromString(partitionJobSpecExt.wire_partition_keys());
-        return CreateOrderedPartitioner(wirePartitionKeys);
+        return CreateOrderedPartitioner(wirePartitionKeys, partitionJobSpecExt.reduce_key_column_count());
     } else {
         return CreateHashPartitioner(
             partitionJobSpecExt.partition_count(),

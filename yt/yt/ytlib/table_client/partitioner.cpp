@@ -10,13 +10,19 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// IMPORTANT: Think twice before changing logic in any of the classes below!
+// You may occasionally end up in a situation when partition jobs in same operation
+// act differently (for example, during node rolling update) leading to partitioning
+// invariant violation.
+
 class TOrderedPartitioner
     : public IPartitioner
 {
 public:
-    explicit TOrderedPartitioner(const TSharedRef& wirePartitionKeys)
+    TOrderedPartitioner(const TSharedRef& wirePartitionKeys, int keyColumnCount)
         : KeySetReader_(wirePartitionKeys)
         , Keys_(KeySetReader_.GetKeys())
+        , KeyColumnCount_(keyColumnCount)
     { }
 
     virtual int GetPartitionCount() override
@@ -30,8 +36,14 @@ public:
             Keys_.Begin(),
             Keys_.End(),
             row,
-            [] (TUnversionedRow row, const TKey& element) {
-                return row < element;
+            [=] (TUnversionedRow row, const TKey& element) {
+                // We consider only key prefix of the row; note that remaining
+                // values of the row may be incomparable at all (like double NaN).
+                return CompareRows(
+                    row.Begin(),
+                    row.Begin() + KeyColumnCount_,
+                    element.Begin(),
+                    element.End()) < 0;
             });
         return std::distance(Keys_.Begin(), it);
     }
@@ -39,11 +51,12 @@ public:
 private:
     const TKeySetReader KeySetReader_;
     const TRange<TKey> Keys_;
+    const int KeyColumnCount_;
 };
 
-IPartitionerPtr CreateOrderedPartitioner(const TSharedRef& wirePartitionKeys)
+IPartitionerPtr CreateOrderedPartitioner(const TSharedRef& wirePartitionKeys, int keyColumnCount)
 {
-    return New<TOrderedPartitioner>(wirePartitionKeys);
+    return New<TOrderedPartitioner>(wirePartitionKeys, keyColumnCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
