@@ -15,7 +15,8 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import get_disk_size, MB
 from yt.wrapper.operation_commands import (
     add_failed_operation_stderrs_to_error_message, get_jobs_with_error_or_stderr, get_operation_error)
-from yt.wrapper.spec_builders import MapReduceSpecBuilder, VanillaSpecBuilder
+from yt.wrapper.schema import TableSchema
+from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
 
 from yt.test_helpers import are_almost_equal
@@ -31,6 +32,8 @@ from yt.packages.six import b, PY3
 from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
+
+from yandex.type_info import typing
 
 import io
 import logging
@@ -218,6 +221,17 @@ class TestOperations(object):
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
         assert sorted([rec["c"] for rec in records]) == []
         assert get_operation_error(operation.id) is None
+
+    @authors("levysotsky")
+    def test_output_schema(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": {"f1": "s", "f2": True}}])
+        schema = TableSchema() \
+            .add_column("x", typing.Int8) \
+            .add_column("y", typing.Struct["f1": typing.String, "f2": typing.Bool])
+        out_table = yt.TablePath(TEST_DIR + "/out", schema=schema)
+        yt.run_map("cat", table, out_table)
+        assert TableSchema.from_yson_type(yt.get(out_table + "/@schema")) == schema
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message

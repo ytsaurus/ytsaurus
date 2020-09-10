@@ -223,6 +223,15 @@ class YsonWriterTestBase(object):
         d = FrozenDict({"a": "b"})
         assert b'{"a"="b";}' == self.dumps(d)
 
+    def test_to_yson_type(self):
+        class A:
+            def to_yson_type(self):
+                d = YsonUint64(234)
+                d.attributes = {"foo": "bar"}
+                return d
+        assert b'<"foo"="bar";>234u' == self.dumps(A())
+
+
 class TestWriterDefault(YsonWriterTestBase):
     @staticmethod
     def dumps(*args, **kws):

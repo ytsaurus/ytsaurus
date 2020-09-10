@@ -293,7 +293,7 @@ class TablePath(YPathSupportingAppend):
     * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows.
     * exact_index, start_index, end_index -- tuple of indexes to identify range of rows.
     * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details in the docs.
-    * schema -- dict with schema, see \
+    * schema -- TableSchema (or list with column schemas -- deprecated), see \
     `static schema doc <https://yt.yandex-team.ru/docs/description/storage/static_schema.html#create>`_
 
     .. seealso:: `YPath in the docs <https://yt.yandex-team.ru/docs/description/common/ypath.html>`_
@@ -336,7 +336,8 @@ class TablePath(YPathSupportingAppend):
         :param int start_index: lower bound of rows.
         :param int end_index: upper bound of rows.
         :param list ranges: list of ranges of rows. It overwrites all other row limits.
-        :param list schema: table schema description.
+        :param schema: table schema description.
+        :type schema: TableSchema (or list of column schemas -- deprecated).
         :param string optimize_for: value of optimize_for mode.
         :param string compression_codec: compression codec.
         :param string erasure_codec: erasure codec.
