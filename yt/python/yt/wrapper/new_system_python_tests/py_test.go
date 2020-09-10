@@ -185,7 +185,7 @@ func GetPythonPaths() []string {
 	return pythonPaths
 }
 
-func PreparePython(preparedPythonPath string) error {
+func PreparePython(preparedPythonPath string, t *testing.T) error {
 	var err error
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -215,6 +215,8 @@ func PreparePython(preparedPythonPath string) error {
 
 	err = cmdPrepareSourceTree.Run()
 	if err != nil {
+		t.Logf("Prepare source tree command stdout: %s", stdout.String())
+		t.Logf("Prepare source tree command stderr: %s", stderr.String())
 		return fmt.Errorf("Prepare source tree failed: %s", err)
 	}
 	return nil
@@ -231,17 +233,15 @@ func TestPyTest(t *testing.T) {
 	}
 
 	preparedPythonPath := filepath.Join(testsRoot, "prepared_python")
-	err = PreparePython(preparedPythonPath)
+	err = PreparePython(preparedPythonPath, t)
 	if err != nil {
-		t.Logf("Failed to prepare python: %s", err)
-		return
+		t.Fatalf("Failed to prepare python: %s", err)
 	}
 
 	binariesPath := filepath.Join(testsRoot, "bin")
 	err = PrepareBinaries(binariesPath)
 	if err != nil {
-		t.Logf("Failed to prepare python: %s", err)
-		return
+		t.Fatalf("Failed to prepare python: %s", err)
 	}
 
 	sandboxDir := filepath.Join(testsRoot, "sandbox")
@@ -252,15 +252,13 @@ func TestPyTest(t *testing.T) {
 	testPathsFilePath := path.Join(preparedPythonPath, "yt/wrapper/system_python_tests/test_paths.txt")
 	testPathsFile, err := os.Open(testPathsFilePath)
 	if err != nil {
-		t.Logf("Failed to open %s: %s", testPathsFilePath, err)
-		return
+		t.Fatalf("Failed to open %s: %s", testPathsFilePath, err)
 	}
 	defer testPathsFile.Close()
 
 	data, err := ioutil.ReadAll(testPathsFile)
 	if err != nil {
-		t.Logf("Failed to read %s: %s", testPathsFilePath, err)
-		return
+		t.Fatalf("Failed to read %s: %s", testPathsFilePath, err)
 	}
 
 	testPaths := []string{}
@@ -290,8 +288,7 @@ func TestPyTest(t *testing.T) {
 
 	err = os.Setenv("PATH", strings.Join([]string{binariesPath, os.Getenv("PATH")}, ":"))
 	if err != nil {
-		t.Logf("Failed to setenv: %s", err)
-		return
+		t.Fatalf("Failed to setenv: %s", err)
 	}
 	cmdPytest.Env = append(
 		os.Environ(),
@@ -326,6 +323,11 @@ func TestPyTest(t *testing.T) {
 	err = xml.Unmarshal(byteValue, &testSuite)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	err = os.RemoveAll(binariesPath)
+	if err != nil {
+		t.Logf("Failed to remove: %s", err)
 	}
 
 	for _, testcase := range testSuite.Testcases {
