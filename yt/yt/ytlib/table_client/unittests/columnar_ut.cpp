@@ -160,12 +160,23 @@ class TCopyBitmapRangeToBitmapTest
 
 TEST_P(TCopyBitmapRangeToBitmapTest, CheckAll)
 {
+    auto [startIndex, endIndex] = GetParam();
+    
     std::array<ui64, 3> qwords = {0x1234567812345678ULL, 0x1234567812345678ULL, 0xabcdabcdabcdabcdULL};
     auto bitmap = TRef(qwords.data(), 8 * qwords.size());
-    std::array<ui8, 24> result;
-    std::array<ui8, 24> resultNegated;
-    auto [startIndex, endIndex] = GetParam();
+    
+    constexpr size_t ResultByteSize = 24;
     auto byteCount = GetBitmapByteSize(endIndex - startIndex);
+    EXPECT_LE(byteCount, ResultByteSize);
+    
+    std::array<ui8, ResultByteSize> guard;
+    for (int i = 0; i < ResultByteSize; ++i) {
+        guard[i] = i;
+    }
+    
+    auto result = guard;
+    auto resultNegated = guard;
+    
     CopyBitmapRangeToBitmap(bitmap, startIndex, endIndex, TMutableRef(result.data(), byteCount));
     CopyBitmapRangeToBitmapNegated(bitmap, startIndex, endIndex, TMutableRef(resultNegated.data(), byteCount));
 
@@ -176,9 +187,14 @@ TEST_P(TCopyBitmapRangeToBitmapTest, CheckAll)
     for (int i = startIndex; i < endIndex; ++i) {
         auto srcBit = getBit(bitmap, i);
         auto dstBit = getBit(result, i - startIndex);
-        auto inveredDstBit = getBit(resultNegated, i - startIndex);
+        auto invertedDstBit = getBit(resultNegated, i - startIndex);
         EXPECT_EQ(srcBit, dstBit) << "i = " << i;
-        EXPECT_NE(srcBit, inveredDstBit) << "i = " << i;
+        EXPECT_NE(srcBit, invertedDstBit) << "i = " << i;
+    }
+
+    for (int i = byteCount; i < ResultByteSize; ++i) {
+        EXPECT_EQ(guard[i], result[i]);
+        EXPECT_EQ(guard[i], resultNegated[i]);
     }
 }
 
