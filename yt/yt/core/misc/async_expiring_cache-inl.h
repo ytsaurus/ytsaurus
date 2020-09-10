@@ -52,7 +52,7 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
     // Fast path.
     {
         NConcurrency::TReaderGuard guard(SpinLock_);
-        
+
         if (auto it = Map_.find(key); it != Map_.end()) {
             const auto& entry = it->second;
             if (!entry->IsExpired(now)) {
@@ -67,7 +67,7 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
     // Slow path.
     {
         NConcurrency::TWriterGuard guard(SpinLock_);
-        
+
         if (auto it = Map_.find(key); it != Map_.end()) {
             auto& entry = it->second;
             if (entry->Promise.IsSet() && entry->IsExpired(now)) {
@@ -138,7 +138,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
         std::vector<TWeakPtr<TEntry>> invokeEntries;
 
         NConcurrency::TWriterGuard guard(SpinLock_);
-        
+
         for (auto index : fetchIndexes) {
             const auto& key = keys[index];
             if (auto it = Map_.find(keys[index]); it != Map_.end()) {
@@ -250,9 +250,10 @@ void TAsyncExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
 template <class TKey, class TValue>
 void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> valueOrError)
 {
+    auto isValueOK = valueOrError.IsOK();
     auto now = NProfiling::GetCpuInstant();
     auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
-    auto expirationTime = valueOrError.IsOK() ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
+    auto expirationTime = isValueOK ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
 
     NConcurrency::TWriterGuard guard(SpinLock_);
 
@@ -278,7 +279,7 @@ void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> va
         entry->Promise.Set(std::move(valueOrError));
         YT_VERIFY(Map_.emplace(key, std::move(entry)).second);
         OnAdded(key);
-        if (!Config_->BatchUpdate && valueOrError.IsOK() && Config_->RefreshTime) {
+        if (!Config_->BatchUpdate && isValueOK && Config_->RefreshTime) {
             entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
                 BIND_DONT_CAPTURE_TRACE_CONTEXT(
                     &TAsyncExpiringCache::InvokeGet,
@@ -296,7 +297,7 @@ template <class TKey, class TValue>
 void TAsyncExpiringCache<TKey, TValue>::Clear()
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
-    
+
     if (!Config_->BatchUpdate) {
         for (const auto& [key, entry] : Map_) {
             if (entry->Promise.IsSet()) {
@@ -304,7 +305,7 @@ void TAsyncExpiringCache<TKey, TValue>::Clear()
             }
         }
     }
-    
+
     for (const auto& [key, value] : Map_) {
         OnRemoved(key);
     }
@@ -393,7 +394,7 @@ bool TAsyncExpiringCache<TKey, TValue>::TryEraseExpired(const TWeakPtr<TEntry>& 
 
     if (now > entry->AccessDeadline) {
         NConcurrency::TWriterGuard writerGuard(SpinLock_);
-        
+
         if (auto it = Map_.find(key); it != Map_.end() && now > it->second->AccessDeadline) {
             Map_.erase(it);
             OnRemoved(key);
@@ -479,7 +480,7 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
 
     if (!expiredKeys.empty()) {
         NConcurrency::TWriterGuard guard(SpinLock_);
-        
+
         for (const auto& key : expiredKeys) {
             if (auto it = Map_.find(key); it != Map_.end()) {
                 const auto& [_, entry] = *it;
