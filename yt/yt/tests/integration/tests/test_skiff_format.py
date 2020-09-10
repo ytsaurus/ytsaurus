@@ -1,9 +1,45 @@
 from yt_env_setup import YTEnvSetup, unix_only
 from yt_commands import *
-from skiff_format import (skiff_simple, skiff_optional,
-                          skiff_repeated_variant8, skiff_tuple)
 
 from random import shuffle
+
+
+def with_name(skiff_type, name=None):
+    if name is not None:
+        skiff_type["name"] = name
+    return skiff_type
+
+
+def skiff_simple(wire_type, name=None):
+    return with_name({
+        "wire_type": wire_type,
+    }, name)
+
+
+def skiff_optional(inner, name=None):
+    return with_name({
+        "wire_type": "variant8",
+        "children": [
+            {
+                "wire_type": "nothing",
+            },
+            inner
+        ]
+    }, name)
+
+
+def skiff_tuple(children, name=None):
+    return with_name({
+        "wire_type": "tuple",
+        "children": children,
+    }, name)
+
+
+def skiff_repeated_variant8(children, name=None):
+    return with_name({
+        "wire_type": "repeated_variant8",
+        "children": children,
+    }, name)
 
 
 class TestSkiffFormat(YTEnvSetup):
