@@ -605,6 +605,7 @@ private:
             NProfiling::TShardedAggregateGauge TimeoutTimeCounter;
             NProfiling::TShardedAggregateGauge CancelTimeCounter;
             NProfiling::TShardedAggregateGauge TotalTimeCounter;
+            NProfiling::TShardedMonotonicCounter RequestCounter;
             NProfiling::TShardedMonotonicCounter RequestMessageBodySizeCounter;
             NProfiling::TShardedMonotonicCounter RequestMessageAttachmentSizeCounter;
             NProfiling::TShardedMonotonicCounter ResponseMessageBodySizeCounter;
@@ -635,6 +636,7 @@ private:
                 metadata.TimeoutTimeCounter = NProfiling::TShardedAggregateGauge("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
                 metadata.CancelTimeCounter = NProfiling::TShardedAggregateGauge("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
                 metadata.TotalTimeCounter = NProfiling::TShardedAggregateGauge("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
+                metadata.RequestCounter = NProfiling::TShardedMonotonicCounter("/request_count", tagIds);
                 metadata.RequestMessageBodySizeCounter = NProfiling::TShardedMonotonicCounter("/request_message_body_bytes", tagIds);
                 metadata.RequestMessageAttachmentSizeCounter = NProfiling::TShardedMonotonicCounter("/request_message_attachment_bytes", tagIds);
                 metadata.ResponseMessageBodySizeCounter = NProfiling::TShardedMonotonicCounter("/response_message_body_bytes", tagIds);
@@ -1143,6 +1145,7 @@ private:
 
         void ProfileRequest(const TSharedRefArray& requestMessage)
         {
+            Profiler.Increment(MethodMetadata_->RequestCounter);
             Profiler.Increment(
                 MethodMetadata_->RequestMessageBodySizeCounter,
                 GetMessageBodySize(requestMessage));
