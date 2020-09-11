@@ -26,11 +26,11 @@ TTableSchemaPtr InferInputSchema(
     const std::vector<TTableSchemaPtr>& schemas,
     bool discardKeyColumns);
 
-// Validates that values from table with inputSchema also match outputSchema.
-//
-// allowSimpleTypeDeoptionalize:
-// if set to true optional<T> will be compatible with T if T is simple type
-//   this argument is dangerous and is used in some places for historical reasons.
+//! Validates that values from table with inputSchema also match outputSchema.
+//!
+//! allowSimpleTypeDeoptionalize:
+//! if set to true optional<T> will be compatible with T if T is simple type
+//!   this argument is dangerous and is used in some places for historical reasons.
 TError ValidateTableSchemaCompatibility(
     const TTableSchema& inputSchema,
     const TTableSchema& outputSchema,
@@ -43,6 +43,23 @@ TError ValidateTableSchemaCompatibility(
 void ValidateTableSchemaHeavy(
     const TTableSchema& schema,
     bool isTableDynamic);
+
+//! Validates computed columns.
+//!
+//! Validates that:
+//! - Type of a computed column matches the type of its expression.
+//! - All referenced columns appear in schema and are not computed.
+//! For dynamic tables, additionally validates that all computed and referenced
+//! columns are key columns.
+void ValidateComputedColumns(
+    const TTableSchema& schema,
+    bool isTableDynamic);
+
+//! Validates that all computed columns in the outputSchema are present in the
+//! inputSchema and have the same expression.
+TError ValidateComputedColumnsCompatibility(
+    const TTableSchema& inputSchema,
+    const TTableSchema& outputSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

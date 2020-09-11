@@ -1043,12 +1043,47 @@ class TestSchedulerSortCommands(YTEnvSetup):
         for i in xrange(5):
             write_table("//tmp/t2", {"k2" : i})
 
+        for schema_inference_mode in ("auto", "from_output"):
+            with pytest.raises(YtError):
+                # sort table with weak schema into table with computed column
+                sort(
+                    in_="//tmp/t2",
+                    out="//tmp/t",
+                    sort_by="k1",
+                    spec={"schema_inference_mode": schema_inference_mode})
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("schema_inference_mode", ["auto", "from_output"])
+    def test_computed_column_schema_validation(self, schema_inference_mode):
+        schema = [
+            {"name": "expr", "type": "int64", "expression": "key * 2"},
+            {"name": "key", "type": "int64"},
+            {"name": "value", "type": "string"}
+        ]
+        create("table", "//tmp/output", attributes={"schema": schema})
+
+        # Referenced column is not present.
+        create("table", "//tmp/input1", attributes={"schema": schema})
+        write_table("//tmp/input1", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}])
+
         with pytest.raises(YtError):
-            # sort table with weak schema into table with computed column
             sort(
-                in_="//tmp/t2",
-                out="//tmp/t",
-                sort_by="k1")
+                in_="//tmp/input1{expr,value}",
+                out="//tmp/output",
+                sort_by=["expr"],
+                spec={"schema_inference_mode": schema_inference_mode})
+
+        # Expression is different.
+        schema[0]["expression"] = "key * 3"
+        create("table", "//tmp/input2", attributes={"schema": schema})
+        write_table("//tmp/input2", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}])
+
+        with pytest.raises(YtError):
+            sort(
+                in_="//tmp/input2",
+                out="//tmp/output",
+                sort_by=["expr"],
+                spec={"schema_inference_mode": schema_inference_mode})
 
     @authors("savrus")
     def test_writer_config(self):

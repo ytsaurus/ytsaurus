@@ -214,13 +214,6 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
     }
 }
 
-//! Validates computed columns.
-/*!
- *  Validates that:
- *  - Computed column has to be key column.
- *  - Type of a computed column matches the type of its expression.
- *  - All referenced columns appear in schema, are key columns and are not computed.
- */
 void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
 {
     // TODO(max42): Passing *this before the object is finally constructed
@@ -550,6 +543,52 @@ void ValidateTableSchemaHeavy(
     ValidateTableSchema(schema, isTableDynamic);
     ValidateComputedColumns(schema, isTableDynamic);
     ValidateAggregatedColumns(schema);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError ValidateComputedColumnsCompatibility(
+    const TTableSchema& inputSchema,
+    const TTableSchema& outputSchema)
+{
+    auto addAttributes = [&] (TError error) {
+        return error
+            << TErrorAttribute("input_table_schema", inputSchema)
+            << TErrorAttribute("output_table_schema", outputSchema);
+    };
+
+    THashMap<TString, const TColumnSchema*> inputSchemaIndex;
+    for (const auto& inputColumn : inputSchema.Columns()) {
+        if (inputColumn.Expression()) {
+            inputSchemaIndex[inputColumn.Name()] = &inputColumn;
+        }
+    }
+
+    for (const auto& outputColumn : outputSchema.Columns()) {
+        if (outputColumn.Expression()) {
+            auto it = inputSchemaIndex.find(outputColumn.Name());
+            if (it == inputSchemaIndex.end()) {
+                return addAttributes(TError("Computed column %Qv is missing in input schema",
+                    outputColumn.Name()));
+            }
+            if (outputColumn.Expression() != it->second->Expression()) {
+                return addAttributes(TError("Computed column %Qv has different expressions in input "
+                    "and output schemas",
+                    outputColumn.Name())
+                    << TErrorAttribute("input_schema_expression", it->second->Expression())
+                    << TErrorAttribute("output_schema_expression", outputColumn.Expression()));
+            }
+            if (*outputColumn.LogicalType() != *it->second->LogicalType()) {
+                return addAttributes(TError("Computed column %Qv type in the input table %Qlv "
+                    "differs from the type in the output table %Qlv",
+                    outputColumn.Name(),
+                    *it->second->LogicalType(),
+                    *outputColumn.LogicalType()));
+            }
+        }
+    }
+
+    return TError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
