@@ -121,6 +121,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixReshardNonEmptyReplicatedTable)                            (1330))  // ifsmirnov
     ((DisallowSettingBundleOfMountedTables)                         (1331))  // ifsmirnov
     ((NonAliveTxInCloneForeignNode)                                 (1332))  // babenko
+    ((ExtraPeerDroppingDelay)                                       (1333))  // gritukan
     // 20.3
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
@@ -132,7 +133,6 @@ DEFINE_ENUM(EMasterReign,
     ((YT_12198_LockTimes)                                           (1408))  // babenko
     ((ShardedTransactions)                                          (1409))  // shakurov
     ((FixErrorDatetime)                                             (1410))  // babenko
-    ((ExtraPeerDroppingDelay)                                       (1411))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
