@@ -415,6 +415,12 @@ void TYsonSerializableLite::TParameter<T>::Save(NYson::IYsonConsumer* consumer) 
 template <class T>
 bool TYsonSerializableLite::TParameter<T>::CanOmitValue() const
 {
+    if constexpr (std::is_arithmetic_v<T> || std::is_same_v<T, TString>) {
+        if (!SerializeDefault && Parameter == DefaultValue) {
+            return true;
+        }
+    }
+
     return NYT::NYTree::NDetail::CanOmitValue(&Parameter, DefaultValue ? &*DefaultValue : nullptr);
 }
 
@@ -449,6 +455,19 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::Defa
 {
     DefaultValue = defaultValue;
     Parameter = defaultValue;
+    return *this;
+}
+
+template <class T>
+TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::TParameter<T>::DontSerializeDefault()
+{
+    // We should check for equality-comparability here but it is rather hard
+    // to do the deep validation.
+    static_assert(
+        std::is_arithmetic_v<T> || std::is_same_v<T, TString>,
+        "DontSerializeDefault requires |Parameter| to be TString or arithmetic type");
+
+    SerializeDefault = false;
     return *this;
 }
 

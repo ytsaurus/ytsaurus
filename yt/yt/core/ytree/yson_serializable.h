@@ -78,6 +78,7 @@ public:
     public:
         TParameter& Optional();
         TParameter& Default(const T& defaultValue = T());
+        TParameter& DontSerializeDefault();
         TParameter& CheckThat(TPostprocessor validator);
         TParameter& GreaterThan(TValueType value);
         TParameter& GreaterThanOrEqual(TValueType value);
@@ -95,6 +96,7 @@ public:
         TString Key;
         T& Parameter;
         std::optional<T> DefaultValue;
+        bool SerializeDefault = true;
         std::vector<TPostprocessor> Postprocessors;
         std::vector<TString> Aliases;
         EMergeStrategy MergeStrategy;
