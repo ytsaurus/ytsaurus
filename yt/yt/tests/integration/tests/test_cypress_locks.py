@@ -838,7 +838,9 @@ class TestCypressLocks(YTEnvSetup):
 
         # Make sure commit reaches the node host cell.
         multicell_sleep()
-        # The lock must become orphaned.
+        # Transaction object must be destroyed.
+        gc_collect()
+        # Removed node must be destroyed, the lock must become orphaned.
         gc_collect()
 
         assert not exists("//sys/locks/" + lock_id1)
@@ -862,7 +864,9 @@ class TestCypressLocks(YTEnvSetup):
 
         # Make sure commit reaches the node host cell.
         multicell_sleep()
-        # The lock must become orphaned.
+        # Transaction object must be destroyed.
+        gc_collect()
+        # Removed node must be destroyed, the lock must become orphaned.
         gc_collect()
 
         assert not exists("//sys/locks/" + lock_id1)
