@@ -753,6 +753,9 @@ public:
     //! Toggles background partition balancing (disabling is useful for debugging purposes).
     bool EnablePartitionBalancer;
 
+    //! Time to keep retired tablet snapshots hoping for a rapid Hydra restart.
+    TDuration TabletSnapshotEvictionTimeout;
+
     TTabletNodeConfig()
     {
         RegisterParameter("forced_rotations_memory_ratio", ForcedRotationsMemoryRatio)
@@ -817,6 +820,9 @@ public:
             .Default(true);
         RegisterParameter("enable_partition_balancer", EnablePartitionBalancer)
             .Default(true);
+
+        RegisterParameter("tablet_snapshot_eviction_timeout", TabletSnapshotEvictionTimeout)
+            .Default(TDuration::Seconds(5));
     }
 };
 

@@ -31,6 +31,12 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "tablet_snapshot_eviction_timeout": 0
+        }
+    }
+
     # Reimplement dynamic table commands without calling clear_metadata_caches()
 
     def _mount_table(self, path, **kwargs):
