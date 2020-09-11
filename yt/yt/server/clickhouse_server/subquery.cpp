@@ -209,7 +209,7 @@ private:
                 if (!dataSlice->LowerLimit().Key && !dataSlice->UpperLimit().Key) {
                     return false;
                 }
-                return !GetRangeMask(dataSlice->LowerLimit().Key, dataSlice->UpperLimit().Key, dataSlice->GetTableIndex()).can_be_true;
+                return !GetRangeMask(dataSlice->LowerLimit().Key, dataSlice->UpperLimit().Key, dataSlice->InputStreamIndex).can_be_true;
             });
             dataSlices.resize(it - dataSlices.begin());
 
@@ -234,8 +234,8 @@ private:
                 continue;
             }
             auto operandIndex = table->OperandIndex;
-            SubstituteOperandIndex(chunk);
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            dataSlice->InputStreamIndex = operandIndex;
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
             destinationStripes[operandIndex]->DataSlices.emplace_back(std::move(dataSlice));
         }
@@ -254,7 +254,6 @@ private:
                 continue;
             }
 
-            SubstituteOperandIndex(chunk);
             auto chunkSlice = CreateInputChunkSlice(chunk);
             InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, table->Schema->GetKeyColumnCount());
             dynamicTableChunkSlices[tableIndex].emplace_back(std::move(chunkSlice));
@@ -271,15 +270,10 @@ private:
             auto dataSlices = CombineVersionedChunkSlices(chunkSlices);
 
             for (auto& dataSlice : dataSlices) {
+                dataSlice->InputStreamIndex = operandIndex;
                 destinationStripes[operandIndex]->DataSlices.emplace_back(std::move(dataSlice));
             }
         }
-    }
-
-    void SubstituteOperandIndex(const TInputChunkPtr& chunk)
-    {
-        const auto& table = InputTables_[chunk->GetTableIndex()];
-        chunk->SetTableIndex(table->OperandIndex);
     }
 
     void FetchTables()
@@ -371,9 +365,9 @@ private:
         YT_LOG_DEBUG("Misc extension map statistics (Count: %v)", MiscExtMap_.size());
     }
 
-    BoolMask GetRangeMask(TKey lowerKey, TKey upperKey, int tableIndex)
+    BoolMask GetRangeMask(TKey lowerKey, TKey upperKey, int operandIndex)
     {
-        if (!KeyConditions_[tableIndex]) {
+        if (!KeyConditions_[operandIndex]) {
             return BoolMask(true, true);
         }
         YT_VERIFY(KeyColumnCount_);
@@ -426,9 +420,9 @@ private:
         // We do not have any Max-equivalent in ClickHouse, but luckily again we have mayBeTrueAfter method which allows
         // us checking key condition on half-open ray.
         if (!isMax) {
-            return BoolMask(KeyConditions_[tableIndex]->mayBeTrueInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_), false);
+            return BoolMask(KeyConditions_[operandIndex]->mayBeTrueInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_), false);
         } else {
-            return BoolMask(KeyConditions_[tableIndex]->mayBeTrueAfter(*KeyColumnCount_, minKey, KeyColumnDataTypes_), false);
+            return BoolMask(KeyConditions_[operandIndex]->mayBeTrueAfter(*KeyColumnCount_, minKey, KeyColumnDataTypes_), false);
         }
     }
 };
@@ -616,11 +610,11 @@ std::vector<TSubquery> BuildSubqueries(
             auto fullStripeList = New<TChunkStripeList>();
             fullStripeList->Stripes.resize(inputStripeList->Stripes.size());
             for (auto& stripe : subquery.StripeList->Stripes) {
-                size_t tableIndex = stripe->GetTableIndex();
-                YT_VERIFY(tableIndex >= 0);
-                YT_VERIFY(tableIndex < fullStripeList->Stripes.size());
-                YT_VERIFY(!fullStripeList->Stripes[tableIndex]);
-                fullStripeList->Stripes[tableIndex] = std::move(stripe);
+                size_t operandIndex = stripe->GetInputStreamIndex();
+                YT_VERIFY(operandIndex >= 0);
+                YT_VERIFY(operandIndex < fullStripeList->Stripes.size());
+                YT_VERIFY(!fullStripeList->Stripes[operandIndex]);
+                fullStripeList->Stripes[operandIndex] = std::move(stripe);
             }
             for (auto& stripe : fullStripeList->Stripes) {
                 if (!stripe) {
