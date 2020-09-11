@@ -8382,6 +8382,29 @@ void TOperationControllerBase::ValidateSchemaInferenceMode(ESchemaInferenceMode 
     }
 }
 
+void TOperationControllerBase::ValidateOutputSchemaComputedColumnsCompatibility() const
+{
+    YT_VERIFY(OutputTables_.size() == 1);
+
+    if (!OutputTables_[0]->TableUploadOptions.TableSchema->HasComputedColumns()) {
+        return;
+    }
+
+    for (const auto& inputTable : InputTables_) {
+        if (inputTable->SchemaMode == ETableSchemaMode::Strong) {
+            auto filteredInputTableSchema = inputTable->Schema->Filter(inputTable->Path.GetColumns());
+            ValidateComputedColumnsCompatibility(
+                *filteredInputTableSchema,
+                *OutputTables_[0]->TableUploadOptions.TableSchema)
+                .ThrowOnError();
+            ValidateComputedColumns(*filteredInputTableSchema, /*isTableDynamic*/ false);
+        } else {
+            THROW_ERROR_EXCEPTION("Schemas of input tables must be strict "
+                "if output table has computed columns");
+        }
+    }
+}
+
 TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfig() const
 {
     return nullptr;

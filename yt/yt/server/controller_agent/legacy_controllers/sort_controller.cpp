@@ -2347,6 +2347,7 @@ private:
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
                     ValidateOutputSchemaCompatibility(true, true);
+                    ValidateOutputSchemaComputedColumnsCompatibility();
                 }
                 break;
 
@@ -2359,6 +2360,7 @@ private:
                     table->TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Spec->SortBy);
                 } else {
                     table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
+                    ValidateOutputSchemaComputedColumnsCompatibility();
                 }
                 break;
 
