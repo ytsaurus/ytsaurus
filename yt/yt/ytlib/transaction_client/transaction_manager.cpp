@@ -344,8 +344,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (Atomicity_ != EAtomicity::Full) {
-            return MakeFuture(TError("Cannot ping a transaction with %Qlv atomicity",
-                Atomicity_));
+            return VoidFuture;
         }
 
         return SendPing(options);
