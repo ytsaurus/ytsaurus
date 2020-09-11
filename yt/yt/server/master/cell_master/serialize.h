@@ -132,6 +132,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_12198_LockTimes)                                           (1408))  // babenko
     ((ShardedTransactions)                                          (1409))  // shakurov
     ((FixErrorDatetime)                                             (1410))  // babenko
+    ((ExtraPeerDroppingDelay)                                       (1411))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

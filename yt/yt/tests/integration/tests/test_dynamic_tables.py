@@ -227,6 +227,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_follower_catchup(self, decommission_through_extra_peers):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", decommission_through_extra_peers)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
@@ -249,6 +251,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_run_reassign_leader(self, decommission_through_extra_peers):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", decommission_through_extra_peers)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
@@ -278,6 +282,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_run_reassign_all_peers(self, decommission_through_extra_peers):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", decommission_through_extra_peers)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
@@ -331,6 +337,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     def test_decommission_through_extra_peers(self):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
         set("//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout", 7000)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 15000)
+
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
@@ -349,6 +357,9 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         set_node_decommissioned(first_peer_address, True)
         wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
         second_peer_address = get_peers()[1]["address"]
+        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "leading")
+        time.sleep(5)
+        assert len(get_peers()) == 2 and get_peers()[1]["state"] == "leading"
         wait(lambda: len(get_peers()) == 1)
         assert get_peers()[0]["address"] == second_peer_address
         wait(lambda: get_peers()[0]["state"] == "leading")
@@ -360,6 +371,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     def test_decommission_interrupted(self):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
         set("//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout", 7000)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
+
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
@@ -1134,6 +1147,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", test_decommission)
+        set("//sys/@config/tablet_manager/extra_peer_drop_delay", 2000)
 
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/cluster_nodes")

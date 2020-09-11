@@ -96,6 +96,7 @@ void TCellBase::Save(TSaveContext& context) const
     Save(context, CellLifeStage_);
     Save(context, GossipStatus_);
     Save(context, PeerCount_);
+    Save(context, LastLeaderChangeTime_);
 }
 
 void TCellBase::Load(TLoadContext& context)
@@ -124,6 +125,10 @@ void TCellBase::Load(TLoadContext& context)
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::DynamicPeerCount) {
         Load(context, PeerCount_);
+    }
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::ExtraPeerDroppingDelay) {
+        Load(context, LastLeaderChangeTime_);
     }
 }
 
@@ -214,6 +219,10 @@ void TCellBase::UpdatePeerSeenTime(TPeerId peerId, TInstant when)
 void TCellBase::UpdatePeerState(TPeerId peerId, EPeerState peerState)
 {
     auto& peer = Peers_[peerId];
+    if (peerId == GetLeadingPeerId() && peer.LastSeenState != EPeerState::Leading && peerState == EPeerState::Leading) {
+        const auto* mutationContext = NHydra::GetCurrentMutationContext();
+        LastLeaderChangeTime_ = mutationContext->GetTimestamp();
+    }
     peer.LastSeenState = peerState;
 }
 

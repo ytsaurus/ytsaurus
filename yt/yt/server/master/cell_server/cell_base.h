@@ -84,6 +84,9 @@ public:
     //! Last `peer_count` update time. Only for testing purposes.
     DEFINE_BYREF_RW_PROPERTY(TInstant, LastPeerCountUpdateTime);
 
+    //! Last time when leader was changed.
+    DEFINE_BYREF_RW_PROPERTY(TInstant, LastLeaderChangeTime);
+
 public:
     explicit TCellBase(TTamedCellId id);
 
