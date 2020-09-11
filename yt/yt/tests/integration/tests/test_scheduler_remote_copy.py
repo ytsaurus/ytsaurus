@@ -420,7 +420,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         create("table", "//tmp/t1", driver=self.remote_driver)
         create("table", "//tmp/t2")
         op = remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": self.REMOTE_CLUSTER_NAME})
-        
+
         assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
     @authors("gritukan")
@@ -432,10 +432,10 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False, driver=self.remote_driver)
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
         multicell_sleep()
 
         chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
-        chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
 
         def run_operation():
             op = remote_copy(track=False, in_="//tmp/t1", out="//tmp/t2",
@@ -451,21 +451,25 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
             assert read_table("//tmp/t2") == [{"a": "b"}]
 
         def set_banned_flag_for_part_nodes(part_indicies, banned_flag):
+            chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
+
             nodes_to_ban = []
             for part_index in part_indicies:
                 nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
                 nodes_to_ban += nodes
+
             set_banned_flag(banned_flag, nodes_to_ban, driver=self.remote_driver)
 
         def unban_all_nodes():
-            set_banned_flag_for_part_nodes(list(range(9)), False)        
+            nodes = list(get("//sys/cluster_nodes", driver=self.remote_driver).keys())
+            set_banned_flag(False, nodes, driver=self.remote_driver)
             wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
         op = run_operation()
         # Some 3 parts are unavailable.
         # NB(gritukan): Cannot ban node before job started because CA will not start job until
         # all the parts were found.
-        set_banned_flag_for_part_nodes([0, 2, 5], True)
+        set_banned_flag_for_part_nodes([2, 3, 5], True)
         op.track()
         check_everything()
         unban_all_nodes()
