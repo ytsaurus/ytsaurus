@@ -452,6 +452,10 @@ public:
     //! to the table node.
     bool EnableRelaxedTabletStatisticsValidation;
 
+    //! Time to wait before peer count update after new leader assignment
+    //! during decommission through extra peers.
+    TDuration ExtraPeerDropDelay;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -510,6 +514,8 @@ public:
             .Default(false);
         RegisterParameter("enable_aggressive_tablet_statistics_validation", EnableAggressiveTabletStatisticsValidation)
             .Default(false);
+        RegisterParameter("extra_peer_drop_delay", ExtraPeerDropDelay)
+            .Default(TDuration::Minutes(1));
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.
         RegisterParameter("compatibility_version", CompatibilityVersion)
