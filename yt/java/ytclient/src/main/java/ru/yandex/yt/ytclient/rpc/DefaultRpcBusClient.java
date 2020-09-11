@@ -329,12 +329,12 @@ public class DefaultRpcBusClient implements RpcClient {
                 request.header().setStartTime(RpcUtil.instantToMicros(started));
                 List<byte[]> message = request.serialize();
 
+                logger.debug("Starting request `{}` Session: {}", request, session);
                 session.register(this);
 
                 BusDeliveryTracking level =
                         request.requestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
 
-                logger.debug("Starting request `{}` Session: {}", request, session);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
                     stat.updateAck(elapsed.toMillis());

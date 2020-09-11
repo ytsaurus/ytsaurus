@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -507,7 +508,7 @@ class ClientPool implements DataCenterRpcClientPool {
 
     private void banErrorClient(HostPort hostPort, Throwable error) {
         logger.warn("Client {} is banned due to error", hostPort, error);
-        safeExecutorService.submit(() -> banClientUnsafe(hostPort));
+        safeExecutorService.submit(() -> banClientUnsafe(hostPort, true));
     }
 
     private void updateClientsUnsafe(Set<HostPort> proxies) {
@@ -515,11 +516,14 @@ class ClientPool implements DataCenterRpcClientPool {
             if (proxies.contains(pooledClient.hostPort)) {
                 proxies.remove(pooledClient.hostPort);
             } else {
-                banClientUnsafe(pooledClient.hostPort);
+                banClientUnsafe(pooledClient.hostPort, false);
             }
         }
 
-        for (HostPort hostPort : proxies) {
+        ArrayList<HostPort> remainigProxies = new ArrayList<>(proxies);
+        Collections.shuffle(remainigProxies, random);
+
+        for (HostPort hostPort : remainigProxies) {
             if (activeClients.size() >= maxSize) {
                 break;
             }
@@ -545,9 +549,10 @@ class ClientPool implements DataCenterRpcClientPool {
     private void updateGoodClientsCacheUnsafe() {
         PooledRpcClient[] newCache = new PooledRpcClient[activeClients.size()];
         clientCache = activeClients.values().toArray(newCache);
+        logger.debug("Updated client cache; {} clients available", clientCache.length);
     }
 
-    private void banClientUnsafe(HostPort hostPort) {
+    private void banClientUnsafe(HostPort hostPort, boolean updateClientCache) {
         PooledRpcClient pooledClient = activeClients.get(hostPort);
         if (pooledClient.banned) {
             return;
@@ -555,7 +560,9 @@ class ClientPool implements DataCenterRpcClientPool {
         pooledClient.banned = true;
         pooledClient.unref();
 
-        updateGoodClientsCacheUnsafe();
+        if (updateClientCache) {
+            updateGoodClientsCacheUnsafe();
+        }
     }
 
     @NonNullFields

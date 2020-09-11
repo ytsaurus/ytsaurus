@@ -50,10 +50,11 @@ public class FailureDetectingRpcClient implements RpcClient {
 
             @Override
             public void onError(Throwable error) {
-                logger.info("Error in RPC response: `{}`, `{}`", error.getClass().getName(), error.getMessage());
                 if (isError.apply(error)) {
-                    logger.error("Unrecoverable error in RPC response: `{}`, `{}`", error.getClass().getName(), error.getMessage());
+                    logger.error("Unrecoverable error in RPC response", error);
                     errorHandler.accept(error);
+                } else {
+                    logger.info("Error in RPC response", error);
                 }
                 handler.onError(error);
             }
