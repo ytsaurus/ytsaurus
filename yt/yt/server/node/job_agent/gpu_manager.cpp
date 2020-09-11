@@ -62,7 +62,9 @@ int TGpuSlot::GetDeviceNumber() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
+TGpuManager::TGpuManager(
+    TBootstrap* bootstrap,
+    TGpuManagerConfigPtr config)
     : Bootstrap_(bootstrap)
     , Config_(std::move(config))
     , HealthCheckExecutor_(New<TPeriodicExecutor>(
@@ -75,6 +77,10 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
         Config_->DriverLayerFetchPeriod,
         /*splay*/ Config_->DriverLayerFetchPeriod))
 {
+    if (!Config_->Enable) {
+        return;
+    }
+    
     std::vector<TGpuDeviceDescriptor> descriptors;
     bool shouldInitializeLayers;
 
@@ -95,7 +101,7 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
             YT_LOG_FATAL(ex, "Cannot determine GPU driver version");
         }
     } else {
-        DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetDummyGpuDriverVersionString();
+        DriverVersionString_ = Config_->DriverVersion.value_or(GetDummyGpuDriverVersionString());
     }
 
     if (Config_->DriverLayerDirectoryPath) {
@@ -123,9 +129,10 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
         GpuDevices_.push_back(descriptor.DeviceName);
         FreeSlots_.emplace_back(descriptor.DeviceNumber);
 
-        TGpuInfo info;
-        info.UpdateTime = now;
-        info.Index = descriptor.DeviceNumber;
+        TGpuInfo info{
+            .UpdateTime = now,
+            .Index = descriptor.DeviceNumber
+        };
         YT_VERIFY(HealthyGpuInfoMap_.emplace(descriptor.DeviceNumber, info).second);
     }
 

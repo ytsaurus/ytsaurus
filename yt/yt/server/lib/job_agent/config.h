@@ -79,6 +79,8 @@ class TGpuManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    bool Enable;
+    
     TDuration HealthCheckTimeout;
     TDuration HealthCheckPeriod;
 
@@ -101,6 +103,9 @@ public:
 
     TGpuManagerConfig()
     {
+        RegisterParameter("enable", Enable)
+            .Default(true);
+
         RegisterParameter("health_check_timeout", HealthCheckTimeout)
             .Default(TDuration::Minutes(5));
         RegisterParameter("health_check_period", HealthCheckPeriod)
