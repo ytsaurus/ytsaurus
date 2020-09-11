@@ -68,11 +68,11 @@ public class BusProtocolHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        logger.debug("Unhandled exception", cause);
         try {
             try {
                 try {
-                    logger.debug("Unhandled exception", cause);
                     abortDelivery(cause);
                 } finally {
                     wrappedListener.onException(bus, cause);
