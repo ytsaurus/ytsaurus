@@ -1022,6 +1022,55 @@ class TestSchemaValidation(YTEnvSetup):
         create("table", "//tmp/ok-schema", attributes={"schema": make_schema(ok_size)})
         tx_write_table("//tmp/ok-schema", [make_row(ok_size)])
 
+    @authors("levysotsky")
+    def test_is_comparable(self):
+        def check_comparable(type):
+            schema = [{"name": "column", "type_v3": type, "sort_order": "ascending"}]
+            create("table", "//tmp/t", attributes={"schema": schema})
+            remove("//tmp/t")
+
+        def check_not_comparable(type):
+            with raises_yt_error("Key column cannot be of"):
+                check_comparable(type)
+        for t in [
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+
+            "utf8",
+            "string",
+            "null",
+
+            "date",
+            "datetime",
+            "timestamp",
+            "interval",
+
+            optional_type("yson"),
+            "float",
+
+            list_type(optional_type("int32")),
+            tuple_type([list_type("date"), optional_type("datetime")]),
+        ]:
+            check_comparable(t)
+
+        for t in [
+            "json",
+            struct_type([
+                ("a", "int64"),
+                ("b", "string"),
+            ]),
+            tuple_type(["json", "int8"]),
+            tuple_type([optional_type("yson")]),
+        ]:
+            check_not_comparable(t)
+
 
 @authors("ermolovd")
 class TestErrorCodes(YTEnvSetup):
