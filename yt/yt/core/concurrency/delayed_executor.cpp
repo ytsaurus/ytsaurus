@@ -8,6 +8,8 @@
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/proc.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <util/datetime/base.h>
 
 #if defined(_linux_) && !defined(_bionic_)
@@ -23,9 +25,11 @@ namespace NYT::NConcurrency {
 static const auto SleepQuantum = TDuration::MilliSeconds(10);
 #endif
 
-static const auto CoalescingInterval = TDuration::MicroSeconds(100);
-static const auto LateWarningThreshold = TDuration::Seconds(1);
+static constexpr auto CoalescingInterval = TDuration::MicroSeconds(100);
+static constexpr auto LateWarningThreshold = TDuration::Seconds(1);
+
 static const auto& Logger = ConcurrencyLogger;
+static const auto& Profiler = ConcurrencyProfiler;
 
 const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
@@ -234,6 +238,8 @@ private:
 
     static thread_local bool InDelayedPollerThread_;
 
+    NProfiling::TShardedMonotonicCounter StaleCallbacksCounter_{"/delayed_executor/stale_callbacks"};
+
     /*!
      * If |true| is returned then it is guaranteed that all entries enqueued up to this call
      * are (or will be) dequeued and taken care of by the Poller Thread.
@@ -409,6 +415,7 @@ private:
                 return;
             }
             if (entry->Deadline + LateWarningThreshold < now) {
+                Profiler.Increment(StaleCallbacksCounter_);
                 YT_LOG_DEBUG("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);
@@ -438,6 +445,7 @@ private:
                 break;
             }
             if (entry->Deadline + LateWarningThreshold < now) {
+                Profiler.Increment(StaleCallbacksCounter_);
                 YT_LOG_DEBUG("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);

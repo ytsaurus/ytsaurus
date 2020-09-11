@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/core/logging/log.h>
-
 #include <yt/core/misc/public.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/core/logging/log.h>
+
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT::NConcurrency {
 
@@ -29,6 +29,7 @@ struct TEnqueuedAction
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger ConcurrencyLogger;
+extern const NProfiling::TProfiler ConcurrencyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
