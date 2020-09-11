@@ -71,7 +71,6 @@ std::vector<IChunkReaderPtr> CreateErasurePartReaders(
     readers.reserve(partIndexSet.size());
 
     {
-        int partIndex = 0;
         auto it = sortedReplicas.begin();
         while (it != sortedReplicas.end() && it->GetReplicaIndex() < totalPartCount) {
             auto jt = it;
@@ -81,7 +80,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartReaders(
                 ++jt;
             }
 
-            if (partIndexSet.contains(partIndex)) {
+            if (partIndexSet.contains(it->GetReplicaIndex())) {
                 TChunkReplicaList partReplicas(it, jt);
                 auto partChunkId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
                 auto reader = CreateReplicationReader(
@@ -102,7 +101,6 @@ std::vector<IChunkReaderPtr> CreateErasurePartReaders(
             }
 
             it = jt;
-            ++partIndex;
         }
     }
     YT_VERIFY(readers.size() == partIndexSet.size());
