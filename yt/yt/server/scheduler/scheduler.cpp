@@ -863,6 +863,10 @@ public:
                     TError("Job was in banned tentative pool tree")));
         }
 
+        LogEventFluently(ELogEventType::OperationBannedInTree)
+            .Item("operation_id").Value(operation->GetId())
+            .Item("tree_id").Value(treeId);
+
         GetControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&TImpl::UnregisterOperationFromTree, MakeStrong(this), operation, treeId));
     }
