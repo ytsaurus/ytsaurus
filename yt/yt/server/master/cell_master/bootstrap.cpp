@@ -870,6 +870,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/discovery_server",
         CreateVirtualNode(DiscoveryServer_->GetYPathService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/reign",
+        ConvertTo<INodePtr>(GetCurrentReign()));
 
     SetBuildAttributes(orchidRoot, "master");
 
