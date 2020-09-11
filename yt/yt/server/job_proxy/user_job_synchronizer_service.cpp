@@ -47,8 +47,7 @@ private:
         Y_UNUSED(request);
         Y_UNUSED(response);
 
-        // This is a workaround for porto container resurrection on core command.
-        // YT-10547
+        // YT-10547: This is a workaround for Porto container resurrection on core command.
         if (ExecutorPreparedPromise_.IsSet()) {
             context->Reply(TError("Executor has already prepared"));
             return;

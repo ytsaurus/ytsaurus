@@ -766,7 +766,7 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
 
     EXPECT_THROW_THAT({
         PreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
-    }, HasSubstr("Type mismatch (Function: \"avg\""));
+    }, HasSubstr("Type mismatch in function \"avg\""));
 }
 
 TEST_F(TQueryPrepareTest, OrderByWithoutLimit)

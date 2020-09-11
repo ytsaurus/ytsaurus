@@ -134,7 +134,7 @@ struct TOptionalTypesMatch
 
 [[noreturn]] void ThrowBadWireType(EWireType expected, EWireType actual)
 {
-    THROW_ERROR_EXCEPTION("Bad skiff wire type, expected: %Qlv, actual: %Qlv",
+    THROW_ERROR_EXCEPTION("Bad skiff wire type: expected %Qlv, actual %Qlv",
         expected,
         actual);
 }
@@ -305,7 +305,7 @@ TTypePair MatchListTypes(const TComplexTypeFieldDescriptor& descriptor, const TS
         }
         if (skiffSchema->GetChildren().size() != 1) {
             THROW_ERROR_EXCEPTION(
-                "%Qv has too many children, expected: %Qv actual %Qv",
+                "%Qlv has too many children: expected %v, actual %v",
                 skiffSchema->GetWireType(),
                 1,
                 skiffSchema->GetChildren().size());
@@ -502,17 +502,17 @@ std::pair<TTypePair, TTypePair> MatchDictTypes(const TComplexTypeFieldDescriptor
 
         auto tupleSchema = skiffSchema->GetChildren()[0];
         if (tupleSchema->GetWireType() != EWireType::Tuple) {
-            THROW_ERROR_EXCEPTION("%Qlv has unexpected child: %Qv expected: %Qv",
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected child: expected %Qlv, found %Qlv",
                 EWireType::RepeatedVariant8,
-                tupleSchema->GetWireType(),
-                EWireType::Tuple);
+                EWireType::Tuple,
+                tupleSchema->GetWireType());
         }
 
         if (tupleSchema->GetChildren().size() != 2) {
-            THROW_ERROR_EXCEPTION("%Qlv has unexpected children count: %Qv expected children count: %Qv",
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected children count: expected %v, found %v",
                 EWireType::Tuple,
-                skiffSchema->GetChildren().size(),
-                1);
+                1,
+                skiffSchema->GetChildren().size());
         }
         return {
             {descriptor.DictKey(), tupleSchema->GetChildren()[0]},
@@ -548,7 +548,7 @@ public:
             constexpr auto expectedValueType = WireTypeToYsonItemType<wireType>();
             auto ysonItem = cursor->GetCurrent();
             if (ysonItem.GetType() != expectedValueType) {
-                ThrowYsonToSkiffConversionError(Descriptor_, "Unexpected yson type, expected: %Qlv found %Qlv",
+                ThrowYsonToSkiffConversionError(Descriptor_, "Unexpected yson type: expected %Qlv, found %Qlv",
                     expectedValueType,
                     ysonItem.GetType());
             }

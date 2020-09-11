@@ -258,7 +258,7 @@ void TResourceTracker::EnqueueAggregatedTimings(
     LastSystemCpu_.store(totalSystemCpuTime);
     LastCpuWait_.store(totalCpuWaitTime);
 
-    YT_LOG_DEBUG("Total cpu timings in percent/sec (UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
+    YT_LOG_DEBUG("Total CPU timings in percent/sec (UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
         totalUserCpuTime,
         totalSystemCpuTime,
         totalCpuWaitTime);

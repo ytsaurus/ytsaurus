@@ -70,7 +70,7 @@ private:
     const NJobTrackerClient::TOperationId OperationId_;
     const NJobTrackerClient::TJobId JobId_;
 
-    //! Can be forever null if running in non-porto environment.
+    //! Can be forever null if running in non-Porto environment.
     TAtomicObject<IJobProxyEnvironmentPtr> JobProxyEnvironment_;
 
     TCpuMonitorPtr CpuMonitor_;

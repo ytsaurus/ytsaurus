@@ -138,7 +138,7 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
     if constexpr (wireType != EWireType::Yson32) {
         constexpr auto expectedValueType = WireTypeToValueType<wireType>();
         if (value.Type != expectedValueType) {
-            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Unexpected type of %Qv column, expected: %Qlv found %Qlv",
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Unexpected type of %Qv column: expected %Qlv, found %Qlv",
                 context->NameTable->GetName(value.Id),
                 expectedValueType,
                 value.Type);
@@ -304,7 +304,7 @@ TUnversionedValueToSkiffConverter CreateComplexValueConverter(
             static const auto empty = AsStringBuf("#");
             input.Reset(empty.Data(), empty.Size());
         } else {
-            THROW_ERROR_EXCEPTION("Internal error: unexpected value type; expected: %Qlv or %Qlv actual: %Qlv",
+            THROW_ERROR_EXCEPTION("Internal error; unexpected value type: expected %Qlv or %Qlv, actual %Qlv",
                 EValueType::Composite,
                 EValueType::Null,
                 value.Type);

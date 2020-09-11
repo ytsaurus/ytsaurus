@@ -1406,7 +1406,7 @@ public:
         TTypeSet genericAssignments = constraint;
 
         if (!Unify(&genericAssignments, untypedOperand.FeasibleTypes)) {
-            THROW_ERROR_EXCEPTION("Type mismatch (Function: %Qv, Expected: %Qv, Actual: %Qv)",
+            THROW_ERROR_EXCEPTION("Type mismatch in function %Qv: expected %v, actual %v",
                 name,
                 genericAssignments,
                 untypedOperand.FeasibleTypes)

@@ -95,13 +95,13 @@ public:
 
         std::vector<TFuture<void>> asyncUnlinkResults;
         for (const auto& path : toRelease) {
-            YT_LOG_DEBUG("Releasing porto volume (Path: %v)", path);
+            YT_LOG_DEBUG("Releasing Porto volume (Path: %v)", path);
             try {
                 // NB(psushin): it is important to clean volume contents before removal.
-                // Otherwise porto can hang up in sync call for a long time during unlink of quota backend.
+                // Otherwise Porto can hang up in sync call for a long time during unlink of quota backend.
                 RunTool<TRemoveDirContentAsRootTool>(path);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Failed to remove directory contents for porto volume (Path: %v)", path);
+                YT_LOG_WARNING(ex, "Failed to remove directory contents for Porto volume (Path: %v)", path);
             }
 
             asyncUnlinkResults.emplace_back(Executor_->UnlinkVolume(path, "self"));

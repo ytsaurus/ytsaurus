@@ -574,22 +574,22 @@ TEST(TYsonPullParserTest, TypedParsingBasicErrors)
     {
         TStringBufVectorReader input({"100u"});
         TYsonPullParser parser(&input, EYsonType::Node);
-        EXPECT_THROW_THAT(parser.ParseInt64(), ::testing::HasSubstr("expected: \"int64_value\""));
+        EXPECT_THROW_THAT(parser.ParseInt64(), ::testing::HasSubstr("expected \"int64_value\""));
     }
     {
         TStringBufVectorReader input({"\x06\x94\x91\x06"});
         TYsonPullParser parser(&input, EYsonType::Node);
-        EXPECT_THROW_THAT(parser.ParseInt64(), ::testing::HasSubstr("expected: \"int64_value\""));
+        EXPECT_THROW_THAT(parser.ParseInt64(), ::testing::HasSubstr("expected \"int64_value\""));
     }
     {
         TStringBufVectorReader input({"-100"});
         TYsonPullParser parser(&input, EYsonType::Node);
-        EXPECT_THROW_THAT(parser.ParseUint64(), ::testing::HasSubstr("expected: \"uint64_value\""));
+        EXPECT_THROW_THAT(parser.ParseUint64(), ::testing::HasSubstr("expected \"uint64_value\""));
     }
     {
         TStringBufVectorReader input({"\x02\xa7\xa2\x0c"});
         TYsonPullParser parser(&input, EYsonType::Node);
-        EXPECT_THROW_THAT(parser.ParseUint64(), ::testing::HasSubstr("expected: \"uint64_value\""));
+        EXPECT_THROW_THAT(parser.ParseUint64(), ::testing::HasSubstr("expected \"uint64_value\""));
     }
     {
         TStringBufVectorReader input({"[1;;]"});

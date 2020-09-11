@@ -833,11 +833,11 @@ public:
     bool Deterministic;
 
     //! This flag forces creation of memory cgroup for user job and getting memory usage statistics from this cgroup.
-    //! Makes sense only with porto environment.
+    //! Makes sense only with Porto environment.
     bool UsePortoMemoryTracking;
 
-    //! This flag currently makes sense only for porto environment.
-    //! It forces setting container cpu limit on slot container equal to CpuLimit provided in task spec
+    //! This flag currently makes sense only for Porto environment.
+    //! It forces setting container CPU limit on slot container equal to CpuLimit provided in task spec
     //! and overrides setting in operation options.
     bool SetContainerCpuLimit;
 
