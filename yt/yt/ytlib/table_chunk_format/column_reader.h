@@ -46,6 +46,9 @@ struct IColumnReaderBase
     //! Returns current block index or `-1` if no block was set.
     virtual int GetCurrentBlockIndex() const = 0;
 
+    //! Returns current segment index.
+    virtual int GetCurrentSegmentIndex() const = 0;
+
     //! Returns the index of the next block needed by the reader.
     virtual std::optional<int> GetNextBlockIndex() const = 0;
 };

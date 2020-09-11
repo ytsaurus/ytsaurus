@@ -644,7 +644,14 @@ public:
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
         const TChunkReaderMemoryManagerPtr& memoryManager)
-        : TBase(chunkMeta, std::move(config), std::move(underlyingReader), std::move(blockCache), blockReadOptions, memoryManager)
+        : TBase(
+            chunkMeta,
+            std::move(config),
+            std::move(underlyingReader),
+            std::move(blockCache),
+            blockReadOptions,
+            [] (int) { YT_ABORT(); }, // Rows should not be skipped in versioned reader.
+            memoryManager)
         , VersionedChunkMeta_(std::move(chunkMeta))
         , Timestamp_(timestamp)
         , SchemaIdMapping_(BuildVersionedSimpleSchemaIdMapping(columnFilter, VersionedChunkMeta_))

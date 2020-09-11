@@ -30,17 +30,28 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
     const TClientBlockReadOptions& blockReadOptions,
+    std::function<void(int)> onRowsSkipped,
     const TChunkReaderMemoryManagerPtr& memoryManager)
     : ChunkMeta_(std::move(chunkMeta))
     , Config_(std::move(config))
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockCache_(std::move(blockCache))
     , BlockReadOptions_(blockReadOptions)
+    , Sampler_(Config_->SamplingRate, std::random_device()())
+    , OnRowsSkipped_(onRowsSkipped)
 {
     if (memoryManager) {
         MemoryManager_ = memoryManager;
     } else {
         MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
+    }
+
+    if (Config_->SamplingSeed) {
+        auto chunkId = UnderlyingReader_->GetChunkId();
+        auto seed = *Config_->SamplingSeed;
+        seed ^= FarmFingerprint(chunkId.Parts64[0]);
+        seed ^= FarmFingerprint(chunkId.Parts64[1]);
+        Sampler_ = TBernoulliSampler(Config_->SamplingRate, seed);
     }
 }
 
@@ -101,6 +112,15 @@ void TColumnarChunkReaderBase::FeedBlocksToReaders()
         }
     }
 
+    if (SampledRangeIndexChanged_) {
+        auto rowIndex = SampledRanges_[SampledRangeIndex_].LowerLimit().GetRowIndex();
+        for (auto& column : Columns_) {
+            column.ColumnReader->SkipToRowIndex(rowIndex);
+        }
+
+        SampledRangeIndexChanged_ = false;
+    }
+
     PendingBlocks_.clear();
 }
 
@@ -119,6 +139,12 @@ i64 TColumnarChunkReaderBase::GetReadyRowCount() const
         result = std::min(
             result,
             reader->GetReadyUpperRowIndex() - reader->GetCurrentRowIndex());
+        if (SampledColumnIndex_) {
+            const auto& sampledColumnReader = Columns_[*SampledColumnIndex_].ColumnReader;
+            result = std::min(
+                result,
+                SampledRanges_[SampledRangeIndex_].UpperLimit().GetRowIndex() - sampledColumnReader->GetCurrentRowIndex());
+        }
     }
     return result;
 }
@@ -260,6 +286,63 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
 
     std::vector<TBlockFetcher::TBlockInfo> blockInfos;
 
+    if (Config_->SamplingMode == ESamplingMode::Block) {
+        // Select column to sample.
+        int maxColumnSegmentCount = -1;
+        for (int columnIndex = 0; columnIndex < Columns_.size(); ++columnIndex) {
+            const auto& column = Columns_[columnIndex];
+            auto columnMetaIndex = column.ColumnMetaIndex;
+            if (columnMetaIndex < 0) {
+                continue;
+            }
+            const auto& columnMeta = ChunkMeta_->ColumnMeta()->columns(columnMetaIndex);
+            auto columnSegmentCount = columnMeta.segments_size();
+            if (columnSegmentCount > maxColumnSegmentCount) {
+                maxColumnSegmentCount = columnSegmentCount;
+                SampledColumnIndex_ = columnIndex;
+            }
+        }
+
+        if (!SampledColumnIndex_) {
+            return;
+        }
+
+        // Sample column blocks.
+        const auto& column = Columns_[*SampledColumnIndex_];
+        const auto& columnMeta = ChunkMeta_->ColumnMeta()->columns(column.ColumnMetaIndex);
+        int segmentIndex = GetSegmentIndex(column, LowerRowIndex_);
+        while (segmentIndex < columnMeta.segments_size()) {
+            const auto& segment = columnMeta.segments(segmentIndex);
+            if (segment.chunk_row_count() - segment.row_count() > HardUpperRowIndex_) {
+                break;
+            }
+            auto blockIndex = segment.block_index();
+            int nextBlockSegmentIndex = segmentIndex;
+            while (
+                nextBlockSegmentIndex < columnMeta.segments_size() &&
+                columnMeta.segments(nextBlockSegmentIndex).block_index() == blockIndex)
+            {
+                ++nextBlockSegmentIndex;    
+            }
+
+            const auto& lastBlockSegment = columnMeta.segments(nextBlockSegmentIndex - 1);
+            if (Sampler_.Sample(blockIndex)) {
+                NChunkClient::TReadRange readRange;
+                readRange.LowerLimit().SetRowIndex(std::max<i64>(segment.chunk_row_count() - segment.row_count(), LowerRowIndex_));
+                readRange.UpperLimit().SetRowIndex(std::min<i64>(lastBlockSegment.chunk_row_count(), HardUpperRowIndex_ + 1));
+                SampledRanges_.push_back(std::move(readRange));
+            }
+
+            segmentIndex = nextBlockSegmentIndex;
+        }
+
+        if (SampledRanges_.empty()) {
+            IsSamplingCompleted_ = true;
+        } else {
+            LowerRowIndex_ = SampledRanges_[0].LowerLimit().GetRowIndex();
+        }
+    }
+
     for (auto& column : Columns_) {
         if (column.ColumnMetaIndex < 0) {
             // Column without meta, blocks, etc.
@@ -269,13 +352,32 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
 
         const auto& columnMeta = ChunkMeta_->ColumnMeta()->columns(column.ColumnMetaIndex);
         i64 segmentIndex = GetSegmentIndex(column, LowerRowIndex_);
-        column.BlockIndexSequence.push_back(columnMeta.segments(segmentIndex).block_index());
 
         int lastBlockIndex = -1;
+        int sampledRangeIndex = 0;
         for (; segmentIndex < columnMeta.segments_size(); ++segmentIndex) {
             const auto& segment = columnMeta.segments(segmentIndex);
+            int firstRowIndex = segment.chunk_row_count() - segment.row_count();
+            int lastRowIndex = segment.chunk_row_count() - 1;
+            if (SampledColumnIndex_) {
+                while (
+                    sampledRangeIndex < SampledRanges_.size() &&
+                    SampledRanges_[sampledRangeIndex].UpperLimit().GetRowIndex() <= firstRowIndex)
+                {
+                    ++sampledRangeIndex;
+                }
+                if (sampledRangeIndex == SampledRanges_.size()) {
+                    break;
+                }
+                if (SampledRanges_[sampledRangeIndex].LowerLimit().GetRowIndex() > lastRowIndex) {
+                    continue;
+                }
+            }
             if (segment.block_index() != lastBlockIndex) {
                 lastBlockIndex = segment.block_index();
+                if (column.BlockIndexSequence.empty()) {
+                    column.BlockIndexSequence.push_back(lastBlockIndex);
+                }
                 blockInfos.push_back(CreateBlockInfo(lastBlockIndex));
             }
             if (segment.chunk_row_count() > HardUpperRowIndex_) {
@@ -326,16 +428,48 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
 {
     std::vector<TFuture<void>> blockFetchResult;
     YT_VERIFY(PendingBlocks_.empty());
-    for (int i = 0; i < Columns_.size(); ++i) {
-        auto& column = Columns_[i];
-        if (column.ColumnReader->GetCurrentRowIndex() == column.ColumnReader->GetBlockUpperRowIndex()) {
-            while (PendingBlocks_.size() < i) {
+    YT_VERIFY(!IsSamplingCompleted_);
+
+    if (SampledColumnIndex_) {
+        auto& sampledColumn = Columns_[*SampledColumnIndex_];
+        const auto& sampledColumnReader = sampledColumn.ColumnReader;
+        if (sampledColumnReader->GetCurrentRowIndex() == SampledRanges_[SampledRangeIndex_].UpperLimit().GetRowIndex()) {
+            ++SampledRangeIndex_;
+            SampledRangeIndexChanged_ = true;
+            if (SampledRangeIndex_ == SampledRanges_.size()) {
+                IsSamplingCompleted_ = true;
+                return false;
+            }
+
+            int rowsSkipped = SampledRanges_[SampledRangeIndex_].LowerLimit().GetRowIndex() - sampledColumnReader->GetCurrentRowIndex();
+            if (OnRowsSkipped_) {
+                OnRowsSkipped_(rowsSkipped);
+            }
+        }
+    }
+
+    for (int columnIndex = 0; columnIndex < Columns_.size(); ++columnIndex) {
+        auto& column = Columns_[columnIndex];
+        const auto& columnReader = column.ColumnReader;
+        auto currentRowIndex = columnReader->GetCurrentRowIndex();
+        if (SampledRangeIndexChanged_) {
+            currentRowIndex = SampledRanges_[SampledRangeIndex_].LowerLimit().GetRowIndex();
+        }
+
+        if (currentRowIndex >= columnReader->GetBlockUpperRowIndex()) {
+            while (PendingBlocks_.size() < columnIndex) {
                 PendingBlocks_.emplace_back();
             }
 
-            auto nextBlockIndex = column.ColumnReader->GetNextBlockIndex();
-            YT_VERIFY(nextBlockIndex);
-            column.PendingBlockIndex = *nextBlockIndex;
+            const auto& columnMeta = ChunkMeta_->ColumnMeta()->columns(column.ColumnMetaIndex);
+            int nextSegmentIndex = columnReader->GetCurrentSegmentIndex();
+            while (columnMeta.segments(nextSegmentIndex).chunk_row_count() <= currentRowIndex) {
+                ++nextSegmentIndex;
+            }
+            const auto& nextSegment = columnMeta.segments(nextSegmentIndex);
+            auto nextBlockIndex = nextSegment.block_index();
+            column.PendingBlockIndex = nextBlockIndex;
+
             RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
             MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
             PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
@@ -348,6 +482,11 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
     }
 
     return PendingBlocks_.empty();
+}
+
+bool TColumnarChunkReaderBase::IsSamplingCompleted() const
+{
+    return IsSamplingCompleted_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -375,7 +514,6 @@ void TColumnarLookupChunkReaderBase::Initialize()
                 // All keys left are outside boundary keys.
                 break;
             }
-
         }
     }
 

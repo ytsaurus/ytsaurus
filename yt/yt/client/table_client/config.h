@@ -45,21 +45,36 @@ TString ToString(const TRetentionConfigPtr& obj);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESamplingMode,
+    ((Row)               (1))
+    ((Block)             (2))
+);
+
 class TChunkReaderConfig
     : public virtual NChunkClient::TBlockFetcherConfig
 {
 public:
+    std::optional<ESamplingMode> SamplingMode;
     std::optional<double> SamplingRate;
     std::optional<ui64> SamplingSeed;
 
     TChunkReaderConfig()
     {
+        RegisterParameter("sampling_mode", SamplingMode)
+            .Default();
+
         RegisterParameter("sampling_rate", SamplingRate)
             .Default()
             .InRange(0, 1);
 
         RegisterParameter("sampling_seed", SamplingSeed)
             .Default();
+
+        RegisterPostprocessor([&] {
+            if (SamplingRate && !SamplingMode) {
+                SamplingMode = ESamplingMode::Row;
+            }
+        });
     }
 };
 
