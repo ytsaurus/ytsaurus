@@ -24,6 +24,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/misc/fs.h>
 
@@ -233,16 +234,20 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        TTabletSnapshotPtr snapshot;
+
         TReaderGuard guard(TabletSnapshotsSpinLock_);
         auto range = TabletIdToSnapshot_.equal_range(tabletId);
         // NB: It is uncommon but possible to have multiple cells pretending to serve the same tablet.
+        // Among these, choose an active one.
+        // In case no active instances are known, return an arbitrary one (will do for AsyncLastCommitted reads).
         for (auto it = range.first; it != range.second; ++it) {
-            const auto& snapshot = it->second;
+            snapshot = it->second;
             if (snapshot->HydraManager->IsActive()) {
-                return snapshot;
+                break;
             }
         }
-        return nullptr;
+        return snapshot;
     }
 
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId)
@@ -287,7 +292,7 @@ public:
                     auto deadSnapshot = std::move(snapshot);
                     snapshot = std::move(newSnapshot);
                     guard.Release();
-                    // This is were deadSnapshot dies. It's also nice to have logging moved outside
+                    // This is where deadSnapshot dies. It's also nice to have logging moved outside
                     // of a critical section.
                     YT_LOG_DEBUG("Tablet snapshot updated (TabletId: %v, CellId: %v)",
                         tablet->GetId(),
@@ -307,20 +312,23 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TWriterGuard guard(TabletSnapshotsSpinLock_);
+        TReaderGuard guard(TabletSnapshotsSpinLock_);
         auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
         for (auto it = range.first; it != range.second; ++it) {
-            auto& snapshot = it->second;
+            auto snapshot = it->second;
             if (snapshot->CellId == slot->GetCellId()) {
-                auto deadSnapshot = std::move(snapshot);
-                TabletIdToSnapshot_.erase(it);
                 guard.Release();
-                // This is were deadSnapshot dies. It's also nice to have logging moved outside
-                // of a critical section.
-                YT_LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
+                
+                YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     slot->GetCellId());
-                return;
+                
+                TDelayedExecutor::Submit(
+                    BIND(&TImpl::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
+                        .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()),
+                    Config_->TabletSnapshotEvictionTimeout);
+
+                break;
             }
         }
         // NB: It's fine not to find anything.
@@ -509,6 +517,29 @@ private:
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void EvictTabletSnapshot(TTabletId tabletId, const TTabletSnapshotPtr& snapshot)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TWriterGuard guard(TabletSnapshotsSpinLock_);
+
+        auto range = TabletIdToSnapshot_.equal_range(tabletId);
+        for (auto it = range.first; it != range.second; ++it) {
+            if (it->second == snapshot) {
+                TabletIdToSnapshot_.erase(it);
+                guard.Release();
+                
+                // This is where snapshot dies. It's also nice to have logging moved outside
+                // of a critical section.
+                YT_LOG_DEBUG("Tablet snapshot evicted (TabletId: %v, CellId: %v)",
+                    tabletId,
+                    snapshot->CellId);
+                break;
+            }
+        }
+    }
 
 
     void OnScanSlots()
