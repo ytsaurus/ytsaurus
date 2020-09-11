@@ -794,5 +794,48 @@ TEST(TYsonSerializableTest, NullableWithNonNullDefault)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST(TYsonSerializableTest, DontSerializeDefault)
+{
+    class TConfig
+        : public TYsonSerializable
+    {
+    public:
+        int Value;
+        int OtherValue;
+
+        TConfig()
+        {
+            RegisterParameter("value", Value)
+                .Default(123);
+            RegisterParameter("other_value", OtherValue)
+                .Default(456)
+                .DontSerializeDefault();
+        }
+    };
+
+    {
+        auto config = New<TConfig>();
+        auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
+
+        TString expectedYson = "{\"value\"=123;}";
+        EXPECT_TRUE(AreNodesEqual(
+            ConvertToNode(TYsonString(expectedYson)),
+            ConvertToNode(TYsonString(output.GetData()))));
+    }
+
+    {
+        auto config = New<TConfig>();
+        config->OtherValue = 789;
+        auto output = ConvertToYsonString(config, NYson::EYsonFormat::Text);
+
+        TString expectedYson = "{\"value\"=123;\"other_value\"=789;}";
+        EXPECT_TRUE(AreNodesEqual(
+            ConvertToNode(TYsonString(expectedYson)),
+            ConvertToNode(TYsonString(output.GetData()))));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NYTree
