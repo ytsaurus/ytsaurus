@@ -423,6 +423,8 @@ public:
     virtual int GetCurrentBlockIndex() const override;
     virtual std::optional<int> GetNextBlockIndex() const override;
 
+    virtual int GetCurrentSegmentIndex() const override;
+
 protected:
     const NProto::TColumnMeta& ColumnMeta_;
 

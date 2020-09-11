@@ -120,6 +120,11 @@ public:
         YT_ABORT();
     }
 
+    virtual int GetCurrentSegmentIndex() const override
+    {
+        YT_ABORT();
+    }
+
     virtual std::optional<int> GetNextBlockIndex() const override
     {
         return std::nullopt;

@@ -956,6 +956,10 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     IThroughputThrottlerPtr rpsThrottler,
     IMultiReaderMemoryManagerPtr readerMemoryManager)
 {
+    if (config->SamplingRate && config->SamplingMode == ESamplingMode::Block) {
+        THROW_ERROR_EXCEPTION("Block sampling is not yet supported for sorted dynamic tables");
+    }
+
     auto Logger = TableClientLogger;
     if (blockReadOptions.ReadSessionId) {
         Logger.AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId);

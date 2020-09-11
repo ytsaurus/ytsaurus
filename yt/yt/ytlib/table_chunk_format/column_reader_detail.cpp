@@ -238,6 +238,11 @@ int TColumnReaderBase::GetCurrentBlockIndex() const
     return CurrentBlockIndex_;
 }
 
+int TColumnReaderBase::GetCurrentSegmentIndex() const
+{
+    return CurrentSegmentIndex_;
+}
+
 std::optional<int> TColumnReaderBase::GetNextBlockIndex() const
 {
     return (LastBlockSegmentIndex_ + 1) == ColumnMeta_.segments_size()

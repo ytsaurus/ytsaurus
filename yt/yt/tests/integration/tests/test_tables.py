@@ -1778,6 +1778,74 @@ class TestTables(YTEnvSetup):
                     assert read_table("//tmp/t", verbose=False) == content
                     remove("//tmp/t")
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("horizontal", [False, True])
+    def test_block_sampling(self, horizontal):
+        schema = make_schema(
+        [
+            {"name": "x", "type": "string"},
+            {"name": "y", "type": "int64"},
+            {"name": "z", "type": "string"},
+        ])
+
+        if horizontal:
+            create("table", "//tmp/t1", attributes={"chunk_writer": {"block_size": 1024}, "optimize_for": "lookup", "schema": schema})
+            write_table("//tmp/t1", [{"x": "A" * 1024, "y": i} for i in range(100)])
+            assert get("//tmp/t1/@chunk_count") == 1
+            chunk_id = get_singular_chunk_id("//tmp/t1")
+            assert get("#{}/@max_block_size".format(chunk_id)) < 2 * 1024
+        else:
+            create("table", "//tmp/t1", attributes={"chunk_writer": {"block_size": 1024}, "optimize_for": "scan", "schema": schema})
+            write_table("<compression_codec=none>//tmp/t1", [{"x": "x", "y": i, "z": "z" * 100000} for i in range(100)])
+            assert get("//tmp/t1/@chunk_count") == 1
+
+        def sample_rows(table, sampling_rate, lower_index=None, upper_index=None):
+            if lower_index:
+                table = "{}[#{}:#{}]".format(table, lower_index, upper_index)
+            table_reader_options = {"sampling_mode": "block", "sampling_rate": sampling_rate}
+            control_attributes = {"enable_row_index": True}
+            rows = read_table(table, table_reader=table_reader_options, control_attributes=control_attributes, verbose=False)
+            result = []
+            row_index = -1
+            for row in rows:
+                if "row_index" in row.attributes:
+                    row_index = row.attributes["row_index"]
+                else:
+                    assert row["y"] == row_index
+                    if lower_index:
+                        assert row_index >= lower_index
+                    if upper_index:
+                        assert row_index < upper_index
+                    row_index += 1
+                    result.append(row)
+            return result
+
+        for _ in range(10):
+            assert len(sample_rows("//tmp/t1", 0)) == 0
+            assert len(sample_rows("//tmp/t1", 0, 25, 75)) == 0
+            assert 25 <= len(sample_rows("//tmp/t1", 0.5)) <= 75
+            assert 10 <= len(sample_rows("//tmp/t1", 0.5, 25, 75)) <= 38
+            assert len(sample_rows("//tmp/t1", 1)) == 100
+            assert len(sample_rows("//tmp/t1", 1, 25, 75)) == 50
+
+        if horizontal:
+            create("table", "//tmp/t2", attributes={"chunk_writer": {"block_size": 10**6}, "optimize_for": "lookup"})
+            write_table("//tmp/t2", [{"x": 1, "y": i} for i in range(100)])
+            assert get("//tmp/t2/@chunk_count") == 1
+        else:
+            create("table", "//tmp/t2", attributes={"optimize_for": "scan", "schema": schema})
+            write_table("<compression_codec=none>//tmp/t2", [{"x": "x", "y": i, "z": "z"} for i in range(100)])
+            assert get("//tmp/t2/@chunk_count") == 1
+            chunk_id = get_singular_chunk_id("//tmp/t2")
+
+        for _ in range(10):
+            assert len(sample_rows("//tmp/t2", 0)) == 0
+            assert len(sample_rows("//tmp/t2", 0, 25, 75)) == 0
+            assert len(sample_rows("//tmp/t2", 0.5)) in [0, 100]
+            assert len(sample_rows("//tmp/t2", 0.5, 25, 75)) in [0, 50]
+            assert len(sample_rows("//tmp/t2", 1)) == 100
+            assert len(sample_rows("//tmp/t2", 1, 25, 75)) == 50
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):

@@ -8,11 +8,13 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/block.h>
 
+#include <yt/ytlib/table_chunk_format/column_reader.h>
+
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 #include <yt/client/chunk_client/reader_base.h>
 #include <yt/client/chunk_client/read_limit.h>
 
-#include <yt/ytlib/table_chunk_format/column_reader.h>
+#include <yt/library/random/bernoulli_sampler.h>
 
 namespace NYT::NTableClient {
 
@@ -29,6 +31,7 @@ public:
         NChunkClient::IChunkReaderPtr underlyingReader,
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        std::function<void(int /*skippedRowCount*/)> onRowsSkipped,
         const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
 protected:
@@ -37,6 +40,10 @@ protected:
     const NChunkClient::IChunkReaderPtr UnderlyingReader_;
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
+
+    TBernoulliSampler Sampler_;
+
+    std::function<void(int)> OnRowsSkipped_;
 
     NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
@@ -62,6 +69,13 @@ protected:
 
     std::vector<TColumn> Columns_;
 
+    std::optional<int> SampledColumnIndex_;
+    std::vector<NChunkClient::TReadRange> SampledRanges_;
+    int SampledRangeIndex_ = 0;
+    bool SampledRangeIndexChanged_ = false;
+
+    bool IsSamplingCompleted_ = false;
+
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;
     virtual bool IsFetchingCompleted() const override;
@@ -74,6 +88,9 @@ protected:
     NChunkClient::TBlockFetcher::TBlockInfo CreateBlockInfo(int blockIndex) const;
     i64 GetSegmentIndex(const TColumn& column, i64 rowIndex) const;
     i64 GetLowerRowIndex(TKey key) const;
+
+    //! Returns |true| if block sampling is enabled and all sampling ranges have been read.
+    bool IsSamplingCompleted() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

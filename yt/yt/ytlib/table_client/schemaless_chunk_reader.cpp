@@ -279,6 +279,24 @@ protected:
         }
         return {std::move(unreadDescriptors), std::move(readDescriptors)};
     }
+
+    bool SampleRow(int rowIndex)
+    {
+        if (Config_->SamplingMode != ESamplingMode::Row) {
+            return true;
+        }
+
+        return Sampler_.Sample(rowIndex);
+    }
+
+    bool SampleBlock(int blockIndex)
+    {
+        if (Config_->SamplingMode != ESamplingMode::Block) {
+            return true;
+        }
+
+        return Sampler_.Sample(blockIndex);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -597,7 +615,9 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
 void THorizontalSchemalessRangeChunkReader::CreateBlockSequence(int beginIndex, int endIndex)
 {
     for (int index = beginIndex; index < endIndex; ++index) {
-        BlockIndexes_.push_back(index);
+        if (SampleBlock(index)) {
+            BlockIndexes_.push_back(index);
+        }
     }
 }
 
@@ -681,7 +701,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
             break;
         }
 
-        if (Sampler_.Sample(GetTableRowIndex())) {
+        if (SampleRow(GetTableRowIndex())) {
             auto row = BlockReader_->GetRow(&MemoryPool_);
             if (Options_->EnableRangeIndex) {
                 *row.End() = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
@@ -997,6 +1017,7 @@ public:
             underlyingReader,
             chunkState->BlockCache,
             blockReadOptions,
+            BIND(&TColumnarSchemalessRangeChunkReader::OnRowsSkipped, MakeWeak(this)),
             memoryManager)
     {
         YT_LOG_DEBUG("Reading range %v", readRange);
@@ -1210,7 +1231,7 @@ private:
             i64 insertIndex = 0;
             for (i64 rowIndex = 0; rowIndex < rows->size(); ++rowIndex) {
                 i64 tableRowIndex = ChunkSpec_.table_row_index() + RowIndex_ - rows->size() + rowIndex;
-                if (Sampler_.Sample(tableRowIndex)) {
+                if (SampleRow(tableRowIndex)) {
                     (*rows)[insertIndex] = (*rows)[rowIndex];
                     ++insertIndex;
                 }
@@ -1312,6 +1333,9 @@ private:
 
         if (!Completed_) {
             TryFetchNextRow();
+            if (IsSamplingCompleted()) {
+                Completed_ = true;
+            }
         }
     }
 
@@ -1329,6 +1353,10 @@ private:
             if (Completed_ || !TryFetchNextRow()) {
                 break;
             }
+        }
+
+        if (IsSamplingCompleted()) {
+            Completed_ = true;
         }
 
         ReadEpilogue(&rows);
@@ -1486,6 +1514,9 @@ private:
             if (RowIndex_ >= HardUpperRowIndex_) {
                 Completed_ = true;
             }
+            if (IsSamplingCompleted()) {
+                Completed_ = true;
+            }
         } else {
             Completed_ = true;
         }
@@ -1572,6 +1603,11 @@ private:
 
         AdvanceRowIndex(rowCount);
     }
+
+    void OnRowsSkipped(int rowCount)
+    {
+        AdvanceRowIndex(rowCount);
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TColumnarSchemalessRangeChunkReader)
@@ -1613,6 +1649,7 @@ public:
             underlyingReader,
             chunkState->BlockCache,
             blockReadOptions,
+            [] (int) { YT_ABORT(); }, // Rows should not be skipped in lookup reader.
             memoryManager)
         , PerformanceCounters_(std::move(performanceCounters))
     {

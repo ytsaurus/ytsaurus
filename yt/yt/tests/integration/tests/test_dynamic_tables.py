@@ -2061,6 +2061,30 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert tablet_count_by_state["mounted"] == 4
         assert tablet_count_by_state["unmounted"] == tablet_count - 4
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("is_sorted", [True])
+    def test_block_sampling_dynamic_tables(self, is_sorted):
+        # TODO(gritukan): Test ordered dynamic tables after dynamic store read for ordered tables.
+        sync_create_cells(1)
+
+        key_schema = {"name": "key", "type": "int64"}
+        value_schema = {"name": "value", "type": "int64"}
+        if is_sorted:
+            key_schema["sort_order"] = "ascending"
+
+        schema = make_schema(
+            [key_schema, value_schema],
+            strict=True,
+            unique_keys=True if is_sorted else False)
+        create("table", "//tmp/t", attributes={"schema": schema, "external": False})
+
+        write_table("//tmp/t", [{"key": 0, "value": 1}])
+        alter_table("//tmp/t", dynamic=True, schema=schema)
+        assert get("//tmp/t/@dynamic") == True
+        table_reader_options = {"sampling_mode": "block", "sampling_rate": 0.5}
+        with pytest.raises(YtError):
+            read_table("//tmp/t", table_reader=table_reader_options)
+
 ##################################################################
 
 class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
