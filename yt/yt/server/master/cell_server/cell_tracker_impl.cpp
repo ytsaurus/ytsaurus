@@ -431,7 +431,7 @@ void TCellTrackerImpl::SchedulePeerRevocation(
                 }
 
                 // Do not revoke old leader until decommission is finished.
-                if (cell->PeerCount()) {
+                if (cell->PeerCount() && peerId == 0) {
                     continue;
                 }
 
@@ -467,8 +467,10 @@ bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeer
         ToProto(updatePeerCountRequest->mutable_cell_id(), cell->GetId());
         updatePeerCountRequest->set_peer_count(static_cast<int>(cell->Peers().size() + 1));
         return true;
-    } else if (!leaderDecommissioned && leadingPeer.LastSeenState == EPeerState::Leading && hasExtraPeers) {
+    } else if ((!leaderDecommissioned || cell->GetLeadingPeerId() != 0) && leadingPeer.LastSeenState == EPeerState::Leading && hasExtraPeers) {
         // Decommission finished, extra peers can be dropped.
+        // If a new leader became decommissioned, we still make him a single peer 
+        // and multipeer decommission will run again.
         auto* updatePeerCountRequest = request->add_peer_count_updates();
         ToProto(updatePeerCountRequest->mutable_cell_id(), cell->GetId());
         return true;
