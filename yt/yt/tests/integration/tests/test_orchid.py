@@ -49,6 +49,11 @@ class TestOrchid(YTEnvSetup):
                 peer_cells = ls("//sys/cluster_nodes/" + address + "/orchid/tablet_cells")
                 assert cell in peer_cells
 
+    @authors("ifsmirnov")
+    def test_master_reign(self):
+        peer = ls("//sys/primary_masters")[0]
+        assert type(get("//sys/primary_masters/{}/orchid/reign".format(peer))) == yson.YsonInt64
+
 ##################################################################
 
 class TestOrchidMulticell(TestOrchid):
