@@ -387,6 +387,42 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert lookup_rows("//tmp/t", first_keys) == first_rows
 
     @authors("gritukan")
+    def test_follower_decommissioned_during_decommission(self):
+        set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
+        set("//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout", 7000)
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        first_rows = [{"key": i, "value": str(i + 5)} for i in range(5)]
+        first_keys = [{"key": i} for i in range(5)]
+        insert_rows("//tmp/t", first_rows)
+
+        def get_peers():
+            return get("#" + cell_id + "/@peers")
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        first_peer_address = get_peers()[0]["address"]
+
+        set_node_decommissioned(first_peer_address, True)
+        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
+        second_peer_address = get_peers()[1]["address"]
+
+        set_node_decommissioned(second_peer_address, True)
+        wait(lambda: len(get_peers()) == 2 and get_peers()[1].get("address", second_peer_address) != second_peer_address)
+        new_second_peer_address = get_peers()[1]["address"]
+        assert new_second_peer_address != first_peer_address and new_second_peer_address != second_peer_address
+        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
+
+        wait(lambda: len(get_peers()) == 1)
+        assert get_peers()[0]["address"] == new_second_peer_address
+
+        self._wait_cell_good(cell_id, [first_peer_address, second_peer_address])
+
+        assert lookup_rows("//tmp/t", first_keys) == first_rows
+
+    @authors("gritukan")
     def test_dynamic_peer_count(self):
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
