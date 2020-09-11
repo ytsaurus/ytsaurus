@@ -160,8 +160,6 @@ private:
             slotOptions->SnapshotPrimaryMedium,
             EInMemoryMode::None);
 
-        tabletSnapshot->WaitOnLocks(0); // XXX fix timestamp
-
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);
         struct TWriteBufferTag { };
