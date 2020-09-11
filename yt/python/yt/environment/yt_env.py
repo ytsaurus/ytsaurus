@@ -1044,7 +1044,7 @@ class YTInstance(object):
             nodes = client.list("//sys/cluster_nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
 
-        wait_function = lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20))
+        wait_function = lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 60))
         self._wait_or_skip(wait_function, sync)
 
     def _prepare_schedulers(self, scheduler_configs, force_overwrite=False):
