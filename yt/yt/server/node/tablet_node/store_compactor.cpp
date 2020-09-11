@@ -1880,7 +1880,12 @@ private:
             return false;
         }
 
-        if (TInstant::Now() < store->GetCreationTime() + *config->AutoCompactionPeriod) {
+        auto splayRatio = config->AutoCompactionPeriodSplayRatio *
+            store->GetId().Parts32[0] / std::numeric_limits<ui32>::max();
+        auto effectivePeriod = TDuration::FromValue(
+            static_cast<TDuration::TValue>(config->AutoCompactionPeriod->GetValue() * (1 + splayRatio)));
+
+        if (TInstant::Now() < store->GetCreationTime() + effectivePeriod) {
             return false;
         }
 
