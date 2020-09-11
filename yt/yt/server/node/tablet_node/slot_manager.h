@@ -48,7 +48,7 @@ public:
     //! Returns |true| if there are free tablet slots and |false| otherwise.
     bool HasFreeTabletSlots() const;
 
-    //! Returns fraction of cpu used by tablet slots (in terms of resource limits).
+    //! Returns fraction of CPU used by tablet slots (in terms of resource limits).
     double GetUsedCpu(double cpuPerTabletSlot) const;
 
     const std::vector<TTabletSlotPtr>& Slots() const;

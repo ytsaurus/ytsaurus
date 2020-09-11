@@ -490,7 +490,7 @@ void ThrowUnexpectedYsonTokenException(
     const TYsonItem& item,
     const std::vector<EYsonItemType>& expected)
 {
-    THROW_ERROR_EXCEPTION("Cannot parse %Qv; expected: %v; actual: %Qlv",
+    THROW_ERROR_EXCEPTION("Cannot parse %Qv: expected %v, actual %Qlv",
         description,
         CreateExpectedItemTypesString(expected),
         item.GetType())
@@ -502,7 +502,7 @@ void ThrowUnexpectedYsonTokenException(
     const TYsonPullParserCursor& cursor,
     const std::vector<EYsonItemType>& expected)
 {
-    THROW_ERROR_EXCEPTION("Cannot parse %Qv; expected: %v; actual: %Qlv",
+    THROW_ERROR_EXCEPTION("Cannot parse %Qv; expected %v, actual %Qlv",
         description,
         CreateExpectedItemTypesString(expected),
         cursor->GetType())

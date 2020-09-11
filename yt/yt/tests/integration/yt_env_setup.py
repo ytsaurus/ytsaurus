@@ -185,12 +185,12 @@ def patch_subclass(parent, skip_condition, reason=""):
 linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
 unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
-patch_porto_env_only = lambda parent: patch_subclass(parent, not porto_avaliable(), reason="you need configured porto to run it")
+patch_porto_env_only = lambda parent: patch_subclass(parent, not porto_avaliable(), reason="you need configured Porto to run it")
 
 def skip_if_porto(func):
     def wrapper(func, self, *args, **kwargs):
         if hasattr(self, "USE_PORTO") and self.USE_PORTO:
-            pytest.skip("This test does not support porto isolation")
+            pytest.skip("This test does not support Porto isolation")
         return func(self, *args, **kwargs)
 
     return decorator.decorate(func, wrapper)
@@ -417,7 +417,7 @@ class YTEnvSetup(object):
         cls.cleanup_root_files = False
         if cls.USE_PORTO:
             if arcadia_interop.is_inside_distbuild():
-                pytest.skip("porto is not available inside distbuild")
+                pytest.skip("Porto is not available inside distbuild")
 
             need_suid = True
             cls.cleanup_root_files = True
@@ -614,11 +614,11 @@ class YTEnvSetup(object):
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
             if cls.cleanup_root_files:
-                # XXX(psushin): unlink all porto volumes.
+                # XXX(psushin): unlink all Porto volumes.
                 remove_all_volumes(cls.path_to_run)
 
                 # XXX(asaitgalin): Unmount everything.
-                # TODO(prime@): remove this, since we are using porto everywhere
+                # TODO(prime@): remove this, since we are using Porto everywhere
                 subprocess.check_call(["sudo", "find", cls.path_to_run, "-type", "d", "-exec",
                                        "mountpoint", "-q", "{}", ";", "-exec", "sudo",
                                        "umount", "{}", ";"])
@@ -632,7 +632,7 @@ class YTEnvSetup(object):
                     print >>sys.stderr, stderr
                     raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
 
-                # XXX(psushin): porto volume directories may have weirdest permissions ever.
+                # XXX(psushin): Porto volume directories may have weirdest permissions ever.
                 chmod_command = ["chmod", "-R", "+rw", cls.path_to_run]
 
                 p = subprocess.Popen(chmod_command, stderr=subprocess.PIPE)

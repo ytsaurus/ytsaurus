@@ -96,7 +96,7 @@ private:
     void ThrowUnexpectedYsonToken(EYsonItemType type, const TFieldId& fieldId)
     {
         THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-            "Cannot parse %Qv; expected: %Qv found: %Qv",
+            "Cannot parse %Qv: expected %Qlv, found %Qlv",
             GetDescription(fieldId),
             type,
             Cursor_.GetCurrent().GetType());
@@ -144,7 +144,7 @@ private:
             constexpr auto expectedYsonEventType = ExpectedYsonItemType<GetPhysicalType(type)>();
             if (Cursor_.GetCurrent().GetType() != expectedYsonEventType) {
                 THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                    "Cannot parse %Qv; expected: %Qv found: %Qv",
+                    "Cannot parse %Qv: expected %Qlv, found %Qlv",
                     GetDescription(fieldId),
                     expectedYsonEventType,
                     Cursor_.GetCurrent().GetType());
@@ -216,7 +216,7 @@ private:
 
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::BeginList) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::BeginList,
                 Cursor_.GetCurrent().GetType());
@@ -231,7 +231,7 @@ private:
         ValidateLogicalType(type.GetElement(), fieldId.OptionalElement());
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::EndList) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::EndList,
                 Cursor_.GetCurrent().GetType());
@@ -243,7 +243,7 @@ private:
     {
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::BeginList) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::BeginList,
                 Cursor_.GetCurrent().GetType());
@@ -261,7 +261,7 @@ private:
     {
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::BeginList) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::BeginList,
                 Cursor_.GetCurrent().GetType());
@@ -287,7 +287,7 @@ private:
         }
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::EndList) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::EndList,
                 Cursor_.GetCurrent().GetType());
@@ -299,7 +299,7 @@ private:
     {
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::BeginList) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::BeginList,
                 Cursor_.GetCurrent().GetType());
@@ -318,7 +318,7 @@ private:
         }
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::EndList) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::EndList,
                 Cursor_.GetCurrent().GetType());
@@ -331,7 +331,7 @@ private:
     {
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::BeginList) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::BeginList,
                 Cursor_.GetCurrent().GetType());
@@ -339,7 +339,7 @@ private:
         Cursor_.Next();
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::Int64Value) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::Int64Value,
                 Cursor_.GetCurrent().GetType());
@@ -383,7 +383,7 @@ private:
 
         if (Cursor_.GetCurrent().GetType() != EYsonItemType::EndList) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Cannot parse %Qv; expected: %Qv found: %Qv",
+                "Cannot parse %Qv: expected %Qlv, found %Qlv",
                 GetDescription(fieldId),
                 EYsonItemType::EndList,
                 Cursor_.GetCurrent().GetType());

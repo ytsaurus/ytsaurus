@@ -221,7 +221,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         def random_string(n):
             return ''.join(random.choice(string.printable) for _ in xrange(n))
 
-        write_table("//tmp/t1", [{str(i): random_string(1000)} for i in xrange(100)])  # so much to see non-zero decode cpu usage in release mode
+        write_table("//tmp/t1", [{str(i): random_string(1000)} for i in xrange(100)])  # so much to see non-zero decode CPU usage in release mode
 
         op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
         decode_time = get(op.get_path() + "/@progress/job_statistics/codec/cpu/decode/lzma_9/$/completed/map/sum")
@@ -322,9 +322,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
             spec={"job_count": 6})
         assert read_table("//tmp/t2") == [{"hello": "world"} for _ in xrange(6)]
 
-    # We skip this one in porto because it requires a lot of interaction with porto
+    # We skip this one in Porto because it requires a lot of interaction with Porto
     # (since there are a lot of operations with large number of jobs).
-    # There is completely nothing porto-specific here.
+    # There is completely nothing Porto-specific here.
     @authors("ignat")
     @unix_only
     @skip_if_porto

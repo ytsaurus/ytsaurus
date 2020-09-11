@@ -977,7 +977,7 @@ class TestCoreTable(YTEnvSetup):
     @skip_if_porto
     @unix_only
     def test_core_when_user_job_was_killed(self):
-        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to porto.")
+        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
 
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
@@ -999,7 +999,7 @@ class TestCoreTable(YTEnvSetup):
     @skip_if_porto
     @unix_only
     def test_core_timeout_when_user_job_was_killed(self):
-        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to porto.")
+        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
 
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 

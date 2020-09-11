@@ -120,7 +120,9 @@ TString LenvalBytes(const ::google::protobuf::Message& message)
 void EnsureTypesMatch(EValueType expected, EValueType actual)
 {
     if (expected != actual) {
-        THROW_ERROR_EXCEPTION("Expected: %v actual: %v", expected, actual);
+        THROW_ERROR_EXCEPTION("Mismatching type: expected %Qlv, actual %Qlv",
+            expected,
+            actual);
     }
 }
 

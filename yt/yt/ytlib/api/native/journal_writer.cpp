@@ -382,7 +382,7 @@ private:
             TUserObject userObject(Path_);
 
             {
-                TTimingGuard timingGuard(&Profiler, "/time/get_basic_attributes");
+                TTimingGuard timingGuard(&Profiler, "/get_basic_attributes_time");
 
                 GetUserObjectBasicAttributes(
                     Client_,
@@ -408,7 +408,7 @@ private:
             UploadMasterChannel_ = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, ExternalCellTag_);
 
             {
-                TTimingGuard timingGuard(&Profiler, "/time/get_extended_attributes");
+                TTimingGuard timingGuard(&Profiler, "/get_extended_attributes_time");
 
                 YT_LOG_DEBUG("Requesting extended journal attributes");
 
@@ -453,7 +453,7 @@ private:
             }
 
             {
-                TTimingGuard timingGuard(&Profiler, "/time/begin_upload");
+                TTimingGuard timingGuard(&Profiler, "/begin_upload_time");
 
                 YT_LOG_DEBUG("Starting journal upload");
 
@@ -505,7 +505,7 @@ private:
             }
 
             {
-                TTimingGuard timingGuard(&Profiler, "/time/get_upload_parameters");
+                TTimingGuard timingGuard(&Profiler, "/get_upload_parameters_time");
 
                 YT_LOG_DEBUG("Requesting journal upload parameters");
 
@@ -536,7 +536,7 @@ private:
         {
             YT_LOG_DEBUG("Closing journal");
 
-            TTimingGuard timingGuard(&Profiler, "/time/end_upload");
+            TTimingGuard timingGuard(&Profiler, "/end_upload_time");
 
             auto objectIdPath = FromObjectId(ObjectId_);
 
@@ -577,14 +577,14 @@ private:
 
         bool TryOpenChunk()
         {
-            TTimingGuard timingGuard(&Profiler, "/time/open_chunk");
+            TTimingGuard timingGuard(&Profiler, "/open_chunk_time");
             TWallTimer timer;
             auto session = New<TChunkSession>();
 
             YT_LOG_DEBUG("Creating chunk");
 
             {
-                TTimingGuard timingGuard(&Profiler, "/time/create_chunk");
+                TTimingGuard timingGuard(&Profiler, "/create_chunk_time");
 
                 TChunkServiceProxy proxy(UploadMasterChannel_);
 
@@ -625,7 +625,7 @@ private:
 
             TChunkReplicaWithMediumList replicas;
             try {
-                TTimingGuard timingGuard(&Profiler, "/time/allocate_write_targets");
+                TTimingGuard timingGuard(&Profiler, "/allocate_write_targets_time");
                 replicas = AllocateWriteTargets(
                     Client_,
                     session->Id,
@@ -673,7 +673,7 @@ private:
                 timer.GetElapsedValue());
 
             try {
-                TTimingGuard timingGuard(&Profiler, "/time/start_sessions");
+                TTimingGuard timingGuard(&Profiler, "/start_sessions_time");
 
                 std::vector<TFuture<void>> futures;
                 for (const auto& node : session->Nodes) {
@@ -713,7 +713,7 @@ private:
                 timer.GetElapsedValue());
 
             {
-                TTimingGuard timingGuard(&Profiler, "/time/confirm_chunk");
+                TTimingGuard timingGuard(&Profiler, "/confirm_chunk_time");
 
                 TChunkServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
@@ -743,7 +743,7 @@ private:
             YT_LOG_DEBUG("Attaching chunk (OpenChunkElapsedTime: %v)",
                 timer.GetElapsedValue());
             {
-                TTimingGuard timingGuard(&Profiler, "/time/attach_chunk");
+                TTimingGuard timingGuard(&Profiler, "/attach_chunk_time");
 
                 TChunkServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
@@ -901,7 +901,7 @@ private:
             }
 
             {
-                TTimingGuard timingGuard(&Profiler, "/time/seal_chunk");
+                TTimingGuard timingGuard(&Profiler, "/seal_chunk_time");
 
                 YT_LOG_DEBUG("Sealing chunk (SessionId: %v, RowCount: %v)",
                     sessionId,

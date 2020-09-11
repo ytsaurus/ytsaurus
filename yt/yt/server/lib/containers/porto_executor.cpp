@@ -496,7 +496,7 @@ private:
                 //TODO(dcherednik): other states
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Fatal exception during porto polling");
+            YT_LOG_ERROR(ex, "Fatal exception occurred while polling Porto");
             Failed_.Fire(TError(ex));
         }
     }
@@ -637,7 +637,7 @@ private:
             return;
         } else {
             if (portoErrorCode != EPortoErrorCode::Success) {
-                YT_LOG_ERROR("Container finished with porto API error "
+                YT_LOG_ERROR("Container finished with Porto API error "
                     "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
                     container,
                     portoErrorCode,
@@ -653,7 +653,7 @@ private:
 
                     it->second.Set(exitStatus);
                 } catch (const std::exception& ex) {
-                    it->second.Set(TError("Failed to parse porto exit status") << ex);
+                    it->second.Set(TError("Failed to parse Porto exit status") << ex);
                 }
             }
         }

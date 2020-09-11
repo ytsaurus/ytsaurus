@@ -63,20 +63,20 @@ void TPortoProcess::DoSpawn()
         try {
             ProcessId_ = ContainerInstance_->GetPid();
         } catch (const std::exception& ex) {
-            // This could happen if porto container has already died or pid namespace of
+            // This could happen if Porto container has already died or pid namespace of
             // parent container is not a parent of pid namespace of child container.
-            // It's not a problem, since for porto process pid is used for logging purposes only.
+            // It's not a problem, since for Porto process pid is used for logging purposes only.
             YT_LOG_DEBUG(ex, "Failed to get pid of root process (Container: %v)",
                 ContainerInstance_->GetName());
         }
     } catch (const std::exception& ex) {
         Finished_ = true;
-        THROW_ERROR_EXCEPTION("Failed to start child process inside porto")
+        THROW_ERROR_EXCEPTION("Failed to start child process inside Porto")
             << TErrorAttribute("path", Args_[0])
             << TErrorAttribute("container", ContainerInstance_->GetName())
             << ex;
     }
-    YT_LOG_DEBUG("Process inside porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
+    YT_LOG_DEBUG("Process inside Porto spawned successfully (Path: %v, ExternalPid: %v, Container: %v)",
         Args_[0],
         ProcessId_,
         ContainerInstance_->GetName());
@@ -86,14 +86,14 @@ void TPortoProcess::DoSpawn()
         Finished_ = true;
         if (exitCodeOrError.IsOK()) {
             auto& exitCode = exitCodeOrError.ValueOrThrow();
-            YT_LOG_DEBUG("Process inside porto exited (ExitCode: %v, ExternalPid: %v, Container: %v)",
+            YT_LOG_DEBUG("Process inside Porto exited (ExitCode: %v, ExternalPid: %v, Container: %v)",
                 exitCode,
                 ProcessId_,
                 ContainerInstance_->GetName());
 
             FinishedPromise_.Set(StatusToError(exitCode));
         } else {
-            YT_LOG_DEBUG("Process inside porto exited with container error (Error: %v, ExternalPid: %v, Container: %v)",
+            YT_LOG_DEBUG("Process inside Porto exited with container error (Error: %v, ExternalPid: %v, Container: %v)",
                 exitCodeOrError,
                 ProcessId_,
                 ContainerInstance_->GetName());

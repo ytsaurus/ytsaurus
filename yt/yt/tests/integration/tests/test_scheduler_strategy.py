@@ -2335,7 +2335,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         #
         # We create a table consisting of the only chunk, temporarily set cpu = 0 to prevent
         # the map from running via @resource_limits_overrides, then we remove the chunk from
-        # the chunk_store via the filesystem and return cpu back to the normal state.
+        # the chunk_store via the filesystem and return CPU back to the normal state.
 
         create("table", "//tmp/t", attributes={"replication_factor": 1})
         create("table", "//tmp/d", attributes={"replication_factor": 1})

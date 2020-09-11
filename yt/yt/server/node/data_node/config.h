@@ -631,7 +631,7 @@ public:
     //! Cached chunks location.
     std::vector<TCacheLocationConfigPtr> CacheLocations;
 
-    //! Manages layers and root volumes for porto job environment.
+    //! Manages layers and root volumes for Porto job environment.
     TVolumeManagerConfigPtr VolumeManager;
 
     //! Reader configuration used to download chunks into cache.

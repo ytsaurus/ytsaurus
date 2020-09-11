@@ -3458,7 +3458,7 @@ private:
 
     virtual TCpuResource GetSortCpuLimit() const override
     {
-        // At least one cpu, may be more in PartitionReduce job.
+        // At least one CPU, may be more in PartitionReduce job.
         return 1;
     }
 

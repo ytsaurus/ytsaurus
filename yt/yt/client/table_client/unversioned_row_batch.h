@@ -15,7 +15,7 @@ struct IUnversionedRowBatch
     : public virtual TRefCounted
 {
     //! Returns the number of rows in the batch.
-    //! This call is cheap (in contrast to #GetRows).
+    //! This call is cheap (in contrast to #IUnversionedRowBatch::MaterializeRows).
     virtual int GetRowCount() const = 0;
 
     //! A helper method that returns |true| iff #GetRowCount is zero.
@@ -27,8 +27,8 @@ struct IUnversionedRowBatch
 
     //! Returns the rows representing the batch.
     //! If the batch is columnar then the rows are materialized on first
-    //! call to #MaterializeRows. This call could be slow.
-    //! Invoking #MaterializeColumns after this call is forbidden.
+    //! call to #IUnversionedRowBatch::MaterializeRows. This call could be slow.
+    //! Invoking #IUnversionedColumnarRowBatch::MaterializeColumns after this call is forbidden.
     virtual TSharedRange<TUnversionedRow> MaterializeRows() = 0;
 };
 
@@ -189,7 +189,7 @@ struct IUnversionedColumnarRowBatch
     //! Returns the (root) columns representing the batch.
     //! The batch must be columnar.
     //! This call is fast.
-    //! Invoking #MaterializeRows after this call is forbidden.
+    //! Invoking #IUnversionedRowBatch::MaterializeRows after this call is forbidden.
     virtual TRange<const TColumn*> MaterializeColumns() = 0;
 
     //! Contains the ids of dictionaries that are guaranteed to never be used

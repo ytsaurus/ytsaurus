@@ -124,7 +124,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     USE_PORTO = True
 
     @authors("renadeen")
-    @pytest.mark.skip(reason="Broken after move to porto")
+    @pytest.mark.skip(reason="Broken after move to Porto")
     def test_dynamic_cpu_statistics_of_sort_operation(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
@@ -139,7 +139,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         wait(lambda: len(list(op.get_running_jobs())) > 0, sleep_backoff=0.1)
         stats_path = self.wait_and_get_stats_path(list(op.get_running_jobs())[0])
         wait(lambda: exists(stats_path + "/preemptable_cpu_x100"), sleep_backoff=0.1)
-        # Sort is more io bound than cpu bound.
+        # Sort is more io bound than CPU bound.
         wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] > 50, sleep_backoff=0.1)
 
     @authors("renadeen")
@@ -159,7 +159,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
 
     @authors("renadeen")
     def test_new_jobs_are_scheduled_on_reclaimed_cpu(self):
-        # node has 1.5 cpu, min spare cpu to schedule new jobs is 1
+        # node has 1.5 CPU, min spare CPU to schedule new jobs is 1
 
         run_test_vanilla(with_breakpoint("BREAKPOINT", "Op1"), spec=SPEC_WITH_CPU_MONITOR)
         job_id1 = wait_breakpoint("Op1")[0]

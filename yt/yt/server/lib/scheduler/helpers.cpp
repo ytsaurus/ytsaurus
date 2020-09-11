@@ -35,7 +35,7 @@ TError CheckPoolName(const TString& poolName)
             << TErrorAttribute("max_length", PoolNameMaxLength);
     }
 
-    static NRe2::TRe2Ptr regex = New<NRe2::TRe2>(PoolNameRegex);
+    static const auto regex = New<NRe2::TRe2>(PoolNameRegex);
     if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), *regex)) {
         return TError("Pool name %Qv must match regular expression %Qv", poolName, PoolNameRegex);
     }

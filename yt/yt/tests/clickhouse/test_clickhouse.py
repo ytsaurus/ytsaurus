@@ -3213,7 +3213,7 @@ class TestTracing(ClickHouseTestBase):
                 assert query_id.startswith("33333333-44444444")
 
             if is_tracing_enabled():
-                # TODO(max42): this seems broken after moving to porto.
+                # TODO(max42): this seems broken after moving to Porto.
 
                 # Check presence of one of the middle parts of query id in the binary trace file.
                 # It looks like a good evidence of that everything works fine. Don't tell prime@ that

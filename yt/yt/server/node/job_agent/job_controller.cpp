@@ -1019,7 +1019,7 @@ TFuture<void> TJobController::TImpl::PrepareHeartbeatRequest(
             }
 
             if (jobObjectType == EObjectType::SchedulerJob && !Bootstrap_->GetExecSlotManager()->IsEnabled()) {
-                // NB(psushin): if slot manager is disabled we might have experienced an unrecoverable failure (e.g. hanging porto)
+                // NB(psushin): if slot manager is disabled we might have experienced an unrecoverable failure (e.g. hanging Porto)
                 // and to avoid inconsistent state with scheduler we decide not to report to it any jobs at all.
                 request->set_confirmed_job_count(0);
                 return;
