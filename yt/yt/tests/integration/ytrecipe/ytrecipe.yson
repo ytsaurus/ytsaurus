@@ -27,7 +27,7 @@
     ];
 
     resource_limits={
-        cpu_limit=10;
+        cpu_limit=8;
         memory_limit=30000000000;
     };
 
