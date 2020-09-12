@@ -1338,8 +1338,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         n = 47
         nan = float('nan')
-        rows = [{"x": x, "d": nan} for x in [20, 60] + [42] * (n - 2)]
-        shuffle(rows)
+        rows = [{"x": x, "d": nan} for x in ([20, 60] + [42] * (n - 2))]
         write_table("//tmp/in", rows)
 
         sort_maniac("//tmp/in", "//tmp/out", "x", allow_non_maniac=True)
