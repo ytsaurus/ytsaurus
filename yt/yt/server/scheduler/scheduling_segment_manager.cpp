@@ -48,8 +48,12 @@ EJobResourceType TSchedulingSegmentManager::GetSegmentBalancingKeyResource(ESegm
 void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext* context)
 {
     for (const auto& [treeId, segmentsInfo] : context->SegmentsInfoPerTree) {
+        auto& treeState = TreeIdToState_[treeId];
+
         if (segmentsInfo.Mode == ESegmentedSchedulingMode::Disabled) {
-            TreeSchedulingSegmentsUnsatisfiedSince_.erase(treeId);
+            if (treeState.PreviousMode != ESegmentedSchedulingMode::Disabled) {
+                ResetTree(context, treeId);
+            }
 
             YT_LOG_DEBUG("Segmented scheduling is disabled in tree, skipping (TreeId: %v)",
                 treeId);
@@ -76,7 +80,7 @@ void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext*
             }
         }
 
-        auto& unsatisfiedSince = TreeSchedulingSegmentsUnsatisfiedSince_[treeId];
+        auto& unsatisfiedSince = treeState.UnsatisfiedSince;
         if (unsatisfiedSegments.empty()) {
             unsatisfiedSince = std::nullopt;
             continue;
@@ -100,6 +104,26 @@ void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext*
                 treeId,
                 std::move(currentResourceAmountPerSegment));
             unsatisfiedSince = std::nullopt;
+        }
+
+        treeState.PreviousMode = segmentsInfo.Mode;
+    }
+}
+
+void TSchedulingSegmentManager::ResetTree(TManageSchedulingSegmentsContext *context, const TString& treeId)
+{
+    auto& treeState = TreeIdToState_[treeId];
+    treeState.PreviousMode = ESegmentedSchedulingMode::Disabled;
+    treeState.UnsatisfiedSince = std::nullopt;
+
+    for (auto nodeId : context->NodeIdsPerTree[treeId]) {
+        const auto& node = GetOrCrash(*context->ExecNodeDescriptors, nodeId);
+        if (node.SchedulingSegment != ESchedulingSegment::Default) {
+            auto nodeShardId = context->NodeShardHost->GetNodeShardId(nodeId);
+            context->MovedNodesPerNodeShard[nodeShardId].push_back(TSetNodeSchedulingSegmentOptions{
+                .NodeId = nodeId,
+                .Segment = ESchedulingSegment::Default,
+                .AbortAllJobs = false});
         }
     }
 }
@@ -164,7 +188,10 @@ void TSchedulingSegmentManager::RebalanceSegmentsInTree(
             auto oldSegment = nextMovableNode.SchedulingSegment;
 
             auto nodeShardId = context->NodeShardHost->GetNodeShardId(nextMovableNode.Id);
-            context->MovedNodesPerNodeShard[nodeShardId].emplace_back(nextMovableNode.Id, segment);
+            context->MovedNodesPerNodeShard[nodeShardId].push_back(TSetNodeSchedulingSegmentOptions{
+                .NodeId = nextMovableNode.Id,
+                .Segment = segment,
+                .AbortAllJobs = true});
             ++movedNodeCount;
             totalPenalty += getPenalty(nextMovableNode);
 

@@ -2627,22 +2627,11 @@ auto TFairShareTree<TFairShareImpl>::InitPersistentTreeState(const TPersistentTr
 }
 
 template <class TFairShareImpl>
-ESegmentedSchedulingMode TFairShareTree<TFairShareImpl>::GetSegmentedSchedulingMode() const
-{
-    return Config_->SchedulingSegments->Mode;
-}
-
-template <class TFairShareImpl>
-void TFairShareTree<TFairShareImpl>::SetOperationSchedulingSegment(TOperationId operationId, ESchedulingSegment segment)
+void TFairShareTree<TFairShareImpl>::InitOrUpdateOperationSchedulingSegment(TOperationId operationId)
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-    YT_LOG_DEBUG("Setting operation scheduling segment (OperationId: %v, Segment: %v)",
-        operationId,
-        segment);
-
-    auto element = GetOperationElement(operationId);
-    element->SchedulingSegment() = segment;
+    GetOperationElement(operationId)->InitOrUpdateSchedulingSegment(Config_->SchedulingSegments->Mode);
 }
 
 template <class TFairShareImpl>

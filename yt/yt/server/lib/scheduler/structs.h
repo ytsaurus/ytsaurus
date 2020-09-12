@@ -106,8 +106,6 @@ struct TPoolTreeSchedulingSegmentsInfo
 
 using TTreeIdToSchedulingSegmentsInfo = THashMap<TString, TPoolTreeSchedulingSegmentsInfo>;
 
-using TNodeIdWithSchedulingSegmentList = std::vector<std::pair<NNodeTrackerClient::TNodeId, ESchedulingSegment>>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

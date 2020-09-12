@@ -6,6 +6,7 @@
 #include "resource_tree.h"
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
+#include "scheduling_segment_manager.h"
 
 #include "operation_log.h"
 
@@ -3054,6 +3055,17 @@ void TOperationElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicA
     TSchedulerElement::UpdateDynamicAttributes(dynamicAttributesList);
 }
 
+void TOperationElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
+{
+    YT_VERIFY(Mutable_);
+
+    if (TreeConfig_->SchedulingSegments->Mode != config->SchedulingSegments->Mode) {
+        InitOrUpdateSchedulingSegment(config->SchedulingSegments->Mode);
+    }
+
+    TSchedulerElement::UpdateTreeConfig(config);
+}
+
 void TOperationElement::UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
 {
     YT_VERIFY(Mutable_);
@@ -3834,6 +3846,20 @@ void TOperationElement::MarkWaitingFor(TCompositeSchedulerElement* violatedPool)
         OperationId_,
         violatedPool->GetId(),
         violatedPool->GetMaxRunningOperationCount());
+}
+
+void TOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode)
+{
+    auto maybeSpecifiedSegment = Operation_->GetSpecifiedSchedulingSegment();
+    auto initialMinNeededResources = Operation_->GetInitialAggregatedMinNeededResources().value_or(TJobResources());
+    auto segment = maybeSpecifiedSegment.value_or(
+        TSchedulingSegmentManager::GetSegmentForOperation(mode, initialMinNeededResources));
+
+    YT_LOG_DEBUG_UNLESS(SchedulingSegment_ == segment,
+        "Setting new scheduling segment for operation (Segment: %v)",
+        segment);
+
+    SchedulingSegment_ = segment;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

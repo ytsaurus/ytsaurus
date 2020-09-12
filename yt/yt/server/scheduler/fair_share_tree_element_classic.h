@@ -933,6 +933,7 @@ public:
 
     virtual bool IsOperation() const override;
 
+    virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
     virtual TJobResources ComputeGreedyAllocationResources(TJobResources limit) const override;
@@ -1027,6 +1028,8 @@ public:
     void UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool activateAncestors = false);
 
     void MarkWaitingFor(TCompositeSchedulerElement* violatedPool);
+
+    void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 

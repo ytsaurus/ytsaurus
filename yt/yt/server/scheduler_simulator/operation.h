@@ -43,6 +43,10 @@ public:
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) override;
 
+    virtual std::optional<NScheduler::ESchedulingSegment> GetSpecifiedSchedulingSegment() const override;
+
+    virtual std::optional<NScheduler::TJobResources> GetInitialAggregatedMinNeededResources() const override;
+
     bool SetCompleting();
 
 private:

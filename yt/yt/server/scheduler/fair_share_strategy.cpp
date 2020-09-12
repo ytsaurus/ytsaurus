@@ -965,20 +965,13 @@ public:
         return bestTree;
     }
 
-    virtual void InitOperationSchedulingSegment(const IOperationStrategyHost* operation, const TJobResources& minNeededResources) override
+    virtual void InitOperationSchedulingSegment(TOperationId operationId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        auto maybeSpecifiedSegment = ParseSpec(operation)->SchedulingSegment;
-        auto operationId = operation->GetId();
         auto state = GetOperationState(operationId);
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
-            auto tree = GetTree(treeId);
-            auto segment = maybeSpecifiedSegment
-                ? *maybeSpecifiedSegment
-                : TSchedulingSegmentManager::GetSegmentForOperation(tree->GetSegmentedSchedulingMode(), minNeededResources);
-
-            tree->SetOperationSchedulingSegment(operationId, segment);
+            GetTree(treeId)->InitOrUpdateOperationSchedulingSegment(operationId);
         }
     }
 
