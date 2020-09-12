@@ -234,6 +234,8 @@ def add_start_subparser(subparsers):
 
     parser.add_argument("--wait-tablet-cell-initialization", action="store_true", default=False,
                         help="wait until tablet cell (created during world initialization) health is good")
+    parser.add_argument("--init-operations-archive", action="store_true", default=False,
+                        help="init operations archive")
     parser.add_argument("--timeout", type=int,
                         help="time in seconds after which local YT will be stopped automatically "
                              "(applies only to sync mode)")
