@@ -1164,7 +1164,7 @@ public:
             // Operation was materialized from scratch.
             shouldSuspend = maybeMaterializeResult->Suspend;
             neededResources = maybeMaterializeResult->InitialNeededResources;
-            operation->MutableInitialAggregatedMinNeededResources() = maybeMaterializeResult->InitialAggregatedMinNeededResources;
+            operation->SetInitialAggregatedMinNeededResources(maybeMaterializeResult->InitialAggregatedMinNeededResources);
             shouldFlush = true;
         } else {
             // Operation was revived from snapshot.
@@ -1209,9 +1209,7 @@ public:
             }
         }
 
-        Strategy_->InitOperationSchedulingSegment(
-            operation.Get(),
-            operation->InitialAggregatedMinNeededResources().value_or(TJobResources()));
+        Strategy_->InitOperationSchedulingSegment(operation->GetId());
 
         if (operation->Spec()->TestingOperationOptions->DelayAfterMaterialize) {
             TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayAfterMaterialize);

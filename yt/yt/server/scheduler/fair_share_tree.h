@@ -213,8 +213,7 @@ public:
     TPersistentTreeStatePtr BuildPersistentTreeState() const;
     void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState);
 
-    ESegmentedSchedulingMode GetSegmentedSchedulingMode() const;
-    void SetOperationSchedulingSegment(TOperationId operationId, ESchedulingSegment segment);
+    void InitOrUpdateOperationSchedulingSegment(TOperationId operationId);
     TPoolTreeSchedulingSegmentsInfo GetSchedulingSegmentsInfo() const;
 
 private:

@@ -138,6 +138,10 @@ struct IOperationStrategyHost
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
 
+    virtual std::optional<ESchedulingSegment> GetSpecifiedSchedulingSegment() const = 0;
+
+    virtual std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const = 0;
+
 protected:
     friend class TFairShareStrategyOperationState;
     friend class NClassicScheduler::TFairShareStrategyOperationState;
@@ -257,7 +261,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NSecurityClient::TSerializableAccessControlList, BaseAcl);
 
     //! Aggregated minimum needed resources at the start of the operation.
-    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(std::optional<TJobResources>, InitialAggregatedMinNeededResources);
+    DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(std::optional<TJobResources>, InitialAggregatedMinNeededResources);
 
 public:
     //! Returns operation id.
@@ -343,6 +347,8 @@ public:
     bool IsScheduledInSingleTree() const;
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) override;
+
+    virtual std::optional<ESchedulingSegment> GetSpecifiedSchedulingSegment() const override;
 
     TOperation(
         TOperationId operationId,

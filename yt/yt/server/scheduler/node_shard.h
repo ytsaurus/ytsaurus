@@ -97,6 +97,17 @@ struct TJobTimeStatisticsDelta
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSetNodeSchedulingSegmentOptions
+{
+    NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
+    ESchedulingSegment Segment = ESchedulingSegment::Default;
+    bool AbortAllJobs = false;
+};
+
+using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegmentOptions>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeShard
     : public TRefCounted
 {
@@ -182,7 +193,7 @@ public:
     int ExtractJobReporterWriteFailuresCount();
     int GetJobReporterQueueIsTooLargeNodeCount();
 
-    void SetSchedulingSegmentsForNodes(const TNodeIdWithSchedulingSegmentList& nodeIdsWithSegments);
+    void SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOptionsList& nodesWithNewSegments);
 
 private:
     const int Id_;

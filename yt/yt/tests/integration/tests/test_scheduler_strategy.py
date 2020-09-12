@@ -2734,6 +2734,30 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(large_op.id) + "/scheduling_segment", default="") == "large_gpu")
 
     @authors("eshcherbin")
+    def test_update_operation_segment_on_reconfiguration(self):
+        set("//sys/pool_trees/default/@scheduling_segments/mode", "disabled")
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "disabled")
+
+        blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default="") == "default")
+
+        set("//sys/pool_trees/default/@scheduling_segments/mode", "large_gpu")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default="") == "large_gpu")
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment", default="") == "default")
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+        set("//sys/pool_trees/default/@scheduling_segments/mode", "disabled")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default="") == "default")
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment", default="") == "default")
+
+        time.sleep(3.0)
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+    @authors("eshcherbin")
     def test_profiling(self):
         set("//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)

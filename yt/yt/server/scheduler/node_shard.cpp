@@ -1380,10 +1380,10 @@ int TNodeShard::GetJobReporterQueueIsTooLargeNodeCount()
     return JobReporterQueueIsTooLargeNodeCount_.load();
 }
 
-void TNodeShard::SetSchedulingSegmentsForNodes(const TNodeIdWithSchedulingSegmentList& nodeIdsWithSegments)
+void TNodeShard::SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOptionsList& nodesWithSegments)
 {
-    TNodeIdWithSchedulingSegmentList missingNodeIdsWithSegments;
-    for (const auto& [nodeId, segment] : nodeIdsWithSegments) {
+    std::vector<std::pair<TNodeId, ESchedulingSegment>> missingNodeIdsWithSegments;
+    for (const auto& [nodeId, segment, abortAllJobs] : nodesWithSegments) {
         auto it = IdToNode_.find(nodeId);
         if (it == IdToNode_.end()) {
             missingNodeIdsWithSegments.emplace_back(nodeId, segment);
@@ -1398,8 +1398,10 @@ void TNodeShard::SetSchedulingSegmentsForNodes(const TNodeIdWithSchedulingSegmen
         YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v)",
             node->GetDefaultAddress(), segment);
 
-        AbortAllJobsAtNode(node, EAbortReason::NodeSchedulingSegmentChanged);
         node->SetSchedulingSegment(segment);
+        if (abortAllJobs) {
+            AbortAllJobsAtNode(node, EAbortReason::NodeSchedulingSegmentChanged);
+        }
     }
 
     YT_LOG_DEBUG_UNLESS(missingNodeIdsWithSegments.empty(),

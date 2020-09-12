@@ -1454,10 +1454,10 @@ private:
             }
 
             // Set initial aggregated min needed resources.
-            if (operation->InitialAggregatedMinNeededResources()) {
+            if (auto initialMinNeededResources = operation->GetInitialAggregatedMinNeededResources()) {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("initial_aggregated_min_needed_resources");
-                req->set_value(ConvertToYsonString(*operation->InitialAggregatedMinNeededResources()).GetData());
+                req->set_value(ConvertToYsonString(*initialMinNeededResources).GetData());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");

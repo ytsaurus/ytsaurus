@@ -9,7 +9,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TNodeShardIdToMovedNodes = std::array<TNodeIdWithSchedulingSegmentList, MaxNodeShardCount>;
+using TNodeShardIdToMovedNodes = std::array<TSetNodeSchedulingSegmentOptionsList, MaxNodeShardCount>;
 
 struct TManageSchedulingSegmentsContext
 {
@@ -37,7 +37,14 @@ public:
     void ManageSegments(TManageSchedulingSegmentsContext* context);
 
 private:
-    THashMap<TString, std::optional<TInstant>> TreeSchedulingSegmentsUnsatisfiedSince_;
+    struct TTreeSchedulingSegmentsState
+    {
+        std::optional<TInstant> UnsatisfiedSince;
+        ESegmentedSchedulingMode PreviousMode = ESegmentedSchedulingMode::Disabled;
+    };
+    THashMap<TString, TTreeSchedulingSegmentsState> TreeIdToState_;
+
+    void ResetTree(TManageSchedulingSegmentsContext *context, const TString& treeId);
 
     void LogAndProfileSegmentsInTree(
         TManageSchedulingSegmentsContext* context,
