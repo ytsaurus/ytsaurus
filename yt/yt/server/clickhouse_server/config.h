@@ -133,6 +133,8 @@ public:
     bool ThrowTestingExceptionInSubquery;
     i64 TestingSubqueryAllocationSize;
 
+    bool UseBlockSampling;
+
     TQuerySettings();
 };
 

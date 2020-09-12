@@ -2,6 +2,8 @@
 
 #include "schema.h"
 
+#include <yt/client/table_client/config.h>
+
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
@@ -12,6 +14,7 @@ namespace NYT::NClickHouseServer {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
+using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -37,6 +40,7 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     protoSpec->set_subquery_index(spec.SubqueryIndex);
     protoSpec->set_table_index(spec.TableIndex);
     protoSpec->set_initial_query(spec.InitialQuery);
+    protoSpec->set_table_reader_config(ConvertToYsonString(spec.TableReaderConfig).GetData());
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
@@ -58,6 +62,9 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
     spec->SubqueryIndex = protoSpec.subquery_index();
     spec->TableIndex = protoSpec.table_index();
     spec->InitialQuery = protoSpec.initial_query();
+
+    auto tableReaderConfigYson = TYsonString(protoSpec.table_reader_config());
+    spec->TableReaderConfig = ConvertTo<TTableReaderConfigPtr>(tableReaderConfigYson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,6 +28,7 @@ public:
     NTableClient::TTableSchemaPtr ReadSchema;
     int SubqueryIndex;
     int TableIndex;
+    NTableClient::TTableReaderConfigPtr TableReaderConfig;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

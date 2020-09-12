@@ -375,6 +375,41 @@ public:
             samplingRate = rate;
         }
 
+        bool canUseBlockSampling = QueryContext_->Host->GetConfig()->QuerySettings->UseBlockSampling;
+        for (const auto& tables : queryAnalysisResult.Tables) {
+            for (const auto& table : tables) {
+                if (table->Dynamic) {
+                    canUseBlockSampling = false;
+                }
+            }
+        }
+        if (queryAnalysisResult.PoolKind != EPoolKind::Unordered) {
+            canUseBlockSampling = false;
+        }
+
+        auto tableReaderConfig = New<TTableReaderConfig>();
+        if (canUseBlockSampling && samplingRate) {
+            YT_LOG_DEBUG("Using block sampling (SamplingRate: %v)",
+                samplingRate);
+            for (const auto& stripe : input.StripeList->Stripes) {
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                        chunkSlice->ApplySamplingSelectivityFactor(*samplingRate);
+                    }
+                }
+            }
+            tableReaderConfig->SamplingRate = samplingRate;
+            tableReaderConfig->SamplingMode = ESamplingMode::Block;
+            if (queryInfo.prewhere_info) {
+                // When PREWHERE is present, same chunk is processed several times
+                // (first on PREWHERE phase, then on main phase),
+                // so we fix seed for sampling for the sake of determinism.
+                tableReaderConfig->SamplingSeed = RandomNumber<ui64>();
+            }
+            samplingRate = std::nullopt;
+        }
+        SpecTemplate_.TableReaderConfig = tableReaderConfig;
+
         Subqueries_ = BuildSubqueries(
             std::move(input.StripeList),
             queryAnalysisResult.KeyColumnCount,

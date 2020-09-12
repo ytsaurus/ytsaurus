@@ -102,6 +102,9 @@ TQuerySettings::TQuerySettings()
         .Default(false);
     RegisterParameter("testing_subquery_allocation_size", TestingSubqueryAllocationSize)
         .Default(0);
+
+    RegisterParameter("use_block_sampling", UseBlockSampling)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
