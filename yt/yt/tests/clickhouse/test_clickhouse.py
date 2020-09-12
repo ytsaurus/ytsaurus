@@ -29,6 +29,8 @@ import itertools
 
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config, get_log_tailer_config
 
+from flaky import flaky
+
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
 DEFAULTS = {
@@ -718,7 +720,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
 
     @authors("evgenstf")
-    def test_monitoring_orchids(self):
+    def test_orchid_nodes(self):
         node_to_ban = None
         try:
             with Clique(3) as clique:
@@ -731,10 +733,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 abort_job(job_to_abort)
                 set_banned_flag(True, [node_to_ban])
 
-                wait(lambda: len(clique.get_active_instances()) == 2)
-                wait(lambda: len(clique.get_active_instances()) == 3)
-                for instance in clique.get_active_instances():
-                    assert str(instance) != job_to_abort
+                def instances_relocated():
+                    active_instances = [str(instance) for instance in clique.get_active_instances()]
+                    if len(active_instances) != 3:
+                        return False
+                    return job_to_abort not in active_instances
+
+                wait(instances_relocated)
 
                 for i in range(3):
                     assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
@@ -854,7 +859,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("max42", "dakovalkov", "evgenstf")
     @pytest.mark.parametrize("remove_method", ["yt", "chyt"])
     def test_schema_caching(self, remove_method):
-        patch = get_object_attibute_cache_config(500, 500, None)
+        patch = get_object_attibute_cache_config(2000, 2000, None)
 
         with Clique(1, config_patch=patch) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -869,7 +874,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert cached_description == old_description
             create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
             write_table("//tmp/t", [{"b": 1}])
-            time.sleep(1)
+            time.sleep(5)
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description[0]["name"] == "b"
 
@@ -932,13 +937,19 @@ class TestClickHouseCommon(ClickHouseTestBase):
                             {"name": "data", "type": "string"}
                         ],
                         "optimize_for": optimize_for})
-            write_table(
-                "//tmp/test_table",
-                [{"key": "b_key", "index": i, "data": "b" * 50} if i == 1234 else {"key": "a_key", "data": "a" * 50 + str(random.randint(0, 1000000))} for i in range(10 * 10 * 1024)],
-                table_writer={
-                    "block_size": 1024,
-                    "desired_chunk_size": 10 * 1024})
-            assert get("//tmp/test_table/@chunk_count") > 5
+            rows = [
+                {"key": "b_key", "index": i, "data": "b" * 50} if i == 1234 else {"key": "a_key", "data": "a" * 50 + str(random.randint(0, 1000000))}
+                for i in range(10 * 10 * 1024)
+            ]
+            for i in range(10):
+                write_table(
+                    "<append=%true>//tmp/test_table",
+                    rows[len(rows) * i // 10 : len(rows) * (i + 1) // 10],
+                    table_writer={
+                        "block_size": 1024,
+                        "desired_chunk_size": 10 * 1024})
+
+            assert get("//tmp/test_table/@chunk_count") == 10
             assert clique.make_query('select index from \"//tmp/test_table\" prewhere key = \'b_key\'') == [{"index": 1234}]
             clique.make_query_and_validate_row_count('select index from \"//tmp/test_table\" where key = \'b_key\'', exact=102400)
             clique.make_query_and_validate_row_count('select index from \"//tmp/test_table\" prewhere key = \'b_key\'', exact=1)
@@ -1485,13 +1496,11 @@ class TestJobInput(ClickHouseTestBase):
         for i in xrange(key_count):
             insert_rows("//tmp/t", [{"key": "k" + str(i), "value": "v" + str(i)}])
 
-        for enable_computed_column_deduction in (False, True):
-            with Clique(1, config_patch={"yt": {"settings": {"enable_computed_column_deduction": enable_computed_column_deduction},
-                                                "enable_dynamic_tables": True}}) as clique:
-                correct_row_count = lambda row_count: row_count if enable_computed_column_deduction else 5
-                clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)
-                clique.make_query_and_validate_row_count("select * from `//tmp/t` where key == 'k1' or key = 'k3'", exact=correct_row_count(2))
-                clique.make_query_and_validate_row_count("select * from (select * from `//tmp/t` where key == 'k4')", exact=correct_row_count(1))
+        with Clique(1, config_patch={"yt": {"settings": {"enable_computed_column_deduction": True},
+                                            "enable_dynamic_tables": True}}) as clique:
+            clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)
+            clique.make_query_and_validate_row_count("select * from `//tmp/t` where key == 'k1' or key = 'k3'", exact=2)
+            clique.make_query_and_validate_row_count("select * from (select * from `//tmp/t` where key == 'k4')", exact=1)
 
     @authors("dakovalkov")
     def test_common_schema_sorted(self):
@@ -2254,9 +2263,10 @@ class TestYtDictionaries(ClickHouseTestBase):
 
         patch = {
             # Disable background update.
-            "table_attribute_cache": get_async_expiring_cache_config(2000, 2000, None),
-            "permission_cache": get_async_expiring_cache_config(2000, 2000, None),
-
+            "yt": {
+                "table_attribute_cache": get_async_expiring_cache_config(2000, 2000, None),
+                "permission_cache": get_async_expiring_cache_config(2000, 2000, None),
+            },
             "clickhouse": {"dictionaries": [
                 {
                     "name": "dict",
@@ -2439,6 +2449,7 @@ class TestQueryLog(ClickHouseTestBase):
             assert len(clique.make_query("select * from system.query_log")) == 0
 
     @authors("max42")
+    @flaky(max_runs=5)
     def test_query_log_eviction(self):
         period = 3
 

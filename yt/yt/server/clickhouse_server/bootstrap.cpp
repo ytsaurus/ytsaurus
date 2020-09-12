@@ -68,11 +68,24 @@ void TBootstrap::Run()
 {
     ControlQueue_ = New<TActionQueue>("Control");
 
-    BIND(&TBootstrap::DoRun, this)
-        .AsyncVia(GetControlInvoker())
-        .Run()
-        .Get()
-        .ThrowOnError();
+    try {
+        BIND(&TBootstrap::DoRun, this)
+            .AsyncVia(GetControlInvoker())
+            .Run()
+            .Get()
+            .ThrowOnError();
+    } catch (std::exception& ex) {
+        // Make best-effort check that error is an "Address already in use" error.
+        // There is no way to deterministically prevent that in some environments
+        // (like dist build or local run), so we just perform graceful exit in this case.
+        auto what = TString(ex.what());
+        TString AddressAlreadyInUse = "Address already in use";
+        if (what.find(AddressAlreadyInUse) != TString::npos) {
+            _exit(0);
+        } else {
+            throw;
+        }
+    }
 
     Sleep(TDuration::Max());
 }
