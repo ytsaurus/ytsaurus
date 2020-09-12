@@ -66,7 +66,7 @@ def get_clickhouse_server_config():
         "yt": {
             "user": "root",
             "security_manager": {"enable": False},
-            "discovery": {"update_period": 500, "transaction_timeout": 1000},
+            "discovery": {"update_period": 500, "transaction_timeout": 10000},
             "subquery": {"min_data_weight_per_thread": 0},
         },
     }
