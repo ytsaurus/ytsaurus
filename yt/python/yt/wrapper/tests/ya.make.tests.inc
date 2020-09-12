@@ -6,6 +6,7 @@ SET(YT_TEST_SRCS
     conftest.py
     helpers.py
     test_acl_commands.py
+    test_admin.py
     test_authentication.py
     test_batch_execution.py
     test_client.py
