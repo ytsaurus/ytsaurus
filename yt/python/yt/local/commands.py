@@ -2,9 +2,11 @@ from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIM
 
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
+import yt.environment.init_operation_archive as yt_env_init_operation_archive
 from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead_or_zombie
 from yt.wrapper.common import generate_uuid, GB
 from yt.common import YtError, require, get_value, is_process_alive
+
 
 import yt.yson as yson
 try:
@@ -183,7 +185,7 @@ def _safe_remove(path):
         if err.errno != errno.ENOENT:
             raise
 
-def _initialize_world(client, environment, wait_tablet_cell_initialization,
+def _initialize_world(client, environment, wait_tablet_cell_initialization, init_operations_archive,
                       configure_default_tablet_cell_bundle, is_multicell):
     cluster_connection = environment.configs["driver"]
 
@@ -213,11 +215,14 @@ def _initialize_world(client, environment, wait_tablet_cell_initialization,
     else:
         tablet_cell_id = tablet_cells.keys()[0]
 
-    if wait_tablet_cell_initialization:
+    if wait_tablet_cell_initialization or init_operations_archive:
         logger.info("Waiting for tablet cells to become ready...")
         while client.get("//sys/tablet_cells/{0}/@health".format(tablet_cell_id)) != "good":
             time.sleep(0.1)
         logger.info("Tablet cells are ready")
+
+    if init_operations_archive:
+        yt_env_init_operation_archive.create_tables_latest_version(client)
 
     # Used to automatically determine local mode from python wrapper.
     client.set("//sys/@local_mode_fqdn", socket.getfqdn())
@@ -253,6 +258,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
           listen_port_pool=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None, jobs_resource_limits=None,
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
+          init_operations_archive=False,
           meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0,
           ytserver_all_path=None, driver_backend=None, secondary_master_cell_count=None):
     options = {}
@@ -343,7 +349,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
             # we should use latter.
             client.config["proxy"]["enable_proxy_discovery"] = False
 
-            _initialize_world(client, environment, wait_tablet_cell_initialization,
+            _initialize_world(client, environment, wait_tablet_cell_initialization, init_operations_archive,
                               configure_default_tablet_cell_bundle=(environment.abi_version[0] >= 19),
                               is_multicell=start_secondary_master_cells)
             if local_cypress_dir is not None:
