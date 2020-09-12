@@ -119,6 +119,8 @@ public:
 
     void OverrideSize(i64 rowCount, i64 dataWeight);
 
+    void ApplySamplingSelectivityFactor(double samplingSelectivityFactor);
+
 private:
     int PartIndex_ = DefaultPartIndex;
 

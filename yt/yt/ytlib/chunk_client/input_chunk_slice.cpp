@@ -360,6 +360,13 @@ void TInputChunkSlice::OverrideSize(i64 rowCount, i64 dataWeight)
     SizeOverridden_ = true;
 }
 
+void TInputChunkSlice::ApplySamplingSelectivityFactor(double samplingSelectivityFactor)
+{
+    i64 rowCount = GetRowCount() * samplingSelectivityFactor;
+    i64 dataWeight = GetDataWeight() * samplingSelectivityFactor;
+    OverrideSize(rowCount, dataWeight);
+}
+
 void TInputChunkSlice::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

@@ -1552,15 +1552,18 @@ class TestJobInput(ClickHouseTestBase):
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
             clique.make_query_and_validate_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
 
-    @authors("max42")
-    def test_sampling(self):
-        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
-        write_table("//tmp/t", [{"a": i} for i in range(1000)], verbose=False)
-        with Clique(1) as clique:
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1', min=85, max=115, verbose=False)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 100', min=85, max=115, verbose=False)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 2/20', min=85, max=115, verbose=False)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=85, max=115, verbose=False)
+    @authors("max42", "gritukan")
+    @pytest.mark.parametrize("use_block_sampling", [False, True])
+    def test_sampling(self, use_block_sampling):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}], "chunk_writer": {"block_size": 1024}})
+        write_table("//tmp/t", [{"a": i, "b": "A" * 1500} for i in range(1000)], verbose=False)
+        with Clique(1, config_patch={"yt": {"settings": {
+            "use_block_sampling": use_block_sampling
+        }}}) as clique:
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1', min=80, max=120, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 100', min=80, max=120, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 2/20', min=80, max=120, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=80, max=120, verbose=False)
             clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
             clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
             clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0', exact=0, verbose=False)

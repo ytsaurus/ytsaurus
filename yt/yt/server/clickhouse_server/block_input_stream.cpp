@@ -298,6 +298,11 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         queryContext->Host->GetConfig()->ReaderMemoryRequirement,
         {queryContext->UserTagId});
 
+    auto tableReaderConfig = CreateTableReaderConfig();
+    tableReaderConfig->SamplingMode = subquerySpec.TableReaderConfig->SamplingMode;
+    tableReaderConfig->SamplingRate = subquerySpec.TableReaderConfig->SamplingRate;
+    tableReaderConfig->SamplingSeed = subquerySpec.TableReaderConfig->SamplingSeed;
+
     if (!subquerySpec.DataSourceDirectory->DataSources().empty() &&
         subquerySpec.DataSourceDirectory->DataSources()[0].GetType() == EDataSourceType::VersionedTable)
     {
@@ -310,7 +315,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
 
         reader = CreateSchemalessMergingMultiChunkReader(
-            CreateTableReaderConfig(),
+            std::move(tableReaderConfig),
             New<NTableClient::TTableReaderOptions>(),
             queryContext->Client(),
             /* localDescriptor */ {},
@@ -328,7 +333,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             /* multiReaderMemoryManager = */readerMemoryManager);
     } else {
         reader = CreateSchemalessParallelMultiReader(
-            CreateTableReaderConfig(),
+            std::move(tableReaderConfig),
             New<NTableClient::TTableReaderOptions>(),
             queryContext->Client(),
             /* localDescriptor =*/{},
