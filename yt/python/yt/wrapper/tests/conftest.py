@@ -77,6 +77,9 @@ class YtTestEnvironment(object):
         run_id = uuid.uuid4().hex[:8]
         self.uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
         self.sandbox_dir = os.path.join(get_tests_sandbox(), self.uniq_dir_name)
+        self.core_path = os.path.join(get_tests_sandbox(), "_cores")
+        if not os.path.exists(self.core_path):
+            os.makedirs(self.core_path)
 
         self.binaries_path = None
         if yatest_common is not None:
@@ -121,6 +124,12 @@ class YtTestEnvironment(object):
                         "max_failed_job_count": 1
                     }
                 }
+            },
+            "core_dumper": {
+                "path": self.core_path,
+                # Pattern starts with the underscore to trick teamcity; we do not want it to
+                # pay attention to the created core.
+                "pattern": "_core.%CORE_PID.%CORE_SIG.%CORE_THREAD_NAME-%CORE_REASON",
             }
         }
 
