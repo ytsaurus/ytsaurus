@@ -203,8 +203,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                     actual_config_version = get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(address, cell_id))
                     if actual_config_version != expected_config_version:
                         return False
-                    state = get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/state".format(address, cell_id))
-                    if state != "leading" and state != "following":
+                    if not get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/active".format(address, cell_id)):
                         return False
                 except:
                     return False

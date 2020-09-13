@@ -394,7 +394,7 @@ public:
                     .Item("read_only").Value(GetReadOnly())
                     .Item("warming_up").Value(Options_.ResponseKeeper ? Options_.ResponseKeeper->IsWarmingUp() : false)
                     .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
-                        .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
+                    .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
                 .EndMap();
         });
     }
