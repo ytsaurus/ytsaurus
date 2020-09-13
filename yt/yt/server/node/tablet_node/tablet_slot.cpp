@@ -172,6 +172,22 @@ public:
         return EPeerState::None;
     }
 
+    bool GetActive() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (Finalizing_) {
+            return false;
+        }
+
+        auto hydraManager = GetHydraManager();
+        if (!hydraManager) {
+            return false;
+        }
+
+        return hydraManager->IsActive();
+    }
+
     int GetConfigVersion() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -720,6 +736,9 @@ private:
                 }))
             ->AddChild("state", IYPathService::FromMethod(
                 &TImpl::GetControlState,
+                MakeWeak(this)))
+            ->AddChild("active", IYPathService::FromMethod(
+                &TImpl::GetActive,
                 MakeWeak(this)))
             ->AddChild("config_version", IYPathService::FromMethod(
                 &TImpl::GetConfigVersion,

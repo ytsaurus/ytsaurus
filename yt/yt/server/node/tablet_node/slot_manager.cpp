@@ -28,7 +28,6 @@
 
 #include <yt/core/misc/fs.h>
 
-#include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/virtual.h>
 
