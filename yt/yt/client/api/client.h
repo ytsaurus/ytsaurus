@@ -630,7 +630,13 @@ struct TCopyNodeOptions
 
 struct TMoveNodeOptions
     : public TCopyNodeOptionsBase
-{ };
+{
+    TMoveNodeOptions()
+    {
+        // COMPAT(babenko): YT-11903, consider dropping this override
+        PreserveCreationTime = true;
+    }
+};
 
 struct TLinkNodeOptions
     : public TTimeoutOptions

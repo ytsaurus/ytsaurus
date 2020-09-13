@@ -1797,23 +1797,31 @@ class TestCypress(YTEnvSetup):
         time.sleep(1.5)
         assert not exists("//tmp/t2")
 
-    @authors("ignat")
-    def test_copy_preserve_creation_time(self):
+    @authors("babenko")
+    @pytest.mark.parametrize("preserve", [False, True])
+    def test_preserve_creation_time(self, preserve):
         create("table", "//tmp/t1")
+
         creation_time = get("//tmp/t1/@creation_time")
+        copy("//tmp/t1", "//tmp/t2", preserve_creation_time=preserve)
+        assert preserve == (creation_time == get("//tmp/t2/@creation_time"))
 
-        copy("//tmp/t1", "//tmp/t2", preserve_creation_time=True)
-        assert creation_time == get("//tmp/t2/@creation_time")
+        creation_time = get("//tmp/t1/@creation_time")
+        move("//tmp/t2", "//tmp/t1", preserve_creation_time=preserve, force=True)
+        assert preserve == (creation_time == get("//tmp/t1/@creation_time"))
 
-        move("//tmp/t2", "//tmp/t1", force=True)
-        assert creation_time == get("//tmp/t1/@creation_time")
+    @authors("babenko")
+    @pytest.mark.parametrize("preserve", [False, True])
+    def test_preserve_modification_time(self, preserve):
+        create("table", "//tmp/t1")
 
-        copy("//tmp/t1", "//tmp/t2")
-        new_creation_time = get("//tmp/t2/@creation_time")
-        assert creation_time != new_creation_time
+        modification_time = get("//tmp/t1/@modification_time")
+        copy("//tmp/t1", "//tmp/t2", preserve_modification_time=preserve)
+        assert preserve == (modification_time == get("//tmp/t2/@modification_time"))
 
-        move("//tmp/t2", "//tmp/t1", force=True)
-        assert new_creation_time == get("//tmp/t1/@creation_time")
+        modification_time = get("//tmp/t1/@modification_time")
+        move("//tmp/t2", "//tmp/t1", preserve_modification_time=preserve, force=True)
+        assert preserve == (modification_time == get("//tmp/t1/@modification_time"))
 
     @authors("babenko")
     def test_ignore_ampersand1(self):
@@ -1928,14 +1936,16 @@ class TestCypress(YTEnvSetup):
                prerequisite_revisions=[{"path": "//tmp/test_node", "transaction_id": "0-0-0-0", "revision": revision}])
 
     @authors("babenko")
-    def test_move_preserves_creation_time1(self):
+    # COMPAT(babenko): YT-11903
+    def test_move_preserves_creation_time_by_default1(self):
         create("table", "//tmp/t1")
         creation_time = get("//tmp/t1/@creation_time")
         move("//tmp/t1", "//tmp/t2")
         assert creation_time == get("//tmp/t2/@creation_time")
 
     @authors("babenko")
-    def test_move_preserves_creation_time2(self):
+    # COMPAT(babenko): YT-11903
+    def test_move_preserves_creation_time_by_default2(self):
         set("//tmp/t1", {"x": "y"})
         creation_time1 = get("//tmp/t1/@creation_time")
         creation_time2 = get("//tmp/t1/x/@creation_time")
