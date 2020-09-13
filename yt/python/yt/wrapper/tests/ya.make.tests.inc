@@ -44,6 +44,7 @@ PEERDIR(
     yt/python/yt/yson
     yt/python/yt/local
     yt/python/yt/environment
+    yt/python/yt/environment/arcadia_interop
     ${YT_ROOT}/yt/python/yt_driver_bindings
     ${YT_ROOT}/yt/python/yt_driver_rpc_bindings
     ${YT_ROOT}/yt/python/yt_yson_bindings

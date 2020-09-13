@@ -65,6 +65,7 @@ class YtConfig(object):
                  ram_drive_path=None,
                  local_cypress_dir=None,
                  wait_tablet_cell_initialization=None,
+                 init_operations_archive=None,
                  job_controller_resource_limits=None,
                  forbid_chunk_storage_in_tmpfs=None,
                  node_chunk_store_quota=None,
@@ -93,6 +94,7 @@ class YtConfig(object):
         self.local_cypress_dir = local_cypress_dir
 
         self.wait_tablet_cell_initialization = wait_tablet_cell_initialization
+        self.init_operations_archive = init_operations_archive
         self.job_controller_resource_limits = job_controller_resource_limits
         self.forbid_chunk_storage_in_tmpfs = forbid_chunk_storage_in_tmpfs
         self.node_chunk_store_quota = node_chunk_store_quota
@@ -292,6 +294,8 @@ class YtStuff(object):
 
             if self.config.wait_tablet_cell_initialization:
                 args += ["--wait-tablet-cell-initialization"]
+            if self.config.init_operations_archive:
+                args += ["--init-operations-archive"]
             if self.config.forbid_chunk_storage_in_tmpfs:
                 args += ["--forbid-chunk-storage-in-tmpfs"]
             if self.config.node_chunk_store_quota:
