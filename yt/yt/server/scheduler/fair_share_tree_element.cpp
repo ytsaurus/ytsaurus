@@ -4089,6 +4089,10 @@ std::optional<TMeteringKey> TRootElement::GetMeteringKey() const
     };
 }
 
+void TRootElement::BuildResourceDistributionInfo(TFluentMap fluent) const
+{
+    // TODO(renadeen): implement in integral vector algorithm.
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler::NVectorScheduler

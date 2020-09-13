@@ -1720,6 +1720,9 @@ auto TFairShareTree<TFairShareImpl>::DoBuildFairShareInfo(
 
     fluent
         .Do(BIND(&TFairShareTree::DoBuildPoolsInformation, Unretained(this), rootElementSnapshot))
+        .Item("resource_distribution_info").BeginMap()
+            .Do(BIND(&TRootElement::BuildResourceDistributionInfo, rootElementSnapshot->RootElement))
+        .EndMap()
         .Item("operations").BeginMap()
             .DoFor(rootElementSnapshot->OperationIdToElement, buildOperationsInfo)
             .DoFor(rootElementSnapshot->DisabledOperationIdToElement, buildOperationsInfo)
