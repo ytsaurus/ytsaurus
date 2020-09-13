@@ -97,7 +97,7 @@ def sort_3_phase_depth_2(in_, out, sort_by):
     assert check_operation_tasks(op, ["partition(0)", "partition(1)", "intermediate_sort", "sorted_merge"])
     return op
 
-def sort_maniac(in_, out, sort_by, allow_non_maniac=False):
+def sort_maniac(in_, out, sort_by, validate_types=False):
     if isinstance(sort_by, str):
         sort_by = [sort_by]
 
@@ -137,14 +137,12 @@ def sort_maniac(in_, out, sort_by, allow_non_maniac=False):
         "data_weight_per_sort_job": 1,
     })
     op.track()
-    job_types = {"unordered_merge", "partition"}
-    if allow_non_maniac:
-        job_types.add("final_sort")
-    assert __builtin__.set(get_operation_job_types(op.id)) == job_types
-    task_names = ["partition(0)", "unordered_merge"]
-    if allow_non_maniac:
-        task_names.append("final_sort")
-    assert check_operation_tasks(op, task_names)
+
+    if validate_types:
+        job_types = {"unordered_merge", "partition"}
+        assert __builtin__.set(get_operation_job_types(op.id)) == job_types
+        task_names = ["partition(0)", "unordered_merge"]
+        assert check_operation_tasks(op, task_names)
     return op
 
 class TestSchedulerSortCommands(YTEnvSetup):
@@ -1341,7 +1339,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         rows = [{"x": x, "d": nan} for x in ([20, 60] + [42] * (n - 2))]
         write_table("//tmp/in", rows)
 
-        sort_maniac("//tmp/in", "//tmp/out", "x", allow_non_maniac=True)
+        sort_maniac("//tmp/in", "//tmp/out", "x", validate_types=False)
         assert len(read_table("//tmp/out")) == n
 
     @authors("ermolovd")
