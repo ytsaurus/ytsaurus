@@ -320,7 +320,9 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("preserve_creation_time", Options.PreserveCreationTime)
         .Optional();
-    RegisterParameter("preserve_modifcation_time", Options.PreserveModificationTime)
+    RegisterParameter("preserve_modification_time", Options.PreserveModificationTime)
+        // COMPAT(babenko)
+        .Alias("preserve_modifcation_time")
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();
@@ -360,7 +362,9 @@ TMoveCommand::TMoveCommand()
         .Optional();
     RegisterParameter("preserve_creation_time", Options.PreserveCreationTime)
         .Optional();
-    RegisterParameter("preserve_modifcation_time", Options.PreserveModificationTime)
+    RegisterParameter("preserve_modification_time", Options.PreserveModificationTime)
+        // COMPAT(babenko)
+        .Alias("preserve_modifcation_time")
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();

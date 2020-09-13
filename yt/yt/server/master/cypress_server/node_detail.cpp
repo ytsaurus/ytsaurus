@@ -453,9 +453,6 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     // Copy builtin attributes.
     clonedTrunkNode->SetOpaque(sourceNode->GetOpaque());
     clonedTrunkNode->SetAnnotation(sourceNode->GetAnnotation());
-    if (mode == ENodeCloneMode::Move) {
-        clonedTrunkNode->SetCreationTime(sourceNode->GetCreationTime());
-    }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->UpdateMasterMemoryUsage(clonedTrunkNode);
