@@ -3468,3 +3468,33 @@ class TestIntegralGuarantees(YTEnvSetup):
 
         assert get(root_pool_path + "/total_resource_flow_ratio") == 0.8
         assert get(root_pool_path + "/total_burst_ratio") == 0.7
+
+    def test_total_resources_orchid(self):
+        create_pool("burst_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 2},
+                "burst_guarantee_resources": {"cpu": 7}
+            }
+        })
+
+        create_pool("relaxed_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 3}
+            }
+        })
+
+        create_pool("min_share_pool", attributes={
+            "min_share_resources": {"cpu": 2},
+        })
+
+        resource_distribution_info_path = scheduler_orchid_default_pool_tree_path() + "/resource_distribution_info"
+        wait(lambda: exists(resource_distribution_info_path))
+
+        assert get(resource_distribution_info_path + "/distributed_min_share_resources/cpu") == 2.0
+        assert get(resource_distribution_info_path + "/distributed_resource_flow/cpu") == 5.0
+        assert get(resource_distribution_info_path + "/distributed_burst_guarantee_resources/cpu") == 7.0
+        assert get(resource_distribution_info_path + "/undistributed_resources/cpu") == 1.0
+        assert get(resource_distribution_info_path + "/undistributed_resource_flow/cpu") == 2.0
+        assert get(resource_distribution_info_path + "/undistributed_burst_guarantee_resources/cpu") == 0.0

@@ -1150,6 +1150,8 @@ public:
 
     virtual std::optional<TMeteringKey> GetMeteringKey() const override;
 
+    void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
+
 private:
     virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateStrongGuarantees(TUpdateFairShareContext* context) override;

@@ -1179,6 +1179,8 @@ public:
     TRootElementPtr Clone();
 
     virtual std::optional<TMeteringKey> GetMeteringKey() const override;
+
+    void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRootElement)
