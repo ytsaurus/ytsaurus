@@ -2081,10 +2081,10 @@ class TestResourceMetering(YTEnvSetup):
             last_reports = {}
 
             for entry in structured_log:
-                if "id" not in entry:
+                if "abc_id" not in entry:
                     continue
 
-                key = (entry["id"], entry["tags"]["pool_tree"], entry["tags"]["pool"])
+                key = (entry["abc_id"], entry["tags"]["pool_tree"], entry["tags"]["pool"])
                 last_reports[key] = entry["tags"]["min_share_resources"]["cpu"]
 
             if root_key not in last_reports:
