@@ -322,7 +322,15 @@ TFairShareTree<TFairShareImpl>::TFairShareTree(
     , FairShareTextLogTimeCounter_("/fair_share_text_log_time", {TreeIdProfilingTag_})
     , AnalyzePreemptableJobsTimeCounter_("/analyze_preemptable_jobs_time", {TreeIdProfilingTag_})
 {
+    for (auto state : {EOperationState::Aborted, EOperationState::Failed, EOperationState::Completed}) {
+        OperationStateToProfilingTagId_.emplace(
+            state,
+            TProfileManager::Get()->RegisterTag("state", FormatEnum(state)));
+    }
+
     RootElement_ = New<TRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
+
+    DoRegisterPoolProfilingCounters(RootElement_->GetId(), RootElement_->GetProfilingTag());
 }
 
 template <class TFairShareImpl>
@@ -470,6 +478,16 @@ auto TFairShareTree<TFairShareImpl>::UnregisterOperation(
     auto operationElement = GetOperationElement(operationId);
 
     auto* pool = operationElement->GetMutableParent();
+
+    // Profile finished operation.
+    if (IsOperationFinished(state->GetHost()->GetState())) {
+        const TCompositeSchedulerElement* currentPool = pool;
+        while (currentPool) {
+            auto& counters = GetOrCrash(PoolToFinishedOperationCounters_, currentPool->GetId());
+            Profiler.Increment(GetOrCrash(counters, state->GetHost()->GetState()), 1);
+            currentPool = currentPool->GetParent();
+        }
+    }
 
     operationElement->Disable(/* markAsNonAlive */ true);
     operationElement->DetachParent();
@@ -1200,7 +1218,7 @@ template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithoutPreemption(
     const TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    NProfiling::TCpuInstant startTime) -> void
+    TCpuInstant startTime) -> void
 {
     YT_LOG_TRACE("Scheduling new jobs");
 
@@ -1216,7 +1234,7 @@ template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::DoScheduleJobsPackingFallback(
     const TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    NProfiling::TCpuInstant startTime) -> void
+    TCpuInstant startTime) -> void
 {
     YT_LOG_TRACE("Scheduling jobs with packing ignored");
 
@@ -2024,12 +2042,26 @@ auto TFairShareTree<TFairShareImpl>::FindAncestorWithInsufficientResourceLimits(
 }
 
 template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoRegisterPoolProfilingCounters(const TString& poolName, TTagId profilingTag) -> void
+{
+    THashMap<EOperationState, TShardedMonotonicCounter> profilingCounters;
+    for (const auto& [state, stateTag] : OperationStateToProfilingTagId_) {
+        profilingCounters.emplace(
+            state,
+            TShardedMonotonicCounter("/pools/finished_operation_count", {stateTag, profilingTag, TreeIdProfilingTag_}));
+    }
+    PoolToFinishedOperationCounters_.emplace(poolName, std::move(profilingCounters));
+}
+
+template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::DoRegisterPool(const TPoolPtr& pool) -> void
 {
     int index = RegisterSchedulingTagFilter(pool->GetSchedulingTagFilter());
     pool->SetSchedulingTagFilterIndex(index);
     YT_VERIFY(Pools_.insert(std::make_pair(pool->GetId(), pool)).second);
     YT_VERIFY(PoolToMinUnusedSlotIndex_.insert(std::make_pair(pool->GetId(), 0)).second);
+    
+    DoRegisterPoolProfilingCounters(pool->GetId(), pool->GetProfilingTag());
 }
 
 template <class TFairShareImpl>
@@ -2068,7 +2100,10 @@ auto TFairShareTree<TFairShareImpl>::UnregisterPool(const TPoolPtr& pool) -> voi
     UnregisterSchedulingTagFilter(pool->GetSchedulingTagFilterIndex());
 
     YT_VERIFY(PoolToMinUnusedSlotIndex_.erase(pool->GetId()) == 1);
+
     YT_VERIFY(PoolToSpareSlotIndices_.erase(pool->GetId()) <= 1);
+    
+    YT_VERIFY(PoolToFinishedOperationCounters_.erase(pool->GetId()) == 1);
 
     // We cannot use pool after erase because Pools may contain last alive reference to it.
     auto extractedPool = std::move(Pools_[pool->GetId()]);

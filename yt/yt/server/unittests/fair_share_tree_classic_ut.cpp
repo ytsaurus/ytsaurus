@@ -287,6 +287,11 @@ public:
         YT_ABORT();
     }
 
+    virtual EOperationState GetState() const override
+    {
+        YT_ABORT();
+    }
+
     virtual std::optional<EUnschedulableReason> CheckUnschedulable() const override
     {
         return std::nullopt;

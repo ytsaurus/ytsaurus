@@ -669,6 +669,18 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             metric_prefix + "max_running_operation_count",
             with_tags={"pool": "unique_pool"},
             aggr_method="last")
+        completed_operation_count_last = Metric.at_scheduler(
+            metric_prefix + "finished_operation_count",
+            with_tags={"pool": "unique_pool", "state": "completed"},
+            aggr_method="last")
+        failed_operation_count_last = Metric.at_scheduler(
+            metric_prefix + "finished_operation_count",
+            with_tags={"pool": "unique_pool", "state": "failed"},
+            aggr_method="last")
+        aborted_operation_count_last = Metric.at_scheduler(
+            metric_prefix + "finished_operation_count",
+            with_tags={"pool": "unique_pool", "state": "aborted"},
+            aggr_method="last")
         min_share_resources_cpu_max = Metric.at_scheduler(
             metric_prefix + "min_share_resources/cpu",
             with_tags={"pool": "unique_pool"},
@@ -694,6 +706,10 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: user_slots_demand_max.update().get(verbose=True) == 1)
         wait(lambda: running_operation_count_max.update().get(verbose=True) == 1)
         wait(lambda: total_operation_count_max.update().get(verbose=True) == 1)
+
+        wait(lambda: completed_operation_count_last.update().get(verbose=True) == 1)
+        wait(lambda: failed_operation_count_last.update().get(verbose=True) is None)
+        wait(lambda: aborted_operation_count_last.update().get(verbose=True) is None)
 
         # pool guaranties metrics
         wait(lambda: max_operation_count_last.update().get(verbose=True) == 50)

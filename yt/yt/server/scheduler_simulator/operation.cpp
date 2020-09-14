@@ -27,6 +27,11 @@ NScheduler::EOperationType TOperation::GetType() const
     return Type_;
 }
 
+NScheduler::EOperationState TOperation::GetState() const
+{
+    return State_;
+}
+
 std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable() const
 {
     if (Controller_->GetPendingJobCount() == 0) {
@@ -82,6 +87,11 @@ NScheduler::TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() co
 bool TOperation::SetCompleting()
 {
     return !Completing_.exchange(true);
+}
+
+void TOperation::SetState(NScheduler::EOperationState state)
+{
+    State_ = state;
 }
 
 void TOperation::EraseTrees(const std::vector<TString>& treeIds)

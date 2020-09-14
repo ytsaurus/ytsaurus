@@ -241,6 +241,8 @@ private:
     std::optional<TInstant> LastFairShareUpdateTime_;
 
     THashMap<TString, NProfiling::TTagId> PoolIdToProfilingTagId_;
+    THashMap<EOperationState, NProfiling::TTagId> OperationStateToProfilingTagId_;
+    THashMap<TString, THashMap<EOperationState, NProfiling::TShardedMonotonicCounter>> PoolToFinishedOperationCounters_;
 
     THashMap<TString, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
 
@@ -424,6 +426,8 @@ private:
     void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent);
     void ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr& config);
     void UnregisterPool(const TPoolPtr& pool);
+
+    void DoRegisterPoolProfilingCounters(const TString& poolName, NProfiling::TTagId profilingTag);
 
     bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex);
 

@@ -20,7 +20,6 @@ using namespace NNodeTrackerClient;
 TNodeShardEvent::TNodeShardEvent(EEventType type, TInstant time)
     : Type(type)
     , Time(time)
-    , OperationId(TGuid())
     , NodeId(0)
     , Job(nullptr)
 { }
