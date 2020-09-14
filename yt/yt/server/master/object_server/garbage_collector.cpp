@@ -508,7 +508,7 @@ const TDynamicObjectManagerConfigPtr& TGarbageCollector::GetDynamicConfig()
     return Bootstrap_->GetConfigManager()->GetConfig()->ObjectManager;
 }
 
-void TGarbageCollector::OnDynamicConfigChanged()
+void TGarbageCollector::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     SweepExecutor_->SetPeriod(GetDynamicConfig()->GCSweepPeriod);
     ObjectRemovalCellsSyncExecutor_->SetPeriod(GetDynamicConfig()->ObjectRemovalCellsSyncPeriod);

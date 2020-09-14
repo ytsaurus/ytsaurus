@@ -115,14 +115,14 @@ private:
     NConcurrency::TPeriodicExecutorPtr EvictionExecutor_;
 
     const TCallback<void()> EvictionCallback_;
-    const TCallback<void()> DynamicConfigChangedCallback_;
+    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_;
 
     const IInvokerPtr AutomatonInvoker_;
 
     void OnEviction();
 
     const TTransactionPresenceCacheConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
 
     void NotifyRemoteTransactionReplicated(TTransactionId transactionId);
 };

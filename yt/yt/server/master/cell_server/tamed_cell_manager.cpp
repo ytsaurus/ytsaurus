@@ -796,7 +796,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
     }
 
-    void OnDynamicConfigChanged()
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         const auto& config = GetDynamicConfig();
 

@@ -55,7 +55,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr);
     const TDynamicCellManagerConfigPtr& GetDynamicConfig();
     bool IsEnabled();
     void ScanCells();
@@ -102,7 +102,7 @@ void TCellTracker::TImpl::Stop()
     CellTrackerImpl_.Reset();
 }
 
-void TCellTracker::TImpl::OnDynamicConfigChanged()
+void TCellTracker::TImpl::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     if (PeriodicExecutor_) {
         PeriodicExecutor_->SetPeriod(GetDynamicConfig()->CellScanPeriod);

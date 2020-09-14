@@ -216,7 +216,7 @@ const TTransactionPresenceCacheConfigPtr& TTransactionPresenceCache::GetDynamicC
     return configManager->GetConfig()->TransactionManager->TransactionPresenceCache;
 }
 
-void TTransactionPresenceCache::OnDynamicConfigChanged()
+void TTransactionPresenceCache::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 

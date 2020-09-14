@@ -3922,7 +3922,7 @@ private:
         ExecuteVerb(rootService, req);
     }
 
-    void OnDynamicConfigChanged()
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         const auto& config = GetDynamicConfig();
 

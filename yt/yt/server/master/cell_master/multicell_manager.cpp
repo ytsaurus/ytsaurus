@@ -991,7 +991,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager;
     }
 
-    void OnDynamicConfigChanged()
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

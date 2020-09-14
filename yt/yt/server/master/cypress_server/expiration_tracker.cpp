@@ -18,6 +18,7 @@ namespace NYT::NCypressServer {
 
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,7 +301,7 @@ const TDynamicCypressManagerConfigPtr& TExpirationTracker::GetDynamicConfig()
     return configManager->GetConfig()->CypressManager;
 }
 
-void TExpirationTracker::OnDynamicConfigChanged()
+void TExpirationTracker::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     if (CheckExecutor_) {
         CheckExecutor_->SetPeriod(GetDynamicConfig()->ExpirationCheckPeriod);

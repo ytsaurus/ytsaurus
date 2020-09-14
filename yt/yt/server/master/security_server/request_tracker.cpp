@@ -202,7 +202,7 @@ const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()
     return configManager->GetConfig()->SecurityManager;
 }
 
-void TRequestTracker::OnDynamicConfigChanged()
+void TRequestTracker::OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/)
 {
     ReconfigureUserThrottlers();
 }

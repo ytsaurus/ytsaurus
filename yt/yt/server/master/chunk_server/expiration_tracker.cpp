@@ -13,6 +13,7 @@ namespace NYT::NChunkServer {
 
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,7 +169,7 @@ const TDynamicChunkManagerConfigPtr& TExpirationTracker::GetDynamicConfig()
     return configManager->GetConfig()->ChunkManager;
 }
 
-void TExpirationTracker::OnDynamicConfigChanged()
+void TExpirationTracker::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     if (CheckExecutor_) {
         CheckExecutor_->SetPeriod(GetDynamicConfig()->ExpirationCheckPeriod);

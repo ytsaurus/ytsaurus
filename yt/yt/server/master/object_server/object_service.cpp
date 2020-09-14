@@ -177,8 +177,8 @@ public:
         configManager->SubscribeConfigChanged(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        hydraManager->SubscribeFollowerRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
-        hydraManager->SubscribeLeaderRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
+        hydraManager->SubscribeFollowerRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this), /*oldConfig*/ nullptr));
+        hydraManager->SubscribeLeaderRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this), /*oldConfig*/ nullptr));
     }
 
 private:
@@ -234,7 +234,7 @@ private:
         return NRpc::TDispatcher::Get()->GetHeavyInvoker();
     }
 
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr);
     void EnqueueReadySession(TExecuteSessionPtr session);
     void EnqueueFinishedSession(TExecuteSessionPtr session);
 
@@ -1992,7 +1992,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TObjectService::OnDynamicConfigChanged()
+void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 

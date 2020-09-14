@@ -59,7 +59,8 @@ private:
     const NCellMaster::TBootstrap* Bootstrap_;
     const NDistributedThrottler::TDistributedThrottlerFactoryPtr ThrottlerFactory_;
 
-    const TClosure DynamicConfigChangedCallback_ = BIND(&TRequestTracker::OnDynamicConfigChanged, MakeWeak(this));
+    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
+        BIND(&TRequestTracker::OnDynamicConfigChanged, MakeWeak(this));
 
     int AlivePeerCount_ = 0;
 
@@ -71,7 +72,7 @@ private:
         const TUserWorkload& workload);
 
     const TDynamicSecurityManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
     void ReconfigureUserThrottlers();
     void OnAlivePeerSetChanged(const THashSet<NElection::TPeerId>& alivePeers);
 };

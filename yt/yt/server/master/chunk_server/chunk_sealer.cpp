@@ -127,7 +127,8 @@ private:
     const TPeriodicExecutorPtr SealExecutor_;
     const std::unique_ptr<TChunkScanner> SealScanner_;
 
-    const TClosure DynamicConfigChangedCallback_ = BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this));
+    const TCallback<void(TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
+        BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this));
 
     bool Enabled_ = true;
 
@@ -138,7 +139,7 @@ private:
         return configManager->GetConfig()->ChunkManager;
     }
 
-    void OnDynamicConfigChanged()
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         SealExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
         Semaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentChunkSeals);

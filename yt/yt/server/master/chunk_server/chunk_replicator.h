@@ -218,7 +218,8 @@ private:
 
     const NConcurrency::IReconfigurableThroughputThrottlerPtr JobThrottler_;
 
-    const TClosure DynamicConfigChangedCallback_ = BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this));
+    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
+        BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this));
 
     std::optional<bool> Enabled_;
 
@@ -377,7 +378,7 @@ private:
     TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReplicator)

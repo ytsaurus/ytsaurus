@@ -2824,7 +2824,7 @@ const TDynamicChunkManagerConfigPtr& TChunkReplicator::GetDynamicConfig()
     return configManager->GetConfig()->ChunkManager;
 }
 
-void TChunkReplicator::OnDynamicConfigChanged()
+void TChunkReplicator::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     RefreshExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);
     RequisitionUpdateExecutor_->SetPeriod(GetDynamicConfig()->ChunkRequisitionUpdatePeriod);

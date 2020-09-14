@@ -1940,7 +1940,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
     }
 
-    void OnDynamicConfigChanged()
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         RebuildNodeGroups();
         RecomputePendingRegisterNodeMutationCounters();

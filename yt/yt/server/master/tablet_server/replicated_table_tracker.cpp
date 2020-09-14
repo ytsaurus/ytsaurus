@@ -853,7 +853,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicatedTableTracker;
     }
 
-    void OnDynamicConfigChanged()
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

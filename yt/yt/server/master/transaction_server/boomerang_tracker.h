@@ -74,7 +74,7 @@ private:
     // This is essentially a multimap, but with deterministic order of both keys and values.
     std::set<std::pair<TInstant, TBoomerangWaveId>> BoomerangWavesByTime_;
     NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
-    const TCallback<void()> DynamicConfigChangedCallback_;
+    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_;
 
     void OnCheck();
 
@@ -84,7 +84,7 @@ private:
     void ApplyBoomerangMutation(NProto::TReqReturnBoomerang* request);
 
     const TBoomerangTrackerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBoomerangTracker)
