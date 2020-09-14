@@ -1280,6 +1280,7 @@ private:
         remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
         remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto<i64>(Spec_->DelayInCopyChunk));
         remoteCopyJobSpecExt->set_erasure_chunk_repair_delay(ToProto<i64>(Spec_->ErasureChunkRepairDelay));
+        remoteCopyJobSpecExt->set_repair_erasure_chunks(Spec_->RepairErasureChunks);
     }
 
     NNative::IConnectionPtr GetRemoteConnection() const

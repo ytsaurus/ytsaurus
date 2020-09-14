@@ -377,61 +377,78 @@ private:
             copyFutures.push_back(copyFuture);
         }
 
-        YT_LOG_INFO("Waiting for erasure parts data to be copied");
+        auto repairChunk = RemoteCopyJobSpecExt_.repair_erasure_chunks();
 
-        auto copyStarted = TInstant::Now();
-
-        WaitUntilErasureChunkCanBeRepaired(erasureCodec, &copyFutures);
-
-        // COMPAT(gritukan)
-        TDuration erasureChunkRepairDelay;
-        if (RemoteCopyJobSpecExt_.has_erasure_chunk_repair_delay()) {
-            erasureChunkRepairDelay = FromProto<TDuration>(RemoteCopyJobSpecExt_.erasure_chunk_repair_delay());
-        } else {
-            erasureChunkRepairDelay = TDuration::Max() / 2;
-        }
-
-        auto copyTimeElapsed = TInstant::Now();
-
-        // copyTimeElapsed - copyStarted <= erasureChunkRepairDelay.
-        if (copyTimeElapsed <= copyStarted + erasureChunkRepairDelay) {
-            erasureChunkRepairDelay -= (copyTimeElapsed - copyStarted);
-        } else {
-            erasureChunkRepairDelay = TDuration::Zero();
-        }
-
-        std::vector<TFuture<void>> copyFutureWithTimeouts;
-        copyFutureWithTimeouts.reserve(copyFutures.size());
-        for (const auto& copyFuture : copyFutures) {
-            copyFutureWithTimeouts.push_back(copyFuture.WithTimeout(erasureChunkRepairDelay));
-        }
-
-        // Wait for all parts were copied within timeout.
-        auto copyResults = WaitFor(AllSet(copyFutureWithTimeouts))
-            .ValueOrThrow();
-
-        cancelableContext->Cancel(TError("Erasure part repair started"));
-
-        // Wait until all part copyings terminated.
-        WaitFor(suspendableInvoker->Suspend())
-            .ThrowOnError();
+        YT_LOG_INFO("Waiting for erasure parts data to be copied (RepairChunk: %v)",
+            repairChunk);
 
         TPartIndexList erasedPartIndicies;
-        std::vector<TFuture<void>> closeReplicaWriterResults;
-        for (int partIndex = 0; partIndex < copyFutures.size(); ++partIndex) {
-            auto copyResult = copyResults[partIndex];
-            if (!copyResult.IsOK()) {
-                erasedPartIndicies.push_back(partIndex);
-                // NB: We should destroy replication writer to cancel it.
-                writers[partIndex].Reset();
+
+        if (repairChunk) {
+            auto copyStarted = TInstant::Now();
+
+            WaitUntilErasureChunkCanBeRepaired(erasureCodec, &copyFutures);
+
+            // COMPAT(gritukan)
+            TDuration erasureChunkRepairDelay;
+            if (RemoteCopyJobSpecExt_.has_erasure_chunk_repair_delay()) {
+                erasureChunkRepairDelay = FromProto<TDuration>(RemoteCopyJobSpecExt_.erasure_chunk_repair_delay());
             } else {
-                const auto& writer = writers[partIndex];
+                erasureChunkRepairDelay = TDuration::Max() / 2;
+            }
+
+            auto copyTimeElapsed = TInstant::Now();
+
+            // copyTimeElapsed - copyStarted <= erasureChunkRepairDelay.
+            if (copyTimeElapsed <= copyStarted + erasureChunkRepairDelay) {
+                erasureChunkRepairDelay -= (copyTimeElapsed - copyStarted);
+            } else {
+                erasureChunkRepairDelay = TDuration::Zero();
+            }
+
+            std::vector<TFuture<void>> copyFutureWithTimeouts;
+            copyFutureWithTimeouts.reserve(copyFutures.size());
+            for (const auto& copyFuture : copyFutures) {
+                copyFutureWithTimeouts.push_back(copyFuture.WithTimeout(erasureChunkRepairDelay));
+            }
+
+            // Wait for all parts were copied within timeout.
+            auto copyResults = WaitFor(AllSet(copyFutureWithTimeouts))
+                .ValueOrThrow();
+
+            cancelableContext->Cancel(TError("Erasure part repair started"));
+
+            // Wait until all part copyings terminated.
+            WaitFor(suspendableInvoker->Suspend())
+                .ThrowOnError();
+
+            std::vector<TFuture<void>> closeReplicaWriterResults;
+            for (int partIndex = 0; partIndex < copyFutures.size(); ++partIndex) {
+                auto copyResult = copyResults[partIndex];
+                if (!copyResult.IsOK()) {
+                    erasedPartIndicies.push_back(partIndex);
+                    // NB: We should destroy replication writer to cancel it.
+                    writers[partIndex].Reset();
+                } else {
+                    const auto& writer = writers[partIndex];
+                    closeReplicaWriterResults.push_back(writer->Close(chunkMeta));
+                }
+            }
+
+            WaitFor(AllSucceeded(closeReplicaWriterResults))
+                .ThrowOnError();
+        } else {
+            WaitFor(AllSucceeded(copyFutures))
+                .ThrowOnError();
+
+            std::vector<TFuture<void>> closeReplicaWriterResults;
+            closeReplicaWriterResults.reserve(writers.size());
+            for (const auto& writer : writers) {
                 closeReplicaWriterResults.push_back(writer->Close(chunkMeta));
             }
+            WaitFor(AllSucceeded(closeReplicaWriterResults))
+                .ThrowOnError();
         }
-
-        WaitFor(AllSucceeded(closeReplicaWriterResults))
-            .ThrowOnError();
 
         if (!erasedPartIndicies.empty()) {
             RepairErasureChunk(
@@ -576,7 +593,6 @@ private:
         i64 diskSpace = 0;
         for (int index = 0; index < static_cast<int>(writers.size()); ++index) {
             diskSpace += writers[index]->GetChunkInfo().disk_space();
-
             auto replicas = writers[index]->GetWrittenChunkReplicas();
             YT_VERIFY(replicas.size() == 1);
             auto replica = TChunkReplicaWithMedium(

@@ -1457,6 +1457,8 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
         .Default(TDuration::Zero());
     RegisterParameter("erasure_chunk_repair_delay", ErasureChunkRepairDelay)
         .Default(TDuration::Minutes(15));
+    RegisterParameter("repair_erasure_chunks", RepairErasureChunks)
+        .Default(false);
 
     RegisterPreprocessor([&] {
         // NB: in remote copy operation chunks are never decompressed,
