@@ -1280,6 +1280,7 @@ def add_transfer_account_resources_parser(add_parser):
 def add_run_job_shell_parser(add_parser):
     parser = add_parser("run-job-shell", yt.run_job_shell)
     parser.add_argument("job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    parser.add_argument("--shell-name", type=str, help="name of the job shell to start")
     parser.add_argument("--timeout", type=int, help="inactivity timeout in milliseconds after job has "
                                                     "finished, by default 60000 milliseconds")
     add_hybrid_argument(parser, "command", group_required=False)

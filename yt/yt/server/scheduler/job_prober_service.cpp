@@ -39,6 +39,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortJob));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobShellDescriptor));
     }
 
 private:
@@ -72,8 +73,20 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId, context->GetAuthenticationIdentity().User, requiredPermissions))
+        auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId))
             .ValueOrThrow();
+
+        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId))
+            .ValueOrThrow();
+        if (!operationId) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchJob,
+                "Job %v not found",
+                jobId);
+        }
+
+        WaitFor(scheduler->ValidateOperationAccess(context->GetAuthenticationIdentity().User, operationId, requiredPermissions))
+            .ThrowOnError();
 
         context->SetResponseInfo("NodeDescriptor: %v", jobNodeDescriptor);
 
@@ -112,6 +125,79 @@ private:
         WaitFor(scheduler->AbortJob(jobId, interruptTimeout, context->GetAuthenticationIdentity().User))
             .ThrowOnError();
 
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetJobShellDescriptor)
+    {
+        auto jobId = FromProto<TJobId>(request->job_id());
+        auto shellName = request->has_shell_name()
+            ? std::make_optional(request->shell_name())
+            : std::nullopt;
+        context->SetRequestInfo("JobId: %v, ShellName: %v",
+            jobId,
+            shellName);
+
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        auto operationId = WaitFor(scheduler->FindOperationIdByJobId(jobId))
+            .ValueOrThrow();
+        if (!operationId) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchJob,
+                "Job %v not found", jobId);
+        }
+
+        auto operation = scheduler->FindOperation(operationId);
+        if (!operation) {
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::NoSuchOperation,
+                "Operation %v not found",
+                operationId);
+        }
+
+        auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId))
+            .ValueOrThrow();
+        ToProto(response->mutable_node_descriptor(), jobNodeDescriptor);
+
+        auto shells = operation->Spec()->JobShells;
+        if (!shellName && shells.empty()) {
+            // Shell name is not provided and shells are not configured in spec,
+            // using default shell.
+            auto requiredPermissions = EPermissionSet(EPermission::Manage | EPermission::Read);
+            WaitFor(scheduler->ValidateOperationAccess(context->GetAuthenticationIdentity().User, operationId, requiredPermissions))
+                .ThrowOnError();
+
+            // Default job shell is run in root container.
+            response->set_subcontainer("");
+        } else {
+            if (!shellName) {
+                shellName = "default";
+            }
+            TJobShellPtr jobShell;
+            for (const auto& shell : shells) {
+                if (shell->Name == shellName) {
+                    jobShell = shell;
+                }
+            }
+            if (!jobShell) {
+                THROW_ERROR_EXCEPTION(
+                    NScheduler::EErrorCode::NoSuchJobShell,
+                    "Job shell %Qv not found",
+                    shellName);
+            }
+
+            auto user = context->GetAuthenticationIdentity().User;
+            WaitFor(scheduler->ValidateJobShellAccess(user, jobShell))
+                .ThrowOnError();
+
+            response->set_subcontainer(jobShell->Subcontainer);
+        }
+
+        context->SetResponseInfo("NodeDescriptor: %v, Subcontainer: %v",
+            jobNodeDescriptor,
+            response->subcontainer());
         context->Reply();
     }
 };

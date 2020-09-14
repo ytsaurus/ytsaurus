@@ -215,6 +215,7 @@ public:
 
     virtual TFuture<NYson::TYsonString> PollJobShell(
         NJobTrackerClient::TJobId jobId,
+        const std::optional<TString>& shellName,
         const NYson::TYsonString& parameters,
         const NApi::TPollJobShellOptions& options) override;
 

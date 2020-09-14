@@ -1657,6 +1657,7 @@ message TReqPollJobShell
 {
     required NYT.NProto.TGuid job_id = 1;
     required bytes parameters = 2; // YSON
+    optional string shell_name = 3;
 }
 
 message TRspPollJobShell

@@ -58,6 +58,7 @@ DEFINE_ENUM(EErrorCode,
     ((OperationFailedToPrepare)               (216))
     ((WatcherHandlerFailed)                   (217))
     ((MasterDisconnected)                     (218))
+    ((NoSuchJobShell)                         (219))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,

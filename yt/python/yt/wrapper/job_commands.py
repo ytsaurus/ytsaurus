@@ -52,14 +52,15 @@ def get_job(operation_id, job_id, format=None, client=None):
         client=client,
         timeout=timeout)
 
-def run_job_shell(job_id, timeout=None, command=None, client=None):
+def run_job_shell(job_id, shell_name=None, timeout=None, command=None, client=None):
     """Runs interactive shell in the job sandbox.
 
     :param str job_id: job id.
+    :param str shell_name: shell name.
     """
     from .job_shell import JobShell
 
-    JobShell(job_id, interactive=True, timeout=timeout, client=client).run(command=command)
+    JobShell(job_id, shell_name=shell_name, interactive=True, timeout=timeout, client=client).run(command=command)
 
 def get_job_stderr(operation_id, job_id, client=None):
     """Gets stderr of the specified job.

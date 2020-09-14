@@ -29,7 +29,7 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
-#include <yt/ytlib/job_prober_client/job_node_descriptor_cache.h>
+#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -149,8 +149,8 @@ public:
             Config_->PermissionCache,
             this);
 
-        JobNodeDescriptorCache_ = New<TJobNodeDescriptorCache>(
-            Config_->JobNodeDescriptorCache,
+        JobShellDescriptorCache_ = New<TJobShellDescriptorCache>(
+            Config_->JobShellDescriptorCache,
             SchedulerChannel_);
 
         ClusterDirectory_ = New<TClusterDirectory>();
@@ -229,9 +229,9 @@ public:
         return TimestampProvider_;
     }
 
-    virtual const TJobNodeDescriptorCachePtr& GetJobNodeDescriptorCache() override
+    virtual const TJobShellDescriptorCachePtr& GetJobShellDescriptorCache() override
     {
-        return JobNodeDescriptorCache_;
+        return JobShellDescriptorCache_;
     }
 
     virtual const TPermissionCachePtr& GetPermissionCache() override
@@ -486,7 +486,7 @@ private:
     ITableMountCachePtr TableMountCache_;
     IChannelPtr TimestampProviderChannel_;
     ITimestampProviderPtr TimestampProvider_;
-    TJobNodeDescriptorCachePtr JobNodeDescriptorCache_;
+    TJobShellDescriptorCachePtr JobShellDescriptorCache_;
     TPermissionCachePtr PermissionCache_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;

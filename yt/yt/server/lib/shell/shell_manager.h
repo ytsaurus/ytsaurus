@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/containers/public.h>
 
+#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/intrusive_ptr.h>
@@ -18,7 +20,9 @@ namespace NYT::NShell {
 struct IShellManager
     : public virtual TRefCounted
 {
-    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
+    virtual NYson::TYsonString PollJobShell(
+        const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
+        const NYson::TYsonString& parameters) = 0;
     virtual void Terminate(const TError& error) = 0;
     virtual TFuture<void> GracefulShutdown(const TError& error) = 0;
 };

@@ -10,6 +10,7 @@
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/job_prober_client/job_probe.h>
+#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
@@ -43,7 +44,9 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual TString GetStderr() override;
-    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
+    virtual NYson::TYsonString PollJobShell(
+        const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
+        const NYson::TYsonString& parameters) override;
     virtual void Interrupt() override;
     virtual void Fail() override;
 

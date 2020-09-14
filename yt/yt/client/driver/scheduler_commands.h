@@ -167,6 +167,7 @@ public:
 private:
     NJobTrackerClient::TJobId JobId;
     NYTree::INodePtr Parameters;
+    std::optional<TString> ShellName;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

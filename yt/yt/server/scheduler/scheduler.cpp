@@ -52,6 +52,8 @@
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/ytlib/security_client/helpers.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -541,6 +543,51 @@ public:
             .Run();
     }
 
+    TFuture<void> ValidateJobShellAccess(
+        const TString& user,
+        const TJobShellPtr& jobShell)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto doValidateJobShellAccess = BIND([=, this_ = MakeStrong(this)] {
+            TObjectServiceProxy proxy(Bootstrap_
+                ->GetMasterClient()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTag));
+            auto connectionConfig = Bootstrap_
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetConfig();
+            TMasterReadOptions readOptions;
+            readOptions.ReadFrom = EMasterChannelKind::Cache;
+
+            auto userClosure = GetSubjectClosure(
+                user,
+                proxy,
+                connectionConfig,
+                readOptions);
+
+            auto allowedSubjects = jobShell->Owners;
+            allowedSubjects.push_back(RootUserName);
+            allowedSubjects.push_back(SuperusersGroupName);
+
+            for (const auto& allowedSubject : allowedSubjects) {
+                if (allowedSubject == user || userClosure.contains(allowedSubject)) {
+                    return;
+                }
+            }
+
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthorizationError,
+                "User %Qv is not allowed to run job shell %Qv",
+                user,
+                jobShell->Name);
+        });
+
+        return doValidateJobShellAccess
+            .AsyncVia(GetControlInvoker(EControlQueue::Operation))
+            .Run();
+    }
+
     TFuture<TParseOperationSpecResult> ParseSpec(TYsonString specString) const
     {
         return BIND(&TImpl::DoParseSpec, MakeStrong(this), Passed(std::move(specString)), SpecTemplate_)
@@ -975,10 +1022,10 @@ public:
             .Run();
     }
 
-    TFuture<TNodeDescriptor> GetJobNode(TJobId jobId, const TString& user, EPermissionSet requiredPermissions)
+    TFuture<TNodeDescriptor> GetJobNode(TJobId jobId)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::GetJobNode, nodeShard, jobId, user, requiredPermissions)
+        return BIND(&TNodeShard::GetJobNode, nodeShard, jobId)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
@@ -1004,7 +1051,6 @@ public:
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
-
 
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
     {
@@ -1606,6 +1652,14 @@ public:
     virtual void StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState) override
     {
         MasterConnector_->StoreStrategyStateAsync(std::move(strategyState));
+    }
+
+    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId)
+    {
+        const auto& nodeShard = GetNodeShardByJobId(jobId);
+        return BIND(&TNodeShard::FindOperationIdByJobId, nodeShard, jobId)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run();
     }
 
 private:
@@ -4336,9 +4390,9 @@ TFuture<void> TScheduler::DumpInputContext(TJobId jobId, const NYPath::TYPath& p
     return Impl_->DumpInputContext(jobId, path, user);
 }
 
-TFuture<TNodeDescriptor> TScheduler::GetJobNode(TJobId jobId, const TString& user, EPermissionSet requiredPermissions)
+TFuture<TNodeDescriptor> TScheduler::GetJobNode(TJobId jobId)
 {
-    return Impl_->GetJobNode(jobId, user, requiredPermissions);
+    return Impl_->GetJobNode(jobId);
 }
 
 TFuture<void> TScheduler::AbandonJob(TJobId jobId, const TString& user)
@@ -4385,6 +4439,26 @@ TString TScheduler::FormatResourceUsage(
         usage,
         limits,
         diskResources);
+}
+
+TFuture<void> TScheduler::ValidateOperationAccess(
+    const TString& user,
+    TOperationId operationId,
+    EPermissionSet permissions)
+{
+    return Impl_->ValidateOperationAccess(user, operationId, permissions);
+}
+
+TFuture<void> TScheduler::ValidateJobShellAccess(
+    const TString& user,
+    const TJobShellPtr& jobShell)
+{
+    return Impl_->ValidateJobShellAccess(user, jobShell);
+}
+
+TFuture<TOperationId> TScheduler::FindOperationIdByJobId(TJobId jobId)
+{
+    return Impl_->FindOperationIdByJobId(jobId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

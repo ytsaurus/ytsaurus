@@ -150,10 +150,7 @@ public:
     void AbortOperationJobs(TOperationId operationId, const TError& abortReason, bool terminated);
     void ResumeOperationJobs(TOperationId operationId);
 
-    // NB(levysotsky): We check not "read" permission here but |requiredPermissions|
-    // because the client will further communicate with the node
-    // (where no permission checks are performed).
-    NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId, const TString& user, NYTree::EPermissionSet requiredPermissions);
+    NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId);
 
     void DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user);
     void AbandonJob(TJobId jobId, const TString& user);

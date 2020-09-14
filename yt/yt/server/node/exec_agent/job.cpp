@@ -612,12 +612,14 @@ public:
         return CoreInfos_;
     }
 
-    virtual TYsonString PollJobShell(const TYsonString& parameters) override
+    virtual TYsonString PollJobShell(
+        const TJobShellDescriptor& jobShellDescriptor,
+        const TYsonString& parameters) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         try {
-            return GetJobProbeOrThrow()->PollJobShell(parameters);
+            return GetJobProbeOrThrow()->PollJobShell(jobShellDescriptor, parameters);
         } catch (const TErrorException& ex) {
             // The following code changes error code for more user-friendly
             // diagnostics in interactive shell.
