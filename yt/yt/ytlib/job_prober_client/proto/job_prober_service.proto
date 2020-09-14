@@ -40,8 +40,11 @@ message TRspGetSpec
 message TReqPollJobShell
 {
     required NYT.NProto.TGuid job_id = 1;
-    // Parameters in YSON format.
+    // Parameters in YSON format. This value is set by user.
     required string parameters = 2;
+    // Path to subconatainer in which job shell
+    // should be run. This value is set by scheduler.
+    optional string subcontainer = 3;
 }
 
 message TRspPollJobShell

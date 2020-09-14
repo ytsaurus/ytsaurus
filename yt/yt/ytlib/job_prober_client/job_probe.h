@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "job_shell_descriptor_cache.h"
 
 #include <yt/core/yson/public.h>
 
@@ -16,7 +17,9 @@ struct IJobProbe
 {
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
 
-    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
+    virtual NYson::TYsonString PollJobShell(
+        const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
+        const NYson::TYsonString& parameters) = 0;
 
     virtual TString GetStderr() = 0;
 

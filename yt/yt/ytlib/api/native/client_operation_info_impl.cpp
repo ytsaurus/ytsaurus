@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/ytlib/security_client/helpers.h>
+
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -1178,40 +1180,6 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         ids.emplace_back(FromUnversionedValue<ui64>(row[idHiIndex]), FromUnversionedValue<ui64>(row[idLoIndex]));
     }
     return LookupOperationsInArchiveTyped(ids, options.Attributes, deadline - Now());
-}
-
-static THashSet<TString> GetSubjectClosure(
-    const TString& subject,
-    TObjectServiceProxy& proxy,
-    const TConnectionConfigPtr& connectionConfig,
-    const TMasterReadOptions& options)
-{
-    auto batchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(batchReq, connectionConfig, options);
-    for (const auto& path : {GetUserPath(subject), GetGroupPath(subject)}) {
-        auto req = TYPathProxy::Get(path + "/@member_of_closure");
-        SetCachingHeader(req, connectionConfig, options);
-        batchReq->AddRequest(req);
-    }
-
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
-
-    for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>()) {
-        if (rspOrError.IsOK()) {
-            auto res = ConvertTo<THashSet<TString>>(TYsonString(rspOrError.Value()->value()));
-            res.insert(subject);
-            return res;
-        } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            THROW_ERROR_EXCEPTION(
-                "Failed to get \"member_of_closure\" attribute for subject %Qv",
-                subject)
-                << rspOrError;
-        }
-    }
-    THROW_ERROR_EXCEPTION(
-        "Unrecognized subject %Qv",
-        subject);
 }
 
 // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|

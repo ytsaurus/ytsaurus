@@ -40,6 +40,7 @@ default_api_version = 4
 
 # TODO(levysotsky): Move error codes to separate file in python repo.
 OperationFailedToPrepare = 216
+NoSuchJobShell = 219
 SortOrderViolation = 301
 UniqueKeyViolation = 306
 SchemaViolation = 307
@@ -63,6 +64,7 @@ FailedToFetchDynamicConfig = 2501
 DuplicateMatchingDynamicConfigs = 2502
 UnrecognizedDynamicConfigOption = 2503
 InvalidDynamicConfig = 2505
+ContainerDoesNotExist = 12004
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
@@ -476,10 +478,12 @@ def abandon_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     execute_command("abandon_job", kwargs)
 
-def poll_job_shell(job_id, authenticated_user=None, **kwargs):
+def poll_job_shell(job_id, authenticated_user=None, shell_name=None, **kwargs):
     kwargs = {"job_id": job_id, "parameters": kwargs}
     if authenticated_user:
         kwargs["authenticated_user"] = authenticated_user
+    if shell_name:
+        kwargs["shell_name"] = shell_name
     return execute_command("poll_job_shell", kwargs, parse_yson=True)
 
 def abort_job(job_id, **kwargs):

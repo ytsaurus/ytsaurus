@@ -30,6 +30,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NContainers;
+using namespace NJobProberClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +86,9 @@ public:
         Environment_.emplace_back(Format("TMPDIR=%v", tmpDirPath));
     }
 
-    virtual TYsonString PollJobShell(const TYsonString& serializedParameters) override
+    virtual TYsonString PollJobShell(
+        const TJobShellDescriptor& jobShellDescriptor,
+        const TYsonString& serializedParameters) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -137,14 +140,15 @@ public:
                     options->InactivityTimeout = parameters.InactivityTimeout;
                 }
                 options->Id = TGuid::Create();
-                options->ContainerName = Format("%v/js-%v", RootInstance_->GetAbsoluteName(), options->Id.Parts32[3]);
+                auto subcontainerAbsoluteName = RootInstance_->GetAbsoluteName() + jobShellDescriptor.Subcontainer;
+                options->ContainerName = Format("%v/js-%v", subcontainerAbsoluteName, options->Id.Parts32[3]);
 #ifdef _linux_
-                options->ContainerUser = *WaitFor(PortoExecutor_->GetContainerProperty(RootInstance_->GetAbsoluteName(), "user"))
+                options->ContainerUser = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerAbsoluteName, "user"))
                     .ValueOrThrow();
                 {
                     auto enablePorto = WaitFor(
                         PortoExecutor_->GetContainerProperty(
-                            RootInstance_->GetAbsoluteName(),
+                            subcontainerAbsoluteName,
                             "enable_porto"))
                         .ValueOrThrow();
                     if (enablePorto && enablePorto != "none" && enablePorto != "false") {

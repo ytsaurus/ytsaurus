@@ -2387,18 +2387,22 @@ private:
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto parameters = TYsonString(request->parameters());
+        auto shellName = request->has_shell_name()
+            ? std::make_optional(request->shell_name())
+            : std::nullopt;
 
         TPollJobShellOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("JobId: %v, Parameters: %v",
+        context->SetRequestInfo("JobId: %v, Parameters: %v, ShellName: %v",
             jobId,
-            parameters);
+            parameters,
+            shellName);
 
         CompleteCallWith(
             client,
             context,
-            client->PollJobShell(jobId, parameters, options),
+            client->PollJobShell(jobId, shellName, parameters, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_result(result.GetData());

@@ -25,7 +25,7 @@
 #include <yt/ytlib/job_proxy/helpers.h>
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
-#include <yt/ytlib/job_prober_client/job_node_descriptor_cache.h>
+#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -207,13 +207,20 @@ TErrorOr<TNodeDescriptor> TClient::TryGetJobNodeDescriptor(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
-    const auto& cache = Connection_->GetJobNodeDescriptorCache();
-    NJobProberClient::TJobNodeDescriptorKey key{
-        .User = Options_.GetAuthenticatedUser(),
-        .JobId = jobId,
-        .Permissions = requiredPermissions
-    };
-    return WaitFor(cache->Get(key));
+    TJobProberServiceProxy proxy(GetSchedulerChannel());
+    auto req = proxy.GetJobNode();
+    req->SetUser(Options_.GetAuthenticatedUser());
+    ToProto(req->mutable_job_id(), jobId);
+    req->set_required_permissions(static_cast<ui32>(requiredPermissions));
+
+    auto rspOrError = WaitFor(req->Invoke());
+    if (rspOrError.IsOK()) {
+        TNodeDescriptor nodeDescriptor;
+        FromProto(&nodeDescriptor, rspOrError.Value()->node_descriptor());
+        return nodeDescriptor;
+    } else {
+        return static_cast<TError>(rspOrError);
+    }
 }
 
 IChannelPtr TClient::TryCreateChannelToJobNode(

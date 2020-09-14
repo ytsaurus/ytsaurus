@@ -6,6 +6,7 @@
 #include <yt/server/node/job_agent/job_controller.h>
 
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -104,12 +105,16 @@ private:
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto parameters = TYsonString(request->parameters());
+        auto subcontainer = request->subcontainer();
+        TJobShellDescriptor jobShellDescriptor;
+        jobShellDescriptor.Subcontainer = subcontainer;
 
-        context->SetRequestInfo("JobId: %v",
-            jobId);
+        context->SetRequestInfo("JobId: %v, Subcontainer: %v",
+            jobId,
+            subcontainer);
 
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        auto result = job->PollJobShell(parameters);
+        auto result = job->PollJobShell(jobShellDescriptor, parameters);
 
         response->set_result(result.GetData());
         context->Reply();

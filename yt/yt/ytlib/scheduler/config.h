@@ -585,6 +585,23 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TJobShell
+    : public NYTree::TYsonSerializable
+{
+public:
+    TString Name;
+
+    TString Subcontainer;
+
+    std::vector<TString> Owners;
+
+    TJobShell();
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobShell)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -746,6 +763,9 @@ public:
 
     //! Describes suitable controller agent tag for operation.
     TString ControllerAgentTag;
+
+    //! Description of possible shells for operation jobs.
+    std::vector<TJobShellPtr> JobShells;
 
     TOperationSpecBase();
 

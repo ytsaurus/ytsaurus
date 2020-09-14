@@ -17,6 +17,7 @@ using NYson::TYsonString;
 using NJobTrackerClient::TJobId;
 
 using namespace NConcurrency;
+using namespace NJobProberClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,12 +44,15 @@ public:
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     }
 
-    virtual TYsonString PollJobShell(const TYsonString& parameters) override
+    virtual TYsonString PollJobShell(
+        const TJobShellDescriptor& jobShellDescriptor,
+        const TYsonString& parameters) override
     {
         auto* proxy = GetOrCreateJobProberProxy();
         auto req = proxy->PollJobShell();
         ToProto(req->mutable_job_id(), JobId_);
         ToProto(req->mutable_parameters(), parameters.GetData());
+        req->set_subcontainer(jobShellDescriptor.Subcontainer);
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);

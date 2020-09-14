@@ -67,7 +67,7 @@ struct IConnection
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
 
-    virtual const NJobProberClient::TJobNodeDescriptorCachePtr& GetJobNodeDescriptorCache() = 0;
+    virtual const NJobProberClient::TJobShellDescriptorCachePtr& GetJobShellDescriptorCache() = 0;
 
     virtual const NSecurityClient::TPermissionCachePtr& GetPermissionCache() = 0;
 

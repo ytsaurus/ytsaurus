@@ -926,7 +926,7 @@ void TNodeShard::ResumeOperationJobs(TOperationId operationId)
     operationState->ForbidNewJobs = false;
 }
 
-TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId, const TString& user, EPermissionSet requiredPermissions)
+TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -934,34 +934,18 @@ TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId, const TString& user, EPermi
 
     auto job = FindJob(jobId);
 
-    TExecNodePtr node;
-    TOperationId operationId;
-
-    if (!job) {
-        node = FindNodeByJob(jobId);
+    if (job) {
+        return job->GetNode()->NodeDescriptor();
+    } else {
+        auto node = FindNodeByJob(jobId);
         if (!node) {
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::NoSuchJob,
                 "Job %v not found", jobId);
         }
 
-        auto it = node->RecentlyFinishedJobs().find(jobId);
-        if (it == node->RecentlyFinishedJobs().end()) {
-            THROW_ERROR_EXCEPTION(
-                NScheduler::EErrorCode::NoSuchJob,
-                "Job %v not found", jobId);
-        }
-
-        operationId = it->second.OperationId;
-    } else {
-        node = job->GetNode();
-        operationId = job->GetOperationId();
+        return node->NodeDescriptor();
     }
-
-    WaitFor(Host_->ValidateOperationAccess(user, operationId, requiredPermissions))
-        .ThrowOnError();
-
-    return node->NodeDescriptor();
 }
 
 void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TString& user)
@@ -1213,7 +1197,17 @@ TOperationId TNodeShard::FindOperationIdByJobId(TJobId jobId)
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
     auto job = FindJob(jobId);
-    return job ? job->GetOperationId() : TOperationId();
+    if (job) {
+        return job->GetOperationId();
+    }
+
+    auto node = FindNodeByJob(jobId);
+    auto jobIt = node->RecentlyFinishedJobs().find(jobId);
+    if (jobIt == node->RecentlyFinishedJobs().end()) {
+        return TOperationId();
+    } else {
+        return jobIt->second.OperationId;
+    }
 }
 
 TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TSchedulingTagFilter& filter)

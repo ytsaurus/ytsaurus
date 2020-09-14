@@ -1479,6 +1479,7 @@ struct IClient
 
     virtual TFuture<NYson::TYsonString> PollJobShell(
         NJobTrackerClient::TJobId jobId,
+        const std::optional<TString>& shellName,
         const NYson::TYsonString& parameters,
         const TPollJobShellOptions& options = {}) = 0;
 

@@ -356,6 +356,19 @@ void ToProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobShell::TJobShell()
+{
+    RegisterParameter("name", Name);
+
+    RegisterParameter("subcontainer", Subcontainer)
+        .Default();
+
+    RegisterParameter("owners", Owners)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationSpecBase::TOperationSpecBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -522,6 +535,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("controller_agent_tag", ControllerAgentTag)
         .Default("default");
 
+    RegisterParameter("job_shells", JobShells)
+        .Default();
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -557,6 +573,16 @@ TOperationSpecBase::TOperationSpecBase()
         ValidateOperationAcl(Acl);
         ProcessAclAndOwnersParameters(&Acl, &Owners);
         ValidateSecurityTags(AdditionalSecurityTags);
+
+        {
+            THashSet<TString> jobShellNames;
+            for (const auto& jobShell : JobShells) {
+                if (!jobShellNames.emplace(jobShell->Name).second) {
+                    THROW_ERROR_EXCEPTION("Job shell names should be distinct")
+                        << TErrorAttribute("duplicate_shell_name", jobShell->Name);
+                }
+            }
+        }
     });
 }
 

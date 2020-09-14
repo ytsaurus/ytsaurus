@@ -129,7 +129,7 @@ public:
     void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds);
 
     TFuture<void> DumpInputContext(TJobId jobId, const NYPath::TYPath& path, const TString& user);
-    TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(TJobId jobId, const TString& user, NYTree::EPermissionSet requiredPermissions);
+    TFuture<NYT::NNodeTrackerClient::TNodeDescriptor> GetJobNode(TJobId jobId);
     TFuture<void> AbandonJob(TJobId jobId, const TString& user);
     TFuture<void> AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
@@ -154,6 +154,12 @@ public:
         const NNodeTrackerClient::NProto::TDiskResources& diskResources) const;
 
     void SetMediumDirectory(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
+
+    TFuture<void> ValidateOperationAccess(const TString& user, TOperationId operationId, NYTree::EPermissionSet permissions);
+
+    TFuture<void> ValidateJobShellAccess(const TString& user, const TJobShellPtr& jobShell);
+
+    TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId);
 
 private:
     class TImpl;

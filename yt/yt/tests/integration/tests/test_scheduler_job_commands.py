@@ -332,7 +332,140 @@ class TestJobProber(YTEnvSetup):
 
 ##################################################################
 
+class TestJobShellInSubcontainer(TestJobProber):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_poll_job_shell": True,
+            # NB(gritukan): Setting an arbitrary user to user job
+            # will end up with problems with permissions during subsubcontainer start.
+            # On real clusters all the slot and job proxy users are in the same group,
+            # so these manipulations with containers are allowed. It's impossible to
+            # make such a configuration in tests, so we simply run job proxy and user job
+            # under the same user.
+            "do_not_set_user_id": True
+        },
+    }
+
+    @authors("gritukan")
+    def test_job_shell_in_subcontainer(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        create_user("nirvana_boss")
+        create_user("nirvana_dev")
+        create_group("nirvana_devs")
+        create_user("taxi_boss")
+        create_user("taxi_dev")
+        create_group("taxi_devs")
+        create_user("yt_dev")
+
+        add_member("nirvana_dev", "nirvana_devs")
+        add_member("taxi_dev", "taxi_devs")
+        add_member("yt_dev", "superusers")
+
+        op = run_test_vanilla(
+            with_breakpoint('portoctl create N ; BREAKPOINT'),
+            spec={
+                "enable_porto": "isolate",
+                "job_shells": [
+                    {
+                        "name": "default",
+                        "subcontainer": "",
+                        "owners": ["nirvana_boss", "nirvana_devs"],
+                    },
+                    {
+                        "name": "nirvana",
+                        "subcontainer": "/N",
+                        "owners": ["taxi_boss", "taxi_devs", "nirvana_boss", "nirvana_devs"],
+                    },
+                    {
+                        "name": "non_existent",
+                        "subcontainer": "/Z",
+                    }
+                ]
+            },
+            task_patch={"enable_porto": "isolate"},
+            authenticated_user="taxi_dev")
+        job_id = wait_breakpoint()[0]
+
+        # Check that job shell starts in a proper container.
+        def get_subcontainer_name(shell_name):
+            r = poll_job_shell(job_id, shell_name=shell_name, operation="spawn", command="echo $PORTO_NAME")
+            output = self._poll_until_shell_exited(job_id, r["shell_id"])
+
+            # /path/to/uj/N/js-1234
+            uj = output.find("uj/")
+            js = output.find("/js")
+            return output[uj+3:js]
+        assert get_subcontainer_name("default") == ""
+        assert get_subcontainer_name(None) == ""
+        assert get_subcontainer_name("nirvana") == "N"
+
+        with raises_yt_error(ContainerDoesNotExist):
+            poll_job_shell(job_id, shell_name="non_existent", operation="spawn", command="echo hi")
+        with raises_yt_error(NoSuchJobShell):
+            poll_job_shell(job_id, shell_name="brrr", operation="spawn", command="echo hi")
+
+        # Check job shell permissions.
+        def check_permission(shell_name, user, allowed):
+            if allowed:
+                r = poll_job_shell(job_id, shell_name=shell_name, authenticated_user=user, operation="spawn", command="echo hi")
+                output = self._poll_until_shell_exited(job_id, r["shell_id"])
+                assert output == "hi\r\n"
+            else:
+                with raises_yt_error(AuthorizationErrorCode):
+                    poll_job_shell(job_id, shell_name=shell_name, authenticated_user=user, operation="spawn", command="echo hi")
+
+        check_permission("default", "nirvana_boss", allowed=True)
+        check_permission("default", "nirvana_dev", allowed=True)
+        check_permission("default", "taxi_boss", allowed=False)
+        check_permission("default", "taxi_dev", allowed=False)
+        check_permission("default", "yt_dev", allowed=True)
+        check_permission("default", "root", allowed=True)
+        check_permission("nirvana", "nirvana_boss", allowed=True)
+        check_permission("nirvana", "nirvana_dev", allowed=True)
+        check_permission("nirvana", "taxi_boss", allowed=True)
+        check_permission("nirvana", "taxi_dev", allowed=True)
+        check_permission("nirvana", "yt_dev", allowed=True)
+        check_permission("nirvana", "root", allowed=True)
+
+    @authors("gritukan")
+    def test_job_shell_in_subcontainer_invalid(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        with pytest.raises(YtError):
+            op = run_test_vanilla(
+                with_breakpoint('portoctl create N ; BREAKPOINT'),
+                spec={
+                    "enable_porto": "isolate",
+                    "job_shells": [
+                        {
+                            "name": "x",
+                            "subcontainer": "/A",
+                            "owners": [],
+                        },
+                        {
+                            "name": "x",
+                            "subcontainer": "/B",
+                            "owners": [],
+                        },
+                    ]
+                },
+                task_patch={"enable_porto": "isolate"})
+
+##################################################################
+
 class TestJobProberRpcProxy(TestJobProber):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+
+##################################################################
+
+class TestJobShellInSubcontainerRpcProxy(TestJobShellInSubcontainer):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True

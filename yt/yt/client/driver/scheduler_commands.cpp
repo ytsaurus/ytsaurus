@@ -402,6 +402,8 @@ TPollJobShellCommand::TPollJobShellCommand()
 {
     RegisterParameter("job_id", JobId);
     RegisterParameter("parameters", Parameters);
+    RegisterParameter("shell_name", ShellName)
+        .Default();
 
     RegisterPostprocessor([&] {
         // Compatibility with initial job shell protocol.
@@ -415,6 +417,7 @@ void TPollJobShellCommand::DoExecute(ICommandContextPtr context)
 {
     auto asyncResult = context->GetClient()->PollJobShell(
         JobId,
+        ShellName,
         ConvertToYsonString(Parameters),
         Options);
     auto result = WaitFor(asyncResult)

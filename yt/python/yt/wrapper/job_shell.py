@@ -37,13 +37,14 @@ except ImportError:
     job_shell_supported = False
 
 class JobShell(object):
-    def __init__(self, job_id, interactive=True, timeout=None, client=None):
+    def __init__(self, job_id, shell_name=None, interactive=True, timeout=None, client=None):
         if not job_shell_supported:
             raise YtError("Job shell is not supported on your platform")
         if get_backend_type(client) != "http":
             raise YtError("Command run-job-shell requires http backend.")
 
         self.job_id = job_id
+        self.shell_name = shell_name
         self.inactivity_timeout = timeout
         self.interactive = interactive
         self.yt_client = client
@@ -133,6 +134,8 @@ class JobShell(object):
             b"job_id": b(self.job_id),
             b"parameters": parameters
         }
+        if self.shell_name is not None:
+            request[b"shell_name"] = b(self.shell_name)
         req.headers["X-YT-Parameters"] = yson.dumps(request, yson_format="text", encoding=None)
         req.headers["X-YT-Correlation-Id"] = generate_uuid()
         return req

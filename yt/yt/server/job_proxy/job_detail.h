@@ -6,6 +6,8 @@
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 
+#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
+
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
@@ -35,7 +37,9 @@ public:
     virtual std::optional<TString> GetFailContext() override;
     virtual std::optional<NJobAgent::TJobProfile> GetProfile() override;
     virtual const NCoreDump::TCoreInfos& GetCoreInfos() const override;
-    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
+    virtual NYson::TYsonString PollJobShell(
+        const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
+        const NYson::TYsonString& parameters) override;
     virtual void Fail() override;
     virtual TCpuStatistics GetCpuStatistics() const override;
     virtual i64 GetStderrSize() const override;

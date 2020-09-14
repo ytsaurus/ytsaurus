@@ -1031,6 +1031,7 @@ TFuture<void> TClient::AbandonJob(
 
 TFuture<TYsonString> TClient::PollJobShell(
     NJobTrackerClient::TJobId jobId,
+    const std::optional<TString>& shellName,
     const TYsonString& parameters,
     const TPollJobShellOptions& options)
 {
@@ -1041,6 +1042,9 @@ TFuture<TYsonString> TClient::PollJobShell(
 
     ToProto(req->mutable_job_id(), jobId);
     req->set_parameters(parameters.GetData());
+    if (shellName) {
+        req->set_shell_name(*shellName);
+    }
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPollJobShellPtr& rsp) {
         return TYsonString(rsp->result());

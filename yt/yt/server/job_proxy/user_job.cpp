@@ -116,6 +116,7 @@ using namespace NRpc;
 using namespace NCoreDump;
 using namespace NExecAgent;
 using namespace NYPath;
+using namespace NJobProberClient;
 using namespace NJobTrackerClient;
 using namespace NUserJobExecutor;
 using namespace NUserJobSynchronizerClient;
@@ -765,12 +766,14 @@ private:
         return result.Value();
     }
 
-    virtual TYsonString PollJobShell(const TYsonString& parameters) override
+    virtual TYsonString PollJobShell(
+        const TJobShellDescriptor& jobShellDescriptor,
+        const TYsonString& parameters) override
     {
         if (!ShellManager_) {
             THROW_ERROR_EXCEPTION("Job shell polling is not supported in non-Porto environment");
         }
-        return ShellManager_->PollJobShell(parameters);
+        return ShellManager_->PollJobShell(jobShellDescriptor, parameters);
     }
 
     virtual void Interrupt() override

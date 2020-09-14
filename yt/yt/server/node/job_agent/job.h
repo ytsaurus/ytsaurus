@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
-#include <yt/ytlib/job_prober_client/public.h>
+#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 
@@ -101,7 +101,9 @@ struct IJob
     /*
      * \note Thread affinity: any
      */
-    virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
+    virtual NYson::TYsonString PollJobShell(
+        const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
+        const NYson::TYsonString& parameters) = 0;
 
     virtual bool GetStored() const = 0;
     virtual void SetStored(bool value) = 0;

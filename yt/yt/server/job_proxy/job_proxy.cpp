@@ -140,10 +140,12 @@ TString TJobProxy::GetStderr()
     return job->GetStderr();
 }
 
-TYsonString TJobProxy::PollJobShell(const TYsonString& parameters)
+TYsonString TJobProxy::PollJobShell(
+    const TJobShellDescriptor& jobShellDescriptor,
+    const TYsonString& parameters)
 {
     auto job = GetJobOrThrow();
-    return job->PollJobShell(parameters);
+    return job->PollJobShell(jobShellDescriptor, parameters);
 }
 
 void TJobProxy::Interrupt()

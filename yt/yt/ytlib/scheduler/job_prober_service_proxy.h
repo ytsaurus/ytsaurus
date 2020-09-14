@@ -20,8 +20,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, DumpInputContext);
     DEFINE_RPC_PROXY_METHOD(NProto, GetJobNode);
     DEFINE_RPC_PROXY_METHOD(NProto, AbandonJob);
-    DEFINE_RPC_PROXY_METHOD(NProto, PollJobShell);
     DEFINE_RPC_PROXY_METHOD(NProto, AbortJob);
+    DEFINE_RPC_PROXY_METHOD(NProto, GetJobShellDescriptor);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

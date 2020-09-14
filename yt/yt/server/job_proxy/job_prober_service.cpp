@@ -2,6 +2,7 @@
 
 #include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
+#include <yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
 #include <yt/ytlib/tools/tools.h>
 
@@ -70,10 +71,14 @@ private:
     {
         auto parameters = TYsonString(request->parameters());
 
-        context->SetRequestInfo("Parameters: %v",
-            ConvertToYsonString(parameters, EYsonFormat::Text));
+        TJobShellDescriptor jobShellDescriptor;
+        jobShellDescriptor.Subcontainer = request->subcontainer();
 
-        auto result = JobProxy_->PollJobShell(parameters);
+        context->SetRequestInfo("Parameters: %v, Subcontainer: %v",
+            ConvertToYsonString(parameters, EYsonFormat::Text),
+            jobShellDescriptor.Subcontainer);
+
+        auto result = JobProxy_->PollJobShell(jobShellDescriptor, parameters);
 
         ToProto(response->mutable_result(), result.GetData());
         context->Reply();

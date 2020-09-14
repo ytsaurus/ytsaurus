@@ -348,7 +348,9 @@ public:
         THROW_ERROR_EXCEPTION("Getting fail context is not supported");
     }
 
-    virtual TYsonString PollJobShell(const TYsonString& /*parameters*/) override
+    virtual TYsonString PollJobShell(
+        const NJobProberClient::TJobShellDescriptor& /*jobShellDescriptor*/,
+        const TYsonString& /*parameters*/) override
     {
         THROW_ERROR_EXCEPTION("Job shell is not supported");
     }

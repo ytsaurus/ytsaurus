@@ -150,7 +150,7 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(60));
 
     RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
-        .Default(TDuration::Seconds(15));
+        .Default(TDuration::Seconds(45));
 
     RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
         .Default(1);
@@ -170,7 +170,8 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("permission_cache", PermissionCache)
         .DefaultNew();
 
-    RegisterParameter("job_node_descriptor_cache", JobNodeDescriptorCache)
+    RegisterParameter("job_shell_descriptor_cache", JobShellDescriptorCache)
+        .Alias("job_node_descriptor_cache")
         .DefaultNew();
 
     RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
@@ -189,9 +190,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
 
-        JobNodeDescriptorCache->ExpireAfterAccessTime = TDuration::Minutes(5);
-        JobNodeDescriptorCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
-        JobNodeDescriptorCache->RefreshTime = TDuration::Minutes(1);
+        JobShellDescriptorCache->ExpireAfterAccessTime = TDuration::Minutes(5);
+        JobShellDescriptorCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
+        JobShellDescriptorCache->RefreshTime = TDuration::Minutes(1);
     });
 }
 
