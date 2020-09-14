@@ -178,6 +178,10 @@ b"""
     multicell_manager = {
         cell_statistics_gossip_period = 200;
     };
+
+    tablet_manager = {
+        accumulate_preload_pending_store_count_correctly = %true;
+    };
 }
 """)
 
