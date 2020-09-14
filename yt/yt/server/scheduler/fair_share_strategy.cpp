@@ -58,10 +58,10 @@ public:
     TFairShareStrategy(
         TFairShareStrategyConfigPtr config,
         ISchedulerStrategyHost* host,
-        const std::vector<IInvokerPtr>& feasibleInvokers)
-        : Config(config)
+        std::vector<IInvokerPtr> feasibleInvokers)
+        : Config(std::move(config))
         , Host(host)
-        , FeasibleInvokers(feasibleInvokers)
+        , FeasibleInvokers(std::move(feasibleInvokers))
         , Logger(SchedulerLogger)
     {
         FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
@@ -1557,20 +1557,20 @@ template <class TFairShareImpl>
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host,
-    const std::vector<IInvokerPtr>& feasibleInvokers)
+    std::vector<IInvokerPtr> feasibleInvokers)
 {
-    return New<TFairShareStrategy<TFairShareImpl>>(config, host, feasibleInvokers);
+    return New<TFairShareStrategy<TFairShareImpl>>(std::move(config), host, std::move(feasibleInvokers));
 }
 
 template ISchedulerStrategyPtr CreateFairShareStrategy<TClassicFairShareImpl>(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host,
-    const std::vector<IInvokerPtr>& feasibleInvokers);
+    std::vector<IInvokerPtr> feasibleInvokers);
 
 template ISchedulerStrategyPtr CreateFairShareStrategy<TVectorFairShareImpl>(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host,
-    const std::vector<IInvokerPtr>& feasibleInvokers);
+    std::vector<IInvokerPtr> feasibleInvokers);
 
 ////////////////////////////////////////////////////////////////////////////////
 

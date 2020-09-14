@@ -10,7 +10,7 @@ template <class TAnyFairShareTree>
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host,
-    const std::vector<IInvokerPtr>& feasibleInvokers);
+    std::vector<IInvokerPtr> feasibleInvokers);
 
 ////////////////////////////////////////////////////////////////////////////////
 

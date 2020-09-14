@@ -195,9 +195,9 @@ public:
             }
 
             if (config->UseClassicScheduler) {
-                Strategy_ = CreateFairShareStrategy<TClassicFairShareImpl>(Config_, this, feasibleInvokers);
+                Strategy_ = CreateFairShareStrategy<TClassicFairShareImpl>(Config_, this, std::move(feasibleInvokers));
             } else {
-                Strategy_ = CreateFairShareStrategy<TVectorFairShareImpl>(Config_, this, feasibleInvokers);
+                Strategy_ = CreateFairShareStrategy<TVectorFairShareImpl>(Config_, this, std::move(feasibleInvokers));
             }
 
         }

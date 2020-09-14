@@ -139,12 +139,12 @@ TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     TFairShareTreePtr tree,
     TFairShareTree::TRootElementSnapshotPtr rootElementSnapshot,
     TSchedulingTagFilter nodesFilter,
-    TJobResources totalResourceLimits,
+    const TJobResources& totalResourceLimits,
     const NLogging::TLogger& logger)
     : Tree_(std::move(tree))
     , RootElementSnapshot_(std::move(rootElementSnapshot))
     , NodesFilter_(std::move(nodesFilter))
-    , TotalResourceLimits_(std::move(totalResourceLimits))
+    , TotalResourceLimits_(totalResourceLimits)
     , Logger(logger)
 { }
 
@@ -293,17 +293,17 @@ TFairShareTree<TFairShareImpl>::TFairShareTree(
     ISchedulerStrategyHost* strategyHost,
     ITreeHost* treeHost,
     std::vector<IInvokerPtr> feasibleInvokers,
-    const TString& treeId)
+    TString treeId)
     : Config_(std::move(config))
     , ControllerConfig_(std::move(controllerConfig))
     , ResourceTree_(New<TResourceTree>(config))
     , StrategyHost_(strategyHost)
     , TreeHost_(treeHost)
     , FeasibleInvokers_(std::move(feasibleInvokers))
-    , TreeId_(treeId)
+    , TreeId_(std::move(treeId))
     , TreeIdProfilingTag_(TProfileManager::Get()->RegisterTag("tree", TreeId_))
     , Logger(NLogging::TLogger(SchedulerLogger)
-        .AddTag("TreeId: %v", treeId))
+        .AddTag("TreeId: %v", TreeId_))
     , NonPreemptiveSchedulingStage_(
         /* nameInLogs */ "Non preemptive",
         TScheduleJobsProfilingCounters("/non_preemptive", {TreeIdProfilingTag_}))
