@@ -50,6 +50,7 @@ struct TOwningBoundaryKeys
 TString ToString(const TOwningBoundaryKeys& keys);
 
 void Serialize(const TOwningBoundaryKeys& keys, NYson::IYsonConsumer* consumer);
+void Deserialize(TOwningBoundaryKeys& key, const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -318,17 +318,21 @@ void ValidateTableSchemaUpdate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema)
+void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schema, const TStringBuf& keyType)
 {
     if (pivotKey.GetCount() > schema.GetKeyColumnCount()) {
-        THROW_ERROR_EXCEPTION("Pivot key must form a prefix of key");
+        auto titleKeyType = TString(keyType);
+        titleKeyType.to_title();
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation, "%v key must form a prefix of key", titleKeyType);
     }
 
     for (int index = 0; index < pivotKey.GetCount(); ++index) {
         if (pivotKey[index].Type != EValueType::Null && pivotKey[index].Type != schema.Columns()[index].GetPhysicalType()) {
             THROW_ERROR_EXCEPTION(
-                "Mismatched type of column %Qv in pivot key: expected %Qlv, found %Qlv",
+                NTableClient::EErrorCode::SchemaViolation,
+                "Mismatched type of column %Qv in %v key: expected %Qlv, found %Qlv",
                 schema.Columns()[index].Name(),
+                keyType,
                 schema.Columns()[index].GetPhysicalType(),
                 pivotKey[index].Type);
         }
@@ -507,7 +511,7 @@ TError ValidateTableSchemaCompatibility(
         return TError();
     }
 
-    // Check that output key columns form a proper prefix of input key columns.
+    // Check that output key columns form a prefix of input key columns.
     int cmp = outputSchema.GetKeyColumnCount() - inputSchema.GetKeyColumnCount();
     if (cmp > 0) {
         return wrapError(TError("Output key columns are wider than input key columns"));

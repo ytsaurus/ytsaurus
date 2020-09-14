@@ -134,6 +134,7 @@ DEFINE_ENUM(EMasterReign,
     ((ShardedTransactions)                                          (1409))  // shakurov
     ((FixErrorDatetime)                                             (1410))  // babenko
     ((YT_11903_PreserveCreationTimeInMove)                          (1411))  // babenko
+    ((PartitionedTables)                                            (1412))  // max42
 );
 
 ////////////////////////////////////////////////////////////////////////////////

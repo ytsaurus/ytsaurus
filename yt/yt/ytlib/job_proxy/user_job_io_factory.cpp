@@ -196,7 +196,7 @@ struct TUserJobIOFactoryBase
             };
             MultiReaderMemoryManager_ = CreateParallelReaderMemoryManager(
                 parallelReaderMemoryManagerOptions,
-                NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker()); 
+                NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
         }
     }
 
@@ -257,7 +257,7 @@ public:
             std::move(outRpsThrottler))
         , UseParallelReader_(useParallelReader)
     {
-        TUserJobIOFactoryBase::Initialize(); 
+        TUserJobIOFactoryBase::Initialize();
     }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(

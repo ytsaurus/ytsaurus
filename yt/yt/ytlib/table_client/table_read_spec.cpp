@@ -3,6 +3,7 @@
 #include "private.h"
 #include "helpers.h"
 #include "chunk_meta_extensions.h"
+#include "partitioned_table_harvester.h"
 
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -29,45 +30,23 @@ using namespace NYTree;
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
+using namespace NLogging;
 
 using NChunkClient::NProto::TChunkSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& options)
+TTableReadSpec FetchRegularTableReadSpec(
+    const TFetchSingleTableReadSpecOptions& options,
+    const TUserObject* userObject,
+    const TLogger& logger)
 {
+    const auto& Logger = logger;
+    YT_LOG_INFO("Fetching regular table");
+
     const auto& path = options.RichPath.GetPath();
     auto suppressAccessTracking = options.GetUserObjectBasicAttributesOptions.SuppressAccessTracking;
     auto suppressExpirationTimeoutRenewal = options.GetUserObjectBasicAttributesOptions.SuppressExpirationTimeoutRenewal;
-
-    auto Logger = NLogging::TLogger(TableClientLogger)
-        .AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-            path,
-            options.TransactionId,
-            options.ReadSessionId);
-
-    YT_LOG_INFO("Opening table reader");
-
-    auto userObject = std::make_unique<TUserObject>(options.RichPath);
-
-    GetUserObjectBasicAttributes(
-        options.Client,
-        {userObject.get()},
-        options.TransactionId,
-        Logger,
-        EPermission::Read,
-        options.GetUserObjectBasicAttributesOptions);
-
-    if (userObject->ObjectId) {
-        if (userObject->Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                userObject->Type);
-        }
-    } else {
-        YT_LOG_INFO("Table is virtual");
-    }
 
     int chunkCount;
     bool dynamic;
@@ -144,6 +123,7 @@ TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& 
     }
 
     TDataSource dataSource;
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
     if (dynamic && schema->IsSorted()) {
         dataSource = MakeVersionedDataSource(
             path,
@@ -152,12 +132,16 @@ TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& 
             userObject->OmittedInaccessibleColumns,
             options.RichPath.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
             options.RichPath.GetRetentionTimestamp().value_or(NullTimestamp));
+        dataSliceDescriptors.emplace_back(std::move(chunkSpecs));
     } else {
         dataSource = MakeUnversionedDataSource(
             path,
             schema,
             options.RichPath.GetColumns(),
             userObject->OmittedInaccessibleColumns);
+        for (auto& chunkSpec : chunkSpecs) {
+            dataSliceDescriptors.emplace_back(std::move(chunkSpec));
+        }
     }
 
     auto dataSourceDirectory = New<TDataSourceDirectory>();
@@ -165,8 +149,78 @@ TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& 
 
     return TTableReadSpec{
         .DataSourceDirectory = std::move(dataSourceDirectory),
-        .ChunkSpecs = std::move(chunkSpecs),
+        .DataSliceDescriptors = std::move(dataSliceDescriptors),
     };
+}
+
+TTableReadSpec FetchPartitionedTableReadSpec(const TFetchSingleTableReadSpecOptions& options, TLogger logger)
+{
+    const auto& Logger = logger;
+    YT_LOG_INFO("Fetching partitioned table");
+
+    auto partitionedTableHarvester = New<TPartitionedTableHarvester>(TPartitionedTableHarvesterOptions{
+        .RichPath = options.RichPath,
+        .Client = options.Client,
+        .TransactionId = options.TransactionId,
+        .Invoker = GetCurrentInvoker(),
+        .NameTable = options.NameTable,
+        .ColumnFilter = options.ColumnFilter,
+        .Config = options.PartitionedTableHarvesterConfig,
+        .Logger = logger,
+    });
+
+    WaitFor(partitionedTableHarvester->Prepare())
+        .ThrowOnError();
+    return WaitFor(partitionedTableHarvester->Fetch(options))
+        .ValueOrThrow();
+}
+
+TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& options)
+{
+    const auto& path = options.RichPath.GetPath();
+
+    auto Logger = NLogging::TLogger(TableClientLogger)
+        .AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
+            path,
+            options.TransactionId,
+            options.ReadSessionId);
+
+    YT_LOG_INFO("Opening table reader");
+
+    auto userObject = std::make_unique<TUserObject>(options.RichPath);
+
+    GetUserObjectBasicAttributes(
+        options.Client,
+        {userObject.get()},
+        options.TransactionId,
+        Logger,
+        EPermission::Read,
+        options.GetUserObjectBasicAttributesOptions);
+
+    EObjectType type;
+
+    if (userObject->ObjectId) {
+        type = userObject->Type;
+    } else {
+        YT_LOG_INFO("Table is virtual");
+        // Just assume this is indeed a table.
+        type = EObjectType::Table;
+    }
+
+    switch (type) {
+        case EObjectType::Table:
+            return FetchRegularTableReadSpec(options, userObject.get(), Logger);
+        case EObjectType::PartitionedTable:
+            return FetchPartitionedTableReadSpec(options, Logger);
+        default:
+            if (options.PartitionedTableHarvesterConfig->AssumePartitionedTable) {
+                return FetchPartitionedTableReadSpec(options, Logger);
+            }
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected any of %Qlv, actual %Qlv",
+                path,
+                std::vector<EObjectType>{EObjectType::Table, EObjectType::PartitionedTable},
+                userObject->Type);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2018,6 +2018,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             NullTimestamp,
             nullptr,
             New<TChunkReaderPerformanceCounters>(),
+            nullptr,
             nullptr);
 
         auto tableReaderConfig = New<TTabletChunkReaderConfig>();

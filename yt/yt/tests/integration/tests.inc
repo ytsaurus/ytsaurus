@@ -88,6 +88,7 @@ TEST_SRCS(
     test_orchid.py
     test_ordered_dynamic_tables.py
     test_p2p.py
+    test_partitioned_tables.py
     test_portals.py
     test_protobuf_format.py
     test_query.py

@@ -32,6 +32,7 @@ class TBlockWriter;
 class THorizontalBlockReader;
 
 struct TTableReadSpec;
+struct TFetchSingleTableReadSpecOptions;
 
 DECLARE_REFCOUNTED_STRUCT(ILookupReader)
 
@@ -70,6 +71,8 @@ DECLARE_REFCOUNTED_STRUCT(TChunkState)
 
 DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
 
+DECLARE_REFCOUNTED_STRUCT(TVirtualValueDirectory)
+
 struct TOwningBoundaryKeys;
 
 struct TBlobTableSchema;
@@ -93,6 +96,8 @@ DECLARE_REFCOUNTED_CLASS(TTableReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TBlobTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
+
+DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

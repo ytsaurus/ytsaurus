@@ -186,7 +186,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             NullTimestamp,
                             nullptr,
                             nullptr,
-                            nullptr);
+                            nullptr,
+                            dataSource.GetVirtualValueDirectory());
 
                         auto chunkReaderMemoryManager = multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate);
 
@@ -203,7 +204,9 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                             range,
                             partitionTag,
-                            chunkReaderMemoryManager);
+                            chunkReaderMemoryManager,
+                            dataSource.GetVirtualKeyPrefixLength(),
+                            dataSliceDescriptor.VirtualRowIndex);
                     }));
                 });
 
@@ -1132,6 +1135,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             chunkSpec.has_override_timestamp() ? chunkSpec.override_timestamp() : NullTimestamp,
             nullptr,
             performanceCounters,
+            nullptr,
             nullptr);
         auto chunkReaderMemoryManager =
             readerMemoryManager->CreateChunkReaderMemoryManager(chunkMeta->Misc().uncompressed_data_size());
@@ -1277,22 +1281,23 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
     TTableReadSpec& tableReadSpec,
     const TClientBlockReadOptions& blockReadOptions,
     bool unordered,
-    const TKeyColumns& keyColumns,
     const TNameTablePtr& nameTable,
     const TColumnFilter& columnFilter,
     const IThroughputThrottlerPtr& bandwidthThrottler,
     const IThroughputThrottlerPtr& rpsThrottler)
 {
     const auto& dataSourceDirectory = tableReadSpec.DataSourceDirectory;
+    auto& dataSliceDescriptors = tableReadSpec.DataSliceDescriptors;
 
     // TODO(max42): think about mixing different data sources here.
+    // TODO(max42): what about reading several tables together?
+    YT_VERIFY(dataSourceDirectory->DataSources().size() == 1);
+    const auto& dataSource = dataSourceDirectory->DataSources().front();
+
     switch (dataSourceDirectory->GetCommonTypeOrThrow()) {
         case EDataSourceType::VersionedTable: {
-            TDataSliceDescriptor dataSliceDescriptor(std::move(tableReadSpec.ChunkSpecs));
-
-            // TODO(max42): what about reading several versioned tables together?
-            YT_VERIFY(dataSourceDirectory->DataSources().size());
-            const auto& dataSource = dataSourceDirectory->DataSources().front();
+            YT_VERIFY(dataSliceDescriptors.size() == 1);
+            auto& dataSliceDescriptor = dataSliceDescriptors.front();
 
             auto adjustedColumnFilter = columnFilter.IsUniversal()
                 ? CreateColumnFilter(dataSource.Columns(), nameTable)
@@ -1307,7 +1312,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 client->GetNativeConnection()->GetBlockCache(),
                 client->GetNativeConnection()->GetNodeDirectory(),
                 dataSourceDirectory,
-                dataSliceDescriptor,
+                std::move(dataSliceDescriptor),
                 nameTable,
                 blockReadOptions,
                 adjustedColumnFilter,
@@ -1316,11 +1321,6 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 rpsThrottler);
         }
         case EDataSourceType::UnversionedTable: {
-            std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-            for (const auto& chunkSpec : tableReadSpec.ChunkSpecs) {
-                dataSliceDescriptors.emplace_back(chunkSpec);
-            }
-
             auto factory = unordered
                 ? CreateSchemalessParallelMultiReader
                 : CreateSchemalessSequentialMultiReader;
@@ -1338,7 +1338,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
                 nameTable,
                 blockReadOptions,
                 columnFilter,
-                keyColumns,
+                dataSource.Schema()->GetKeyColumns(),
                 /* partitionTag */ std::nullopt,
                 /* trafficMeter */ nullptr,
                 bandwidthThrottler,

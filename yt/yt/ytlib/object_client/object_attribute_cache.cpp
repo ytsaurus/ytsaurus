@@ -13,33 +13,30 @@ using namespace NConcurrency;
 
 TObjectAttributeCache::TObjectAttributeCache(
     TObjectAttributeCacheConfigPtr config,
-    std::vector<TString> attributes,
+    std::vector<TString> attributeNames,
     NNative::IClientPtr client,
     IInvokerPtr invoker,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler)
     : TAsyncExpiringCache(config, std::move(profiler))
+    , AttributeNames_(std::move(attributeNames))
     , Config_(std::move(config))
-    , Attributes_(std::move(attributes))
     , Logger(logger.AddTag("ObjectAttributeCacheId: %v", TGuid::Create()))
     , Client_(std::move(client))
     , Invoker_(std::move(invoker))
 { }
 
 TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TObjectAttributeCache::GetFromClient(
-    const std::vector<TYPath>& keys,
-    const NNative::IClientPtr& client) const
+    const std::vector<TYPath>& paths,
+    const NNative::IClientPtr& client,
+    const std::vector<TString>& attributeNames,
+    const TMasterReadOptions& options)
 {
     return NCypressClient::FetchAttributes(
-        keys,
-        Attributes_,
+        paths,
+        attributeNames,
         client,
-        TMasterReadOptions {
-            Config_->ReadFrom,
-            Config_->MasterCacheExpireAfterSuccessfulUpdateTime,
-            Config_->MasterCacheExpireAfterFailedUpdateTime,
-            Config_->MasterCacheStickyGroupSize,
-        });
+        options);
 }
 
 TFuture<IAttributeDictionaryPtr> TObjectAttributeCache::DoGet(
@@ -57,7 +54,11 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TObjectAttributeCache::D
     bool /*isPeriodicUpdate*/) noexcept
 {
     YT_LOG_DEBUG("Updating object attribute cache (PathCount: %v)", paths.size());
-    return GetFromClient(paths, Client_);
+    return GetFromClient(
+        paths,
+        Client_,
+        AttributeNames_,
+        Config_->GetMasterReadOptions());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

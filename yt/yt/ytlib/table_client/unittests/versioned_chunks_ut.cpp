@@ -267,7 +267,8 @@ protected:
                 NullTimestamp,
                 nullptr,
                 New<TChunkReaderPerformanceCounters>(),
-                KeyComparer_);
+                KeyComparer_,
+                nullptr);
             auto chunkReader = CreateVersionedChunkReader(
                 New<TChunkReaderConfig>(),
                 MemoryReader,
@@ -402,6 +403,7 @@ protected:
             NullTimestamp,
             nullptr,
             New<TChunkReaderPerformanceCounters>(),
+            nullptr,
             nullptr);
         auto chunkReader = CreateVersionedChunkReader(
             New<TChunkReaderConfig>(),

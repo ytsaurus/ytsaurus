@@ -140,6 +140,7 @@ public:
             NullTimestamp,
             nullptr,
             nullptr,
+            nullptr,
             nullptr);
 
         auto schemalessReader = CreateSchemalessChunkReader(

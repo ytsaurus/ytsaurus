@@ -79,7 +79,6 @@ public:
             tableReadSpec,
             TClientBlockReadOptions(),
             true,
-            table->Schema->GetKeyColumns(),
             NTableClient::TNameTable::FromSchema(*table->Schema),
             NTableClient::TColumnFilter(table->Schema->GetColumnCount()));
 

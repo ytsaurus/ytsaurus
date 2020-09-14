@@ -12,6 +12,7 @@
 #include "schemaless_block_reader.h"
 #include "versioned_chunk_reader.h"
 #include "remote_dynamic_store_reader.h"
+#include "virtual_value_directory.h"
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
@@ -43,6 +44,7 @@
 #include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -93,19 +95,21 @@ public:
         const TClientBlockReadOptions& blockReadOptions,
         const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns,
-        const std::vector<TString>& omittedInaccessibleColumns)
+        int virtualKeyPrefixLength,
+        const std::vector<TString>& omittedInaccessibleColumns,
+        std::optional<i64> virtualRowIndex = std::nullopt)
         : ChunkState_(chunkState)
         , ChunkSpec_(ChunkState_->ChunkSpec)
-        , DataSliceDescriptor_(ChunkState_->ChunkSpec)
+        , DataSliceDescriptor_(ChunkState_->ChunkSpec, virtualRowIndex)
         , Config_(config)
         , Options_(options)
         , NameTable_(nameTable)
         , ColumnFilter_(columnFilter)
-        , KeyColumns_(keyColumns)
+        , ExtendedKeyColumns_(keyColumns)
+        , KeyColumns_(ExtendedKeyColumns_.begin() + virtualKeyPrefixLength, ExtendedKeyColumns_.end())
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
         , OmittedInaccessibleColumnSet_(OmittedInaccessibleColumns_.begin(), OmittedInaccessibleColumns_.end())
         , Sampler_(Config_->SamplingRate, std::random_device()())
-        , SystemColumnCount_(GetSystemColumnCount(options))
         , Logger(NLogging::TLogger(TableClientLogger)
             .AddTag("ChunkReaderId: %v", TGuid::Create())
             .AddTag("ChunkId: %v", chunkId))
@@ -135,7 +139,7 @@ public:
 
     virtual const TKeyColumns& GetKeyColumns() const override
     {
-        return KeyColumns_;
+        return ExtendedKeyColumns_;
     }
 
     virtual i64 GetTableRowIndex() const override
@@ -159,6 +163,9 @@ protected:
     const TNameTablePtr NameTable_;
 
     const TColumnFilter ColumnFilter_;
+    //! Virtual key columns + physical key columns.
+    TKeyColumns ExtendedKeyColumns_;
+    //! Physical key columns.
     TKeyColumns KeyColumns_;
     const std::vector<TString> OmittedInaccessibleColumns_;
     const THashSet<TStringBuf> OmittedInaccessibleColumnSet_; // strings are being owned by OmittedInaccessibleColumns_
@@ -168,38 +175,82 @@ protected:
     i64 DataWeight_ = 0;
 
     TBernoulliSampler Sampler_;
-    const int SystemColumnCount_;
+    int VirtualColumnCount_ = 0;
 
     int RowIndexId_ = -1;
-    int RangeIndexId_ = -1;
-    int TableIndexId_ = -1;
-    int TabletIndexId_ = -1;
+    //! Values for virtual constant columns like
+    //! range_index, table_index or partitioned table virtual key columns.
+    std::vector<TUnversionedValue> VirtualValues_;
 
     NLogging::TLogger Logger;
 
     IInvokerPtr ReaderInvoker_;
 
-    void InitializeSystemColumnIds()
+    void InitializeVirtualColumns()
     {
         try {
             if (Options_->EnableRowIndex) {
                 RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
+                // Row index is a non-constant virtual column, so we do not form any virtual value here.
+                ++VirtualColumnCount_;
             }
 
             if (Options_->EnableRangeIndex) {
-                RangeIndexId_ = NameTable_->GetIdOrRegisterName(RangeIndexColumnName);
+                VirtualValues_.push_back(MakeUnversionedInt64Value(
+                    ChunkSpec_.range_index(),
+                    NameTable_->GetIdOrRegisterName(RangeIndexColumnName)));
+                ++VirtualColumnCount_;
             }
 
-            if (Options_->EnableTableIndex) {
-                TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+            // NB: table index should not always be virtual column, sometimes it is stored
+            // alongside row in chunk (e.g. for intermediate chunks in schemaful Map-Reduce).
+            if (Options_->EnableTableIndex && ChunkSpec_.has_table_index()) {
+                VirtualValues_.push_back(MakeUnversionedInt64Value(
+                    ChunkSpec_.table_index(),
+                    NameTable_->GetIdOrRegisterName(TableIndexColumnName)));
+                ++VirtualColumnCount_;
             }
 
             if (Options_->EnableTabletIndex) {
-                TabletIndexId_ = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
+                VirtualValues_.push_back(MakeUnversionedInt64Value(
+                    ChunkSpec_.tablet_index(),
+                    NameTable_->GetIdOrRegisterName(TabletIndexColumnName)));
+                ++VirtualColumnCount_;
+            }
+
+            const auto& virtualValueDirectory = ChunkState_->VirtualValueDirectory;
+            if (ChunkState_->VirtualValueDirectory) {
+                const auto& virtualRowIndex = DataSliceDescriptor_.VirtualRowIndex;
+                YT_VERIFY(virtualRowIndex);
+                YT_VERIFY(virtualRowIndex < virtualValueDirectory->Rows.size());
+                const auto& row = virtualValueDirectory->Rows[*DataSliceDescriptor_.VirtualRowIndex];
+                // Copy all values from rows properly mapping virtual ids into actual ids according to #NameTable_.
+                for (auto value : row) {
+                    auto virtualId = value.Id;
+                    const auto& columnName = virtualValueDirectory->NameTable->GetName(virtualId);
+                    // Set proper id for this column.
+                    auto resultId = NameTable_->GetIdOrRegisterName(columnName);
+                    value.Id = resultId;
+                    VirtualValues_.push_back(value);
+                    ++VirtualColumnCount_;
+                }
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to add system columns to name table for schemaless chunk reader")
                 << ex;
+        }
+    }
+
+    void AddExtraValues(TMutableUnversionedRow& row, i64 rowIndex)
+    {
+        if (Options_->EnableRowIndex) {
+            *row.End() = MakeUnversionedInt64Value(rowIndex, RowIndexId_);
+            row.SetCount(row.GetCount() + 1);
+        }
+
+        for (const auto& value : VirtualValues_) {
+            *row.End() = value;
+            row.SetCount(row.GetCount() + 1);
         }
     }
 
@@ -315,10 +366,12 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
+        int virtualKeyPrefixLength,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         std::optional<int> partitionTag,
-        const TChunkReaderMemoryManagerPtr& memoryManager);
+        const TChunkReaderMemoryManagerPtr& memoryManager,
+        std::optional<i64> virtualRowIndex = std::nullopt);
 
     virtual TDataStatistics GetDataStatistics() const override;
 
@@ -362,10 +415,12 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
+    int virtualKeyPrefixLength,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     std::optional<int> partitionTag,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerPtr& memoryManager,
+    std::optional<i64> virtualRowIndex)
     : TChunkReaderBase(
         config,
         underlyingReader,
@@ -381,7 +436,9 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
         blockReadOptions,
         columnFilter,
         keyColumns,
-        omittedInaccessibleColumns)
+        virtualKeyPrefixLength,
+        omittedInaccessibleColumns,
+        virtualRowIndex)
     , ChunkMeta_(chunkMeta)
     , PartitionTag_(partitionTag)
 { }
@@ -390,7 +447,7 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
 {
     YT_VERIFY(BlockIndexes_.empty());
 
-    InitializeSystemColumnIds();
+    InitializeVirtualColumns();
 
     DoInitializeBlockSequence();
 
@@ -475,11 +532,13 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
+        int virtualKeyPrefixLength,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange,
         std::optional<int> partitionTag,
-        const TChunkReaderMemoryManagerPtr& memoryManager);
+        const TChunkReaderMemoryManagerPtr& memoryManager,
+        std::optional<i64> virtualRowIndex = std::nullopt);
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
@@ -511,11 +570,13 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     TNameTablePtr nameTable,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
+    int virtualKeyPrefixLength,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
     std::optional<int> partitionTag,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerPtr& memoryManager,
+    std::optional<i64> virtualRowIndex)
     : THorizontalSchemalessChunkReaderBase(
         chunkState,
         chunkMeta,
@@ -525,10 +586,12 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         std::move(nameTable),
         blockReadOptions,
         keyColumns,
+        virtualKeyPrefixLength,
         omittedInaccessibleColumns,
         columnFilter,
         partitionTag,
-        memoryManager)
+        memoryManager,
+        virtualRowIndex)
     , ReadRange_(readRange)
 {
     YT_LOG_DEBUG("Reading range %v", ReadRange_);
@@ -634,7 +697,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         IdMapping_,
         ChunkKeyColumnCount_,
         KeyColumns_.size(),
-        SystemColumnCount_));
+        VirtualColumnCount_));
 
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
@@ -703,24 +766,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
 
         if (SampleRow(GetTableRowIndex())) {
             auto row = BlockReader_->GetRow(&MemoryPool_);
-            if (Options_->EnableRangeIndex) {
-                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
-                row.SetCount(row.GetCount() + 1);
-            }
-            // NB(levysotsky): We don't always set table_index
-            // (e.g. for intermediate chunks we write table indices directly in rows).
-            if (Options_->EnableTableIndex && ChunkSpec_.has_table_index()) {
-                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
-                row.SetCount(row.GetCount() + 1);
-            }
-            if (Options_->EnableRowIndex) {
-                *row.End() = MakeUnversionedInt64Value(GetTableRowIndex(), RowIndexId_);
-                row.SetCount(row.GetCount() + 1);
-            }
-            if (Options_->EnableTabletIndex) {
-                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.tablet_index(), TabletIndexId_);
-                row.SetCount(row.GetCount() + 1);
-            }
+            AddExtraValues(row, GetTableRowIndex());
 
             rows.push_back(row);
             dataWeight += GetDataWeight(row);
@@ -819,6 +865,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         std::move(nameTable),
         blockReadOptions,
         keyColumns,
+        0 /* virtualKeyPrefixLength */,
         omittedInaccessibleColumns,
         columnFilter,
         partitionTag,
@@ -970,7 +1017,7 @@ void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
         IdMapping_,
         ChunkKeyColumnCount_,
         KeyColumns_.size(),
-        SystemColumnCount_));
+        VirtualColumnCount_));
 }
 
 void THorizontalSchemalessLookupChunkReader::InitNextBlock()
@@ -997,10 +1044,12 @@ public:
         TNameTablePtr nameTable,
         const TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
+        int virtualKeyPrefixLength,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange,
-        const TChunkReaderMemoryManagerPtr& memoryManager)
+        const TChunkReaderMemoryManagerPtr& memoryManager,
+        std::optional<i64> virtualRowIndex)
         : TSchemalessChunkReaderBase(
             chunkState,
             config,
@@ -1010,7 +1059,9 @@ public:
             blockReadOptions,
             columnFilter,
             keyColumns,
-            omittedInaccessibleColumns)
+            virtualKeyPrefixLength,
+            omittedInaccessibleColumns,
+            virtualRowIndex)
         , TColumnarRangeChunkReaderBase(
             chunkMeta,
             config,
@@ -1276,7 +1327,7 @@ private:
     TSharedRange<TUnversionedRow> MaterializeRows(i64 rowCount)
     {
         MaterializePrologue(rowCount);
-        
+
         std::vector<TUnversionedRow> rows;
         rows.reserve(rowCount);
         ReadRows(rowCount, &rows);
@@ -1367,7 +1418,7 @@ private:
     void InitializeBlockSequence()
     {
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar);
-        InitializeSystemColumnIds();
+        InitializeVirtualColumns();
 
         // Minimum prefix of key columns, that must be included in column filter.
         int minKeyColumnCount = 0;
@@ -1560,7 +1611,7 @@ private:
         for (i64 index = 0; index < rowCount; ++index) {
             auto row = TMutableUnversionedRow::Allocate(
                 &Pool_,
-                RowColumnReaders_.size() + (SchemalessReader_ ? schemalessColumnCounts[index] : 0) + SystemColumnCount_);
+                RowColumnReaders_.size() + (SchemalessReader_ ? schemalessColumnCounts[index] : 0) + VirtualColumnCount_);
             row.SetCount(RowColumnReaders_.size());
             rows->push_back(row);
         }
@@ -1581,24 +1632,7 @@ private:
         // Fill system columns.
         for (i64 index = 0; index < rowCount; ++index) {
             auto row = rowRange[index];
-            if (Options_->EnableRangeIndex) {
-                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
-                row.SetCount(row.GetCount() + 1);
-            }
-            if (Options_->EnableTableIndex) {
-                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.table_index(), TableIndexId_);
-                row.SetCount(row.GetCount() + 1);
-            }
-            if (Options_->EnableRowIndex) {
-                *row.End() = MakeUnversionedInt64Value(
-                    GetTableRowIndex() + index,
-                    RowIndexId_);
-                row.SetCount(row.GetCount() + 1);
-            }
-            if (Options_->EnableTabletIndex) {
-                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.tablet_index(), TabletIndexId_);
-                row.SetCount(row.GetCount() + 1);
-            }
+            AddExtraValues(row, GetTableRowIndex() + index);
         }
 
         AdvanceRowIndex(rowCount);
@@ -1642,6 +1676,7 @@ public:
             blockReadOptions,
             columnFilter,
             keyColumns,
+            /* virtualKeyPrefixLength */ 0,
             omittedInaccessibleColumns)
         , TColumnarLookupChunkReaderBase(
             chunkMeta,
@@ -1758,7 +1793,7 @@ private:
             SchemalessReader_->ReadValueCounts(TMutableRange<ui32>(&schemalessColumnCount, 1));
         }
 
-        auto row = TMutableUnversionedRow::Allocate(&Pool_, RowColumnReaders_.size() + schemalessColumnCount + SystemColumnCount_);
+        auto row = TMutableUnversionedRow::Allocate(&Pool_, RowColumnReaders_.size() + schemalessColumnCount + VirtualColumnCount_);
         row.SetCount(RowColumnReaders_.size());
 
         // Read values.
@@ -1779,7 +1814,7 @@ private:
     void InitializeBlockSequence()
     {
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::UnversionedColumnar);
-        InitializeSystemColumnIds();
+        InitializeVirtualColumns();
 
         if (!ChunkMeta_->Misc().sorted()) {
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
@@ -1916,7 +1951,9 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
     std::optional<int> partitionTag,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerPtr& memoryManager,
+    int virtualKeyPrefixLength,
+    std::optional<i64> virtualRowIndex)
 {
     YT_VERIFY(chunkMeta->GetChunkType() == EChunkType::Table);
 
@@ -1931,11 +1968,13 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 nameTable,
                 blockReadOptions,
                 keyColumns,
+                virtualKeyPrefixLength,
                 omittedInaccessibleColumns,
                 columnFilter,
                 readRange,
                 partitionTag,
-                memoryManager);
+                memoryManager,
+                virtualRowIndex);
 
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessRangeChunkReader>(
@@ -1947,10 +1986,12 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 nameTable,
                 blockReadOptions,
                 keyColumns,
+                virtualKeyPrefixLength,
                 omittedInaccessibleColumns,
                 columnFilter,
                 readRange,
-                memoryManager);
+                memoryManager,
+                virtualRowIndex);
 
         default:
             YT_ABORT();

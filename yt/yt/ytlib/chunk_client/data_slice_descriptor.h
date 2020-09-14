@@ -11,10 +11,15 @@ namespace NYT::NChunkClient {
 struct TDataSliceDescriptor
 {
     std::vector<NProto::TChunkSpec> ChunkSpecs;
+    //! Index of a row in virtual column directory.
+    // TODO(max42): ToProto/FromProto and introduce data slice descriptor extension.
+    std::optional<i64> VirtualRowIndex;
 
     TDataSliceDescriptor() = default;
     explicit TDataSliceDescriptor(std::vector<NProto::TChunkSpec> chunkSpecs);
-    explicit TDataSliceDescriptor(NProto::TChunkSpec chunkSpec);
+    explicit TDataSliceDescriptor(
+        NProto::TChunkSpec chunkSpec,
+        std::optional<i64> virtualRowIndex = std::nullopt);
 
     int GetDataSourceIndex() const;
     int GetRangeIndex() const;

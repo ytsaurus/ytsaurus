@@ -121,6 +121,8 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidSchemaValue)         (314))
     ((FormatCannotRepresentRow)   (315))
     ((IncompatibleSchemas)        (316))
+    ((InvalidPartitionedBy)       (317))
+    ((MisconfiguredPartitions)    (318))
 );
 
 DEFINE_ENUM(EControlAttribute,
@@ -147,6 +149,11 @@ DEFINE_ENUM(EColumnarStatisticsFetcherMode,
     ((FromNodes)             (0))
     ((FromMaster)            (1))
     ((Fallback)              (2))
+);
+
+DEFINE_ENUM(EMisconfiguredPartitionTactics,
+    ((Fail)     (0))
+    ((Skip)     (1))
 );
 
 using TTableId = NCypressClient::TNodeId;
@@ -225,6 +232,8 @@ DECLARE_REFCOUNTED_CLASS(TChunkWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTableReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TTableWriterConfig)
+
+DECLARE_REFCOUNTED_CLASS(TPartitionedTableHarvesterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TRetentionConfig)
 

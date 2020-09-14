@@ -21,7 +21,8 @@ struct TChunkState
         NTransactionClient::TTimestamp chunkTimestamp,
         IChunkLookupHashTablePtr lookupHashTable,
         TChunkReaderPerformanceCountersPtr performanceCounters,
-        TKeyComparer keyComparer)
+        TKeyComparer keyComparer,
+        TVirtualValueDirectoryPtr virtualValueDirectory)
         : BlockCache(std::move(preloadedBlockCache))
         , ChunkSpec(chunkSpec)
         , ChunkMeta(std::move(chunkMeta))
@@ -29,6 +30,7 @@ struct TChunkState
         , LookupHashTable(std::move(lookupHashTable))
         , PerformanceCounters(std::move(performanceCounters))
         , KeyComparer(std::move(keyComparer))
+        , VirtualValueDirectory(std::move(virtualValueDirectory))
     { }
 
     TChunkState(const TChunkState& other) = default;
@@ -41,6 +43,7 @@ struct TChunkState
     IChunkLookupHashTablePtr LookupHashTable;
     TChunkReaderPerformanceCountersPtr PerformanceCounters;
     TKeyComparer KeyComparer;
+    TVirtualValueDirectoryPtr VirtualValueDirectory;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkState)

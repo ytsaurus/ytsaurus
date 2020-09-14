@@ -247,6 +247,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         NullTimestamp,
         nullptr,
         nullptr,
+        nullptr,
         nullptr);
 
     auto underlyingReader = CreateSchemafulChunkReader(

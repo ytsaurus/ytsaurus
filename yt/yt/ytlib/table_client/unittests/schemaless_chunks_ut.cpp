@@ -314,6 +314,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         NullTimestamp,
         nullptr,
         nullptr,
+        nullptr,
         nullptr);
 
     TClientBlockReadOptions blockReadOptions;
@@ -456,6 +457,7 @@ protected:
             ChunkSpec_,
             nullptr,
             NullTimestamp,
+            nullptr,
             nullptr,
             nullptr,
             nullptr);
@@ -709,6 +711,7 @@ protected:
             ChunkSpec_,
             nullptr,
             NullTimestamp,
+            nullptr,
             nullptr,
             nullptr,
             nullptr);

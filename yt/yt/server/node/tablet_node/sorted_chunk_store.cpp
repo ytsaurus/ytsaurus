@@ -528,7 +528,8 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
         ChunkTimestamp_,
         nullptr,
         PerformanceCounters_,
-        GetKeyComparer());
+        GetKeyComparer(),
+        nullptr);
 }
 
 void TSortedChunkStore::ValidateBlockSize(

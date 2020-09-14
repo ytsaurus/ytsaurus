@@ -17,6 +17,7 @@ DEFINE_ENUM(EErrorCode,
     ((CrossCellRevisionPrerequisitePath)         (1003))
     ((ForwardedRequestFailed)                    (1004))
     ((CannotCacheMutatingRequest)                (1005))
+    ((InvalidObjectType)                         (1006))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,6 +173,7 @@ DEFINE_ENUM(EObjectType,
     ((Link)                          (417))
     ((Document)                      (421))
     ((ReplicatedTable)               (425))
+    ((PartitionedTable)              (427))
 
     // Portals
     ((PortalEntrance)               (11000))

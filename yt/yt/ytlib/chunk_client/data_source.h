@@ -35,12 +35,15 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, Timestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetentionTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TColumnRenameDescriptors, ColumnRenameDescriptors);
+    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TVirtualValueDirectoryPtr, VirtualValueDirectory);
+    DEFINE_BYVAL_RW_PROPERTY(int, VirtualKeyPrefixLength, 0);
 
     TDataSource() = default;
     TDataSource(
         EDataSourceType type,
         const std::optional<NYPath::TYPath>& path,
         NTableClient::TTableSchemaPtr schema,
+        int virtualKeyPrefixLength,
         const std::optional<std::vector<TString>>& columns,
         const std::vector<TString>& omittedInaccessibleColumns,
         NTransactionClient::TTimestamp timestamp,
@@ -62,6 +65,15 @@ TDataSource MakeUnversionedDataSource(
     NTableClient::TTableSchemaPtr schema,
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
+    const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
+
+TDataSource MakePartitionedTableDataSource(
+    const std::optional<NYPath::TYPath>& path,
+    NTableClient::TTableSchemaPtr schema,
+    int virtualKeyPrefixLength,
+    const std::optional<std::vector<TString>>& columns,
+    const std::vector<TString>& omittedInaccessibleColumns,
+    const NTableClient::TVirtualValueDirectoryPtr& virtualValueDirectory,
     const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
 TDataSource MakeFileDataSource(const std::optional<NYPath::TYPath>& path);
