@@ -41,7 +41,7 @@ protected:
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     TNodeDiscoveryManagerConfigPtr Config_;
 
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
     void OnLeaderActive();
     void OnStopLeading();
     bool IsGoodNode(const TNode* node) const;

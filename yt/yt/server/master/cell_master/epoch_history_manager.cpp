@@ -102,7 +102,7 @@ private:
             ->CommitAndLog(Logger);
     }
 
-    void OnDynamicConfigChanged()
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         StoreMutationTimeExecutor_->SetPeriod(
             Bootstrap_->GetConfigManager()->GetConfig()->CellMaster->MutationTimeCommitPeriod);

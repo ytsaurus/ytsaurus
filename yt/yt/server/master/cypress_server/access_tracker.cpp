@@ -26,6 +26,7 @@ using namespace NCypressClient;
 using namespace NHydra;
 using namespace NTransactionServer;
 using namespace NObjectServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -207,7 +208,7 @@ const TDynamicCypressManagerConfigPtr& TAccessTracker::GetDynamicConfig()
     return configManager->GetConfig()->CypressManager;
 }
 
-void TAccessTracker::OnDynamicConfigChanged()
+void TAccessTracker::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     FlushExecutor_->SetPeriod(GetDynamicConfig()->StatisticsFlushPeriod);
 }

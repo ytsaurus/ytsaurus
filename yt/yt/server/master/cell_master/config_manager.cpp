@@ -59,14 +59,16 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+
+        auto oldConfig = std::move(Config_);
         Config_ = std::move(config);
         ReplicateConfigToSecondaryMasters();
 
         NTracing::TNullTraceContextGuard nullTraceContext;
-        ConfigChanged_.Fire();
+        ConfigChanged_.Fire(oldConfig);
     }
 
-    DEFINE_SIGNAL(void(), ConfigChanged);
+    DEFINE_SIGNAL(void(TDynamicClusterConfigPtr), ConfigChanged);
 
 private:
     TDynamicClusterConfigPtr Config_ = New<TDynamicClusterConfig>();
@@ -137,7 +139,7 @@ void TConfigManager::SetConfig(TDynamicClusterConfigPtr config)
     Impl_->SetConfig(std::move(config));
 }
 
-DELEGATE_SIGNAL(TConfigManager, void(), ConfigChanged, *Impl_);
+DELEGATE_SIGNAL(TConfigManager, void(TDynamicClusterConfigPtr), ConfigChanged, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -54,7 +54,7 @@ private:
 
     void OnCheck();
     const TMutationIdempotizerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMutationIdempotizer)

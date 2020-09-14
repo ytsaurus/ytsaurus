@@ -20,7 +20,7 @@ public:
     const TDynamicClusterConfigPtr& GetConfig() const;
     void SetConfig(TDynamicClusterConfigPtr config);
 
-    DECLARE_SIGNAL(void(), ConfigChanged);
+    DECLARE_SIGNAL(void(TDynamicClusterConfigPtr), ConfigChanged);
 
 private:
     class TImpl;

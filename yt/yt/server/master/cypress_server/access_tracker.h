@@ -39,7 +39,8 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    const TClosure DynamicConfigChangedCallback_ = BIND(&TAccessTracker::OnDynamicConfigChanged, MakeWeak(this));
+    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
+        BIND(&TAccessTracker::OnDynamicConfigChanged, MakeWeak(this));
 
     NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest_;
     std::vector<TCypressNode*> NodesWithAccessStatisticsUpdate_;
@@ -56,7 +57,7 @@ private:
     void OnFlush();
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAccessTracker)

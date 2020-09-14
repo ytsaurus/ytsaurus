@@ -156,7 +156,7 @@ const TMutationIdempotizerConfigPtr& TMutationIdempotizer::GetDynamicConfig()
     return configManager->GetConfig()->ObjectManager->MutationIdempotizer;
 }
 
-void TMutationIdempotizer::OnDynamicConfigChanged()
+void TMutationIdempotizer::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     if (CheckExecutor_) {
         CheckExecutor_->SetPeriod(GetDynamicConfig()->ExpirationCheckPeriod);

@@ -34,7 +34,8 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    const TClosure DynamicConfigChangedCallback_ = BIND(&TExpirationTracker::OnDynamicConfigChanged, MakeWeak(this));
+    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
+        BIND(&TExpirationTracker::OnDynamicConfigChanged, MakeWeak(this));
 
     NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
 
@@ -58,7 +59,7 @@ private:
     bool IsMutationLoggingEnabled() const;
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
 };
 
 DEFINE_REFCOUNTED_TYPE(TExpirationTracker)

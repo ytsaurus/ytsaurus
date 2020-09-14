@@ -3638,7 +3638,7 @@ private:
         return configManager->GetConfig()->CypressManager;
     }
 
-    void OnDynamicConfigChanged()
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         RecursiveResourceUsageCache_->SetExpirationTimeout(
             GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);

@@ -25,6 +25,7 @@ using namespace NYTree;
 using namespace NYPath;
 using namespace NYson;
 using namespace NHydra;
+using namespace NCellMaster;
 
 using NYT::ToProto;
 
@@ -95,7 +96,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
     }
 
-    void OnDynamicConfigChanged()
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

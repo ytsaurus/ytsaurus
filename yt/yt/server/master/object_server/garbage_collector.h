@@ -63,7 +63,8 @@ public:
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    const TClosure DynamicConfigChangedCallback_ = BIND(&TGarbageCollector::OnDynamicConfigChanged, MakeWeak(this));
+    const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
+        BIND(&TGarbageCollector::OnDynamicConfigChanged, MakeWeak(this));
 
     NConcurrency::TPeriodicExecutorPtr SweepExecutor_;
     NConcurrency::TPeriodicExecutorPtr ObjectRemovalCellsSyncExecutor_;
@@ -104,7 +105,7 @@ private:
     bool IsMutationLoggingEnabled();
 
     const TDynamicObjectManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged();
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGarbageCollector)

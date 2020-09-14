@@ -86,7 +86,7 @@ TNodeDiscoveryManager::TNodeDiscoveryManager(
         BIND(&TNodeDiscoveryManager::OnStopLeading, MakeWeak(this)));
 }
 
-void TNodeDiscoveryManager::OnDynamicConfigChanged()
+void TNodeDiscoveryManager::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     Config_ = GetConfigByNodeRole(Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker, NodeRole_);
 

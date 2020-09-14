@@ -255,7 +255,7 @@ const TBoomerangTrackerConfigPtr& TBoomerangTracker::GetDynamicConfig()
     return configManager->GetConfig()->TransactionManager->BoomerangTracker;
 }
 
-void TBoomerangTracker::OnDynamicConfigChanged()
+void TBoomerangTracker::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
     if (CheckExecutor_) {
         CheckExecutor_->SetPeriod(GetDynamicConfig()->StuckBoomerangWaveExpirationCheckPeriod);
