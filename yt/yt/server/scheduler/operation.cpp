@@ -126,7 +126,6 @@ TOperation::TOperation(
     bool suspended,
     const std::optional<TJobResources>& initialAggregatedMinNeededResources)
     : MutationId_(mutationId)
-    , State_(state)
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
     , ControllerData_(New<TOperationControllerData>())
@@ -144,6 +143,7 @@ TOperation::TOperation(
     , SpecString_(specString)
     , CodicilData_(MakeOperationCodicilString(Id_))
     , ControlInvoker_(std::move(controlInvoker))
+    , State_(state)
     , RuntimeParameters_(std::move(runtimeParameters))
     , IsScheduledInSingleTree_(isScheduledInSingleTree)
 {
@@ -276,6 +276,11 @@ IOperationControllerStrategyHostPtr TOperation::GetControllerStrategyHost() cons
 TCodicilGuard TOperation::MakeCodicilGuard() const
 {
     return TCodicilGuard(CodicilData_);
+}
+
+EOperationState TOperation::GetState() const
+{
+    return State_;
 }
 
 void TOperation::SetStateAndEnqueueEvent(

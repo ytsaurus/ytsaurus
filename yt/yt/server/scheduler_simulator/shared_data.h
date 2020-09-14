@@ -25,7 +25,6 @@ struct TNodeShardEvent
 {
     EEventType Type;
     TInstant Time;
-    NScheduler::TOperationId OperationId;
     NNodeTrackerClient::TNodeId NodeId;
     NScheduler::TJobPtr Job;
     NScheduler::TExecNodePtr JobNode;

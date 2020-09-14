@@ -15,7 +15,6 @@ class TOperation
     , public NScheduler::IOperationStrategyHost
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(NScheduler::EOperationState, State);
     DEFINE_BYVAL_RW_PROPERTY(ISimulatorOperationControllerPtr, Controller);
 
 public:
@@ -25,6 +24,7 @@ public:
 
     virtual NScheduler::TOperationId GetId() const override;
     virtual NScheduler::EOperationType GetType() const override;
+    virtual NScheduler::EOperationState GetState() const override;
     std::optional<NScheduler::EUnschedulableReason> CheckUnschedulable() const override;
     virtual TInstant GetStartTime() const override;
     virtual TString GetAuthenticatedUser() const override;
@@ -48,6 +48,8 @@ public:
     virtual std::optional<NScheduler::TJobResources> GetInitialAggregatedMinNeededResources() const override;
 
     bool SetCompleting();
+    
+    void SetState(NScheduler::EOperationState state);
 
 private:
     std::atomic<bool> Completing_ = {false};
@@ -58,6 +60,7 @@ private:
     const TString AuthenticatedUser_;
     const TInstant StartTime_;
     const NScheduler::TOperationRuntimeParametersPtr RuntimeParameters_;
+    NScheduler::EOperationState State_ = NScheduler::EOperationState::Running;
     THashMap<TString, int> TreeIdToSlotIndex_;
 };
 

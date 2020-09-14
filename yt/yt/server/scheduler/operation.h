@@ -116,6 +116,8 @@ struct IOperationStrategyHost
 {
     virtual EOperationType GetType() const = 0;
 
+    virtual EOperationState GetState() const = 0;
+
     virtual std::optional<EUnschedulableReason> CheckUnschedulable() const = 0;
 
     virtual TInstant GetStartTime() const = 0;
@@ -190,7 +192,6 @@ class TOperation
 public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
 
-    DEFINE_BYVAL_RO_PROPERTY(EOperationState, State);
     DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH(bool, Suspended);
 
     // By default, all new operations are not activated.
@@ -308,6 +309,8 @@ public:
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
 
+    virtual EOperationState GetState() const override;
+
     //! Sets operation state and adds the corresponding event with given attributes.
     void SetStateAndEnqueueEvent(
         EOperationState state,
@@ -379,6 +382,8 @@ private:
     const TString CodicilData_;
     const IInvokerPtr ControlInvoker_;
     bool Activated_ = false;
+
+    EOperationState State_;
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableInvoker_;
