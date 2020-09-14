@@ -442,7 +442,8 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                              spec={"cluster_name": self.REMOTE_CLUSTER_NAME,
                                    "max_failed_job_count": 1,
                                    "delay_in_copy_chunk": 5000,
-                                   "erasure_chunk_repair_delay": 2000})
+                                   "erasure_chunk_repair_delay": 2000,
+                                   "repair_erasure_chunks": True})
             wait(lambda: len(op.get_running_jobs()) == 1)
             return op
 

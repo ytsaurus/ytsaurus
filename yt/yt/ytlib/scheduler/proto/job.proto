@@ -499,6 +499,8 @@ message TRemoteCopyJobSpecExt
     optional int64 delay_in_copy_chunk = 4;
 
     optional int64 erasure_chunk_repair_delay = 5;
+
+    optional bool repair_erasure_chunks = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1339,6 +1339,10 @@ public:
     //! If a part of erasure chunk was not read within this timeout, repair starts.
     TDuration ErasureChunkRepairDelay;
 
+    //! If true, erasure chunks could be repaired during copy if some of the parts
+    //! are missing at the source cluster.
+    bool RepairErasureChunks;
+
     TRemoteCopyOperationSpec();
 
 private:
