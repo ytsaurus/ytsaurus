@@ -1824,7 +1824,7 @@ class TestTables(YTEnvSetup):
             assert len(sample_rows("//tmp/t1", 0)) == 0
             assert len(sample_rows("//tmp/t1", 0, 25, 75)) == 0
             assert 25 <= len(sample_rows("//tmp/t1", 0.5)) <= 75
-            assert 10 <= len(sample_rows("//tmp/t1", 0.5, 25, 75)) <= 38
+            assert 8 <= len(sample_rows("//tmp/t1", 0.5, 25, 75)) <= 41
             assert len(sample_rows("//tmp/t1", 1)) == 100
             assert len(sample_rows("//tmp/t1", 1, 25, 75)) == 50
 
