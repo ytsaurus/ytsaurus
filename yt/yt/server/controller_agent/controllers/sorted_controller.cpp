@@ -895,7 +895,7 @@ public:
 
     virtual TCpuResource GetCpuLimit() const override
     {
-        return Spec_->Reducer->CpuLimit;
+        return TCpuResource(Spec_->Reducer->CpuLimit);
     }
 
     virtual TUserJobSpecPtr GetUserJobSpec() const

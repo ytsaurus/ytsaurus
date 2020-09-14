@@ -280,7 +280,7 @@ EJobResourceType GetDominantResource(
     auto maxType = EJobResourceType::Cpu;
     double maxRatio = 0.0;
     auto update = [&] (auto a, auto b, EJobResourceType type) {
-        if (b > 0) {
+        if (static_cast<double>(b) > 0.0) {
             double ratio = static_cast<double>(a) / static_cast<double>(b);
             if (ratio > maxRatio) {
                 maxRatio = ratio;
@@ -300,7 +300,7 @@ double GetDominantResourceUsage(
 {
     double maxRatio = 0.0;
     auto update = [&] (auto a, auto b, EJobResourceType type) {
-        if (b > 0) {
+        if (static_cast<double>(b) > 0.0) {
             double ratio = static_cast<double>(a) / static_cast<double>(b);
             if (ratio > maxRatio) {
                 maxRatio = ratio;
@@ -332,7 +332,7 @@ double GetMinResourceRatio(
 {
     double result = std::numeric_limits<double>::infinity();
     auto update = [&] (auto a, auto b) {
-        if (b > 0) {
+        if (static_cast<double>(b) > 0.0) {
             result = std::min(result, static_cast<double>(a) / static_cast<double>(b));
         }
     };
@@ -348,7 +348,7 @@ double GetMaxResourceRatio(
 {
     double result = 0.0;
     auto update = [&] (auto a, auto b) {
-        if (b > 0) {
+        if (static_cast<double>(b) > 0.0) {
             result = std::max(result, static_cast<double>(a) / static_cast<double>(b));
         }
     };

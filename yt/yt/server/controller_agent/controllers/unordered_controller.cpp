@@ -593,7 +593,7 @@ private:
     // Unsorted helpers.
     virtual TCpuResource GetCpuLimit() const override
     {
-        return Spec->Mapper->CpuLimit;
+        return TCpuResource(Spec->Mapper->CpuLimit);
     }
 
     virtual void InitJobSpecTemplate() override

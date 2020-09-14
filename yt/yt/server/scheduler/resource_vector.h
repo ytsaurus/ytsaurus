@@ -60,8 +60,8 @@ public:
         TResourceVector result = {};
         int resourceId = 0;
         auto update = [&](auto resourceValue, auto resourceLimit) {
-            if (resourceLimit == 0) {
-                if (resourceValue == 0) {
+            if (static_cast<double>(resourceLimit) == 0.0) {
+                if (static_cast<double>(resourceValue) == 0.0) {
                     result[resourceId] = zeroDivByZero;
                 } else {
                     result[resourceId] = oneDivByZero;

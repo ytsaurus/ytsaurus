@@ -31,7 +31,7 @@ TJobResources CreateJobResources(int cpu, i64 memory, int network)
 {
     TJobResources resources;
 
-    resources.SetCpu(TCpuResource(cpu));
+    resources.SetCpu(cpu);
     resources.SetMemory(memory);
     resources.SetNetwork(network);
     resources.SetUserSlots(1);
@@ -214,7 +214,7 @@ protected:
     {
         TJobResources resourceLimits;
 
-        resourceLimits.SetCpu(TCpuResource(cpu));
+        resourceLimits.SetCpu(cpu);
         resourceLimits.SetMemory(memory);
         resourceLimits.SetUserSlots(userSlots);
         resourceLimits.SetNetwork(network);
