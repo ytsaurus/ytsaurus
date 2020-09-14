@@ -374,6 +374,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             NullTimestamp,
             nullptr,
             nullptr,
+            nullptr,
             nullptr);
 
         auto chunkReader = CreateMemoryReader(

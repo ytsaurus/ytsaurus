@@ -12,8 +12,8 @@ using namespace NProto;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::EChunkType;
-using NYTree::BuildYsonFluently;
 using NYson::IYsonConsumer;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,6 +69,19 @@ void Serialize(const TOwningBoundaryKeys& keys, IYsonConsumer* consumer)
             .Item("min_key").Value(keys.MinKey)
             .Item("max_key").Value(keys.MaxKey)
         .EndMap();
+}
+
+void Deserialize(TOwningBoundaryKeys& keys, const INodePtr& node)
+{
+    const auto& mapNode = node->AsMap();
+    // Boundary keys for empty tables look like {} in YSON.
+    if (mapNode->GetChildCount() == 0) {
+        keys.MinKey = TUnversionedOwningRow();
+        keys.MaxKey = TUnversionedOwningRow();
+        return;
+    }
+    Deserialize(keys.MinKey, mapNode->GetChildOrThrow("min_key"));
+    Deserialize(keys.MaxKey, mapNode->GetChildOrThrow("max_key"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

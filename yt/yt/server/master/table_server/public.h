@@ -18,6 +18,7 @@ using TTableSchemaRegistryPtr = TInternRegistryPtr<NTableClient::TTableSchema>;
 
 class TTableNode;
 class TReplicatedTableNode;
+class TPartitionedTableNode;
 
 template <class TImpl>
 class TTableNodeTypeHandlerBase;
@@ -29,6 +30,7 @@ DECLARE_REFCOUNTED_CLASS(TSharedTableSchemaRegistry);
 DECLARE_REFCOUNTED_CLASS(TVirtualStaticTable);
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableOptions);
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig);
+DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

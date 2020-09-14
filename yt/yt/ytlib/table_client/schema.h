@@ -19,8 +19,9 @@ void ValidateTableSchemaUpdate(
     bool isTableEmpty = false);
 
 void ValidatePivotKey(
-    const TOwningKey& pivotKey,
-    const TTableSchema& schema);
+    const TUnversionedRow& pivotKey,
+    const TTableSchema& schema,
+    const TStringBuf& keyType = "pivot");
 
 TTableSchemaPtr InferInputSchema(
     const std::vector<TTableSchemaPtr>& schemas,
@@ -34,7 +35,7 @@ TTableSchemaPtr InferInputSchema(
 TError ValidateTableSchemaCompatibility(
     const TTableSchema& inputSchema,
     const TTableSchema& outputSchema,
-    bool ignoreSortOrder,
+    bool ignoreSortOrder = false,
     bool allowSimpleTypeDeoptionalize = false);
 
 //! Compared to #ValidateTableSchema, additionally validates

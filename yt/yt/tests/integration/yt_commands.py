@@ -46,8 +46,11 @@ SchemaViolation = 307
 IncompatibleKeyColumns = 311
 IncompatibleSchemas    = 316
 InvalidSchemaValue = 314
+InvalidPartitionedBy = 317
+MisconfiguredPartitions = 318
 ResolveErrorCode = 500
 AuthorizationErrorCode = 901
+InvalidObjectType = 1006
 TmpfsOverflow = 1124
 UserJobProducedCoreFiles = 1206
 TabletNotMounted = 1702
@@ -70,11 +73,12 @@ def authors(*the_authors):
     return pytest.mark.authors(the_authors)
 
 @contextlib.contextmanager
-def raises_yt_error(code):
+def raises_yt_error(code=None):
     """
     Context manager that helps to check that code raises YTError.
     When description is int we check that raised error contains this error code.
     When description is string we check that raised error contains description as substring.
+    Value of context manager is a single-element list containing caught error.
 
     Examples:
         with raises_yt_error(SortOrderViolation):
@@ -82,11 +86,17 @@ def raises_yt_error(code):
 
         with raises_yt_error("Name of struct field #0 is empty"):
             ...
+
+        with raises_yt_error() as err:
+            ...
+        assert err[0].contains_code(42) and len(err[0].inner_errors) > 0
     """
-    if not isinstance(code, (str, int)):
-        raise TypeError("code must be str or int, actual type: {}".format(code.__class__))
+
+    result_list = []
+    if not isinstance(code, (str, int, type(None))):
+        raise TypeError("code must be str, int or None, actual type: {}".format(code.__class__))
     try:
-        yield
+        yield result_list
         raise AssertionError("Expected exception to be raised.")
     except YtError as e:
         if isinstance(code, int):
@@ -95,13 +105,15 @@ def raises_yt_error(code):
                     code,
                     e,
                 ))
-        else:
-            assert isinstance(code, str)
+        elif isinstance(code, str):
             if code not in str(e):
                 raise AssertionError("Raised error doesn't contain {}:\n{}".format(
                     code,
                     e,
                 ))
+        else:
+            assert code is None
+        result_list.append(e)
 
 def print_debug(*args):
     if arcadia_interop.yatest_common is None:

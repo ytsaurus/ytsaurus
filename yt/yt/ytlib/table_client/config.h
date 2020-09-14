@@ -4,6 +4,7 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/config.h>
 
 namespace NYT::NTableClient {
@@ -67,6 +68,25 @@ class TTableReaderOptions
 { };
 
 DEFINE_REFCOUNTED_TYPE(TTableReaderOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Partitioned table partition config.
+class TPartitionConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NYPath::TYPath Path;
+    NTableClient::TOwningKey Key;
+
+    TPartitionConfig()
+    {
+        RegisterParameter("path", Path);
+        RegisterParameter("key", Key);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPartitionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

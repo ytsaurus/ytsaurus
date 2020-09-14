@@ -8,6 +8,8 @@
 
 #include <yt/core/rpc/config.h>
 
+#include <yt/client/api/public.h>
+
 namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +34,17 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("master_cache_cache_sticky_group_size", MasterCacheStickyGroupSize)
             .Default(1);
+    }
+
+    // TODO(max42): eliminate this by proper inheritance.
+    NApi::TMasterReadOptions GetMasterReadOptions()
+    {
+        return NApi::TMasterReadOptions {
+            ReadFrom,
+            MasterCacheExpireAfterSuccessfulUpdateTime,
+            MasterCacheExpireAfterFailedUpdateTime,
+            MasterCacheStickyGroupSize,
+        };
     }
 };
 

@@ -249,6 +249,8 @@
     XX(Options, options) \
     XX(Owner, owner) \
     XX(OwningNodes, owning_nodes) \
+    XX(Partitions, partitions) \
+    XX(PartitionedBy, partitioned_by) \
     XX(Packing, packing) \
     XX(ParentId, parent_id) \
     XX(ParentIds, parent_ids) \

@@ -198,6 +198,9 @@ private:
             .FetchChunkSpecConfig = Config_,
             .FetchParityReplicas = tableReaderConfig->EnableAutoRepair,
             .UnavailableChunkStrategy = tableReaderConfig->UnavailableChunkStrategy,
+            .NameTable = NameTable_,
+            .ColumnFilter = ColumnFilter_,
+            .PartitionedTableHarvesterConfig = tableReaderConfig,
         };
 
         TClientBlockReadOptions blockReadOptions;
@@ -218,7 +221,6 @@ private:
             tableReadSpec,
             blockReadOptions,
             Options_.Unordered,
-            TableSchema_->GetKeyColumns(),
             NameTable_,
             ColumnFilter_,
             BandwidthThrottler_,

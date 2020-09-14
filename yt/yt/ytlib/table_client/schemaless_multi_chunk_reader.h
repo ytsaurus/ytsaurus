@@ -117,7 +117,6 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
     TTableReadSpec& tableReadSpec,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     bool unordered,
-    const TKeyColumns& keyColumns,
     const TNameTablePtr& nameTable,
     const TColumnFilter& columnFilter,
     const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),

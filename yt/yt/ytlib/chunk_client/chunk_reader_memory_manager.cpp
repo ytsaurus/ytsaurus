@@ -265,6 +265,7 @@ TMemoryUsageGuard::~TMemoryUsageGuard()
     Guard.Release();
     auto memoryManager = MemoryManager.Lock();
     if (memoryManager) {
+
         memoryManager->TryUnregister();
     }
 }

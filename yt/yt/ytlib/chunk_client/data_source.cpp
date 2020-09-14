@@ -20,6 +20,7 @@ TDataSource::TDataSource(
     EDataSourceType type,
     const std::optional<TYPath>& path,
     TTableSchemaPtr schema,
+    int virtualKeyPrefixLength,
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
     TTimestamp timestamp,
@@ -33,6 +34,7 @@ TDataSource::TDataSource(
     , Timestamp_(timestamp)
     , RetentionTimestamp_(retentionTimestamp)
     , ColumnRenameDescriptors_(columnRenameDescriptors)
+    , VirtualKeyPrefixLength_(virtualKeyPrefixLength)
 { }
 
 void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource, TSchemaDictionary* schemaDictionary, TColumnFilterDictionary* columnFilterDictionary)
@@ -154,7 +156,8 @@ TDataSource MakeVersionedDataSource(
     return TDataSource(
         EDataSourceType::VersionedTable,
         path,
-        std::move(schema),
+        schema,
+        /* virtualKeyPrefixLength */ 0,
         columns,
         omittedInaccessibleColumns,
         timestamp,
@@ -172,7 +175,8 @@ TDataSource MakeUnversionedDataSource(
     return TDataSource(
         EDataSourceType::UnversionedTable,
         path,
-        std::move(schema),
+        schema,
+        /* virtualKeyPrefixLength */ 0,
         columns,
         omittedInaccessibleColumns,
         NullTimestamp,
@@ -180,12 +184,37 @@ TDataSource MakeUnversionedDataSource(
         columnRenameDescriptors);
 }
 
+TDataSource MakePartitionedTableDataSource(
+    const std::optional<NYPath::TYPath>& path,
+    NTableClient::TTableSchemaPtr schema,
+    int virtualKeyPrefixLength,
+    const std::optional<std::vector<TString>>& columns,
+    const std::vector<TString>& omittedInaccessibleColumns,
+    const NTableClient::TVirtualValueDirectoryPtr& virtualValueDirectory,
+    const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors)
+{
+    TDataSource dataSource(
+        EDataSourceType::UnversionedTable,
+        path,
+        schema,
+        virtualKeyPrefixLength,
+        columns,
+        omittedInaccessibleColumns,
+        NullTimestamp,
+        NullTimestamp,
+        columnRenameDescriptors);
+    dataSource.SetVirtualValueDirectory(virtualValueDirectory);
+    return dataSource;
+}
+
+
 TDataSource MakeFileDataSource(const std::optional<TYPath>& path)
 {
     return TDataSource(
         EDataSourceType::File,
         path,
         nullptr,
+        0,
         std::nullopt,
         {},
         NullTimestamp,

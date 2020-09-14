@@ -20,10 +20,11 @@ TDataSliceDescriptor::TDataSliceDescriptor(
 { }
 
 TDataSliceDescriptor::TDataSliceDescriptor(
-    NProto::TChunkSpec chunkSpec)
-{
-    ChunkSpecs.push_back(std::move(chunkSpec));
-}
+    NProto::TChunkSpec chunkSpec,
+    std::optional<i64> virtualRowIndex)
+    : ChunkSpecs{std::move(chunkSpec)}
+    , VirtualRowIndex(virtualRowIndex)
+{ }
 
 const NProto::TChunkSpec& TDataSliceDescriptor::GetSingleChunk() const
 {

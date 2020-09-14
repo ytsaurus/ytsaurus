@@ -179,28 +179,6 @@ TUnversionedValue MakeUnversionedValue(TStringBuf ysonString, int id, TStateless
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetSystemColumnCount(const TChunkReaderOptionsPtr& options)
-{
-    int systemColumnCount = 0;
-    if (options->EnableRowIndex) {
-        ++systemColumnCount;
-    }
-
-    if (options->EnableRangeIndex) {
-        ++systemColumnCount;
-    }
-
-    if (options->EnableTableIndex) {
-        ++systemColumnCount;
-    }
-
-    if (options->EnableTabletIndex) {
-        ++systemColumnCount;
-    }
-
-    return systemColumnCount;
-}
-
 void ValidateKeyColumnCount(
     int tableKeyColumnCount,
     int chunkKeyColumnCount,

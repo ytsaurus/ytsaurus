@@ -248,7 +248,12 @@ public:
 
         std::reverse(missedPaths.begin(), missedPaths.end());
 
-        auto attributesForMissedPaths = WaitFor(TableAttributeCache_->GetFromClient(missedPaths, client))
+        // TODO(max42): eliminate this.
+        auto attributesForMissedPaths = WaitFor(TableAttributeCache_->GetFromClient(
+            missedPaths,
+            client,
+            AttributesToCache,
+            Config_->TableAttributeCache->GetMasterReadOptions()))
             .ValueOrThrow();
 
         std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> attributes;

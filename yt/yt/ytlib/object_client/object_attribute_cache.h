@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/api/native/public.h>
 
+#include <yt/client/api/client.h>
+
 #include <yt/client/misc/public.h>
 
 #include <yt/core/misc/async_expiring_cache.h>
@@ -18,19 +20,23 @@ class TObjectAttributeCache
     : public TAsyncExpiringCache<NYPath::TYPath, NYTree::IAttributeDictionaryPtr>
 {
 public:
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, AttributeNames);
+
+public:
     TObjectAttributeCache(
         TObjectAttributeCacheConfigPtr config,
-        std::vector<TString> attributes,
+        std::vector<TString> attributeNames,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         NLogging::TLogger logger = {},
         NProfiling::TProfiler profiler = {});
 
-    // Gets attributes from master via provided client.
-    // It doesn't change the cache.
-    TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetFromClient(
+    // Method with signature similar to GetMany which goes directly to master.
+    static TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetFromClient(
         const std::vector<NYPath::TYPath>& paths,
-        const NApi::NNative::IClientPtr& client) const;
+        const NApi::NNative::IClientPtr& client,
+        const std::vector<TString>& attributeNames,
+        const NApi::TMasterReadOptions& options = NApi::TMasterReadOptions{});
 
 protected:
     virtual TFuture<NYTree::IAttributeDictionaryPtr> DoGet(
@@ -42,7 +48,6 @@ protected:
 
 private:
     const TObjectAttributeCacheConfigPtr Config_;
-    const std::vector<TString> Attributes_;
     const NLogging::TLogger Logger;
 
     NApi::NNative::IClientPtr Client_;

@@ -5,7 +5,7 @@
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/adapters.h>
-#include <yt/client/table_client/columnar_statistics.h> 
+#include <yt/client/table_client/columnar_statistics.h>
 #include <yt/client/table_client/table_output.h>
 
 #include <yt/client/chunk_client/public.h>
@@ -76,7 +76,6 @@ void ValidateKeyColumnCount(
 TColumnFilter CreateColumnFilter(
     const std::optional<std::vector<TString>>& columns,
     const TNameTablePtr& nameTable);
-int GetSystemColumnCount(const TChunkReaderOptionsPtr& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
