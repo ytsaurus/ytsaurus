@@ -2373,6 +2373,22 @@ public:
         cell->RecomputeClusterStatistics();
     }
 
+    void RecomputeAllTabletCellStatistics()
+    {
+        const auto& cellManager = Bootstrap_->GetTamedCellManager();
+        for (auto [cellId, cellBase] : cellManager->Cells()) {
+            if (cellBase->GetType() != EObjectType::TabletCell) {
+                continue;
+            }
+
+            auto* cell = cellBase->As<TTabletCell>();
+            cell->GossipStatistics().Local() = NTabletServer::TTabletCellStatistics();
+            for (const auto* tablet : cell->Tablets()) {
+                cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
+            }
+        }
+    }
+
 
     TEntityMap<TTabletCellBundle>& CompatTabletCellBundleMap()
     {
@@ -3296,6 +3312,11 @@ private:
                     tablet->NodeStatistics().preload_pending_store_count();
                 table->AccountTabletStatisticsDelta(delta);
 
+                // COMPAT(ifsmirnov)
+                if (GetDynamicConfig()->AccumulatePreloadPendingStoreCountCorrectly) {
+                    cell->GossipStatistics().Local() += delta;
+                }
+
                 tablet->NodeStatistics().set_preload_pending_store_count(preloadPendingStoreCount);
             }
 
@@ -3922,7 +3943,7 @@ private:
         ExecuteVerb(rootService, req);
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr)
     {
         const auto& config = GetDynamicConfig();
 
@@ -3952,6 +3973,15 @@ private:
         TabletCellDecommissioner_->Reconfigure(config->TabletCellDecommissioner);
         TabletActionManager_->Reconfigure(config->TabletActionManager);
         TabletBalancer_->Reconfigure(config->TabletBalancer);
+
+        // COMPAT(ifsmirnov)
+        if (oldConfig &&
+            !oldConfig->TabletManager->AccumulatePreloadPendingStoreCountCorrectly &&
+            config->AccumulatePreloadPendingStoreCountCorrectly)
+        {
+            YT_LOG_DEBUG("Recomputing statistics of all tablet cells");
+            RecomputeAllTabletCellStatistics();
+        }
     }
 
 
@@ -4039,17 +4069,7 @@ private:
 
         // COMPAT(savrus)
         if (RecomputeTabletCellStatistics_) {
-            for (auto [cellId, cellBase] : cellManager->Cells()) {
-                if (cellBase->GetType() != EObjectType::TabletCell) {
-                    continue;
-                }
-
-                auto* cell = cellBase->As<TTabletCell>();
-                cell->GossipStatistics().Local() = NTabletServer::TTabletCellStatistics();
-                for (const auto* tablet : cell->Tablets()) {
-                    cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
-                }
-            }
+            RecomputeAllTabletCellStatistics();
         }
 
         for (auto [actionId, action] : TabletActionMap_) {

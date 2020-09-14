@@ -353,7 +353,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
     def test_in_memory(self, mode, optimize_for):
-        sync_create_cells(1)
+        cell_id = sync_create_cells(1)[0]
         self._create_simple_table("//tmp/t", optimize_for=optimize_for)
 
         set("//tmp/t/@in_memory_mode", mode)
@@ -420,6 +420,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._wait_for_in_memory_stores_preload("//tmp/t")
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
+
+        # Check cell statistics
+        tablet_statistics = get("//tmp/t/@tablets/0/statistics")
+        def _check():
+            cell_statistics = get("//sys/tablet_cells/{}/@total_statistics".format(cell_id))
+            return cell_statistics["preload_completed_store_count"] == tablet_statistics["preload_completed_store_count"] and \
+                cell_statistics["preload_pending_store_count"] == 0
+        wait(_check)
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])

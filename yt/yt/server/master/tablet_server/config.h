@@ -456,6 +456,9 @@ public:
     //! during decommission through extra peers.
     TDuration ExtraPeerDropDelay;
 
+    // COMPAT(ifsmirnov): YT-13541
+    bool AccumulatePreloadPendingStoreCountCorrectly;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -516,6 +519,9 @@ public:
             .Default(false);
         RegisterParameter("extra_peer_drop_delay", ExtraPeerDropDelay)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("accumulate_preload_pending_store_count_correctly", AccumulatePreloadPendingStoreCountCorrectly)
+            .Default(false)
+            .DontSerializeDefault();
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.
         RegisterParameter("compatibility_version", CompatibilityVersion)
