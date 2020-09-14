@@ -115,7 +115,7 @@ public:
         ISchedulerStrategyHost* strategyHost,
         ITreeHost* treeHost,
         std::vector<IInvokerPtr> feasibleInvokers,
-        const TString& treeId);
+        TString treeId);
 
     TFairShareStrategyTreeConfigPtr GetConfig() const;
 
@@ -295,7 +295,7 @@ private:
             TFairShareTreePtr tree,
             TRootElementSnapshotPtr rootElementSnapshot,
             TSchedulingTagFilter nodesFilter,
-            TJobResources totalResourceLimits,
+            const TJobResources& totalResourceLimits,
             const NLogging::TLogger& logger);
 
         virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) override;
