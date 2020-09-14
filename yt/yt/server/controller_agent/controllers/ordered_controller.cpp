@@ -720,7 +720,7 @@ private:
 
     virtual TCpuResource GetCpuLimit() const override
     {
-        return Spec_->Mapper->CpuLimit;
+        return TCpuResource(Spec_->Mapper->CpuLimit);
     }
 
     virtual void BuildBriefSpec(TFluentMap fluent) const override

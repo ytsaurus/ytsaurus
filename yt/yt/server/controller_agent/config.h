@@ -402,7 +402,7 @@ public:
     TRemoteCopyOperationOptions()
     {
         RegisterParameter("cpu_limit", CpuLimit)
-            .Default(0.1);
+            .Default(NScheduler::TCpuResource(0.1));
     }
 
 private:

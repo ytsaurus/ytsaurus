@@ -28,8 +28,7 @@ TFixedPointNumber<U, P>::TFixedPointNumber(i64 value)
 { }
 
 template <typename U, int P>
-template <typename T>
-TFixedPointNumber<U, P>::TFixedPointNumber(const T& value)
+TFixedPointNumber<U, P>::TFixedPointNumber(double value)
     : Value_(std::round(value * ScalingFactor))
 { }
 
@@ -103,7 +102,7 @@ void Deserialize(TFixedPointNumber<U, P>& number, NYTree::INodePtr node)
 {
     double doubleValue;
     Deserialize(doubleValue, std::move(node));
-    number = doubleValue;
+    number = TFixedPointNumber<U, P>(doubleValue);
 }
 
 template <typename U, int P>

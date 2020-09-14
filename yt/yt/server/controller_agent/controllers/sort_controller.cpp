@@ -3901,7 +3901,7 @@ private:
 
     virtual TCpuResource GetPartitionCpuLimit() const override
     {
-        return Spec->HasNontrivialMapper() ? Spec->Mapper->CpuLimit : 1;
+        return TCpuResource(Spec->HasNontrivialMapper() ? Spec->Mapper->CpuLimit : 1);
     }
 
     virtual TCpuResource GetSortCpuLimit() const override
@@ -3912,7 +3912,7 @@ private:
 
     virtual TCpuResource GetMergeCpuLimit() const override
     {
-        return Spec->Reducer->CpuLimit;
+        return TCpuResource(Spec->Reducer->CpuLimit);
     }
 
     virtual TExtendedJobResources GetPartitionResources(

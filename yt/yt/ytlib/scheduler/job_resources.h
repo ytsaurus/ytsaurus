@@ -38,6 +38,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, FootprintMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, Network);
 
+    void SetCpu(double cpu)
+    {
+        Cpu_ = TCpuResource(cpu);
+    }
+
 public:
     i64 GetMemory() const;
 
@@ -53,6 +58,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, Memory);
     DEFINE_BYVAL_RW_PROPERTY(i64, Network);
+
+    void SetCpu(double cpu)
+    {
+        Cpu_ = TCpuResource(cpu);
+    }
 
 public:
     TJobResources() = default;

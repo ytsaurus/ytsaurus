@@ -133,7 +133,7 @@ TEST_F(TFairSharePackingAnglePackingMetricTest, TestCompareDifferentAngles)
 
     EXPECT_NEAR(
         AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1000_MB, /* network */ 0), totalResources),
-        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(19.5, 1500_MB, /* network */ 0), totalResources),
+        AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(TCpuResource(19.5), 1500_MB, /* network */ 0), totalResources),
         ABS_ERROR);
 }
 

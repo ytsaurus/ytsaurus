@@ -31,8 +31,7 @@ public:
 
     TFixedPointNumber(i64 value);
 
-    template <typename T>
-    TFixedPointNumber(const T& value);
+    explicit TFixedPointNumber(double value);
 
     explicit operator i64 () const;
     explicit operator double () const;
