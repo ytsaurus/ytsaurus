@@ -30,8 +30,7 @@ public:
 
     void Initialize();
 
-    bool IsOutOfMemory() const;
-    bool IsRotationForced(i64 passiveUsage) const;
+    bool IsOutOfMemory(const std::optional<TString>& poolTag) const;
 
     //! Sets the total number of tablet slots.
     void SetTabletSlotCount(int slotCount);

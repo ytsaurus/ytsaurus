@@ -137,18 +137,10 @@ public:
         return GetAvailableTabletSlotCount() > 0;
     }
 
-    bool IsOutOfMemory() const
+    bool IsOutOfMemory(const std::optional<TString>& poolTag) const
     {
         const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
-        return tracker->IsExceeded(EMemoryCategory::TabletDynamic);
-    }
-
-    bool IsRotationForced(i64 passiveUsage) const
-    {
-        const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
-        return
-            tracker->GetUsed(EMemoryCategory::TabletDynamic) - passiveUsage >
-            tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationsMemoryRatio;
+        return tracker->IsExceeded(EMemoryCategory::TabletDynamic, poolTag);
     }
 
     double GetUsedCpu(double cpuPerTabletSlot) const
@@ -193,6 +185,8 @@ public:
         int index = GetFreeSlotIndex();
         Slots_[index] = New<TTabletSlot>(index, Config_, createInfo, Bootstrap_);
         Slots_[index]->Initialize();
+
+        UpdateTabletCellBundleMemoryPoolWeight(createInfo.tablet_cell_bundle());
     }
 
     void ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
@@ -212,6 +206,8 @@ public:
             if (Slots_[slot->GetIndex()] == slot) {
                 Slots_[slot->GetIndex()].Reset();
             }
+
+            UpdateTabletCellBundleMemoryPoolWeight(slot->GetTabletCellBundleName());
         }).Via(Bootstrap_->GetControlInvoker()));
     }
 
@@ -583,6 +579,23 @@ private:
         }
         YT_ABORT();
     }
+
+    void UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName)
+    {
+        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
+
+        int slotCount = 0;
+        for (int index = 0; index < Slots_.size(); ++index) {
+            if (Slots_[index] && Slots_[index]->GetTabletCellBundleName() == bundleName) {
+                ++slotCount;
+            }
+        }
+
+        YT_LOG_DEBUG("Tablet cell bundle memory pool weight updated (Bundle: %v, Weight: %v)",
+            bundleName,
+            slotCount);
+        memoryTracker->SetPoolWeight(bundleName, slotCount);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -603,14 +616,9 @@ void TSlotManager::Initialize()
     Impl_->Initialize();
 }
 
-bool TSlotManager::IsOutOfMemory() const
+bool TSlotManager::IsOutOfMemory(const std::optional<TString>& poolTag) const
 {
-    return Impl_->IsOutOfMemory();
-}
-
-bool TSlotManager::IsRotationForced(i64 passiveUsage) const
-{
-    return Impl_->IsRotationForced(passiveUsage);
+    return Impl_->IsOutOfMemory(poolTag);
 }
 
 void TSlotManager::SetTabletSlotCount(int slotCount)

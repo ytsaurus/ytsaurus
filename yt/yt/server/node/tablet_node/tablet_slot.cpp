@@ -123,14 +123,14 @@ public:
             Format("TabletSnap%v", SlotIndex_)))
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
-        , TabletCellBundle_(createInfo.tablet_cell_bundle())
+        , TabletCellBundleName_(createInfo.tablet_cell_bundle())
         , ProfilingTagIds_{
             NProfiling::TProfileManager::Get()->RegisterTag(
                 "cell_id",
                 CellDescriptor_.CellId),
             NProfiling::TProfileManager::Get()->RegisterTag(
                 "tablet_cell_bundle",
-                TabletCellBundle_ ? TabletCellBundle_ : UnknownProfilingTag)
+                TabletCellBundleName_ ? TabletCellBundleName_ : UnknownProfilingTag)
         }
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(GetLogger())
@@ -215,6 +215,11 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return CellDescriptor_;
+    }
+
+    const TString& GetTabletCellBundleName() const
+    {
+        return TabletCellBundleName_;
     }
 
     const IDistributedHydraManagerPtr& GetHydraManager() const
@@ -672,7 +677,7 @@ private:
     TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
 
-    const TString TabletCellBundle_;
+    const TString TabletCellBundleName_;
 
     const NProfiling::TTagIdList ProfilingTagIds_;
 
@@ -955,6 +960,11 @@ TPeerId TTabletSlot::GetPeerId() const
 const TCellDescriptor& TTabletSlot::GetCellDescriptor() const
 {
     return Impl_->GetCellDescriptor();
+}
+
+const TString& TTabletSlot::GetTabletCellBundleName() const
+{
+    return Impl_->GetTabletCellBundleName();
 }
 
 const IDistributedHydraManagerPtr& TTabletSlot::GetHydraManager() const

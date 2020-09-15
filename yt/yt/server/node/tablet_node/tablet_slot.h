@@ -60,6 +60,7 @@ public:
     NHydra::EPeerState GetAutomatonState() const;
     NHydra::TPeerId GetPeerId() const;
     const NHiveClient::TCellDescriptor& GetCellDescriptor() const;
+    const TString& GetTabletCellBundleName() const;
 
     const NHydra::IDistributedHydraManagerPtr& GetHydraManager() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;

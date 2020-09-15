@@ -44,6 +44,7 @@ namespace NYT::NTabletNode {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryClient;
@@ -1395,6 +1396,14 @@ void TTablet::ReconfigureThrottlers()
 const TString& TTablet::GetLoggingId() const
 {
     return LoggingId_;
+}
+
+std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
+{
+    if (category == EMemoryCategory::TabletDynamic) {
+        return Config_->TabletCellBundle;
+    }
+    return {};
 }
 
 void TTablet::UpdateReplicaCounters()
