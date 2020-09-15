@@ -23,6 +23,10 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TDuration UpdateKeysFailedBackoff = TDuration::Seconds(1);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TServiceCombiner::TImpl
     : public TSupportsAttributes
 {
@@ -31,6 +35,7 @@ public:
         std::vector<IYPathServicePtr> services,
         std::optional<TDuration> keysUpdatePeriod)
         : Services_(std::move(services))
+        , KeysUpdatePeriod_(keysUpdatePeriod)
     {
         auto workerInvoker = TDispatcher::Get()->GetHeavyInvoker();
         auto keysUpdateCallback = BIND(&TImpl::UpdateKeys, MakeWeak(this));
@@ -47,14 +52,28 @@ public:
         return InitializedPromise_.ToFuture();
     }
 
-    void SetUpdatePeriod(TDuration period)
+    void SetUpdatePeriod(std::optional<TDuration> period)
     {
-        YT_VERIFY(UpdateKeysExecutor_);
-        UpdateKeysExecutor_->SetPeriod(period);
+        if (period) {
+            if (KeysUpdatePeriod_) {
+                UpdateKeysExecutor_->SetPeriod(period);
+            } else {
+                auto workerInvoker = TDispatcher::Get()->GetHeavyInvoker();
+                UpdateKeysExecutor_ = New<TPeriodicExecutor>(workerInvoker, BIND(&TImpl::UpdateKeys, MakeWeak(this)), *period);
+                UpdateKeysExecutor_->Start();
+            }
+        } else {
+            if (KeysUpdatePeriod_) {
+                UpdateKeysExecutor_->Stop();
+            }
+        }
+        KeysUpdatePeriod_ = period;
     }
 
 private:
     const std::vector<IYPathServicePtr> Services_;
+
+    std::optional<TDuration> KeysUpdatePeriod_;
 
     NConcurrency::TPeriodicExecutorPtr UpdateKeysExecutor_;
 
@@ -248,6 +267,13 @@ private:
 
         if (!serviceListsOrError.IsOK()) {
             SetKeyMapping(TError(serviceListsOrError));
+            if (!KeysUpdatePeriod_) {
+                auto workerInvoker = TDispatcher::Get()->GetHeavyInvoker();
+                TDelayedExecutor::Submit(
+                    BIND(&TImpl::UpdateKeys, MakeWeak(this)),
+                    UpdateKeysFailedBackoff,
+                    std::move(workerInvoker));
+            }
             return;
         }
         const auto& serviceLists = serviceListsOrError.Value();
