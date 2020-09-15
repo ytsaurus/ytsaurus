@@ -42,6 +42,7 @@ class TDynamicTabletCellOptions
 public:
     std::optional<double> CpuPerTabletSlot;
     std::optional<bool> SuppressTabletCellDecommission;
+    double ForcedRotationMemoryRatio;
 
     TDynamicTabletCellOptions()
     {
@@ -49,6 +50,9 @@ public:
             .Optional();
         RegisterParameter("suppress_tablet_cell_decommission", SuppressTabletCellDecommission)
             .Optional();
+        RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.8);
     }
 };
 

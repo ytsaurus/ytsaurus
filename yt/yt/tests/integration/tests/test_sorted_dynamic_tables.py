@@ -1569,3 +1569,112 @@ class TestSortedDynamicTablesMultipleWriteBatches(TestSortedDynamicTablesBase):
         rows = [{"key": i, "value": "a"} for i in xrange(100)]
         insert_rows("//tmp/t", rows)
         assert select_rows("* from [//tmp/t]") == rows
+
+################################################################################
+
+class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "resource_limits": {
+                "tablet_dynamic_memory": 2 * 2**20,
+                "slots": 2,
+            },
+            "store_flusher": {
+                "min_forced_flush_data_size": 1,
+            },
+            "tablet_manager": {
+                "pool_chunk_size": 65 * 2**10,
+            },
+            "tablet_snapshot_eviction_timeout": 0,
+        },
+    }
+
+    BUNDLE_OPTIONS = {
+        "changelog_replication_factor": 1,
+        "changelog_read_quorum": 1,
+        "changelog_write_quorum": 1,
+    }
+
+    @authors("ifsmirnov")
+    def test_tablet_dynamic_multiple_bundles(self):
+        create_tablet_cell_bundle("b1", attributes={"options": self.BUNDLE_OPTIONS})
+        create_tablet_cell_bundle("b2", attributes={"options": self.BUNDLE_OPTIONS})
+        cell1 = sync_create_cells(1, tablet_cell_bundle="b1")[0]
+        cell2 = sync_create_cells(1, tablet_cell_bundle="b2")[0]
+
+        self._create_simple_table("//tmp/t1", tablet_cell_bundle="b1", replication_factor=10,
+                                  chunk_writer={"upload_replication_factor": 10})
+        sync_mount_table("//tmp/t1")
+
+        self._create_simple_table("//tmp/t2", tablet_cell_bundle="b2", dynamic_store_auto_flush_period=YsonEntity())
+        sync_mount_table("//tmp/t2")
+
+        _get_row = ({"key": i, "value": str(i) * 100} for i in xrange(10**9))
+
+        while True:
+            try:
+                insert_rows("//tmp/t1", [_get_row.next() for i in range(500)])
+            except YtError as err:
+                if err.contains_code(AllWritesDisabled):
+                    break
+
+        insert_rows("//tmp/t2", [_get_row.next()])
+        with raises_yt_error(AllWritesDisabled):
+            insert_rows("//tmp/t1", [_get_row.next()])
+
+        remove("//tmp/t2")
+        remove("#{}".format(cell2))
+        node = ls("//sys/nodes")[0]
+        wait(lambda: cell2 not in ls("//sys/nodes/{}/orchid/tablet_cells".format(node)))
+
+        insert_rows("//tmp/t1", [_get_row.next()])
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("ratio", [0.3, 0.6])
+    def test_forced_rotation_memory_ratio(self, ratio):
+        create_tablet_cell_bundle("b", attributes={"options": self.BUNDLE_OPTIONS})
+        set("//sys/tablet_cell_bundles/b/@dynamic_options/forced_rotation_memory_ratio", ratio)
+        cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
+
+        self._create_simple_table("//tmp/t", tablet_cell_bundle="b", dynamic_store_auto_flush_period=YsonEntity())
+        sync_mount_table("//tmp/t")
+
+        _get_row = ({"key": i, "value": str(i) * 100} for i in xrange(10**9))
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        node = get_tablet_leader_address(tablet_id)
+        orchid_root = "//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}".format(
+            node,
+            cell_id,
+            tablet_id)
+
+        for store_id in ls(orchid_root + "/eden/stores"):
+            if get(orchid_root + "/eden/stores/{}/store_state".format(store_id)) == "active_dynamic":
+                original_store_id = store_id
+                break
+        else:
+            assert False
+
+        def _get_active_store():
+            for retry in range(5):
+                orchid = self._find_tablet_orchid(address, tablet_id)
+                for store_id, attributes in orchid["eden"]["stores"].iteritems():
+                    if attributes["store_state"] == "active_dynamic":
+                        return (store_id, attributes["pool_size"])
+            assert False
+
+        while True:
+            insert_rows("//tmp/t", [_get_row.next() for i in range(100)])
+
+            # Wait for slot scan.
+            sleep(0.2)
+
+            store = get(orchid_root + "/eden/stores/{}".format(store_id))
+            if store["store_state"] == "passive_dynamic":
+                # Store rotated.
+                pool_size = store["pool_size"]
+                expected = self.DELTA_NODE_CONFIG["tablet_node"]["resource_limits"]["tablet_dynamic_memory"] * ratio
+                assert expected - 100000 < pool_size < expected + 100000
+                break

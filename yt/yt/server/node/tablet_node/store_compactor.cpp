@@ -454,10 +454,6 @@ private:
             return;
         }
 
-        if (config->InMemoryMode != EInMemoryMode::None && Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
-            return;
-        }
-
         ScanEdenForPartitioning(slot, tablet->GetEden());
         ScanPartitionForCompaction(slot, tablet->GetEden());
 

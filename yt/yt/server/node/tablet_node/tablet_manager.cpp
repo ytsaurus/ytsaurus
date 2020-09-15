@@ -160,7 +160,8 @@ public:
         , WriteLogsMemoryTrackerGuard_(TNodeMemoryTrackerGuard::Acquire(
             Bootstrap_->GetMemoryUsageTracker(),
             EMemoryCategory::TabletDynamic,
-            0,
+            0 /*size*/,
+            {} /*poolTag*/,
             MemoryUsageGranularity))
         , DecommissionCheckExecutor_(New<TPeriodicExecutor>(
             Slot_->GetAutomatonInvoker(),
@@ -308,7 +309,7 @@ public:
             actualizeTablet();
 
             ValidateTabletStoreLimit(tablet);
-            ValidateMemoryLimit();
+            ValidateMemoryLimit(tablet->GetPoolTagByMemoryCategory(EMemoryCategory::TabletDynamic));
 
             auto tabletId = tablet->GetId();
             const auto& storeManager = tablet->GetStoreManager();
@@ -646,6 +647,8 @@ private:
     THashSet<IDynamicStorePtr> OrphanedStores_;
     THashMap<TTabletId, std::unique_ptr<TTablet>> OrphanedTablets_;
 
+    // NB: Write logs are generally much smaller than dynamic stores,
+    // so we don't worry about per-pool management here.
     TNodeMemoryTrackerGuard WriteLogsMemoryTrackerGuard_;
 
     const TPeriodicExecutorPtr DecommissionCheckExecutor_;
@@ -3315,9 +3318,9 @@ private:
     }
 
 
-    void ValidateMemoryLimit()
+    void ValidateMemoryLimit(const std::optional<TString>& poolTag)
     {
-        if (Bootstrap_->GetTabletSlotManager()->IsOutOfMemory()) {
+        if (Bootstrap_->GetTabletSlotManager()->IsOutOfMemory(poolTag)) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::AllWritesDisabled,
                 "Node is out of tablet memory, all writes disabled");

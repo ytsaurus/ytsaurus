@@ -469,7 +469,8 @@ private:
         chunkData->MemoryTrackerGuard = NClusterNode::TNodeMemoryTrackerGuard::Acquire(
             Bootstrap_->GetMemoryUsageTracker(),
             EMemoryCategory::TabletStatic,
-            0,
+            0 /*size*/,
+            {} /*poolTag*/,
             MemoryUsageGranularity);
 
         // Replace the old data, if any, by a new one.
@@ -626,6 +627,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
             memoryTracker,
             EMemoryCategory::TabletStatic,
             preallocatedMemory,
+            {} /*poolTag*/,
             MemoryUsageGranularity);
     }
     chunkData->Blocks.reserve(endBlockIndex - startBlockIndex);

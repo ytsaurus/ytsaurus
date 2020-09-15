@@ -6,10 +6,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class ECategory>
+template <class ECategory, class TPoolTag = TString>
 class TMemoryUsageTracker;
 
-template <class ECategory>
+template <class ECategory, class TPoolTag = TString>
 class TMemoryUsageTrackerGuard;
 
 ////////////////////////////////////////////////////////////////////////////////

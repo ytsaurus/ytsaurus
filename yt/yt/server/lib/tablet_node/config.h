@@ -694,7 +694,7 @@ class TTabletNodeConfig
 {
 public:
     //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
-    double ForcedRotationsMemoryRatio;
+    double ForcedRotationMemoryRatio;
 
     //! Limits resources consumed by tablets.
     TResourceLimitsConfigPtr ResourceLimits;
@@ -761,9 +761,10 @@ public:
 
     TTabletNodeConfig()
     {
-        RegisterParameter("forced_rotations_memory_ratio", ForcedRotationsMemoryRatio)
+        RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
             .InRange(0.0, 1.0)
-            .Default(0.8);
+            .Default(0.8)
+            .Alias("forced_rotations_memory_ratio");
 
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();

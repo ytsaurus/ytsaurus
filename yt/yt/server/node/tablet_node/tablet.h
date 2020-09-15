@@ -515,6 +515,8 @@ public:
 
     const TString& GetLoggingId() const;
 
+    std::optional<TString> GetPoolTagByMemoryCategory(NNodeTrackerClient::EMemoryCategory category) const;
+
     int GetEdenStoreCount() const;
 
     void PushDynamicStoreIdToPool(TDynamicStoreId storeId);

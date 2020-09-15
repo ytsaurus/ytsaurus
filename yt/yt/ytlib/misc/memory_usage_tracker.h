@@ -8,6 +8,7 @@
 #include <yt/core/misc/error.h>
 
 #include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -15,7 +16,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class ECategory>
+template <class ECategory, class TPoolTag>
 class TMemoryUsageTracker
     : public TRefCounted
 {
@@ -31,21 +32,23 @@ public:
     i64 GetTotalFree() const;
     bool IsTotalExceeded() const;
 
-    i64 GetLimit(ECategory category) const;
-    i64 GetUsed(ECategory category) const;
-    i64 GetFree(ECategory category) const;
-    bool IsExceeded(ECategory category) const;
+    i64 GetLimit(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const;
+    i64 GetUsed(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const;
+    i64 GetFree(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const;
+    bool IsExceeded(ECategory category, const std::optional<TPoolTag>& poolTag = {}) const;
 
     void SetTotalLimit(i64 newLimit);
     void SetCategoryLimit(ECategory category, i64 newLimit);
+    void SetPoolWeight(const TPoolTag& poolTag, i64 newWeight);
 
     // Always succeeds, may lead to an overcommit.
-    void Acquire(ECategory category, i64 size);
-    TError TryAcquire(ECategory category, i64 size);
-    void Release(ECategory category, i64 size);
+    void Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {});
+    TError TryAcquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {});
+    void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {});
 
 private:
     TSpinLock SpinLock_;
+    TSpinLock PoolMapSpinLock_;
 
     i64 TotalLimit_;
 
@@ -60,20 +63,36 @@ private:
 
     TEnumIndexedVector<ECategory, TCategory> Categories_;
 
+    inline static const NProfiling::TEnumMemberTagCache<ECategory> CategoryTagCache_{"category"};
+
+    struct TPool
+    {
+        i64 Weight = 0;
+        TEnumIndexedVector<ECategory, NProfiling::TAtomicGauge> Used;
+    };
+
+    THashMap<TPoolTag, TPool> Pools_;
+    i64 TotalPoolWeight_ = 0;
+
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
     NConcurrency::TPeriodicExecutorPtr PeriodicUpdater_;
 
-    void DoAcquire(ECategory category, i64 size);
+    void DoAcquire(ECategory category, i64 size, TPool* pool);
 
     void UpdateMetrics();
 
+    TPool* FindPool(const TPoolTag& poolTag);
+    const TPool* FindPool(const TPoolTag& poolTag) const;
+    TPool* GetOrRegisterPool(const TPoolTag& poolTag);
+
+    i64 GetPoolLimit(const TPool* pool, i64 categoryLimit) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class ECategory>
+template <class ECategory, class TPoolTag>
 class TMemoryUsageTrackerGuard
     : private TNonCopyable
 {
@@ -93,11 +112,13 @@ public:
         TMemoryUsageTrackerPtr tracker,
         ECategory category,
         i64 size,
+        std::optional<TPoolTag> poolTag = {},
         i64 granularity = 1);
     static TErrorOr<TMemoryUsageTrackerGuard> TryAcquire(
         TMemoryUsageTrackerPtr tracker,
         ECategory category,
         i64 size,
+        std::optional<TPoolTag> poolTag = {},
         i64 granularity = 1);
 
     template <class T>
@@ -114,6 +135,7 @@ public:
 private:
     TMemoryUsageTrackerPtr Tracker_;
     ECategory Category_;
+    std::optional<TPoolTag> PoolTag_;
     i64 Size_ = 0;
     i64 AcquiredSize_ = 0;
     i64 Granularity_ = 0;

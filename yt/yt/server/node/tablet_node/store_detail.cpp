@@ -102,6 +102,7 @@ void TStoreBase::SetMemoryTracker(NNodeTrackerClient::TNodeMemoryTrackerPtr memo
         MemoryTracker_,
         GetMemoryCategory(),
         DynamicMemoryUsage_,
+        Tablet_->GetPoolTagByMemoryCategory(GetMemoryCategory()),
         MemoryUsageGranularity);
 }
 
