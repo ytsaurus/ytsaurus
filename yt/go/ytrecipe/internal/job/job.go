@@ -104,7 +104,7 @@ func (j *Job) runJob(out mapreduce.Writer) error {
 		return nil
 	}
 
-	err := j.spawnPorto(j.scheduleSignals(), prepareFS, stdout, stderr)
+	err := j.spawnPorto(j.scheduleSignals, prepareFS, stdout, stderr)
 	exitRow.FinishedAt = time.Now()
 
 	if dmesgErr := j.saveDmesg(); dmesgErr != nil && err == nil {

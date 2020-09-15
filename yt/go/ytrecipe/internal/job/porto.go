@@ -71,7 +71,7 @@ func (j *Job) createRootFSVolumes(conn porto.PortoAPI) error {
 }
 
 func (j *Job) spawnPorto(
-	quit chan syscall.Signal,
+	startTimeouts func() chan syscall.Signal,
 	prepareFS func() error,
 	stdout, stderr io.Writer,
 ) error {
@@ -144,6 +144,8 @@ func (j *Job) spawnPorto(
 		return err
 	}
 
+	stopSignals := startTimeouts()
+
 	_ = stdoutW.Close()
 	_ = stderrW.Close()
 
@@ -164,7 +166,7 @@ func (j *Job) spawnPorto(
 	var lastSignal syscall.Signal
 	for {
 		select {
-		case lastSignal = <-quit:
+		case lastSignal = <-stopSignals:
 			j.L.Info("sending signal to container", log.String("signal", lastSignal.String()))
 			if err := conn.Kill(ctName, lastSignal); err != nil {
 				j.L.Error("error sending signal", log.Error(err))
