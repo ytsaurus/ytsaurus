@@ -1,6 +1,7 @@
 package jobfs
 
 import (
+	"bufio"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -10,9 +11,14 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/tarstream"
+)
+
+const (
+	bufferSize = 4 * (1 << 20)
 )
 
 type MD5 [md5.Size]byte
@@ -137,24 +143,24 @@ func (fs *FS) AddStructure(dir string) error {
 	})
 }
 
-func copyFile(src, dst string) error {
+func copyFile(src, dst string) (int64, error) {
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer in.Close()
 
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, in)
+	n, err := io.CopyBuffer(out, in, make([]byte, bufferSize))
 	if err != nil {
-		return err
+		return n, err
 	}
-	return out.Close()
+	return n, out.Close()
 }
 
 func (fs *FS) Add(c Config) error {
@@ -270,7 +276,7 @@ func (fs *FS) LocateBindPoints() ([]string, error) {
 	return bindPoints, nil
 }
 
-func (fs *FS) Recreate(blobDir string) (err error) {
+func (fs *FS) Recreate(l log.Structured, blobDir string) (err error) {
 	mkdirAll := func(path string) {
 		if err != nil {
 			return
@@ -312,14 +318,25 @@ func (fs *FS) Recreate(blobDir string) (err error) {
 		f := f
 
 		eg.Go(func() error {
-			if err := copyFile(filepath.Join(blobDir, md5Hash.String()), f.LocalPath); err != nil {
+			var fileSize int64
+			var err error
+
+			l.Debug("started copying file",
+				log.String("path", f.LocalPath))
+
+			if fileSize, err = copyFile(filepath.Join(blobDir, md5Hash.String()), f.LocalPath); err != nil {
 				return err
 			}
 
 			if f.Executable {
-				return os.Chmod(f.LocalPath, 0777)
+				if err := os.Chmod(f.LocalPath, 0777); err != nil {
+					return err
+				}
 			}
 
+			l.Debug("finished copying file",
+				log.String("path", f.LocalPath),
+				log.Int64("size", fileSize))
 			return nil
 		})
 	}
@@ -335,7 +352,23 @@ func (fs *FS) Recreate(blobDir string) (err error) {
 			}
 			defer tarFile.Close()
 
-			return tarstream.Receive(tar.LocalPath, tarFile)
+			l.Debug("started unpacking directory",
+				log.String("path", tar.LocalPath))
+
+			if err := tarstream.Receive(tar.LocalPath, bufio.NewReaderSize(tarFile, bufferSize)); err != nil {
+				return err
+			}
+
+			stat, err := tarFile.Stat()
+			if err != nil {
+				return err
+			}
+
+			l.Debug("finished unpacking directory",
+				log.String("path", tar.LocalPath),
+				log.Int64("size", stat.Size()))
+
+			return nil
 		})
 	}
 
