@@ -22,6 +22,8 @@
 
 #include <yt/core/misc/historic_usage_aggregator.h>
 
+#include <yt/core/profiling/metrics_accumulator.h>
+
 namespace NYT::NScheduler::NClassicScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +33,38 @@ using TOperationElementMap = THashMap<TOperationId, TOperationElementPtr>;
 
 using TRawPoolMap = THashMap<TString, TPool*>;
 using TPoolMap = THashMap<TString, TPoolPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDetailedFairShare
+{
+    double MinShareGuaranteeRatio = 0.0;
+    double IntegralGuaranteeRatio = 0.0;
+    double WeightProportionalRatio = 0.0;
+
+    void Reset()
+    {
+        MinShareGuaranteeRatio = 0.0;
+        IntegralGuaranteeRatio = 0.0;
+        WeightProportionalRatio = 0.0;
+    }
+
+    double Total() const
+    {
+        return MinShareGuaranteeRatio + IntegralGuaranteeRatio + WeightProportionalRatio;
+    }
+
+    double Guaranteed() const
+    {
+        return MinShareGuaranteeRatio + IntegralGuaranteeRatio;
+    }
+};
+
+TString ToString(const TDetailedFairShare& detailedFairShare);
+
+void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /* format */);
+
+void Serialize(const TDetailedFairShare& detailedFairShare, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,9 +158,9 @@ struct TPersistentAttributes
     // NB: we don't want to reset all attributes.
     void ResetOnElementEnabled()
     {
-        auto resetElement = TPersistentAttributes();
-        resetElement.AccumulatedResourceVolume = AccumulatedResourceVolume;
-        *this = resetElement;
+        auto resetAttributes = TPersistentAttributes();
+        resetAttributes.AccumulatedResourceVolume = AccumulatedResourceVolume;
+        *this = resetAttributes;
     }
 };
 
@@ -359,7 +393,6 @@ public:
     virtual double GetMaxShareRatio() const = 0;
 
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
-    virtual TJobResources GetBurstGuaranteeResources() const;
     double GetAccumulatedResourceRatioVolume() const;
     TJobResources GetAccumulatedResourceVolume() const;
     void InitAccumulatedResourceVolume(TJobResources resourceVolume);
@@ -415,6 +448,13 @@ public:
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const;
 
     double GetRemainingPossibleUsageRatio() const;
+
+    void BuildYson(NYTree::TFluentMap fluent) const;
+
+    void Profile(
+        NProfiling::TMetricsAccumulator& accumulator,
+        const TString& profilingPrefix,
+        const NProfiling::TTagIdList& tags) const;
 
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
@@ -726,7 +766,7 @@ public:
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;
 
-    void ConsumeAndRefillForPeriod(TDuration period);
+    void UpdateAccumulatedResourceVolume(TDuration period);
 
     double GetIntegralShareRatioLimitForRelaxedType() const;
 

@@ -101,7 +101,9 @@
     XX(EnableAggressiveStarvation, enable_aggressive_starvation) \
     XX(EnableByUserProfiling, enable_by_user_profiling) \
     XX(EnableOperationsProfiling, enable_operations_profiling) \
+    XX(EnableOperationsVectorProfiling, enable_operations_vector_profiling) \
     XX(EnablePoolStarvation, enable_pool_starvation) \
+    XX(EnablePoolsVectorProfiling, enable_pools_vector_profiling) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \

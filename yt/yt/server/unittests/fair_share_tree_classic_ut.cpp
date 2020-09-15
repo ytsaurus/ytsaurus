@@ -453,7 +453,7 @@ protected:
         return relaxedPoolConfig;
     }
 
-    TPoolConfigPtr CreateBurstPoolConfig(double flowCpu, double burstCpu, double minShareCpu = 0, double weight = 1.0)
+    TPoolConfigPtr CreateBurstPoolConfig(double flowCpu, double burstCpu, double minShareCpu = 0.0, double weight = 1.0)
     {
         auto burstPoolConfig = CreateSimplePoolConfig(minShareCpu, weight);
         burstPoolConfig->IntegralGuarantees->GuaranteeType = EIntegralGuaranteeType::Burst;
@@ -462,7 +462,7 @@ protected:
         return burstPoolConfig;
     }
 
-    TPoolConfigPtr CreateRelaxedPoolConfig(double flowCpu, double minShareCpu = 0, double weight = 1.0)
+    TPoolConfigPtr CreateRelaxedPoolConfig(double flowCpu, double minShareCpu = 0.0, double weight = 1.0)
     {
         auto relaxedPoolConfig = CreateSimplePoolConfig(minShareCpu, weight);
         relaxedPoolConfig->IntegralGuarantees->GuaranteeType = EIntegralGuaranteeType::Relaxed;
@@ -625,12 +625,9 @@ TEST_F(TClassicFairShareTreeTest, TestAttributes)
         EXPECT_EQ(0.1, operationElementX->Attributes().FairShare.Total());
     }
 
-    std::vector<TJobId> jobIds;
     for (int i = 0; i < 10; ++i) {
-        auto jobId = TGuid::Create();
-        jobIds.push_back(jobId);
         operationElementX->OnJobStarted(
-            jobId,
+            TGuid::Create(),
             jobResources.ToJobResources(),
             /* precommitedResources */ {});
     }
@@ -642,6 +639,7 @@ TEST_F(TClassicFairShareTreeTest, TestAttributes)
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
         rootElement->Update(&dynamicAttributes, &updateContext);
 
+        EXPECT_EQ(0.2, operationElementX->Attributes().FairShare.Total());
         EXPECT_EQ(0.5, dynamicAttributes[operationElementX->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(0.5, dynamicAttributes[poolA->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(std::numeric_limits<double>::max(), dynamicAttributes[poolB->GetTreeIndex()].SatisfactionRatio);

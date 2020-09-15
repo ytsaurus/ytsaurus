@@ -6,6 +6,8 @@
 #include <yt/library/numeric/double_array.h>
 #include <yt/library/numeric/piecewise_linear_function.h>
 
+#include <yt/core/profiling/metrics_accumulator.h>
+
 #include <cmath>
 
 namespace NYT::NScheduler {
@@ -117,6 +119,33 @@ inline TJobResources operator*(const TJobResources& lhs, const TResourceVector& 
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return result;
+}
+
+inline void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer)
+{
+    auto fluent = NYTree::BuildYsonFluently(consumer).BeginMap();
+    for (int index = 0; index < ResourceCount; ++index) {
+        fluent
+            .Item(FormatEnum(TResourceVector::GetResourceTypeById(index)))
+            .Value(resourceVector[index]);
+    }
+    fluent.EndMap();
+}
+
+inline void ProfileResourceVector(
+    NProfiling::TMetricsAccumulator& accumulator,
+    const TResourceVector& resourceVector,
+    const TString& prefix,
+    const NProfiling::TTagIdList& tagIds)
+{
+    const auto& resourceNames = TEnumTraits<EJobResourceType>::GetDomainNames();
+    for (int index = 0; index < ResourceCount; ++index) {
+        accumulator.Add(
+            prefix + "_x100000/" + resourceNames[index],
+            static_cast<i64>(resourceVector[index] * 1e5),
+            NProfiling::EMetricType::Gauge,
+            tagIds);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

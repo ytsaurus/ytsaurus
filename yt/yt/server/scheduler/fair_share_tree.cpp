@@ -1863,10 +1863,10 @@ auto TFairShareTree<TFairShareImpl>::DoBuildElementYson(
         .Item("usage_ratio").Value(element->GetResourceUsageRatio())
         .Item("demand_ratio").Value(attributes.GetDemandRatio())
         .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
-        .Item("detailed_fair_share").Value(attributes.GetDetailedFairShare())
         .Item("best_allocation_ratio").Value(element->GetBestAllocationRatio())
         .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio);
 
+    element->BuildYson(fluent);
 }
 
 template <class TFairShareImpl>
@@ -2554,22 +2554,6 @@ auto TFairShareTree<TFairShareImpl>::ProfileSchedulerElement(
     const TString& profilingPrefix,
     const TTagIdList& tags) const -> void
 {
-    auto detailedFairShare = element->Attributes().GetDetailedFairShare();
-    accumulator.Add(
-        profilingPrefix + "/min_share_guarantee_ratio_x100000",
-        static_cast<i64>(detailedFairShare.MinShareGuaranteeRatio * 1e5),
-        EMetricType::Gauge,
-        tags);
-    accumulator.Add(
-        profilingPrefix + "/integral_guarantee_ratio_x100000",
-        static_cast<i64>(detailedFairShare.IntegralGuaranteeRatio * 1e5),
-        EMetricType::Gauge,
-        tags);
-    accumulator.Add(
-        profilingPrefix + "/weight_proportional_ratio_x100000",
-        static_cast<i64>(detailedFairShare.WeightProportionalRatio * 1e5),
-        EMetricType::Gauge,
-        tags);
     accumulator.Add(
         profilingPrefix + "/fair_share_ratio_x100000",
         static_cast<i64>(element->Attributes().GetFairShareRatio() * 1e5),
@@ -2609,6 +2593,8 @@ auto TFairShareTree<TFairShareImpl>::ProfileSchedulerElement(
         accumulator,
         profilingPrefix + "/metrics",
         tags);
+
+    element->Profile(accumulator, profilingPrefix, tags);
 }
 
 template <class TFairShareImpl>
