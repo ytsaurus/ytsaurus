@@ -81,6 +81,31 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString ToString(const TDetailedFairShare& detailedFairShare)
+{
+    return ToStringViaBuilder(detailedFairShare);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /* format */)
+{
+    builder->AppendFormat(
+        "{MinShareGuaranteeRatio: %v, IntegralGuaranteeRatio: %v, WeightProportionalRatio: %v}",
+        detailedFairShare.MinShareGuaranteeRatio,
+        detailedFairShare.IntegralGuaranteeRatio,
+        detailedFairShare.WeightProportionalRatio);
+}
+
+void Serialize(const TDetailedFairShare& detailedFairShare, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Item("min_share_guarantee_ratio").Value(detailedFairShare.MinShareGuaranteeRatio)
+        .Item("integral_guarantee_ratio").Value(detailedFairShare.IntegralGuaranteeRatio)
+        .Item("weight_proportional_ratio").Value(detailedFairShare.WeightProportionalRatio)
+    .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareSchedulingStage::TFairShareSchedulingStage(TString loggingName, TScheduleJobsProfilingCounters profilingCounters)
     : LoggingName(loggingName)
     , ProfilingCounters(std::move(profilingCounters))
@@ -427,11 +452,6 @@ EIntegralGuaranteeType TSchedulerElement::GetIntegralGuaranteeType() const
     return EIntegralGuaranteeType::None;
 }
 
-TJobResources TSchedulerElement::GetBurstGuaranteeResources() const
-{
-    return {};
-}
-
 double TSchedulerElement::GetAccumulatedResourceRatioVolume() const
 {
     return static_cast<double>(TotalResourceLimits_.GetCpu()) < RatioComparisonPrecision
@@ -729,6 +749,34 @@ double TSchedulerElement::GetRemainingPossibleUsageRatio() const
     return std::min(Attributes_.PossibleUsageRatio, PersistentAttributes_.BestAllocationRatio) - Attributes_.FairShare.Total();
 }
 
+void TSchedulerElement::BuildYson(TFluentMap fluent) const
+{
+    fluent
+        .Item("detailed_fair_share").Value(Attributes_.FairShare);
+}
+
+void TSchedulerElement::Profile(
+    NProfiling::TMetricsAccumulator& accumulator,
+    const TString& profilingPrefix,
+    const NProfiling::TTagIdList& tags) const
+{
+    auto detailedFairShare = Attributes_.FairShare;
+    accumulator.Add(
+        profilingPrefix + "/min_share_guarantee_ratio_x100000",
+        static_cast<i64>(detailedFairShare.MinShareGuaranteeRatio * 1e5),
+        EMetricType::Gauge,
+        tags);
+    accumulator.Add(
+        profilingPrefix + "/integral_guarantee_ratio_x100000",
+        static_cast<i64>(detailedFairShare.IntegralGuaranteeRatio * 1e5),
+        EMetricType::Gauge,
+        tags);
+    accumulator.Add(
+        profilingPrefix + "/weight_proportional_ratio_x100000",
+        static_cast<i64>(detailedFairShare.WeightProportionalRatio * 1e5),
+        EMetricType::Gauge,
+        tags);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1939,7 +1987,7 @@ double TPool::GetSpecifiedResourceFlowRatio() const
     return GetMaxResourceRatio(ToJobResources(Config_->IntegralGuarantees->ResourceFlow, {}), TotalResourceLimits_);
 }
 
-void TPool::ConsumeAndRefillForPeriod(TDuration period)
+void TPool::UpdateAccumulatedResourceVolume(TDuration period)
 {
     if (TotalResourceLimits_ == TJobResources()) {
         YT_LOG_TRACE("Skip update of AccumulatedResourceVolume");
@@ -3591,10 +3639,10 @@ void TRootElement::ConsumeAndRefillIntegralPools(TUpdateFairShareContext* contex
     if (context->PreviousUpdateTime) {
         auto elapsedPeriod = context->Now - *context->PreviousUpdateTime;
         for (const auto& pool : context->BurstPools) {
-            pool->ConsumeAndRefillForPeriod(elapsedPeriod);
+            pool->UpdateAccumulatedResourceVolume(elapsedPeriod);
         }
         for (const auto& pool : context->RelaxedPools) {
-            pool->ConsumeAndRefillForPeriod(elapsedPeriod);
+            pool->UpdateAccumulatedResourceVolume(elapsedPeriod);
         }
     }
 }

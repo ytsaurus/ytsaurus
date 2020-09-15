@@ -24,6 +24,8 @@
 
 #include <yt/core/misc/historic_usage_aggregator.h>
 
+#include <yt/core/profiling/metrics_accumulator.h>
+
 namespace NYT::NScheduler::NVectorScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,17 +42,38 @@ using TPoolMap = THashMap<TString, TPoolPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDetailedFairShare
+{
+    TResourceVector MinShareGuarantee = {};
+    TResourceVector IntegralGuarantee = {};
+    TResourceVector WeightProportional = {};
+    TResourceVector Total = {};
+};
+
+TString ToString(const TDetailedFairShare& detailedFairShare);
+
+void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /* format */);
+
+void Serialize(const TDetailedFairShare& detailedFairShare, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSchedulableAttributes
 {
     EJobResourceType DominantResource = EJobResourceType::Cpu;
 
-    TResourceVector FairShare = {};
+    TDetailedFairShare FairShare = {};
     TResourceVector UsageShare = {};
     TResourceVector DemandShare = {};
     TResourceVector LimitsShare = TResourceVector::Ones();
     TResourceVector MinShare = {};
-    TResourceVector AdjustedMinShare = {};
+    TResourceVector ProposedIntegralShare = {};
     TResourceVector UnlimitedDemandFairShare = {};
+
+    double BurstRatio = 0.0;
+    double TotalBurstRatio = 0.0;
+    double ResourceFlowRatio = 0.0;
+    double TotalResourceFlowRatio = 0.0;
 
     int FifoIndex = -1;
 
@@ -63,13 +86,7 @@ struct TSchedulableAttributes
     // TODO(eshcherbin): Use <Attribute>[Attributes_.DominantResource] instead of MaxComponent[<Attribute>] here and below.
     double GetFairShareRatio() const
     {
-        return MaxComponent(FairShare);
-    }
-
-    // TODO(renadeen): fix when integral share come to vector scheduler.
-    TDetailedFairShare GetDetailedFairShare() const
-    {
-        return TDetailedFairShare();
+        return MaxComponent(FairShare.Total);
     }
 
     double GetDemandRatio() const
@@ -95,22 +112,35 @@ struct TSchedulableAttributes
 
     double GetTotalResourceFlowRatio() const
     {
-        return 0.0;
+        return TotalResourceFlowRatio;
     }
 
     double GetTotalBurstRatio() const
     {
-        return 0.0;
+        return TotalBurstRatio;
     }
 
     TResourceVector GetFairShare() const
     {
-        return FairShare;
+        return FairShare.Total;
     }
 
     TResourceVector GetUnlimitedDemandFairShare() const
     {
         return UnlimitedDemandFairShare;
+    }
+
+    TResourceVector GetGuaranteeShare() const
+    {
+        return MinShare + ProposedIntegralShare;
+    }
+
+    void SetFairShare(const TResourceVector& fairShare)
+    {
+        FairShare.Total = fairShare;
+        FairShare.MinShareGuarantee = TResourceVector::Min(fairShare, MinShare);
+        FairShare.IntegralGuarantee = TResourceVector::Min(fairShare - FairShare.MinShareGuarantee, ProposedIntegralShare);
+        FairShare.WeightProportional = fairShare - FairShare.MinShareGuarantee - FairShare.IntegralGuarantee;
     }
 };
 
@@ -124,6 +154,17 @@ struct TPersistentAttributes
 
     TResourceVector BestAllocationShare = TResourceVector::Ones();
     TInstant LastBestAllocationRatioUpdateTime;
+
+    TJobResources AccumulatedResourceVolume = {};
+    double LastIntegralShareRatio = 0.0;
+
+    // NB: we don't want to reset all attributes.
+    void ResetOnElementEnabled()
+    {
+        auto resetAttributes = TPersistentAttributes();
+        resetAttributes.AccumulatedResourceVolume = AccumulatedResourceVolume;
+        *this = resetAttributes;
+    }
 };
 
 struct TDynamicAttributes
@@ -279,6 +320,8 @@ protected:
 
     int TreeIndex_ = UnassignedTreeIndex;
 
+    bool AreFairShareFunctionsPrepared_ = false;
+
     // TODO(ignat): it is not used anymore, consider deleting.
     bool Cloned_ = false;
     bool Mutable_ = true;
@@ -319,9 +362,12 @@ public:
     //! For example: TotalResourceLimits.
     virtual void PreUpdateBottomUp(TUpdateFairShareContext* context);
 
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+    virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
 
-    virtual void UpdatePreemption(TUpdateFairShareContext* context);
+    //! Publishes fair share and updates preemptable job lists of operations.
+    virtual void PublishFairShareAndUpdatePreemption() = 0;
+
+    virtual void UpdatePreemptionAttributes();
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
         TUpdateFairShareContext* context);
@@ -337,6 +383,7 @@ public:
 
     virtual bool IsRoot() const;
     virtual bool IsOperation() const;
+    virtual TPool* AsPool();
 
     virtual TString GetLoggingString(const TDynamicAttributes& dynamicAttributes) const;
 
@@ -350,7 +397,6 @@ public:
     void SetNonAlive();
 
     TResourceVector GetFairShare() const;
-    void SetFairShare(TResourceVector fairShare);
 
     virtual TString GetId() const = 0;
 
@@ -368,6 +414,8 @@ public:
     double GetAccumulatedResourceRatioVolume() const;
     TJobResources GetAccumulatedResourceVolume() const;
     void InitAccumulatedResourceVolume(TJobResources resourceVolume);
+    double GetIntegralShareRatioByVolume() const;
+    void IncreaseHierarchicalIntegralShare(const TResourceVector& delta);
 
     virtual double GetFairShareStarvationTolerance() const = 0;
     virtual TDuration GetMinSharePreemptionTimeout() const = 0;
@@ -408,9 +456,8 @@ public:
 
     const NLogging::TLogger& GetLogger() const;
 
-    virtual void UpdateMinShare(TUpdateFairShareContext* context);
-
-    virtual void PrepareUpdateFairShare(TUpdateFairShareContext* context);
+    virtual void PrepareFairShareFunctions(TUpdateFairShareContext* context);
+    void ResetFairShareFunctions();
 
     virtual TResourceVector DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context) = 0;
 
@@ -436,6 +483,13 @@ public:
 
     virtual std::optional<TMeteringKey> GetMeteringKey() const;
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const;
+
+    void BuildYson(NYTree::TFluentMap fluent) const;
+
+    void Profile(
+        NProfiling::TMetricsAccumulator& accumulator,
+        const TString& profilingPrefix,
+        const NProfiling::TTagIdList& tags) const;
 
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
@@ -537,8 +591,9 @@ public:
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
     virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
-    virtual void UpdatePreemption(TUpdateFairShareContext* context) override;
+    virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void PublishFairShareAndUpdatePreemption() override;
+    virtual void UpdatePreemptionAttributes() override;
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
         TUpdateFairShareContext* context) override;
@@ -567,6 +622,9 @@ public:
     void RemoveChild(TSchedulerElement* child);
     bool IsEnabledChild(TSchedulerElement* child);
 
+    // For testing only.
+    std::vector<TSchedulerElementPtr> GetEnabledChildren();
+
     bool IsEmpty() const;
 
     ESchedulingMode GetMode() const;
@@ -588,9 +646,7 @@ public:
 
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
 
-    virtual void UpdateMinShare(TUpdateFairShareContext* context) override;
-
-    virtual void PrepareUpdateFairShare(TUpdateFairShareContext* context) override;
+    virtual void PrepareFairShareFunctions(TUpdateFairShareContext* context) override;
 
     virtual void PrepareFairShareByFitFactor(TUpdateFairShareContext* context) override;
 
@@ -603,10 +659,12 @@ public:
 
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const override;
 
-    // COMPAT(renadeen): for compatibility with classic.
-    double GetSpecifiedBurstRatio() const;
-    double GetSpecifiedResourceFlowRatio() const;
-    double GetIntegralPoolCapacity() const;
+    virtual double GetSpecifiedBurstRatio() const = 0;
+    virtual double GetSpecifiedResourceFlowRatio() const = 0;
+
+    TResourceVector GetHierarchicalAvailableLimitsShare() const;
+
+    TJobResources GetIntegralPoolCapacity() const;
 
 protected:
     const NProfiling::TTagId ProfilingTag_;
@@ -623,16 +681,23 @@ protected:
 
     TChildList SchedulableChildren_;
 
+    /// strict_mode = true means that a caller guarantees that the sum predicate is true at least for fit factor = 0.0.
+    /// strict_mode = false means that if the sum predicate is false for any fit factor, we fit children to the least possible sum
+    /// (i. e. use fit factor = 0.0)
     template <class TValue, class TGetter, class TSetter>
     TValue ComputeByFitting(
         const TGetter& getter,
         const TSetter& setter,
-        TValue maxSum);
+        TValue maxSum,
+        bool strictMode = true);
+
+    void InitIntegralPoolLists(TUpdateFairShareContext* context);
+    void AdjustMinShares();
 
     void PrepareFairShareByFitFactorFifo(TUpdateFairShareContext* context);
     void PrepareFairShareByFitFactorNormal(TUpdateFairShareContext* context);
 
-    void UpdateMinShareFifo(TUpdateFairShareContext* context);
+    void PrepareFifoPool();
     void UpdateMinShareNormal(TUpdateFairShareContext* context);
 
     using TChildSuggestions = std::vector<double>;
@@ -705,11 +770,14 @@ public:
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
+    virtual TPool* AsPool() override;
+
     virtual TString GetId() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual TResourceVector GetMaxShare() const override;
+    virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const override;
 
     virtual ESchedulableStatus GetStatus() const override;
 
@@ -748,6 +816,15 @@ public:
     virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
 
     virtual std::optional<TMeteringKey> GetMeteringKey() const override;
+
+    virtual double GetSpecifiedBurstRatio() const override;
+    virtual double GetSpecifiedResourceFlowRatio() const override;
+
+    void UpdateAccumulatedResourceVolume(TDuration periodSinceLastUpdate);
+
+    void ApplyLimitsForRelaxedPool();
+    TResourceVector GetIntegralShareLimitForRelaxedPool() const;
+
 private:
     TPoolConfigPtr Config_;
     TSchedulingTagFilter SchedulingTagFilter_;
@@ -950,8 +1027,9 @@ public:
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
-    virtual void UpdatePreemption(TUpdateFairShareContext* context) override;
+    virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void PublishFairShareAndUpdatePreemption() override;
+    virtual void UpdatePreemptionAttributes() override;
 
     virtual void PrepareFairShareByFitFactor(TUpdateFairShareContext* context) override;
 
@@ -1139,6 +1217,7 @@ public:
     void Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
 
     void UpdateFairShare(TUpdateFairShareContext* context);
+    void UpdateRootFairShare();
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
@@ -1181,6 +1260,17 @@ public:
     virtual std::optional<TMeteringKey> GetMeteringKey() const override;
 
     void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
+
+private:
+    virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    void ValidateAndAdjustSpecifiedGuarantees(TUpdateFairShareContext* context);
+    void UpdateBurstPoolIntegralShares(TUpdateFairShareContext* context);
+    void UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* context, const TResourceVector& availableShare);
+    TResourceVector EstimateAvailableShare();
+    void ConsumeAndRefillIntegralPools(TUpdateFairShareContext* context);
+
+    virtual double GetSpecifiedBurstRatio() const override;
+    virtual double GetSpecifiedResourceFlowRatio() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRootElement)

@@ -261,6 +261,9 @@ public:
 
     TFairShareStrategySchedulingSegmentsConfigPtr SchedulingSegments;
 
+    bool EnablePoolsVectorProfiling;
+    bool EnableOperationsVectorProfiling;
+
     TFairShareStrategyTreeConfig();
 };
 

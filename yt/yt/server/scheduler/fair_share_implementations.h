@@ -8,6 +8,11 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EFairShareAlgorithm,
+    (Classic)
+    (Vector)
+)
+
 class TVectorFairShareImpl
 {
 public:
@@ -35,6 +40,8 @@ public:
 
     using TRawPoolMap = NVectorScheduler::TRawPoolMap;
     using TPoolMap = NVectorScheduler::TPoolMap;
+
+    static inline const EFairShareAlgorithm Algorithm = EFairShareAlgorithm::Vector;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +73,8 @@ public:
 
     using TRawPoolMap = NClassicScheduler::TRawPoolMap;
     using TPoolMap = NClassicScheduler::TPoolMap;
+
+    static inline const EFairShareAlgorithm Algorithm = EFairShareAlgorithm::Classic;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

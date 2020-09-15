@@ -12,31 +12,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TDetailedFairShare& detailedFairShare)
-{
-    return ToStringViaBuilder(detailedFairShare);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /* format */)
-{
-    builder->AppendFormat(
-        "{MinShareGuaranteeRatio: %v, IntegralGuaranteeRatio: %v, WeightProportionalRatio: %v}",
-        detailedFairShare.MinShareGuaranteeRatio,
-        detailedFairShare.IntegralGuaranteeRatio,
-        detailedFairShare.WeightProportionalRatio);
-}
-
-void Serialize(const TDetailedFairShare& detailedFairShare, NYson::IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer).BeginMap()
-        .Item("min_share_guarantee_ratio").Value(detailedFairShare.MinShareGuaranteeRatio)
-        .Item("integral_guarantee_ratio").Value(detailedFairShare.IntegralGuaranteeRatio)
-        .Item("weight_proportional_ratio").Value(detailedFairShare.WeightProportionalRatio)
-    .EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace NDetail {
 
 NProfiling::TTagIdList GetFailReasonProfilingTags(NControllerAgent::EScheduleJobFailReason reason)

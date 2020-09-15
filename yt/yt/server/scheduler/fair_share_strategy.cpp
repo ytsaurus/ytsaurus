@@ -88,6 +88,8 @@ public:
             Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnBuildResourceMetering, MakeWeak(this)),
             Config->ResourceMeteringPeriod);
+
+        YT_LOG_INFO("Fair share strategy created (Algorithm: %v)", TFairShareImpl::Algorithm);
     }
 
     virtual void OnMasterConnected() override

@@ -29,13 +29,6 @@ inline void TSchedulerElement::SetNonAlive()
     ResourceTreeElement_->SetNonAlive();
 }
 
-inline void TSchedulerElement::SetFairShare(TResourceVector fairShare)
-{
-    Attributes_.FairShare = fairShare;
-    // This version is global and used to balance preemption lists.
-    ResourceTreeElement_->SetFairShare(fairShare);
-}
-
 inline TResourceVector TSchedulerElement::GetFairShare() const
 {
     return ResourceTreeElement_->GetFairShare();

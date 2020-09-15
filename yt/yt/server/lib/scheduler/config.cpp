@@ -48,7 +48,7 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
 
     RegisterParameter("schedule_jobs_timeout", ScheduleJobsTimeout)
         .Default(TDuration::Seconds(40));
-    
+
     RegisterParameter("long_schedule_job_logging_threshold", LongScheduleJobLoggingThreshold)
         .Default(TDuration::Seconds(10));
 }
@@ -212,6 +212,12 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("scheduling_segments", SchedulingSegments)
         .DefaultNew();
+
+    RegisterParameter("enable_pools_vector_profiling", EnablePoolsVectorProfiling)
+        .Default(true);
+
+    RegisterParameter("enable_operations_vector_profiling", EnableOperationsVectorProfiling)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
