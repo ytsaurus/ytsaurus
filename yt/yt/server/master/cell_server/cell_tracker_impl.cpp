@@ -470,7 +470,7 @@ bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeer
     } else if ((!leaderDecommissioned || cell->GetLeadingPeerId() != 0) && leadingPeer.LastSeenState == EPeerState::Leading && hasExtraPeers) {
         // Wait for a proper amount of time before dropping an extra peer.
         // This enables for a truly zero-downtime failover from a former leader to the new one, at least in certain cases.
-        if (TInstant::Now() < cell->LastPeerCountUpdateTime() + GetDynamicConfig()->ExtraPeerDropDelay) {
+        if (TInstant::Now() < cell->LastLeaderChangeTime() + GetDynamicConfig()->ExtraPeerDropDelay) {
             return false;
         }
 
