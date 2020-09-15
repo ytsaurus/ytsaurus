@@ -57,7 +57,7 @@ void JoblessInitialize(const TInitializeOptions& options = TInitializeOptions())
 /// on YT machine inside a job. If latter is true this function launches proper job and after job is done it calls exit().
 ///
 /// This function must be called if application starts any operation.
-/// This function must be called emmediately after entering main() function before any argument parsing is done.
+/// This function must be called immediately after entering main() function before any argument parsing is done.
 void Initialize(int argc, const char **argv, const TInitializeOptions &options = TInitializeOptions());
 
 /// Similar to @ref NYT::Initialize(int, const char**, const TInitializeOptions&)
