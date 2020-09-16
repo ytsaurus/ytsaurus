@@ -427,8 +427,9 @@ private:
         TSharedRefArray ResponseMessage;
         NTracing::TTraceContextPtr TraceContext;
         NHydra::TRevision Revision = NHydra::NullRevision;
-        bool Uncertain = false;
-        std::atomic<bool> Completed = {false};
+        std::atomic<bool> Uncertain = false;
+        std::atomic<bool> LocallyStarted = false;
+        std::atomic<bool> Completed = false;
         TRequestProfilingCountersPtr ProfilingCounters;
         // Only for (local) write requests when boomerangs are enabled.
         // (Local read requests are handled by a session-wide replication session).
@@ -1106,8 +1107,8 @@ private:
             YT_VERIFY(subrequest.Type == EExecutionSessionSubrequestType::LocalWrite);
 
             YT_VERIFY(!subrequest.MutationResponseFuture);
-            // NB: may still be null after assignment if no boomerangs were to be launched.
             subrequest.MutationResponseFuture = subrequest.RemoteTransactionReplicationSession->InvokeReplicationRequests();
+            subrequest.LocallyStarted.store(true);
         }
     }
 
@@ -1596,6 +1597,8 @@ private:
         YT_VERIFY(!subrequest->RemoteTransactionReplicationFuture || !subrequest->MutationResponseFuture);
 
         auto doExecuteSubrequest = [&] () {
+            subrequest->LocallyStarted.store(true);
+
             if (subrequest->Type == EExecutionSessionSubrequestType::LocalRead) {
                 ExecuteReadSubrequest(subrequest);
             } else {
@@ -1715,7 +1718,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto& subrequest = Subrequests_[index];
-        subrequest.Uncertain = true;
+        subrequest.Uncertain.store(true);
         ReleaseReplyLock();
     }
 
@@ -1785,6 +1788,13 @@ private:
         for (auto index = 0; index < TotalSubrequestCount_; ++index) {
             auto& subrequest = Subrequests_[index];
             if (!subrequest.Completed) {
+                if (subrequest.LocallyStarted) {
+                    // Possible for mutating subrequests when boomerangs are
+                    // enabled as those boomerangs are launched ASAP but reply
+                    // locks are taken later.
+                    uncertainIndexes.push_back(index);
+                }
+
                 continue;
             }
 
