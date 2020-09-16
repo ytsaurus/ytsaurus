@@ -539,8 +539,8 @@ std::vector<TSubquery> BuildSubqueries(
         chunkPool = CreateUnorderedChunkPool(
             TUnorderedChunkPoolOptions{
                 .JobSizeConstraints = jobSizeConstraints,
-                .OperationId = queryContext->QueryId,
                 .RowBuffer = queryContext->RowBuffer,
+                .OperationId = queryContext->QueryId,
             },
             TInputStreamDirectory({TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)}));
     } else if (poolKind == EPoolKind::Sorted) {
