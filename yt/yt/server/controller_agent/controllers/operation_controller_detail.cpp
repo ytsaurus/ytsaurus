@@ -8356,14 +8356,15 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
 
     for (const auto& inputTable : InputTables_) {
         if (inputTable->SchemaMode == ETableSchemaMode::Strong) {
-            // NB for historical reasons we consider optional<T> to be compatible with T when T is simple
-            // check is performed during operation.
-            ValidateTableSchemaCompatibility(
+            const auto& [compatibility, error] = CheckTableSchemaCompatibility(
                 *inputTable->Schema->Filter(inputTable->Path.GetColumns()),
                 *OutputTables_[0]->TableUploadOptions.GetUploadSchema(),
-                ignoreSortOrder,
-                /*allowSimpleTypeDeoptionalize*/ true)
-                .ThrowOnError();
+                ignoreSortOrder);
+            if (compatibility < ESchemaCompatibility::RequireValidation) {
+                // NB for historical reasons we consider optional<T> to be compatible with T when T is simple
+                // check is performed during operation.
+                THROW_ERROR_EXCEPTION(error);
+            }
         } else if (hasComputedColumn && validateComputedColumns) {
             // Input table has weak schema, so we cannot check if all
             // computed columns were already computed. At least this is weird.

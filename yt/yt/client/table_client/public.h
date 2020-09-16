@@ -275,6 +275,23 @@ class TTaggedLogicalType;
 
 struct TStructField;
 
+//
+// Enumeration is used to describe compatibility of two schemas (or logical types).
+// Such compatibility tests are performed before altering table schema or before merge operation.
+DEFINE_ENUM(ESchemaCompatibility,
+    // Values are incompatible.
+    // E.g. Int8 and String.
+    (Incompatible)
+
+    // Values that satisfy old schema MIGHT satisfy new schema, dynamic check is required.
+    // E.g. Optional<Int8> and Int8, in this case we must check that value of old type is not NULL.
+    (RequireValidation)
+
+    // Values that satisfy old schema ALWAYS satisfy new schema.
+    // E.g. Int32 and Int64
+    (FullyCompatible)
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

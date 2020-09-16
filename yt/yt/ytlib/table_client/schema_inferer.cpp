@@ -20,10 +20,13 @@ public:
 
     virtual void AddInputTableSchema(const NYPath::TYPath& path, const TTableSchema& tableSchema, ETableSchemaMode /*schemaMode*/) override
     {
-        auto res = ValidateTableSchemaCompatibility(tableSchema, *OutputTableSchema_, /*ignoreSortOrder*/ true);
-        THROW_ERROR_EXCEPTION_IF_FAILED(res, "Schema of output table %v is not compatible with schema of input table %v",
-            OutputPath_,
-            path);
+        const auto& [compatibility, error] = CheckTableSchemaCompatibility(tableSchema, *OutputTableSchema_, /*ignoreSortOrder*/ true);
+        if (compatibility != ESchemaCompatibility::FullyCompatible) {
+            THROW_ERROR_EXCEPTION("Schema of output table %v is not compatible with schema of input table %v",
+                OutputPath_,
+                path)
+                << error;
+        }
     }
 
     virtual const TTableSchemaPtr& GetOutputTableSchema() const override

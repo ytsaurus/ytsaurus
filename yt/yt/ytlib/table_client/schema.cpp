@@ -4,6 +4,8 @@
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/functions.h>
 
+#include <yt/client/complex_types/check_type_compatibility.h>
+
 #include <yt/core/ytree/convert.h>
 
 namespace NYT::NTableClient {
@@ -170,7 +172,7 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
                 THROW_ERROR_EXCEPTION("Key column %Qv cannot be aggregated", columnSchema.Name());
             }
             if (!columnSchema.SimplifiedLogicalType() || !IsPhysicalType(*columnSchema.SimplifiedLogicalType())) {
-                THROW_ERROR_EXCEPTION("Aggregated column %Qv is forbiden to have logical type %Qlv",
+                THROW_ERROR_EXCEPTION("Aggregated column %Qv is forbidden to have logical type %Qlv",
                     columnSchema.Name(),
                     *columnSchema.LogicalType());
             }
@@ -406,26 +408,18 @@ TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bo
     }
 
     std::vector<TColumnSchema> columns;
-    for (auto columnName : columnNames) {
+    for (const auto& columnName : columnNames) {
         columns.push_back(nameToColumnSchema[columnName]);
     }
 
     return New<TTableSchema>(std::move(columns), true);
 }
 
-TError ValidateTableSchemaCompatibility(
+std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
     const TTableSchema& inputSchema,
     const TTableSchema& outputSchema,
-    bool ignoreSortOrder,
-    bool allowSimpleTypeDeoptionalize)
+    bool ignoreSortOrder)
 {
-    auto wrapError = [&] (TError error) {
-        return TError(EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
-            << error
-            << TErrorAttribute("input_table_schema", inputSchema)
-            << TErrorAttribute("output_table_schema", outputSchema);
-    };
-
     auto createSchemaIndex = [] (const TTableSchema& schema) {
         THashMap<TString, const TColumnSchema*> result;
         for (const auto& column : schema.Columns()) {
@@ -439,55 +433,78 @@ TError ValidateTableSchemaCompatibility(
     // If output schema is strict, check that input columns are subset of output columns.
     if (outputSchema.GetStrict()) {
         if (!inputSchema.GetStrict()) {
-            return wrapError(TError("Incompatible strictness: input schema is not strict while output schema is"));
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Incompatible strictness: input schema is not strict while output schema is"),
+            };
         }
 
         for (const auto& inputColumn : inputSchema.Columns()) {
             if (!outputSchemaIndex.contains(inputColumn.Name())) {
-                return wrapError(TError("Column %Qv is found in input schema but is missing in output schema",
-                    inputColumn.Name()));
+                return {
+                    ESchemaCompatibility::Incompatible,
+                    TError("Column %Qv is found in input schema but is missing in output schema",
+                        inputColumn.Name()),
+                };
             }
         }
     }
+
+    auto result = std::pair(ESchemaCompatibility::FullyCompatible, TError());
 
     // Check that columns are the same.
     for (const auto& outputColumn : outputSchema.Columns()) {
         auto it = inputSchemaIndex.find(outputColumn.Name());
         if (it != inputSchemaIndex.end()) {
             auto inputColumn = it->second;
-            bool typeIsOk = IsSubtypeOf(inputColumn->LogicalType(), outputColumn.LogicalType());
-            if (allowSimpleTypeDeoptionalize &&
-                !typeIsOk &&
-                inputColumn->SimplifiedLogicalType() &&
-                inputColumn->LogicalType()->GetMetatype() == ELogicalMetatype::Optional)
-            {
-                // For historical reasons some users of this function consider type optional<T> to be compatible with T.
-                // They perform runtime check of values.
-                typeIsOk = IsSubtypeOf(inputColumn->LogicalType()->AsOptionalTypeRef().GetElement(), outputColumn.LogicalType());
+            auto currentTypeCompatibility = NComplexTypes::CheckTypeCompatibility(
+                inputColumn->LogicalType(), outputColumn.LogicalType());
+
+            if (currentTypeCompatibility.first < result.first) {
+                result = {
+                    currentTypeCompatibility.first,
+                    TError("Column %Qv input type is incompatible with output type",
+                        inputColumn->Name())
+                        << currentTypeCompatibility.second
+                };
             }
-            if (!typeIsOk) {
-                return wrapError(TError("Column %Qv input type %Qlv is incompatible with the output type %Qlv",
-                    inputColumn->Name(),
-                    *inputColumn->LogicalType(),
-                    *outputColumn.LogicalType()));
+
+            if (result.first == ESchemaCompatibility::Incompatible) {
+                break;
             }
+
             if (outputColumn.Expression() && inputColumn->Expression() != outputColumn.Expression()) {
-                return wrapError(TError("Column %Qv expression mismatch",
-                    inputColumn->Name()));
+                return {
+                    ESchemaCompatibility::Incompatible,
+                    TError("Column %Qv expression mismatch",
+                        inputColumn->Name()),
+                };
             }
             if (outputColumn.Aggregate() && inputColumn->Aggregate() != outputColumn.Aggregate()) {
-                return wrapError(TError("Column %Qv aggregate mismatch",
-                    inputColumn->Name()));
+                return {
+                    ESchemaCompatibility::Incompatible,
+                    TError("Column %Qv aggregate mismatch",
+                        inputColumn->Name()),
+                };
             }
         } else if (outputColumn.Expression()) {
-            return wrapError(TError("Unexpected computed column %Qv in output schema",
-                outputColumn.Name()));
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Unexpected computed column %Qv in output schema",
+                    outputColumn.Name()),
+            };
         } else if (!inputSchema.GetStrict()) {
-            return wrapError(TError("Column %Qv is present in output schema and is missing in nonstrict input schema",
-                    outputColumn.Name()));
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Column %Qv is present in output schema and is missing in non-strict input schema",
+                    outputColumn.Name()),
+            };
         } else if (outputColumn.Required()) {
-            return wrapError(TError("Required column %Qv is present in output schema and is missing in input schema",
-                    outputColumn.Name()));
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Required column %Qv is present in output schema and is missing in input schema",
+                    outputColumn.Name()),
+            };
         }
     }
 
@@ -500,29 +517,41 @@ TError ValidateTableSchemaCompatibility(
                 continue;
             }
             if (!outputSchemaIndex.contains(inputColumn.Name())) {
-                return wrapError(TError("Column %Qv of input schema with complex type %Qv is missing in strict part of output schema",
-                    inputColumn.Name(),
-                    *inputColumn.LogicalType()));
+                return {
+                    ESchemaCompatibility::Incompatible,
+                    TError("Column %Qv of input schema with complex type %Qv is missing in strict part of output schema",
+                        inputColumn.Name(),
+                        *inputColumn.LogicalType()),
+                };
             }
         }
     }
 
     if (ignoreSortOrder) {
-        return TError();
+        return result;
     }
 
     // Check that output key columns form a prefix of input key columns.
     int cmp = outputSchema.GetKeyColumnCount() - inputSchema.GetKeyColumnCount();
     if (cmp > 0) {
-        return wrapError(TError("Output key columns are wider than input key columns"));
+        return {
+            ESchemaCompatibility::Incompatible,
+            TError("Output key columns are wider than input key columns"),
+        };
     }
 
     if (outputSchema.GetUniqueKeys()) {
         if (!inputSchema.GetUniqueKeys()) {
-            return wrapError(TError("Input schema \"unique_keys\" attribute is false"));
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Input schema \"unique_keys\" attribute is false"),
+            };
         }
         if (cmp != 0) {
-            return wrapError(TError("Input key columns are wider than output key columns"));
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Input key columns are wider than output key columns"),
+            };
         }
     }
 
@@ -531,12 +560,31 @@ TError ValidateTableSchemaCompatibility(
 
     for (int index = 0; index < outputKeyColumns.size(); ++index) {
         if (inputKeyColumns[index] != outputKeyColumns[index]) {
-            return wrapError(TError("Input sorting order is incompatible with the output"));
+            return {
+                ESchemaCompatibility::Incompatible,
+                TError("Input sorting order is incompatible with the output"),
+            };
         }
     }
 
-    return TError();
+    return result;
 }
+
+std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibility(
+    const TTableSchema& inputSchema,
+    const TTableSchema& outputSchema,
+    bool ignoreSortOrder)
+{
+    auto result = CheckTableSchemaCompatibilityImpl(inputSchema, outputSchema, ignoreSortOrder);
+    if (result.first != ESchemaCompatibility::FullyCompatible) {
+        result.second = TError(EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
+                << result.second
+                << TErrorAttribute("input_table_schema", inputSchema)
+                << TErrorAttribute("output_table_schema", outputSchema);
+    }
+    return result;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

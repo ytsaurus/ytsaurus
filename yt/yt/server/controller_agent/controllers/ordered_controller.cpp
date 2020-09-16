@@ -395,10 +395,10 @@ protected:
                     InputTables_[index]->ColumnRenameDescriptors.empty() &&
                     OutputTables_[0]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
                 {
-                    InputTables_[index]->Teleportable = ValidateTableSchemaCompatibility(
+                    InputTables_[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputTables_[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema,
-                        false /* ignoreSortOrder */).IsOK();
+                        false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
                 }
             }
         }
@@ -987,11 +987,13 @@ private:
                     InferSchemaFromInputOrdered();
                 } else {
                     if (InputTables_[0]->SchemaMode == ETableSchemaMode::Strong) {
-                        ValidateTableSchemaCompatibility(
+                        const auto& [compatibility, error] = CheckTableSchemaCompatibility(
                             *InputTables_[0]->Schema,
                             *table->TableUploadOptions.TableSchema,
-                            /* ignoreSortOrder */ false)
-                            .ThrowOnError();
+                            /* ignoreSortOrder */ false);
+                        if (compatibility != ESchemaCompatibility::FullyCompatible) {
+                            THROW_ERROR_EXCEPTION(error);
+                        }
                     }
                 }
                 break;

@@ -339,6 +339,14 @@ void FromProto(NTableClient::TColumnFilter* columnFilter, const TColumnFilter& p
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Incompatible < RequireValidation < FullyCompatible
+constexpr bool operator < (ESchemaCompatibility lhs, ESchemaCompatibility rhs);
+constexpr bool operator <= (ESchemaCompatibility lhs, ESchemaCompatibility rhs);
+constexpr bool operator > (ESchemaCompatibility lhs, ESchemaCompatibility rhs);
+constexpr bool operator >= (ESchemaCompatibility lhs, ESchemaCompatibility rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
 
 ////////////////////////////////////////////////////////////////////////////////

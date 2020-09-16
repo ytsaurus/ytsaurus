@@ -7,10 +7,18 @@
 #include <yt/core/ytree/convert.h>
 
 namespace NYT::NTableClient {
+
+static void PrintTo(ESchemaCompatibility typeCompatibility, std::ostream* stream)
+{
+    (*stream) << "ESchemaCompatibility::" << ToString(typeCompatibility).c_str();
+}
+
 namespace {
 
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -500,212 +508,226 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
         }), false /* isDynamicTable */, true /* isEmptyTable */);
 }
 
-TEST_F(TTableSchemaTest, ValidateTableSchemaCompatibilityTest)
+TEST_F(TTableSchemaTest,CheckTableSchemaCompatibilityTest)
 {
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", EValueType::Int64),
-        }, /*strict*/ false),
-        TTableSchema({
-            TColumnSchema("foo", EValueType::Int64),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("foo", EValueType::Int64),
+            }, /*strict*/ false),
+            TTableSchema({
+                TColumnSchema("foo", EValueType::Int64),
+            }),
+            /*ignoreSortOrder*/ true).first
+    );
 
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", EValueType::Int64),
-        }),
-        TTableSchema({
-            TColumnSchema("foo", EValueType::Int64),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::FullyCompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("foo", EValueType::Int64),
+            }),
+            TTableSchema({
+                TColumnSchema("foo", EValueType::Int64),
+            }),
+            /*ignoreSortOrder*/ true).first
+    );
 
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", EValueType::Int64),
-            TColumnSchema("bar", EValueType::Int64),
-        }),
-        TTableSchema({
-            TColumnSchema("foo", EValueType::Int64),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("foo", EValueType::Int64),
+                TColumnSchema("bar", EValueType::Int64),
+            }),
+            TTableSchema({
+                TColumnSchema("foo", EValueType::Int64),
+            }),
+            /*ignoreSortOrder*/ true).first
+    );
 
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", EValueType::Int64),
-        }),
-        TTableSchema({
-            TColumnSchema("foo", EValueType::Uint64),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("foo", EValueType::Int64),
+            }),
+            TTableSchema({
+                TColumnSchema("foo", EValueType::Uint64),
+            }),
+            /*ignoreSortOrder*/ true ).first
+    );
 
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", ESimpleLogicalValueType::Int32),
-        }),
-        TTableSchema({
-            TColumnSchema("foo", ESimpleLogicalValueType::Int64),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::FullyCompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("foo", ESimpleLogicalValueType::Int32),
+            }),
+            TTableSchema({
+                TColumnSchema("foo", ESimpleLogicalValueType::Int64),
+            }),
+            /*ignoreSortOrder*/ true).first
+    );
 
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", ESimpleLogicalValueType::Int32),
-        }),
-        TTableSchema({
-            TColumnSchema("foo", ESimpleLogicalValueType::Int8),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::RequireValidation,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("foo", ESimpleLogicalValueType::Int32),
+            }),
+            TTableSchema({
+                TColumnSchema("foo", ESimpleLogicalValueType::Int8),
+            }),
+        /*ignoreSortOrder*/ true).first
+    );
 
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
-        }),
-        TTableSchema({
-            TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::FullyCompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+            }),
+            TTableSchema({
+                TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+            }),
+        /*ignoreSortOrder*/ true).first
+    );
 
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
-        }),
-        TTableSchema({
-            TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
-
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
-        }),
-        TTableSchema({
-            TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
-        }),
-        /*ignoreSortOrder*/ true,
-        /*allowSimpleTypeDeoptionalize*/ true
-    ).IsOK());
-
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
-        }),
-        TTableSchema({
-            TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
-        }),
-        /*ignoreSortOrder*/ true,
-        /*allowSimpleTypeDeoptionalize*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::RequireValidation,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+            }),
+            TTableSchema({
+                TColumnSchema("foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+            }),
+            /*ignoreSortOrder*/ true).first
+    );
 
     // Missing "foo" values are filled with nulls that's OK.
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({}, /*strict*/ true),
-        TTableSchema({
-            TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::FullyCompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({}, /*strict*/ true),
+            TTableSchema({
+                TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+            }),
+        /*ignoreSortOrder*/ true).first
+    );
 
     // First table might have column foo with value of any type
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
-        TTableSchema({}, /*strict*/ false),
-        TTableSchema({
-            TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({}, /*strict*/ false),
+            TTableSchema({
+                TColumnSchema("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+            }),
+            /*ignoreSortOrder*/ true).first
+    );
 
     // Missing "foo" values are filled with nulls that's OK.
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({}, /*strict*/ true),
-        TTableSchema({
-            TColumnSchema("foo", ESimpleLogicalValueType::Int64),
-        }),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::FullyCompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({}, /*strict*/ true),
+            TTableSchema({
+                TColumnSchema("foo", ESimpleLogicalValueType::Int64),
+            }),
+            /*ignoreSortOrder*/ true).first
+    );
 
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("a", ListLogicalType(SimpleLogicalType((ESimpleLogicalValueType::Int64)))),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64),
-        }, /*strict*/ true),
-        TTableSchema({
-            TColumnSchema("b", ESimpleLogicalValueType::Int64),
-        }, /*strict*/ false),
-        /*ignoreSortOrder*/ true
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("a", ListLogicalType(SimpleLogicalType((ESimpleLogicalValueType::Int64)))),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64),
+            }, /*strict*/ true),
+            TTableSchema({
+                TColumnSchema("b", ESimpleLogicalValueType::Int64),
+            }, /*strict*/ false),
+            /*ignoreSortOrder*/ true).first
+    );
 
     //
     // ignoreSortOrder = false
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-        }),
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-        }),
-        /*ignoreSortOrder*/ false
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::FullyCompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+            }),
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+            }),
+            /*ignoreSortOrder*/ false).first
+    );
 
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64),
-        }),
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-        }),
-        /*ignoreSortOrder*/ false
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64),
+            }),
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+            }),
+            /*ignoreSortOrder*/ false).first
+    );
 
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-        }),
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64),
-        }),
-        /*ignoreSortOrder*/ false
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::FullyCompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+            }),
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64),
+            }),
+            /*ignoreSortOrder*/ false).first
+    );
 
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-        }, /*strict*/ true, /*uniqueKeys*/ true),
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64),
-        }, /*strict*/ true, /*uniqueKeys*/ true),
-        /*ignoreSortOrder*/ false
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+            }, /*strict*/ true, /*uniqueKeys*/ true),
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64),
+            }, /*strict*/ true, /*uniqueKeys*/ true),
+            /*ignoreSortOrder*/ false).first
+    );
 
-    EXPECT_TRUE(ValidateTableSchemaCompatibility(
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-        }, /*strict*/ true, /*uniqueKeys*/ true),
-        TTableSchema({
-            TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
-        }, /*strict*/ true, /*uniqueKeys*/ true),
-        /*ignoreSortOrder*/ false
-    ).IsOK());
+    EXPECT_EQ(
+        ESchemaCompatibility::FullyCompatible,
+        CheckTableSchemaCompatibility(
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+            }, /*strict*/ true, /*uniqueKeys*/ true),
+            TTableSchema({
+                TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+                TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
+            }, /*strict*/ true, /*uniqueKeys*/ true),
+            /*ignoreSortOrder*/ false).first
+    );
 
-    EXPECT_FALSE(ValidateTableSchemaCompatibility(
+    EXPECT_EQ(
+        ESchemaCompatibility::Incompatible,
+        CheckTableSchemaCompatibility(
         TTableSchema({
             TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
@@ -714,8 +736,8 @@ TEST_F(TTableSchemaTest, ValidateTableSchemaCompatibilityTest)
             TColumnSchema("b", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("a", ESimpleLogicalValueType::Int64, ESortOrder::Ascending),
         }),
-        /*ignoreSortOrder*/ false
-    ).IsOK());
+        /*ignoreSortOrder*/ false).first
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -731,7 +753,7 @@ TEST_P(TInferSchemaTest, Basic)
 {
     const auto& param = GetParam();
     const auto& schemaStrings = std::get<0>(param);
-    const auto& resultSchamaString = std::get<1>(param);
+    const auto& resultSchemaString = std::get<1>(param);
     bool discardKeyColumns = std::get<2>(param);
 
     std::vector<TTableSchemaPtr> schemas;
@@ -740,7 +762,7 @@ TEST_P(TInferSchemaTest, Basic)
     }
 
     TTableSchema resultSchema;
-    Deserialize(resultSchema, ConvertToNode(TYsonString(resultSchamaString)));
+    Deserialize(resultSchema, ConvertToNode(TYsonString(resultSchemaString)));
 
     EXPECT_EQ(resultSchema, *InferInputSchema(schemas, discardKeyColumns));
 }
