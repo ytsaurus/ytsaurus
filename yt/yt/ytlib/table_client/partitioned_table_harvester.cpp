@@ -298,7 +298,8 @@ private:
         TTableSchema reducedSchema(columns, Schema_->GetStrict());
 
         for (auto& partitionState : GetValidPartitionStates()) {
-            partitionState.Error = ValidateTableSchemaCompatibility(*partitionState.TableSchema, reducedSchema);
+            const auto& [compatibility, error] = CheckTableSchemaCompatibility(*partitionState.TableSchema, reducedSchema, false);
+            partitionState.Error = error;
         }
     }
 

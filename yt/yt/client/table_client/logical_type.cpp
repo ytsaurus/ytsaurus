@@ -391,12 +391,36 @@ TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::ListElement() const
     return TComplexTypeFieldDescriptor(Descriptor_ + ".<list-element>", Type_->AsListTypeRef().GetElement());
 }
 
+TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::Field(size_t i) const
+{
+    switch (Type_->GetMetatype()) {
+        case ELogicalMetatype::Struct:
+            return StructField(i);
+        case ELogicalMetatype::VariantStruct:
+            return VariantStructField(i);
+        default:
+            YT_ABORT();
+    }
+}
+
 TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::StructField(size_t i) const
 {
     const auto& fields = Type_->AsStructTypeRef().GetFields();
     YT_VERIFY(i < fields.size());
     const auto& field = fields[i];
     return TComplexTypeFieldDescriptor(Descriptor_ + "." + field.Name, field.Type);
+}
+
+TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::Element(size_t i) const
+{
+    switch (Type_->GetMetatype()) {
+        case ELogicalMetatype::Tuple:
+            return TupleElement(i);
+        case ELogicalMetatype::VariantTuple:
+            return VariantTupleElement(i);
+        default:
+            YT_ABORT();
+    }
 }
 
 TComplexTypeFieldDescriptor TComplexTypeFieldDescriptor::TupleElement(size_t i) const
@@ -830,74 +854,6 @@ void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& ne
             *oldType,
             *newType);
     }
-}
-
-static bool IsSubtypeOf(ESimpleLogicalValueType lhs, ESimpleLogicalValueType rhs)
-{
-    if (lhs == rhs) {
-        return true;
-    }
-    if (rhs == ESimpleLogicalValueType::Any) {
-        return true;
-    }
-
-    auto leftPhysicalType = GetPhysicalType(lhs);
-    auto rightPhysicalType = GetPhysicalType(rhs);
-    if (leftPhysicalType != rightPhysicalType) {
-        return false;
-    }
-
-    if (leftPhysicalType == EValueType::Uint64 || leftPhysicalType == EValueType::Int64) {
-        static const std::vector<ESimpleLogicalValueType> order = {
-            ESimpleLogicalValueType::Uint8,
-            ESimpleLogicalValueType::Int8,
-            ESimpleLogicalValueType::Uint16,
-            ESimpleLogicalValueType::Int16,
-            ESimpleLogicalValueType::Uint32,
-            ESimpleLogicalValueType::Int32,
-            ESimpleLogicalValueType::Uint64,
-            ESimpleLogicalValueType::Int64,
-        };
-
-        auto lit = std::find(order.begin(), order.end(), lhs);
-        auto rit = std::find(order.begin(), order.end(), rhs);
-        YT_ASSERT(lit != order.end());
-        YT_ASSERT(rit != order.end());
-
-        return lit <= rit;
-    }
-
-    if (leftPhysicalType == EValueType::String) {
-        static const std::vector<ESimpleLogicalValueType> order = {
-            ESimpleLogicalValueType::Utf8,
-            ESimpleLogicalValueType::String,
-        };
-        auto lit = std::find(order.begin(), order.end(), lhs);
-        auto rit = std::find(order.begin(), order.end(), rhs);
-        YT_ASSERT(lit != order.end());
-        YT_ASSERT(rit != order.end());
-        return lit <= rit;
-    }
-
-    return false;
-}
-
-bool IsSubtypeOf(const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs)
-{
-    if (*lhs == *rhs) {
-        return true;
-    }
-
-    const auto& [lhsSimplifiedLogicalType, lhsRequired] = SimplifyLogicalType(lhs);
-    const auto& [rhsSimplifiedLogicalType, rhsRequired] = SimplifyLogicalType(rhs);
-
-    if (!lhsSimplifiedLogicalType || !rhsSimplifiedLogicalType) {
-        return false;
-    }
-    if (rhsRequired && !lhsRequired) {
-        return false;
-    }
-    return IsSubtypeOf(*lhsSimplifiedLogicalType, *rhsSimplifiedLogicalType);
 }
 
 void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logicalType)

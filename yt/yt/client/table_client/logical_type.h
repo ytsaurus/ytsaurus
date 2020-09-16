@@ -109,11 +109,6 @@ void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& ne
 
 void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor);
 
-//! Returns true if #lhs type is subtype of #rhs type.
-//! We say that #lhs type is subtype of #rhs type
-//! iff every value that belongs to #lhs type also belongs to #rhs type.
-bool IsSubtypeOf(const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs);
-
 // Function converts new type to old typesystem if possible.
 // The first element of result is ESimpleLogicalValue type corresponding to logicalType
 // if logicalType is either T or optional<T> and T is simple. Otherwise the first element of result is nullopt.
@@ -219,9 +214,11 @@ public:
 
     TComplexTypeFieldDescriptor OptionalElement() const;
     TComplexTypeFieldDescriptor ListElement() const;
-    TComplexTypeFieldDescriptor StructField(size_t i) const;
+    TComplexTypeFieldDescriptor Element(size_t i) const;
     TComplexTypeFieldDescriptor TupleElement(size_t i) const;
     TComplexTypeFieldDescriptor VariantTupleElement(size_t i) const;
+    TComplexTypeFieldDescriptor Field(size_t i) const;
+    TComplexTypeFieldDescriptor StructField(size_t i) const;
     TComplexTypeFieldDescriptor VariantStructField(size_t i) const;
     TComplexTypeFieldDescriptor DictKey() const;
     TComplexTypeFieldDescriptor DictValue() const;

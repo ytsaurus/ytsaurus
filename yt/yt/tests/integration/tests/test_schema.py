@@ -753,7 +753,7 @@ class TestLogicalType(YTEnvSetup):
                        {"name": "key1", "type": "int32", "expression": "100"},
                    ]})
 
-        with raises_yt_error("Aggregated column \"key1\" is forbiden to have logical type"):
+        with raises_yt_error("Aggregated column \"key1\" is forbidden to have logical type"):
             create("table", "//test-table",
                    attributes={"schema": [
                        {"name": "key1", "type": "int32", "aggregate": "sum"},

@@ -457,10 +457,10 @@ protected:
                     inputTable->ColumnRenameDescriptors.empty() &&
                     OutputTables_[*tableIndex]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
                 {
-                    inputTable->Teleportable = ValidateTableSchemaCompatibility(
+                    inputTable->Teleportable = CheckTableSchemaCompatibility(
                         *inputTable->Schema,
                         *OutputTables_[*tableIndex]->TableUploadOptions.TableSchema,
-                        false /* ignoreSortOrder */).IsOK();
+                        false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
                     if (GetJobType() == EJobType::SortedReduce) {
                         inputTable->Teleportable &= inputTable->Path.GetTeleport();
                     }

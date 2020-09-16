@@ -27,16 +27,16 @@ TTableSchemaPtr InferInputSchema(
     const std::vector<TTableSchemaPtr>& schemas,
     bool discardKeyColumns);
 
-//! Validates that values from table with inputSchema also match outputSchema.
-//!
-//! allowSimpleTypeDeoptionalize:
-//! if set to true optional<T> will be compatible with T if T is simple type
-//!   this argument is dangerous and is used in some places for historical reasons.
-TError ValidateTableSchemaCompatibility(
+// Validates that values from table with inputSchema also match outputSchema.
+//
+// Result pair contains following elements:
+//   1. Level of compatibility of the given schemas.
+//   2. If schemas are fully compatible error is empty otherwise it contains description
+//      of incompatibility.
+std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibility(
     const TTableSchema& inputSchema,
     const TTableSchema& outputSchema,
-    bool ignoreSortOrder = false,
-    bool allowSimpleTypeDeoptionalize = false);
+    bool ignoreSortOrder);
 
 //! Compared to #ValidateTableSchema, additionally validates
 //! aggregated and computed columns (this involves calling some heavy QL-related

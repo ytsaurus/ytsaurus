@@ -257,10 +257,10 @@ protected:
                     InputTables_[index]->ColumnRenameDescriptors.empty() &&
                     OutputTables_[0]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
                 {
-                    InputTables_[index]->Teleportable = ValidateTableSchemaCompatibility(
+                    InputTables_[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputTables_[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema,
-                        false /* ignoreSortOrder */).IsOK();
+                        false /* ignoreSortOrder */).first == ESchemaCompatibility::FullyCompatible;
                 }
             }
         }

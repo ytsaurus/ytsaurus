@@ -43,4 +43,26 @@ inline TLockMask::operator TLockBitmap() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr bool operator < (ESchemaCompatibility lhs, ESchemaCompatibility rhs)
+{
+    return static_cast<int>(lhs) < static_cast<int>(rhs);
+}
+
+constexpr bool operator > (ESchemaCompatibility lhs, ESchemaCompatibility rhs)
+{
+    return rhs < lhs;
+}
+
+constexpr bool operator <= (ESchemaCompatibility lhs, ESchemaCompatibility rhs)
+{
+    return !(rhs < lhs);
+}
+
+constexpr bool operator >= (ESchemaCompatibility lhs, ESchemaCompatibility rhs)
+{
+    return !(lhs < rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
