@@ -249,7 +249,7 @@ func TestPyTest(t *testing.T) {
 	pythonPaths := GetPythonPaths()
 	pythonPaths = append(pythonPaths, preparedPythonPath)
 
-	testPathsFilePath := path.Join(preparedPythonPath, "yt/wrapper/system_python_tests/test_paths.txt")
+	testPathsFilePath := path.Join(preparedPythonPath, "yt/wrapper/new_system_python_tests/test_paths.txt")
 	testPathsFile, err := os.Open(testPathsFilePath)
 	if err != nil {
 		t.Fatalf("Failed to open %s: %s", testPathsFilePath, err)
