@@ -464,7 +464,7 @@ public:
     TTableSchemaCacheConfig()
     {
         RegisterParameter("table_schema_cache_request_timeout", TableSchemaCacheRequestTimeout)
-            .Default(TDuration::Seconds(3));
+            .Default(TDuration::Seconds(1));
 
         RegisterPreprocessor([&] {
             Capacity = 100_MB;

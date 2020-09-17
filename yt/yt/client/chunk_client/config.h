@@ -206,8 +206,11 @@ public:
     //! Number of peers processed in one pass.
     int LookupRequestPeerCount;
 
-    //! Maximum number of passes with same seeds for lookup request.
+    //! Maximum number of passes within single retry for lookup request.
     int LookupRequestPassCount;
+
+    //! Maximum number of retries for lookup request.
+    int LookupRequestRetryCount;
 
     // COMPAT(babenko): replace with 'true' once all clusters support ProbeBlockSet
     bool EnableProbeBlockSet; 
@@ -221,7 +224,7 @@ public:
         RegisterParameter("cancel_primary_block_rpc_request_on_hedging", CancelPrimaryBlockRpcRequestOnHedging)
             .Default(false);
         RegisterParameter("lookup_rpc_timeout", LookupRpcTimeout)
-            .Default(TDuration::Seconds(10));
+            .Default(TDuration::Seconds(30));
         RegisterParameter("meta_rpc_timeout", MetaRpcTimeout)
             .Default(TDuration::Seconds(30));
         RegisterParameter("meta_rpc_hedging_delay", MetaRpcHedgingDelay)
@@ -273,13 +276,16 @@ public:
         RegisterParameter("lookup_sleep_duration", LookupSleepDuration)
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("single_pass_iteration_limit_for_lookup", SinglePassIterationLimitForLookup)
-            .Default(3);
+            .Default(2);
         RegisterParameter("lookup_request_peer_count", LookupRequestPeerCount)
             .GreaterThan(0)
             .Default(5);
         RegisterParameter("lookup_request_pass_count", LookupRequestPassCount)
             .GreaterThan(0)
             .Default(10);
+        RegisterParameter("lookup_request_retry_count", LookupRequestRetryCount)
+            .GreaterThan(0)
+            .Default(5);
         RegisterParameter("enable_probe_block_set", EnableProbeBlockSet)
             .Default(false);
 
@@ -294,8 +300,9 @@ public:
             MetaRpcTimeout = std::min(MetaRpcTimeout, RetryTimeout);
             ProbeRpcTimeout = std::min(ProbeRpcTimeout, RetryTimeout);
 
-            // LookupRequestPassCount is supposed to be not greater than PassCount.
+            // These are supposed to be not greater than PassCount and RetryCount.
             LookupRequestPassCount = std::min(LookupRequestPassCount, PassCount);
+            LookupRequestRetryCount = std::min(LookupRequestRetryCount, RetryCount);
         });
     }
 };
