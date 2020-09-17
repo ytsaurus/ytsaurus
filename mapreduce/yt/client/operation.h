@@ -63,10 +63,7 @@ public:
 
     const TString& GetPreparationId() const;
 
-    void LockFiles(
-        TVector<TRichYPath>* paths,
-        TVector<TString> lockedFileSignatures,
-        const TYPath& cachePath);
+    void LockFiles(TVector<TRichYPath>* paths);
 
     TOperationId StartOperation(
         const TString& operationType,
@@ -79,8 +76,6 @@ private:
     TClientPtr Client_;
     TTransactionId TransactionId_;
     THolder<TPingableTransaction> FileTransaction_;
-    TVector<TString> LockedFileSignatures_;
-    TYPath CachePath_;
     IClientRetryPolicyPtr ClientRetryPolicy_;
     const TString PreparationId_;
 

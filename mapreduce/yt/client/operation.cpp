@@ -77,7 +77,6 @@ namespace NDetail {
 using namespace NRawClient;
 
 static const ui64 DefaultExrtaTmpfsSize = 1024LL * 1024LL;
-static const bool LockCachedFilesWhenStartingOperation = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -559,9 +558,7 @@ public:
             PrepareJobBinary(job, outputTableCount, jobStateSmallFile.Defined());
         }
 
-        if (LockCachedFilesWhenStartingOperation) {
-            operationPreparer.LockFiles(&CachedFiles_, LockedFileSignatures_, GetCachePath());
-        }
+        operationPreparer.LockFiles(&CachedFiles_);
     }
 
     TVector<TRichYPath> GetFiles() const
@@ -2976,68 +2973,6 @@ const IClientRetryPolicyPtr& TOperationPreparer::GetClientRetryPolicy() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCacheTouchingRetryPolicy
-    : public IRequestRetryPolicy
-{
-public:
-    TCacheTouchingRetryPolicy(
-        IRequestRetryPolicyPtr baseRetryPolicy,
-        const TAuth& auth,
-        const TVector<TString>& md5Signatures,
-        const TYPath& cachePath)
-        : BasePolicy_(baseRetryPolicy)
-        , Auth_(auth)
-        , Signatures_(md5Signatures)
-        , CachePath_(cachePath)
-    { }
-
-    void NotifyNewAttempt() override
-    {
-        TRawBatchRequest batchRequest;
-        TVector<NThreading::TFuture<TMaybe<TYPath>>> results;
-        results.reserve(Signatures_.size());
-        for (const auto& md5Signature : Signatures_) {
-            results.push_back(batchRequest.GetFileFromCache(
-                TTransactionId(),
-                md5Signature,
-                CachePath_,
-                TGetFileFromCacheOptions()));
-        }
-        ExecuteBatch(CreateDefaultRequestRetryPolicy(), Auth_, batchRequest);
-        for (const auto& future : results) {
-            future.GetValueSync();
-        }
-
-        BasePolicy_->NotifyNewAttempt();
-    }
-
-    void OnIgnoredError(const TErrorResponse& e) override
-    {
-        BasePolicy_->OnIgnoredError(e);
-    }
-
-    TMaybe<TDuration> OnGenericError(const yexception& e) override
-    {
-        return BasePolicy_->OnGenericError(e);
-    }
-
-    TMaybe<TDuration> OnRetriableError(const TErrorResponse& e) override
-    {
-        return BasePolicy_->OnRetriableError(e);
-    }
-
-    TString GetAttemptDescription() const override
-    {
-        return BasePolicy_->GetAttemptDescription();
-    }
-
-private:
-    IRequestRetryPolicyPtr BasePolicy_;
-    const TAuth& Auth_;
-    const TVector<TString>& Signatures_;
-    TYPath CachePath_;
-};
-
 TOperationId TOperationPreparer::StartOperation(
     const TString& operationType,
     const TNode& spec,
@@ -3052,15 +2987,9 @@ TOperationId TOperationPreparer::StartOperation(
     header.AddTransactionId(TransactionId_);
     header.AddMutationId();
 
-    auto retryPolicy = MakeIntrusive<TCacheTouchingRetryPolicy>(
-        ClientRetryPolicy_->CreatePolicyForStartOperationRequest(),
-        GetAuth(),
-        LockedFileSignatures_,
-        CachePath_);
-
     auto ysonSpec = NodeToYsonString(spec);
     auto responseInfo = RetryRequestWithPolicy(
-        retryPolicy,
+        ClientRetryPolicy_->CreatePolicyForStartOperationRequest(),
         GetAuth(),
         header,
         ysonSpec);
@@ -3082,17 +3011,9 @@ TOperationId TOperationPreparer::StartOperation(
     return operationId;
 }
 
-// TODO(levysotsky): Get rid of lockedFileSignatures and cachePath after
-// https://st.yandex-team.ru/YT-9951 is deployed on prod clusters.
-void TOperationPreparer::LockFiles(
-    TVector<TRichYPath>* paths,
-    TVector<TString> lockedFileSignatures,
-    const TYPath& cachePath)
+void TOperationPreparer::LockFiles(TVector<TRichYPath>* paths)
 {
     CheckValidity();
-
-    LockedFileSignatures_ = std::move(lockedFileSignatures);
-    CachePath_ = cachePath;
 
     TVector<NThreading::TFuture<TLockId>> lockIdFutures;
     lockIdFutures.reserve(paths->size());
