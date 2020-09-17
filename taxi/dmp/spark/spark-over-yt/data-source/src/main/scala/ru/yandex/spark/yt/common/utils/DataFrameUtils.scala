@@ -2,10 +2,10 @@ package ru.yandex.spark.yt.common.utils
 
 import java.util.{ArrayList => JList}
 
+import org.apache.spark.sql._
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql._
 
 import scala.reflect.runtime.universe.TypeTag
 

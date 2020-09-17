@@ -177,12 +177,3 @@ def parse_args(parser=None, parser_arguments=None):
     args.discovery_path = args.discovery_path or args.discovery_dir or default_discovery_dir()
     return args, unknown_args
 
-
-def spark_conf_args_to_dict(args):
-    res = {}
-    for (i, arg) in enumerate(args):
-        if arg == "--conf" and (i + 1) < len(args):
-            conf_name, conf_value = args[i + 1].split("=", 2)
-            env_name = conf_name.upper().replace(".", "_")
-            res[env_name] = conf_value
-    return res

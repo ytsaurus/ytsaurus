@@ -50,7 +50,10 @@ def _add_conf(spark_conf, spark_args):
 
 def _add_master(discovery, spark_args, rest, client=None):
     spark_args.append("--master")
-    spark_args.append(get_spark_master(discovery, rest, yt_client=client))
+    spark_args.append(get_spark_master(discovery, rest=False, yt_client=client))
+    _add_conf({
+        "spark.rest.master": get_spark_master(discovery, rest=True, yt_client=client)
+    }, spark_args)
 
 
 def _add_base_spark_conf(client, discovery, spark_args):
@@ -198,8 +201,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                pool, enablers, client):
     def _launcher_command(component):
         unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C ./tmpfs"
-        move_java = "cp -r /opt/jdk8 ./tmpfs/jdk8"
-        run_launcher = "./tmpfs/jdk8/bin/java -Xmx512m -cp spark-yt-launcher.jar"
+        move_java = "cp -r /opt/jdk11 ./tmpfs/jdk11"
+        run_launcher = "./tmpfs/jdk11/bin/java -Xmx512m -cp spark-yt-launcher.jar"
         spark_conf = get_spark_conf(config=config, enablers=enablers)
 
         return "{0} && {1} && {2} {3} ru.yandex.spark.launcher.{4}Launcher ".format(unpack_tar, move_java, run_launcher,
@@ -230,7 +233,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["YT_PROXY"] = get_proxy_url(required=True, client=client)
     environment["YT_OPERATION_ALIAS"] = operation_spec["title"]
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
-    environment["JAVA_HOME"] = "$HOME/tmpfs/jdk8"
+    environment["JAVA_HOME"] = "$HOME/tmpfs/jdk11"
     environment["SPARK_HOME"] = "$HOME/tmpfs/spark"
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
     environment["SPARK_YT_BYOP_PORT"] = "27002"

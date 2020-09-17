@@ -121,7 +121,7 @@ trait SparkLauncher {
 
     log.info(s"Run command: $command")
 
-    val javaHome = env("JAVA_HOME", "/opt/jdk8")
+    val javaHome = env("JAVA_HOME", "/opt/jdk11")
     Process(
       command,
       new File("."),

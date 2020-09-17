@@ -15,8 +15,9 @@ setuptools.setup(
     url="https://github.yandex-team.ru/taxi-dwh/spark-over-yt",
     packages=setuptools.find_packages(),
     install_requires=[
-        "yandex-pyspark==2.4.4+0.5.6",
+        "yandex-pyspark==3.0.1+1.0.0b3",
         "yandex-yt>=0.9.29",
+        "pyarrow==0.15.1",
         "pyyaml"
     ],
 )

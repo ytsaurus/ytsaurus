@@ -19,9 +19,9 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-parser"
 ).map(_ % circeVersion)
 
-val yandexIcebergVersion = "7142644"
+val yandexIcebergVersion = "7150580"
 libraryDependencies ++= Seq(
   "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll (
-    ExclusionRule(organization = "com.fasterxml.jackson.core"),
-    ExclusionRule(organization = "ru.yandex.jdk10")
-))
+    ExclusionRule(organization = "com.fasterxml.jackson.core")
+  )
+)

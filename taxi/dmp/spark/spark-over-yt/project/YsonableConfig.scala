@@ -73,7 +73,9 @@ case class SparkLaunchConfig(spark_yt_base_path: String,
                              file_paths: Seq[String],
                              spark_conf: Map[String, String],
                              enablers: SpytEnablers,
-                             ytserver_proxy_path: Option[String]) extends YsonableConfig {
+                             ytserver_proxy_path: Option[String],
+                             layer_paths: Seq[String],
+                             environment: Map[String, String]) extends YsonableConfig {
   override def resolveSymlinks(implicit yt: YtClient): YsonableConfig = {
     import SparkLaunchConfig._
     if (ytserver_proxy_path.isEmpty) {
@@ -91,7 +93,16 @@ object SparkLaunchConfig {
             spark_conf_yt_base_path: String,
             spark_conf: Map[String, String] = Map.empty,
             enablers: SpytEnablers = SpytEnablers(),
-            ytserver_proxy_path: Option[String] = None): SparkLaunchConfig = {
+            ytserver_proxy_path: Option[String] = None,
+            layer_paths: Seq[String] = Seq(
+              "//porto_layers/delta/jdk/layer_with_jdk_lastest.tar.gz",
+              "//sys/spark/delta/python/layer_with_python37_libs.tar.gz",
+              "//sys/spark/delta/python/layer_with_python34.tar.gz",
+              "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
+            ),
+            environment: Map[String, String] = Map(
+              "JAVA_HOME" -> "/opt/jdk11"
+            )): SparkLaunchConfig = {
     new SparkLaunchConfig(
       spark_yt_base_path = spark_yt_base_path,
       file_paths = Seq(
@@ -101,7 +112,9 @@ object SparkLaunchConfig {
       ),
       spark_conf = spark_conf,
       enablers = enablers,
-      ytserver_proxy_path = ytserver_proxy_path)
+      ytserver_proxy_path = ytserver_proxy_path,
+      layer_paths = layer_paths,
+      environment = environment)
   }
 
   def resolveSymlink(symlink: String)(implicit yt: YtClient): String = {

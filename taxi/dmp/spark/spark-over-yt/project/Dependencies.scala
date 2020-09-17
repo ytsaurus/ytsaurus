@@ -4,24 +4,12 @@ object Dependencies {
   lazy val circeVersion = "0.12.3"
   lazy val circeYamlVersion = "0.12.0"
   lazy val scalatestVersion = "3.0.8"
-  lazy val sparkVersion = "2.4.4"
-  lazy val yandexIcebergVersion = "7116934"
-  lazy val yandexYtClientVersion = "7142644"
+  lazy val sparkVersion = "3.0.1"
+  lazy val yandexIcebergVersion = "7150580"
   lazy val slf4jVersion = "1.7.28"
   lazy val scalatraVersion = "2.7.0"
   lazy val mockitoVersion = "1.14.4"
   lazy val arrowVersion = "0.17.1"
-
-  lazy val arrow = Seq(
-    "org.apache.arrow" % "arrow-format",
-    "org.apache.arrow" % "arrow-memory",
-    "org.apache.arrow" % "arrow-vector"
-  ).map(_ % arrowVersion excludeAll (
-    ExclusionRule(organization = "com.fasterxml.jackson.core"),
-    ExclusionRule(organization = "org.slf4j")
-  )) ++ Seq(
-    "io.netty" % "netty-all" % "4.1.27.Final"
-  )
 
   lazy val circe = ("io.circe" %% "circe-yaml" % circeYamlVersion) +: Seq(
     "io.circe" %% "circe-core",
@@ -57,15 +45,17 @@ object Dependencies {
 
   lazy val yandexIceberg = Seq(
     "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll (
-      ExclusionRule(organization = "ru.yandex", name = "java-ytclient")
-    ),
-    "ru.yandex" % "java-ytclient" % yandexYtClientVersion
-  ).map(_ excludeAll (
-    ExclusionRule(organization = "org.slf4j"),
-    ExclusionRule(organization = "log4j"),
-    ExclusionRule(organization = "com.fasterxml.jackson.core"),
-    ExclusionRule(organization = "ru.yandex.jdk10")
-  ))
+      ExclusionRule(organization = "com.fasterxml.jackson.core"),
+      ExclusionRule(organization = "org.apache.commons"),
+      ExclusionRule(organization = "ru.yandex", name = "iceberg-misc")
+//      ExclusionRule(organization = "ru.yandex", name = "java-ytclient"),
+//      ExclusionRule(organization = "ru.yandex", name = "yt-client-protos"),
+    )
+//    "ru.yandex" % "java-ytclient" % "custom" excludeAll (
+//      ExclusionRule(organization = "ru.yandex", name = "yt-client-protos")
+//    ),
+//    "ru.yandex" % "yt-client-protos" % "custom"
+  ).excludeLogging
 
   lazy val grpc = Seq(
     "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion,
