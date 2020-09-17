@@ -894,6 +894,10 @@ public:
 
     void OnOperationBannedInTentativeTree(const TOperationPtr& operation, const TString& treeId, const std::vector<TJobId>& jobIds)
     {
+        YT_LOG_INFO("Operation banned in tentative tree (OperationId: %v, TreeId: %v)",
+            operation->GetId(),
+            treeId);
+
         std::vector<std::vector<TJobId>> jobIdsByShardId(NodeShards_.size());
         for (auto jobId : jobIds) {
             auto shardId = GetNodeShardId(NodeIdFromJobId(jobId));
@@ -915,7 +919,19 @@ public:
             .Item("tree_id").Value(treeId);
 
         GetControlInvoker(EControlQueue::Operation)->Invoke(
-            BIND(&TImpl::UnregisterOperationFromTree, MakeStrong(this), operation, treeId));
+            BIND(&TImpl::UnregisterOperationFromTreeForBannedTree, MakeStrong(this), operation, treeId));
+    }
+    
+    void UnregisterOperationFromTreeForBannedTree(const TOperationPtr& operation, const TString& treeId)
+    {
+        const auto& schedulingOptionsPerPoolTree = operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree;
+        if (schedulingOptionsPerPoolTree.find(treeId) != schedulingOptionsPerPoolTree.end()) {
+            UnregisterOperationFromTree(operation, treeId);
+        } else {
+            YT_LOG_INFO("Operation was already unregistered from tree (OperationId: %v, TreeId: %v)",
+                operation->GetId(),
+                treeId);
+        }
     }
 
     void UnregisterOperationFromTree(const TOperationPtr& operation, const TString& treeId)

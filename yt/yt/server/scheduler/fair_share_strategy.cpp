@@ -221,6 +221,9 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         const auto& state = GetOperationState(operationId);
+        // TODO(ignat): rethink this check.
+        // For tentative tree ban initiated by controllers the similar check is performed earlier.
+        // Is it necessary in some other situations?
         if (!state->TreeIdToPoolNameMap().contains(treeId)) {
             YT_LOG_INFO("Operation to be removed from a tree was not found in that tree (OperationId: %v, TreeId: %v)",
                 operationId,
