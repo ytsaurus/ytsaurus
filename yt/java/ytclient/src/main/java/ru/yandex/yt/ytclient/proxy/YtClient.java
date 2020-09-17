@@ -15,6 +15,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
@@ -151,6 +152,11 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         return poolProvider.getClientPool();
     }
 
+    @Deprecated
+    List<RpcClient> selectDestinations() {
+        return poolProvider.oldSelectDestinations();
+    }
+
     @Override
     protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType> invoke(
             RpcClientRequestBuilder<RequestType, ResponseType> builder)
@@ -168,6 +174,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         void close();
         CompletableFuture<Void> waitProxies();
         Map<String, List<ApiServiceClient>> getAliveDestinations();
+        List<RpcClient> oldSelectDestinations();
         RpcClientPool getClientPool();
     }
 
@@ -175,6 +182,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     static class NewClientPoolProvider implements ClientPoolProvider {
         final MultiDcClientPool multiDcClientPool;
         final List<ClientPoolService> dataCenterList = new ArrayList<>();
+        final String localDcName;
         final RpcOptions options;
 
         NewClientPoolProvider(
@@ -187,6 +195,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             RpcOptions options)
         {
             this.options = options;
+            this.localDcName = localDataCenterName;
 
             final EventLoopGroup eventLoopGroup = connector.eventLoopGroup();
             final Random random = new Random();
@@ -290,6 +299,35 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                 }
             } finally {
                 releaseFuture.complete(null);
+            }
+            return result;
+        }
+
+        @Override
+        public List<RpcClient> oldSelectDestinations() {
+            final int RESULT_SIZE = 3;
+            List<RpcClient> result = new ArrayList<>();
+
+            Consumer<ClientPoolService> processClientPoolService = (ClientPoolService service) -> {
+                RpcClient[] aliveClients = service.getAliveClients();
+                for (RpcClient c : aliveClients) {
+                    if (result.size() >= RESULT_SIZE) {
+                        break;
+                    }
+                    result.add(c);
+                }
+            };
+
+            for (ClientPoolService clientPoolService : dataCenterList) {
+                if (clientPoolService.getDataCenterName().equals(localDcName)) {
+                    processClientPoolService.accept(clientPoolService);
+                }
+            }
+
+            for (ClientPoolService clientPoolService : dataCenterList) {
+                if (!clientPoolService.getDataCenterName().equals(localDcName)) {
+                    processClientPoolService.accept(clientPoolService);
+                }
             }
             return result;
         }
@@ -412,6 +450,11 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                 result.put(dc.getName(), dc.getAliveDestinations(slot -> new ApiServiceClient(slot.getClient(), options)));
             }
             return result;
+        }
+
+        @Override
+        public List<RpcClient> oldSelectDestinations() {
+            return selectDestinations();
         }
 
         @Override
