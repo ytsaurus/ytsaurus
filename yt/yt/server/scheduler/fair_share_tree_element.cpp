@@ -4071,13 +4071,16 @@ void TOperationElement::MarkWaitingFor(TCompositeSchedulerElement* violatedPool)
 void TOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode)
 {
     auto maybeSpecifiedSegment = Operation_->GetSpecifiedSchedulingSegment();
-    auto initialMinNeededResources = Operation_->GetInitialAggregatedMinNeededResources().value_or(TJobResources());
+    auto maybeInitialMinNeededResources = Operation_->GetInitialAggregatedMinNeededResources();
     auto segment = maybeSpecifiedSegment.value_or(
-        TSchedulingSegmentManager::GetSegmentForOperation(mode, initialMinNeededResources));
+        TSchedulingSegmentManager::GetSegmentForOperation(mode, maybeInitialMinNeededResources.value_or(TJobResources())));
 
     YT_LOG_DEBUG_UNLESS(SchedulingSegment_ == segment,
-        "Setting new scheduling segment for operation (Segment: %v)",
-        segment);
+        "Setting new scheduling segment for operation (Segment: %v, Mode: %v, InitialMinNeededResources: %v, SpecifiedSegment: %v)",
+        segment,
+        mode,
+        maybeInitialMinNeededResources,
+        maybeSpecifiedSegment);
 
     SchedulingSegment_ = segment;
 }

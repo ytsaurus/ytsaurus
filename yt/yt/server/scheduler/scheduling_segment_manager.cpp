@@ -55,8 +55,7 @@ void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext*
                 ResetTree(context, treeId);
             }
 
-            YT_LOG_DEBUG("Segmented scheduling is disabled in tree, skipping (TreeId: %v)",
-                treeId);
+            LogAndProfileSegmentsInTree(context, treeId, /* currentResourceAmountPerSegment */ {});
 
             continue;
         }
@@ -136,16 +135,32 @@ void TSchedulingSegmentManager::LogAndProfileSegmentsInTree(
     static const TEnumMemberTagCache<ESchedulingSegment> SchedulingSegmentTagCache("segment");
 
     const auto& segmentsInfo = context->SegmentsInfoPerTree[treeId];
+    auto profiler = Profiler.AppendPath("/segments");
+
+    if (segmentsInfo.Mode == ESegmentedSchedulingMode::Disabled) {
+        YT_LOG_DEBUG("Segmented scheduling is disabled in tree, skipping (TreeId: %v)",
+            treeId);
+
+        for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
+            TTagIdList tags{SchedulingSegmentTagCache.GetTag(segment), segmentsInfo.TreeIdProfilingTag};
+            profiler.Enqueue("/fair_resource_amount", 0.0, EMetricType::Gauge, tags);
+            profiler.Enqueue("/current_resource_amount", 0.0, EMetricType::Gauge, tags);
+        }
+
+        return;
+    }
 
     YT_LOG_DEBUG("Scheduling segments state in tree ("
-        "TreeId: %v, Mode: %v, KeyResource: %v, FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
+        "TreeId: %v, Mode: %v, KeyResource: %v, FairSharePerSegment: %v, TotalKeyResourceAmount: %v, "
+        "FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
         treeId,
         segmentsInfo.Mode,
         GetSegmentBalancingKeyResource(segmentsInfo.Mode),
+        segmentsInfo.FairSharePerSegment,
+        segmentsInfo.TotalKeyResourceAmount,
         segmentsInfo.FairResourceAmountPerSegment,
         currentResourceAmountPerSegment);
 
-    auto profiler = Profiler.AppendPath("/segments");
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
         TTagIdList tags{SchedulingSegmentTagCache.GetTag(segment), segmentsInfo.TreeIdProfilingTag};
         profiler.Enqueue("/fair_resource_amount", std::round(segmentsInfo.FairResourceAmountPerSegment[segment]), EMetricType::Gauge, tags);

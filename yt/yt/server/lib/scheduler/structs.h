@@ -102,6 +102,8 @@ struct TPoolTreeSchedulingSegmentsInfo
     TDuration UnsatisfiedSegmentsRebalancingTimeout;
     std::optional<EJobResourceType> KeyResource;
     TSegmentToResourceAmount FairResourceAmountPerSegment;
+    TEnumIndexedVector<ESchedulingSegment, double> FairSharePerSegment;
+    double TotalKeyResourceAmount = 0.0;
 };
 
 using TTreeIdToSchedulingSegmentsInfo = THashMap<TString, TPoolTreeSchedulingSegmentsInfo>;
