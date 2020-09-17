@@ -8,6 +8,7 @@
 #include <mapreduce/yt/tests/native/ydl_lib/all_types.ydl.h>
 
 #include <mapreduce/yt/interface/logging/logger.h>
+#include <mapreduce/yt/interface/logging/log.h>
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/serialize.h>
@@ -69,6 +70,9 @@ static void WaitOperationHasState(const IOperationPtr& operation, const TString&
     WaitOperationPredicate(
         operation,
         [&] (const TOperationAttributes& attrs) {
+            LOG_DEBUG("Operation %s state is %s",
+                GetGuidAsString(operation->GetId()).c_str(),
+                ::ToString(attrs.State).c_str());
             return attrs.State == state;
         },
         "state should become \"" + state + "\"");
@@ -3055,6 +3059,156 @@ Y_UNIT_TEST_SUITE(Operations)
                     .FileStorage(workingDir + "/file_storage")
                     .FileStorageTransactionId(tx->GetId())
                     .FileCacheMode(TOperationOptions::EFileCacheMode::CachelessRandomPathUpload)));
+    }
+
+    Y_UNIT_TEST(CacheCleanedWhenOperationStartWasRetried)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        CreateTableWithFooColumn(client, workingDir + "/input");
+
+        TTempFile tempFile(MakeTempName());
+        {
+            TOFStream os(tempFile.Name());
+            // Create a file with unique contents to get cache miss
+            os << CreateGuidAsString();
+        }
+
+        client->Create(
+            "",
+            NT_SCHEDULER_POOL,
+            TCreateOptions().Attributes(NYT::TNode()
+                ("name", "testing")
+                ("pool_tree", "default")
+                ("max_running_operation_count", 1)
+                ("max_pending_operation_count", 1)
+            ));
+
+        Y_DEFER {
+            client->Remove("//sys/pools/testing");
+        };
+
+        auto sleepingOp = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
+            new TSleepingMapper(TDuration::Minutes(10)),
+            TOperationOptions()
+                .Spec(TNode()("pool", "testing"))
+                .Wait(false));
+
+        Y_DEFER {
+            if (sleepingOp->GetBriefState() == EOperationBriefState::InProgress) {
+                sleepingOp->AbortOperation();
+            }
+        };
+
+        auto runMap = [&] {
+            auto opWithFile = client->Map(
+                TMapOperationSpec()
+                    .AddInput<TNode>(workingDir + "/input")
+                    .AddOutput<TNode>(workingDir + "/output_1")
+                    .MapperSpec(TUserJobSpec()
+                        .AddLocalFile(tempFile.Name(), TAddLocalFileOptions().PathInJob("myfile"))),
+                new TMapperThatChecksFile("myfile"),
+                TOperationOptions()
+                    .Spec(TNode()("pool", "testing")));
+        };
+
+        auto threadPool = SystemThreadFactory();
+        auto thread = threadPool->Run(runMap);
+
+        auto md5 = MD5::File(tempFile.Name());
+        UNIT_ASSERT_NO_EXCEPTION(
+            WaitForPredicate([&] {
+                // Wait for the file to appear in cache.
+                auto path = client->GetFileFromCache(md5, TConfig::Get()->RemoteTempFilesDirectory + "/new_cache");
+                return path.Defined();
+            }));
+
+        auto path = client->GetFileFromCache(md5, TConfig::Get()->RemoteTempFilesDirectory + "/new_cache");
+        UNIT_ASSERT(path);
+
+        UNIT_ASSERT_NO_EXCEPTION(
+            WaitForPredicate([&] {
+                // Wait for the lock to be taken.
+                return !client->Get(*path + "/@locks").Empty();
+            }));
+
+        // Simulate cache cleaning.
+        client->Remove(*path);
+
+        sleepingOp->AbortOperation();
+
+        UNIT_ASSERT_NO_EXCEPTION(thread->Join());
+    }
+
+    Y_UNIT_TEST(CacheCleanedWhenOperationWasPending)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        CreateTableWithFooColumn(client, workingDir + "/input");
+
+        TTempFile tempFile(MakeTempName());
+        {
+            TOFStream os(tempFile.Name());
+            // Create a file with unique contents to get cache miss
+            os << CreateGuidAsString();
+        }
+
+        client->Create(
+            "",
+            NT_SCHEDULER_POOL,
+            TCreateOptions().Attributes(NYT::TNode()
+                ("name", "testing")
+                ("pool_tree", "default")
+                ("max_running_operation_count", 1)));
+
+        Y_DEFER {
+            client->Remove("//sys/pools/testing");
+        };
+
+        auto sleepingOp = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
+            new TSleepingMapper(TDuration::Minutes(10)),
+            TOperationOptions()
+                .Spec(TNode()("pool", "testing"))
+                .Wait(false));
+
+        Y_DEFER {
+            if (sleepingOp->GetBriefState() == EOperationBriefState::InProgress) {
+                sleepingOp->AbortOperation();
+            }
+        };
+
+        auto opWithFile = client->Map(
+            TMapOperationSpec()
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output_1")
+                .MapperSpec(TUserJobSpec()
+                    .AddLocalFile(tempFile.Name(), TAddLocalFileOptions().PathInJob("myfile"))),
+            new TMapperThatChecksFile("myfile"),
+            TOperationOptions()
+                .Spec(TNode()("pool", "testing"))
+                .Wait(false));
+
+        WaitOperationHasState(opWithFile, "pending");
+
+        auto md5 = MD5::File(tempFile.Name());
+        auto path = client->GetFileFromCache(md5, TConfig::Get()->RemoteTempFilesDirectory + "/new_cache");
+        UNIT_ASSERT(path);
+
+        // Simulate cache cleaning.
+        client->Remove(*path);
+
+        sleepingOp->AbortOperation();
+        UNIT_ASSERT_NO_EXCEPTION(opWithFile->Watch().GetValueSync());
     }
 
     Y_UNIT_TEST(RetryLockConflict)
