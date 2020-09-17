@@ -3,7 +3,7 @@ import pytest
 from yt_commands import *
 from yt_helpers import *
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 from yt.test_helpers import are_almost_equal
 from yt.common import date_string_to_timestamp
 import yt.common
@@ -2809,7 +2809,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
 
     @authors("eshcherbin")
-    def test_revive_operation_segments(self):
+    def test_revive_operation_segments_from_scratch(self):
         small_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
         large_op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
         wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
@@ -2820,6 +2820,35 @@ class BaseTestSchedulingSegments(YTEnvSetup):
 
         wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/scheduling_segment", default="") == "default")
         wait(lambda: get(scheduler_orchid_operation_path(large_op.id) + "/scheduling_segment", default="") == "large_gpu")
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
+
+    @authors("eshcherbin")
+    @pytest.mark.parametrize("service_to_restart", [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE])
+    def test_revive_operation_segments_from_snapshot(self, service_to_restart):
+        update_controller_agent_config("snapshot_period", 300)
+
+        small_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        large_op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
+
+        small_op.wait_for_fresh_snapshot()
+        large_op.wait_for_fresh_snapshot()
+
+        wait(lambda: exists(small_op.get_path() + "/@initial_aggregated_min_needed_resources"))
+        wait(lambda: exists(large_op.get_path() + "/@initial_aggregated_min_needed_resources"))
+
+        with Restarter(self.Env, service_to_restart):
+            print_debug(get(small_op.get_path() + "/@initial_aggregated_min_needed_resources"))
+            print_debug(get(large_op.get_path() + "/@initial_aggregated_min_needed_resources"))
+
+        small_op.ensure_running()
+        large_op.ensure_running()
+
+        wait(lambda: get(scheduler_orchid_operation_path(large_op.id) + "/scheduling_segment", default="") == "large_gpu")
+        wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/scheduling_segment", default="") == "default")
 
         wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
         wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))

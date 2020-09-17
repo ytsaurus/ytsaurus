@@ -2679,18 +2679,17 @@ TPoolTreeSchedulingSegmentsInfo TFairShareTree<TFairShareImpl>::GetSchedulingSeg
         return result;
     }
 
-    TEnumIndexedVector<ESchedulingSegment, double> fairSharePerSegment;
     for (const auto& [_, operationElement] : RootElementSnapshot_->OperationIdToElement) {
         // Segment may be unset due to a race, and in this case we silently ignore the operation.
         if (const auto& segment = operationElement->SchedulingSegment()) {
-            fairSharePerSegment[*segment] += operationElement->Attributes().GetFairShare()[keyResource];
+            result.FairSharePerSegment[*segment] += operationElement->Attributes().GetFairShare()[keyResource];
         }
     }
 
     const auto& totalResourceLimits = RootElementSnapshot_->RootElement->GetTotalResourceLimits();
-    auto keyResourceLimit = GetResource(totalResourceLimits, keyResource);
+    result.TotalKeyResourceAmount = GetResource(totalResourceLimits, keyResource);
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-        auto keyResourceFairAmount = fairSharePerSegment[segment] * keyResourceLimit;
+        auto keyResourceFairAmount = result.FairSharePerSegment[segment] * result.TotalKeyResourceAmount;
         auto satisfactionMargin = Config_->SchedulingSegments->SatisfactionMargins[segment];
 
         result.FairResourceAmountPerSegment[segment] = std::max(keyResourceFairAmount + satisfactionMargin, 0.0);

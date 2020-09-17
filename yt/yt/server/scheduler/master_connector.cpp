@@ -838,6 +838,7 @@ private:
                 "suspended",
                 "erased_trees",
                 "banned",
+                "initial_aggregated_min_needed_resources",
             };
 
             auto batchReq = Owner_->StartObjectBatchRequest(
@@ -941,6 +942,8 @@ private:
                     << ex;
             }
 
+            // NB: Keep stuff below in sync with #RequestOperationAttributes.
+
             auto user = attributes.Get<TString>("authenticated_user");
 
             YT_VERIFY(attributes.Contains("runtime_parameters"));
@@ -991,6 +994,8 @@ private:
                     operation->SetSlotIndex(treeId, slotIndex);
                 }
             }
+
+            // NB: Keep stuff above in sync with #RequestOperationAttributes.
 
             return operation;
         }
