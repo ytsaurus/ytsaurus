@@ -7,7 +7,7 @@ import DebianPackagePlugin.autoImport._
 import ZipPlugin.autoImport._
 import PythonPlugin.autoImport._
 
-val clientVersion = "1.0.0-SNAPSHOT"
+val clientVersion = "1.0.0"
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .settings(
@@ -99,7 +99,7 @@ lazy val `client` = (project in file("client"))
     debPackageVersion := {
       val debBuildNumber = Option(System.getProperty("build")).getOrElse("")
       val beta = if ((version in ThisBuild).value.contains("SNAPSHOT")) "~beta1" else ""
-      s"$sparkVersion-${(version in ThisBuild).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
+      s"#$sparkVersion-${(version in ThisBuild).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
     },
     version := debPackageVersion.value,
     packageSummary := "Spark over YT Client Debian Package",
