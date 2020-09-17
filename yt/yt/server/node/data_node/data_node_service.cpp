@@ -730,6 +730,23 @@ private:
         auto chunk = Bootstrap_->GetChunkRegistry()->GetChunkOrThrow(chunkId);
         YT_VERIFY(chunk->GetId() == chunkId);
 
+        bool diskThrottling = GetDiskReadQueueSize(chunk, workloadDescriptor) > Config_->DiskReadThrottlingLimit;
+        response->set_disk_throttling(diskThrottling);
+        if (diskThrottling) {
+            const auto& location = chunk->GetLocation();
+            const auto& locationProfiler = location->GetProfiler();
+            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledReads);
+        }
+
+        i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
+        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
+        bool netThrottling = netThrottlerQueueSize + netOutQueueSize > Config_->NetOutThrottlingLimit;
+        response->set_net_throttling(netThrottling);
+        if (netThrottling) {
+            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
+                context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+        }
+
         auto schemaData = request->schema_data();
         auto [tableSchema, schemaRequested] = TLookupSession::FindTableSchema(
             chunkId,
@@ -741,10 +758,9 @@ private:
             // NB: No throttling here.
             response->set_fetched_rows(false);
             response->set_request_schema(schemaRequested);
-            context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, SchemaRequested: %v",
+            context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v, SchemaRequested: %v",
                 chunkId,
                 readSessionId,
-                workloadDescriptor,
                 schemaRequested);
             context->Reply();
             return;

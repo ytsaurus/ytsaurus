@@ -244,6 +244,9 @@ message TRspLookupRows
     required bool fetched_rows = 1;
     optional bool request_schema = 2;
     optional TChunkReaderStatistics chunk_reader_statistics = 3;
+
+    optional bool net_throttling = 4 [default = false];
+    optional bool disk_throttling = 5 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
