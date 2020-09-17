@@ -14,7 +14,7 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder
 from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
     latest_cluster_version, update_config_inplace, validate_custom_params, \
-    latest_ytserver_proxy_path, ytserver_proxy_attributes
+    latest_ytserver_proxy_path, ytserver_proxy_attributes, read_global_conf
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 from .enabler import SpytEnablers
 
@@ -330,12 +330,13 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)
 
     ytserver_proxy_path = latest_ytserver_proxy_path(spark_cluster_version, client=client)
-    spark_cluster_version = spark_cluster_version or latest_cluster_version(client=client)
+    global_conf = read_global_conf(client=client)
+    spark_cluster_version = spark_cluster_version or latest_cluster_version(global_conf)
     validate_cluster_version(spark_cluster_version, client=client)
 
     validate_custom_params(params)
     dynamic_config = SparkDefaultArguments.get_params()
-    update_config_inplace(dynamic_config, read_remote_conf(cluster_version=spark_cluster_version, client=client))
+    update_config_inplace(dynamic_config, read_remote_conf(global_conf, spark_cluster_version, client=client))
     update_config_inplace(dynamic_config, params)
     if ytserver_proxy_path:
         dynamic_config["ytserver_proxy_path"] = ytserver_proxy_path
