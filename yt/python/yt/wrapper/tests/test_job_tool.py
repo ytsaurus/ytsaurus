@@ -119,7 +119,8 @@ class TestJobTool(object):
             else:
                 assert proc.returncode != 0
                 assert "ERROR_INTENDED_BY_TEST" in to_native_str(proc.stderr.read())
-                assert "ERROR_INTENDED_BY_TEST" in open(os.path.join(job_path, "output", "2")).read()
+                with open(os.path.join(job_path, "output", "2")) as fin:
+                    assert "ERROR_INTENDED_BY_TEST" in fin.read()
 
         shutil.rmtree(job_path)
 
