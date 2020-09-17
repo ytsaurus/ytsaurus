@@ -5,11 +5,10 @@ import java.nio.file.{Files, Paths}
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
-import org.apache.spark.sql.execution.aggregate.HashAggregateExec
-import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
-import org.apache.spark.sql.execution.{InputAdapter, WholeStageCodegenExec}
+import org.apache.spark.sql.execution.InputAdapter
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.v2.YtScan
 import org.apache.spark.sql.yt.YtSourceScanExec
 import org.apache.spark.sql.{AnalysisException, Encoders, Row, SaveMode}
 import org.mockito.scalatest.MockitoSugar
@@ -612,23 +611,24 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
 
     YtWrapper.createDir(tmpPath)
     forAll(table) { (tables, enableArrow, expected) =>
-      tables.foreach{ case (path, optimizeFor) =>
+      tables.foreach { case (path, optimizeFor) =>
         writeTableFromYson(
           Seq("""{a = 1; b = "a"; c = 0.3}"""),
           path, atomicSchema,
           optimizeFor
         )
       }
-      val res = spark.read.enableArrow(enableArrow).yt(tables.map(_._1):_*)
-      val batchEnabled = spark.sessionState.executePlan(res.queryExecution.logical)
-        .executedPlan.asInstanceOf[WholeStageCodegenExec]
-        .child.asInstanceOf[YtSourceScanExec]
-        .supportsBatch
+      val plan = physicalPlan(spark.read.enableArrow(enableArrow).yt(tables.map(_._1): _*))
+
+      val batchEnabled = nodes(plan).collectFirst {
+        case scan: InputAdapter => scan.supportsColumnar
+      }.get
+
       batchEnabled shouldEqual expected
     }
   }
 
-  it should "disable batch for yson types" in {
+  it should "enable batch for yson types" in {
     writeTableFromYson(Seq(
       """{value = {a = 1; b = "a"}}""",
       """{value = {a = 2; b = "b"}}""",
@@ -637,12 +637,13 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
     val res = spark.read.enableArrow(true).schemaHint(
       "value" -> StructType(Seq(StructField("a", LongType), StructField("b", StringType)))
     ).yt(tmpPath)
-    val batchEnabled = spark.sessionState.executePlan(res.queryExecution.logical)
-      .executedPlan.asInstanceOf[WholeStageCodegenExec]
-      .child.asInstanceOf[YtSourceScanExec]
-      .supportsBatch
-    batchEnabled shouldEqual false
 
+    val plan = physicalPlan(res)
+    val batchEnabled = nodes(plan).collectFirst {
+      case scan: InputAdapter => scan.supportsColumnar
+    }.get
+
+    batchEnabled shouldEqual false
   }
 
   it should "enable batch for count" in {
@@ -654,17 +655,13 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
       tmpPath, atomicSchema,
       OptimizeMode.Lookup
     )
+    spark.conf.set("spark.sql.adaptive.enabled", "false")
 
     val res = spark.read.disableArrow.yt(tmpPath).groupBy().count()
-    val batchEnabled = spark.sessionState.executePlan(res.queryExecution.logical)
-      .executedPlan.asInstanceOf[WholeStageCodegenExec]
-        .child.asInstanceOf[HashAggregateExec]
-        .child.asInstanceOf[InputAdapter]
-        .child.asInstanceOf[ShuffleExchangeExec]
-        .child.asInstanceOf[WholeStageCodegenExec]
-        .child.asInstanceOf[HashAggregateExec]
-        .child.asInstanceOf[YtSourceScanExec]
-        .supportsBatch
+    val plan = physicalPlan(res)
+    val batchEnabled = nodes(plan).collectFirst {
+      case scan: InputAdapter => scan.supportsColumnar
+    }.get
 
     batchEnabled shouldEqual true
   }

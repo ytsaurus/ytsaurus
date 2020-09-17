@@ -1,29 +1,28 @@
-package ru.yandex.spark.yt.format.batch
+package org.apache.spark.sql.vectorized
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{UnsafeProjection, UnsafeRow}
 import org.apache.spark.sql.catalyst.util.{ArrayData, GenericArrayData, MapData}
-import org.apache.spark.sql.execution.vectorized.MutableColumnarRow
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.{CalendarInterval, UTF8String}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonDecoder
 import ru.yandex.spark.yt.serializers.SchemaConverter
 
-object MutableColumnarRowUtils {
-  def unsafeProjection(schema: StructType): MutableColumnarRow => UnsafeRow = {
+object ColumnarBatchRowUtils {
+  def unsafeProjection(schema: StructType): InternalRow => UnsafeRow = {
     val unsafeProjection = UnsafeProjection.create(schema)
-    val mutableColumnarRowProjection = new MutableColumnarRowProjection(schema)
+    val mutableColumnarRowProjection = new ColumnarBatchRowProjection(schema)
 
     r => unsafeProjection.apply(mutableColumnarRowProjection.apply(r))
   }
 
-  class MutableColumnarRowProjection(schema: StructType) {
+  class ColumnarBatchRowProjection(schema: StructType) {
     private val indexedDataTypes = schema.fields.map(f => SchemaConverter.indexedDataType(f.dataType))
 
-    def apply(row: MutableColumnarRow): InternalRow = new MutableColumnarRowWrapper(row)
+    def apply(row: InternalRow): InternalRow = new ColumnarBatchRowWrapper(row)
 
-    private class MutableColumnarRowWrapper(row: MutableColumnarRow) extends InternalRow {
-      override def numFields: Int = row.numFields()
+    private class ColumnarBatchRowWrapper(row: InternalRow) extends InternalRow {
+      override def numFields: Int = row.numFields
 
       override def setNullAt(i: Int): Unit = row.setNullAt(i)
 

@@ -1,6 +1,5 @@
 package ru.yandex.spark.yt.format.batch
 
-import org.apache.arrow.memory.util.MemoryUtil
 import org.apache.arrow.vector._
 import org.apache.arrow.vector.complex.{BaseRepeatedValueVector, ListVector, StructVector}
 import org.apache.arrow.vector.dictionary.Dictionary
@@ -136,17 +135,7 @@ class ArrowColumnVector(dataType: IndexedDataType,
       } else isNull(values, rowId)
     }
 
-    private def isNull(vector: ValueVector, index: Int): Boolean = {
-      vector match {
-        case v: BaseFixedWidthVector =>
-          val byteIndex = index >> 3
-          val b = MemoryUtil.UNSAFE.getByte(v.getValidityBufferAddress + byteIndex)
-          val bitIndex = index & 7
-          val isSet = (b >> bitIndex) & 0x01
-          isSet == 0
-        case _ => vector.isNull(index)
-      }
-    }
+    private def isNull(vector: ValueVector, index: Int): Boolean = vector.isNull(index)
 
     final def getNullCount: Int = vector.getNullCount
 

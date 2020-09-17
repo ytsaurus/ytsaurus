@@ -4,6 +4,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.internal.SQLConf
+import org.apache.spark.sql.util.CaseInsensitiveStringMap
 
 import scala.util.Try
 
@@ -66,6 +67,12 @@ package object conf {
 
   implicit class OptionsConf(options: Map[String, String]) extends ConfProvider {
     override def getYtConf(name: String): Option[String] = options.get(name)
+  }
+
+  implicit class CaseInsensitiveMapConf(options: CaseInsensitiveStringMap) extends ConfProvider {
+    override def getYtConf(name: String): Option[String] = if (options.containsKey(name)) {
+      Some(options.get(name))
+    } else None
   }
 
 }

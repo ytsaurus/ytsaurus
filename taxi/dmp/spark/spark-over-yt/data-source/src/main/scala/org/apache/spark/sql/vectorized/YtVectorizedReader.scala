@@ -1,6 +1,8 @@
-package ru.yandex.spark.yt.format
+package org.apache.spark.sql.vectorized
 
 import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext}
+import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
+import ru.yandex.spark.yt.format.YtInputSplit
 import ru.yandex.spark.yt.format.batch.{ArrowBatchReader, BatchReader, EmptyColumnsBatchReader, WireRowBatchReader}
 import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
@@ -33,6 +35,12 @@ class YtVectorizedReader(split: YtInputSplit,
     }
   }
 
+  private lazy val unsafeProjection = if (arrowEnabled) {
+    ColumnarBatchRowUtils.unsafeProjection(split.schema)
+  } else {
+    UnsafeProjection.create(split.schema)
+  }
+
   override def initialize(split: InputSplit, context: TaskAttemptContext): Unit = {}
 
   override def nextKeyValue(): Boolean = {
@@ -59,7 +67,7 @@ class YtVectorizedReader(split: YtInputSplit,
     if (returnBatch) {
       batchReader.currentBatch
     } else {
-      batchReader.currentBatch.getRow(_batchIdx)
+      unsafeProjection.apply(batchReader.currentBatch.getRow(_batchIdx))
     }
   }
 

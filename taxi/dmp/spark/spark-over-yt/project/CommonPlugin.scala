@@ -15,7 +15,7 @@ object CommonPlugin extends AutoPlugin {
     resolvers += Resolver.mavenCentral,
     resolvers += "YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
     resolvers += "YandexSparkReleases" at "http://artifactory.yandex.net/artifactory/yandex_spark_releases",
-    version in ThisBuild := "0.5.7-SNAPSHOT",
+    version in ThisBuild := "1.0.0-SNAPSHOT",
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
@@ -36,15 +36,6 @@ object CommonPlugin extends AutoPlugin {
         .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0"),
       ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
         .inAll,
-      ShadeRule.rename("org.apache.arrow.**" -> "shaded_spyt.org.apache.arrow.@1")
-        .inAll,
-      ShadeRule.rename("io.netty.**" -> "shaded_spyt_arrow.io.netty.@1")
-        .inLibrary(
-          "org.apache.arrow" % "arrow-format" % "0.17.1",
-          "org.apache.arrow" % "arrow-vector" % "0.17.1",
-          "org.apache.arrow" % "arrow-memory" % "0.17.1",
-          "io.netty" % "netty-all" % "4.1.27.Final"
-        ),
       ShadeRule.rename("io.netty.**" -> "shaded_spyt.io.netty.@1")
         .inAll
     ),
@@ -57,6 +48,7 @@ object CommonPlugin extends AutoPlugin {
         Some("releases" at nexus + "yandex_spark_releases")
     },
     credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
-    libraryDependencies ++= testDeps
+    libraryDependencies ++= testDeps,
+    fork in Test := true
   )
 }

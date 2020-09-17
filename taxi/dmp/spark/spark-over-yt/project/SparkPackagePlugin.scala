@@ -32,6 +32,7 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkYtBinBasePath = taskKey[String]("YT base path for spark binaries")
     val sparkYtSubdir = taskKey[String]("Snapshots or releases")
     val sparkIsSnapshot = settingKey[Boolean]("Flag of spark snapshot version")
+    val sparkReleaseGlobalConfig = settingKey[Boolean]("If true, global config will be rewritten, default is !sparkIsSnapshot")
     val sparkYtServerProxyPath = settingKey[Option[String]]("YT path of ytserver-proxy binary")
 
     def createPackageMapping(src: File, dst: String): LinuxPackageMapping = {
@@ -68,6 +69,7 @@ object SparkPackagePlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
     sparkHome := baseDirectory.value.getParentFile.getParentFile / "spark",
     sparkIsSnapshot := isSnapshot.value || version.value.contains("beta"),
+    sparkReleaseGlobalConfig := !sparkIsSnapshot.value,
     sparkLocalConfigs := {
       Seq(
         (resourceDirectory in Compile).value / "spark-defaults.conf",
@@ -108,7 +110,7 @@ object SparkPackagePlugin extends AutoPlugin {
         None
       )
 
-      val globalConfigPublish = if (!sparkIsSnapshot.value) {
+      val globalConfigPublish = if (sparkReleaseGlobalConfig.value) {
         sparkYtProxies.value.map { proxy =>
           val proxyShort = proxy.split("\\.").head
           val proxyDefaultsFile = (resourceDirectory in Compile).value / s"spark-defaults-$proxyShort.conf"

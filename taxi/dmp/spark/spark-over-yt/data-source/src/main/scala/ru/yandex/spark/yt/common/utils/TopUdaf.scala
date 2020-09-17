@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.common.utils
 
 import org.apache.spark.sql.expressions.{MutableAggregationBuffer, UserDefinedAggregateFunction}
 import org.apache.spark.sql.functions.col
-import org.apache.spark.sql.types.{DataType, StructField, StructType}
+import org.apache.spark.sql.types.{DataType, StructType}
 import org.apache.spark.sql.{Column, Row}
 
 class TopUdaf(schema: StructType, topColumns: Seq[String]) extends UserDefinedAggregateFunction {

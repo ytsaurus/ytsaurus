@@ -1,21 +1,18 @@
-package org.apache.spark.sql
+package org.apache.spark.sql.vectorized
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.{Job, TaskAttemptContext}
 import org.apache.log4j.Logger
 import org.apache.spark.TaskContext
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.execution.datasources._
-import org.apache.spark.sql.execution.vectorized.MutableColumnarRow
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
-import org.apache.spark.sql.types.{ArrayType, AtomicType, LongType, StructType}
-import org.apache.spark.sql.vectorized.ColumnVector
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType
+import org.apache.spark.sql.types.{AtomicType, StructType}
 import ru.yandex.spark.yt.format._
-import ru.yandex.spark.yt.format.batch.MutableColumnarRowUtils
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
 import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
@@ -89,11 +86,11 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
           Option(TaskContext.get()).foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
           if (!returnBatch) {
             val unsafeProjection = if (arrowEnabledValue) {
-              MutableColumnarRowUtils.unsafeProjection(requiredSchema)
+              ColumnarBatchRowUtils.unsafeProjection(requiredSchema)
             } else {
               UnsafeProjection.create(requiredSchema)
             }
-            iter.asInstanceOf[Iterator[MutableColumnarRow]].map(unsafeProjection)
+            iter.asInstanceOf[Iterator[InternalRow]].map(unsafeProjection)
           } else {
             iter.asInstanceOf[Iterator[InternalRow]]
           }
@@ -130,7 +127,8 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
   override def shortName(): String = "yt"
 
   override def isSplitable(sparkSession: SparkSession, options: Map[String, String], path: Path): Boolean = {
-    true
+    import ru.yandex.spark.yt.format.conf.{YtTableSparkSettings => TableSettings}
+    options.get(TableSettings.Dynamic.name).forall(!_.toBoolean)
   }
 
   override def supportBatch(sparkSession: SparkSession, dataSchema: StructType): Boolean = {

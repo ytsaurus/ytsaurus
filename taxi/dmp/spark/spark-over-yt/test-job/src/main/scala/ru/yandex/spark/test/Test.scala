@@ -1,9 +1,10 @@
 package ru.yandex.spark.test
 
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.{SaveMode, SparkSession}
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.proxy.YtClient
-import org.apache.spark.sql.functions._
 
 object Test extends SparkApp {
   override def sparkConf = super.sparkConf

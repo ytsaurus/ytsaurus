@@ -1,15 +1,19 @@
 package ru.yandex.spark.yt.test
 
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.execution.SparkStrategy
-import org.apache.spark.sql.{SparkSession, Strategy}
+import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec
+import org.apache.spark.sql.execution.{SparkPlan, SparkStrategy}
+import org.apache.spark.sql.{DataFrame, SparkSession, Strategy}
 import org.scalatest.TestSuite
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtRpcClient
 
+import scala.annotation.tailrec
+
 trait LocalSpark extends LocalYtClient {
   self: TestSuite =>
+  System.setProperty("io.netty.tryReflectionSetAccessible", "true")
 
   def numExecutors: Int = 4
 
@@ -25,6 +29,7 @@ trait LocalSpark extends LocalYtClient {
     .set("spark.sql.sources.commitProtocolClass", "ru.yandex.spark.yt.format.YtOutputCommitter")
     .set("spark.ui.enabled", "false")
     .set("spark.hadoop.yt.read.arrow.enabled", "true")
+    .set("spark.sql.adaptive.enabled", "true")
 
   def plannerStrategy: SparkStrategy = {
     val plannerStrategyClass = "ru.yandex.spark.yt.format.YtSourceStrategy"
@@ -40,4 +45,29 @@ trait LocalSpark extends LocalYtClient {
     .getOrCreate()
 
   override lazy val ytClient: YtRpcClient = YtWrapper.createRpcClient(ytClientConfiguration(spark))
+
+  def physicalPlan(df: DataFrame): SparkPlan = {
+    spark.sessionState.executePlan(df.queryExecution.logical)
+      .executedPlan
+  }
+
+  def adaptivePlan(df: DataFrame): SparkPlan = {
+    val plan = physicalPlan(df).asInstanceOf[AdaptiveSparkPlanExec]
+    plan.execute()
+    plan.executedPlan
+  }
+
+  def nodes(plan: SparkPlan): Seq[SparkPlan] = {
+    @tailrec
+    def inner(res: Seq[SparkPlan], queue: Seq[SparkPlan]): Seq[SparkPlan] = {
+      queue match {
+        case h :: t =>
+          val children = h.children
+          inner(res ++ children, t ++ children)
+        case Nil => res
+      }
+    }
+
+    inner(Seq(plan), Seq(plan))
+  }
 }
