@@ -3343,6 +3343,8 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     // NB: Errors ignored since we cannot do anything with it.
     Y_UNUSED(WaitFor(Host->FlushOperationNode()));
 
+	bool debugTransactionCommitted = false;
+
     // Skip committing anything if operation controller already tried to commit results.
     if (!CommitFinished) {
         std::vector<TOutputTablePtr> tables;
@@ -3364,6 +3366,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
                 if (DebugTransaction) {
                     WaitFor(DebugTransaction->Commit())
                         .ThrowOnError();
+					debugTransactionCommitted = true;
                 }
             } catch (const std::exception& ex) {
                 // Bad luck we can't commit transaction.
@@ -3393,6 +3396,9 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     abortTransaction(InputTransaction, InputClient, /* sync */ false);
     abortTransaction(OutputTransaction, OutputClient);
     abortTransaction(AsyncTransaction, Client, /* sync */ false);
+    if (!debugTransactionCommitted) {
+        abortTransaction(DebugTransaction, Client, /* sync */ false);
+    }
     for (const auto& transaction : NestedInputTransactions) {
         abortTransaction(transaction, InputClient, /* sync */ false);
     }
