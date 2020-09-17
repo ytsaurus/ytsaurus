@@ -47,6 +47,7 @@ void Deserialize(TOperationEvent& event, INodePtr node)
     auto mapNode = node->AsMap();
     event.Time = ConvertTo<TInstant>(mapNode->GetChildOrThrow("time"));
     event.State = ConvertTo<EOperationState>(mapNode->GetChildOrThrow("state"));
+    event.Attributes = ConvertTo<THashMap<TString, TString>>(mapNode->GetChildOrThrow("attributes"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

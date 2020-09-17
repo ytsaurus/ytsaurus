@@ -425,9 +425,10 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     @authors("babenko", "gritukan")
     def test_operation_events_attribute(self):
-        self._prepare_tables()
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
 
-        op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
+        wait_breakpoint()
+
         events = get(op.get_path() + "/@events")
         assert [
                    "starting",
@@ -437,8 +438,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                    "pending",
                    "materializing",
                    "running",
-                   "completing",
-                   "completed"
                ] == [event["state"] for event in events]
 
         def event_contains_agent_address(event):
@@ -447,6 +446,53 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             return len(event["attributes"]["controller_agent_address"]) > 0
 
         assert any(event_contains_agent_address(event) for event in events)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: len(get(op.get_path() + "/@events")) == 14)
+        events = get(op.get_path() + "/@events")
+        assert [
+                    "starting",
+                    "waiting_for_agent",
+                    "initializing",
+                    "preparing",
+                    "pending",
+                    "materializing",
+                    "running",
+                    "orphaned",
+                    "waiting_for_agent",
+                    "revive_initializing",
+                    "reviving",
+                    "pending",
+                    "materializing",
+                    "running",
+                ] == [event["state"] for event in events]
+        assert sum(event_contains_agent_address(event) for event in events) == 2
+
+        release_breakpoint()
+        op.track()
+
+        events = get(op.get_path() + "/@events")
+        assert [
+                    "starting",
+                    "waiting_for_agent",
+                    "initializing",
+                    "preparing",
+                    "pending",
+                    "materializing",
+                    "running",
+                    "orphaned",
+                    "waiting_for_agent",
+                    "revive_initializing",
+                    "reviving",
+                    "pending",
+                    "materializing",
+                    "running",
+                    "completing",
+                    "completed",
+                ] == [event["state"] for event in events]
+        assert sum(event_contains_agent_address(event) for event in events) == 2
 
     @authors("ignat")
     def test_exceed_job_time_limit(self):
