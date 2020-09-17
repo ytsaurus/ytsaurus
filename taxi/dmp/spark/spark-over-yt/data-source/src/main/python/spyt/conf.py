@@ -61,8 +61,8 @@ def latest_compatible_spyt_version(spark_cluster_version, client=None):
     return max(compatible_spyt_versions)
 
 
-def latest_cluster_version(client=None):
-    return max(get_available_cluster_versions(client=client))
+def latest_cluster_version(global_conf):
+    return global_conf["latest_spark_cluster_version"]
 
 
 def get_available_cluster_versions(client=None):
@@ -78,9 +78,7 @@ def read_global_conf(client=None):
     return get(GLOBAL_CONF_PATH, client=client)
 
 
-def read_remote_conf(cluster_version=None, client=None):
-    global_conf = read_global_conf(client=client)
-    cluster_version = cluster_version or global_conf["latest_spark_cluster_version"]
+def read_remote_conf(global_conf, cluster_version, client=None):
     version_conf_path = _get_version_conf_path(cluster_version)
     version_conf = get(version_conf_path, client=client)
     version_conf["cluster_version"] = cluster_version

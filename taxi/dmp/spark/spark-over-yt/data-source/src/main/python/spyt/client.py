@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 from .utils import default_token, default_discovery_dir, get_spark_master, set_conf, \
     SparkDiscovery, parse_memory, format_memory, base_spark_conf
-from .conf import read_remote_conf, spyt_jar_path, spyt_python_path, validate_versions_compatibility, \
+from .conf import read_remote_conf, read_global_conf, spyt_jar_path, spyt_python_path, validate_versions_compatibility, \
     read_cluster_conf, SELF_VERSION
 from .enabler import set_enablers, set_except_enablers, get_enablers_list
 
@@ -232,7 +232,8 @@ def _build_spark_conf(num_executors=None,
                          num_executors, cores_per_executor, executor_memory_per_core,
                          driver_memory, dynamic_allocation)
 
-    remote_conf = read_remote_conf(spark_cluster_version, client=client)
+    global_conf = read_global_conf(client=client)
+    remote_conf = read_remote_conf(global_conf, spark_cluster_version, client=client)
     set_conf(spark_conf, remote_conf["spark_conf"])
 
     if is_client_mode:
