@@ -459,7 +459,6 @@ private:
     TUser* User_ = nullptr;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
-    bool BoomerangRequestsInvoked_ = false;
 
     std::atomic<bool> ReplyScheduled_ = false;
     std::atomic<bool> FinishScheduled_ = false;
@@ -1091,27 +1090,6 @@ private:
             }));
     }
 
-    void InvokeRemoteTransactionReplicationRequestsWithBoomerangs()
-    {
-        if (!EnableMutationBoomerangs_) {
-            return;
-        }
-
-        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
-            auto& subrequest = Subrequests_[subrequestIndex];
-
-            if (!subrequest.RemoteTransactionReplicationSession) {
-                continue;
-            }
-
-            YT_VERIFY(subrequest.Type == EExecutionSessionSubrequestType::LocalWrite);
-
-            YT_VERIFY(!subrequest.MutationResponseFuture);
-            subrequest.MutationResponseFuture = subrequest.RemoteTransactionReplicationSession->InvokeReplicationRequests();
-            subrequest.LocallyStarted.store(true);
-        }
-    }
-
     void RunSyncPhaseTwo()
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1415,15 +1393,6 @@ private:
             RequestQueueSizeIncreased_ = true;
         }
 
-        if (!BoomerangRequestsInvoked_) {
-            // NB: this could've been done earlier, in the RPC thread, if it
-            // weren't for the need to check user access (above). (And there's
-            // no way to control the moment of boomerang mutation application
-            // after launching the boomerang wave.)
-            InvokeRemoteTransactionReplicationRequestsWithBoomerangs();
-            BoomerangRequestsInvoked_ = true;
-        }
-
         if (!ThrottleRequests()) {
             return false;
         }
@@ -1595,6 +1564,16 @@ private:
             subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
 
         YT_VERIFY(!subrequest->RemoteTransactionReplicationFuture || !subrequest->MutationResponseFuture);
+
+        if (subrequest->RemoteTransactionReplicationSession &&
+            !subrequest->MutationResponseFuture)
+        {
+            YT_VERIFY(EnableMutationBoomerangs_);
+            YT_VERIFY(subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
+
+            subrequest->MutationResponseFuture = subrequest->RemoteTransactionReplicationSession->InvokeReplicationRequests();
+            subrequest->LocallyStarted.store(true);
+        }
 
         auto doExecuteSubrequest = [&] () {
             subrequest->LocallyStarted.store(true);
