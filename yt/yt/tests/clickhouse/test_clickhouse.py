@@ -1569,10 +1569,10 @@ class TestJobInput(ClickHouseTestBase):
         with Clique(1, config_patch={"yt": {"settings": {
             "use_block_sampling": use_block_sampling
         }}}) as clique:
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1', min=80, max=120, verbose=False)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 100', min=80, max=120, verbose=False)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 2/20', min=80, max=120, verbose=False)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=80, max=120, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1', min=60, max=170, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 100', min=60, max=170, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 2/20', min=60, max=170, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=60, max=170, verbose=False)
             clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
             clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
             clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0', exact=0, verbose=False)
