@@ -730,6 +730,27 @@ private:
         auto chunk = Bootstrap_->GetChunkRegistry()->GetChunkOrThrow(chunkId);
         YT_VERIFY(chunk->GetId() == chunkId);
 
+        auto schemaData = request->schema_data();
+        auto [tableSchema, schemaRequested] = TLookupSession::FindTableSchema(
+            chunkId,
+            readSessionId,
+            schemaData,
+            Bootstrap_->GetTableSchemaCache());
+
+        if (!tableSchema) {
+            // NB: No throttling here.
+            response->set_fetched_rows(false);
+            response->set_request_schema(schemaRequested);
+            context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, SchemaRequested: %v",
+                chunkId,
+                readSessionId,
+                workloadDescriptor,
+                schemaRequested);
+            context->Reply();
+            return;
+        }
+        YT_VERIFY(!schemaRequested);
+
         bool diskThrottling = GetDiskReadQueueSize(chunk, workloadDescriptor) > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
         if (diskThrottling) {
@@ -746,26 +767,6 @@ private:
             Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
         }
-
-        auto schemaData = request->schema_data();
-        auto [tableSchema, schemaRequested] = TLookupSession::FindTableSchema(
-            chunkId,
-            readSessionId,
-            schemaData,
-            Bootstrap_->GetTableSchemaCache());
-
-        if (!tableSchema) {
-            // NB: No throttling here.
-            response->set_fetched_rows(false);
-            response->set_request_schema(schemaRequested);
-            context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v, SchemaRequested: %v",
-                chunkId,
-                readSessionId,
-                schemaRequested);
-            context->Reply();
-            return;
-        }
-        YT_VERIFY(!schemaRequested);
 
         auto timestamp = request->timestamp();
         auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
