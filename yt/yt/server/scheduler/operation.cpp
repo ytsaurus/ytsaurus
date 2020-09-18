@@ -466,11 +466,6 @@ void TOperation::EraseTrees(const std::vector<TString>& treeIds)
     }
 }
 
-std::optional<ESchedulingSegment> TOperation::GetSpecifiedSchedulingSegment() const
-{
-    return Spec_->SchedulingSegment;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 int TOperationControllerData::GetPendingJobCount() const

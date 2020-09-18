@@ -3512,9 +3512,8 @@ void TOperationElement::MarkWaitingFor(TCompositeSchedulerElement* violatedPool)
 
 void TOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode)
 {
-    auto maybeSpecifiedSegment = Operation_->GetSpecifiedSchedulingSegment();
     auto maybeInitialMinNeededResources = Operation_->GetInitialAggregatedMinNeededResources();
-    auto segment = maybeSpecifiedSegment.value_or(
+    auto segment = Spec_->SchedulingSegment.value_or(
         TSchedulingSegmentManager::GetSegmentForOperation(mode, maybeInitialMinNeededResources.value_or(TJobResources())));
 
     YT_LOG_DEBUG_UNLESS(SchedulingSegment_ == segment,
@@ -3522,7 +3521,7 @@ void TOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode m
         segment,
         mode,
         maybeInitialMinNeededResources,
-        maybeSpecifiedSegment);
+        Spec_->SchedulingSegment);
 
     SchedulingSegment_ = segment;
 }

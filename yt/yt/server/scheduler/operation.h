@@ -140,8 +140,6 @@ struct IOperationStrategyHost
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
 
-    virtual std::optional<ESchedulingSegment> GetSpecifiedSchedulingSegment() const = 0;
-
     virtual std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const = 0;
 
 protected:
@@ -350,8 +348,6 @@ public:
     bool IsScheduledInSingleTree() const;
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) override;
-
-    virtual std::optional<ESchedulingSegment> GetSpecifiedSchedulingSegment() const override;
 
     TOperation(
         TOperationId operationId,
