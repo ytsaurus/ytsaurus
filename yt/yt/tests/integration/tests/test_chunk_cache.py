@@ -15,6 +15,12 @@ class TestChunkCache(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "background_artifact_validation_delay": 0
+        }
+    }
+
     selected_node = None
     prev_obj = None
 
