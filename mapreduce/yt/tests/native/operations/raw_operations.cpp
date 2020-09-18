@@ -24,7 +24,7 @@ public:
 
         TString line;
         while (inf.ReadLine(line)) {
-            line = Strip(line);
+            line = StripInPlace(line);
             if (line.empty()) {
                 break;
             }
@@ -59,7 +59,7 @@ public:
             while (true) {
                 TString line;
                 inf.ReadLine(line);
-                line = Strip(line);
+                line = StripInPlace(line);
                 if (line.empty()) {
                     exhausted = true;
                     break;
