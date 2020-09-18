@@ -1374,7 +1374,7 @@ TEST_F(TClassicFairShareTreeTest, TestAccumulatedVolumeProvidesMore)
     }
 
     auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), relaxedPool.Get());
-    auto secondUpdateTime = TInstant::Now() + TDuration::Minutes(1);
+    auto secondUpdateTime = firstUpdateTime + TDuration::Minutes(1);
     {
         auto dynamicAttributes = TDynamicAttributesList(3);
 
