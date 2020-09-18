@@ -3,6 +3,7 @@
 #include "fair_share_tree_element.h"
 #include "fair_share_implementations.h"
 #include "fair_share_tree_element_classic.h"
+#include "persistent_pool_state.h"
 #include "public.h"
 #include "scheduler_strategy.h"
 #include "scheduler_tree.h"
@@ -48,12 +49,8 @@ using namespace NSecurityClient;
 template <class TFairShareImpl>
 class TFairShareStrategy
     : public ISchedulerStrategy
-    , public ISchedulerTreeHost<TFairShareImpl>
+    , public ISchedulerTreeHost
 {
-public:
-    using TTree = TFairShareTree<TFairShareImpl>;
-    using TTreePtr = TIntrusivePtr<TTree>;
-
 public:
     TFairShareStrategy(
         TFairShareStrategyConfigPtr config,
@@ -351,7 +348,7 @@ public:
                             const auto& treeId = value.first;
                             const auto& tree = value.second;
                             fluent
-                                .Item(treeId).Do(BIND(&TTree::BuildStaticPoolsInformation, tree));
+                                .Item(treeId).Do(BIND(&ISchedulerTree::BuildStaticPoolsInformation, tree));
                         });
                 }
                 YT_LOG_INFO("Pool trees updated");
@@ -392,7 +389,7 @@ public:
             return;
         }
 
-        DoBuildOperationProgress(&TTree::BuildOperationProgress, operationId, fluent);
+        DoBuildOperationProgress(&ISchedulerTree::BuildOperationProgress, operationId, fluent);
     }
 
     virtual void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) override
@@ -403,7 +400,7 @@ public:
             return;
         }
 
-        DoBuildOperationProgress(&TTree::BuildBriefOperationProgress, operationId, fluent);
+        DoBuildOperationProgress(&ISchedulerTree::BuildBriefOperationProgress, operationId, fluent);
     }
 
     virtual TPoolTreeControllerSettingsMap GetOperationPoolTreeControllerSettingsMap(TOperationId operationId) override
@@ -705,7 +702,7 @@ public:
 
         YT_LOG_INFO("Starting fair share update");
 
-        std::vector<std::pair<TString, TTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
+        std::vector<std::pair<TString, ISchedulerTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
         std::sort(
             idToTree.begin(),
             idToTree.end(),
@@ -1038,7 +1035,7 @@ private:
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
-    using TFairShareTreeMap = THashMap<TString, TTreePtr>;
+    using TFairShareTreeMap = THashMap<TString, ISchedulerTreePtr>;
     TFairShareTreeMap IdToTree_;
     bool Initialized_ = false;
 
@@ -1214,13 +1211,13 @@ private:
         return GetOrCrash(OperationIdToOperationState_, operationId);
     }
 
-    TTreePtr FindTree(const TString& id) const
+    ISchedulerTreePtr FindTree(const TString& id) const
     {
         auto treeIt = IdToTree_.find(id);
         return treeIt != IdToTree_.end() ? treeIt->second : nullptr;
     }
 
-    TTreePtr GetTree(const TString& id) const
+    ISchedulerTreePtr GetTree(const TString& id) const
     {
         auto tree = FindTree(id);
         YT_VERIFY(tree);
@@ -1228,7 +1225,7 @@ private:
     }
 
     void DoBuildOperationProgress(
-        void (TTree::*method)(TOperationId operationId, TFluentMap fluent),
+        void (ISchedulerTree::*method)(TOperationId operationId, TFluentMap fluent) const,
         TOperationId operationId,
         TFluentMap fluent)
     {
@@ -1246,7 +1243,7 @@ private:
                 });
     }
 
-    virtual void OnOperationReadyInTree(TOperationId operationId, TTree* tree) const override
+    virtual void OnOperationReadyInTree(TOperationId operationId, ISchedulerTree* tree) const override
     {
         YT_VERIFY(tree->HasRunningOperation(operationId));
 
@@ -1323,7 +1320,7 @@ private:
                 continue;
             }
 
-            auto tree = New<TTree>(treeConfig, Config, Host, this, FeasibleInvokers, treeId);
+            auto tree = CreateFairShareTree<TFairShareImpl>(treeConfig, Config, Host, this, FeasibleInvokers, treeId);
             trees.emplace(treeId, tree);
         }
 
@@ -1484,7 +1481,7 @@ private:
     }
 
     static void BuildTreeOrchid(
-        const TTreePtr& tree,
+        const ISchedulerTreePtr& tree,
         const std::vector<TExecNodeDescriptor>& descriptors,
         TFluentMap fluent)
     {
@@ -1494,11 +1491,11 @@ private:
         }
 
         fluent
-            .Item("user_to_ephemeral_pools").Do(BIND(&TTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
+            .Item("user_to_ephemeral_pools").Do(BIND(&ISchedulerTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
             .Item("fair_share_info").BeginMap()
-                .Do(BIND(&TTree::BuildFairShareInfo, tree))
+                .Do(BIND(&ISchedulerTree::BuildFairShareInfo, tree))
             .EndMap()
-            .Do(BIND(&TTree::BuildOrchid, tree))
+            .Do(BIND(&ISchedulerTree::BuildOrchid, tree))
             .Item("resource_limits").Value(resourceLimits)
             .Item("node_count").Value(descriptors.size())
             .Item("node_addresses").BeginList()
