@@ -160,12 +160,13 @@ public:
     THandlerBase(
         TSharedDataPtr data,
         TJobReporterConfigPtr config,
-        const TString& reporterName,
+        TString reporterName,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         const TProfiler& profiler,
         ui64 maxInProgressDataSize)
         : Config_(std::move(config))
+        , ReporterName_(std::move(reporterName))
         , Data_(std::move(data))
         , Client_(std::move(client))
         , Profiler_(profiler)
@@ -176,7 +177,7 @@ public:
             .Via(invoker)
             .Run();
         EnableSemaphore_->Acquire();
-        Logger.AddTag("Reporter: %v", reporterName);
+        Logger.AddTag("Reporter: %v", ReporterName_);
     }
 
     void Enqueue(TJobReport&& statistics)
@@ -225,6 +226,26 @@ protected:
     TLogger Logger = ReporterLogger;
     const TJobReporterConfigPtr Config_;
 
+    bool IsValueWeightViolated(TUnversionedRow row, TOperationId operationId, TJobId jobId, const TNameTablePtr& nameTable)
+    {
+        for (auto value : row) {
+            auto valueWeight = GetDataWeight(value);
+            if (valueWeight > MaxStringValueLength) {
+                YT_LOG_WARNING(
+                    "Job report row violates value data weight, archivation skipped"
+                    "(ReporterName: %v, OperationId: %v, JobId: %v, Key: %v, Weight: %v, WeightLimit: %v)",
+                    ReporterName_,
+                    operationId,
+                    jobId,
+                    nameTable->GetNameOrThrow(value.Id),
+                    valueWeight,
+                    MaxStringValueLength);
+                return true;
+            }
+        }
+        return false;
+    };
+
 private:
     TShardedMonotonicCounter EnqueuedCounter_ = {"/enqueued"};
     TShardedMonotonicCounter DequeuedCounter_ = {"/dequeued"};
@@ -235,6 +256,7 @@ private:
     TShardedMonotonicCounter CommittedCounter_ = {"/committed"};
     TShardedMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
+    const TString ReporterName_;
     const TSharedDataPtr Data_;
     const NNative::IClientPtr Client_;
     const TProfiler& Profiler_;
@@ -488,8 +510,10 @@ private:
                 builder.AddValue(MakeUnversionedStringValue(*statistics.TaskName(), Table_.Index.TaskName));
             }
 
-            rows.push_back(rowBuffer->Capture(builder.GetRow()));
-            dataWeight += GetDataWeight(rows.back());
+            if (!IsValueWeightViolated(builder.GetRow(), statistics.OperationId(), statistics.JobId(), Table_.NameTable)) {
+                rows.push_back(rowBuffer->Capture(builder.GetRow()));
+                dataWeight += GetDataWeight(rows.back());
+            }
         }
 
         transaction.WriteRows(
@@ -545,8 +569,11 @@ private:
             if (statistics.Type()) {
                 builder.AddValue(MakeUnversionedStringValue(*statistics.Type(), Table_.Index.Type));
             }
-            rows.push_back(rowBuffer->Capture(builder.GetRow()));
-            dataWeight += GetDataWeight(rows.back());
+
+            if (!IsValueWeightViolated(builder.GetRow(), statistics.OperationId(), statistics.JobId(), Table_.NameTable)) {
+                rows.push_back(rowBuffer->Capture(builder.GetRow()));
+                dataWeight += GetDataWeight(rows.back());
+            }
         }
 
         transaction.WriteRows(
@@ -594,8 +621,11 @@ private:
                 builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
                 builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
                 builder.AddValue(MakeUnversionedStringValue(*statistics.Stderr(), Table_.Index.Stderr));
-                rows.push_back(rowBuffer->Capture(builder.GetRow()));
-                dataWeight += GetDataWeight(rows.back());
+
+                if (!IsValueWeightViolated(builder.GetRow(), statistics.OperationId(), statistics.JobId(), Table_.NameTable)) {
+                    rows.push_back(rowBuffer->Capture(builder.GetRow()));
+                    dataWeight += GetDataWeight(rows.back());
+                }
             }
         }
 
@@ -651,8 +681,11 @@ private:
                 builder.AddValue(MakeUnversionedInt64Value(0, Table_.Index.PartIndex));
                 builder.AddValue(MakeUnversionedStringValue(profile->Type, Table_.Index.ProfileType));
                 builder.AddValue(MakeUnversionedStringValue(profile->Blob, Table_.Index.ProfileBlob));
-                rows.push_back(rowBuffer->Capture(builder.GetRow()));
-                dataWeight += GetDataWeight(rows.back());
+
+                if (!IsValueWeightViolated(builder.GetRow(), statistics.OperationId(), statistics.JobId(), Table_.NameTable)) {
+                    rows.push_back(rowBuffer->Capture(builder.GetRow()));
+                    dataWeight += GetDataWeight(rows.back());
+                }
             }
         }
 
@@ -705,8 +738,11 @@ private:
                 builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
                 builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
                 builder.AddValue(MakeUnversionedStringValue(*statistics.FailContext(), Table_.Index.FailContext));
-                rows.push_back(rowBuffer->Capture(builder.GetRow()));
-                dataWeight += GetDataWeight(rows.back());
+
+                if (!IsValueWeightViolated(builder.GetRow(), statistics.OperationId(), statistics.JobId(), Table_.NameTable)) {
+                    rows.push_back(rowBuffer->Capture(builder.GetRow()));
+                    dataWeight += GetDataWeight(rows.back());
+                }
             }
         }
 
