@@ -33,7 +33,8 @@ struct ILookupReader
         NTableClient::TTimestamp timestamp,
         NCompression::ECodec codecId,
         bool produceAllVersions,
-        TTimestamp chunkTimestamp) = 0;
+        TTimestamp chunkTimestamp,
+        bool enablePeerProbing) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ILookupReader)
@@ -48,7 +49,8 @@ IVersionedReaderPtr CreateRowLookupReader(
     TColumnFilter columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    TTimestamp chunkTimestamp);
+    TTimestamp chunkTimestamp,
+    bool enablePeerProbing);
 
 ////////////////////////////////////////////////////////////////////////////////
 

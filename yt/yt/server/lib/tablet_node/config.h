@@ -142,6 +142,8 @@ public:
 
     bool EnableDataNodeLookup;
 
+    bool EnablePeerProbingInDataNodeLookup;
+
     bool EnableDynamicStoreRead;
 
     TTableMountConfig()
@@ -325,6 +327,9 @@ public:
             .Default(true);
 
         RegisterParameter("enable_data_node_lookup", EnableDataNodeLookup)
+            .Default(false);
+
+        RegisterParameter("enable_peer_probing_in_data_node_lookup", EnablePeerProbingInDataNodeLookup)
             .Default(false);
 
         RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)

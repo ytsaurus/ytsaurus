@@ -41,7 +41,8 @@ public:
         TColumnFilter columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions,
-        TTimestamp chunkTimestamp)
+        TTimestamp chunkTimestamp,
+        bool enablePeerProbing)
         : UnderlyingReader_(std::move(underlyingReader))
         , RowsReadOptions_(std::move(blockReadOptions))
         , LookupKeys_(std::move(lookupKeys))
@@ -50,6 +51,7 @@ public:
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
         , ChunkTimestamp_(chunkTimestamp)
+        , EnablePeerProbing_(enablePeerProbing)
     {
         ReadyEvent_ = DoOpen();
     }
@@ -132,6 +134,7 @@ private:
     const bool ProduceAllVersions_;
     const TTimestamp ChunkTimestamp_;
     NCompression::ICodec* const Codec_ = NCompression::GetCodec(CompressionCodecId);
+    const bool EnablePeerProbing_;
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TDataBufferTag());
 
@@ -162,7 +165,8 @@ private:
             Timestamp_,
             CompressionCodecId,
             ProduceAllVersions_,
-            ChunkTimestamp_)
+            ChunkTimestamp_,
+            EnablePeerProbing_)
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& fetchedRowset) {
                 ProcessFetchedRowset(fetchedRowset);
                 return fetchedRowset;
@@ -231,7 +235,8 @@ IVersionedReaderPtr CreateRowLookupReader(
     TColumnFilter columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    TTimestamp chunkTimestamp)
+    TTimestamp chunkTimestamp,
+    bool enablePeerProbing)
 {
     return New<TRowLookupReader>(
         std::move(underlyingReader),
@@ -241,7 +246,8 @@ IVersionedReaderPtr CreateRowLookupReader(
         std::move(columnFilter),
         timestamp,
         produceAllVersions,
-        chunkTimestamp);
+        chunkTimestamp,
+        enablePeerProbing);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
