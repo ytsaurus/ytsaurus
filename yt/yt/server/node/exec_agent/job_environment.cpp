@@ -397,6 +397,12 @@ private:
 
         std::vector<TFuture<void>> futures;
         for (const auto& container : containers) {
+            if (container.find('/', rootContainer.length() + 1) != TStringBuf::npos) {
+                // YT-13559: We're interested only in the immediate children of rootContainer.
+                YT_LOG_DEBUG("Skip destroying subcontainer (Container: %v, RootContainer: %v)", container, rootContainer);
+                continue;
+            }
+
             YT_LOG_DEBUG("Destroying subcontainer (Container: %v)", container);
             futures.push_back(PortoExecutor_->DestroyContainer(container));
         }
