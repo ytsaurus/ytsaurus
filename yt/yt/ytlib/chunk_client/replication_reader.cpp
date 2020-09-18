@@ -217,7 +217,8 @@ public:
         TTimestamp timestamp,
         NCompression::ECodec codecId,
         bool produceAllVersions,
-        TTimestamp chunkTimestamp) override;
+        TTimestamp chunkTimestamp,
+        bool enablePeerProbing) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -2075,7 +2076,8 @@ public:
         TTimestamp timestamp,
         NCompression::ECodec codecId,
         bool produceAllVersions,
-        TTimestamp chunkTimestamp)
+        TTimestamp chunkTimestamp,
+        bool enablePeerProbing)
         : TSessionBase(reader, options)
         , LookupKeys_(std::move(lookupKeys))
         , TableId_(tableId)
@@ -2087,6 +2089,7 @@ public:
         , CodecId_(codecId)
         , ProduceAllVersions_(produceAllVersions)
         , ChunkTimestamp_(chunkTimestamp)
+        , EnablePeerProbing_(enablePeerProbing)
     {
         Logger.AddTag("TableId: %v, Revision: %llx",
             TableId_,
@@ -2127,6 +2130,7 @@ private:
     const NCompression::ECodec CodecId_;
     const bool ProduceAllVersions_;
     const TTimestamp ChunkTimestamp_;
+    const bool EnablePeerProbing_;
 
     //! Promise representing the session.
     const TPromise<TSharedRef> Promise_ = NewPromise<TSharedRef>();
@@ -2221,21 +2225,23 @@ private:
                 return;
             }
 
-            AsyncProbeAndSelectBestPeers(SinglePassCandidates_, SinglePassCandidates_.size(), {}, std::move(reader))
-                .Subscribe(BIND(
-                [=, this_ = MakeStrong(this), pickPeerTimer = std::move(pickPeerTimer)] (const TErrorOr<TPeerList>& result) {
-                    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+            if (EnablePeerProbing_) {
+                AsyncProbeAndSelectBestPeers(SinglePassCandidates_, SinglePassCandidates_.size(), {}, std::move(reader))
+                    .Subscribe(BIND(
+                    [=, this_ = MakeStrong(this), pickPeerTimer = std::move(pickPeerTimer)] (const TErrorOr<TPeerList>& result) {
+                        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-                    SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
+                        SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
 
-                    SinglePassCandidates_ = result.ValueOrThrow();
-                    if (SinglePassCandidates_.empty()) {
-                        OnPassCompleted();
-                    } else {
-                        DoRequestRows();
-                    }
-                }));
-            return;
+                        SinglePassCandidates_ = result.ValueOrThrow();
+                        if (SinglePassCandidates_.empty()) {
+                            OnPassCompleted();
+                        } else {
+                            DoRequestRows();
+                        }
+                    }));
+                return;
+            }
         }
 
         if (SinglePassIterationCount_ == ReaderConfig_->SinglePassIterationLimitForLookup) {
@@ -2488,7 +2494,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     TTimestamp timestamp,
     NCompression::ECodec codecId,
     bool produceAllVersions,
-    TTimestamp chunkTimestamp)
+    TTimestamp chunkTimestamp,
+    bool enablePeerProbing)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2504,7 +2511,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         timestamp,
         codecId,
         produceAllVersions,
-        chunkTimestamp);
+        chunkTimestamp,
+        enablePeerProbing);
     return session->Run();
 }
 

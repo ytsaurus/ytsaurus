@@ -628,14 +628,15 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    def test_lookup_from_data_node_stress(self, replication_factor):
+    @pytest.mark.parametrize("enable_peer_probing", [True, False])
+    def test_lookup_from_data_node_stress(self, replication_factor, enable_peer_probing):
         self._set_nodes_state()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor)
         set("//tmp/t/@enable_data_node_lookup", True)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
-
+        set("//tmp/t/@enable_peer_probing_in_data_node_lookup", enable_peer_probing)
         sync_mount_table("//tmp/t")
 
         seq_keys = range(50)
