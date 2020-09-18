@@ -351,11 +351,6 @@ public:
     virtual void EraseTrees(const std::vector<TString>& treeIds) override
     { }
 
-    virtual std::optional<ESchedulingSegment> GetSpecifiedSchedulingSegment() const override
-    {
-        return std::nullopt;
-    }
-
     virtual std::optional<TJobResources> GetInitialAggregatedMinNeededResources() const override
     {
         return std::nullopt;

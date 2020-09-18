@@ -99,12 +99,6 @@ void TOperation::EraseTrees(const std::vector<TString>& treeIds)
     YT_UNIMPLEMENTED();
 }
 
-std::optional<NScheduler::ESchedulingSegment> TOperation::GetSpecifiedSchedulingSegment() const
-{
-    // TODO(eshcherbin): Implement when segments are supported in simulator.
-    return std::nullopt;
-}
-
 std::optional<NScheduler::TJobResources> TOperation::GetInitialAggregatedMinNeededResources() const
 {
     return std::nullopt;
