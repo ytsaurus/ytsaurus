@@ -352,14 +352,7 @@ public:
         auto* pool = operationElement->GetMutableParent();
 
         // Profile finished operation.
-        if (IsOperationFinished(state->GetHost()->GetState())) {
-            const TCompositeSchedulerElement* currentPool = pool;
-            while (currentPool) {
-                auto& counters = GetOrCrash(PoolToFinishedOperationCounters_, currentPool->GetId());
-                Profiler.Increment(GetOrCrash(counters, state->GetHost()->GetState()), 1);
-                currentPool = currentPool->GetParent();
-            }
-        }
+        ProfileOperationUnregistration(pool, state->GetHost()->GetState());
 
         operationElement->Disable(/* markAsNonAlive */ true);
         operationElement->DetachParent();
@@ -898,7 +891,13 @@ private:
 
     THashMap<TString, TTagId> PoolIdToProfilingTagId_;
     THashMap<EOperationState, TTagId> OperationStateToProfilingTagId_;
-    THashMap<TString, THashMap<EOperationState, TShardedMonotonicCounter>> PoolToFinishedOperationCounters_;
+
+    struct TUnregisterOperationCounters
+    {
+        THashMap<EOperationState, TShardedMonotonicCounter> FinishedCounters;
+        TShardedMonotonicCounter BannedCounter;
+    };
+    THashMap<TString, TUnregisterOperationCounters> PoolToUnregisterOperationCounters_;
 
     THashMap<TString, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
 
@@ -1736,7 +1735,7 @@ private:
 
         YT_VERIFY(PoolToSpareSlotIndices_.erase(pool->GetId()) <= 1);
 
-        YT_VERIFY(PoolToFinishedOperationCounters_.erase(pool->GetId()) == 1);
+        YT_VERIFY(PoolToUnregisterOperationCounters_.erase(pool->GetId()) == 1);
 
         // We cannot use pool after erase because Pools may contain last alive reference to it.
         auto extractedPool = std::move(Pools_[pool->GetId()]);
@@ -1795,13 +1794,14 @@ private:
 
     void DoRegisterPoolProfilingCounters(const TString& poolName, TTagId profilingTag)
     {
-        THashMap<EOperationState, TShardedMonotonicCounter> profilingCounters;
+        TUnregisterOperationCounters counters;
         for (const auto& [state, stateTag] : OperationStateToProfilingTagId_) {
-            profilingCounters.emplace(
+            counters.FinishedCounters.emplace(
                 state,
                 TShardedMonotonicCounter("/pools/finished_operation_count", {stateTag, profilingTag, TreeIdProfilingTag_}));
         }
-        PoolToFinishedOperationCounters_.emplace(poolName, std::move(profilingCounters));
+        counters.BannedCounter = TShardedMonotonicCounter("/pools/banned_operation_count", {profilingTag, TreeIdProfilingTag_});
+        PoolToUnregisterOperationCounters_.emplace(poolName, std::move(counters));
     }
 
     bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
@@ -1936,6 +1936,21 @@ private:
             ).first;
         }
         return it->second;
+    }
+
+    void ProfileOperationUnregistration(TCompositeSchedulerElement* pool, EOperationState state)
+    {
+        const TCompositeSchedulerElement* currentPool = pool;
+        while (currentPool) {
+            auto& counters = GetOrCrash(PoolToUnregisterOperationCounters_, currentPool->GetId());
+            if (IsOperationFinished(state)) {
+                Profiler.Increment(GetOrCrash(counters.FinishedCounters, state), 1);
+            } else {
+                // Unregistration for running operation is considered as ban.
+                Profiler.Increment(counters.BannedCounter, 1);
+            }
+            currentPool = currentPool->GetParent();
+        }
     }
 
     void OnOperationRemovedFromPool(
