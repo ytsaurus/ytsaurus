@@ -29,10 +29,12 @@ class TestMasterCellsSync(YTEnvSetup):
         if self.delayed_secondary_cells_start:
             self.Env.start_secondary_master_cells()
         try:
-            multicell_sleep()
-            for i in xrange(self.Env.secondary_master_cell_count):
-                value = check(get_driver(i + 1))
-                assert value
+            def _check():
+                for i in xrange(self.Env.secondary_master_cell_count):
+                    if not check(get_driver(i + 1)):
+                        return False
+                return true
+                wait(_check)
         finally:
             if self.delayed_secondary_cells_start:
                 for cell_index in xrange(self.Env.secondary_master_cell_count):
@@ -53,8 +55,6 @@ class TestMasterCellsSync(YTEnvSetup):
             lambda driver: all([
                 get("//sys/users/tester/@custom{0}".format(i), driver=driver) == "value"
                 for i in xrange(10)]))
-
-        multicell_sleep()
         self._check_true_for_secondary(
             lambda driver: "tester" in ls("//sys/users", driver=driver))
 
@@ -70,12 +70,8 @@ class TestMasterCellsSync(YTEnvSetup):
 
         self._check_true_for_secondary(
             lambda driver: "sudoers" in ls("//sys/groups", driver=driver))
-
-        multicell_sleep()
         self._check_true_for_secondary(
             lambda driver: "tester" in get("//sys/groups/sudoers/@members", driver=driver))
-
-        multicell_sleep()
         self._check_true_for_secondary(
             lambda driver: "sudoers" in get("//sys/users/tester/@member_of", driver=driver))
 
@@ -156,7 +152,6 @@ class TestMasterCellsSync(YTEnvSetup):
                 get("//sys/tablet_cell_bundles/b/@custom{0}".format(i), driver=driver) == "value"
                 for i in xrange(10)]))
 
-        multicell_sleep()
         self._check_true_for_secondary(
             lambda driver: "b" in ls("//sys/tablet_cell_bundles", driver=driver))
 
@@ -173,10 +168,7 @@ class TestMasterCellsSync(YTEnvSetup):
         wait_for_cells()
 
         def _get_peer_address(cell_id):
-            try:
-                return get("#{0}/@peers/0/address".format(cell_id))
-            except YtError:
-                return None
+            return get("#{0}/@peers/0/address".format(cell_id), default=None)
 
         peer = _get_peer_address(cell_id)
         set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(peer), True)
