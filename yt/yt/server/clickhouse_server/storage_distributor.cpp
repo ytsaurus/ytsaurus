@@ -358,8 +358,10 @@ public:
         auto input = FetchInput(
             StorageContext_,
             queryAnalysisResult,
-            SpecTemplate_,
             columnNames);
+
+        YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
+        SpecTemplate_.DataSourceDirectory = std::move(input.DataSourceDirectory);
 
         MiscExtMap_ = std::move(input.MiscExtMap);
 

@@ -48,15 +48,19 @@ TReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, boo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(max42): replace with function accepting NProto::TTableInputSpec* and
+// possibly unify with TTask::AddChunksToInputSpec.
 void ToProto(
     ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>* chunkSpecs,
     ::google::protobuf::RepeatedField<int>* chunkSpecCountPerDataSlice,
+    ::google::protobuf::RepeatedField<i64>* virtualRowIndexPerDataSlice,
     const std::vector<TDataSliceDescriptor>& dataSlices);
 
 void FromProto(
     std::vector<TDataSliceDescriptor>* dataSlices,
     const ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>& chunkSpecs,
-    const ::google::protobuf::RepeatedField<int>& chunkSpecCountPerDataSlice);
+    const ::google::protobuf::RepeatedField<int>& chunkSpecCountPerDataSlice,
+    const ::google::protobuf::RepeatedField<i64>& virtualRowIndexPerDataSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 

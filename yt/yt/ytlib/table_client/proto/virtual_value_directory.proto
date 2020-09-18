@@ -1,0 +1,15 @@
+package NYT.NTableClient.NProto;
+
+import "yt/client/table_client/proto/chunk_meta.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TVirtualValueDirectory
+{
+    repeated bytes rows = 1;
+    repeated string names = 2;
+    optional NYT.NTableClient.NProto.TTableSchemaExt schema = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+

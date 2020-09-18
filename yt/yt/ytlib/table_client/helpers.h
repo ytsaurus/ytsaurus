@@ -7,6 +7,7 @@
 #include <yt/client/table_client/adapters.h>
 #include <yt/client/table_client/columnar_statistics.h>
 #include <yt/client/table_client/table_output.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/client/chunk_client/public.h>
 
@@ -122,6 +123,50 @@ ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TString& columnName);
 TColumnarStatistics GetColumnarStatistics(
     const NProto::THeavyColumnStatisticsExt& statistics,
     const std::vector<TString>& columnNames);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Helper class for storing virtual values in schemaless reader.
+//! It allows extracting them as vector of TUnversionedValue as well as
+//! filling them as a sequence of RLE-encoded IUnversionedColumnarRowBatch::TColumn.
+class TReaderVirtualValues
+{
+public:
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TUnversionedValue>, Values);
+
+public:
+    TReaderVirtualValues() = default;
+
+    void AddValue(TUnversionedValue value, TLogicalTypePtr logicalType);
+
+    //! Return number of columns that are required for representing virtual
+    //! column #virtualColumnIndex (including inner columns for RLE encoding).
+    int GetBatchColumnCount(int virtualColumnIndex) const;
+
+    //! Return total number of columns that are required for representing all virtual columns.
+    int GetTotalColumnCount() const;
+
+    void FillColumns(
+        TMutableRange<IUnversionedColumnarRowBatch::TColumn> columnRange,
+        int virtualColumnIndex,
+        ui64 startIndex,
+        ui64 valueCount) const;
+
+private:
+    static const ui64 Zero_;
+
+    std::vector<TLogicalTypePtr> LogicalTypes_;
+
+    void FillRleColumn(IUnversionedColumnarRowBatch::TColumn* rleColumn, int virtualColumnIndex) const;
+
+    void FillMainColumn(
+        IUnversionedColumnarRowBatch::TColumn* mainColumn,
+        const IUnversionedColumnarRowBatch::TColumn* rleColumn,
+        int virtualColumnIndex,
+        ui64 startIndex,
+        ui64 valueCount) const;
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

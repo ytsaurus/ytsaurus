@@ -143,6 +143,7 @@ class Clique(object):
             assert result["statistics"]["rows_read"] == exact
         else:
             assert min <= result["statistics"]["rows_read"] <= max
+        return result["data"]
 
     def _print_progress(self):
         print_debug(self.op.build_progress(), "(active instance count: {})".format(self.get_active_instance_count()))
@@ -460,6 +461,7 @@ def get_scheduling_options(user_slots):
         }
     }
 
+# TODO(max42): rework this.
 def get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time):
     return {
         "expire_after_access_time": expire_after_access_time,
@@ -473,6 +475,21 @@ def get_object_attibute_cache_config(expire_after_access_time, expire_after_succ
             "table_attribute_cache": get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time),
             "permission_cache": get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time),
         },
+    }
+
+def get_disabled_cache_config():
+    disabled_cache_config = {
+        "read_from": "follower",
+        "expire_after_successful_update_time": 0,
+        "expire_after_failed_update_time": 0,
+        "refresh_time": 0,
+        "expire_after_access_time": 0
+    }
+    return {
+        "yt": {
+            "table_attribute_cache": disabled_cache_config,
+            "permission_cache": disabled_cache_config,
+        }
     }
 
 def get_schema_from_description(describe_info):
@@ -1697,6 +1714,57 @@ class TestJobInput(ClickHouseTestBase):
                     check_complex(lower_limit, upper_limit)
                     check_complex(upper_limit, lower_limit)
 
+    @authors("max42")
+    def test_partition_filter(self):
+        create("partitioned_table", "//tmp/pt", attributes={
+            "schema": [
+                {"name": "virtual_key", "type": "int64", "sort_order": "ascending"},
+                {"name": "actual_key", "type": "int64", "sort_order": "ascending"},
+                {"name": "payload", "type": "string"}
+            ],
+            "partitioned_by": ["virtual_key"],
+            "partitions": [
+                {"key": [0], "path": "//tmp/t0"},
+                {"key": [10], "path": "//tmp/t1"},
+                {"key": [20], "path": "//tmp/t2"},
+            ]
+        })
+
+        all_rows = []
+
+        for i in xrange(3):
+            create("table", "//tmp/t" + str(i), attributes={
+                "schema": [
+                    {"name": "actual_key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "payload", "type": "string"},
+                ]
+            })
+            # Write three chunks consisting of two rows.
+            for j in xrange(3):
+                rows = []
+                for k in range(2):
+                    rows.append({"actual_key": 2 * j + k, "payload": "{}:{}:{}".format(i, j, k)})
+                write_table("<append=%true>//tmp/t" + str(i), rows)
+                all_rows += [update(row, {"virtual_key": i * 10}) for row in rows]
+
+        with Clique(1) as clique:
+            assert clique.make_query("select * from `//tmp/pt` order by (virtual_key, actual_key)") == all_rows
+            assert clique.make_query_and_validate_row_count(
+                "select count(*) as c from `//tmp/pt` where virtual_key = 0",
+                exact=6) == [{"c": 6}]
+            assert clique.make_query_and_validate_row_count(
+                "select count(*) as c from `//tmp/pt` where actual_key between 2 and 3",
+                exact=6) == [{"c": 6}]
+            assert clique.make_query_and_validate_row_count(
+                "select count(*) as c from `//tmp/pt` where actual_key between 3 and 4",
+                exact=12) == [{"c": 6}]
+            # TODO(max42): investigate why range deduction does not work in example below.
+            # assert clique.make_query_and_validate_row_count(
+            #     "select count(*) as c from `//tmp/pt` where (virtual_key, actual_key) > (10, 0)",
+            #     exact=12) == [{"c": 11}]
+            assert clique.make_query_and_validate_row_count(
+                "select count(*) as c from `//tmp/pt` where actual_key between 3 and 4 and virtual_key > 15",
+                exact=4) == [{"c": 2}]
 
 class TestMutations(ClickHouseTestBase):
     def setup(self):
@@ -3818,3 +3886,118 @@ class TestCustomSettings(ClickHouseTestBase):
                             clique.make_query("select * from `//tmp/t`", settings=settings)
                     else:
                         assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]
+
+class TestPartitionedTables(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    PARTITIONED_BY = ["foo", "bar"]
+    SCHEMA = [
+        {"name": "foo", "type": "int64", "sort_order": "ascending"},
+        {"name": "bar", "type": "string", "sort_order": "ascending"},
+        {"name": "baz", "type": "int64", "sort_order": "ascending"},
+        {"name": "qux", "type": "boolean"}
+    ]
+
+    PARTITIONS = [
+        {"path": "//tmp/t0", "key": [10, "abc"]},
+        {"path": "//tmp/t1", "key": [10, "def"]},
+        {"path": "//tmp/t2", "key": [20, "abc"]},
+        {"path": "//tmp/t3", "key": [20, "abc"]},
+    ]
+
+    PARTITION_SCHEMA = [
+        {"name": "baz", "type": "int64", "sort_order": "ascending"},
+        {"name": "qux", "type": "boolean"}
+    ]
+
+    @authors("max42")
+    @pytest.mark.parametrize("assume_partitioned_table", [False, True])
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_simple(self, assume_partitioned_table, optimize_for):
+        node_type = "partitioned_table" if not assume_partitioned_table else "map_node"
+        create(node_type, "//tmp/pt", attributes={
+            "schema": self.SCHEMA,
+            "partitioned_by": self.PARTITIONED_BY,
+            "partitions": self.PARTITIONS,
+            "assume_partitioned_table": assume_partitioned_table,
+        })
+
+        for i in xrange(4):
+            create("table", "//tmp/t" + str(i), attributes={"schema": self.PARTITION_SCHEMA,
+                                                            "optimize_for": optimize_for})
+
+        write_table("//tmp/t0", [{"baz": 5}])
+        write_table("//tmp/t1", [{"baz": 4}])
+        write_table("//tmp/t2", [{"baz": 1}])
+        write_table("//tmp/t3", [{"baz": 10}])
+
+        with Clique(1) as clique:
+            assert clique.make_query("select * from `//tmp/pt` order by (foo, bar, baz)") == [
+                   {"foo": 10, "bar": "abc", "baz": 5, "qux": None},
+                   {"foo": 10, "bar": "def", "baz": 4, "qux": None},
+                   {"foo": 20, "bar": "abc", "baz": 1, "qux": None},
+                   {"foo": 20, "bar": "abc", "baz": 10, "qux": None},
+            ]
+            assert clique.make_query("select bar, baz from `//tmp/pt` order by (bar, baz)") == [
+                {"bar": "abc", "baz": 1},
+                {"bar": "abc", "baz": 5},
+                {"bar": "abc", "baz": 10},
+                {"bar": "def", "baz": 4},
+            ]
+            assert clique.make_query("select foo from `//tmp/pt` order by (foo)") == [
+                {"foo": 10},
+                {"foo": 10},
+                {"foo": 20},
+                {"foo": 20},
+            ]
+
+    @authors("max42")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_virtual_value_types(self, optimize_for):
+        virtual_key = [42, -17, 50, 3.14, True, yson.YsonUint64(0)]
+        virtual_key_with_nulls = [None, 13, None, None, None, None]
+        virtual_key_unexpected_null = [None] * 6
+
+        create("partitioned_table", "//tmp/pt", attributes={
+            "schema": [
+                {"name": "int64", "type": "int64", "sort_order": "ascending"},
+                {"name": "int64_required", "type": "int64", "sort_order": "ascending", "required": True},
+                {"name": "uint64", "type": "int64", "sort_order": "ascending"},
+                {"name": "double", "type": "double", "sort_order": "ascending"},
+                {"name": "boolean", "type": "boolean", "sort_order": "ascending"},
+                {"name": "datetime", "type": "datetime", "sort_order": "ascending"},
+                {"name": "foo", "type": "string"},
+            ],
+            "partitioned_by": ["int64", "int64_required", "uint64", "double", "boolean", "datetime"],
+            "partitions": [
+                {"key": virtual_key_with_nulls, "path": "//tmp/t0"},
+                {"key": virtual_key, "path": "//tmp/t1"},
+            ],
+        })
+
+        for i in xrange(3):
+            create("table", "//tmp/t" + str(i), attributes={"schema": [{"name": "foo", "type": "string"}]})
+            write_table("//tmp/t" + str(i), [{"foo": "foo" + str(i)}])
+
+        def to_ch_dict(key, foo):
+            return {
+                "int64": key[0],
+                "int64_required": key[1],
+                "uint64": key[2],
+                "double": key[3],
+                "boolean": int(key[4]) if key[4] is not None else key[4],
+                "datetime": "1970-01-01 03:00:00" if key[5] is not None else key[5],
+                "foo": foo,
+            }
+
+        with Clique(1, config_patch=get_disabled_cache_config()) as clique:
+            assert clique.make_query("select * from `//tmp/pt` order by foo") == [
+                to_ch_dict(virtual_key_with_nulls, "foo0"),
+                to_ch_dict(virtual_key, "foo1"),
+            ]
+
+            set("//tmp/pt/@partitions", [{"key": virtual_key_unexpected_null, "path": "//tmp/t2"}])
+
+            with raises_yt_error():
+                clique.make_query("select * from `//tmp/pt` order by foo");

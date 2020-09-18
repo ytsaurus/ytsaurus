@@ -3,6 +3,8 @@
 
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 
+#include <yt/core/misc/protobuf_helpers.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,6 +162,11 @@ int TNameTable::DoRegisterName(TStringBuf name)
     return id;
 }
 
+const std::vector<TString>& TNameTable::GetNames() const
+{
+    return IdToName_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TNameTableReader::TNameTableReader(TNameTablePtr nameTable)
@@ -260,19 +267,16 @@ int TNameTableWriter::GetIdOrRegisterName(TStringBuf name)
 
 void ToProto(NProto::TNameTableExt* protoNameTable, const TNameTablePtr& nameTable)
 {
-    protoNameTable->clear_names();
-    for (int id = 0; id < nameTable->GetSize(); ++id) {
-        auto name = nameTable->GetName(id);
-        protoNameTable->add_names(name.data(), name.length());
-    }
+    using NYT::ToProto;
+
+    ToProto(protoNameTable->mutable_names(), nameTable->GetNames());
 }
 
 void FromProto(TNameTablePtr* nameTable, const NProto::TNameTableExt& protoNameTable)
 {
-    *nameTable = New<TNameTable>();
-    for (const auto& name : protoNameTable.names()) {
-        (*nameTable)->RegisterName(name);
-    }
+    using NYT::FromProto;
+
+    *nameTable = TNameTable::FromKeyColumns(FromProto<std::vector<TString>>(protoNameTable.names()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,7 +21,8 @@ void ValidateTableSchemaUpdate(
 void ValidatePivotKey(
     const TUnversionedRow& pivotKey,
     const TTableSchema& schema,
-    const TStringBuf& keyType = "pivot");
+    const TStringBuf& keyType = "pivot",
+    bool validateRequired = false);
 
 TTableSchemaPtr InferInputSchema(
     const std::vector<TTableSchemaPtr>& schemas,

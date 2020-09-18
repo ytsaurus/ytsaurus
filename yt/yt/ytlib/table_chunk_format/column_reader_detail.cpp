@@ -165,9 +165,9 @@ const char* TSparseVersionedValueExtractorBase::InitSparseReader(const char* ptr
 {
     RowIndexReader_ = TBitPackedUnsignedVectorReader<ui64>(reinterpret_cast<const ui64*>(ptr));
     ptr += RowIndexReader_.GetByteSize();
-    
+
     ptr = InitTimestampIndexReader(ptr);
-    
+
     return ptr;
 }
 
@@ -451,7 +451,7 @@ void ReadColumnarNullBitmap(
 {
     column->StartIndex = startIndex;
     column->ValueCount = valueCount;
-    
+
     auto& nullBitmap = column->NullBitmap.emplace();
     nullBitmap.Data = TRef(bitmap.Begin(), bitmap.End());
 }
@@ -466,7 +466,7 @@ void ReadColumnarIntegerValues(
 {
     column->StartIndex = startIndex;
     column->ValueCount = valueCount;
-    
+
     auto& values = column->Values.emplace();
     values.BaseValue = baseValue;
     values.BitWidth = 64;
@@ -482,7 +482,7 @@ void ReadColumnarBooleanValues(
 {
     column->StartIndex = startIndex;
     column->ValueCount = valueCount;
-    
+
     auto& values = column->Values.emplace();
     values.BitWidth = 1;
     values.Data = TRef(bitmap.Begin(), bitmap.End());
@@ -527,7 +527,7 @@ void ReadColumnarStringValues(
 {
     column->StartIndex = startIndex;
     column->ValueCount = valueCount;
-    
+
     auto& values = column->Values.emplace();
     values.BitWidth = 32;
     values.ZigZagEncoded = true;
@@ -553,7 +553,7 @@ void ReadColumnarDictionary(
     dictionaryColumn->Type = type && type->GetMetatype() == ELogicalMetatype::Optional
         ? type->AsOptionalTypeRef().GetElement()
         : type;
-   
+
     auto& primaryValues = primaryColumn->Values.emplace();
     primaryValues.BitWidth = 32;
     primaryValues.Data = TRef(ids.Begin(), ids.End());

@@ -80,10 +80,10 @@ void RunQuery(
 
 std::vector<TDataSliceDescriptor> UnpackDataSliceDescriptors(const TTableInputSpec& inputTableSpec)
 {
-
     return FromProto<std::vector<TDataSliceDescriptor>>(
         inputTableSpec.chunk_specs(),
-        inputTableSpec.chunk_spec_count_per_data_slice());
+        inputTableSpec.chunk_spec_count_per_data_slice(),
+        inputTableSpec.virtual_row_index_per_data_slice());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

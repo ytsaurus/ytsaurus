@@ -125,6 +125,9 @@ class TestPartitionedTables(YTEnvSetup):
         # so we do not test it explicitly.
         create("partitioned_table", "//tmp/pt")
 
+        for i in xrange(4):
+            create("table", "//tmp/t" + str(i), attributes={"schema": PARTITION_SCHEMA_BASE})
+
         # Attributes partitioned_by and schema not set.
         with raises_yt_error(ResolveErrorCode):
             read_table("//tmp/pt")
@@ -157,11 +160,26 @@ class TestPartitionedTables(YTEnvSetup):
             read_table("//tmp/pt")
         remove("//tmp/pt/@schema/0/aggregate")
 
+        # Any and composite types are not allowed.
+        set("//tmp/pt/@schema/0/type", "any")
+        with raises_yt_error(InvalidSchemaValue):
+            read_table("//tmp/pt")
+        remove("//tmp/pt/@schema/0/type")
+        set("//tmp/pt/@schema/0/type_v3", {"type_name": "list", "item": "int64"})
+        with raises_yt_error(InvalidSchemaValue):
+            read_table("//tmp/pt")
+        remove("//tmp/pt/@schema/0/type_v3")
+        set("//tmp/pt/@schema/0/type", "int64")
+
         # Unique keys.
         set("//tmp/pt/@schema/@unique_keys", True)
         with raises_yt_error(InvalidSchemaValue):
             read_table("//tmp/pt")
         remove("//tmp/pt/@schema/@unique_keys")
+
+        # Check that after fixing all errors table is readable.
+
+        assert read_table("//tmp/pt") == []
 
     @authors("max42")
     def test_partitions(self):

@@ -6863,13 +6863,15 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
         FromProto(
             &unreadDataSliceDescriptors,
             schedulerResultExt.unread_chunk_specs(),
-            schedulerResultExt.chunk_spec_count_per_unread_data_slice());
+            schedulerResultExt.chunk_spec_count_per_unread_data_slice(),
+            schedulerResultExt.virtual_row_index_per_unread_data_slice());
     }
     if (schedulerResultExt.read_chunk_specs_size() > 0) {
         FromProto(
             &readDataSliceDescriptors,
             schedulerResultExt.read_chunk_specs(),
-            schedulerResultExt.chunk_spec_count_per_read_data_slice());
+            schedulerResultExt.chunk_spec_count_per_read_data_slice(),
+            schedulerResultExt.virtual_row_index_per_read_data_slice());
     }
 
     auto extractDataSlice = [&] (const TDataSliceDescriptor& dataSliceDescriptor) {

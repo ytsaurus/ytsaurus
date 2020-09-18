@@ -17,9 +17,16 @@ struct TVirtualValueDirectory
 {
     TSharedRange<TUnversionedRow> Rows;
     TNameTablePtr NameTable;
+    //! Schema for virtual values is needed for columnar chunk readers.
+    TTableSchemaPtr Schema;
 };
 
 DEFINE_REFCOUNTED_TYPE(TVirtualValueDirectory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TVirtualValueDirectory* protoDirectory, const TVirtualValueDirectoryPtr& directory);
+void FromProto(TVirtualValueDirectoryPtr* directory, const NProto::TVirtualValueDirectory& protoDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

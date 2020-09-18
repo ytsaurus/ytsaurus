@@ -189,6 +189,11 @@ TFuture<void> TColumnarStatisticsFetcher::Fetch()
 
 void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TString> columnNames)
 {
+    if (!ChunkSet_.insert(chunk).second) {
+        // We already know about this chunk.
+        return;
+    }
+
     if (columnNames.empty() || chunk->IsDynamicStore()) {
         // Do not fetch anything. The less rpc requests, the better.
         Chunks_.emplace_back(std::move(chunk));

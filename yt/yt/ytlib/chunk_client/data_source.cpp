@@ -4,6 +4,7 @@
 
 #include <yt/ytlib/table_client/schema_dictionary.h>
 #include <yt/ytlib/table_client/column_filter_dictionary.h>
+#include <yt/ytlib/table_client/virtual_value_directory.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -82,6 +83,11 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     protoDataSource->set_foreign(dataSource.GetForeign());
 
     ToProto(protoDataSource->mutable_column_rename_descriptors(), dataSource.ColumnRenameDescriptors());
+
+    protoDataSource->set_virtual_key_prefix_length(dataSource.GetVirtualKeyPrefixLength());
+    if (dataSource.GetVirtualValueDirectory()) {
+        ToProto(protoDataSource->mutable_virtual_value_directory(), dataSource.GetVirtualValueDirectory());
+    }
 }
 
 void FromProto(
@@ -142,6 +148,11 @@ void FromProto(
     dataSource->SetForeign(protoDataSource.foreign());
 
     dataSource->ColumnRenameDescriptors() = FromProto<TColumnRenameDescriptors>(protoDataSource.column_rename_descriptors());
+
+    dataSource->SetVirtualKeyPrefixLength(protoDataSource.virtual_key_prefix_length());
+    if (protoDataSource.has_virtual_value_directory()) {
+        dataSource->SetVirtualValueDirectory(FromProto<TVirtualValueDirectoryPtr>(protoDataSource.virtual_value_directory()));
+    }
 }
 
 TDataSource MakeVersionedDataSource(

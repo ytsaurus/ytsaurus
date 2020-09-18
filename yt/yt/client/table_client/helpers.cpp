@@ -1240,6 +1240,12 @@ void TUnversionedRowsBuilder::AddRow(TMutableUnversionedRow row)
     AddRow(TUnversionedRow(row));
 }
 
+void TUnversionedRowsBuilder::AddProtoRow(const TString& protoRow)
+{
+    auto& row = Rows_.emplace_back();
+    FromProto(&row, protoRow, RowBuffer_);
+}
+
 TSharedRange<TUnversionedRow> TUnversionedRowsBuilder::Build()
 {
     return MakeSharedRange(std::move(Rows_), std::move(RowBuffer_));

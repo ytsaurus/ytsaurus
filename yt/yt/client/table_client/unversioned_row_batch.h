@@ -50,7 +50,7 @@ struct IUnversionedColumnarRowBatch
     {
         //! Bits per value: 8, 16, 32 or 64.
         int BitWidth = -1;
-        
+
         //! For integer values, values in #Data must be adjusted by adding #BaseValue.
         ui64 BaseValue = 0;
 
@@ -69,7 +69,7 @@ struct IUnversionedColumnarRowBatch
          *    0                                             for k = 0;
          *    AvgLength * k + ZigZagDecode32(values[k - 1]) for k = 1, ..., n-1,
          *  where |values[i]| is the i-th raw unsigned 32-bit value stored in #TColumn::Values.
-         * 
+         *
          *  Otherwise #TColumn::Values contains raw unsigned 32-bit offsets.
          */
         std::optional<ui32> AvgLength;
@@ -86,7 +86,7 @@ struct IUnversionedColumnarRowBatch
 
     //! An opaque dictionary id.
     using TDictionaryId = ui64;
-    
+
     //! This dictionary id is invalid and cannot appear in #TDictionaryEncoding::Id.
     static constexpr TDictionaryId NullDictionaryId = 0;
 
@@ -135,10 +135,10 @@ struct IUnversionedColumnarRowBatch
 
         //! Index of the first relevant value in the column.
         //! For non-RLE encoded columns, #Values typically provides a vector whose elements starting from #StartIndex
-        //! give the desired values. For dictionary-encoded columns, these elemets are not actual values but rather
+        //! give the desired values. For dictionary-encoded columns, these elements are not actual values but rather
         //! dictionary indexes (see #Dictionary).
         //! For RLE encoded columns, #Values contains starting indexes of RLE segments and #StartIndex
-        //! must be compared against these indexes to obtain the relavant range of values (stored in #Rle).
+        //! must be compared against these indexes to obtain the relevant range of values (stored in #Rle).
         i64 StartIndex = -1;
 
         //! The number of relevant values in this column (starting from #StartIndex).
@@ -146,7 +146,7 @@ struct IUnversionedColumnarRowBatch
 
         //! The type of values in this column.
         NTableClient::TLogicalTypePtr Type;
-        
+
         //! Bitmap with ones indicating nulls.
         //! If both #NullBitmap and #Values are null then all values are null.
         //! If just #NullBitmap is null then all values are non-null.
@@ -154,8 +154,8 @@ struct IUnversionedColumnarRowBatch
 
         //! If non-null then values are actually indexes in #Dictionary.
         std::optional<TDictionaryEncoding> Dictionary;
-    
-        //! If non-null then continguous segments of coindicing #Values are collapsed.
+
+        //! If non-null then contiguous segments of coinciding #Values are collapsed.
         //! #Rle describes the resulting values and #Values store RLE indexes.
         std::optional<TRleEncoding> Rle;
 

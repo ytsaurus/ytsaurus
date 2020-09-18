@@ -1,6 +1,7 @@
 package NYT.NChunkClient.NProto;
 
 import "yt/client/table_client/proto/chunk_meta.proto";
+import "yt/ytlib/table_client/proto/virtual_value_directory.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +29,9 @@ message TDataSource
     optional NTableClient.NProto.TColumnNameFilter column_filter = 11;
     //! This field is used when the data source is a part of the data source directory.
     optional int32 column_filter_id = 12;
+
+    optional int32 virtual_key_prefix_length = 14;
+    optional NTableClient.NProto.TVirtualValueDirectory virtual_value_directory = 15;
 }
 
 message TDataSourceDirectoryExt

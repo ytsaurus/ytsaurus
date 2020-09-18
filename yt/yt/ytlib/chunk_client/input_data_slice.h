@@ -50,6 +50,9 @@ public:
     //! Check that at least one limit is set.
     bool HasLimits() const;
 
+    //! Copy some fields from the originating data slice.
+    void CopyPayloadFrom(const TInputDataSlice& dataSlice);
+
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
     std::pair<TInputDataSlicePtr, TInputDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
@@ -64,6 +67,8 @@ public:
     //! An index of an input stream this data slice corresponds to. If this is a data
     //! slice of some input table, it should normally be equal to `GetTableIndex()`.
     int InputStreamIndex = -1;
+
+    std::optional<i64> VirtualRowIndex = std::nullopt;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputDataSlice)
@@ -92,7 +97,10 @@ TInputDataSlicePtr CreateVersionedInputDataSlice(
 
 // TODO(max42): stop infering limits each time you pass something into sorted chunk pool,
 // it is better to always infer them inside chunk pool.
-void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const NTableClient::TRowBufferPtr& rowBuffer);
+void InferLimitsFromBoundaryKeys(
+    const TInputDataSlicePtr& dataSlice,
+    const NTableClient::TRowBufferPtr& rowBuffer,
+    const NTableClient::TVirtualValueDirectoryPtr& virtualValueDirectory = nullptr);
 
 std::optional<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
 bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2);

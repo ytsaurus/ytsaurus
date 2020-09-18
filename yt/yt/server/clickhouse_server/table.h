@@ -28,6 +28,7 @@ struct TTable
     //! Thus, OperandIndex is always 0 or 1.
     int OperandIndex = 0;
     bool Dynamic = false;
+    bool IsPartitioned = false;
 
     TTable(NYPath::TRichYPath path, const NYTree::IAttributeDictionaryPtr& attributes);
 };

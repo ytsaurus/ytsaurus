@@ -29,13 +29,13 @@ struct TQueryInput
 {
     NChunkPools::TChunkStripeListPtr StripeList;
     THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr> MiscExtMap;
+    NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
 };
 
-//! Fetch data slices for given input tables and fill given subquery spec template.
+//! Fetch data slices for given input tables.
 TQueryInput FetchInput(
     TStorageContext* storageContext,
     const TQueryAnalysisResult& queryAnalysisResult,
-    TSubquerySpec& specTemplate,
     const std::vector<std::string>& columnNames);
 
 std::vector<TSubquery> BuildSubqueries(

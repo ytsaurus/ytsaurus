@@ -21,6 +21,9 @@ namespace NYT::NTableClient {
 struct TTableReadSpec
 {
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
+    // Data source indices (aka table indices) in data slices should match
+    // data sources in data source directory (e.g. if data source directory consists
+    // of single data source, all data source indices should be zero).
     std::vector<NChunkClient::TDataSliceDescriptor> DataSliceDescriptors;
 };
 
@@ -50,6 +53,12 @@ struct TFetchSingleTableReadSpecOptions
 //! By the moment this comment is written, it is used in NApi::TTableReader
 //! and in CHYT YT-based external dictionaries.
 TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& options);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Join several table read specs together forming single table read spec
+//! with proper data source renumeration.
+TTableReadSpec JoinTableReadSpecs(std::vector<TTableReadSpec>& tableReadSpecs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
