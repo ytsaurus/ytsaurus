@@ -5,25 +5,27 @@
 #include "schemaless_chunk_writer.h"
 #include "private.h"
 
-#include <yt/client/api/table_reader.h>
-#include <yt/client/api/table_writer.h>
-
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/ytlib/table_chunk_format/column_reader_detail.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/scheduler/proto/job.pb.h>
+
+#include <yt/client/api/table_reader.h>
+#include <yt/client/api/table_writer.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/formats/parser.h>
-
-#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -31,6 +33,7 @@
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/name_table.h>
+
 
 #include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/periodic_yielder.h>
@@ -57,6 +60,7 @@ using namespace NScheduler::NProto;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTabletClient;
+using namespace NTableChunkFormat;
 
 using NChunkClient::NProto::TChunkSpec;
 
@@ -519,6 +523,102 @@ TColumnarStatistics GetColumnarStatistics(
     }
 
     return columnarStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const ui64 TReaderVirtualValues::Zero_ = 0;
+
+void TReaderVirtualValues::AddValue(TUnversionedValue value, TLogicalTypePtr logicalType)
+{
+    Values_.push_back(value);
+    LogicalTypes_.emplace_back(std::move(logicalType));
+}
+
+int TReaderVirtualValues::GetBatchColumnCount(int /*virtualColumnIndex*/) const
+{
+    return 2;
+}
+
+int TReaderVirtualValues::GetTotalColumnCount() const
+{
+    return 2 * Values_.size();
+}
+
+void TReaderVirtualValues::FillRleColumn(IUnversionedColumnarRowBatch::TColumn* rleColumn, int virtualColumnIndex) const
+{
+    const auto& value = Values_[virtualColumnIndex];
+    const auto& logicalType = LogicalTypes_[virtualColumnIndex];
+    rleColumn->Id = value.Id;
+    if (IsIntegralType(value.Type)) {
+        ReadColumnarIntegerValues(
+            rleColumn,
+            /* startIndex */ 0,
+            /* valueCount */ 1,
+            value.Type,
+            /* baseValue */ 0,
+            MakeRange(&value.Data.Uint64, 1));
+        rleColumn->Values->ZigZagEncoded = false;
+    } else if (IsStringLikeType(value.Type)) {
+        ReadColumnarStringValues(
+            rleColumn,
+            /* startIndex */ 0,
+            /* valueCount */ 1,
+            value.Length,
+            MakeRange<ui32>(reinterpret_cast<const ui32*>(&Zero_), 1),
+            TRef(value.Data.String, value.Length));
+    } else if (value.Type == EValueType::Double) {
+        ReadColumnarFloatingPointValues(
+            rleColumn,
+            /* startIndex */ 0,
+            /* valueCount */ 1,
+            MakeRange(&value.Data.Double, 1));
+    } else if (value.Type == EValueType::Boolean) {
+        ReadColumnarBooleanValues(
+            rleColumn,
+            /* startIndex */ 0,
+            /* valueCount */ 1,
+            MakeRange(&value.Data.Uint64, 1));
+    } else if (value.Type == EValueType::Null) {
+        rleColumn->StartIndex = 0;
+        rleColumn->ValueCount = 1;
+    } else {
+        Y_UNREACHABLE();
+    }
+
+    if (logicalType->IsNullable() && value.Type != EValueType::Null) {
+        rleColumn->NullBitmap.emplace().Data = TRef(&Zero_, sizeof(ui64));
+    }
+
+    rleColumn->Type = std::move(logicalType);
+}
+
+void TReaderVirtualValues::FillMainColumn(
+    IUnversionedColumnarRowBatch::TColumn* mainColumn,
+    const IUnversionedColumnarRowBatch::TColumn* rleColumn,
+    int virtualColumnIndex,
+    ui64 startIndex,
+    ui64 valueCount) const
+{
+    mainColumn->StartIndex = startIndex;
+    mainColumn->ValueCount = valueCount;
+    mainColumn->Id = Values_[virtualColumnIndex].Id;
+    mainColumn->Type = rleColumn->Type;
+    mainColumn->Rle.emplace().ValueColumn = rleColumn;
+    auto& rleIndexes = mainColumn->Values.emplace();
+    rleIndexes.BitWidth = 64;
+    rleIndexes.Data = TRef(&Zero_, sizeof(ui64));
+}
+
+void TReaderVirtualValues::FillColumns(
+    TMutableRange<IUnversionedColumnarRowBatch::TColumn> columnRange,
+    int virtualColumnIndex,
+    ui64 startIndex,
+    ui64 valueCount) const
+{
+    YT_VERIFY(columnRange.size() == GetBatchColumnCount(virtualColumnIndex));
+    FillRleColumn(&columnRange[1], virtualColumnIndex);
+    FillMainColumn(&columnRange[0], &columnRange[1], virtualColumnIndex, startIndex, valueCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,12 +25,18 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
 {
     ObjectId = attributes->Get<TObjectId>("id");
     Type = TypeFromId(ObjectId);
-    Dynamic = attributes->Get<bool>("dynamic");
+    Dynamic = attributes->Get<bool>("dynamic", false);
     ExternalCellTag = attributes->Get<bool>("external")
         ? attributes->Get<ui64>("external_cell_tag")
         : CellTagFromId(ObjectId);
-    ChunkCount = attributes->Get<i64>("chunk_count");
+    ChunkCount = attributes->Get<i64>("chunk_count", 0);
     Schema = attributes->Get<TTableSchemaPtr>("schema");
+    IsPartitioned = (Type == EObjectType::PartitionedTable) ||
+        attributes->Get<bool>("assume_partitioned_table", false);
+
+    if (IsPartitioned && !Schema) {
+        THROW_ERROR_EXCEPTION("Partitioned table should have attribute 'schema'");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,20 +68,22 @@ std::vector<TTablePtr> FetchTables(
 
         try {
             const auto& attributes = attributesOrError.ValueOrThrow();
-            auto maybeType = attributes->Find<EObjectType>("type");
-            if (maybeType != EObjectType::Table) {
-                THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a table; expected type %Qlv, actual type %Qlv",
+            auto type = attributes->Get<EObjectType>("type", EObjectType::Null);
+            bool assumePartitionedTable = attributes->Get<bool>("assume_partitioned_table", false);
+            static THashSet<EObjectType> allowedTypes = {EObjectType::Table, EObjectType::PartitionedTable};
+            if (!allowedTypes.contains(type) && !assumePartitionedTable) {
+                THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a table; expected one of types %Qlv, actual type %Qlv",
                     path,
-                    EObjectType::Table,
-                    maybeType);
+                    allowedTypes,
+                    type);
             }
             // COMPAT(max42): remove this when 20.2 is everywhere.
-            if (attributes->Get<bool>("dynamic") && !host->GetConfig()->EnableDynamicTables) {
+            if (attributes->Get<bool>("dynamic", false) && !host->GetConfig()->EnableDynamicTables) {
                 THROW_ERROR_EXCEPTION(
                     "Table %Qv is dynamic; dynamic tables are not supported yet (CHYT-57)",
                     path.GetPath());
             }
-            if (attributes->Get<bool>("dynamic") && !attributes->Get<TTableSchemaPtr>("schema")->IsSorted()) {
+            if (attributes->Get<bool>("dynamic", false) && !attributes->Get<TTableSchemaPtr>("schema")->IsSorted()) {
                 THROW_ERROR_EXCEPTION(
                     "Table %Qv is an ordered dynamic table; they are not supported yet (CHYT-419)",
                     path.GetPath());
@@ -92,8 +100,11 @@ std::vector<TTablePtr> FetchTables(
     }
 
     if (!errors.empty()) {
-        THROW_ERROR_EXCEPTION("Table fetching failed")
+        // CH drops the error below, so log it.
+        auto error = TError("Table fetching failed")
             << errors;
+        YT_LOG_DEBUG(error, "Table fetching failed");
+        THROW_ERROR error;
     }
 
     YT_LOG_INFO("Tables fetched (SkippedCount: %v)", richPaths.size() - tables.size());

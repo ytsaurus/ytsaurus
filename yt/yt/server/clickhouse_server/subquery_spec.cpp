@@ -31,6 +31,7 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
         ToProto(
             inputSpec->mutable_chunk_specs(),
             inputSpec->mutable_chunk_spec_count_per_data_slice(),
+            inputSpec->mutable_virtual_row_index_per_data_slice(),
             inputDataSliceDescriptors);
     }
 
@@ -53,7 +54,8 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
         FromProto(
             &spec->DataSliceDescriptors.emplace_back(),
             inputSpec.chunk_specs(),
-            inputSpec.chunk_spec_count_per_data_slice());
+            inputSpec.chunk_spec_count_per_data_slice(),
+            inputSpec.virtual_row_index_per_data_slice());
     }
 
     FromProto(&spec->InitialQueryId, protoSpec.initial_query_id());

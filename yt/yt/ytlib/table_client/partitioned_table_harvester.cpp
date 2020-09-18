@@ -62,6 +62,9 @@ struct TPartitionState
     bool IsEmpty = false;
     bool IsDynamic = false;
 
+    //! Whether partition should be skipped for fetching.
+    bool Skip = false;
+
     //! Error for this particular partition.
     TError Error;
 };
@@ -84,6 +87,16 @@ static const std::vector<TString> PartitionedTableRelatedAttributes = {
 class TPartitionedTableHarvester::TImpl
     : public TRefCounted
 {
+private:
+    // Function with auto returned type should be defined before any of its usages.
+
+    //! We iteratively check lots of conditions for partitions; this helper
+    //! eliminates the need of if (!state.Error.IsOK()) { continue; } check.
+    auto GetValidPartitionStates()
+    {
+        return Filter([] (const auto& state) { return state.Error.IsOK(); }, PartitionStates_);
+    }
+
 public:
     explicit TImpl(TPartitionedTableHarvesterOptions options)
         : RichPath_(std::move(options.RichPath))
@@ -93,7 +106,6 @@ public:
         , Invoker_(std::move(options.Invoker))
         , ObjectAttributeCache_(std::move(options.ObjectAttributeCache))
         , Config_(std::move(options.Config))
-        , NameTable_(std::move(options.NameTable))
         , Logger(options.Logger)
     { }
 
@@ -102,6 +114,15 @@ public:
         return BIND(&TImpl::DoPrepare, MakeWeak(this))
             .AsyncVia(Invoker_)
             .Run();
+    }
+
+    void FilterPartitions(std::function<bool(TKey, TKey)> predicate)
+    {
+        for (auto& partitionState : GetValidPartitionStates()) {
+            if (!predicate(partitionState.ExtendedMinKey, partitionState.ExtendedMaxKey)) {
+                partitionState.Skip = true;
+            }
+        }
     }
 
     TFuture<TTableReadSpec> Fetch(const TFetchSingleTableReadSpecOptions& options)
@@ -119,8 +140,6 @@ private:
     IInvokerPtr Invoker_;
     TObjectAttributeCachePtr ObjectAttributeCache_;
     TPartitionedTableHarvesterConfigPtr Config_;
-    TColumnFilter ColumnFilter_;
-    TNameTablePtr NameTable_;
     TLogger Logger;
 
     std::vector<TPartitionState> PartitionStates_;
@@ -162,7 +181,8 @@ private:
         // This may throw if partitioned table not found.
         auto attributes = attributeVector.front().ValueOrThrow();
         auto maybeType = attributes->Find<EObjectType>("type");
-        if (!Config_->AssumePartitionedTable && maybeType != EObjectType::PartitionedTable) {
+        auto assumePartitionedTable = attributes->Get<bool>("assume_partitioned_table", true);
+        if (!Config_->AssumePartitionedTable && maybeType != EObjectType::PartitionedTable && !assumePartitionedTable) {
             THROW_ERROR_EXCEPTION(
                 "Object %Qv is expected to be partitioned table, buf %Qlv found",
                 Path_,
@@ -200,15 +220,27 @@ private:
         const auto& columns = Schema_->Columns();
         for (int columnIndex = 0; columnIndex < PartitionedBy_.size(); ++columnIndex) {
             const auto& column = columns[columnIndex];
-            if (column.Expression()) {
-                THROW_ERROR_EXCEPTION(
-                    NTableClient::EErrorCode::InvalidSchemaValue, "Partitioned columns cannot be computed")
-                        << TErrorAttribute("column", column.Name());
-            }
-            if (column.Aggregate()) {
-                THROW_ERROR_EXCEPTION(
-                    NTableClient::EErrorCode::InvalidSchemaValue, "Partitioned columns cannot be aggregated")
-                        << TErrorAttribute("column", column.Name());
+            try {
+                if (column.Expression()) {
+                    THROW_ERROR_EXCEPTION(
+                        NTableClient::EErrorCode::InvalidSchemaValue, "Partitioned columns cannot be computed");
+                }
+                if (column.Aggregate()) {
+                    THROW_ERROR_EXCEPTION(
+                        NTableClient::EErrorCode::InvalidSchemaValue, "Partitioned columns cannot be aggregated");
+                }
+                auto simpleLogicalValueType = SimplifyLogicalType(column.LogicalType()).first;
+                if (!simpleLogicalValueType) {
+                    THROW_ERROR_EXCEPTION(
+                        NTableClient::EErrorCode::InvalidSchemaValue, "Only simple types are allowed for partitioned columns");
+                }
+                if (*simpleLogicalValueType == ESimpleLogicalValueType::Any) {
+                    THROW_ERROR_EXCEPTION(
+                        NTableClient::EErrorCode::InvalidSchemaValue, "Any type is not allowed for partitioned column");
+                }
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error validating column %Qv", column.Name())
+                    << ex;
             }
         }
 
@@ -270,6 +302,9 @@ private:
 
             if (state.ChunkCount == 0) {
                 state.IsEmpty = true;
+            } else if (PartitionedBy_.size() == Schema_->GetKeyColumnCount()) {
+                // Partitions are effectively treated as unsorted.
+                state.MinKey = state.MaxKey = TUnversionedRow();
             } else {
                 const auto& boundaryKeys = attributes->Get<TOwningBoundaryKeys>("boundary_keys");
                 state.MinKey = RowBuffer_->Capture(boundaryKeys.MinKey);
@@ -278,13 +313,6 @@ private:
         }
 
         YT_LOG_DEBUG("Finished fetching partition attributes");
-    }
-
-    //! We iteratively check lots of conditions for partitions; this helper
-    //! eliminates the need of if (!state.Error.IsOK()) { continue; } check.
-    auto GetValidPartitionStates()
-    {
-        return Filter([] (const auto& state) { return state.Error.IsOK(); }, PartitionStates_);
     }
 
     //! Validate each particular partition for being a static table with
@@ -318,7 +346,7 @@ private:
                         << TErrorAttribute("partition_key_length", partitionState.Config->Key.GetCount())
                         << TErrorAttribute("partitioned_by", PartitionedBy_);
                 }
-                ValidatePivotKey(partitionState.Config->Key, *reducedSchema, "partition" /* keyType */);
+                ValidatePivotKey(partitionState.Config->Key, *reducedSchema, "partition" /* keyType */, true /* validateRequired */);
             } catch (const std::exception& ex) {
                 partitionState.Error = TError(ex);
             }
@@ -360,8 +388,8 @@ private:
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::SortOrderViolation,
                     "Sort order violation: %v > %v",
-                    previousPartitionState->MaxKey,
-                    partitionState.MinKey)
+                    previousPartitionState->ExtendedMaxKey,
+                    partitionState.ExtendedMinKey)
                     << TErrorAttribute("lhs_partition_index", previousPartitionState->PartitionIndex)
                     << TErrorAttribute("lhs_partition_path", previousPartitionState->Config->Path)
                     << TErrorAttribute("rhs_partition_index", partitionState.PartitionIndex)
@@ -427,7 +455,7 @@ private:
     }
 
     //! Build virtual column directory and data slice descriptors with filled virtual row indices.
-    void BuildVirtualValueDirectoryAndDataSliceDescriptors()
+    void BuildVirtualValueDirectoryAndDataSliceDescriptors(TColumnFilter columnFilter, TNameTablePtr nameTable)
     {
         // Leave only virtual columns requested by column filter.
         std::vector<int> virtualColumnIndices(PartitionedBy_.size());
@@ -438,18 +466,18 @@ private:
         // passing it to readers. The code below is done similarly to
         //   columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter
         // idiom from #CreateReaderFactories.
-        if (ColumnFilter_.IsUniversal() && RichPath_.GetColumns()) {
-            ColumnFilter_ = CreateColumnFilter(RichPath_.GetColumns(), NameTable_);
+        if (columnFilter.IsUniversal() && RichPath_.GetColumns()) {
+            columnFilter = CreateColumnFilter(RichPath_.GetColumns(), nameTable);
         }
 
-        if (!ColumnFilter_.IsUniversal()) {
+        if (!columnFilter.IsUniversal()) {
             auto it = std::remove_if(
                 virtualColumnIndices.begin(),
                 virtualColumnIndices.end(),
                 [&] (int index) {
                     const auto& columnName = PartitionedBy_[index];
-                    auto id = NameTable_->FindId(columnName);
-                    return !id || !ColumnFilter_.ContainsIndex(*id);
+                    auto id = nameTable->FindId(columnName);
+                    return !id || !columnFilter.ContainsIndex(*id);
                 });
             virtualColumnIndices.erase(it, virtualColumnIndices.end());
         }
@@ -472,7 +500,8 @@ private:
                 for (int index : virtualColumnIndices) {
                     auto value = partitionState.Config->Key[index];
                     value.Id = virtualColumnIndex++;
-                    rowBuilder.AddValue(partitionState.Config->Key[index]);
+                    YT_ASSERT(value.Id == virtualNameTable->GetId(PartitionedBy_[index]));
+                    rowBuilder.AddValue(value);
                 }
                 builder.AddRow(rowBuilder.GetRow());
                 rowBuilder.Reset();
@@ -483,6 +512,11 @@ private:
         VirtualValueDirectory_ = New<TVirtualValueDirectory>();
         VirtualValueDirectory_->NameTable = std::move(virtualNameTable);
         VirtualValueDirectory_->Rows = builder.Build();
+        std::vector<TColumnSchema> columns;
+        for (auto index : virtualColumnIndices) {
+            columns.push_back(Schema_->Columns()[index]);
+        }
+        VirtualValueDirectory_->Schema = New<TTableSchema>(std::move(columns));
 
         for (auto& chunkSpec : ChunkSpecs_) {
             int partitionIndex = chunkSpec.table_index();
@@ -515,13 +549,15 @@ private:
             Logger);
 
         for (const auto& partitionState : PartitionStates_) {
-            // We temporarily assume table index to be partition index, so that
-            // we can later recover which chunk spec comes from which partition.
-            chunkSpecFetcher->Add(
-                partitionState.ObjectId,
-                partitionState.ExternalCellTag,
-                partitionState.ChunkCount,
-                partitionState.PartitionIndex);
+            if (!partitionState.Skip) {
+                // We temporarily assume table index to be partition index, so that
+                // we can later recover which chunk spec comes from which partition.
+                chunkSpecFetcher->Add(
+                    partitionState.ObjectId,
+                    partitionState.ExternalCellTag,
+                    partitionState.ChunkCount,
+                    partitionState.PartitionIndex);
+            }
         }
 
         WaitFor(chunkSpecFetcher->Fetch())
@@ -529,7 +565,7 @@ private:
 
         ChunkSpecs_ = std::move(chunkSpecFetcher->ChunkSpecs());
 
-        BuildVirtualValueDirectoryAndDataSliceDescriptors();
+        BuildVirtualValueDirectoryAndDataSliceDescriptors(options.ColumnFilter, options.NameTable);
 
         auto dataSourceDirectory = New<TDataSourceDirectory>();
         dataSourceDirectory->DataSources().emplace_back(
@@ -566,6 +602,11 @@ TPartitionedTableHarvester::~TPartitionedTableHarvester() = default;
 TFuture<void> TPartitionedTableHarvester::Prepare()
 {
     return Impl_->Prepare();
+}
+
+void TPartitionedTableHarvester::FilterPartitions(std::function<bool(TKey, TKey)> predicate)
+{
+    return Impl_->FilterPartitions(std::move(predicate));
 }
 
 TFuture<TTableReadSpec> TPartitionedTableHarvester::Fetch(const TFetchSingleTableReadSpecOptions& options)

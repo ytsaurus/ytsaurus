@@ -235,6 +235,20 @@ bool IsAddressLocal(const TString& address);
 
 ///////////////////////////////////////////////////////////////////////////////
 
+//! Helper struct useful for further joining several data sources and data slices
+//! with renumerating using #JoinDataSliceSourcePairs.
+struct TDataSliceSourcePair
+{
+    TDataSourceDirectoryPtr DataSourceDirectory;
+    std::vector<TDataSliceDescriptor> DataSliceDescriptors;
+};
+
+//! Join several sequences of data slice descriptors with their data sources properly
+//! renumerating them to keep correspondence between data slices and data sources.
+TDataSliceSourcePair JoinDataSliceSourcePairs(std::vector<TDataSliceSourcePair> pairs);
+
+///////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient
 
 #define HELPERS_INL_H_

@@ -320,7 +320,7 @@ void ValidateTableSchemaUpdate(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schema, const TStringBuf& keyType)
+void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schema, const TStringBuf& keyType, bool validateRequired)
 {
     if (pivotKey.GetCount() > schema.GetKeyColumnCount()) {
         auto titleKeyType = TString(keyType);
@@ -337,6 +337,13 @@ void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schem
                 keyType,
                 schema.Columns()[index].GetPhysicalType(),
                 pivotKey[index].Type);
+        }
+        if (validateRequired && pivotKey[index].Type == EValueType::Null && !schema.Columns()[index].LogicalType()->IsNullable()) {
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::SchemaViolation,
+                "Unexpected null for required column %Qv in %v key",
+                schema.Columns()[index].Name(),
+                keyType);
         }
     }
 }

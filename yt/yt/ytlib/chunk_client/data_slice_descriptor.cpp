@@ -175,10 +175,12 @@ void TInterruptDescriptor::MergeFrom(TInterruptDescriptor&& source)
 void ToProto(
     ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>* chunkSpecs,
     ::google::protobuf::RepeatedField<int>* chunkSpecCountPerDataSlice,
+    ::google::protobuf::RepeatedField<i64>* virtualRowIndexPerDataSlice,
     const std::vector<TDataSliceDescriptor>& dataSlices)
 {
     for (const auto& dataSlice : dataSlices) {
         chunkSpecCountPerDataSlice->Add(dataSlice.ChunkSpecs.size());
+        virtualRowIndexPerDataSlice->Add(dataSlice.VirtualRowIndex.value_or(-1));
         for (const auto& chunkSpec : dataSlice.ChunkSpecs) {
             *chunkSpecs->Add() = chunkSpec;
         }
@@ -188,16 +190,31 @@ void ToProto(
 void FromProto(
     std::vector<TDataSliceDescriptor>* dataSlices,
     const ::google::protobuf::RepeatedPtrField<NProto::TChunkSpec>& chunkSpecs,
-    const ::google::protobuf::RepeatedField<int>& chunkSpecCountPerDataSlice)
+    const ::google::protobuf::RepeatedField<int>& chunkSpecCountPerDataSlice,
+    const ::google::protobuf::RepeatedField<i64>& virtualRowIndexPerDataSlice)
 {
     dataSlices->clear();
-    int currentIndex = 0;
-    for (int chunkSpecCount : chunkSpecCountPerDataSlice) {
-        std::vector<NProto::TChunkSpec> dataSliceSpecs(
-            chunkSpecs.begin() + currentIndex,
-            chunkSpecs.begin() + currentIndex + chunkSpecCount);
-        dataSlices->emplace_back(std::move(dataSliceSpecs));
-        currentIndex += chunkSpecCount;
+    int chunkSpecIndex = 0;
+    for (int dataSliceIndex = 0; dataSliceIndex < chunkSpecCountPerDataSlice.size(); ++dataSliceIndex) {
+        int chunkSpecCount = chunkSpecCountPerDataSlice[dataSliceIndex];
+
+        std::optional<i64> virtualRowIndex;
+        if (dataSliceIndex >= virtualRowIndexPerDataSlice.size()) {
+            // COMPAT(max42): writer does not support partitioned tables yet.
+            virtualRowIndex = std::nullopt;
+        } else if (virtualRowIndexPerDataSlice[dataSliceIndex] == -1) {
+            // -1 stands for nullopt.
+            virtualRowIndex = std::nullopt;
+        } else {
+            virtualRowIndex = virtualRowIndexPerDataSlice[dataSliceIndex];
+        }
+
+        std::vector<NProto::TChunkSpec> dataSliceChunkSpecs(
+            chunkSpecs.begin() + chunkSpecIndex,
+            chunkSpecs.begin() + chunkSpecIndex + chunkSpecCount);
+        auto& dataSlice = dataSlices->emplace_back(std::move(dataSliceChunkSpecs));
+        chunkSpecIndex += chunkSpecCount;
+        dataSlice.VirtualRowIndex = virtualRowIndex;
     }
 }
 

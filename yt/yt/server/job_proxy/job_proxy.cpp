@@ -388,10 +388,12 @@ void TJobProxy::Run()
                 ToProto(
                     schedulerResultExt->mutable_unread_chunk_specs(),
                     schedulerResultExt->mutable_chunk_spec_count_per_unread_data_slice(),
+                    schedulerResultExt->mutable_virtual_row_index_per_unread_data_slice(),
                     interruptDescriptor.UnreadDataSliceDescriptors);
                 ToProto(
                     schedulerResultExt->mutable_read_chunk_specs(),
                     schedulerResultExt->mutable_chunk_spec_count_per_read_data_slice(),
+                    schedulerResultExt->mutable_virtual_row_index_per_read_data_slice(),
                     interruptDescriptor.ReadDataSliceDescriptors);
 
                 schedulerResultExt->set_restart_needed(true);

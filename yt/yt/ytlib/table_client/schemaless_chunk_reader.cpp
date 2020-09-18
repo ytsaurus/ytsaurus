@@ -106,7 +106,6 @@ public:
         , NameTable_(nameTable)
         , ColumnFilter_(columnFilter)
         , ExtendedKeyColumns_(keyColumns)
-        , KeyColumns_(ExtendedKeyColumns_.begin() + virtualKeyPrefixLength, ExtendedKeyColumns_.end())
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
         , OmittedInaccessibleColumnSet_(OmittedInaccessibleColumns_.begin(), OmittedInaccessibleColumns_.end())
         , Sampler_(Config_->SamplingRate, std::random_device()())
@@ -117,6 +116,12 @@ public:
     {
         if (blockReadOptions.ReadSessionId) {
             Logger.AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId);
+        }
+
+        // If virtual key prefix length is longer than extended key columns,
+        // we can treat chunk as unsorted.
+        if (virtualKeyPrefixLength < ExtendedKeyColumns_.size()) {
+            KeyColumns_ = std::vector<TString>(ExtendedKeyColumns_.begin() + virtualKeyPrefixLength, ExtendedKeyColumns_.end());
         }
 
         if (Config_->SamplingSeed) {
@@ -180,7 +185,7 @@ protected:
     int RowIndexId_ = -1;
     //! Values for virtual constant columns like
     //! range_index, table_index or partitioned table virtual key columns.
-    std::vector<TUnversionedValue> VirtualValues_;
+    TReaderVirtualValues VirtualValues_;
 
     NLogging::TLogger Logger;
 
@@ -193,50 +198,63 @@ protected:
                 RowIndexId_ = NameTable_->GetIdOrRegisterName(RowIndexColumnName);
                 // Row index is a non-constant virtual column, so we do not form any virtual value here.
                 ++VirtualColumnCount_;
+                // TODO(max42): support row index in virtual values for columnar reader.
             }
 
             if (Options_->EnableRangeIndex) {
-                VirtualValues_.push_back(MakeUnversionedInt64Value(
+                VirtualValues_.AddValue(MakeUnversionedInt64Value(
                     ChunkSpec_.range_index(),
-                    NameTable_->GetIdOrRegisterName(RangeIndexColumnName)));
+                    NameTable_->GetIdOrRegisterName(RangeIndexColumnName)),
+                    SimpleLogicalType(ESimpleLogicalValueType::Int64));
                 ++VirtualColumnCount_;
             }
 
             // NB: table index should not always be virtual column, sometimes it is stored
             // alongside row in chunk (e.g. for intermediate chunks in schemaful Map-Reduce).
             if (Options_->EnableTableIndex && ChunkSpec_.has_table_index()) {
-                VirtualValues_.push_back(MakeUnversionedInt64Value(
+                VirtualValues_.AddValue(MakeUnversionedInt64Value(
                     ChunkSpec_.table_index(),
-                    NameTable_->GetIdOrRegisterName(TableIndexColumnName)));
+                    NameTable_->GetIdOrRegisterName(TableIndexColumnName)),
+                    SimpleLogicalType(ESimpleLogicalValueType::Int64));
                 ++VirtualColumnCount_;
             }
 
             if (Options_->EnableTabletIndex) {
-                VirtualValues_.push_back(MakeUnversionedInt64Value(
+                VirtualValues_.AddValue(MakeUnversionedInt64Value(
                     ChunkSpec_.tablet_index(),
-                    NameTable_->GetIdOrRegisterName(TabletIndexColumnName)));
+                    NameTable_->GetIdOrRegisterName(TabletIndexColumnName)),
+                    SimpleLogicalType(ESimpleLogicalValueType::Int64));
                 ++VirtualColumnCount_;
             }
 
-            const auto& virtualValueDirectory = ChunkState_->VirtualValueDirectory;
-            if (ChunkState_->VirtualValueDirectory) {
+            if (const auto& virtualValueDirectory = ChunkState_->VirtualValueDirectory) {
                 const auto& virtualRowIndex = DataSliceDescriptor_.VirtualRowIndex;
                 YT_VERIFY(virtualRowIndex);
                 YT_VERIFY(virtualRowIndex < virtualValueDirectory->Rows.size());
                 const auto& row = virtualValueDirectory->Rows[*DataSliceDescriptor_.VirtualRowIndex];
                 // Copy all values from rows properly mapping virtual ids into actual ids according to #NameTable_.
-                for (auto value : row) {
+                for (int virtualColumnIndex = 0; virtualColumnIndex < row.GetCount(); ++virtualColumnIndex) {
+                    auto value = row[virtualColumnIndex];
                     auto virtualId = value.Id;
                     const auto& columnName = virtualValueDirectory->NameTable->GetName(virtualId);
                     // Set proper id for this column.
-                    auto resultId = NameTable_->GetIdOrRegisterName(columnName);
-                    value.Id = resultId;
-                    VirtualValues_.push_back(value);
+                    std::optional<int> resultId;
+                    if (ColumnFilter_.IsUniversal()) {
+                        resultId = NameTable_->GetIdOrRegisterName(columnName);
+                    } else {
+                        resultId = NameTable_->FindId(columnName);
+                    }
+                    if (!resultId || !ColumnFilter_.ContainsIndex(*resultId)) {
+                        // This value is not requested from reader, ignore it.
+                        continue;
+                    }
+                    value.Id = *resultId;
+                    VirtualValues_.AddValue(value, virtualValueDirectory->Schema->Columns()[virtualColumnIndex].LogicalType());
                     ++VirtualColumnCount_;
                 }
             }
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to add system columns to name table for schemaless chunk reader")
+            THROW_ERROR_EXCEPTION("Failed to add virtual columns to name table for schemaless chunk reader")
                 << ex;
         }
     }
@@ -248,7 +266,7 @@ protected:
             row.SetCount(row.GetCount() + 1);
         }
 
-        for (const auto& value : VirtualValues_) {
+        for (const auto& value : VirtualValues_.Values()) {
             *row.End() = value;
             row.SetCount(row.GetCount() + 1);
         }
@@ -1359,8 +1377,8 @@ private:
             batchColumnCount += reader->GetBatchColumnCount();
         }
 
-        allBatchColumns->resize(batchColumnCount);
-        rootBatchColumns->reserve(RowColumnReaders_.size());
+        allBatchColumns->resize(batchColumnCount + VirtualValues_.GetTotalColumnCount());
+        rootBatchColumns->reserve(RowColumnReaders_.size() + VirtualValues_.Values().size());
         int currentBatchColumnIndex = 0;
         for (int index = 0; index < RowColumnReaders_.size(); ++index) {
             const auto& reader = RowColumnReaders_[index];
@@ -1375,6 +1393,16 @@ private:
             rootBatchColumns->push_back(rootColumn);
             reader->ReadColumnarBatch(columnRange, rowCount);
             currentBatchColumnIndex += columnCount;
+        }
+
+        for (int index = 0; index < VirtualValues_.Values().size(); ++index) {
+            int columnCount = VirtualValues_.GetBatchColumnCount(index);
+            auto columnRange = TMutableRange<IUnversionedColumnarRowBatch::TColumn>(
+                allBatchColumns->data() + currentBatchColumnIndex,
+                columnCount);
+            VirtualValues_.FillColumns(columnRange, index, RowIndex_, rowCount);
+            currentBatchColumnIndex += columnCount;
+            rootBatchColumns->push_back(&columnRange.Front());
         }
 
         AdvanceRowIndex(rowCount);

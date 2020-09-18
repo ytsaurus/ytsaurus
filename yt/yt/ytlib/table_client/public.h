@@ -6,6 +6,12 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NProto {
+
+class TVirtualValueDirectory;
+
+} // namespace NProto
+
 constexpr int DefaultPartitionTag = -1;
 
 DEFINE_ENUM(ETableChunkFormat,
@@ -98,6 +104,7 @@ DECLARE_REFCOUNTED_CLASS(TBlobTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
+DECLARE_REFCOUNTED_CLASS(TPartitionedTableHarvester)
 
 ////////////////////////////////////////////////////////////////////////////////
 

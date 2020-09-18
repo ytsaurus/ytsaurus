@@ -225,7 +225,7 @@ struct TValueWithId
         : Value(value)
         , Id(id)
     { }
-    
+
     const T& Value;
     int Id;
 };
@@ -248,6 +248,7 @@ public:
 
     void AddRow(TUnversionedRow row);
     void AddRow(TMutableUnversionedRow row);
+    void AddProtoRow(const TString& protoRow);
 
     //! Values get sequential ids 0..N-1 (unless wrapped into TValueWithId).
     template <class... Ts>
@@ -268,7 +269,7 @@ private:
  *  Invokes Read method and checks the result for emptiness.
  *  If empty, waits for the ready event and loops.
  *  Returns either a non-empty batch or null (indicating end-of-stream).
- * 
+ *
  *  All additional parameters are forwarded to Read call.
  */
 template <class TReader, class... TArgs>

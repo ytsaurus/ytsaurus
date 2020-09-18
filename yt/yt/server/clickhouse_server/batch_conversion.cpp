@@ -38,7 +38,7 @@ DB::ColumnPtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& column, F func)
     auto anyColumn = DB::ColumnString::create();
     auto& offsets = anyColumn->getOffsets();
     auto& chars = anyColumn->getChars();
-   
+
     for (size_t index = 0; index < column.size(); ++index) {
         if (index > 0) {
             offsets.push_back(chars.size());
@@ -173,7 +173,7 @@ auto AnalyzeColumnEncoding(const IUnversionedColumnarRowBatch::TColumn& ytColumn
     TRange<ui64> rleIndexes;
     TRange<ui32> dictionaryIndexes;
     const IUnversionedColumnarRowBatch::TColumn* ytValueColumn = &ytColumn;
-    
+
     if (ytValueColumn->Rle) {
         YT_VERIFY(ytValueColumn->Values);
         YT_VERIFY(ytValueColumn->Values->BaseValue == 0);
@@ -182,7 +182,7 @@ auto AnalyzeColumnEncoding(const IUnversionedColumnarRowBatch::TColumn& ytColumn
         rleIndexes = ytValueColumn->GetTypedValues<ui64>();
         ytValueColumn = ytValueColumn->Rle->ValueColumn;
     }
-    
+
     if (ytValueColumn->Dictionary) {
         YT_VERIFY(ytValueColumn->Values);
         YT_VERIFY(ytValueColumn->Values->BaseValue == 0);
@@ -223,7 +223,7 @@ DB::ColumnPtr ConvertIntegerYTColumnToCHColumn(
         XX(Int16,     Int16)
         XX(Int32,     Int32)
         XX(Int64,     Int64)
-        
+
         XX(Uint8,     UInt8)
         XX(Uint16,    UInt16)
         XX(Uint32,    UInt32)
@@ -233,9 +233,9 @@ DB::ColumnPtr ConvertIntegerYTColumnToCHColumn(
         XX(Datetime,  UInt32)
         XX(Interval,  Int64)
         XX(Timestamp, UInt64)
-        
+
         #undef XX
-        
+
         default:
             YT_ABORT();
     }
@@ -246,14 +246,14 @@ DB::ColumnPtr ConvertFloatingPointYTColumnToCHColumn(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn)
 {
     auto relevantValues = ytColumn.GetRelevantTypedValues<T>();
-    
+
     auto chColumn = DB::ColumnVector<T>::create(ytColumn.ValueCount);
-    
+
     ::memcpy(
         chColumn->getData().data(),
         relevantValues.Begin(),
         sizeof (T) * ytColumn.ValueCount);
-    
+
     return chColumn;
 }
 
@@ -342,7 +342,7 @@ DB::ColumnPtr ConvertStringLikeYTColumnToCHColumn(const IUnversionedColumnarRowB
             - currentCHCharsPosition
             - MemcpySmallUnsafePadding;
     };
-    
+
     auto resizeCHChars = [&] (i64 size) {
         chChars.resize(size);
         initCHCharsCursor();
@@ -435,7 +435,7 @@ DB::ColumnPtr ConvertStringLikeYTColumnToCHColumn(const IUnversionedColumnarRowB
             }
         } else {
             // Large dictionary (or, more likely, small read range): will decode each
-            // dictionary reference separately. 
+            // dictionary reference separately.
             YT_LOG_TRACE("Converting string column with large dictionary (Count: %v, DictionarySize: %v, Rle: %v)",
                 ytColumn.ValueCount,
                 ytOffsets.size(),
@@ -514,7 +514,7 @@ DB::ColumnPtr BuildNullBytemapForCHColumn(const IUnversionedColumnarRowBatch::TC
     auto nullBytemap = MakeMutableRange(chColumn->getData().data(), ytColumn.ValueCount);
 
     auto [ytValueColumn, rleIndexes, dictionaryIndexes] = AnalyzeColumnEncoding(ytColumn);
-    
+
     YT_LOG_TRACE("Buliding null bytemap (Value: %v, Rle: %v, Dictionary: %v)",
         ytColumn.ValueCount,
         static_cast<bool>(rleIndexes),
@@ -569,7 +569,7 @@ DB::ColumnPtr ConvertYTColumnToCHColumn(
 
     auto ytType = SimplifyLogicalType(ytColumn.Type).first.value_or(ESimpleLogicalValueType::Any);
     auto chType = chSchema.SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
-    
+
     auto throwOnIncompatibleType = [&] (bool ok) {
         if (!ok) {
             THROW_ERROR_EXCEPTION("Cannot convert %Qlv column to %Qlv type",
@@ -583,7 +583,7 @@ DB::ColumnPtr ConvertYTColumnToCHColumn(
         chType = ytType;
         anyUpcast = true;
     }
-    
+
     if (IsIntegerLikeType(chType)) {
         throwOnIncompatibleType(IsIntegerLikeType(ytType));
         chColumn = ConvertIntegerYTColumnToCHColumn(ytColumn, chType);
@@ -599,7 +599,7 @@ DB::ColumnPtr ConvertYTColumnToCHColumn(
     } else if (chType == ESimpleLogicalValueType::Boolean) {
         throwOnIncompatibleType(ytType == ESimpleLogicalValueType::Boolean);
         chColumn = ConvertBooleanYTColumnToCHColumn(ytColumn);
-    } else {    
+    } else {
         THROW_ERROR_EXCEPTION("%Qlv type is not supported",
             chType);
     }

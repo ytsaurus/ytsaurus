@@ -22,10 +22,6 @@ struct TPartitionedTableHarvesterOptions
     NObjectClient::TObjectAttributeCachePtr ObjectAttributeCache;
     NTransactionClient::TTransactionId TransactionId;
     IInvokerPtr Invoker;
-    // Name table and column filter are used to identify which partitioned columns
-    // should be serialized to read spec.
-    TNameTablePtr NameTable;
-    TColumnFilter ColumnFilter;
 
     TPartitionedTableHarvesterConfigPtr Config;
 
@@ -47,6 +43,9 @@ public:
     //! schemas and boundary keys, but do not fetch chunks.
     TFuture<void> Prepare();
 
+    //! Leave only partitions satisfying given predicate.
+    void FilterPartitions(std::function<bool(TKey, TKey)> predicate);
+
     //! Fetch chunk specs and return table read spec.
     TFuture<TTableReadSpec> Fetch(const TFetchSingleTableReadSpecOptions& options);
 
@@ -54,6 +53,8 @@ private:
     using TImplPtr = TIntrusivePtr<TImpl>;
     TImplPtr Impl_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TPartitionedTableHarvester);
 
 ////////////////////////////////////////////////////////////////////////////////
 

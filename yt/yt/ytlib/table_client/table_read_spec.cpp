@@ -163,8 +163,6 @@ TTableReadSpec FetchPartitionedTableReadSpec(const TFetchSingleTableReadSpecOpti
         .Client = options.Client,
         .TransactionId = options.TransactionId,
         .Invoker = GetCurrentInvoker(),
-        .NameTable = options.NameTable,
-        .ColumnFilter = options.ColumnFilter,
         .Config = options.PartitionedTableHarvesterConfig,
         .Logger = logger,
     });
@@ -221,6 +219,47 @@ TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& 
                 std::vector<EObjectType>{EObjectType::Table, EObjectType::PartitionedTable},
                 userObject->Type);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableReadSpec JoinTableReadSpecs(std::vector<TTableReadSpec>& tableReadSpecs)
+{
+    if (tableReadSpecs.empty()) {
+        return {};
+    }
+
+    // Calculate total counts and use them for reserve().
+    size_t totalDataSliceCount = 0;
+    size_t totalDataSourceCount = 0;
+    for (const auto& tableReadSpec : tableReadSpecs) {
+        totalDataSliceCount += tableReadSpec.DataSliceDescriptors.size();
+        totalDataSourceCount += tableReadSpec.DataSourceDirectory->DataSources().size();
+    }
+
+    // Use first table read spec as the resulting one. In particular, when
+    // joining single table read spec, method always costs nothing.
+    TTableReadSpec result = std::move(tableReadSpecs.front());
+    result.DataSliceDescriptors.reserve(totalDataSliceCount);
+    result.DataSourceDirectory->DataSources().reserve(totalDataSourceCount);
+
+    size_t dataSourceIndexOffset = result.DataSourceDirectory->DataSources().size();
+
+    for (size_t index = 1; index < tableReadSpecs.size(); ++index) {
+        auto& tableReadSpec = tableReadSpecs[index];
+        for (auto& dataSliceDescriptor : tableReadSpec.DataSliceDescriptors) {
+            for (auto& chunkSpec: dataSliceDescriptor.ChunkSpecs) {
+                chunkSpec.set_table_index(chunkSpec.table_index() + dataSourceIndexOffset);
+            }
+            result.DataSliceDescriptors.emplace_back(std::move(dataSliceDescriptor));
+        }
+        dataSourceIndexOffset += tableReadSpec.DataSourceDirectory->DataSources().size();
+        for (auto& dataSource : tableReadSpec.DataSourceDirectory->DataSources()) {
+            result.DataSourceDirectory->DataSources().emplace_back(std::move(dataSource));
+        }
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

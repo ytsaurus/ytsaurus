@@ -940,6 +940,7 @@ void TTask::AddChunksToInputSpec(
 {
     for (const auto& dataSlice : stripe->DataSlices) {
         inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
+        inputSpec->add_virtual_row_index_per_data_slice(dataSlice->VirtualRowIndex.value_or(-1));
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto newChunkSpec = inputSpec->add_chunk_specs();
             ToProto(newChunkSpec, chunkSlice, dataSlice->Type);

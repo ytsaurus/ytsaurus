@@ -203,6 +203,8 @@ message TTableInputSpec
     // Table slice descriptors comprising the input.
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 2;
     repeated int32 chunk_spec_count_per_data_slice = 3;
+    // -1 stands for std::nullopt.
+    repeated int64 virtual_row_index_per_data_slice = 4;
 }
 
 // Defines how to store output from a job into a table.
@@ -333,8 +335,10 @@ message TSchedulerJobResultExt
     // NB: these fields are used only if job is interrupted.
     repeated NYT.NChunkClient.NProto.TChunkSpec unread_chunk_specs = 14;
     repeated int32 chunk_spec_count_per_unread_data_slice = 15;
+    repeated int64 virtual_row_index_per_unread_data_slice = 19;
     repeated NYT.NChunkClient.NProto.TChunkSpec read_chunk_specs = 16;
     repeated int32 chunk_spec_count_per_read_data_slice = 17;
+    repeated int64 virtual_row_index_per_read_data_slice = 20;
 
     // Used to restart completed job in case of interruption.
     optional bool restart_needed = 18;

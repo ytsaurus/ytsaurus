@@ -1,10 +1,13 @@
 #include "input_data_slice.h"
 #include "chunk_spec.h"
 
-#include <yt/core/misc/protobuf_helpers.h>
+#include <yt/ytlib/table_client/virtual_value_directory.h>
 
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/serialize.h>
+
+#include <yt/core/misc/protobuf_helpers.h>
+
 #include <yt/core/logging/log.h>
 
 namespace NYT::NChunkClient {
@@ -69,6 +72,7 @@ void TInputDataSlice::Persist(NTableClient::TPersistenceContext& context)
     Persist(context, Type);
     Persist(context, Tag);
     Persist(context, InputStreamIndex);
+    Persist(context, VirtualRowIndex);
 }
 
 int TInputDataSlice::GetTableIndex() const
@@ -111,8 +115,20 @@ std::pair<TInputDataSlicePtr, TInputDataSlicePtr> TInputDataSlice::SplitByRowInd
     YT_VERIFY(IsTrivial());
     auto slices = ChunkSlices[0]->SplitByRowIndex(rowIndex);
 
-    return std::make_pair(CreateUnversionedInputDataSlice(slices.first),
-        CreateUnversionedInputDataSlice(slices.second));
+    auto first = CreateUnversionedInputDataSlice(slices.first);
+    auto second = CreateUnversionedInputDataSlice(slices.second);
+
+    first->CopyPayloadFrom(*this);
+    second->CopyPayloadFrom(*this);
+
+    return {std::move(first), std::move(second)};
+}
+
+void TInputDataSlice::CopyPayloadFrom(const TInputDataSlice& dataSlice)
+{
+    InputStreamIndex = dataSlice.InputStreamIndex;
+    Tag = dataSlice.Tag;
+    VirtualRowIndex = dataSlice.VirtualRowIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -227,7 +243,10 @@ TInputDataSlicePtr CreateInputDataSlice(
     return newDataSlice;
 }
 
-void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRowBufferPtr& rowBuffer)
+void InferLimitsFromBoundaryKeys(
+    const TInputDataSlicePtr& dataSlice,
+    const TRowBufferPtr& rowBuffer,
+    const TVirtualValueDirectoryPtr& virtualValueDirectory)
 {
     TKey minKey;
     TKey maxKey;
@@ -241,11 +260,26 @@ void InferLimitsFromBoundaryKeys(const TInputDataSlicePtr& dataSlice, const TRow
             }
         }
     }
+    auto captureMaybeWithVirtualPrefix = [&] (TUnversionedRow row) {
+        if (virtualValueDirectory && dataSlice->VirtualRowIndex) {
+            auto virtualPrefix = virtualValueDirectory->Rows[*dataSlice->VirtualRowIndex];
+            auto capturedRow = rowBuffer->AllocateUnversioned(row.GetCount() + virtualPrefix.GetCount());
+            memcpy(capturedRow.begin(), virtualPrefix.begin(), sizeof(TUnversionedValue) * virtualPrefix.GetCount());
+            memcpy(capturedRow.begin() + virtualPrefix.GetCount(), row.begin(), sizeof(TUnversionedValue) * row.GetCount());
+            for (auto& value : capturedRow) {
+                rowBuffer->Capture(&value);
+            }
+            return capturedRow;
+        } else {
+            return rowBuffer->Capture(row);
+        }
+    };
+
     if (minKey) {
-        dataSlice->LowerLimit().MergeLowerKey(rowBuffer->Capture(minKey));
+        dataSlice->LowerLimit().MergeLowerKey(captureMaybeWithVirtualPrefix(minKey));
     }
     if (maxKey) {
-        dataSlice->UpperLimit().MergeUpperKey(GetKeySuccessor(maxKey, rowBuffer));
+        dataSlice->UpperLimit().MergeUpperKey(captureMaybeWithVirtualPrefix(GetKeySuccessor(maxKey, rowBuffer)));
     }
 }
 
@@ -292,7 +326,7 @@ i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices)
 i64 GetCumulativeDataWeight(const std::vector<TInputDataSlicePtr>& dataSlices)
 {
     i64 result = 0;
-for (const auto& dataSlice : dataSlices) {
+    for (const auto& dataSlice : dataSlices) {
         result += dataSlice->GetDataWeight();
     }
     return result;

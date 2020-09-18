@@ -84,6 +84,10 @@ static const std::vector<TString> AttributesToCache{
     "chunk_count",
     "external",
     "external_cell_tag",
+    "assume_partitioned_table",
+    "partitions",
+    "partitioned_by",
+    "boundary_keys",
 };
 
 static const std::vector<TString> DiscoveryAttributes{
@@ -271,6 +275,11 @@ public:
         }
 
         return attributes;
+    }
+
+    const TObjectAttributeCachePtr& GetObjectAttributeCache() const
+    {
+        return TableAttributeCache_;
     }
 
     TClusterNodes GetNodes() const
@@ -682,6 +691,11 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttribute
     return Impl_->GetObjectAttributes(paths, client);
 }
 
+const TObjectAttributeCachePtr&     THost::GetObjectAttributeCache() const
+{
+    return Impl_->GetObjectAttributeCache();
+}
+
 const IInvokerPtr& THost::GetControlInvoker() const
 {
     return Impl_->GetControlInvoker();
@@ -766,7 +780,6 @@ void THost::SetContext(DB::Context* context)
 {
     Impl_->SetContext(context);
 }
-
 
 THost::~THost() = default;
 

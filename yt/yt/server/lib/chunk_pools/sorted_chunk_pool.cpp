@@ -326,7 +326,7 @@ private:
         std::vector<TInputChunkSlicePtr> unversionedChunkSlices;
 
         THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> unversionedInputChunkToInputCookie;
-        THashMap<TInputChunkPtr, int> unversionedInputChunkToInputStreamIndex;
+        THashMap<TInputChunkPtr, TInputDataSlicePtr> unversionedInputChunkToOwningDataSlice;
 
         //! Either add data slice to builder or put it into `ForeignDataSlicesByStreamIndex_' depending on whether
         //! it is primary or foreign.
@@ -376,8 +376,8 @@ private:
                         unversionedChunkSlices.emplace_back(std::move(chunkSlice));
                     }
 
+                    unversionedInputChunkToOwningDataSlice[inputChunk] = dataSlice;
                     unversionedInputChunkToInputCookie[inputChunk] = inputCookie;
-                    unversionedInputChunkToInputStreamIndex[inputChunk] = stripe->GetInputStreamIndex();
                 } else {
                     processDataSlice(dataSlice, inputCookie);
                 }
@@ -391,8 +391,8 @@ private:
         }
 
         for (const auto& chunkSlice : unversionedChunkSlices) {
+            const auto& originalDataSlice = unversionedInputChunkToOwningDataSlice[chunkSlice->GetInputChunk()];
             int inputCookie = unversionedInputChunkToInputCookie.at(chunkSlice->GetInputChunk());
-            int inputStreamIndex = unversionedInputChunkToInputStreamIndex.at(chunkSlice->GetInputChunk());
 
             // We additionally slice maniac slices by evenly by row indices.
             auto chunk = chunkSlice->GetInputChunk();
@@ -400,23 +400,22 @@ private:
                 chunk->IsCompleteChunk() &&
                 CompareRows(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, PrimaryPrefixLength_) == 0 &&
                 chunkSlice->GetDataWeight() > JobSizeConstraints_->GetInputSliceDataWeight() &&
-                InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary())
+                InputStreamDirectory_.GetDescriptor(originalDataSlice->InputStreamIndex).IsPrimary())
             {
                 auto smallerSlices = chunkSlice->SliceEvenly(
                     JobSizeConstraints_->GetInputSliceDataWeight(),
                     JobSizeConstraints_->GetInputSliceRowCount());
                 for (const auto& smallerSlice : smallerSlices) {
                     auto dataSlice = CreateUnversionedInputDataSlice(smallerSlice);
-                    dataSlice->InputStreamIndex = inputStreamIndex;
+                    dataSlice->CopyPayloadFrom(*originalDataSlice);
                     processDataSlice(dataSlice, inputCookie);
                 }
             } else {
                 auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
-                dataSlice->InputStreamIndex = inputStreamIndex;
+                dataSlice->CopyPayloadFrom(*originalDataSlice);
                 processDataSlice(dataSlice, inputCookie);
             }
         }
-        unversionedInputChunkToInputCookie.clear();
     }
 
     //! In this function all data slices that correspond to teleportable unversioned input chunks
@@ -779,7 +778,7 @@ private:
     }
 
     void CheckCompleted() {
-        bool completed = 
+        bool completed =
             Finished &&
             JobManager_->JobCounter()->GetPending() == 0 &&
             JobManager_->JobCounter()->GetRunning() == 0 &&

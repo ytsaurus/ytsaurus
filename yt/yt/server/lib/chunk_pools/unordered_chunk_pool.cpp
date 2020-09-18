@@ -331,8 +331,6 @@ public:
             i64 sliceRowCount = currentDataSlice->GetRowCount();
             if (currentDataSlice->Type == EDataSourceType::UnversionedTable && sliceRowCount > rowsToAdd) {
                 auto split = currentDataSlice->SplitByRowIndex(rowsToAdd);
-                split.first->Tag = currentDataSlice->Tag;
-                split.second->Tag = currentDataSlice->Tag;
                 stripe->DataSlices.emplace_back(std::move(split.first));
                 rowsToAdd = 0;
                 currentDataSlice = std::move(split.second);
@@ -495,8 +493,9 @@ private:
     //! |jobCount| stripes then |jobCount| is decreased appropriately.
     void AddDataSlice(const TInputDataSlicePtr dataSlice, IChunkPoolInput::TCookie inputCookie)
     {
+        dataSlice->Tag = inputCookie;
+
         if (dataSlice->Type == EDataSourceType::VersionedTable) {
-            dataSlice->Tag = inputCookie;
             AddStripe(New<TChunkStripe>(dataSlice));
         } else {
             const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
@@ -526,13 +525,13 @@ private:
                     RowBuffer_);
 
                 for (auto& slice : slices) {
-                    auto dataSlice = New<TInputDataSlice>(
+                    auto newDataSlice = New<TInputDataSlice>(
                         EDataSourceType::UnversionedTable,
                         TInputDataSlice::TChunkSliceList{slice},
                         slice->LowerLimit(),
                         slice->UpperLimit());
-                    dataSlice->Tag = inputCookie;
-                    AddStripe(New<TChunkStripe>(dataSlice));
+                    newDataSlice->CopyPayloadFrom(*dataSlice);
+                    AddStripe(New<TChunkStripe>(newDataSlice));
                 }
             } else {
                 for (const auto& slice : CreateErasureInputChunkSlices(chunk, codecId)) {
@@ -542,11 +541,11 @@ private:
                         RowBuffer_);
 
                     for (auto& smallerSlice : smallerSlices) {
-                        auto dataSlice = New <TInputDataSlice>(
+                        auto newDataSlice = New <TInputDataSlice>(
                             EDataSourceType::UnversionedTable,
                             TInputDataSlice::TChunkSliceList{std::move(smallerSlice)});
-                        dataSlice->Tag = inputCookie;
-                        AddStripe(New<TChunkStripe>(dataSlice));
+                        newDataSlice->CopyPayloadFrom(*dataSlice);
+                        AddStripe(New<TChunkStripe>(newDataSlice));
                     }
                 }
             }

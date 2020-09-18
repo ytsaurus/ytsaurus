@@ -4,6 +4,7 @@
 #include "input_chunk_slice.h"
 #include "replication_reader.h"
 #include "repairing_reader.h"
+#include "data_slice_descriptor.h"
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -731,6 +732,45 @@ void DumpCodecStatistics(
 bool IsAddressLocal(const TString& address)
 {
     return GetServiceHostName(address) == GetLocalHostName();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDataSliceSourcePair JoinDataSliceSourcePairs(std::vector<TDataSliceSourcePair> pairs)
+{
+    if (pairs.empty()) {
+        return {};
+    }
+
+    TDataSliceSourcePair result = std::move(pairs.front());
+    pairs.pop_back();
+
+    size_t totalDataSliceCount = result.DataSliceDescriptors.size();
+    size_t totalDataSourceCount = result.DataSourceDirectory->DataSources().size();
+    for (const auto& pair : pairs) {
+        totalDataSliceCount += pair.DataSliceDescriptors.size();
+        totalDataSourceCount += pair.DataSourceDirectory->DataSources().size();
+    }
+
+    result.DataSliceDescriptors.reserve(totalDataSliceCount);
+    result.DataSourceDirectory->DataSources().reserve(totalDataSourceCount);
+
+    auto offset = result.DataSourceDirectory->DataSources().size();
+
+    for (auto& pair : pairs) {
+        for (auto& dataSlice : pair.DataSliceDescriptors) {
+            for (auto& chunkSpec : dataSlice.ChunkSpecs) {
+                chunkSpec.set_table_index(chunkSpec.table_index() + offset);
+            }
+            result.DataSliceDescriptors.emplace_back(std::move(dataSlice));
+        }
+        offset += pair.DataSourceDirectory->DataSources().size();
+        for (auto& dataSource : pair.DataSourceDirectory->DataSources()) {
+            result.DataSourceDirectory->DataSources().emplace_back(std::move(dataSource));
+        }
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

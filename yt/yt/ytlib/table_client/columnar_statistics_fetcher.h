@@ -42,6 +42,10 @@ private:
     const EColumnarStatisticsFetcherMode Mode_;
     const bool StoreChunkStatistics_;
 
+    //! We do not want to apply selectivity factor twice for the same chunk object as well as fetching
+    //! same statistics multiple times.
+    THashSet<NChunkClient::TInputChunkPtr> ChunkSet_;
+
     std::vector<TColumnarStatistics> ChunkStatistics_;
     std::vector<TLightweightColumnarStatistics> LightweightChunkStatistics_;
 

@@ -60,6 +60,7 @@ void FillDataSliceDescriptors(
                         static_cast<const NChunkClient::NProto::TMiscExt&>(*it->second));
                 }
             }
+            inputDataSliceDescriptor.VirtualRowIndex = dataSlice->VirtualRowIndex;
         }
     }
 }

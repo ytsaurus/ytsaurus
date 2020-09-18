@@ -46,6 +46,8 @@ public:
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client);
 
+    const NObjectClient::TObjectAttributeCachePtr& GetObjectAttributeCache() const;
+
     const IInvokerPtr& GetControlInvoker() const;
 
     //! Thread pool for heavy stuff.
