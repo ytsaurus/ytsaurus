@@ -710,7 +710,7 @@ TEST(TJsonConsumerTest, TestPrettyFormat)
     TString output = "{\n"
                     "    \"hello\": 1\n"
                     "}";
-    EXPECT_EQ(output, Strip(outputStream.Str()));
+    EXPECT_EQ(output, StripInPlace(outputStream.Str()));
 }
 
 TEST(TJsonConsumerTest, TestNodeWeightLimitAccepted)

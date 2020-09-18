@@ -152,7 +152,7 @@ THashMap<TString, int> GetGpuIds(TDuration checkTimeout)
 
             try {
                 auto deviceNumberString = output.substr(semicolonPos + 1, eolPos - semicolonPos - 1);
-                gpuNumber = FromString<int>(Strip(deviceNumberString));
+                gpuNumber = FromString<int>(StripInPlace(deviceNumberString));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Invalid 'nvidia-smi -q' output format: failed to parse GPU Minor Number")
                     << ex;
