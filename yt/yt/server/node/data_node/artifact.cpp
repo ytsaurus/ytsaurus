@@ -3,6 +3,7 @@
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
@@ -11,6 +12,7 @@ namespace NYT::NDataNode {
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NTableClient;
+using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +21,11 @@ TArtifactKey::TArtifactKey(TChunkId chunkId)
     mutable_data_source()->set_type(static_cast<int>(EDataSourceType::File));
     NChunkClient::NProto::TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), chunkId);
+
+    TMiscExt miscExt;
+    miscExt.set_compression_codec(static_cast<int>(NCompression::ECodec::None));
+    SetProtoExtension(chunkSpec.mutable_chunk_meta()->mutable_extensions(), miscExt);
+
     *add_chunk_specs() = chunkSpec;
 }
 

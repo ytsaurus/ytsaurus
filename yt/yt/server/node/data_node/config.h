@@ -770,6 +770,9 @@ public:
     //! it still tries to read at least one block).
     double BlockReadTimeoutFraction;
 
+    //! Delay between node initializatin and start of background artifact validation.
+    TDuration BackgroundArtifactValidationDelay;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -970,6 +973,9 @@ public:
 
         RegisterParameter("block_read_timeout_fraction", BlockReadTimeoutFraction)
             .Default(0.75);
+
+        RegisterParameter("background_artifact_validation_delay", BackgroundArtifactValidationDelay)
+            .Default(TDuration::Minutes(5));
 
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;

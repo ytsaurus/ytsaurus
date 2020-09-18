@@ -312,6 +312,8 @@ public:
 
         YT_LOG_INFO("Chunk cache initialized (ChunkCount: %v)",
             GetSize());
+
+        RunBackgroundValidation();
     }
 
     bool IsEnabled() const
@@ -426,6 +428,36 @@ private:
         }
 
         location->Start();
+    }
+
+    void RunBackgroundValidation() 
+    {
+        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND([this_ = MakeStrong(this), this] () {
+            // Delay start of background validation to populate chunk cache with useful artifacts.
+            TDelayedExecutor::WaitForDuration(Config_->BackgroundArtifactValidationDelay);
+
+            YT_LOG_INFO("Background artifacts validation started");
+
+            while (true) {
+                auto guard = Guard(RegisteredChunkMapLock_);
+                if (RegisteredChunkMap_.empty()) {
+                    YT_LOG_INFO("Background artifacts validation finished");
+                    return;
+                }
+
+                auto artifactKey = RegisteredChunkMap_.begin()->first;
+                guard.Release();
+
+                TArtifactDownloadOptions options;
+                options.NodeDirectory = Bootstrap_->GetNodeDirectory();
+            
+                auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, options));
+                if (!errorOrChunk.IsOK()) {
+                    YT_LOG_WARNING(errorOrChunk, "Background artifact validation failed (ArtifactKey: %v)", artifactKey);
+                }
+
+                TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
+            }}));
     }
 
     std::optional<TRegisteredChunkDescriptor> ExtractRegisteredChunk(const TArtifactKey& key)
