@@ -35,16 +35,16 @@ DECLARE_REFCOUNTED_CLASS(TRootElement)
 
 } // namespace NVectorScheduler
 
+DECLARE_REFCOUNTED_STRUCT(ISchedulerTree)
+
 DECLARE_REFCOUNTED_CLASS(TResourceTree)
 DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
-DECLARE_REFCOUNTED_CLASS(IPackingMetric)
-DECLARE_REFCOUNTED_CLASS(IFairShareTreeHost)
+DECLARE_REFCOUNTED_STRUCT(IFairShareTreeHost)
 
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationController)
 DECLARE_REFCOUNTED_STRUCT(IFairShareTreeSnapshot)
 
-template <class TFairShareImpl>
-class ISchedulerTreeHost;
+struct ISchedulerTreeHost;
 
 class TFairShareContext;
 

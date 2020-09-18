@@ -1,7 +1,6 @@
 #include "scheduler.h"
 #include "private.h"
 #include "fair_share_strategy.h"
-#include "fair_share_tree.h"
 #include "fair_share_implementations.h"
 #include "helpers.h"
 #include "job_prober_service.h"
@@ -14,6 +13,7 @@
 #include "operations_cleaner.h"
 #include "controller_agent_tracker.h"
 #include "scheduling_segment_manager.h"
+#include "persistent_pool_state.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>

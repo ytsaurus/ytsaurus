@@ -4,7 +4,7 @@
 #include "scheduler_strategy.h"
 #include "operations_cleaner.h"
 #include "bootstrap.h"
-#include "fair_share_tree.h"
+#include "persistent_pool_state.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/helpers.h>
