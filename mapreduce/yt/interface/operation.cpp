@@ -357,7 +357,7 @@ void TJobOperationPreparer::ValidateMissingOutputSchema(int tableIndex) const
 
 void TJobOperationPreparer::ValidateMissingInputDescription(int tableIndex) const
 {
-    ValidateOutputTableIndex(tableIndex, "ValidateMissingInputDescription()");
+    ValidateInputTableIndex(tableIndex, "ValidateMissingInputDescription()");
     Y_ENSURE_EX(!InputTableDescriptions_[tableIndex],
         TApiUsageError() <<
         "Description for input no. " << tableIndex << " " <<
