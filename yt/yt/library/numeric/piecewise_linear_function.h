@@ -8,6 +8,8 @@
 
 #include <library/cpp/testing/gtest/friend.h>
 
+#include <util/generic/algorithm.h>
+
 #include <vector>
 #include <algorithm>
 #include <random>

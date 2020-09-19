@@ -115,6 +115,7 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_resolver.h>
 
+#include <util/generic/algorithm.h>
 #include <util/generic/cast.h>
 #include <util/generic/vector.h>
 

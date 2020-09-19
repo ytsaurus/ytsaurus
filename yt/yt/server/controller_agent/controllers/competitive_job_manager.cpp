@@ -4,6 +4,8 @@
 #include <yt/server/lib/controller_agent/progress_counter.h>
 #include <yt/server/lib/controller_agent/serialize.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////

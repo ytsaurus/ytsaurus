@@ -31,6 +31,8 @@
 
 #include <yt/core/ypath/helpers.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;

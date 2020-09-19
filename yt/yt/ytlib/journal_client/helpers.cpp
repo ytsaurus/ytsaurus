@@ -18,6 +18,8 @@
 
 #include <yt/library/erasure/codec.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NJournalClient {
 
 using namespace NConcurrency;
@@ -113,11 +115,11 @@ public:
         : Buffer_(TSharedMutableRef::Allocate<TTag>(size))
         , Current_(Buffer_.Begin())
     { }
-    
+
     void Write(const void* src, i64 size)
     {
         std::copy(static_cast<const char*>(src), static_cast<const char*>(src) + size, Current_);
-        Current_ += size;      
+        Current_ += size;
     }
 
     void WritePadding(i64 size)
@@ -201,7 +203,7 @@ std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
     YT_VERIFY(buffer.IsFull());
 
     auto parityParts = codec->Encode(dataParts);
-    
+
     std::vector<std::vector<TSharedRef>> encodedRowLists;
     encodedRowLists.resize(totalPartCount);
     for (int partIndex = 0; partIndex < totalPartCount; ++partIndex) {
@@ -455,7 +457,7 @@ private:
             if (replica.ReplicaIndex != GenericChunkReplicaIndex) {
                 SuccessPartIndexes_.set(replica.ReplicaIndex);
             }
-    
+
             YT_LOG_DEBUG("Journal chunk session aborted successfully (Replica: %v)",
                 replica);
         } else {
@@ -575,7 +577,7 @@ private:
             ToProto(req->mutable_chunk_id(), partChunkId);
             req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
             ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
-            
+
             futures.push_back(req->Invoke().Apply(
                 BIND(&TComputeQuorumInfoSession::OnResponse, MakeStrong(this), replica)
                     .AsyncVia(GetCurrentInvoker())));

@@ -18,6 +18,8 @@
 #include <yt/core/rpc/public.h>
 #include <yt/core/rpc/response_keeper.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;

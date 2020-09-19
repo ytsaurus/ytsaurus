@@ -3,6 +3,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;

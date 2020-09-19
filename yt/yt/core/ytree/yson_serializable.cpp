@@ -6,6 +6,8 @@
 #include <yt/core/ytree/node.h>
 #include <yt/core/ytree/ypath_detail.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NYTree {
 
 using namespace NYPath;
