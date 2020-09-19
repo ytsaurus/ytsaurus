@@ -3085,6 +3085,7 @@ private:
         if (controller) {
             controller->RevokeAgent();
         }
+        operation->SetController(nullptr);
 
         for (const auto& nodeShard : NodeShards_) {
             nodeShard->GetInvoker()->Invoke(BIND(
@@ -3145,7 +3146,6 @@ private:
     {
         if (!operation->GetFinished().IsSet()) {
             operation->SetFinished();
-            operation->SetController(nullptr);
             UnregisterOperation(operation);
         }
         operation->Cancel(TError("Operation finished"));
