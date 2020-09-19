@@ -73,17 +73,20 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
     const TControllerAgentPtr& agent,
     const TIntrusivePtr<TRequest>& request)
 {
+    auto method = request->GetMethod();
+
     YT_LOG_DEBUG("Sending request to agent (AgentId: %v, OperationId: %v, Method: %v)",
         agent->GetId(),
         operationId,
-        request->GetMethod());
+        method);
 
     ToProto(request->mutable_incarnation_id(), agent->GetIncarnationId());
 
     return request->Invoke().Apply(BIND([=] (const TErrorOr<TIntrusivePtr<TResponse>>& rspOrError) {
-        YT_LOG_DEBUG(rspOrError, "Agent response received (AgentId: %v, OperationId: %v)",
+        YT_LOG_DEBUG(rspOrError, "Agent response received (AgentId: %v, OperationId: %v, Method: %v)",
             agent->GetId(),
-            operationId);
+            operationId,
+            method);
         if (IsAgentFailureError(rspOrError) || IsAgentDisconnectionError(rspOrError)) {
             const auto& agentTracker = bootstrap->GetControllerAgentTracker();
             agentTracker->HandleAgentFailure(agent, rspOrError);
@@ -275,6 +278,10 @@ public:
                 this,
                 this_ = MakeStrong(this)
             ] (const TErrorOr<TControllerAgentServiceProxy::TRspInitializeOperationPtr>& rspOrError) {
+                if (!IncarnationId_) {
+                    // Operation agent was revoked.
+                    return;
+                }
                 if (!rspOrError.IsOK()) {
                     OnInitializationFinished(static_cast<TError>(rspOrError));
                     return;
@@ -319,6 +326,10 @@ public:
                 this,
                 this_ = MakeStrong(this)
             ] (const TErrorOr<TControllerAgentServiceProxy::TRspPrepareOperationPtr>& rspOrError) {
+                if (!IncarnationId_) {
+                    // Operation agent was revoked.
+                    return;
+                }
                 if (!rspOrError.IsOK()) {
                     OnPreparationFinished(static_cast<TError>(rspOrError));
                     return;
@@ -355,6 +366,10 @@ public:
                 this,
                 this_ = MakeStrong(this)
             ] (const TErrorOr<TControllerAgentServiceProxy::TRspMaterializeOperationPtr>& rspOrError) {
+                if (!IncarnationId_) {
+                    // Operation agent was revoked.
+                    return;
+                }
                 if (!rspOrError.IsOK()) {
                     OnMaterializationFinished(static_cast<TError>(rspOrError));
                     return;
@@ -394,6 +409,10 @@ public:
                 incarnationId = agent->GetIncarnationId(),
                 preemptionMode = PreemptionMode_
             ] (const TErrorOr<TControllerAgentServiceProxy::TRspReviveOperationPtr>& rspOrError) {
+                if (!IncarnationId_) {
+                    // Operation agent was revoked.
+                    return;
+                }
                 if (!rspOrError.IsOK()) {
                     OnRevivalFinished(static_cast<TError>(rspOrError));
                     return;
@@ -438,6 +457,10 @@ public:
                 this,
                 this_ = MakeStrong(this)
             ] (const TErrorOr<TControllerAgentServiceProxy::TRspCommitOperationPtr>& rspOrError) {
+                if (!IncarnationId_) {
+                    // Operation agent was revoked.
+                    return;
+                }
                 if (!rspOrError.IsOK()) {
                     OnCommitFinished(static_cast<TError>(rspOrError));
                     return;
