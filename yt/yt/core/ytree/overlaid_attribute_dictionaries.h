@@ -6,6 +6,8 @@
 
 #include <yt/core/ytree/attributes.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////

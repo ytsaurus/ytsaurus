@@ -3,6 +3,8 @@
 
 #include <yt/server/lib/controller_agent/serialize.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NControllerAgent::NLegacyControllers {
 
 ////////////////////////////////////////////////////////////////////////////////

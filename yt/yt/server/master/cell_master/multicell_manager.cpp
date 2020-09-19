@@ -38,6 +38,8 @@
 
 #include <yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NCellMaster {
 
 using namespace NElection;

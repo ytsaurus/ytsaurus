@@ -22,6 +22,8 @@
 
 #include <yt/core/concurrency/delayed_executor.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NJournalClient {
 
 using namespace NChunkClient;
@@ -157,7 +159,7 @@ public:
         const std::vector<int>& /*blockIndexes*/,
         std::optional<i64> /*estimatedSize*/) override
     {
-        YT_ABORT();        
+        YT_ABORT();
     }
 
     class TReadBlocksSession
@@ -299,7 +301,7 @@ public:
         std::optional<int> /*partitionTag*/,
         const std::optional<std::vector<int>>& /*extensionTags*/) override
     {
-        YT_ABORT();        
+        YT_ABORT();
     }
 
     virtual TChunkId GetChunkId() const override

@@ -8,6 +8,8 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <numeric>
+
 namespace NYT::NChunkClient {
 
 using namespace NProto;

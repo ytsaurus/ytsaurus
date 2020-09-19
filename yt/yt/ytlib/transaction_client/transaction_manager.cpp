@@ -35,6 +35,7 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <util/generic/algorithm.h>
 #include <atomic>
 
 namespace NYT::NTransactionClient {

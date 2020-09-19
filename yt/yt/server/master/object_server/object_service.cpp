@@ -59,6 +59,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
+#include <util/generic/algorithm.h>
 #include <atomic>
 
 namespace NYT::NObjectServer {

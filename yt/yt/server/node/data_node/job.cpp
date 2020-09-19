@@ -51,6 +51,8 @@
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NDataNode {
 
 using namespace NObjectClient;
@@ -332,7 +334,7 @@ public:
     {
         YT_ABORT();
     }
-    
+
     virtual std::vector<TChunkId> DumpInputContext() override
     {
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");

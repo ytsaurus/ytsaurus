@@ -49,6 +49,7 @@
 
 #include <yt/core/rpc/hedging_channel.h>
 
+#include <util/generic/algorithm.h>
 #include <util/generic/ymath.h>
 
 #include <util/random/shuffle.h>
@@ -285,10 +286,10 @@ private:
 
     void DiscardSeeds(const TFuture<TChunkReplicaList>& future)
     {
-        if (!Options_->AllowFetchingSeedsFromMaster) {	
-            // We're not allowed to ask master for seeds.	
-            // Better keep the initial ones.	
-            return;	
+        if (!Options_->AllowFetchingSeedsFromMaster) {
+            // We're not allowed to ask master for seeds.
+            // Better keep the initial ones.
+            return;
         }
 
         ChunkReplicaLocator_->DiscardReplicas(future);
@@ -385,7 +386,7 @@ protected:
     virtual bool UpdatePeerBlockMap(
         const TPeerProbeResult& /*probeResult*/,
         const TReplicationReaderPtr& /*reader*/)
-    { 
+    {
         // P2P is not supported by default.
         return false;
     }
@@ -611,7 +612,7 @@ protected:
         if (code == NYT::EErrorCode::Canceled) {
             return;
         }
-        
+
         auto error = wrappingError << rspOrError;
         if (code == NRpc::EErrorCode::Unavailable ||
             code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
@@ -658,7 +659,7 @@ protected:
             if ((!filter || filter(top.Peer.AddressWithNetwork.Address)) && !IsPeerBanned(top.Peer.AddressWithNetwork.Address)) {
                 candidates.push_back(top.Peer);
             }
-            
+
             PeerQueue_.pop();
         }
         return candidates;
@@ -1128,7 +1129,7 @@ private:
                     }
                 }));
         } else {
-            return ProbePeerViaGetBlockSet(channel, peer, blockIndexes, reader); 
+            return ProbePeerViaGetBlockSet(channel, peer, blockIndexes, reader);
         }
     }
 
@@ -1235,7 +1236,7 @@ private:
                         probeResult.DiskQueueSize,
                         probeResult.NetQueueSize);
                 }));
-                
+
         return bestPeers;
     }
 };
@@ -1443,7 +1444,7 @@ private:
             desiredPeerCount,
             blockIndexes,
             reader);
-        
+
         SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
 
         auto channel = MakePeersChannel(peers, ReaderConfig_->BlockRpcHedgingDelay, ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging);
@@ -1462,7 +1463,7 @@ private:
                 return;
             }
         }
-        
+
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
@@ -1506,7 +1507,7 @@ private:
         reader->AccountTraffic(rsp->GetTotalSize(), respondedPeer.NodeDescriptor);
 
         auto probeResult = ParseProbeResponse(rsp);
-        
+
         UpdatePeerBlockMap(probeResult, reader);
 
         if (probeResult.NetThrottling || probeResult.DiskThrottling) {
@@ -2432,7 +2433,7 @@ private:
             RequestRowsFromPeer(channel, reader, peerAddressWithNetwork, chosenPeer, true);
             return;
         }
-        
+
         if (!response->fetched_rows()) {
             // NB(akozhikhov): If data node waits for schema from other tablet node,
             // then we switch to next data node in order to warm up as many schema caches as possible.
@@ -2469,7 +2470,7 @@ private:
             "(BytesThrottled: %v, CandidateIndex: %v, IterationCount: %v)",
             BytesThrottled_,
             CandidateIndex_ - 1,
-            SinglePassIterationCount_);   
+            SinglePassIterationCount_);
         Promise_.TrySet(FetchedRowset_);
     }
 

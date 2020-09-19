@@ -18,6 +18,8 @@
 
 #include <yt/core/rpc/dispatcher.h>
 
+#include <util/generic/algorithm.h>
+
 namespace NYT::NJournalClient {
 
 using namespace NChunkClient;
@@ -263,7 +265,7 @@ private:
         auto erasedIndices = GetErasedIndices(availableIndicies);
         auto repairIndices = GetRepairIndices(availableIndicies, erasedIndices);
         auto fetchIndices = GetFetchIndices(erasedIndices, repairIndices);
-        
+
         YT_LOG_DEBUG("Session will run slow path (AvailableIndices: %v, ErasedIndices: %v, RepairIndices: %v, FetchIndices: %v)",
             availableIndicies,
             erasedIndices,
