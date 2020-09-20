@@ -1141,13 +1141,14 @@ void TServiceBase::HandleStreamingPayload(
 {
     SetActive();
 
-    TGuard<TSpinLock> guard(RequestMapLock_);
-    auto context = DoFindRequest(requestId);
+    auto* bucket = GetRequestBucket(requestId);
+    auto guard = Guard(bucket->Lock);
+    auto context = DoFindRequest(bucket, requestId);
     if (context) {
         guard.Release();
         context->HandleStreamingPayload(payload);
     } else {
-        auto* entry = DoGetOrCreatePendingPayloadsEntry(requestId);
+        auto* entry = DoGetOrCreatePendingPayloadsEntry(bucket, requestId);
         entry->Payloads.emplace_back(payload);
         guard.Release();
         YT_LOG_DEBUG("Received streaming payload for an unknown request, saving (RequestId: %v)",
@@ -1242,10 +1243,12 @@ void TServiceBase::OnReplyBusTerminated(const IBusPtr& bus, const TError& error)
 {
     std::vector<TServiceContextPtr> contexts;
     {
-        TGuard<TSpinLock> guard(RequestMapLock_);
-        auto it = ReplyBusToContexts_.find(bus);
-        if (it == ReplyBusToContexts_.end())
+        auto* bucket = GetReplyBusBucket(bus);
+        auto guard = Guard(bucket->Lock);
+        auto it = bucket->ReplyBusToContexts.find(bus);
+        if (it == bucket->ReplyBusToContexts.end()) {
             return;
+        }
 
         for (auto* rawContext : it->second) {
             auto context = DangerousGetPtr(rawContext);
@@ -1254,7 +1257,7 @@ void TServiceBase::OnReplyBusTerminated(const IBusPtr& bus, const TError& error)
             }
         }
 
-        ReplyBusToContexts_.erase(it);
+        bucket->ReplyBusToContexts.erase(it);
     }
 
     for (auto context : contexts) {
@@ -1348,22 +1351,35 @@ void TServiceBase::RunRequest(const TServiceContextPtr& context)
     }
 }
 
+TServiceBase::TRequestBucket* TServiceBase::GetRequestBucket(TRequestId requestId)
+{
+    return &RequestBuckets_[THash<TRequestId>()(requestId) % RequestBucketCount];
+}
+
+TServiceBase::TReplyBusBucket* TServiceBase::GetReplyBusBucket(const IBusPtr& bus)
+{
+    return &ReplyBusBuckets_[THash<IBusPtr>()(bus) % ReplyBusBucketCount];
+}
+
 void TServiceBase::RegisterRequest(TServiceContext* context)
 {
     auto requestId = context->GetRequestId();
-    const auto& replyBus = context->GetReplyBus();
+    {
+        auto* bucket = GetRequestBucket(requestId);
+        auto guard = Guard(bucket->Lock);
+        // NB: We're OK with duplicate request ids.
+        bucket->RequestIdToContext.emplace(requestId, context);
+    }
 
+    const auto& replyBus = context->GetReplyBus();
     bool subscribe = false;
     {
-        TGuard<TSpinLock> guard(RequestMapLock_);
-        // NB: We're OK with duplicate request ids.
-        RequestIdToContext_.emplace(requestId, context);
-        auto it = ReplyBusToContexts_.find(context->GetReplyBus());
-        if (it == ReplyBusToContexts_.end()) {
+        auto* bucket = GetReplyBusBucket(replyBus);
+        auto guard = Guard(bucket->Lock);
+        auto it = bucket->ReplyBusToContexts.find(context->GetReplyBus());
+        if (it == bucket->ReplyBusToContexts.end()) {
             subscribe = true;
-            it = ReplyBusToContexts_.emplace(
-                context->GetReplyBus(),
-                THashSet<TServiceContext*>()).first;
+            it = bucket->ReplyBusToContexts.emplace(replyBus, THashSet<TServiceContext*>()).first;
         }
         auto& contexts = it->second;
         contexts.insert(context);
@@ -1387,15 +1403,20 @@ void TServiceBase::RegisterRequest(TServiceContext* context)
 void TServiceBase::UnregisterRequest(TServiceContext* context)
 {
     auto requestId = context->GetRequestId();
-    const auto& replyBus = context->GetReplyBus();
-
     {
-        TGuard<TSpinLock> guard(RequestMapLock_);
+        auto* bucket = GetRequestBucket(requestId);
+        auto guard = Guard(bucket->Lock);
         // NB: We're OK with duplicate request ids.
-        RequestIdToContext_.erase(requestId);
-        auto it = ReplyBusToContexts_.find(replyBus);
+        bucket->RequestIdToContext.erase(requestId);
+    }
+
+    const auto& replyBus = context->GetReplyBus();
+    {
+        auto* bucket = GetReplyBusBucket(replyBus);
+        auto guard = Guard(bucket->Lock);
+        auto it = bucket->ReplyBusToContexts.find(replyBus);
         // Missing replyBus in ReplyBusToContexts_ is OK; see OnReplyBusTerminated.
-        if (it != ReplyBusToContexts_.end()) {
+        if (it != bucket->ReplyBusToContexts.end()) {
             auto& contexts = it->second;
             contexts.erase(context);
         }
@@ -1404,19 +1425,20 @@ void TServiceBase::UnregisterRequest(TServiceContext* context)
 
 TServiceBase::TServiceContextPtr TServiceBase::FindRequest(TRequestId requestId)
 {
-    TGuard<TSpinLock> guard(RequestMapLock_);
-    return DoFindRequest(requestId);
+    auto* bucket = GetRequestBucket(requestId);
+    auto guard = Guard(bucket->Lock);
+    return DoFindRequest(bucket, requestId);
 }
 
-TServiceBase::TServiceContextPtr TServiceBase::DoFindRequest(TRequestId requestId)
+TServiceBase::TServiceContextPtr TServiceBase::DoFindRequest(TRequestBucket* bucket, TRequestId requestId)
 {
-    auto it = RequestIdToContext_.find(requestId);
-    return it == RequestIdToContext_.end() ? nullptr : DangerousGetPtr(it->second);
+    auto it = bucket->RequestIdToContext.find(requestId);
+    return it == bucket->RequestIdToContext.end() ? nullptr : DangerousGetPtr(it->second);
 }
 
-TServiceBase::TPendingPayloadsEntry* TServiceBase::DoGetOrCreatePendingPayloadsEntry(TRequestId requestId)
+TServiceBase::TPendingPayloadsEntry* TServiceBase::DoGetOrCreatePendingPayloadsEntry(TRequestBucket* bucket, TRequestId requestId)
 {
-    auto& entry = RequestIdToPendingPayloads_[requestId];
+    auto& entry = bucket->RequestIdToPendingPayloads[requestId];
     if (!entry.Lease) {
         entry.Lease = NConcurrency::TLeaseManager::CreateLease(
             PendingPayloadsTimeout_,
@@ -1428,15 +1450,17 @@ TServiceBase::TPendingPayloadsEntry* TServiceBase::DoGetOrCreatePendingPayloadsE
 
 std::vector<TStreamingPayload> TServiceBase::GetAndErasePendingPayloads(TRequestId requestId)
 {
+    auto* bucket = GetRequestBucket(requestId);
+
     TPendingPayloadsEntry entry;
     {
-        TGuard<TSpinLock> guard(RequestMapLock_);
-        auto it = RequestIdToPendingPayloads_.find(requestId);
-        if (it == RequestIdToPendingPayloads_.end()) {
+        auto guard = Guard(bucket->Lock);
+        auto it = bucket->RequestIdToPendingPayloads.find(requestId);
+        if (it == bucket->RequestIdToPendingPayloads.end()) {
             return {};
         }
         entry = std::move(it->second);
-        RequestIdToPendingPayloads_.erase(it);
+        bucket->RequestIdToPendingPayloads.erase(it);
     }
 
     NConcurrency::TLeaseManager::CloseLease(entry.Lease);
