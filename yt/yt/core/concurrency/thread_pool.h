@@ -21,7 +21,7 @@ public:
         const TString& threadNamePrefix,
         bool enableLogging = true,
         bool enableProfiling = true,
-        EInvokerQueueType queueType = EInvokerQueueType::MultiLockQueue);
+        EInvokerQueueType queueType = EInvokerQueueType::SingleLockFreeQueue);
 
     virtual ~TThreadPool();
 
