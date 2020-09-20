@@ -751,10 +751,26 @@ private:
 
     THashSet<int> SupportedServerFeatureIds_;
 
-    TSpinLock RequestMapLock_;
-    THashMap<TRequestId, TServiceContext*> RequestIdToContext_;
-    THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts_;
-    THashMap<TRequestId, TPendingPayloadsEntry> RequestIdToPendingPayloads_;
+    struct TRequestBucket
+    {
+        TAdaptiveLock Lock;
+        THashMap<TRequestId, TServiceContext*> RequestIdToContext;
+        THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts;
+        THashMap<TRequestId, TPendingPayloadsEntry> RequestIdToPendingPayloads;
+    };
+
+    static constexpr int RequestBucketCount = 64;
+    std::array<TRequestBucket, RequestBucketCount> RequestBuckets_;
+
+    struct TReplyBusBucket
+    {
+        TAdaptiveLock Lock;
+        THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts;
+    };
+
+    static constexpr int ReplyBusBucketCount = 64;
+    std::array<TReplyBusBucket, ReplyBusBucketCount> ReplyBusBuckets_;
+
     TDuration PendingPayloadsTimeout_ = TServiceConfig::DefaultPendingPayloadsTimeout;
 
     std::atomic<bool> Stopped_ = false;
@@ -766,7 +782,6 @@ private:
     NProfiling::TShardedAggregateGauge AuthenticationTimeCounter_;
     int AuthenticationQueueSizeLimit_ = TServiceConfig::DefaultAuthenticationQueueSizeLimit;
 
-private:
     struct TAcceptedRequest
     {
         TRequestId RequestId;
@@ -800,12 +815,15 @@ private:
     static void ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo);
     static void RunRequest(const TServiceContextPtr& context);
 
+    TRequestBucket* GetRequestBucket(TRequestId requestId);
+    TReplyBusBucket* GetReplyBusBucket(const NYT::NBus::IBusPtr& bus);
+
     void RegisterRequest(TServiceContext* context);
     void UnregisterRequest(TServiceContext* context);
     TServiceContextPtr FindRequest(TRequestId requestId);
-    TServiceContextPtr DoFindRequest(TRequestId requestId);
+    TServiceContextPtr DoFindRequest(TRequestBucket* bucket, TRequestId requestId);
 
-    TPendingPayloadsEntry* DoGetOrCreatePendingPayloadsEntry(TRequestId requestId);
+    TPendingPayloadsEntry* DoGetOrCreatePendingPayloadsEntry(TRequestBucket* bucket, TRequestId requestId);
     std::vector<TStreamingPayload> GetAndErasePendingPayloads(TRequestId requestId);
     void OnPendingPayloadsLeaseExpired(TRequestId requestId);
 
