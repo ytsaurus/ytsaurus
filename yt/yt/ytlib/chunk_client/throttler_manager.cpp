@@ -23,7 +23,7 @@ TThrottlerManager::TThrottlerManager(
 
 void TThrottlerManager::Reconfigure(TThroughputThrottlerConfigPtr config)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     Config_ = config;
     for (auto& pair : ThrottlerMap_) {
         pair.second->Reconfigure(config);
@@ -32,7 +32,7 @@ void TThrottlerManager::Reconfigure(TThroughputThrottlerConfigPtr config)
 
 IThroughputThrottlerPtr TThrottlerManager::GetThrottler(TCellTag cellTag)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
 
     auto it = ThrottlerMap_.find(cellTag);
     if (it != ThrottlerMap_.end()) {

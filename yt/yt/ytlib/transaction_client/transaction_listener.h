@@ -40,7 +40,7 @@ protected:
 private:
     std::atomic<bool> Aborted_ = {false};
 
-    mutable TSpinLock SpinLock_;
+    mutable TAdaptiveLock SpinLock_;
     std::vector<TTransactionId> IgnoredTransactionIds_;
     std::vector<TTransactionId> AbortedTransactionIds_;
     THashMap<TTransactionId, NConcurrency::TPeriodicExecutorPtr> TransactionIdToProbeExecutor_;

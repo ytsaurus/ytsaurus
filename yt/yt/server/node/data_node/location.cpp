@@ -922,7 +922,7 @@ void TStoreLocation::RegisterTrashChunk(TChunkId chunkId)
     }
 
     {
-        TGuard<TSpinLock> guard(TrashMapSpinLock_);
+        TGuard<TAdaptiveLock> guard(TrashMapSpinLock_);
         TrashMap_.insert(std::make_pair(timestamp, TTrashChunkEntry{chunkId, diskSpace}));
         TrashDiskSpace_ += diskSpace;
     }
@@ -954,7 +954,7 @@ void TStoreLocation::CheckTrashTtl()
     while (true) {
         TTrashChunkEntry entry;
         {
-            TGuard<TSpinLock> guard(TrashMapSpinLock_);
+            TGuard<TAdaptiveLock> guard(TrashMapSpinLock_);
             if (TrashMap_.empty())
                 break;
             auto it = TrashMap_.begin();
@@ -973,7 +973,7 @@ void TStoreLocation::CheckTrashWatermark()
     bool needsCleanup;
     i64 availableSpace;
     {
-        TGuard<TSpinLock> guard(TrashMapSpinLock_);
+        TGuard<TAdaptiveLock> guard(TrashMapSpinLock_);
         // NB: Available space includes trash disk space.
         availableSpace = GetAvailableSpace() - TrashDiskSpace_.load();
         needsCleanup = availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
@@ -989,7 +989,7 @@ void TStoreLocation::CheckTrashWatermark()
     while (availableSpace < Config_->TrashCleanupWatermark) {
         TTrashChunkEntry entry;
         {
-            TGuard<TSpinLock> guard(TrashMapSpinLock_);
+            TGuard<TAdaptiveLock> guard(TrashMapSpinLock_);
             if (TrashMap_.empty()) {
                 break;
             }

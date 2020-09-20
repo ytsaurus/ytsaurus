@@ -28,13 +28,13 @@ private:
     const TCallback<TFuture<T>()> Provider_;
     const TDuration BatchingDelay_;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     TPromise<T> ActivePromise_;
     TPromise<T> PendingPromise_;
     bool DeadlineReached_ = false;
 
     void OnDeadlineReached();
-    void DoRun(TGuard<TSpinLock>& guard);
+    void DoRun(TGuard<TAdaptiveLock>& guard);
     void OnResult(const TErrorOr<T>& result);
 };
 

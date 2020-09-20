@@ -163,7 +163,7 @@ public:
 
     IInvokerPtr GetInvoker(const TString& poolName, double weight, const TFairShareThreadPoolTag& tag)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         auto poolIt = NameToPoolId_.find(poolName);
         if (poolIt == NameToPoolId_.end()) {
@@ -196,7 +196,7 @@ public:
 
     void Invoke(TClosure callback, TBucket* bucket)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         const auto& pool = IdToPool_[bucket->PoolId];
 
         Profiler_.Increment(pool->SizeCounter, +1);
@@ -227,7 +227,7 @@ public:
 
     void RemoveBucket(TBucket* bucket)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         auto& pool = IdToPool_[bucket->PoolId];
         
@@ -251,7 +251,7 @@ public:
 
     void Drain()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         for (const auto& pool : IdToPool_) {
             if (pool) {
@@ -273,7 +273,7 @@ public:
 
         TBucketPtr bucket;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             bucket = GetStarvingBucket(action);
 
             if (!bucket) {
@@ -292,7 +292,7 @@ public:
         YT_ASSERT(action && !action->Finished);
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             auto& pool = IdToPool_[bucket->PoolId];
 
             Profiler_.Update(
@@ -326,7 +326,7 @@ public:
         auto timeFromEnqueue = CpuDurationToDuration(action->FinishedAt - action->EnqueuedAt);
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             const auto& pool = IdToPool_[execution.Bucket->PoolId];
             Profiler_.Increment(pool->SizeCounter, -1, tscp);
             Profiler_.Update(pool->ExecTimeCounter, DurationToValue(timeFromStart), tscp);
@@ -354,7 +354,7 @@ public:
         // Remove outside lock because of lock inside RemoveBucket.
         TBucketPtr bucket;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             bucket = std::move(execution.Bucket);
 
             UpdateExcessTime(bucket.Get(), tscp.Instant - execution.AccountedAt);
@@ -416,7 +416,7 @@ private:
         THashMap<TFairShareThreadPoolTag, TWeakPtr<TBucket>> TagToBucket;
     };
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     std::vector<std::unique_ptr<TExecutionPool>> IdToPool_;
     THashMap<TString, int> NameToPoolId_;
 

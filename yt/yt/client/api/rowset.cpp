@@ -57,7 +57,7 @@ private:
     const TTableSchemaPtr Schema_;
     
     mutable std::atomic<bool> NameTableInitialized_;
-    mutable TSpinLock NameTableLock_;
+    mutable TAdaptiveLock NameTableLock_;
     mutable TNameTablePtr NameTable_;
 };
 

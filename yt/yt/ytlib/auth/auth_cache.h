@@ -26,7 +26,7 @@ private:
     {
         const TKey Key;
 
-        TSpinLock Lock;
+        TAdaptiveLock Lock;
         TContext Context;
         TFuture<TValue> Future;
         TPromise<TValue> Promise;

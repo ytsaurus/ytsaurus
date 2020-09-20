@@ -19,7 +19,7 @@ struct TSchemafulPipeBufferTag
 struct TSchemafulPipe::TData
     : public TRefCounted
 {
-    TSpinLock SpinLock;
+    TAdaptiveLock SpinLock;
 
     const TRowBufferPtr RowBuffer = New<TRowBuffer>(TSchemafulPipeBufferTag());
     TRingQueue<TUnversionedRow> RowQueue;
@@ -54,7 +54,7 @@ struct TSchemafulPipe::TData
         TPromise<void> writerReadyEvent;
 
         {
-            TGuard<TSpinLock> guard(SpinLock);
+            TGuard<TAdaptiveLock> guard(SpinLock);
             if (WriterClosed || Failed)
                 return;
 
@@ -85,7 +85,7 @@ public:
         i64 dataWeight = 0;
 
         {
-            TGuard<TSpinLock> guard(Data_->SpinLock);
+            TGuard<TAdaptiveLock> guard(Data_->SpinLock);
 
             if (Data_->WriterClosed && Data_->RowsWritten == Data_->RowsRead) {
                 return nullptr;
@@ -163,7 +163,7 @@ public:
         bool doClose = false;
 
         {
-            TGuard<TSpinLock> guard(Data_->SpinLock);
+            TGuard<TAdaptiveLock> guard(Data_->SpinLock);
 
             YT_VERIFY(!Data_->WriterClosed);
             Data_->WriterClosed = true;
@@ -193,7 +193,7 @@ public:
         TPromise<void> readerReadyEvent;
 
         {
-            TGuard<TSpinLock> guard(Data_->SpinLock);
+            TGuard<TAdaptiveLock> guard(Data_->SpinLock);
 
             YT_VERIFY(!Data_->WriterClosed);
 
@@ -219,7 +219,7 @@ public:
     virtual TFuture<void> GetReadyEvent() override
     {
         // TODO(babenko): implement backpressure from reader
-        TGuard<TSpinLock> guard(Data_->SpinLock);
+        TGuard<TAdaptiveLock> guard(Data_->SpinLock);
         YT_VERIFY(Data_->Failed);
         return Data_->WriterReadyEvent;
     }

@@ -17,7 +17,7 @@ public:
     void SetUnderlying(ISnapshotStorePtr underlying);
 
 private:
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     ISnapshotStorePtr Underlying_;
 
 

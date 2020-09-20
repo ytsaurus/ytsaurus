@@ -51,7 +51,7 @@ public:
 
 private:
     const TDataCenterName LocalDataCenter_;
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     TInstant StartTime_ = TInstant::Zero();
     THashMap<TDirection, i64> Data_;
     THashMap<TDataCenterName, i64> InboundData_;

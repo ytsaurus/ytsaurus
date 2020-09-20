@@ -14,7 +14,7 @@ template <class T>
 template <class TArg>
 void TNonblockingQueue<T>::Enqueue(TArg&& value)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (PromiseQueue_.empty()) {
         ValueQueue_.push(std::forward<TArg>(value));
     } else {
@@ -28,7 +28,7 @@ void TNonblockingQueue<T>::Enqueue(TArg&& value)
 template <class T>
 TFuture<T> TNonblockingQueue<T>::Dequeue()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (ValueQueue_.empty()) {
         auto promise = NewPromise<T>();
         PromiseQueue_.push(promise);

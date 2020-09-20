@@ -35,7 +35,7 @@ private:
 
     std::atomic<TDuration> BanTimeout_;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     THashSet<TString> UpAddresses_;
     THashSet<TString> ProbationAddresses_;
     THashSet<TString> DownAddresses_;
@@ -69,7 +69,7 @@ private:
     const NRpc::TServerAddressPoolPtr AddressPool_;
     const NLogging::TLogger Logger;
 
-    TSpinLock AddressesLock_;
+    TAdaptiveLock AddressesLock_;
 
     std::vector<TString> UpAddresses_;
     int CurrentUpAddressIndex_ = 0;
@@ -77,7 +77,7 @@ private:
     std::vector<TString> ProbationAddresses_;
     int CurrentProbationAddressIndex_ = 0;
 
-    TSpinLock ErrorsLock_;
+    TAdaptiveLock ErrorsLock_;
     std::vector<TError> Errors_;
 
     void AddError(const TError& error);

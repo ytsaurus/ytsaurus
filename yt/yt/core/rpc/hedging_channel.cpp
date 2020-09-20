@@ -189,7 +189,7 @@ private:
     std::atomic<bool> Responded_ = false;
     std::atomic<bool> PrimaryCanceled_ = false;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     SmallVector<IClientRequestControlPtr, 2> RequestControls_; // always at most 2 items
 
 
@@ -197,7 +197,7 @@ private:
     {
         SmallVector<IClientRequestControlPtr, 2> requestControls;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             RequestControls_.swap(requestControls);
         }
 
@@ -260,7 +260,7 @@ private:
             backupOptions);
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             RequestControls_.push_back(requestControl);
         }
     }

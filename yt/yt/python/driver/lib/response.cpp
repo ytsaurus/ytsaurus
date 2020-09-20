@@ -19,7 +19,7 @@ static const NLogging::TLogger Logger = DriverLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::atomic<bool> TDriverResponseHolder::ShuttingDown_ = {};
-TSpinLock TDriverResponseHolder::DestructionSpinLock_;
+TAdaptiveLock TDriverResponseHolder::DestructionSpinLock_;
 
 TDriverResponseHolder::TDriverResponseHolder()
 { }

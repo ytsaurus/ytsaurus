@@ -119,7 +119,7 @@ public:
 
         auto promise = NewPromise<IPersistentQueueRowsetPtr>();
         auto state = GetState();
-        TGuard<TSpinLock> guard(state->SpinLock);
+        TGuard<TAdaptiveLock> guard(state->SpinLock);
         state->Promises.push_back(promise);
         TryFulfillPromises(state, &guard);
         return promise;
@@ -148,7 +148,7 @@ private:
     struct TState
         : public TRefCounted
     {
-        TSpinLock SpinLock;
+        TAdaptiveLock SpinLock;
         std::deque<TPromise<IPersistentQueueRowsetPtr>> Promises;
         std::deque<TBatch> Batches;
         int BatchesRowCount = 0;
@@ -230,7 +230,7 @@ private:
     const NLogging::TLogger Logger;
     const IInvokerPtr Invoker_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     TStatePtr State_;
 
     std::vector<TPeriodicExecutorPtr> PollExecutors_;
@@ -239,7 +239,7 @@ private:
 
     TStatePtr GetState()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         return State_;
     }
 
@@ -290,7 +290,7 @@ private:
 
         auto stateRows = ReadStateTable(Client_);
 
-        TGuard<TSpinLock> guard(state->SpinLock);
+        TGuard<TAdaptiveLock> guard(state->SpinLock);
 
         for (auto& pair : state->TabletMap) {
             auto& tablet = pair.second;
@@ -348,7 +348,7 @@ private:
         }
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             if (State_) {
                 state->Promises = std::move(State_->Promises);
             }
@@ -372,7 +372,7 @@ private:
 
         auto rowLimit = Config_->MaxRowsPerFetch;
         {
-            TGuard<TSpinLock> guard(state->SpinLock);
+            TGuard<TAdaptiveLock> guard(state->SpinLock);
             if (tablet.FetchRowIndex > tablet.LastTrimmedRowIndex + Config_->MaxFetchedUntrimmedRowCount) {
                 YT_LOG_INFO("Number of fetched but trimmed rows exceeds the limit; fetching new rows suspended (TabletIndex: %v, RowCount: %v, Limit: %v)",
                     tabletIndex,
@@ -489,7 +489,7 @@ private:
         endBatch();
 
         {
-            TGuard<TSpinLock> guard(state->SpinLock);
+            TGuard<TAdaptiveLock> guard(state->SpinLock);
 
             for (const auto& batch : batches) {
                 state->Batches.push_back(batch);
@@ -518,7 +518,7 @@ private:
     }
 
 
-    void TryFulfillPromises(const TStatePtr& state, TGuard<TSpinLock>* guard)
+    void TryFulfillPromises(const TStatePtr& state, TGuard<TAdaptiveLock>* guard)
     {
         if (state->Failed) {
             return;
@@ -552,7 +552,7 @@ private:
         const TStatePtr& state,
         TBatch batch)
     {
-        TGuard<TSpinLock> guard(state->SpinLock);
+        TGuard<TAdaptiveLock> guard(state->SpinLock);
 
         if (State_ != state) {
             return;
@@ -759,7 +759,7 @@ private:
         }
 
         {
-            TGuard<TSpinLock> guard(state->SpinLock);
+            TGuard<TAdaptiveLock> guard(state->SpinLock);
             for (const auto& pair : tabletStatisticsMap) {
                 int tabletIndex = pair.first;
                 const auto& statistics = pair.second;

@@ -72,7 +72,7 @@ private:
     NConcurrency::TReaderWriterSpinLock StatisticsLock_;
     THashMap<TString, TNetworkStatistics> NetworkStatistics_;
 
-    TSpinLock PeriodicExecutorsLock_;
+    TAdaptiveLock PeriodicExecutorsLock_;
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     NConcurrency::TPeriodicExecutorPtr LivenessCheckExecutor_;
 

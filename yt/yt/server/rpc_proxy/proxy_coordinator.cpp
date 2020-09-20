@@ -48,7 +48,7 @@ private:
     std::atomic<bool> Banned_ = false;
     std::atomic<bool> Available_ = false;
 
-    TSpinLock BanSpinLock_;
+    TAdaptiveLock BanSpinLock_;
     TString BanMessage_;
 
     NTracing::TSampler Sampler_;

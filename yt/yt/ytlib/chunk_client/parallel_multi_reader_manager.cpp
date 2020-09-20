@@ -151,7 +151,7 @@ void TParallelMultiReaderManager::OnReaderReady(const TMultiReaderManagerSession
 TMultiReaderManagerUnreadState TParallelMultiReaderManager::GetUnreadState() const
 {
     TMultiReaderManagerUnreadState state;
-    TGuard<TSpinLock> guard(ActiveReadersLock_);
+    TGuard<TAdaptiveLock> guard(ActiveReadersLock_);
 
     state.CurrentReader = CurrentSession_.Reader;
     state.ActiveReaders.reserve(ActiveReaders_.size());

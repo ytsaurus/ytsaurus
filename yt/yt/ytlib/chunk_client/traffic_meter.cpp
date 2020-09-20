@@ -10,7 +10,7 @@ TTrafficMeter::TTrafficMeter(const TDataCenterName& localDataCenter)
 
 void TTrafficMeter::Start(TInstant now)
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
     StartTime_ = now;
 }
 
@@ -43,26 +43,26 @@ void TTrafficMeter::IncrementByteCount(
 
 THashMap<TDataCenterName, i64> TTrafficMeter::GetInboundByteCountBySource() const
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
     return InboundData_;
 }
 
 THashMap<TDataCenterName, i64> TTrafficMeter::GetOutboundByteCountByDestination() const
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
     return OutboundData_;
 }
 
 THashMap<TTrafficMeter::TDirection, i64> TTrafficMeter::GetByteCountByDirection() const
 
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
     return Data_;
 }
 
 TDuration TTrafficMeter::GetDuration() const
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
 
     YT_VERIFY(StartTime_ != TInstant::Zero());
 

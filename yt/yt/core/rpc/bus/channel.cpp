@@ -656,7 +656,7 @@ private:
 
         IBusPtr Bus_;
 
-        TSpinLock SpinLock_;
+        TAdaptiveLock SpinLock_;
         TError TerminationError_;
         typedef THashMap<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
         TActiveRequestMap ActiveRequestMap_;
@@ -1113,29 +1113,29 @@ private:
             return TotalTime_;
         }
 
-        bool IsActive(const TGuard<TSpinLock>&) const
+        bool IsActive(const TGuard<TAdaptiveLock>&) const
         {
             return static_cast<bool>(ResponseHandler_);
         }
 
-        void SetTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorCookie cookie)
+        void SetTimeoutCookie(const TGuard<TAdaptiveLock>&, TDelayedExecutorCookie cookie)
         {
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
             TimeoutCookie_ = std::move(cookie);
         }
 
-        void SetAcknowledgementTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorCookie cookie)
+        void SetAcknowledgementTimeoutCookie(const TGuard<TAdaptiveLock>&, TDelayedExecutorCookie cookie)
         {
             TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
             AcknowledgementTimeoutCookie_ = std::move(cookie);
         }
 
-        IClientResponseHandlerPtr GetResponseHandler(const TGuard<TSpinLock>&)
+        IClientResponseHandlerPtr GetResponseHandler(const TGuard<TAdaptiveLock>&)
         {
             return ResponseHandler_;
         }
 
-        IClientResponseHandlerPtr Finalize(const TGuard<TSpinLock>&)
+        IClientResponseHandlerPtr Finalize(const TGuard<TAdaptiveLock>&)
         {
             TotalTime_ = DoProfile(MethodMetadata_->TotalTimeCounter);
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);

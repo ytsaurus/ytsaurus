@@ -49,7 +49,7 @@ protected:
     bool Terminated_ = false;
     TInstant LastRebalance_ = TInstant::Now();
 
-    TSpinLock OpenChannelsLock_;
+    TAdaptiveLock OpenChannelsLock_;
     THashMap<TString, NRpc::IChannelPtr> OpenChannels_;
     NRpc::IChannelPtr CreateChannel(const TString& address);
     void TerminateIdleChannels();

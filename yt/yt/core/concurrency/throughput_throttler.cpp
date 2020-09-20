@@ -74,7 +74,7 @@ public:
         }
 
         // Slow lane.
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         if (!Limit_.load()) {
             return VoidFuture;
@@ -221,7 +221,7 @@ private:
     std::atomic<i64> QueueTotalCount_ = 0;
 
     //! Protects the section immediately following it.
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     // -1 indicates no limit
     std::atomic<double> Limit_;
     std::atomic<TDuration> Period_;
@@ -234,7 +234,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         // Slow lane (only).
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         Limit_ = limit.value_or(-1);
         TDelayedExecutor::CancelAndClear(UpdateCookie_);
@@ -314,14 +314,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         UpdateCookie_.Reset();
         TryUpdateAvailable();
 
         ProcessRequests(std::move(guard));
     }
 
-    void ProcessRequests(TGuard<TSpinLock> guard)
+    void ProcessRequests(TGuard<TAdaptiveLock> guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 

@@ -236,7 +236,7 @@ private:
 
     TLocationUuid Uuid_;
 
-    TSpinLock MediumDescriptorLock_;
+    TAdaptiveLock MediumDescriptorLock_;
     std::atomic<NChunkClient::TMediumDescriptor*> CurrentMediumDescriptor_ = nullptr;
     std::vector<std::unique_ptr<NChunkClient::TMediumDescriptor>> MediumDescriptors_;
 
@@ -337,7 +337,7 @@ private:
         i64 DiskSpace;
     };
 
-    TSpinLock TrashMapSpinLock_;
+    TAdaptiveLock TrashMapSpinLock_;
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
     std::atomic<i64> TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;

@@ -60,7 +60,7 @@ public:
 
         TFuture<void> result;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             for (const auto& record : records) {
                 AppendQueue_.push_back(record);
             }
@@ -76,7 +76,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         if (FlushQueue_.empty() && AppendQueue_.empty()) {
             return VoidFuture;
@@ -143,7 +143,7 @@ public:
         };
 
         while (needMore()) {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             if (currentRecordId < FlushedRecordCount_) {
                 // Read from disk, w/o spinlock.
                 guard.Release();
@@ -211,7 +211,7 @@ private:
     const IInvokerPtr Invoker_;
     const TClosure ProcessQueueCallback_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
     //! Number of records flushed to the underlying sync changelog.
     int FlushedRecordCount_ = 0;
@@ -239,7 +239,7 @@ private:
     {
         TPromise<void> flushPromise;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
 
             YT_VERIFY(FlushQueue_.empty());
             FlushQueue_.swap(AppendQueue_);
@@ -265,7 +265,7 @@ private:
         }
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             FlushedRecordCount_ += FlushQueue_.size();
             FlushQueue_.clear();
         }

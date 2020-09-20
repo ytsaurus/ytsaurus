@@ -352,7 +352,7 @@ private:
     std::atomic_flag RunLatch_ = ATOMIC_FLAG_INIT;
     bool FinalizeLatch_ = false;
 
-    TSpinLock StreamsLock_;
+    TAdaptiveLock StreamsLock_;
     TError StreamsError_;
     TAttachmentsInputStreamPtr RequestAttachmentsStream_;
     TAttachmentsOutputStreamPtr ResponseAttachmentsStream_;

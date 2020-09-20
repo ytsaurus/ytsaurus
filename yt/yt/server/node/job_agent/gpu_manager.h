@@ -81,7 +81,7 @@ private:
 
     std::vector<TString> GpuDevices_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     THashMap<int, TGpuInfo> HealthyGpuInfoMap_;
     std::vector<TGpuSlot> FreeSlots_;
     bool Disabled_ = false;

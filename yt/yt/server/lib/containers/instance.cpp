@@ -674,7 +674,7 @@ private:
     bool RequireMemoryController_ = false;
     std::optional<TString> User_;
 
-    mutable TSpinLock ContextSwitchMapLock_;
+    mutable TAdaptiveLock ContextSwitchMapLock_;
     mutable i64 TotalContextSwitches_ = 0;
     mutable THashMap<TString, i64> ContextSwitchMap_;
 

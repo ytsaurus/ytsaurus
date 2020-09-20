@@ -178,7 +178,7 @@ public:
 
 private:
     //! Guards device ids.
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     //! Set of all seen device ids.
     mutable THashSet<TString> DeviceIds_;
 

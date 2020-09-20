@@ -168,7 +168,7 @@ private:
 
     NConcurrency::EPollControl Pending_ = NConcurrency::EPollControl::Offline;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
 
     SOCKET Socket_ = INVALID_SOCKET;
 

@@ -11,13 +11,13 @@ TFuture<IChangelogStorePtr> TChangelogStoreFactoryThunk::Lock()
 
 void TChangelogStoreFactoryThunk::SetUnderlying(IChangelogStoreFactoryPtr underlying)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     Underlying_ = underlying;
 }
 
 IChangelogStoreFactoryPtr TChangelogStoreFactoryThunk::GetUnderlying()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     return Underlying_;
 }
 

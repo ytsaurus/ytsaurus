@@ -58,7 +58,7 @@ private:
         NApi::IConnectionPtr Connection;
     };
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     THashMap<NObjectClient::TCellTag, TCluster> CellTagToCluster_;
     THashMap<TString, TCluster> NameToCluster_;
 

@@ -157,7 +157,7 @@ public:
 
     IInvokerPtr GetInvoker(const TFairShareThreadPoolTag& tag)
     {
-        TGuard<TSpinLock> guard(TagMappingSpinLock_);
+        TGuard<TAdaptiveLock> guard(TagMappingSpinLock_);
 
         auto inserted = TagToBucket_.emplace(tag, nullptr).first;
         auto invoker = inserted->second.Lock();
@@ -174,7 +174,7 @@ public:
 
     void Invoke(TClosure callback, TBucket* bucket)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         QueueSize_.fetch_add(1, std::memory_order_relaxed);
 
@@ -204,7 +204,7 @@ public:
 
     void RemoveBucket(TBucket* bucket)
     {
-        TGuard<TSpinLock> guard(TagMappingSpinLock_);
+        TGuard<TAdaptiveLock> guard(TagMappingSpinLock_);
         auto it = TagToBucket_.find(bucket->Tag);
 
         if (it != TagToBucket_.end() && it->second.IsExpired()) {
@@ -221,7 +221,7 @@ public:
 
     void Drain()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         for (const auto& item : Heap_) {
             item.Bucket->Drain();
         }
@@ -239,7 +239,7 @@ public:
 
         TBucketPtr bucket;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             bucket = GetStarvingBucket(action, tscp);
 
             if (!bucket) {
@@ -312,7 +312,7 @@ public:
         // Remove outside lock because of lock inside RemoveBucket.
         TBucketPtr bucket;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             bucket = std::move(execution.Bucket);
 
             UpdateExcessTime(bucket.Get(), tscp.Instant - execution.AccountedAt);
@@ -328,13 +328,13 @@ private:
         TBucketPtr Bucket;
     };
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
     std::vector<THeapItem> Heap_;
     std::shared_ptr<TEventCount> CallbackEventCount_;
     std::vector<TExecution> CurrentlyExecutingActionsByThread_;
 
-    TSpinLock TagMappingSpinLock_;
+    TAdaptiveLock TagMappingSpinLock_;
     THashMap<TFairShareThreadPoolTag, TWeakPtr<TBucket>> TagToBucket_;
 
     std::atomic<int> QueueSize_ = {0};
@@ -381,7 +381,7 @@ private:
 
         #ifdef YT_ENABLE_TRACE_LOGGING
         {
-            TGuard<TSpinLock> guard(TagMappingSpinLock_);
+            TGuard<TAdaptiveLock> guard(TagMappingSpinLock_);
             YT_LOG_TRACE("Buckets: [%v]",
                 MakeFormattableView(
                     TagToBucket_,
@@ -544,7 +544,7 @@ public:
 
         decltype(Threads_) threads;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             std::swap(threads, Threads_);
         }
 
@@ -571,7 +571,7 @@ private:
     std::vector<TSchedulerThreadPtr> Threads_;
     std::atomic<bool> ShutdownFlag_ = {false};
     IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 };
 
 } // namespace

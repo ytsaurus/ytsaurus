@@ -250,7 +250,7 @@ public:
     virtual void Invoke(TClosure callback, i64 priority) override
     {
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             TEntry entry;
             entry.Callback = std::move(callback);
             entry.Priority = priority;
@@ -272,12 +272,12 @@ private:
         }
     };
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     std::vector<TEntry> Heap_;
 
     void DoExecute()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         std::pop_heap(Heap_.begin(), Heap_.end());
         auto callback = std::move(Heap_.back().Callback);
         Heap_.pop_back();
@@ -381,7 +381,7 @@ public:
 private:
     const int MaxConcurrentInvocations_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     TRingQueue<TClosure> Queue_;
     int Semaphore_ = 0;
 
@@ -484,7 +484,7 @@ public:
     {
         YT_VERIFY(!Suspended_.exchange(true));
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             FreeEvent_ = NewPromise<void>();
             if (ActiveInvocationCount_ == 0) {
                 FreeEvent_.Set();
@@ -497,7 +497,7 @@ public:
     {
         YT_VERIFY(Suspended_.exchange(false));
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             FreeEvent_.Reset();
         }
         ScheduleMore();
@@ -513,7 +513,7 @@ private:
     std::atomic<bool> SchedulingMore_ = {false};
     std::atomic<int> ActiveInvocationCount_ = {0};
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
     TLockFreeQueue<TClosure> Queue_;
 
@@ -563,7 +563,7 @@ private:
         YT_VERIFY(ActiveInvocationCount_ > 0);
 
         if (--ActiveInvocationCount_ == 0 && Suspended_) {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             if (FreeEvent_ && !FreeEvent_.IsSet()) {
                 auto freeEvent = FreeEvent_;
                 guard.Release();

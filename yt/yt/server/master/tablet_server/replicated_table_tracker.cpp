@@ -537,7 +537,7 @@ private:
         const NProfiling::TTagId TabletCellBundleProfilingTag_;
         NTableServer::TReplicatedTableOptionsPtr Config_;
 
-        TSpinLock Lock_;
+        TAdaptiveLock Lock_;
         std::vector<TReplicaPtr> Replicas_;
 
         TFuture<int> CheckFuture_;
@@ -545,7 +545,7 @@ private:
 
     using TTablePtr = TIntrusivePtr<TTable>;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     THashMap<TObjectId, TTablePtr> Tables_;
 
     TPeriodicExecutorPtr UpdaterExecutor_;

@@ -51,7 +51,7 @@ public:
         YT_VERIFY(threadCount > 0);
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
 
             for (int i = Threads_.size(); i < threadCount; ++i) {
                 Threads_.emplace_back(SpawnThread(i));
@@ -81,7 +81,7 @@ public:
     {
         decltype(Threads_) threads;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             threads = Threads_;
         }
 
@@ -106,7 +106,7 @@ public:
 
         decltype(Threads_) threads;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             std::swap(threads, Threads_);
         }
 
@@ -135,7 +135,7 @@ private:
     std::atomic<bool> StartFlag_ = {false};
     std::atomic<bool> ShutdownFlag_ = {false};
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;

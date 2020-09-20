@@ -494,7 +494,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(DynamicOptionsLock_);
+        TGuard<TAdaptiveLock> guard(DynamicOptionsLock_);
         return DynamicOptions_;
     }
 
@@ -502,7 +502,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(DynamicOptionsLock_);
+        TGuard<TAdaptiveLock> guard(DynamicOptionsLock_);
         DynamicOptions_ = options;
     }
 
@@ -533,7 +533,7 @@ private:
     const TDistributedHydraManagerOptions Options_;
 
     TDistributedHydraManagerDynamicOptions DynamicOptions_;
-    TSpinLock DynamicOptionsLock_;
+    TAdaptiveLock DynamicOptionsLock_;
 
     const IElectionCallbacksPtr ElectionCallbacks_;
 

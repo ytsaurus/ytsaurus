@@ -39,7 +39,7 @@ private:
     const TGroupTreePtr GroupTree_;
     const NYTree::IYPathServicePtr YPathService_;
 
-    TSpinLock ModifiedMembersLock_;
+    TAdaptiveLock ModifiedMembersLock_;
     THashSet<TMemberPtr> ModifiedMembers_;
 
     THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(const std::vector<TGroupId>& groupIds);

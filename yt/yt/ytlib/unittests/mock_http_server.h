@@ -52,7 +52,7 @@ private:
             THttpServerImpl* const Owner_;
         };
 
-        TSpinLock Lock_;
+        TAdaptiveLock Lock_;
         TCallback Callback_;
     };
 

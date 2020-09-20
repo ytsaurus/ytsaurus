@@ -357,7 +357,7 @@ private:
 
         using TTaskInfoPtr = TIntrusivePtr<TTaskInfo>;
 
-        TSpinLock QueueSpinLock_;
+        TAdaptiveLock QueueSpinLock_;
         std::deque<TTaskInfoPtr> TaskQueue_;
         std::deque<TTaskInfoPtr> FinishedTaskQueue_;
 
@@ -370,14 +370,14 @@ private:
     using TOrchidServiceManagerPtr = TIntrusivePtr<TOrchidServiceManager>;
 
     // Variables below contain per-iteration state for slot scan.
-    TSpinLock ScanSpinLock_;
+    TAdaptiveLock ScanSpinLock_;
     bool ScanForPartitioning_;
     bool ScanForCompactions_;
     std::vector<std::unique_ptr<TTask>> PartitioningCandidates_;
     std::vector<std::unique_ptr<TTask>> CompactionCandidates_;
 
     // Variables below are actually used during the scheduling.
-    TSpinLock TaskSpinLock_;
+    TAdaptiveLock TaskSpinLock_;
     std::vector<std::unique_ptr<TTask>> PartitioningTasks_; // Min-heap.
     size_t PartitioningTaskIndex_ = 0; // Heap end boundary.
     std::vector<std::unique_ptr<TTask>> CompactionTasks_; // Min-heap.
@@ -859,7 +859,7 @@ private:
         candidates->clear();
     }
 
-    void PickMorePartitionings(TGuard<TSpinLock>&)
+    void PickMorePartitionings(TGuard<TAdaptiveLock>&)
     {
         PickMoreTasks(
             &PartitioningCandidates_,
@@ -869,7 +869,7 @@ private:
             FeasiblePartitioningsCounter_);
     }
 
-    void PickMoreCompactions(TGuard<TSpinLock>&)
+    void PickMoreCompactions(TGuard<TAdaptiveLock>&)
     {
         PickMoreTasks(
             &CompactionCandidates_,

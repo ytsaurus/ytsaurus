@@ -390,7 +390,7 @@ private:
                 return;
             }
 
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
 
             if (Owner_->IsMemoryLimitExceeded()) {
                 Dropped_ = true;
@@ -445,7 +445,7 @@ private:
         const EInMemoryMode Mode_;
         const EBlockType BlockType_;
 
-        TSpinLock SpinLock_;
+        TAdaptiveLock SpinLock_;
         THashSet<TChunkId> ChunkIds_;
         bool Dropped_ = false;
     };
@@ -980,7 +980,7 @@ private:
     std::atomic<bool> Sending_ = {false};
     std::atomic<bool> Dropped_ = {false};
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
     size_t CurrentSize_ = 0;
 

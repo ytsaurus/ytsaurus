@@ -915,7 +915,7 @@ private:
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     TInstant LastScheduleJobSuccessTime_;
 
-    TSpinLock PreemptionStatusStatisticsLock_;
+    TAdaptiveLock PreemptionStatusStatisticsLock_;
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
     const NLogging::TLogger Logger;

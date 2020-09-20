@@ -61,7 +61,7 @@ struct TOperationStatistics
     TString OperationState;
     bool InTimeframe = false;
 
-    TSpinLock Lock;
+    TAdaptiveLock Lock;
 };
 
 class TSharedOperationStatistics

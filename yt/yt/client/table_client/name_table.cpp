@@ -47,25 +47,25 @@ TNameTable::TNameTable(const TNameTable& other)
 
 int TNameTable::GetSize() const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     return IdToName_.size();
 }
 
 i64 TNameTable::GetByteSize() const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     return ByteSize_;
 }
 
 void TNameTable::SetEnableColumnNameValidation()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     EnableColumnNameValidation_ = true;
 }
 
 std::optional<int> TNameTable::FindId(TStringBuf name) const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     auto it = NameToId_.find(name);
     if (it == NameToId_.end()) {
         return std::nullopt;
@@ -92,14 +92,14 @@ int TNameTable::GetId(TStringBuf name) const
 
 TStringBuf TNameTable::GetName(int id) const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     YT_VERIFY(id >= 0 && id < IdToName_.size());
     return IdToName_[id];
 }
 
 TStringBuf TNameTable::GetNameOrThrow(int id) const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (id < 0 || id >= IdToName_.size()) {
         THROW_ERROR_EXCEPTION("Invalid column requested from name table: expected in range [0, %v), got %v",
             IdToName_.size(),
@@ -110,13 +110,13 @@ TStringBuf TNameTable::GetNameOrThrow(int id) const
 
 int TNameTable::RegisterName(TStringBuf name)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     return DoRegisterName(name);
 }
 
 int TNameTable::RegisterNameOrThrow(TStringBuf name)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     auto optionalId = NameToId_.find(name);
     if (optionalId != NameToId_.end()) {
         THROW_ERROR_EXCEPTION("Cannot register column %Qv: column already exists", name);
@@ -126,7 +126,7 @@ int TNameTable::RegisterNameOrThrow(TStringBuf name)
 
 int TNameTable::GetIdOrRegisterName(TStringBuf name)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     auto it = NameToId_.find(name);
     if (it == NameToId_.end()) {
         return DoRegisterName(name);

@@ -205,7 +205,7 @@ bool TSlotManager::IsEnabled() const
         !AliveLocations_.empty() &&
         JobEnvironment_->IsEnabled();
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     return enabled && !PersistentAlert_ && !TransientAlert_;
 }
 
@@ -226,7 +226,7 @@ void TSlotManager::Disable(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
     
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
 
     if (PersistentAlert_) {
         return;
@@ -266,7 +266,7 @@ void TSlotManager::ResetTransientAlert()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     TransientAlert_ = std::nullopt;
     ConsecutiveAbortedJobCount_ = 0;
 }

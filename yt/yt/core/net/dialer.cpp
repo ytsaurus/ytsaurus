@@ -138,7 +138,7 @@ public:
 
     ~TAsyncDialerSession()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         
         Finished_ = true;
         CloseSocket();
@@ -146,7 +146,7 @@ public:
 
     virtual void Dial() override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         YT_VERIFY(!Dialed_);
         Dialed_ = true;
@@ -191,7 +191,7 @@ private:
     const TGuid Id_;
     const NLogging::TLogger Logger;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     SOCKET Socket_ = INVALID_SOCKET;
     bool Dialed_ = false;
     bool Finished_ = false;
@@ -231,7 +231,7 @@ private:
         Pollable_.Reset();
     }
 
-    void Connect(TGuard<TSpinLock>& guard)
+    void Connect(TGuard<TAdaptiveLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -279,7 +279,7 @@ private:
 
     void OnConnected(TPollable* pollable)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         if (Finished_ || pollable != Pollable_) {
             return;
@@ -309,7 +309,7 @@ private:
 
     void OnTimeout()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         if (Finished_) {
             return;

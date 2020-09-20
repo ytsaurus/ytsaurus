@@ -163,7 +163,7 @@ private:
 
         TFuture<void> Write(TRange<TSharedRef> rows)
         {
-            TGuard<TSpinLock> guard(CurrentBatchSpinLock_);
+            TGuard<TAdaptiveLock> guard(CurrentBatchSpinLock_);
 
             if (!Error_.IsOK()) {
                 return MakeFuture(Error_);
@@ -221,7 +221,7 @@ private:
 
         using TBatchPtr = TIntrusivePtr<TBatch>;
 
-        TSpinLock CurrentBatchSpinLock_;
+        TAdaptiveLock CurrentBatchSpinLock_;
         TError Error_;
         TBatchPtr CurrentBatch_;
         TDelayedExecutorCookie CurrentBatchFlushCookie_;
@@ -964,7 +964,7 @@ private:
             YT_LOG_WARNING(error, "Journal writer failed");
 
             {
-                TGuard<TSpinLock> guard(CurrentBatchSpinLock_);
+                TGuard<TAdaptiveLock> guard(CurrentBatchSpinLock_);
                 Error_ = error;
                 if (CurrentBatch_) {
                     auto promise = CurrentBatch_->FlushedPromise;
@@ -1028,7 +1028,7 @@ private:
 
         void OnBatchTimeout(const TBatchPtr& batch)
         {
-            TGuard<TSpinLock> guard(CurrentBatchSpinLock_);
+            TGuard<TAdaptiveLock> guard(CurrentBatchSpinLock_);
             if (CurrentBatch_ == batch) {
                 FlushCurrentBatch();
             }

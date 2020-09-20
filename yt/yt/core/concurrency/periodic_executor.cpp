@@ -56,7 +56,7 @@ TPeriodicExecutor::TPeriodicExecutor(
 
 void TPeriodicExecutor::Start()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
 
     if (Started_) {
         return;
@@ -70,7 +70,7 @@ void TPeriodicExecutor::Start()
     }
 }
 
-void TPeriodicExecutor::DoStop(TGuard<TSpinLock>& guard)
+void TPeriodicExecutor::DoStop(TGuard<TAdaptiveLock>& guard)
 {
     if (!Started_) {
         return;
@@ -95,7 +95,7 @@ void TPeriodicExecutor::DoStop(TGuard<TSpinLock>& guard)
 
 TFuture<void> TPeriodicExecutor::Stop()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (ExecutingCallback_) {
         InitIdlePromise();
         auto idlePromise = IdlePromise_;
@@ -140,7 +140,7 @@ void TPeriodicExecutor::InitExecutedPromise()
 
 void TPeriodicExecutor::ScheduleOutOfBand()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (!Started_)
         return;
 
@@ -182,7 +182,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
 {
     TPromise<void> executedPromise;
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         if (!Started_ || Busy_) {
             return;
         }
@@ -202,7 +202,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
     auto cleanup = [=] {
         TPromise<void> idlePromise;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             idlePromise = IdlePromise_;
             ExecutingCallback_ = false;
             ExecutionCanceler_.Reset();
@@ -216,7 +216,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
             executedPromise.TrySet();
         }
 
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         YT_VERIFY(Busy_);
         Busy_ = false;
@@ -251,7 +251,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
 
 void TPeriodicExecutor::OnCallbackFailure()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
 
     if (!Started_) {
         return;
@@ -264,7 +264,7 @@ void TPeriodicExecutor::OnCallbackFailure()
 
 void TPeriodicExecutor::SetPeriod(std::optional<TDuration> period)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
 
     // Kick-start invocations, if needed.
     if (Started_ && period && (!Period_ || *period < *Period_) && !Busy_) {
@@ -276,7 +276,7 @@ void TPeriodicExecutor::SetPeriod(std::optional<TDuration> period)
 
 TFuture<void> TPeriodicExecutor::GetExecutedEvent()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     InitExecutedPromise();
     return ExecutedPromise_.ToFuture().ToUncancelable();
 }

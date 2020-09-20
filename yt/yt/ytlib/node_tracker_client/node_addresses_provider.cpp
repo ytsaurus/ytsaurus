@@ -132,7 +132,7 @@ private:
 
     const IChannelPtr NullChannel_;
 
-    mutable TSpinLock Lock_;
+    mutable TAdaptiveLock Lock_;
     mutable bool Started_ = false;
     TPromise<IChannelPtr> ChannelPromise_ = NewPromise<IChannelPtr>();
     TError TerminationError_;

@@ -344,7 +344,7 @@ private:
         NProfiling::TShardedMonotonicCounter FailureCounter;
     };
 
-    TSpinLock CommandLock_;
+    TAdaptiveLock CommandLock_;
     THashMap<TString, TCommandEntry> CommandToEntry_;
 
     static const std::vector<TString> ContainerRequestVars_;

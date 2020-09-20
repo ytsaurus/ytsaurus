@@ -84,7 +84,7 @@ void TChunkReplicaLocator::OnChunkLocated(const TChunkServiceProxy::TErrorOrRspL
 
     TPromise<TChunkReplicaList> promise;
     {
-        TGuard<TSpinLock> guard(Lock_);
+        TGuard<TAdaptiveLock> guard(Lock_);
         Timestamp_ = TInstant::Now();
         promise = ReplicasPromise_;
     }

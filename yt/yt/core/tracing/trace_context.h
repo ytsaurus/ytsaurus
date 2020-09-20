@@ -90,7 +90,7 @@ private:
     const TTraceContextPtr ParentContext_;
     const TString SpanName_;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     NProfiling::TCpuInstant StartTime_;
     NProfiling::TCpuDuration Duration_;
     TSpanContext SpanContext_;

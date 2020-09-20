@@ -1767,7 +1767,7 @@ private:
 
     // Special map to support node consistency between node shards YT-11381.
     std::atomic<bool> HandleNodeIdChangesStrictly_;
-    TSpinLock NodeAddressToNodeShardIdLock_;
+    TAdaptiveLock NodeAddressToNodeShardIdLock_;
     THashMap<TString, int> NodeAddressToNodeShardId_;
 
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;

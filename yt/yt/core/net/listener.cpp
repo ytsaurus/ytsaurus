@@ -141,7 +141,7 @@ private:
     const IPollerPtr Poller_;
     const IPollerPtr Acceptor_;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     std::atomic<bool> Pending_ = false;
     std::deque<TPromise<IConnectionPtr>> Queue_;
     TError Error_;

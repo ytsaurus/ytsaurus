@@ -50,7 +50,7 @@ public:
 private:
     class TCancelableInvoker;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     std::atomic<bool> Canceled_ = {false};
     TError CancelationError_;
     TCallbackList<void(const TError&)> Handlers_;

@@ -513,7 +513,7 @@ private:
 
     TPromise<void> ExecutorPreparedPromise_ = NewPromise<void>();
 
-    TSpinLock StatisticsLock_;
+    TAdaptiveLock StatisticsLock_;
     TStatistics CustomStatistics_;
 
     TCoreWatcherPtr CoreWatcher_;
@@ -1053,7 +1053,7 @@ private:
 
     void AddCustomStatistics(const INodePtr& sample)
     {
-        TGuard<TSpinLock> guard(StatisticsLock_);
+        TGuard<TAdaptiveLock> guard(StatisticsLock_);
         CustomStatistics_.AddSample("/custom", sample);
 
         size_t customStatisticsCount = 0;
@@ -1083,7 +1083,7 @@ private:
     {
         TStatistics statistics;
         {
-            TGuard<TSpinLock> guard(StatisticsLock_);
+            TGuard<TAdaptiveLock> guard(StatisticsLock_);
             statistics = CustomStatistics_;
         }
 

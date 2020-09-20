@@ -83,7 +83,7 @@ private:
     const TString EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     TFuture<IChannelPtr> Channel_;
 };
 

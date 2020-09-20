@@ -81,7 +81,7 @@ void TChunkBase::AcquireReadLock()
 
     int lockCount;
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         if (RemovedFuture_) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchChunk,
@@ -103,7 +103,7 @@ void TChunkBase::ReleaseReadLock()
     bool removing = false;
     int lockCount;
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         lockCount = --ReadLockCounter_;
         YT_VERIFY(lockCount >= 0);
         if (ReadLockCounter_ == 0 && UpdateLockCounter_ == 0 && !Removing_ && RemovedFuture_) {
@@ -125,7 +125,7 @@ void TChunkBase::AcquireUpdateLock()
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         if (RemovedFuture_) {
             THROW_ERROR_EXCEPTION(
                 NChunkClient::EErrorCode::NoSuchChunk,
@@ -151,7 +151,7 @@ void TChunkBase::ReleaseUpdateLock()
 
     bool removing = false;
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         YT_VERIFY(--UpdateLockCounter_ == 0);
         if (ReadLockCounter_ == 0 && !Removing_ && RemovedFuture_) {
             removing = Removing_ = true;
@@ -175,7 +175,7 @@ TFuture<void> TChunkBase::ScheduleRemove()
 
     bool removing = false;
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         if (RemovedFuture_) {
             return RemovedFuture_;
         }
@@ -200,7 +200,7 @@ bool TChunkBase::IsRemoveScheduled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     return RemovedFuture_.operator bool();
 }
 

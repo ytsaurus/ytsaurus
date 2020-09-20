@@ -168,7 +168,7 @@ private:
 
     mutable std::atomic<TInstant> LastUpdateTime_ = {};
 
-    mutable TSpinLock SpinLock_;
+    mutable TAdaptiveLock SpinLock_;
     mutable TResourceUsage ResourceUsage_;
     mutable std::optional<TCpuStatistics> CachedCpuStatistics_;
     mutable std::optional<TMemoryStatistics> CachedMemoryStatistics_;

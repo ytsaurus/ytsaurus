@@ -35,13 +35,13 @@ class TMonitoringManager::TImpl
 public:
     void Register(const TYPath& path, TYsonProducer producer)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         YT_VERIFY(PathToProducer_.insert(std::make_pair(path, producer)).second);
     }
 
     void Unregister(const TYPath& path)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         YT_VERIFY(PathToProducer_.erase(path) == 1);
     }
 
@@ -52,7 +52,7 @@ public:
 
     void Start()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         YT_VERIFY(!Started_);
 
@@ -67,7 +67,7 @@ public:
 
     void Stop()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         if (!Started_)
             return;
@@ -100,7 +100,7 @@ private:
     TActionQueuePtr ActionQueue_ = New<TActionQueue>("Monitoring");
     TPeriodicExecutorPtr PeriodicExecutor_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     THashMap<TString, NYson::TYsonProducer> PathToProducer_;
     IMapNodePtr Root_;
 
@@ -115,7 +115,7 @@ private:
             }
 
             if (Started_) {
-                TGuard<TSpinLock> guard(SpinLock_);
+                TGuard<TAdaptiveLock> guard(SpinLock_);
                 std::swap(Root_, newRoot);
             }
         }
@@ -124,7 +124,7 @@ private:
 
     IMapNodePtr GetRoot()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         return Root_ ? Root_ : EmptyRoot;
     }
 };

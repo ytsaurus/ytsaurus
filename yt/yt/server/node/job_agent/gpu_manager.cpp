@@ -159,7 +159,7 @@ void TGpuManager::OnHealthCheck()
         std::vector<TError> newAlerts;
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
 
             auto now = TInstant::Now();
 
@@ -204,7 +204,7 @@ void TGpuManager::OnHealthCheck()
             << ex);
         HealthCheckExecutor_->Stop();
 
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         Disabled_ = true;
     }
 }

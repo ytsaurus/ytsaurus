@@ -194,7 +194,7 @@ void TMasterConnector::RegisterAlert(const TError& alert)
     YT_LOG_WARNING(alert, "Static alert registered");
 
     {
-        TGuard<TSpinLock> guard(AlertsLock_);
+        TGuard<TAdaptiveLock> guard(AlertsLock_);
         StaticAlerts_.push_back(alert);
     }
 }
@@ -211,7 +211,7 @@ std::vector<TError> TMasterConnector::GetAlerts()
     }
 
     {
-        TGuard<TSpinLock> guard(AlertsLock_);
+        TGuard<TAdaptiveLock> guard(AlertsLock_);
         alerts.insert(alerts.end(), StaticAlerts_.begin(), StaticAlerts_.end());
     }
 
@@ -229,7 +229,7 @@ TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    TGuard<TAdaptiveLock> guard(LocalDescriptorLock_);
     return LocalDescriptor_;
 }
 
@@ -1260,7 +1260,7 @@ void TMasterConnector::UpdateRack(const std::optional<TString>& rack)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    TGuard<TAdaptiveLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         rack,
@@ -1272,7 +1272,7 @@ void TMasterConnector::UpdateDataCenter(const std::optional<TString>& dc)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    TGuard<TAdaptiveLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         LocalDescriptor_.GetRack(),
@@ -1282,7 +1282,7 @@ void TMasterConnector::UpdateDataCenter(const std::optional<TString>& dc)
 
 void TMasterConnector::UpdateTags(std::vector<TString> tags)
 {
-    TGuard<TSpinLock> guard(LocalDescriptorLock_);
+    TGuard<TAdaptiveLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
         LocalDescriptor_.GetRack(),

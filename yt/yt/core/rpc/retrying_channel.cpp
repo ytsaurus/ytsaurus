@@ -117,7 +117,7 @@ private:
 
                 SmallVector<IClientRequestControlPtr, 2> toCancelList;
 
-                TGuard<TSpinLock> guard(SpinLock_);
+                TGuard<TAdaptiveLock> guard(SpinLock_);
 
                 if (Underlying_) {
                     toCancelList.push_back(std::move(Underlying_));
@@ -141,7 +141,7 @@ private:
                 VERIFY_THREAD_AFFINITY_ANY();
 
                 IClientRequestControlPtr toCancel;
-                TGuard<TSpinLock> guard(SpinLock_);
+                TGuard<TAdaptiveLock> guard(SpinLock_);
 
                 Canceled_ = true;
                 toCancel = std::move(Underlying_);
@@ -168,7 +168,7 @@ private:
             }
 
         private:
-            TSpinLock SpinLock_;
+            TAdaptiveLock SpinLock_;
             bool Canceled_ = false;
             IClientRequestControlPtr Underlying_;
 

@@ -98,7 +98,7 @@ private:
         NProfiling::TShardedMonotonicCounter BytesOut;
         NProfiling::TShardedAggregateGauge RequestDuration;
 
-        TSpinLock Lock;
+        TAdaptiveLock Lock;
         THashMap<NHttp::EStatusCode, NProfiling::TShardedMonotonicCounter> HttpCodes;
         THashMap<TErrorCode, NProfiling::TShardedMonotonicCounter> ApiErrors;
     };
@@ -108,7 +108,7 @@ private:
     NConcurrency::TReaderWriterSpinLock CountersLock_;
     THashMap<TUserCommandPair, std::unique_ptr<TProfilingCounters>> Counters_;
 
-    TSpinLock HttpCodesLock_;
+    TAdaptiveLock HttpCodesLock_;
     THashMap<NHttp::EStatusCode, NProfiling::TShardedMonotonicCounter> HttpCodes_;
 
     TProfilingCounters* GetProfilingCounters(const TUserCommandPair& key);
