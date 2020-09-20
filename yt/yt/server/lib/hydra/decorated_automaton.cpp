@@ -446,13 +446,13 @@ public:
 
     void Suspend()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         SuspendedPromise_ = NewPromise<void>();
     }
 
     void ResumeAsAsync(IAsyncOutputStreamPtr underlyingStream)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         auto suspendedPromise = SuspendedPromise_;
         SuspendedPromise_.Reset();
         UnderlyingStream_ = CreateZeroCopyAdapter(underlyingStream);
@@ -466,7 +466,7 @@ public:
 
     void Abort()
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         auto suspendedPromise = SuspendedPromise_;
         guard.Release();
 
@@ -477,7 +477,7 @@ public:
 
     virtual TFuture<void> Close() override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         return LastForwardResult_;
     }
 
@@ -487,7 +487,7 @@ public:
         struct TBlockTag { };
         auto blockCopy = TSharedRef::MakeCopy<TBlockTag>(block);
 
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         if (UnderlyingStream_) {
             YT_LOG_TRACE("Got async snapshot block (Size: %v)", blockCopy.Size());
             AsyncSize_ += block.Size();
@@ -515,7 +515,7 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     TPromise<void> SuspendedPromise_;
     i64 SyncSize_ = 0;
     i64 AsyncSize_ = 0;

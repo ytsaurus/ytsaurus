@@ -22,7 +22,7 @@ public:
     TFuture<T> Dequeue();
 
 private:
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
     std::queue<TErrorOr<T>> ValueQueue_;
     std::queue<TPromise<T>> PromiseQueue_;

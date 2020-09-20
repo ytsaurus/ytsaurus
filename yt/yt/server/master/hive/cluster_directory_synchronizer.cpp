@@ -89,7 +89,7 @@ private:
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     const TClusterDirectorySynchronizerConfigPtr Config_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     bool Started_ = false;
     bool Stopped_= false;
     TPromise<void> SyncPromise_ = NewPromise<void>();

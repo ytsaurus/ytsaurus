@@ -31,7 +31,7 @@ static const auto& Logger = HiveClientLogger;
 
 IConnectionPtr TClusterDirectory::FindConnection(TCellTag cellTag) const
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
     auto it = CellTagToCluster_.find(cellTag);
     return it == CellTagToCluster_.end() ? nullptr : it->second.Connection;
 }
@@ -47,7 +47,7 @@ IConnectionPtr TClusterDirectory::GetConnectionOrThrow(TCellTag cellTag) const
 
 IConnectionPtr TClusterDirectory::FindConnection(const TString& clusterName) const
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
     auto it = NameToCluster_.find(clusterName);
     return it == NameToCluster_.end() ? nullptr : it->second.Connection;
 }
@@ -63,13 +63,13 @@ IConnectionPtr TClusterDirectory::GetConnectionOrThrow(const TString& clusterNam
 
 std::vector<TString> TClusterDirectory::GetClusterNames() const
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
     return GetKeys(NameToCluster_);
 }
 
 void TClusterDirectory::RemoveCluster(const TString& name)
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
     auto it = NameToCluster_.find(name);
     if (it == NameToCluster_.end()) {
         return;
@@ -85,7 +85,7 @@ void TClusterDirectory::RemoveCluster(const TString& name)
 
 void TClusterDirectory::Clear()
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TGuard<TAdaptiveLock> guard(Lock_);
     CellTagToCluster_.clear();
     NameToCluster_.clear();
 }
@@ -104,14 +104,14 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr config)
     auto it = NameToCluster_.find(name);
     if (it == NameToCluster_.end()) {
         auto cluster = CreateCluster(name, config);
-        TGuard<TSpinLock> guard(Lock_);
+        TGuard<TAdaptiveLock> guard(Lock_);
         addNewCluster(cluster);
         YT_LOG_DEBUG("Remote cluster registered (Name: %v, CellTag: %v)",
             name,
             cluster.Connection->GetCellTag());
     } else if (!AreNodesEqual(it->second.Config, config)) {
         auto cluster = CreateCluster(name, config);
-        TGuard<TSpinLock> guard(Lock_);
+        TGuard<TAdaptiveLock> guard(Lock_);
         it->second.Connection->Terminate();
         CellTagToCluster_.erase(GetCellTag(it->second));
         NameToCluster_.erase(it);

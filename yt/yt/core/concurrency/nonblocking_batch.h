@@ -45,7 +45,7 @@ private:
     const int MaxBatchSize_;
     const TDuration BatchDuration_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     TBatch CurrentBatch_;
     ETimerState TimerState_ = ETimerState::Initial;
     std::queue<TBatch> Batches_;
@@ -53,11 +53,11 @@ private:
     TDelayedExecutorCookie BatchFlushCookie_;
     ui64 FlushGeneration_ = 0;
 
-    void ResetTimer(TGuard<TSpinLock>& guard);
-    void StartTimer(TGuard<TSpinLock>& guard);
-    bool IsFlushNeeded(TGuard<TSpinLock>& guard) const;
-    void CheckFlush(TGuard<TSpinLock>& guard);
-    void CheckReturn(TGuard<TSpinLock>& guard);
+    void ResetTimer(TGuard<TAdaptiveLock>& guard);
+    void StartTimer(TGuard<TAdaptiveLock>& guard);
+    bool IsFlushNeeded(TGuard<TAdaptiveLock>& guard) const;
+    void CheckFlush(TGuard<TAdaptiveLock>& guard);
+    void CheckReturn(TGuard<TAdaptiveLock>& guard);
     void OnBatchTimeout(ui64 generation);
 };
 

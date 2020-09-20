@@ -97,7 +97,7 @@ private:
 
     TInstant StartTime_;
 
-    mutable TSpinLock PhaseLock_;
+    mutable TAdaptiveLock PhaseLock_;
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
     TInstant LastPhaseTime_;
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);

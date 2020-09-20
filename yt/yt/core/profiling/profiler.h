@@ -146,7 +146,7 @@ protected:
 
     std::unique_ptr<TDynamicData> DynamicData_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
     struct TStats
     {

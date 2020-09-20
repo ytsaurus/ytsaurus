@@ -673,7 +673,7 @@ private:
         }
     };
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     TIODirection ReadDirection_;
     TIODirection WriteDirection_;
     bool ShutdownRequested_ = false;

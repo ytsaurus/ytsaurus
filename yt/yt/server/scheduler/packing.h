@@ -66,7 +66,7 @@ public:
         const TFairShareStrategyPackingConfigPtr& config) const;
 
 private:
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     std::deque<TPackingHeartbeatSnapshot> WindowOfHeartbeats_;
 };
 

@@ -152,7 +152,7 @@ private:
     std::vector<TTransactionId> UnconfirmedTransactions_;
     TTimestamp LastCommitTimestamp_ = MinTimestamp;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     std::map<TTimestamp, TPromise<void>> SharedQueue_;
 
 

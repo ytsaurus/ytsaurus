@@ -129,7 +129,7 @@ protected:
     virtual void LogResponse() = 0;
 
 private:
-    mutable TSpinLock ResponseLock_;
+    mutable TAdaptiveLock ResponseLock_;
     TSharedRefArray ResponseMessage_; // cached
     mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand
 

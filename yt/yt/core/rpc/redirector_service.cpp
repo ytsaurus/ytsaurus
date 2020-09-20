@@ -311,7 +311,7 @@ public:
 
         IClientRequestControlPtr existingRequestControl;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             // NB: We're OK with duplicate request ids.
             auto [it, inserted] = ActiveRequestMap_.emplace(requestId, requestControlThunk);
             if (!inserted) {
@@ -334,7 +334,7 @@ public:
 
     virtual void HandleRequestCancelation(TRequestId requestId) override
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         auto it = ActiveRequestMap_.find(requestId);
         if (it == ActiveRequestMap_.end()) {
             YT_LOG_DEBUG("Attempt to cancel an unknown request, ignored (RequestId: %v)",
@@ -384,7 +384,7 @@ private:
     const TServiceId ServiceId_;
     const IChannelPtr SinkChannel_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     THashMap<TRequestId, IClientRequestControlPtr> ActiveRequestMap_;
 
 
@@ -394,7 +394,7 @@ private:
         TSharedRefArray message)
     {
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             // NB: We're OK with duplicate request ids.
             ActiveRequestMap_.erase(requestId);
         }

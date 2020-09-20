@@ -443,7 +443,7 @@ private:
 
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
-    TSpinLock OperationsArchiveChannelsLock_;
+    TAdaptiveLock OperationsArchiveChannelsLock_;
     std::optional<TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr>> OperationsArchiveChannels_;
     NNodeTrackerClient::INodeChannelFactoryPtr ChannelFactory_;
     NTransactionClient::TTransactionManagerPtr TransactionManager_;

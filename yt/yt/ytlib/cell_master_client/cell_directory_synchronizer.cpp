@@ -78,7 +78,7 @@ private:
 
     const TPeriodicExecutorPtr SyncExecutor_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     bool Started_ = false;
     bool Stopped_= false;
     TPromise<void> NextSyncPromise_ = NewPromise<void>();

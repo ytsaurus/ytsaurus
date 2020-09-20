@@ -498,7 +498,7 @@ void TFollowerRecovery::DoRun()
     while (true) {
         TVersion committedVersion;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             committedVersion = CommittedVersion_;
         }
 
@@ -506,7 +506,7 @@ void TFollowerRecovery::DoRun()
 
         decltype(PostponedActions_) postponedActions;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             postponedActions.swap(PostponedActions_);
             if (postponedActions.empty() && !DecoratedAutomaton_->HasReadyMutations()) {
                 YT_LOG_INFO("No more postponed actions accepted");
@@ -537,7 +537,7 @@ bool TFollowerRecovery::PostponeChangelogRotation(TVersion version)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
 
     if (NoMorePostponedActions_) {
         return false;
@@ -572,7 +572,7 @@ bool TFollowerRecovery::PostponeMutations(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
 
     if (NoMorePostponedActions_) {
         return false;
@@ -608,7 +608,7 @@ void TFollowerRecovery::SetCommittedVersion(TVersion version)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
 
     CommittedVersion_ = std::max(CommittedVersion_, version);
 }

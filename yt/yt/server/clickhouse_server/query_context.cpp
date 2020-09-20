@@ -148,7 +148,7 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
         return;
     }
 
-    TGuard<TSpinLock> readerGuard(PhaseLock_);
+    TGuard<TAdaptiveLock> readerGuard(PhaseLock_);
 
     if (nextPhase <= QueryPhase_.load()) {
         return;

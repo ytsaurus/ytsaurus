@@ -166,7 +166,7 @@ bool TFutureState<void>::TrySetError(const TError& error)
     return TrySet(error);
 }
 
-bool TFutureState<void>::DoUnsubscribe(TFutureCallbackCookie cookie, TGuard<TSpinLock>* guard)
+bool TFutureState<void>::DoUnsubscribe(TFutureCallbackCookie cookie, TGuard<TAdaptiveLock>* guard)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     return VoidResultHandlers_.TryRemove(cookie, guard);

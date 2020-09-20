@@ -57,7 +57,7 @@ void TCancelableContext::Cancel(const TError& error)
     THashSet<TWeakPtr<TCancelableContext>> propagateToContexts;
     THashSet<TFuture<void>> propagateToFutures;
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         if (Canceled_) {
             return;
         }
@@ -88,7 +88,7 @@ IInvokerPtr TCancelableContext::CreateInvoker(IInvokerPtr underlyingInvoker)
 
 void TCancelableContext::SubscribeCanceled(const TCallback<void(const TError&)>& callback)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (Canceled_) {
         guard.Release();
         callback.Run(CancelationError_);
@@ -107,7 +107,7 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
     auto weakContext = MakeWeak(context);
 
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         if (Canceled_) {
             guard.Release();
             context->Cancel(CancelationError_);
@@ -118,7 +118,7 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
 
     context->SubscribeCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError& /*error*/) {
         if (auto this_ = weakThis.Lock()) {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             PropagateToContexts_.erase(context);
         }
     }));
@@ -127,7 +127,7 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
 void TCancelableContext::PropagateTo(const TFuture<void>& future)
 {
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         if (Canceled_) {
             guard.Release();
             future.Cancel(CancelationError_);
@@ -139,7 +139,7 @@ void TCancelableContext::PropagateTo(const TFuture<void>& future)
 
     future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError&) {
         if (auto this_ = weakThis.Lock()) {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             PropagateToFutures_.erase(future);
         }
     }));

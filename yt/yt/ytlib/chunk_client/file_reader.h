@@ -74,7 +74,7 @@ private:
     const bool ValidateBlockChecksums_;
     IBlocksExtCache* const BlocksExtCache_;
 
-    TSpinLock DataFileLock_;
+    TAdaptiveLock DataFileLock_;
     TFuture<std::shared_ptr<TFileHandle>> AsyncDataFile_;
 
     TFuture<std::vector<TBlock>> DoReadBlocks(

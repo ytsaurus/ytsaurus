@@ -47,7 +47,7 @@ public:
     virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override;
 
 private:
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
     bool Canceled_ = false;
 

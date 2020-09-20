@@ -74,7 +74,7 @@ public:
         return cookie;
     }
 
-    bool TryRemove(TFutureCallbackCookie cookie, TGuard<TSpinLock>* guard)
+    bool TryRemove(TFutureCallbackCookie cookie, TGuard<TAdaptiveLock>* guard)
     {
         if (!IsValidCookie(cookie)) {
             return false;
@@ -308,7 +308,7 @@ protected:
     std::atomic<int> FutureRefCount_;
 
     //! Protects the following section of members.
-    mutable TSpinLock SpinLock_;
+    mutable TAdaptiveLock SpinLock_;
     std::atomic<bool> Canceled_ = false;
     TError CancelationError_;
     std::atomic<bool> Set_;
@@ -347,7 +347,7 @@ protected:
         NConcurrency::TEvent* readyEvent = nullptr;
         bool canceled;
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             YT_ASSERT(!AbandonedUnset_);
             if (MustSet && !Canceled_) {
                 YT_VERIFY(!Set_);
@@ -384,7 +384,7 @@ protected:
         });
     }
 
-    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, TGuard<TSpinLock>* guard);
+    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, TGuard<TAdaptiveLock>* guard);
 
     void WaitUntilSet() const;
     bool CheckIfSet() const;
@@ -492,7 +492,7 @@ private:
         Result_ = error;
     }
 
-    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, TGuard<TSpinLock>* guard) override
+    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, TGuard<TAdaptiveLock>* guard) override
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
         return
@@ -1785,7 +1785,7 @@ private:
     const TFutureCombinerOptions Options_;
     const TPromise<T> Promise_ = NewPromise<T>();
 
-    TSpinLock ErrorsLock_;
+    TAdaptiveLock ErrorsLock_;
     std::vector<TError> Errors_;
 
     void OnFutureSet(const TErrorOr<T>& result)
@@ -1965,7 +1965,7 @@ private:
 
     std::atomic<int> ResponseCount_ = 0;
 
-    TSpinLock ErrorsLock_;
+    TAdaptiveLock ErrorsLock_;
     std::vector<TError> Errors_;
 
     void OnFutureSet(int /*index*/, const TErrorOr<T>& result)

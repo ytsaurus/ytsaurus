@@ -28,7 +28,7 @@ private:
     NConcurrency::IFlushableAsyncOutputStreamPtr Underlying_;
     TFuture<void> PendingOperationFuture_ = VoidFuture;
     bool Closed_ = false;
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
 private:
     TFuture<void> DoWriteFrame(TString header, const std::optional<TSharedRef>& frame);

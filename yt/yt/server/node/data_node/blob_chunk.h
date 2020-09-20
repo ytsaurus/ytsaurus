@@ -86,7 +86,7 @@ private:
     NConcurrency::TReaderWriterSpinLock BlocksExtLock_;
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
 
-    TSpinLock CachedReaderSpinLock_;
+    TAdaptiveLock CachedReaderSpinLock_;
     TWeakPtr<NChunkClient::TFileReader> CachedWeakReader_;
 
     //! Returns true if location must be disabled.

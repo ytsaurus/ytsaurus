@@ -399,7 +399,7 @@ private:
 
     std::atomic<int> LayerImportsInProgress_ = 0;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
 
@@ -1063,7 +1063,7 @@ public:
             .Item("cached_layer_count").Value(GetSize())
             .Item("tmpfs_cache").DoMap([&] (auto fluentMap) {
                 auto guard1 = Guard(TmpfsCacheDataSpinLock_);
-                auto guard2 = Guard(TmpfsCacheAlertSpinLock_);
+                auto guard2 = Guard(TmpfsCacheAlerTAdaptiveLock_);
                 fluentMap
                     .Item("layer_count").Value(CachedTmpfsLayers_.size())
                     .Item("alert").Value(TmpfsCacheAlert_);
@@ -1079,11 +1079,11 @@ private:
 
     THashMap<TYPath, TFetchedArtifactKey> CachedLayerDescriptors_;
 
-    TSpinLock TmpfsCacheDataSpinLock_;
+    TAdaptiveLock TmpfsCacheDataSpinLock_;
     THashMap<TArtifactKey, TLayerPtr> CachedTmpfsLayers_;
     TPeriodicExecutorPtr UpdateTmpfsLayersExecutor_;
 
-    TSpinLock TmpfsCacheAlertSpinLock_;
+    TAdaptiveLock TmpfsCacheAlerTAdaptiveLock_;
     TError TmpfsCacheAlert_;
 
     IPortoExecutorPtr TmpfsPortoExecutor_;
@@ -1397,7 +1397,7 @@ private:
 
     void SetTmpfsAlert(const TError& error)
     {
-        auto guard = Guard(TmpfsCacheAlertSpinLock_);
+        auto guard = Guard(TmpfsCacheAlerTAdaptiveLock_);
         if (error.IsOK() && !TmpfsCacheAlert_.IsOK()) {
             YT_LOG_INFO("Tmpfs layer cache alert reset");
         } else if (!error.IsOK()) {
@@ -1409,7 +1409,7 @@ private:
 
     void PopulateTmpfsAlert(std::vector<TError>* errors)
     {
-        auto guard = Guard(TmpfsCacheAlertSpinLock_);
+        auto guard = Guard(TmpfsCacheAlerTAdaptiveLock_);
         if (!TmpfsCacheAlert_.IsOK()) {
             errors->push_back(TmpfsCacheAlert_);
         }
@@ -1508,7 +1508,7 @@ private:
     const TPortoVolumeManagerPtr Owner_;
     const TLayerLocationPtr Location_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     std::vector<TLayerPtr> Layers_;
 
     int ActiveCount_= 1;
@@ -1523,7 +1523,7 @@ private:
         }
     }
 
-    void ReleaseLayers(TGuard<TSpinLock>&& guard)
+    void ReleaseLayers(TGuard<TAdaptiveLock>&& guard)
     {
         std::vector<TLayerPtr> layers;
         std::swap(layers, Layers_);

@@ -58,7 +58,7 @@ protected:
 
     std::atomic<int> Version_ = 0;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     TFuture<void> RemovedFuture_;  // if not null then remove is scheduled
     TPromise<void> RemovedPromise_;
     int ReadLockCounter_ = 0;

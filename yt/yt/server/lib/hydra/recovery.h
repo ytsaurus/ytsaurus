@@ -153,7 +153,7 @@ private:
 
     using TPostponedAction = std::variant<TPostponedMutation, TPostponedChangelogRotation>;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     std::vector<TPostponedAction> PostponedActions_;
     bool NoMorePostponedActions_ = false;
     TVersion PostponedVersion_;

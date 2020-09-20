@@ -101,7 +101,7 @@ private:
     std::atomic<bool> Canceled_ = {false};
     std::atomic<size_t> Epoch_ = {0};
 
-    mutable TSpinLock SpinLock_;
+    mutable TAdaptiveLock SpinLock_;
     TError CancelationError_;
     TFiberCanceler Canceler_;
     TFuture<void> Future_;

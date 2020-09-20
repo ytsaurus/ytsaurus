@@ -69,7 +69,7 @@ private:
     const NLogging::TLogger Logger;
     const TPeriodicExecutorPtr SyncExecutor_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     bool Started_ = false;
     bool Stopped_= false;
     TPromise<void> SyncPromise_ = NewPromise<void>();

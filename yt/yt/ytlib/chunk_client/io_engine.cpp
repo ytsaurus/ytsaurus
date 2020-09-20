@@ -366,10 +366,10 @@ private:
     const bool UseDirectIO_;
     const i64 Alignment_ = 4_KB;
 
-    TSpinLock ReadWaitSpinLock_;
+    TAdaptiveLock ReadWaiTAdaptiveLock_;
     std::optional<TInstant> SickReadWaitStart_;
 
-    TSpinLock WriteWaitSpinLock_;
+    TAdaptiveLock WriteWaiTAdaptiveLock_;
     std::optional<TInstant> SickWriteWaitStart_;
 
     std::atomic<bool> Sick_ = false;
@@ -532,7 +532,7 @@ private:
         if (Config_->SickWriteTimeThreshold && Config_->SickWriteTimeWindow && Config_->SicknessExpirationTimeout && !Sick_) {
             if (duration > *Config_->SickWriteTimeThreshold) {
                 auto now = GetInstant();
-                auto guard = Guard(WriteWaitSpinLock_);
+                auto guard = Guard(WriteWaiTAdaptiveLock_);
                 if (!SickWriteWaitStart_) {
                     SickWriteWaitStart_ = now;
                 } else if (now - *SickWriteWaitStart_ > *Config_->SickWriteTimeWindow) {
@@ -542,7 +542,7 @@ private:
                     SetSickFlag(error);
                 }
             } else {
-                auto guard = Guard(WriteWaitSpinLock_);
+                auto guard = Guard(WriteWaiTAdaptiveLock_);
                 SickWriteWaitStart_.reset();
             }
         }
@@ -555,7 +555,7 @@ private:
         if (Config_->SickReadTimeThreshold && Config_->SickReadTimeWindow && Config_->SicknessExpirationTimeout && !Sick_) {
             if (duration > *Config_->SickReadTimeThreshold) {
                 auto now = GetInstant();
-                auto guard = Guard(ReadWaitSpinLock_);
+                auto guard = Guard(ReadWaiTAdaptiveLock_);
                 if (!SickReadWaitStart_) {
                     SickReadWaitStart_ = now;
                 } else if (now - *SickReadWaitStart_ > *Config_->SickReadTimeWindow) {
@@ -565,7 +565,7 @@ private:
                     SetSickFlag(error);
                 }
             } else {
-                auto guard = Guard(ReadWaitSpinLock_);
+                auto guard = Guard(ReadWaiTAdaptiveLock_);
                 SickReadWaitStart_.reset();
             }
         }
@@ -589,12 +589,12 @@ private:
     void ResetSickFlag()
     {
         {
-            auto guard = Guard(WriteWaitSpinLock_);
+            auto guard = Guard(WriteWaiTAdaptiveLock_);
             SickWriteWaitStart_.reset();
         }
 
         {
-            auto guard = Guard(ReadWaitSpinLock_);
+            auto guard = Guard(ReadWaiTAdaptiveLock_);
             SickReadWaitStart_.reset();
         }
 

@@ -165,7 +165,7 @@ private:
 
     std::vector<TPendingMutation> PendingMutations_;
 
-    TSpinLock BatchSpinLock_;
+    TAdaptiveLock BatchSpinLock_;
     TBatchPtr CurrentBatch_;
     TFuture<void> PrevBatchQuorumFlushResult_ = VoidFuture;
     NConcurrency::TDelayedExecutorCookie BatchTimeoutCookie_;

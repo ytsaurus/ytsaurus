@@ -40,7 +40,7 @@ private:
         bool operator() (const TInternedObjectData<T>* lhs, const T& rhs) const;
     };
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
 
     using TRegistrySet = THashSet<TInternedObjectData<T>*, THash, TEqual>;
     TRegistrySet Registry_;

@@ -51,7 +51,7 @@ private:
 
     const int EntryCountLimit_;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     SmallVector<TBlockPeerEntry, TypicalPeerCount * 2> Entries_;
 };
 

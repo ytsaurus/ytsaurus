@@ -27,7 +27,7 @@ private:
     std::vector<TPromise<void>> ReaderPromiseQueue_;
     std::queue<TPromise<void>> WriterPromiseQueue_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

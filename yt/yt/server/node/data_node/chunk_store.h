@@ -143,7 +143,7 @@ private:
         std::multimap<TInstant, NChunkClient::TPlacementId>::iterator DeadlineIterator;
     };
 
-    TSpinLock PlacementLock_;
+    TAdaptiveLock PlacementLock_;
     THashMap<NChunkClient::TPlacementId, TPlacementInfo> PlacementIdToInfo_;
     std::multimap<TInstant, NChunkClient::TPlacementId> DeadlineToPlacementId_;
 

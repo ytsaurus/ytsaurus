@@ -94,7 +94,7 @@ private:
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
     bool Initialized_ = false;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     TProxyEntryPtr Self_;
     TDynamicConfigPtr DynamicConfig_;
     NTracing::TSampler Sampler_;

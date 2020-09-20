@@ -120,7 +120,7 @@ protected:
     const IPollerPtr Poller_;
     const IMessageHandlerPtr Handler_;
 
-    TSpinLock ControlSpinLock_;
+    TAdaptiveLock ControlSpinLock_;
     int ServerSocket_ = INVALID_SOCKET;
 
     TReaderWriterSpinLock ConnectionsSpinLock_;
@@ -435,7 +435,7 @@ public:
 private:
     const TTcpBusServerConfigPtr Config_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     TIntrusivePtr<TServer> Server_;
 
 };

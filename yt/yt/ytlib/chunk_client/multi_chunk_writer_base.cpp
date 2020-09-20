@@ -111,7 +111,7 @@ TNodeDirectoryPtr TNontemplateMultiChunkWriterBase::GetNodeDirectory() const
 
 TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     auto result = DataStatistics_;
     if (CurrentSession_.IsActive()) {
         result += CurrentSession_.TemplateWriter->GetDataStatistics();
@@ -121,7 +121,7 @@ TDataStatistics TNontemplateMultiChunkWriterBase::GetDataStatistics() const
 
 TCodecStatistics TNontemplateMultiChunkWriterBase::GetCompressionStatistics() const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     auto result = CodecStatistics;
     if (CurrentSession_.IsActive()) {
         result += CurrentSession_.TemplateWriter->GetCompressionStatistics();
@@ -168,7 +168,7 @@ void TNontemplateMultiChunkWriterBase::FinishSession()
     *chunkSpec.mutable_chunk_meta() = CurrentSession_.TemplateWriter->GetNodeMeta();
     WrittenChunksFullMeta_.push_back(chunkSpec);
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     DataStatistics_ += CurrentSession_.TemplateWriter->GetDataStatistics();
     CodecStatistics += CurrentSession_.TemplateWriter->GetCompressionStatistics();
     CurrentSession_.Reset();

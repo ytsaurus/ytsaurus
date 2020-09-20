@@ -854,7 +854,7 @@ public:
 
     virtual TShardedAggregateGauge& GetProfilingCounter(const TString& name) override
     {
-        TGuard<TSpinLock> guard(CustomProfilingCountersLock_);
+        TGuard<TAdaptiveLock> guard(CustomProfilingCountersLock_);
 
         auto it = CustomProfilingCounters_.find(name);
         if (it == CustomProfilingCounters_.end()) {
@@ -1106,7 +1106,7 @@ private:
     mutable TShardedAggregateGauge FairShareTextLogTimeCounter_;
     mutable TShardedAggregateGauge AnalyzePreemptableJobsTimeCounter_;
 
-    TSpinLock CustomProfilingCountersLock_;
+    TAdaptiveLock CustomProfilingCountersLock_;
     THashMap<TString, std::unique_ptr<TShardedAggregateGauge>> CustomProfilingCounters_;
 
     TCpuInstant LastSchedulingInformationLoggedTime_ = 0;

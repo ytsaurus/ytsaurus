@@ -47,8 +47,8 @@ public:
     void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {});
 
 private:
-    TSpinLock SpinLock_;
-    TSpinLock PoolMapSpinLock_;
+    TAdaptiveLock SpinLock_;
+    TAdaptiveLock PoolMapSpinLock_;
 
     i64 TotalLimit_;
 

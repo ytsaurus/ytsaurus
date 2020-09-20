@@ -70,7 +70,7 @@ public:
 private:
     using TBuckets = std::vector<TRingQueue<TClosure>>;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
 
     TBuckets Buckets_;
     std::vector<TCpuDuration> ExcessTimes_;

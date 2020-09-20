@@ -85,7 +85,7 @@ protected:
 
     struct TInvocationOrder
     {
-        TSpinLock Lock_;
+        TAdaptiveLock Lock_;
         std::vector<int> InvokerIndexes_;
     } InvocationOrder_;
 

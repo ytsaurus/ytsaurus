@@ -42,7 +42,7 @@ private:
     // Values are set from ActionQueue_ and are read from control invoker,
     // hence access them under spin lock.
     std::vector<bool> LastResult_;
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
 
     void ExecuteQuery(const TString& query);
     void ExecuteQueries();

@@ -41,7 +41,7 @@ private:
     const NRpc::IChannelPtr Channel_;
     const NLogging::TLogger Logger;
 
-    TSpinLock Lock_;
+    TAdaptiveLock Lock_;
     TInstant Timestamp_;
     TPromise<TChunkReplicaList> ReplicasPromise_;
 

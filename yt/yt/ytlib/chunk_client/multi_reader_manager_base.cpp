@@ -79,7 +79,7 @@ TMultiReaderManagerSession& TMultiReaderManagerBase::GetCurrentSession()
 
 TDataStatistics TMultiReaderManagerBase::GetDataStatistics() const
 {
-    TGuard<TSpinLock> guard(ActiveReadersLock_);
+    TGuard<TAdaptiveLock> guard(ActiveReadersLock_);
     auto dataStatistics = DataStatistics_;
     for (const auto& reader : ActiveReaders_) {
         dataStatistics += reader->GetDataStatistics();
@@ -89,7 +89,7 @@ TDataStatistics TMultiReaderManagerBase::GetDataStatistics() const
 
 TCodecStatistics TMultiReaderManagerBase::GetDecompressionStatistics() const
 {
-    TGuard<TSpinLock> guard(ActiveReadersLock_);
+    TGuard<TAdaptiveLock> guard(ActiveReadersLock_);
     auto result = DecompressionStatistics_;
     for (const auto& reader : ActiveReaders_) {
         result += reader->GetDecompressionStatistics();
@@ -110,7 +110,7 @@ NTableClient::TTimingStatistics TMultiReaderManagerBase::GetTimingStatistics() c
 bool TMultiReaderManagerBase::IsFetchingCompleted() const
 {
     if (OpenedReaderCount_ == ReaderFactories_.size()) {
-        TGuard<TSpinLock> guard(ActiveReadersLock_);
+        TGuard<TAdaptiveLock> guard(ActiveReadersLock_);
         for (const auto& reader : ActiveReaders_) {
             if (!reader->IsFetchingCompleted()) {
                 return false;
@@ -122,13 +122,13 @@ bool TMultiReaderManagerBase::IsFetchingCompleted() const
 
 std::vector<TChunkId> TMultiReaderManagerBase::GetFailedChunkIds() const
 {
-    TGuard<TSpinLock> guard(FailedChunksLock_);
+    TGuard<TAdaptiveLock> guard(FailedChunksLock_);
     return std::vector<TChunkId>(FailedChunks_.begin(), FailedChunks_.end());
 }
 
 void TMultiReaderManagerBase::OpenNextReaders()
 {
-    TGuard<TSpinLock> guard(PrefetchLock_);
+    TGuard<TAdaptiveLock> guard(PrefetchLock_);
 
     if (PrefetchIndex_ >= ReaderFactories_.size()) {
         return;
@@ -211,7 +211,7 @@ void TMultiReaderManagerBase::OnReaderCreated(
             chunkIds);
 
         {
-            TGuard<TSpinLock> guard(FailedChunksLock_);
+            TGuard<TAdaptiveLock> guard(FailedChunksLock_);
             FailedChunks_.insert(chunkIds.begin(), chunkIds.end());
         }
 
@@ -244,7 +244,7 @@ void TMultiReaderManagerBase::OnReaderReady(
 
     int nonOpenedReaderCount;
     {
-        TGuard<TSpinLock> guard(ActiveReadersLock_);
+        TGuard<TAdaptiveLock> guard(ActiveReadersLock_);
         YT_VERIFY(NonOpenedReaderIndexes_.erase(index) == 1);
         YT_VERIFY(ActiveReaders_.insert(reader).second);
         nonOpenedReaderCount = NonOpenedReaderIndexes_.size();
@@ -263,7 +263,7 @@ void TMultiReaderManagerBase::OnReaderFinished()
     }
 
     {
-        TGuard<TSpinLock> guard(ActiveReadersLock_);
+        TGuard<TAdaptiveLock> guard(ActiveReadersLock_);
         DataStatistics_ += CurrentSession_.Reader->GetDataStatistics();
         DecompressionStatistics_ += CurrentSession_.Reader->GetDecompressionStatistics();
         YT_VERIFY(ActiveReaders_.erase(CurrentSession_.Reader) == 1);
@@ -303,7 +303,7 @@ void TMultiReaderManagerBase::RegisterFailedReader(const IReaderBasePtr& reader)
     YT_LOG_WARNING("Chunk reader failed (ChunkIds: %v)", chunkIds);
 
     {
-        TGuard<TSpinLock> guard(FailedChunksLock_);
+        TGuard<TAdaptiveLock> guard(FailedChunksLock_);
         FailedChunks_.insert(chunkIds.begin(), chunkIds.end());
     }
 }

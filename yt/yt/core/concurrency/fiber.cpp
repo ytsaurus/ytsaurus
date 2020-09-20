@@ -258,7 +258,7 @@ void TFiber::CancelEpoch(size_t epoch, const TError& error)
     TFuture<void> future;
 
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         if (Epoch_.load(std::memory_order_relaxed) != epoch) {
             return;
@@ -287,7 +287,7 @@ void TFiber::CancelEpoch(size_t epoch, const TError& error)
 void TFiber::ResetForReuse()
 {
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
 
         ++Epoch_;
         Canceled_ = false;
@@ -313,7 +313,7 @@ bool TFiber::IsCanceled() const
 
 TError TFiber::GetCancelationError() const
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     return CancelationError_;
 }
 
@@ -321,7 +321,7 @@ const TFiberCanceler& TFiber::GetCanceler()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (!Canceler_) {
         NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
         Canceler_ = BIND_DONT_CAPTURE_TRACE_CONTEXT(&TFiber::CancelEpoch, MakeWeak(this), Epoch_.load(std::memory_order_relaxed));
@@ -332,13 +332,13 @@ const TFiberCanceler& TFiber::GetCanceler()
 
 void TFiber::SetFuture(TFuture<void> future)
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     Future_ = std::move(future);
 }
 
 void TFiber::ResetFuture()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     Future_.Reset();
 }
 

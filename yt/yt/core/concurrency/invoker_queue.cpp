@@ -109,7 +109,7 @@ private:
 template <typename T>
 class TTryQueues
 {
-    using TQueueType = TLockQueue<T, TSpinLock>;
+    using TQueueType = TLockQueue<T, TAdaptiveLock>;
 
 public:
     void Configure(int queueCount)

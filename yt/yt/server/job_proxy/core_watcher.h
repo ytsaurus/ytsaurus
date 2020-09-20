@@ -106,7 +106,7 @@ private:
     NConcurrency::TAsyncReaderWriterLock WriterLock_;
 
     TCoreResult CoreResult_;
-    TSpinLock CoreInfosLock_;
+    TAdaptiveLock CoreInfosLock_;
 
     TGpuCoreReaderPtr GpuCoreReader_;
 

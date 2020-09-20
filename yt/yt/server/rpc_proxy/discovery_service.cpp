@@ -128,7 +128,7 @@ private:
 
     TInstant LastSuccessTimestamp_ = Now();
 
-    TSpinLock ProxySpinLock_;
+    TAdaptiveLock ProxySpinLock_;
 
     struct TProxy
     {

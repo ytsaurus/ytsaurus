@@ -108,7 +108,7 @@ private:
         TTabletSlotPtr Slot;
     };
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     i64 PassiveMemoryUsage_;
     i64 ActiveMemoryUsage_;
     i64 BackingMemoryUsage_;
@@ -125,7 +125,7 @@ private:
     void OnBeginSlotScan()
     {
         // NB: Strictly speaking, this locking is redundant.
-        TGuard<TSpinLock> guard(SpinLock_);
+        TGuard<TAdaptiveLock> guard(SpinLock_);
         ActiveMemoryUsage_ = 0;
         PassiveMemoryUsage_ = 0;
         BackingMemoryUsage_ = 0;
@@ -139,7 +139,7 @@ private:
         }
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             TabletCellBundleData_.emplace(
                 slot->GetTabletCellBundleName(),
                 TTabletCellBundleData{
@@ -161,7 +161,7 @@ private:
 
         // NB: Strictly speaking, this locking is redundant.
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             TabletCellBundleData_.swap(tabletCellBundles);
         }
 
@@ -274,23 +274,23 @@ private:
             const auto& store = pair.second;
             ScanStore(slot, tablet, store);
             if (store->GetStoreState() == EStoreState::PassiveDynamic) {
-                TGuard<TSpinLock> guard(SpinLock_);
+                TGuard<TAdaptiveLock> guard(SpinLock_);
                 PassiveMemoryUsage_ += store->GetDynamicMemoryUsage();
                 TabletCellBundleData_[bundleName].PassiveMemoryUsage += store->GetDynamicMemoryUsage();
             } else if (store->GetStoreState() == EStoreState::ActiveDynamic) {
-                TGuard<TSpinLock> guard(SpinLock_);
+                TGuard<TAdaptiveLock> guard(SpinLock_);
                 ActiveMemoryUsage_ += store->GetDynamicMemoryUsage();
             } else if (store->GetStoreState() == EStoreState::Persistent) {
                 auto backingStore = store->AsChunk()->GetBackingStore();
                 if (backingStore) {
-                    TGuard<TSpinLock> guard(SpinLock_);
+                    TGuard<TAdaptiveLock> guard(SpinLock_);
                     BackingMemoryUsage_ += backingStore->GetDynamicMemoryUsage();
                 }
             }
         }
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             if (storeManager->IsForcedRotationPossible()) {
                 const auto& store = tablet->GetActiveStore();
                 i64 memoryUsage = store->GetDynamicMemoryUsage();

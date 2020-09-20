@@ -313,7 +313,7 @@ private:
         grpc_completion_queue* const CompletionQueue_;
         const NLogging::TLogger& Logger;
 
-        TSpinLock SpinLock_;
+        TAdaptiveLock SpinLock_;
         EServerCallStage Stage_ = EServerCallStage::Accept;
         bool CancelRequested_ = false;
         TSharedRefArray ResponseMessage_;
@@ -813,7 +813,7 @@ private:
             }
         }
 
-        void SendResponse(TGuard<TSpinLock>& guard)
+        void SendResponse(TGuard<TAdaptiveLock>& guard)
         {
             Stage_ = EServerCallStage::SendingResponse;
             guard.Release();
@@ -918,7 +918,7 @@ private:
             }
         }
 
-        void CheckCanceled(TGuard<TSpinLock>& guard)
+        void CheckCanceled(TGuard<TAdaptiveLock>& guard)
         {
             if (CancelRequested_ && Stage_ == EServerCallStage::WaitingForService) {
                 Stage_ = EServerCallStage::Done;

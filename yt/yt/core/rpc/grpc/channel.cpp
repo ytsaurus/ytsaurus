@@ -305,7 +305,7 @@ private:
         const TSendOptions Options_;
         const IClientRequestPtr Request_;
 
-        TSpinLock ResponseHandlerLock_;
+        TAdaptiveLock ResponseHandlerLock_;
         IClientResponseHandlerPtr ResponseHandler_;
 
         grpc_completion_queue* const CompletionQueue_;

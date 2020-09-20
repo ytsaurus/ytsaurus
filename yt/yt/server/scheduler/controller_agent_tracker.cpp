@@ -819,7 +819,7 @@ private:
     const EPreemptionMode PreemptionMode_;
     const NLogging::TLogger Logger;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
     TIncarnationId IncarnationId_;
     TWeakPtr<TControllerAgent> Agent_;

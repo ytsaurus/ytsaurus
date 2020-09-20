@@ -45,7 +45,7 @@ TFuture<void> TFramingAsyncOutputStream::Write(const TSharedRef& buffer)
 }
 
 TFuture<void> TFramingAsyncOutputStream::Flush() {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (Closed_) {
         return MakeFuture(TError("Can not flush closed framing stream"));
     }
@@ -56,7 +56,7 @@ TFuture<void> TFramingAsyncOutputStream::Flush() {
 }
 
 TFuture<void> TFramingAsyncOutputStream::Close() {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (Closed_) {
         return MakeFuture(TError("Framing stream is already closed (or is being closed)"));
     }
@@ -69,7 +69,7 @@ TFuture<void> TFramingAsyncOutputStream::Close() {
 }
 
 TFuture<void> TFramingAsyncOutputStream::DoWriteFrame(TString header, const std::optional<TSharedRef>& frame) {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     if (Closed_) {
         return MakeFuture(TError("Can not write to closed framing stream"));
     }

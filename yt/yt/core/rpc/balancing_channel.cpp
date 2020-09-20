@@ -180,7 +180,7 @@ private:
         std::atomic_flag Finished_ = ATOMIC_FLAG_INIT;
         std::atomic<bool> Success_ = {false};
 
-        TSpinLock SpinLock_;
+        TAdaptiveLock SpinLock_;
         THashSet<TString> RequestedAddresses_;
         THashSet<TString> RequestingAddresses_;
         std::vector<TError> DiscoveryErrors_;
@@ -289,19 +289,19 @@ private:
                 return TNoMorePeers();
             }
 
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             return owner->PickPeer(&RequestingAddresses_, &RequestedAddresses_);
         }
 
         void OnPeerQueried(const TString& address)
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             YT_VERIFY(RequestingAddresses_.erase(address) == 1);
         }
 
         bool HasOutstandingQueries()
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             return !RequestingAddresses_.empty();
         }
 
@@ -313,7 +313,7 @@ private:
             }
 
             {
-                TGuard<TSpinLock> guard(SpinLock_);
+                TGuard<TAdaptiveLock> guard(SpinLock_);
                 YT_VERIFY(RequestedAddresses_.erase(address) == 1);
                 DiscoveryErrors_.push_back(error);
             }
@@ -323,7 +323,7 @@ private:
 
         std::vector<TError> GetDiscoveryErrors()
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TGuard<TAdaptiveLock> guard(SpinLock_);
             return DiscoveryErrors_;
         }
 

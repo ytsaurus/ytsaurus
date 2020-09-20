@@ -644,7 +644,7 @@ TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TClientBlockRe
     }
 
     {
-        TGuard<TSpinLock> guard(PlacementExtLock_);
+        TGuard<TAdaptiveLock> guard(PlacementExtLock_);
 
         if (!PlacementExtFuture_) {
             PlacementExtFuture_ = GetPlacementMeta(this, options).Apply(

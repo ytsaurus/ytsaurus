@@ -148,7 +148,7 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
         YT_LOG_INFO("Cores processing did not finish within timeout");
     }
 
-    TGuard<TSpinLock> guard(CoreInfosLock_);
+    TGuard<TAdaptiveLock> guard(CoreInfosLock_);
 
     auto& coreInfos = CoreResult_.CoreInfos;
     if (expectedCoreCount > coreInfos.size()) {
@@ -397,7 +397,7 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TStri
 
 void TCoreWatcher::DoAddCoreInfo(const TCoreInfo& coreInfo)
 {
-    TGuard<TSpinLock> guard(CoreInfosLock_);
+    TGuard<TAdaptiveLock> guard(CoreInfosLock_);
 
     auto coreIndex = coreInfo.core_index();
     if (coreIndex >= CoreResult_.CoreInfos.size()) {

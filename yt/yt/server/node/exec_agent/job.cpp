@@ -811,7 +811,7 @@ private:
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
 
-    TSpinLock JobProbeLock_;
+    TAdaptiveLock JobProbeLock_;
     IJobProbePtr JobProbe_;
 
     // Helpers.

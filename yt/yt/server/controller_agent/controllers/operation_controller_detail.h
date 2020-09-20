@@ -987,7 +987,7 @@ private:
     //! Aggregates job statistics.
     TStatistics JobStatistics;
 
-    TSpinLock JobMetricsDeltaPerTreeLock_;
+    TAdaptiveLock JobMetricsDeltaPerTreeLock_;
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
     // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
@@ -1042,7 +1042,7 @@ private:
 
     std::vector<TStreamDescriptor> StandardStreamDescriptors_;
 
-    TSpinLock ProgressLock_;
+    TAdaptiveLock ProgressLock_;
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
@@ -1100,7 +1100,7 @@ private:
 
     THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 
-    TSpinLock AlertsLock_;
+    TAdaptiveLock AlertsLock_;
     TOperationAlertMap Alerts_;
 
     std::unique_ptr<IJobSplitter> JobSplitter_;

@@ -107,7 +107,7 @@ private:
 
     std::atomic<bool> Enabled_ = {false};
 
-    TSpinLock BufferLock_;
+    TAdaptiveLock BufferLock_;
     std::deque<TSharedRef> TracesBuffer_;
     i64 StartIndex_ = 0;
     i64 TracesBufferSize_ = 0;

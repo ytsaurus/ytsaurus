@@ -273,7 +273,7 @@ private:
     const NLogging::TLogger Logger;
     const TChunkReplicaLocatorPtr ChunkReplicaLocator_;
 
-    TSpinLock PeersSpinLock_;
+    TAdaptiveLock PeersSpinLock_;
     //! Peers returning NoSuchChunk error are banned forever.
     THashSet<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
@@ -297,7 +297,7 @@ private:
 
     void OnChunkReplicasLocated(const TChunkReplicaList& seedReplicas)
     {
-        TGuard<TSpinLock> guard(PeersSpinLock_);
+        TGuard<TAdaptiveLock> guard(PeersSpinLock_);
         for (auto replica : seedReplicas) {
             const auto* nodeDescriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!nodeDescriptor) {
@@ -314,7 +314,7 @@ private:
     //! Notifies reader about peer banned inside one of the sessions.
     void OnPeerBanned(const TString& peerAddress)
     {
-        TGuard<TSpinLock> guard(PeersSpinLock_);
+        TGuard<TAdaptiveLock> guard(PeersSpinLock_);
         auto [it, inserted] = PeerBanCountMap_.emplace(peerAddress, 1);
         if (!inserted) {
             ++it->second;
@@ -327,20 +327,20 @@ private:
 
     void BanPeerForever(const TString& peerAddress)
     {
-        TGuard<TSpinLock> guard(PeersSpinLock_);
+        TGuard<TAdaptiveLock> guard(PeersSpinLock_);
         BannedForeverPeers_.insert(peerAddress);
     }
 
     int GetBanCount(const TString& peerAddress) const
     {
-        TGuard<TSpinLock> guard(PeersSpinLock_);
+        TGuard<TAdaptiveLock> guard(PeersSpinLock_);
         auto it = PeerBanCountMap_.find(peerAddress);
         return it == PeerBanCountMap_.end() ? 0 : it->second;
     }
 
     bool IsPeerBannedForever(const TString& peerAddress) const
     {
-        TGuard<TSpinLock> guard(PeersSpinLock_);
+        TGuard<TAdaptiveLock> guard(PeersSpinLock_);
         return BannedForeverPeers_.contains(peerAddress);
     }
 

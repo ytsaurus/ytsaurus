@@ -407,7 +407,7 @@ private:
     std::atomic<bool> ShutdownStarted_ = {false};
     std::atomic<bool> ShutdownFinished_ = {false};
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     THashMap<IPollablePtr, TPollableEntryPtr> Pollables_;
 
     TLockFreeQueue<IPollable*> RetryQueue_;

@@ -7315,7 +7315,7 @@ void TOperationControllerBase::Dispose()
     YT_VERIFY(IsFinished());
 
     {
-        TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
+        TGuard<TAdaptiveLock> guard(JobMetricsDeltaPerTreeLock_);
 
         for (auto& [treeId, metrics] : JobMetricsDeltaPerTree_) {
             auto totalTime = TotalTimePerTree_.at(treeId);
@@ -7360,7 +7360,7 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
 
 TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
 {
-    TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
+    TGuard<TAdaptiveLock> guard(JobMetricsDeltaPerTreeLock_);
 
     auto now = NProfiling::GetCpuInstant();
     if (!force && LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsReportPeriod) > now) {
@@ -7385,7 +7385,7 @@ TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
 
 TOperationAlertMap TOperationControllerBase::GetAlerts()
 {
-    TGuard<TSpinLock> guard(AlertsLock_);
+    TGuard<TAdaptiveLock> guard(AlertsLock_);
     return Alerts_;
 }
 
@@ -7549,7 +7549,7 @@ bool TOperationControllerBase::HasProgress() const
     }
 
     {
-        TGuard<TSpinLock> guard(ProgressLock_);
+        TGuard<TAdaptiveLock> guard(ProgressLock_);
         return ProgressString_ && BriefProgressString_;
     }
 }
@@ -7721,7 +7721,7 @@ void TOperationControllerBase::BuildAndSaveProgress()
         .EndMap();
 
     {
-        TGuard<TSpinLock> guard(ProgressLock_);
+        TGuard<TAdaptiveLock> guard(ProgressLock_);
         if (!ProgressString_ || ProgressString_ != progressString ||
             !BriefProgressString_ || BriefProgressString_ != briefProgressString)
         {
@@ -7736,13 +7736,13 @@ void TOperationControllerBase::BuildAndSaveProgress()
 
 TYsonString TOperationControllerBase::GetProgress() const
 {
-    TGuard<TSpinLock> guard(ProgressLock_);
+    TGuard<TAdaptiveLock> guard(ProgressLock_);
     return ProgressString_;
 }
 
 TYsonString TOperationControllerBase::GetBriefProgress() const
 {
-    TGuard<TSpinLock> guard(ProgressLock_);
+    TGuard<TAdaptiveLock> guard(ProgressLock_);
     return BriefProgressString_;
 }
 
@@ -8015,7 +8015,7 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
 
     auto delta = joblet->UpdateJobMetrics(jobSummary);
     {
-        TGuard<TSpinLock> guard(JobMetricsDeltaPerTreeLock_);
+        TGuard<TAdaptiveLock> guard(JobMetricsDeltaPerTreeLock_);
 
         auto it = JobMetricsDeltaPerTree_.find(joblet->TreeId);
         if (it == JobMetricsDeltaPerTree_.end()) {
@@ -8900,7 +8900,7 @@ void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
 
 void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, const TError& alert)
 {
-    TGuard<TSpinLock> guard(AlertsLock_);
+    TGuard<TAdaptiveLock> guard(AlertsLock_);
 
     auto& existingAlert = Alerts_[alertType];
     if (alert.IsOK() && !existingAlert.IsOK()) {

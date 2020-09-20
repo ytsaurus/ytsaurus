@@ -58,7 +58,7 @@ private:
     const TPeriodicExecutorPtr TickExecutor_;
     const IThroughputThrottlerPtr RequestThrottler_;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
 
     struct TQueueItem
     {
@@ -71,7 +71,7 @@ private:
     NProfiling::TShardedAggregateGauge BatchingLatencyGauge_{"/batching_latency"};
 
 
-    TFuture<TSecretSubresponse> DoGetSecret(const TSecretSubrequest& subrequest, TGuard<TSpinLock>& guard)
+    TFuture<TSecretSubresponse> DoGetSecret(const TSecretSubrequest& subrequest, TGuard<TAdaptiveLock>& guard)
     {
         auto promise = NewPromise<TSecretSubresponse>();
         SubrequestQueue_.push(TQueueItem{

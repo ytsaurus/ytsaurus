@@ -96,7 +96,7 @@ private:
 
     TFuture<void> ReadyEvent_ = VoidFuture;
 
-    TSpinLock SpinLock_;
+    TAdaptiveLock SpinLock_;
     NProto::TDataStatistics DataStatistics_;
     TCodecStatistics CodecStatistics;
     std::vector<NChunkClient::NProto::TChunkSpec> WrittenChunks_;

@@ -470,7 +470,7 @@ private:
     // If this is locked, the automaton invoker is currently busy serving
     // some local subrequest.
     // NB: only TryAcquire() is called on this lock, never Acquire().
-    TSpinLock LocalExecutionLock_;
+    TAdaptiveLock LocalExecutionLock_;
 
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = false;
@@ -1452,7 +1452,7 @@ private:
             }
 
             {
-                TTryGuard<TSpinLock> guard(LocalExecutionLock_);
+                TTryGuard<TAdaptiveLock> guard(LocalExecutionLock_);
                 if (!guard.WasAcquired()) {
                     Reschedule();
                     break;
@@ -1949,7 +1949,7 @@ private:
             return true;
         }
 
-        TTryGuard<TSpinLock> guard(LocalExecutionLock_);
+        TTryGuard<TAdaptiveLock> guard(LocalExecutionLock_);
         if (!guard.WasAcquired()) {
             TObjectService::GetRpcInvoker()->Invoke(
                 BIND(&TObjectService::TExecuteSession::ScheduleReplyIfNeeded, MakeStrong(this)));
