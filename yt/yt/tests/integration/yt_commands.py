@@ -1819,11 +1819,11 @@ def get_cluster_drivers(primary_driver=None):
             return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in drivers]
     raise "Failed to get cluster drivers"
 
-def wait_for_cells(cell_ids=None, driver=None):
+def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
     print_debug("Waiting for tablet cells to become healthy...")
 
     def get_cells(driver):
-        cells = ls("//sys/tablet_cells", attributes=["health", "id", "peers"], driver=driver)
+        cells = ls("//sys/tablet_cells", attributes=["health", "id", "peers" ,"config_version"], driver=driver)
         if cell_ids is None:
             return cells
         return [cell for cell in cells if cell.attributes["id"] in cell_ids]
@@ -1831,15 +1831,21 @@ def wait_for_cells(cell_ids=None, driver=None):
     def check_orchid():
         cells = get_cells(driver=driver)
         for cell in cells:
-            peer = cell.attributes["peers"][0]
-            if "address" not in peer:
-                return False
-            node = peer["address"]
-            try:
-                if not exists("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"]), driver=driver):
+            cell_id = str(cell)
+            expected_config_version = cell.attributes["config_version"]
+            peers = cell.attributes["peers"]
+            for peer in peers:
+                address = peer.get("address", None)
+                if address is None or address in decommissioned_addresses:
                     return False
-            except YtResponseError:
-                return False
+                try:
+                    actual_config_version = get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(address, cell_id), driver=driver)
+                    if actual_config_version != expected_config_version:
+                        return False
+                    if not get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/active".format(address, cell_id), driver=driver):
+                        return False
+                except:
+                    return False
         return True
     wait(check_orchid)
 
