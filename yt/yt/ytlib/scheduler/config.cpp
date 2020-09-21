@@ -1751,6 +1751,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default(EPreemptionMode::Normal);
     RegisterParameter("scheduling_segment", SchedulingSegment)
         .Default();
+    RegisterParameter("enable_limiting_ancestor_check", EnableLimitingAncestorCheck)
+        .Default(true);
 
     RegisterPostprocessor([&] {
         if (ScheduleInSingleTree && (TentativePoolTrees || UseDefaultTentativePoolTrees)) {

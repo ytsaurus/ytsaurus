@@ -392,6 +392,8 @@ public:
 
     std::optional<ESchedulingSegment> SchedulingSegment;
 
+    bool EnableLimitingAncestorCheck;
+
     TStrategyOperationSpec();
 
 private:

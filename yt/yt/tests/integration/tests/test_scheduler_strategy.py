@@ -1428,6 +1428,12 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
         config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 2
         config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 2
 
+    def setup_method(self, method):
+        super(TestSchedulerUnschedulableOperations, self).setup_method(method)
+        # TODO(eshcherbin): Remove this after tree config is reset correctly in yt_env_setup.
+        set("//sys/pool_trees/default/@enable_limiting_ancestor_check", True)
+        wait(lambda: get(scheduler_orchid_pool_tree_config_path("default") + "/enable_limiting_ancestor_check"))
+
     @authors("ignat")
     def test_unschedulable_operations(self):
         create("table", "//tmp/t_in")
@@ -1454,6 +1460,41 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
         result = str(get(op.get_path() + "/@result"))
         assert "unschedulable" in result
         assert "no successful scheduled jobs" in result
+
+    @authors("eshcherbin")
+    def test_disable_limiting_ancestor_check_for_operation(self):
+        create_pool("limiting_pool", attributes={"resource_limits": {"cpu": 1.0}})
+        create_pool("subpool", parent_name="limiting_pool")
+        wait(lambda: get(scheduler_orchid_pool_path("limiting_pool") + "/resource_limits/cpu") == 1.0)
+
+        op = run_test_vanilla(
+            "sleep 0.5",
+            job_count=10,
+            spec={"pool": "subpool", "enable_limiting_ancestor_check": False},
+            task_patch={"cpu_limit": 2.0})
+
+        # Let the operation hang for some time. The limiting ancestor check should not be triggered.
+        time.sleep(10)
+
+        remove("//sys/pool_trees/default/limiting_pool/@resource_limits")
+        op.track()
+
+    @authors("eshcherbin")
+    def test_disable_limiting_ancestor_check_for_tree(self):
+        set("//sys/pool_trees/default/@enable_limiting_ancestor_check", False)
+        wait(lambda: not get(scheduler_orchid_pool_tree_config_path("default") + "/enable_limiting_ancestor_check"))
+
+        create_pool("limiting_pool", attributes={"resource_limits": {"cpu": 1.0}})
+        create_pool("subpool", parent_name="limiting_pool")
+        wait(lambda: get(scheduler_orchid_pool_path("limiting_pool") + "/resource_limits/cpu") == 1.0)
+
+        op = run_test_vanilla("sleep 0.5", job_count=10, spec={"pool": "subpool"}, task_patch={"cpu_limit": 2.0})
+
+        # Let the operation hang for some time. The limiting ancestor check should not be triggered.
+        time.sleep(10)
+
+        remove("//sys/pool_trees/default/limiting_pool/@resource_limits")
+        op.track()
 
     @authors("eshcherbin")
     def test_limiting_ancestor(self):

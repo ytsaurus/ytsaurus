@@ -2585,10 +2585,10 @@ TOperationElement::TOperationElement(
         NLogging::TLogger(logger).AddTag("OperationId: %v", operation->GetId()))
     , TOperationElementFixedState(operation, std::move(controllerConfig))
     , RuntimeParameters_(std::move(runtimeParameters))
-    , Spec_(spec)
-    , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod, Logger))
+    , Spec_(std::move(spec))
+    , OperationElementSharedState_(New<TOperationElementSharedState>(Spec_->UpdatePreemptableJobsListLoggingPeriod, Logger))
     , Controller_(std::move(controller))
-    , SchedulingTagFilter_(spec->SchedulingTagFilter)
+    , SchedulingTagFilter_(Spec_->SchedulingTagFilter)
 {
     PersistentAttributes_.LastNonStarvingTime = TInstant::Now();
 }
@@ -3524,6 +3524,11 @@ void TOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode m
         Spec_->SchedulingSegment);
 
     SchedulingSegment_ = segment;
+}
+
+bool TOperationElement::IsLimitingAncestorCheckEnabled() const
+{
+    return Spec_->EnableLimitingAncestorCheck;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

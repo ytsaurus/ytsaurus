@@ -477,11 +477,12 @@ public:
         }
 
         // We only want to find the operations that are unschedulable due to poorly configured resource limits or a custom
-        // scheduling tag filter. Node shortage, e.g. due to a bulk restart, shouldn't fail the operation. See YT-13329.
-        auto totalResourceLimits = RootElementSnapshot_
-            ? RootElementSnapshot_->RootElement->GetTotalResourceLimits()
-            : TJobResources::Infinite();
-        bool shouldCheckLimitingAncestor = Dominates(totalResourceLimits, minNeededResources);
+        // scheduling tag filter. Node shortage, e.g. due to a bulk restart, shouldn't fail the operation. See: YT-13329.
+        bool canFitIntoTotalResources = RootElementSnapshot_ &&
+            Dominates(RootElementSnapshot_->RootElement->GetTotalResourceLimits(), minNeededResources);
+        bool shouldCheckLimitingAncestor = canFitIntoTotalResources &&
+            Config_->EnableLimitingAncestorCheck &&
+            element->IsLimitingAncestorCheckEnabled();
         if (shouldCheckLimitingAncestor) {
             // NB(eshcherbin): Here we rely on the fact that |element->ResourceLimits_| is infinite
             // if the element is not in the fair share tree snapshot yet.

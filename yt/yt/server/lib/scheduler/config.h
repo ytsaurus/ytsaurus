@@ -269,6 +269,8 @@ public:
     bool EnablePoolsVectorProfiling;
     bool EnableOperationsVectorProfiling;
 
+    bool EnableLimitingAncestorCheck;
+
     TFairShareStrategyTreeConfig();
 };
 
