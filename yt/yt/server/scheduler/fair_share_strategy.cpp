@@ -46,7 +46,6 @@ using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TFairShareImpl>
 class TFairShareStrategy
     : public ISchedulerStrategy
     , public ISchedulerTreeHost
@@ -85,8 +84,6 @@ public:
             Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnBuildResourceMetering, MakeWeak(this)),
             Config->ResourceMeteringPeriod);
-
-        YT_LOG_INFO("Fair share strategy created (Algorithm: %v)", TFairShareImpl::Algorithm);
     }
 
     virtual void OnMasterConnected() override
@@ -1313,7 +1310,11 @@ private:
                 continue;
             }
 
-            auto tree = CreateFairShareTree<TFairShareImpl>(treeConfig, Config, Host, this, FeasibleInvokers, treeId);
+            bool useClassicScheduler = treeConfig->UseClassicScheduler.value_or(Config->UseClassicScheduler);
+            auto tree = useClassicScheduler
+                ? CreateFairShareTree<TClassicFairShareImpl>(treeConfig, Config, Host, this, FeasibleInvokers, treeId)
+                : CreateFairShareTree<TVectorFairShareImpl>(treeConfig, Config, Host, this, FeasibleInvokers, treeId);
+
             trees.emplace(treeId, tree);
         }
 
@@ -1548,24 +1549,13 @@ private:
     }
 };
 
-template <class TFairShareImpl>
 ISchedulerStrategyPtr CreateFairShareStrategy(
     TFairShareStrategyConfigPtr config,
     ISchedulerStrategyHost* host,
     std::vector<IInvokerPtr> feasibleInvokers)
 {
-    return New<TFairShareStrategy<TFairShareImpl>>(std::move(config), host, std::move(feasibleInvokers));
+    return New<TFairShareStrategy>(std::move(config), host, std::move(feasibleInvokers));
 }
-
-template ISchedulerStrategyPtr CreateFairShareStrategy<TClassicFairShareImpl>(
-    TFairShareStrategyConfigPtr config,
-    ISchedulerStrategyHost* host,
-    std::vector<IInvokerPtr> feasibleInvokers);
-
-template ISchedulerStrategyPtr CreateFairShareStrategy<TVectorFairShareImpl>(
-    TFairShareStrategyConfigPtr config,
-    ISchedulerStrategyHost* host,
-    std::vector<IInvokerPtr> feasibleInvokers);
 
 ////////////////////////////////////////////////////////////////////////////////
 

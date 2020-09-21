@@ -194,12 +194,7 @@ public:
                 feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
             }
 
-            if (config->UseClassicScheduler) {
-                Strategy_ = CreateFairShareStrategy<TClassicFairShareImpl>(Config_, this, std::move(feasibleInvokers));
-            } else {
-                Strategy_ = CreateFairShareStrategy<TVectorFairShareImpl>(Config_, this, std::move(feasibleInvokers));
-            }
-
+            Strategy_ = CreateFairShareStrategy(Config_, this, std::move(feasibleInvokers));
         }
     }
 

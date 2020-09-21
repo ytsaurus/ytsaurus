@@ -216,6 +216,8 @@ public:
         RootElement_ = New<TRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 
         DoRegisterPoolProfilingCounters(RootElement_->GetId(), RootElement_->GetProfilingTag());
+
+        YT_LOG_INFO("Fair share tree created (Algorithm: %v)", TFairShareImpl::Algorithm);
     }
 
     virtual TFairShareStrategyTreeConfigPtr GetConfig() const override
@@ -2528,7 +2530,8 @@ private:
             .Item("operations").BeginMap()
                 .DoFor(rootElementSnapshot->OperationIdToElement, buildOperationsInfo)
                 .DoFor(rootElementSnapshot->DisabledOperationIdToElement, buildOperationsInfo)
-            .EndMap();
+            .EndMap()
+            .Item("algorithm").Value(TFairShareImpl::Algorithm);
     }
 
     void DoBuildPoolsInformation(const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
