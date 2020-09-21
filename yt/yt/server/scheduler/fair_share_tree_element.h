@@ -163,6 +163,7 @@ struct TPersistentAttributes
     {
         auto resetAttributes = TPersistentAttributes();
         resetAttributes.AccumulatedResourceVolume = AccumulatedResourceVolume;
+        resetAttributes.LastNonStarvingTime = TInstant::Now();
         *this = resetAttributes;
     }
 };
