@@ -1202,6 +1202,10 @@ TOperationId TNodeShard::FindOperationIdByJobId(TJobId jobId)
     }
 
     auto node = FindNodeByJob(jobId);
+    if (!node) {
+        return TOperationId();
+    }
+
     auto jobIt = node->RecentlyFinishedJobs().find(jobId);
     if (jobIt == node->RecentlyFinishedJobs().end()) {
         return TOperationId();

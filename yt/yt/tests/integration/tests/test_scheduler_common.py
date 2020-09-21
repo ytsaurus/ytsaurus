@@ -1367,6 +1367,9 @@ class TestSchedulerJobStatistics(YTEnvSetup):
         for key in job_info:
             assert key in job_info2
 
+        with pytest.raises(YtError):
+            get("//sys/scheduler/orchid/scheduler/jobs/1-2-3-4")
+
     @authors("ignat")
     def test_scheduler_job_statistics(self):
         self._create_table("//tmp/in")
