@@ -222,6 +222,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("enable_operations_vector_profiling", EnableOperationsVectorProfiling)
         .Default(false);
 
+    RegisterParameter("enable_limiting_ancestor_check", EnableLimitingAncestorCheck)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")

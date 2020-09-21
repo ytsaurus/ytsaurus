@@ -1138,6 +1138,8 @@ public:
 
     void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
 
+    bool IsLimitingAncestorCheckEnabled() const;
+
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
