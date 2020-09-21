@@ -1626,9 +1626,6 @@ void TObjectManager::TImpl::HydraExecuteLeader(
     TCodicilGuard codicilGuard(codicilData);
 
     auto mutationId = rpcContext->GetMutationId();
-    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-    const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-
     if (mutationId && MutationIdempotizer_->IsMutationApplied(mutationId)) {
         // Usually, the response keeper protects us from duplicate mutations,
         // since no request can be executed while another request is in between
@@ -1638,12 +1635,8 @@ void TObjectManager::TImpl::HydraExecuteLeader(
         // interval. If the boomerang's "begin" has been lost due to a recent
         // leader change, we get here.
 
-        if (auto keptResult = responseKeeper->FindRequest(mutationId, rpcContext->IsRetry())) {
-            rpcContext->ReplyFrom(keptResult);
-        } else {
-            rpcContext->Reply(TError("Mutation is already applied")
-                << TErrorAttribute("mutation_id", mutationId));
-        }
+        rpcContext->Reply(TError("Mutation is already applied")
+            << TErrorAttribute("mutation_id", mutationId));
 
         YT_LOG_WARNING("Duplicate mutation application skipped (MutationId: %v)",
             mutationId);
