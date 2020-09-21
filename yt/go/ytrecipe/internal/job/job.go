@@ -95,7 +95,7 @@ func (j *Job) runJob(out mapreduce.Writer) error {
 	exitRow.StartedAt = time.Now()
 
 	prepareFS := func() error {
-		if err := j.FS.Recreate(j.L, "fs"); err != nil {
+		if err := j.FS.Recreate(j.L); err != nil {
 			return fmt.Errorf("error recreating fs: %w", err)
 		}
 

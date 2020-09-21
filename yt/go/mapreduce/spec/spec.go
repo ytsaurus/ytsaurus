@@ -17,7 +17,7 @@ type File struct {
 	FileName            string      `yson:"file_name,attr,omitempty"`
 	Format              interface{} `yson:"format,attr,omitempty"`
 	Executable          bool        `yson:"executable,attr,omitempty"`
-	BypassArtifactCache bool        `yson:"bypass_artifact_cache"`
+	BypassArtifactCache bool        `yson:"bypass_artifact_cache,attr,omitempty"`
 
 	CypressPath ypath.Path `yson:",value"`
 }

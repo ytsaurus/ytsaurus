@@ -96,6 +96,6 @@ var DefaultConfig = Config{
 	TmpPath: "//tmp",
 
 	ResourceLimits: ResourceLimits{
-		MemoryLimit: 4096 * (1 << 20),
+		MemoryLimit: 8192 * (1 << 20),
 	},
 }
