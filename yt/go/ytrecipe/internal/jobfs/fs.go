@@ -195,11 +195,14 @@ func (fs *FS) Add(c Config) error {
 	return nil
 }
 
+var BlobDir = filepath.Join("tmpfs", "fs")
+
 func (fs *FS) AttachFiles(us *spec.UserScript) {
 	attachFile := func(h MD5, cypressPath ypath.Path) {
 		us.FilePaths = append(us.FilePaths, spec.File{
-			FileName:    filepath.Join("fs", h.String()),
-			CypressPath: cypressPath,
+			BypassArtifactCache: true,
+			FileName:            filepath.Join(BlobDir, h.String()),
+			CypressPath:         cypressPath,
 		})
 	}
 
@@ -276,7 +279,7 @@ func (fs *FS) LocateBindPoints() ([]string, error) {
 	return bindPoints, nil
 }
 
-func (fs *FS) Recreate(l log.Structured, blobDir string) (err error) {
+func (fs *FS) Recreate(l log.Structured) (err error) {
 	mkdirAll := func(path string) {
 		if err != nil {
 			return
@@ -324,7 +327,7 @@ func (fs *FS) Recreate(l log.Structured, blobDir string) (err error) {
 			l.Debug("started copying file",
 				log.String("path", f.LocalPath))
 
-			if fileSize, err = copyFile(filepath.Join(blobDir, md5Hash.String()), f.LocalPath); err != nil {
+			if fileSize, err = copyFile(filepath.Join(BlobDir, md5Hash.String()), f.LocalPath); err != nil {
 				return err
 			}
 
@@ -346,7 +349,7 @@ func (fs *FS) Recreate(l log.Structured, blobDir string) (err error) {
 		tar := tar
 
 		eg.Go(func() error {
-			tarFile, err := os.Open(filepath.Join(blobDir, md5Hash.String()))
+			tarFile, err := os.Open(filepath.Join(BlobDir, md5Hash.String()))
 			if err != nil {
 				return err
 			}
