@@ -189,32 +189,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
-    def _wait_cell_good(self, cell_id, decommissioned_addresses=[]):
-        def check():
-            peers = get("#{0}/@peers".format(cell_id))
-            expected_config_version = get("#{0}/@config_version".format(cell_id))
-
-            for peer in peers:
-                address = peer.get("address", None)
-                if address is None or address in decommissioned_addresses:
-                    return False
-
-                try:
-                    actual_config_version = get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(address, cell_id))
-                    if actual_config_version != expected_config_version:
-                        return False
-                    if not get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/active".format(address, cell_id)):
-                        return False
-                except:
-                    return False
-
-            if get("#{0}/@health".format(cell_id)) != "good":
-                return False
-
-            return True
-
-        wait(check)
-
     def _check_cell_stable(self, cell_id):
         addresses = [peer["address"] for peer in get("#" + cell_id + "/@peers")]
         metrics = [Metric.at_node(address, "hydra/restart_count", with_tags={"cell_id": cell_id}) for address in addresses]
@@ -238,7 +212,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(follower_address, True)
-        self._wait_cell_good(cell_id, [follower_address])
+        wait_for_cells([cell_id], decommissioned_addresses=[follower_address])
 
         for i in xrange(0, 100):
             rows = [{"key": i, "value": "test"}]
@@ -267,7 +241,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(leader_address, True)
-        self._wait_cell_good(cell_id, [leader_address])
+        wait_for_cells([cell_id], decommissioned_addresses=[leader_address])
 
         assert get("#" + cell_id + "/@health") == "good"
         peers = get("#" + cell_id + "/@peers")
@@ -295,7 +269,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         cell_id = ls("//sys/tablet_cells")[0]
 
         addresses = self._decommission_all_peers(cell_id)
-        self._wait_cell_good(cell_id, addresses)
+        wait_for_cells([cell_id], decommissioned_addresses=addresses)
 
         assert lookup_rows("//tmp/t", keys) == rows
 
@@ -320,7 +294,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             return new_config_version > old_config_version
         wait(check_config_version)
 
-        self._wait_cell_good(cell_id, [])
+        wait_for_cells(cell_ids=[cell_id])
 
         def check_insert():
             try:
@@ -362,7 +336,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         wait(lambda: len(get_peers()) == 1)
         assert get_peers()[0]["address"] == second_peer_address
         wait(lambda: get_peers()[0]["state"] == "leading")
-        self._wait_cell_good(cell_id, [first_peer_address])
+        wait_for_cells([cell_id], decommissioned_addresses=[first_peer_address])
 
         assert lookup_rows("//tmp/t", first_keys) == first_rows
 
@@ -394,7 +368,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         wait(lambda: len(get_peers()) == 1)
         assert get_peers()[0]["address"] == first_peer_address
 
-        self._wait_cell_good(cell_id, ["non_existent_address"])
+        wait_for_cells([cell_id], decommissioned_addresses=["non_existent_address"])
 
         assert lookup_rows("//tmp/t", first_keys) == first_rows
 
@@ -432,7 +406,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         wait(lambda: len(get_peers()) == 1)
         assert get_peers()[0]["address"] == new_second_peer_address
 
-        self._wait_cell_good(cell_id, [first_peer_address, second_peer_address])
+        wait_for_cells([cell_id], decommissioned_addresses=[first_peer_address, second_peer_address])
 
         assert lookup_rows("//tmp/t", first_keys) == first_rows
 
@@ -448,14 +422,14 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert len(get_peers()) == 1
         first_peer_address = get_peers()[0]["address"]
 
-        self._wait_cell_good(cell_id)
+        wait_for_cells([cell_id])
 
         set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 2)
 
         with pytest.raises(YtError):
             set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 1)
 
-        self._wait_cell_good(cell_id)
+        wait_for_cells([cell_id])
 
         assert len(get_peers()) == 2
         second_peer_address = get_peers()[1]["address"]
@@ -464,14 +438,14 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         self._check_cell_stable(cell_id)
 
         set_node_decommissioned(first_peer_address, True)
-        self._wait_cell_good(cell_id, [first_peer_address])
+        wait_for_cells([cell_id], decommissioned_addresses=[first_peer_address])
 
         assert len(get_peers()) == 2
         assert get_peers()[1]["address"] == second_peer_address
 
         remove("//sys/tablet_cells/{}/@peer_count".format(cell_id))
 
-        self._wait_cell_good(cell_id)
+        wait_for_cells([cell_id])
 
         assert len(get_peers()) == 1
         assert get_peers()[0]["address"] == second_peer_address
@@ -1279,7 +1253,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "tmp")
         wait(lambda: config_version + 2 <= get("//sys/tablet_cells/{}/@config_version".format(cell_id)))
 
-        self._wait_cell_good(cell_id)
+        wait_for_cells([cell_id])
 
         def _check_insert():
             try:
@@ -1988,12 +1962,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         chunk_replica_address = list([str(r) for r in get("#{}/@stored_replicas".format(chunk_id)) if r.attributes["index"] == 0])[0]
         set("//sys/cluster_nodes/{0}/@banned".format(chunk_replica_address), True)
 
-        self._wait_cell_good(cell_id, [chunk_replica_address])
+        wait_for_cells([cell_id], decommissioned_addresses=[chunk_replica_address])
 
         tablet_address = get("#{}/@peers/0/address".format(cell_id))	
         set("//sys/cluster_nodes/{0}/@decommissioned".format(tablet_address), True)
 
-        self._wait_cell_good(cell_id, [tablet_address])
+        wait_for_cells([cell_id], decommissioned_addresses=[tablet_address])
 
     @authors("ifsmirnov")
     @flaky(max_runs=5)
