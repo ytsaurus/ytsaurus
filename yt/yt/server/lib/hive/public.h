@@ -31,6 +31,7 @@ using NHiveClient::TMessageId;
 DECLARE_REFCOUNTED_CLASS(THiveManager)
 
 DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
+DECLARE_REFCOUNTED_STRUCT(TMailboxRuntimeData)
 
 constexpr int TypicalMailboxCount = 16;
 using TMailboxList = SmallVector<TMailbox*, TypicalMailboxCount>;
