@@ -1,5 +1,5 @@
 from .config import get_config, get_option, set_option
-from .common import require, generate_int64
+from .common import require, generate_int64, update
 from .errors import YtResponseError, YtError
 from .string_iter_io import StringIterIO
 from .response_stream import ResponseStream
@@ -142,13 +142,15 @@ def get_driver_instance(client):
                 if config["proxy"]["url"] is None:
                     raise YtError("For rpc backend driver config or proxy url must be specified")
                 else:
-                    driver_config = {"connection_type": "rpc", "cluster_url": "http://" + get_proxy_url(client=client)}
+                    driver_config = {}
             else:
                 raise YtError("Driver config is not specified")
 
         if config["backend"] == "rpc":
             if driver_config.get("connection_type") is None:
-                driver_config["connection_type"] = "rpc"
+                driver_config = update(
+                    {"connection_type": "rpc", "cluster_url": "http://" + get_proxy_url(client=client)},
+                    driver_config)
             elif config["backend"] != driver_config["connection_type"]:
                 raise YtError(
                     "Driver connection type and client backend mismatch "
