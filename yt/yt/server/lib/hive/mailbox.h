@@ -50,6 +50,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextPersistentIncomingMessageId);
 
     // Transient state.
+    DEFINE_BYVAL_RO_PROPERTY(TMailboxRuntimeDataPtr, RuntimeData);
     DEFINE_BYVAL_RW_PROPERTY(bool, Connected);
     DEFINE_BYVAL_RW_PROPERTY(bool, AcknowledgeInProgress);
     DEFINE_BYVAL_RW_PROPERTY(bool, PostInProgress);
@@ -78,7 +79,19 @@ public:
 
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);
+
+    void UpdateLastOutcomingMessageId();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TMailboxRuntimeData
+    : public TRefCounted
+{
+    std::atomic<i64> LastOutcomingMessageId = -1;
+};
+
+DEFINE_REFCOUNTED_TYPE(TMailboxRuntimeData)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -108,7 +108,8 @@ public:
         , HydraManager_(std::move(hydraManager))
         , Profiler(HiveServerProfiler.AddTags(profilingTagIds))
     {
-        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
+        TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping)
+            .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(PostMessages));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SendMessages));
@@ -172,6 +173,11 @@ public:
 
         auto mailboxHolder = std::make_unique<TMailbox>(cellId);
         auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
+        
+        {
+            TWriterGuard guard(MailboxRuntimeDataMapLock_);
+            YT_VERIFY(MailboxRuntimeDataMap_.emplace(cellId, mailbox->GetRuntimeData()).second);
+        }
 
         if (!IsRecovery()) {
             SendPeriodicPing(mailbox);
@@ -188,6 +194,17 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return MailboxMap_.Find(cellId);
+    }
+
+    TMailboxRuntimeDataPtr FindMailboxRuntimeData(TCellId cellId)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TReaderGuard guard(MailboxRuntimeDataMapLock_);
+        auto it = MailboxRuntimeDataMap_.find(cellId);
+        return it == MailboxRuntimeDataMap_.end()
+            ? nullptr
+            : it->second;
     }
 
     TMailbox* GetOrCreateMailbox(TCellId cellId)
@@ -220,6 +237,11 @@ public:
         auto cellId = mailbox->GetCellId();
 
         MailboxMap_.Remove(cellId);
+
+        {
+            TWriterGuard guard(MailboxRuntimeDataMapLock_);
+            YT_VERIFY(MailboxRuntimeDataMap_.erase(cellId) == 1);
+        }
 
         if (!RemovedCellIds_.insert(cellId).second) {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
@@ -294,6 +316,9 @@ private:
     TEntityMap<TMailbox> MailboxMap_;
     THashMap<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
 
+    TReaderWriterSpinLock MailboxRuntimeDataMapLock_;
+    THashMap<TCellId, TMailboxRuntimeDataPtr> MailboxRuntimeDataMap_;
+
     THashSet<TCellId> RemovedCellIds_;
 
     TReaderWriterSpinLock CellToIdToBatcherLock_;
@@ -309,7 +334,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, Ping)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
 
@@ -317,11 +342,11 @@ private:
             srcCellId,
             SelfCellId_);
 
-        ValidatePeer(EPeerKind::Leader);
+        HydraManager_->ValidatePeer(EPeerKind::Leader);
 
-        auto* mailbox = FindMailbox(srcCellId);
-        auto lastOutcomingMessageId = mailbox
-            ? std::make_optional(mailbox->GetFirstOutcomingMessageId() + static_cast<int>(mailbox->OutcomingMessages().size()) - 1)
+        auto runtimeData = FindMailboxRuntimeData(srcCellId);
+        auto lastOutcomingMessageId = runtimeData
+            ? std::make_optional(runtimeData->LastOutcomingMessageId.load())
             : std::nullopt;
 
         if (lastOutcomingMessageId) {
@@ -505,6 +530,7 @@ private:
 
         outcomingMessages.erase(outcomingMessages.begin(), outcomingMessages.begin() + acknowledgeCount);
         mailbox->SetFirstOutcomingMessageId(mailbox->GetFirstOutcomingMessageId() + acknowledgeCount);
+        mailbox->UpdateLastOutcomingMessageId();
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Messages acknowledged (SrcCellId: %v, DstCellId: %v, "
             "FirstOutcomingMessageId: %v)",
@@ -614,6 +640,7 @@ private:
                 message,
                 traceContext
             });
+            mailbox->UpdateLastOutcomingMessageId();
 
             if (mailbox != mailboxes.front()) {
                 logMessageBuilder.AppendString(AsStringBuf(", "));
@@ -762,8 +789,7 @@ private:
 
     void ReconnectMailboxes()
     {
-        for (const auto& pair : MailboxMap_) {
-            auto* mailbox = pair.second;
+        for (auto [id, mailbox] : MailboxMap_) {
             YT_VERIFY(!mailbox->GetConnected());
             SendPeriodicPing(mailbox);
         }
@@ -1425,6 +1451,11 @@ private:
         TCompositeAutomatonPart::Clear();
 
         MailboxMap_.Clear();
+        
+        {
+            TWriterGuard guard(MailboxRuntimeDataMapLock_);
+            MailboxRuntimeDataMap_.clear();
+        }
     }
 
     void SaveKeys(TSaveContext& context) const
@@ -1449,6 +1480,14 @@ private:
         // COMPAT(babenko)
         if (context.GetVersion() >= 4) {
             Load(context, RemovedCellIds_);
+        }
+
+        {
+            TWriterGuard guard(MailboxRuntimeDataMapLock_);
+            MailboxRuntimeDataMap_.clear();
+            for (auto [id, mailbox] : MailboxMap_) {
+                YT_VERIFY(MailboxRuntimeDataMap_.emplace(id, mailbox->GetRuntimeData()).second);
+            }
         }
     }
 

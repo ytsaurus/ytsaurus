@@ -43,6 +43,7 @@ void TMailbox::TOutcomingMessage::Load(TStreamLoadContext& context)
 
 TMailbox::TMailbox(TCellId cellId)
     : CellId_(cellId)
+    , RuntimeData_(New<TMailboxRuntimeData>())
 { }
 
 void TMailbox::Save(TSaveContext& context) const
@@ -61,6 +62,15 @@ void TMailbox::Load(TLoadContext& context)
     Load(context, FirstOutcomingMessageId_);
     Load(context, OutcomingMessages_);
     Load(context, NextPersistentIncomingMessageId_);
+
+    UpdateLastOutcomingMessageId();
+}
+
+void TMailbox::UpdateLastOutcomingMessageId()
+{
+    RuntimeData_->LastOutcomingMessageId.store(
+        FirstOutcomingMessageId_ +
+        static_cast<int>(OutcomingMessages_.size()) - 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
