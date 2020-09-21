@@ -139,8 +139,6 @@ public:
 
     TRemoteEventLogConfigPtr RemoteEventLog;
 
-    bool UseClassicScheduler;
-
     TSchedulerSimulatorConfig()
     {
         RegisterParameter("heartbeat_period", HeartbeatPeriod)
@@ -176,9 +174,6 @@ public:
 
         RegisterParameter("remote_event_log", RemoteEventLog)
             .Default(nullptr);
-
-        RegisterParameter("use_classic_scheduler", UseClassicScheduler)
-            .Default(true);
 
         RegisterPostprocessor([&] () {
             if (EnableFullEventLog && !RemoteEventLog) {

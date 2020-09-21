@@ -1427,3 +1427,69 @@ class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
             remove_pool_tree("other{}".format(i), wait_for_orchid=True)
             # This sleep is needed here to spread the deletion of new pool trees over time.
             time.sleep(0.6)
+
+##################################################################
+
+class TestSchedulingStrategyAlgorithmConfigPerTree(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "use_classic_scheduler": True,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+            "operations_update_period": 10,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent" : {
+            "job_controller" : {
+                "resource_limits": {
+                    "user_slots": 8,
+                    "cpu": 8,
+                },
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestSchedulingStrategyAlgorithmConfigPerTree, self).setup_method(method)
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
+        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        create_pool_tree("other", attributes={"nodes_filter": "other", "use_classic_scheduler": False})
+        wait(lambda: "other" in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(node)))
+        wait(lambda: "other" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
+
+        for tree in ["default", "other"]:
+            create_pool("pool", pool_tree=tree)
+
+    @authors("eshcherbin")
+    def test_scheduling_strategy_config_per_tree(self):
+        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
+        wait(lambda: get(scheduler_orchid_pool_tree_path("default") + "/algorithm") == "classic")
+
+        op1_classic = run_sleeping_vanilla(spec={"pool": "pool"}, task_patch={"cpu_limit": 4})
+        op2_classic = run_sleeping_vanilla(spec={"pool": "pool"}, job_count=4, task_patch={"cpu_limit": 0.25})
+        op1_vector = run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["other"]}, task_patch={"cpu_limit": 4})
+        op2_vector = run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["other"]}, job_count=4, task_patch={"cpu_limit": 0.25})
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op1_classic.id, tree="default") + "/fair_share_ratio", default=0.0), 0.3125))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op2_classic.id, tree="default") + "/fair_share_ratio", default=0.0), 0.3125))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op1_vector.id, tree="other") + "/fair_share_ratio", default=0.0), 0.5))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op2_vector.id, tree="other") + "/fair_share_ratio", default=0.0), 0.5))
+
+    @authors("eshcherbin")
+    def test_option_has_no_effect_after_the_tree_is_created(self):
+        set("//sys/pool_trees/other/@use_classic_scheduler", True)
+        wait(lambda: get(scheduler_orchid_pool_tree_config_path("other") + "/use_classic_scheduler"))
+
+        op1 = run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["other"]}, task_patch={"cpu_limit": 4})
+        op2 = run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["other"]}, job_count=4, task_patch={"cpu_limit": 0.25})
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op1.id, tree="other") + "/fair_share_ratio", default=0.0), 0.5))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op2.id, tree="other") + "/fair_share_ratio", default=0.0), 0.5))
+
+        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")

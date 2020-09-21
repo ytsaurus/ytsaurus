@@ -71,6 +71,9 @@ TFairShareStrategySchedulingSegmentsConfig::TFairShareStrategySchedulingSegments
 
 TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 {
+    RegisterParameter("use_classic_scheduler", UseClassicScheduler)
+        .Default();
+
     RegisterParameter("nodes_filter", NodesFilter)
         .Default();
 
@@ -280,6 +283,9 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .Default();
 
     RegisterParameter("enable_schedule_in_single_tree", EnableScheduleInSingleTree)
+        .Default(true);
+
+    RegisterParameter("use_classic_scheduler", UseClassicScheduler)
         .Default(true);
 
     RegisterParameter("strategy_testing_options", StrategyTestingOptions)
@@ -594,9 +600,6 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("fetch_operation_attributes_subbatch_size", FetchOperationAttributesSubbatchSize)
         .Default(1000);
 
-    RegisterParameter("use_classic_scheduler", UseClassicScheduler)
-        .Default(true);
-    
     RegisterParameter("resource_metering", ResourceMetering)
         .DefaultNew();
 

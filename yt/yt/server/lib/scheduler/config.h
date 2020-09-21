@@ -155,6 +155,11 @@ class TFairShareStrategyTreeConfig
     : virtual public NYTree::TYsonSerializable
 {
 public:
+    // NB(eshcherbin): This option is used only when the tree is created. Subsequent changes won't have any effect.
+    //! Use scheduling strategy based on fair share ratio instead of new one based on vector fair share.
+    //! This option overrides the same option in the strategy config.
+    std::optional<bool> UseClassicScheduler;
+
     // Specifies nodes that are served by this tree.
     TSchedulingTagFilter NodesFilter;
 
@@ -312,6 +317,10 @@ public:
 
     //! Enables the "schedule_in_single_tree" operation spec option cluster-wide.
     bool EnableScheduleInSingleTree;
+
+    // NB(eshcherbin): This option is used only when a tree is created. Subsequent changes won't have any effect on existing trees.
+    //! Use scheduling strategy based on fair share ratio instead of new one based on vector fair share.
+    bool UseClassicScheduler;
 
     TStrategyTestingOptionsPtr StrategyTestingOptions;
 
@@ -644,9 +653,6 @@ public:
     //! Option to manage subbatch size for fetching operation during registration.
     //! Increase this value to speedup registration.
     int FetchOperationAttributesSubbatchSize;
-
-    //! Use scheduling strategy based on fair share ratio instead of new one based on vector fair share.
-    bool UseClassicScheduler;
 
     //! Config for some resource metering defaults.
     TResourceMeteringConfigPtr ResourceMetering;
