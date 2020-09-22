@@ -90,6 +90,7 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
         UNIT_ASSERT_EXCEPTION(builder.BeginOutputGroup(3, 5).Schema(otherSchema), TApiUsageError);
         UNIT_ASSERT_EXCEPTION(builder.BeginOutputGroup(TVector<int>{3,6,7}).Schema(otherSchema), TApiUsageError);
 
+        builder.Finish();
         auto result = builder.GetOutputSchemas();
 
         ASSERT_SERIALIZABLES_EQUAL(result[0], thirdSchema);
@@ -118,6 +119,7 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
 
         UNIT_ASSERT_EXCEPTION(builder.OutputSchema(0, schema), TApiUsageError);
 
+        builder.Finish();
         auto result = builder.GetOutputSchemas();
 
         UNIT_ASSERT(result[0].Empty());
@@ -179,6 +181,7 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
         UNIT_ASSERT_NO_EXCEPTION(builder.OutputSchema(5, urlRowSchema));
         UNIT_ASSERT_EXCEPTION(builder.OutputSchema(1, urlRowSchema), TApiUsageError);
 
+        builder.Finish();
         auto result = builder.GetOutputSchemas();
 
         ASSERT_SERIALIZABLES_EQUAL(result[0], urlRowSchema);
@@ -241,6 +244,27 @@ Y_UNIT_TEST_SUITE(PrepareOperation)
             {},
         };
         UNIT_ASSERT_EQUAL(builder.GetInputColumnFilters(), expectedFilters);
+    }
+
+    Y_UNIT_TEST(Bug_r7349102)
+    {
+        auto firstSchema = TTableSchema()
+            .AddColumn(TColumnSchema().Name("some_column").Type(EValueType::VT_UINT64));
+        auto otherSchema = TTableSchema()
+            .AddColumn(TColumnSchema().Name("other_column").Type(EValueType::VT_BOOLEAN));
+        auto thirdSchema = TTableSchema()
+            .AddColumn(TColumnSchema().Name("third_column").Type(EValueType::VT_STRING));
+
+        TDummyInferenceContext context(3,1);
+        TJobOperationPreparer builder(context);
+
+        builder
+            .InputDescription<TUrlRow>(0)
+            .InputDescription<TUrlRow>(1)
+            .InputDescription<TUrlRow>(2)
+            .OutputDescription<TUrlRow>(0);
+
+        builder.Finish();
     }
 
 } // Y_UNIT_TEST_SUITE(SchemaInference)
