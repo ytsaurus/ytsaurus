@@ -42,41 +42,17 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Make sure GetMemoryUsageForTag by itself does not interfere with memory counting.
-void TestZero()
-{
-    TMemoryTagGuard guard(42);
-    EXPECT_EQ(GetMemoryUsageForTag(42), 0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Allocate vector that results in exactly `size` memory usage considering the 16-byte header.
 std::vector<char> MakeAllocation(size_t size)
 {
-    YT_VERIFY(size > 16);
-    // Size should be a power of two:
-    YT_VERIFY((size & (size - 1)) == 0);
+    YT_VERIFY(IsPowerOf2(size));
 
-    // Do not forget about 16-byte tag header.
-    auto result = std::vector<char>(size - 16);
+    auto result = std::vector<char>(size);
 
     // We make fake side effect to prevent any compiler optimizations here.
     // (Clever compilers like to throw away our unused allocations).
     FakeSideEffectVolatileVariable = result.data();
     return result;
-}
-
-void TestSimple()
-{
-    for (int allocationSize = 1 << 5; allocationSize <= (1 << 20); allocationSize <<= 1) {
-        {
-            TMemoryTagGuard guard(42);
-            auto allocation = MakeAllocation(allocationSize);
-            EXPECT_EQ(GetMemoryUsageForTag(42), allocationSize);
-        }
-        EXPECT_EQ(GetMemoryUsageForTag(42), 0);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,8 +235,6 @@ TEST_P(TMemoryTagTest, Test)
 }
 
 INSTANTIATE_TEST_SUITE_P(MemoryTagTest, TMemoryTagTest, Values(
-    &TestZero,
-    &TestSimple,
     &TestStackingGuards,
     &TestSwitchingFibers,
     &TestMemoryTaggingInvoker,
