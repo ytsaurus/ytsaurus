@@ -1157,14 +1157,14 @@ TEST_P(TFairShareSchedulerTest, Test)
                         }
 
                         if (progresses[id].MilliSeconds() != min.MilliSeconds()) {
-                            YT_LOG_TRACE("Pools time: [%v]",
+                            YT_LOG_ERROR("Pools time: [%v]",
                                 MakeFormattableView(
                                     pools,
                                     [&] (auto* builder, const auto& pool) {
                                         builder->AppendFormat("%v", pool.MilliSeconds());
                                     }));
 
-                            YT_LOG_TRACE("Progresses time: [%v]",
+                            YT_LOG_ERROR("Progresses time: [%v]",
                                 MakeFormattableView(
                                     progresses,
                                     [&] (auto* builder, const auto& progress) {
