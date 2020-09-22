@@ -65,6 +65,19 @@ std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> TObjectServiceProxy::TRspEx
     return responses;
 }
 
+template <class TTypedResponse>
+std::vector<std::pair<std::any, TErrorOr<TIntrusivePtr<TTypedResponse>>>> TObjectServiceProxy::TRspExecuteBatch::GetTaggedResponses(const std::optional<TString>& key) const
+{
+    std::vector<std::pair<std::any, TErrorOr<TIntrusivePtr<TTypedResponse>>>> taggedResponses;
+    taggedResponses.reserve(InnerRequestDescriptors_.size());
+    for (int index = 0; index < static_cast<int>(InnerRequestDescriptors_.size()); ++index) {
+        if (!key || *key == InnerRequestDescriptors_[index].Key) {
+            taggedResponses.emplace_back(InnerRequestDescriptors_[index].Tag, GetResponse<TTypedResponse>(index));
+        }
+    }
+    return taggedResponses;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTypedRequest>

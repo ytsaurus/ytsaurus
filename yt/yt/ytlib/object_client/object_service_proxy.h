@@ -318,6 +318,12 @@ public:
         template <class TTypedResponse>
         std::vector<TErrorOr<TIntrusivePtr<TTypedResponse>>> GetResponses(const std::optional<TString>& key = std::nullopt) const;
 
+        //! Returns all responses as pairs <tag, typed response> which is more
+        //! convenient for tag extraction in case when response errors are expected.
+        template <class TTypedResponse>
+        std::vector<std::pair<std::any, TErrorOr<TIntrusivePtr<TTypedResponse>>>> GetTaggedResponses(
+            const std::optional<TString>& key = std::nullopt) const;
+
         //! Returns all responses with a given key (all if no key is specified).
         std::vector<TErrorOr<NYTree::TYPathResponsePtr>> GetResponses(const std::optional<TString>& key = {}) const;
 

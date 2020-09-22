@@ -80,7 +80,7 @@ TGpuManager::TGpuManager(
     if (!Config_->Enable) {
         return;
     }
-    
+
     std::vector<TGpuDeviceDescriptor> descriptors;
     bool shouldInitializeLayers;
 
@@ -218,7 +218,6 @@ void TGpuManager::OnFetchDriverLayerInfo()
             DriverLayerPath_,
             DriverLayerRevision_,
             Bootstrap_,
-            EMasterChannelKind::Cache,
             Logger);
 
         if (fetchedArtifactKey.ContentRevision != DriverLayerRevision_) {

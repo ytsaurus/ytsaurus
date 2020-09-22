@@ -1300,7 +1300,7 @@ private:
                 auto revision = fetchedKey.ArtifactKey
                     ? fetchedKey.ContentRevision
                     : NHydra::NullRevision;
-                return FetchLayerArtifactKeyIfRevisionChanged(path, revision, Bootstrap_, EMasterChannelKind::Cache, Logger);
+                return FetchLayerArtifactKeyIfRevisionChanged(path, revision, Bootstrap_, Logger);
             })
             .AsyncVia(GetCurrentInvoker())
             .Run();

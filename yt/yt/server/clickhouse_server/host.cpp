@@ -256,7 +256,9 @@ public:
         auto attributesForMissedPaths = WaitFor(TableAttributeCache_->GetFromClient(
             missedPaths,
             client,
+            GetCurrentInvoker(),
             AttributesToCache,
+            Logger,
             Config_->TableAttributeCache->GetMasterReadOptions()))
             .ValueOrThrow();
 

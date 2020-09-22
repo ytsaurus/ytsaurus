@@ -1,6 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/core/ypath/tokenizer.h>
+#include <yt/core/ypath/helpers.h>
 
 #include <util/string/vector.h>
 
@@ -194,6 +195,22 @@ TEST_F(TYPathTokenizerTest, InvalidEscapeSequences)
     EXPECT_THROW({ PrepareAndTokenize("This is \\x0"); }, std::exception);
     EXPECT_THROW({ PrepareAndTokenize("This is \\xx0"); }, std::exception);
     EXPECT_THROW({ PrepareAndTokenize("This is \\x0x"); }, std::exception);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYPathHelpersTest, DirNameAndBaseName)
+{
+    auto toPair = [] (auto lhs, auto rhs) {
+        return std::make_pair(TString(lhs), TString(rhs));
+    };
+
+    EXPECT_EQ(DirNameAndBaseName("//path/to/smth"), toPair("//path/to", "smth"));
+    EXPECT_EQ(DirNameAndBaseName("//path/to/smth/@"), toPair("//path/to/smth", "@"));
+    EXPECT_EQ(DirNameAndBaseName("//path/to/smth/@foo"), toPair("//path/to/smth/@", "foo"));
+    EXPECT_EQ(DirNameAndBaseName("//path"), toPair("/", "path"));
+    EXPECT_EQ(DirNameAndBaseName("#123-456-789-abc"), toPair("", "#123-456-789-abc"));
+    EXPECT_EQ(DirNameAndBaseName("/path"), toPair("", "path"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

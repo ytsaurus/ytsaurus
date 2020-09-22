@@ -27,7 +27,6 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const NYPath::TYPath& path,
     NHydra::TRevision contentRevision,
     NClusterNode::TBootstrap const* bootstrap,
-    NApi::EMasterChannelKind masterChannelKind,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

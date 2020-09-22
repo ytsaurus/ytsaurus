@@ -544,7 +544,7 @@ class TestGpuLayerUpdate(YTEnvSetup):
         },
     }
 
-    USE_PORTO = True
+    # USE_PORTO = True
 
     def _write_driver_layer(self, name):
         path = "layers/{}.tar.gz".format(name)
