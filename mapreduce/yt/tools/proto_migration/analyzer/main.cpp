@@ -36,7 +36,8 @@ void Traverse(
     }
 }
 
-void PrintUnorderedMessages(const FieldDescriptor* field, const TProtobufFieldOptions& options) {
+void PrintUnorderedMessages(const FieldDescriptor* field, const TProtobufFieldOptions& options)
+{
     auto areFieldsOrderedByFieldNumber = [](const Descriptor* descriptor) {
         for (int i = 0; i < descriptor->field_count() - 1; ++i) {
             if (descriptor->field(i)->number() > descriptor->field(i + 1)->number()) {
@@ -53,9 +54,21 @@ void PrintUnorderedMessages(const FieldDescriptor* field, const TProtobufFieldOp
     }
 }
 
-void PrintMaps(const FieldDescriptor* field, const TProtobufFieldOptions& options) {
+void PrintMaps(const FieldDescriptor* field, const TProtobufFieldOptions& options)
+{
     if (options.SerializationMode == EProtobufSerializationMode::Yt && field->is_map()) {
         Cout << field->file()->name() << ": message " << field->full_name() << ", field " << field->name() << " = " << field->index() << Endl;
+    }
+}
+
+void PrintVariants(const FieldDescriptor* field, const TProtobufFieldOptions& options)
+{
+    Y_UNUSED(options);
+    if (auto oneof = field->containing_oneof()) {
+        auto opt = GetOneofOptions(oneof);
+        if (opt.Mode == EProtobufOneofMode::Variant) {
+            Cout << field->file()->name() << ": message " << field->full_name() << ", field " << field->name() << " = " << field->index() << Endl;
+        }
     }
 }
 
@@ -76,7 +89,7 @@ int main(int argc, char** argv)
 
     NLastGetopt::TOptsParseResult args(&opts, argc, argv);
 
-    Analyze(NYT::NProtoMigration::TRoot::descriptor(), PrintUnorderedMessages);
+    Analyze(NYT::NProtoMigration::TRoot::descriptor(), PrintVariants);
 
     return 0;
 }

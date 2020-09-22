@@ -350,19 +350,19 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
         const auto schema = CreateTableSchema<NTesting::TWithOneof>();
 
         auto embedded = NTi::Struct({
-            {"Oneof", NTi::Variant(NTi::Struct({
+            {"Oneof", NTi::Optional(NTi::Variant(NTi::Struct({
                 {"x", NTi::Int64()},
                 {"y", NTi::String()},
-            }))},
+            })))},
         });
 
         auto type = NTi::Optional(NTi::Struct({
             {"field", NTi::Optional(NTi::String())},
-            {"Oneof2", NTi::Variant(NTi::Struct({
+            {"Oneof2", NTi::Optional(NTi::Variant(NTi::Struct({
                 {"x2", NTi::Int64()},
                 {"y2", NTi::String()},
                 {"z2", embedded},
-            }))},
+            })))},
             {"y1", NTi::Optional(NTi::String())},
             {"z1", NTi::Optional(embedded)},
             {"x1", NTi::Optional(NTi::Int64())},

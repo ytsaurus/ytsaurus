@@ -24,6 +24,12 @@ PEERDIR(
 END()
 """
 
+BLACKLIST = [
+    "mlp/mail/aspam/experiments/MLP_316",
+    "mlp/mail/ind/demo/types/proto",
+    "mlp/mail/smartobject/types/proto",
+]
+
 
 def get_project(path, arcadia_root):
     dir_path, rel_path = os.path.split(path)
@@ -99,6 +105,8 @@ def gen_lib(args):
         project = get_project(f, args.arcadia_root)
         if project is None:
             logger.warning("Failed to find project path for file %s", f)
+        elif any(blacklisted in f for blacklisted in BLACKLIST):
+            logger.warning("File %s is blacklisted", f)
         else:
             projects.add(project)
             good_files.append(f)

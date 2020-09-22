@@ -363,20 +363,6 @@ TProtobufOneofOptions GetDefaultOneofOptions(const Descriptor* descriptor)
     Y_FAIL();
 }
 
-TProtobufOneofOptions GetOneofOptions(
-    const OneofDescriptor* oneofDescriptor,
-    const TMaybe<TProtobufOneofOptions>& defaultOneofOptions = {})
-{
-    TProtobufOneofOptions options;
-    if (defaultOneofOptions) {
-        options = *defaultOneofOptions;
-    } else {
-        options = GetDefaultOneofOptions(oneofDescriptor->containing_type());
-    }
-    ParseProtobufOneofOptions(oneofDescriptor->options().GetRepeatedExtension(oneof_flags), &options);
-    return options;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateProtobufType(const FieldDescriptor& fieldDescriptor, EProtobufType protobufType)
@@ -470,6 +456,21 @@ TProtobufFieldOptions GetFieldOptions(
     ParseProtobufFieldOptions(fieldDescriptor->options().GetRepeatedExtension(flags), &options);
     return options;
 }
+
+TProtobufOneofOptions GetOneofOptions(
+    const OneofDescriptor* oneofDescriptor,
+    const TMaybe<TProtobufOneofOptions>& defaultOneofOptions)
+{
+    TProtobufOneofOptions options;
+    if (defaultOneofOptions) {
+        options = *defaultOneofOptions;
+    } else {
+        options = GetDefaultOneofOptions(oneofDescriptor->containing_type());
+    }
+    ParseProtobufOneofOptions(oneofDescriptor->options().GetRepeatedExtension(oneof_flags), &options);
+    return options;
+}
+
 
 TProtobufMessageOptions GetMessageOptions(const Descriptor* descriptor)
 {
@@ -846,7 +847,7 @@ void AddOneofField(
             addFields(&variantMembers, /* removeOptionality */ true);
             members->emplace_back(
                 oneofDescriptor.name(),
-                NTi::Variant(NTi::Struct(std::move(variantMembers))));
+                NTi::Optional(NTi::Variant(NTi::Struct(std::move(variantMembers)))));
             return;
         }
     }
