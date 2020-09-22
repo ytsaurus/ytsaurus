@@ -39,7 +39,7 @@
 
     resource_limits={
         cpu_limit=8;
-        memory_limit=30000000000;
+        memory_limit=50000000000;
     };
 
     job_timeout_seconds=2400;
