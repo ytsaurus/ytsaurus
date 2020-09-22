@@ -277,6 +277,22 @@ ECellHealth TCellBase::GetHealth() const
     return ECellHealth::Good;
 }
 
+bool TCellBase::IsHealthy() const
+{
+    const auto& leaderPeer = Peers_[LeadingPeerId_];
+    auto* leaderNode = leaderPeer.Node;
+    if (!IsObjectAlive(leaderNode)) {
+        return false;
+    }
+
+    const auto* leaderSlot = leaderNode->GetCellSlot(this);
+    if (leaderSlot->PeerState != EPeerState::Leading) {
+        return false;
+    }
+
+    return true;
+}
+
 ECellHealth TCellBase::GetMulticellHealth() const
 {
     return CombineHealths(GetHealth(), GossipStatus().Cluster().Health);

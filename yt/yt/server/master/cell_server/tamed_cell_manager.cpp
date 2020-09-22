@@ -1575,9 +1575,7 @@ private:
             if (!IsCellActive(cell)) {
                 continue;
             }
-            if (cell->GetCellBundle() == bundle &&
-                cell->GetHealth() == ECellHealth::Good)
-            {
+            if (cell->GetCellBundle() == bundle && cell->IsHealthy()) {
                 return true;
             }
         }

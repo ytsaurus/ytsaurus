@@ -112,8 +112,12 @@ public:
 
     NHydra::EPeerState GetPeerState(TPeerId peerId) const;
 
-    //! Get health from a point of view of a single master.
+    //! Computes the health from a point of view of a single master.
     ECellHealth GetHealth() const;
+
+    //! Returns |true| if the cell has a leading peer and is thus ready
+    //! to serve mutations.
+    bool IsHealthy() const;
 
     //! Get aggregated health for all masters.
     ECellHealth GetMulticellHealth() const;

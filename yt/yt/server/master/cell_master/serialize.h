@@ -135,6 +135,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixErrorDatetime)                                             (1410))  // babenko
     ((YT_11903_PreserveCreationTimeInMove)                          (1411))  // babenko
     ((PartitionedTables)                                            (1412))  // max42
+    ((DegradedCellsAreHealthy)                                      (1413))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
