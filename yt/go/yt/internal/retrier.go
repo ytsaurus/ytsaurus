@@ -16,6 +16,8 @@ import (
 )
 
 type Retrier struct {
+	ProxySet *ProxySet
+
 	Log log.Structured
 }
 
@@ -63,6 +65,14 @@ func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 		return true
 	}
 
+	if isProxyBannedError(err) {
+		return true
+	}
+
+	return false
+}
+
+func isProxyBannedError(err error) bool {
 	var ytErr *yterrors.Error
 	if errors.As(err, &ytErr) && ytErr.Message == "This proxy is banned" {
 		return true

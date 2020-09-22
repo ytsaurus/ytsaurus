@@ -879,9 +879,6 @@ type SelectRowsOptions struct {
 type StartTabletTxOptions struct {
 	Atomicity *string        `http:"atomicity,omitnil"`
 	Timeout   *yson.Duration `http:"timeout,omitnil"`
-
-	Master        bool
-	CommitOptions *CommitTxOptions
 }
 
 type TabletClient interface {

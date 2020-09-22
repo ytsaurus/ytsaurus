@@ -27,9 +27,10 @@ type Call struct {
 	CallID guid.GUID
 
 	YSONValue []byte
-	ProxyURL  string
 
-	Backoff backoff.BackOff
+	RequestedProxy string
+	SelectedProxy  string
+	Backoff        backoff.BackOff
 
 	OnRspParams func(b []byte) error
 }
