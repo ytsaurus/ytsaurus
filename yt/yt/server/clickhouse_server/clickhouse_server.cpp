@@ -191,7 +191,7 @@ private:
 
         RegisterClickHouseSingletons();
 
-        CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::get());
+        CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::getVersionRevision());
         CurrentMetrics::set(CurrentMetrics::VersionInteger, ClickHouseRevision::getVersionInteger());
 
         // Initialize DateLUT early, to not interfere with running time of first query.
