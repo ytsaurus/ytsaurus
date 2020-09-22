@@ -19,7 +19,7 @@ Y_WEAK void* Allocate(size_t size)
     return ::malloc(size);
 }
 
-Y_WEAK void* AllocateSmall(size_t untaggedRank, size_t /*taggedRank*/)
+Y_WEAK void* AllocateSmall(size_t /*rank*/)
 {
     return ::malloc(SmallRankToSize[untaggedRank]);
 }
