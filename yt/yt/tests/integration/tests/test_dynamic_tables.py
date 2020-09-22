@@ -2060,6 +2060,26 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError):
             read_table("//tmp/t", table_reader=table_reader_options)
 
+    @authors("akozhikhov")
+    def test_max_key_column_count(self):
+        sync_create_cells(1)
+
+        def _create_key_schema(key_count):
+            return [{"name": "key{}".format(i), "type": "int64", "sort_order": "ascending"} for i in range(key_count)]
+
+        key_schema = _create_key_schema(32)
+        value_schema = [{"name": "value", "type": "int64"}]
+        self._create_sorted_table("//tmp/t1", schema=key_schema + value_schema)
+        sync_mount_table("//tmp/t1")
+        sync_unmount_table("//tmp/t1")
+
+        key_schema = _create_key_schema(33)
+        with pytest.raises(YtError):
+            alter_table("//tmp/t1", schema=key_schema + value_schema)
+        with pytest.raises(YtError):
+            self._create_sorted_table("//tmp/t2", schema=key_schema + value_schema)
+
+
 ##################################################################
 
 class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):

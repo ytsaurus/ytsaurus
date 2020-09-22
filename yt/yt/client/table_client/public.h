@@ -67,6 +67,7 @@ constexpr i64 MaxAnyValueLength = 16_MB;
 constexpr i64 MaxCompositeValueLength = 16_MB;
 constexpr i64 MaxServerVersionedRowDataWeight = 512_MB;
 constexpr i64 MaxClientVersionedRowDataWeight = 128_MB;
+constexpr int MaxKeyColumnCountInDynamicTable = 32;
 
 // Only for static tables.
 constexpr i64 MaxRowWeightLimit = 128_MB;
