@@ -1207,6 +1207,12 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
        THROW_ERROR_EXCEPTION("There must be at least one non-key column");
     }
 
+    if (schema.GetKeyColumnCount() > MaxKeyColumnCountInDynamicTable) {
+        THROW_ERROR_EXCEPTION("Key column count must be not greater than %v, actual: %v",
+            MaxKeyColumnCountInDynamicTable,
+            schema.GetKeyColumnCount());
+    }
+
     for (const auto& column : schema.Columns()) {
         try {
             if (!column.SimplifiedLogicalType()) {
