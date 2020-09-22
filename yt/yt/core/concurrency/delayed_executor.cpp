@@ -104,7 +104,7 @@ public:
         auto promise = NewPromise<void>();
 
         auto cookie = Submit(
-            BIND([=] (bool aborted) mutable {
+            BIND_DONT_CAPTURE_TRACE_CONTEXT([=] (bool aborted) mutable {
                 if (aborted) {
                     promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise aborted"));
                 } else {
@@ -114,7 +114,7 @@ public:
             delay,
             std::move(invoker));
 
-        promise.OnCanceled(BIND([=, cookie = std::move(cookie)] (const TError& error) {
+        promise.OnCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, cookie = std::move(cookie)] (const TError& error) {
             TDelayedExecutor::Cancel(cookie);
             promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed callback canceled")
                 << error);
@@ -141,7 +141,7 @@ public:
     {
         YT_VERIFY(closure);
         return Submit(
-            BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             delay.ToDeadLine(),
             std::move(invoker));
     }
@@ -150,7 +150,7 @@ public:
     {
         YT_VERIFY(closure);
         return Submit(
-            BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             deadline,
             std::move(invoker));
     }
@@ -343,7 +343,7 @@ private:
         // Finally we wait for all callbacks in the Delayed Executor thread to finish running.
         // This certainly cannot prevent any malicious code in the callbacks from starting new fibers there
         // but we don't care.
-        BIND([] { })
+        BIND_DONT_CAPTURE_TRACE_CONTEXT([] { })
             .AsyncVia(DelayedInvoker_)
             .Run()
             .Get();
@@ -459,7 +459,7 @@ private:
 
     void RunCallback(const TDelayedExecutorEntryPtr& entry, bool abort)
     {
-        (entry->Invoker ? entry->Invoker : DelayedInvoker_)->Invoke(BIND(std::move(entry->Callback), abort));
+        (entry->Invoker ? entry->Invoker : DelayedInvoker_)->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(std::move(entry->Callback), abort));
     }
 
     static void ClosureToDelayedCallbackAdapter(const TClosure& closure, bool aborted)
