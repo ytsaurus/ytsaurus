@@ -80,6 +80,10 @@ TProtobufFieldOptions GetFieldOptions(
     const ::google::protobuf::FieldDescriptor* fieldDescriptor,
     const TMaybe<TProtobufFieldOptions>& defaultFieldOptions = {});
 
+TProtobufOneofOptions GetOneofOptions(
+    const ::google::protobuf::OneofDescriptor* oneofDescriptor,
+    const TMaybe<TProtobufOneofOptions>& defaultOneofOptions = {});
+
 TProtobufMessageOptions GetMessageOptions(const ::google::protobuf::Descriptor* descriptor);
 
 TMaybe<TVector<TString>> InferColumnFilter(const ::google::protobuf::Descriptor& descriptor);
