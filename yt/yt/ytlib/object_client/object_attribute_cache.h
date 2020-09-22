@@ -28,14 +28,16 @@ public:
         std::vector<TString> attributeNames,
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
-        NLogging::TLogger logger = {},
+        const NLogging::TLogger& logger = {},
         NProfiling::TProfiler profiler = {});
 
     // Method with signature similar to GetMany which goes directly to master.
     static TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetFromClient(
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client,
+        const IInvokerPtr& invoker,
         const std::vector<TString>& attributeNames,
+        const NLogging::TLogger& logger,
         const NApi::TMasterReadOptions& options = NApi::TMasterReadOptions{});
 
 protected:

@@ -9,7 +9,6 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 
-#include <yt/ytlib/cypress_client/object_attribute_fetcher.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
@@ -17,6 +16,8 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/client/object_client/helpers.h>
+
+#include <yt/core/misc/protobuf_helpers.h>
 
 #include <yt/core/ytree/permission.h>
 
@@ -40,7 +41,6 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const NYPath::TYPath& path,
     NHydra::TRevision contentRevision,
     NClusterNode::TBootstrap const* bootstrap,
-    EMasterChannelKind masterChannelKind,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;
@@ -56,7 +56,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         TGetUserObjectBasicAttributesOptions options;
         options.SuppressAccessTracking = true;
         options.SuppressExpirationTimeoutRenewal = true;
-        options.ReadFrom = masterChannelKind;
+        options.ReadFrom = EMasterChannelKind::Cache;
         GetUserObjectBasicAttributes(
             bootstrap->GetMasterClient(),
             {&userObject},
@@ -79,27 +79,26 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     auto objectId = userObject.ObjectId;
     auto objectIdPath = FromObjectId(objectId);
 
+    // TODO(max42): YT-13605.
     {
         YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %llx)",
             path,
             contentRevision);
 
-        auto attributesFuture = NCypressClient::FetchAttributes(
-            {objectIdPath},
-            {"content_revision"},
-            bootstrap->GetMasterClient(),
-            TMasterReadOptions{
-                .ReadFrom = masterChannelKind
-            });
+        TObjectServiceProxy proxy(bootstrap->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Cache));
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = TYPathProxy::Get(objectIdPath + "/@content_revision");
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{"content_revision"});
+        batchReq->AddRequest(req);
 
         try {
-            auto fetchResult = WaitFor(attributesFuture)
-                .ValueOrThrow();
+            auto resultYson = WaitFor(batchReq->Invoke())
+                .ValueOrThrow()
+                ->GetResponse<TYPathProxy::TRspGet>(0)
+                .ValueOrThrow()
+                ->value();
 
-            auto attributes = fetchResult[0]
-                .ValueOrThrow();
-
-            userObject.ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
+            userObject.ContentRevision = ConvertTo<NHydra::TRevision>(NYson::TYsonString(resultYson));
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error fetching revision for layer %v", path)
                 << ex;
@@ -123,7 +122,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         userObject.ContentRevision);
 
     auto channel = bootstrap->GetMasterClient()->GetMasterChannelOrThrow(
-        masterChannelKind,
+        EMasterChannelKind::Cache,
         userObject.ExternalCellTag);
     TObjectServiceProxy proxy(channel);
 

@@ -20,6 +20,8 @@ DEFINE_ENUM(ENodeCloneMode,
     ((Move) (1))
 );
 
+DECLARE_REFCOUNTED_CLASS(TBatchAttributeFetcher);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

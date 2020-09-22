@@ -451,7 +451,7 @@ private:
 
         return ObjectAttributeCache_
             ? ObjectAttributeCache_->Get(paths)
-            : TObjectAttributeCache::GetFromClient(paths, Client_, PartitionedTableRelatedAttributes);
+            : TObjectAttributeCache::GetFromClient(paths, Client_, Invoker_, PartitionedTableRelatedAttributes, Logger);
     }
 
     //! Build virtual column directory and data slice descriptors with filled virtual row indices.

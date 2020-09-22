@@ -1,6 +1,6 @@
 #include "object_attribute_cache.h"
 
-#include <yt/ytlib/cypress_client/object_attribute_fetcher.h>
+#include <yt/ytlib/cypress_client/batch_attribute_fetcher.h>
 
 namespace NYT::NObjectClient {
 
@@ -8,6 +8,8 @@ using namespace NApi;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,12 +18,12 @@ TObjectAttributeCache::TObjectAttributeCache(
     std::vector<TString> attributeNames,
     NNative::IClientPtr client,
     IInvokerPtr invoker,
-    NLogging::TLogger logger,
+    const NLogging::TLogger& logger,
     NProfiling::TProfiler profiler)
     : TAsyncExpiringCache(config, std::move(profiler))
     , AttributeNames_(std::move(attributeNames))
     , Config_(std::move(config))
-    , Logger(logger.AddTag("ObjectAttributeCacheId: %v", TGuid::Create()))
+    , Logger(TLogger(logger).AddTag("ObjectAttributeCacheId: %v", TGuid::Create()))
     , Client_(std::move(client))
     , Invoker_(std::move(invoker))
 { }
@@ -29,14 +31,16 @@ TObjectAttributeCache::TObjectAttributeCache(
 TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TObjectAttributeCache::GetFromClient(
     const std::vector<TYPath>& paths,
     const NNative::IClientPtr& client,
+    const IInvokerPtr& invoker,
     const std::vector<TString>& attributeNames,
+    const NLogging::TLogger& logger,
     const TMasterReadOptions& options)
 {
-    return NCypressClient::FetchAttributes(
-        paths,
-        attributeNames,
-        client,
-        options);
+    auto fetcher = New<TBatchAttributeFetcher>(paths, attributeNames, client, invoker, logger, options);
+
+    return fetcher->Fetch().Apply(BIND([fetcher = std::move(fetcher)] {
+        return fetcher->Attributes();
+    }));
 }
 
 TFuture<IAttributeDictionaryPtr> TObjectAttributeCache::DoGet(
@@ -57,7 +61,9 @@ TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TObjectAttributeCache::D
     return GetFromClient(
         paths,
         Client_,
+        Invoker_,
         AttributeNames_,
+        Logger,
         Config_->GetMasterReadOptions());
 }
 

@@ -602,7 +602,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 [{"value": 1}])
 
             # TODO(evgenstf): CHYT-112 - use error code instead of the substring
-            with raises_yt_error("does not correspond to a table"):
+            with raises_yt_error("point to attributes"):
                 clique.make_query('select * from \"//tmp/test_table/@schema\"')
 
     @authors("evgenstf")
