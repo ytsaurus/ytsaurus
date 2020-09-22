@@ -22,6 +22,7 @@ struct TChunkReaderStatistics
     std::atomic<i64> MetaBytesReadFromDisk{0};
     std::atomic<NProfiling::TValue> DataWaitTime{0};
     std::atomic<NProfiling::TValue> MetaWaitTime{0};
+    std::atomic<NProfiling::TValue> MetaReadFromDiskTime{0};
     std::atomic<NProfiling::TValue> PickPeerWaitTime{0};
 };
 
@@ -64,6 +65,7 @@ private:
     NProfiling::TShardedMonotonicCounter MetaBytesReadFromDisk;
     NProfiling::TShardedMonotonicCounter DataWaitTime;
     NProfiling::TShardedMonotonicCounter MetaWaitTime;
+    NProfiling::TShardedMonotonicCounter MetaReadFromDiskTime;
     NProfiling::TShardedMonotonicCounter PickPeerWaitTime;
 };
 

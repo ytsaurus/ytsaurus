@@ -11,6 +11,7 @@ message TChunkReaderStatistics
     required int64 meta_bytes_read_from_disk = 3;
     optional int64 data_wait_time = 4 [default = 0];
     optional int64 meta_wait_time = 5 [default = 0];
+    optional int64 meta_read_from_disk_time = 9 [default = 0];
     optional int64 pick_peer_wait_time = 6 [default = 0];
 }
 
