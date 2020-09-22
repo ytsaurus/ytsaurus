@@ -5779,7 +5779,7 @@ private:
 
     bool CheckHasHealthyCells(TTabletCellBundle* bundle)
     {
-        for (auto* cellBase: bundle->Cells()) {
+        for (auto* cellBase : bundle->Cells()) {
             if (cellBase->GetType() != EObjectType::TabletCell) {
                 continue;
             }
@@ -5788,7 +5788,7 @@ private:
             if (!IsCellActive(cell)) {
                 continue;
             }
-            if (cell->GetHealth() == ETabletCellHealth::Good) {
+            if (cell->IsHealthy()) {
                 return true;
             }
         }
