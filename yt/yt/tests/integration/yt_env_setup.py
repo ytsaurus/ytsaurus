@@ -880,7 +880,8 @@ class YTEnvSetup(object):
                     continue
                 id = object.attributes["id"]
                 object_ids_to_check.append(id)
-                if object.attributes["life_stage"] == "creation_committed":
+                life_stage = object.attributes["life_stage"]
+                if life_stage == "creation_committed" or life_stage == "creation_pre_committed":
                     object_ids_to_remove.append(id)
 
         def do():
