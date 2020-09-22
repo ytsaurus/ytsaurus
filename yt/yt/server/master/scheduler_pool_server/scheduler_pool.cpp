@@ -135,7 +135,43 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
             } catch (const std::exception& e) {
                 // Since we make this attribute well-known, the error needs to be logged and subsequently fixed.
                 YT_LOG_ERROR(e, "Cannot parse %Qv as %Qv attribute of pool %Qv", value, abcAttributeName, GetName());
-                return;
+            }
+        }
+    }
+
+    if (context.GetVersion() != NCellMaster::GetCurrentReign()) {
+        const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
+        for (const auto& [key, value] : Attributes_->Attributes()) {
+            auto internedKey = TInternedAttributeKey::Lookup(key);
+            if (internedKey == InvalidInternedAttribute) {
+                continue;
+            }
+            if (schedulerPoolManager->GetKnownPoolAttributes().contains(internedKey)) {
+                if (SpecifiedAttributes_.contains(internedKey)) {
+                    YT_LOG_ERROR("Found pool attribute that is stored in both SpecifiedAttributes map and common attributes map "
+                        "(ObjectId: %v, AttributeName: %v, CommonAttributeValue: %v, SpecifiedAttributeValue: %v)",
+                        Id_,
+                        key,
+                        value,
+                        SpecifiedAttributes_[internedKey]);
+                } else {
+                    try {
+                        YT_LOG_INFO("Moving pool attribute from common attributes map to SpecifiedAttributes map "
+                            "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
+                            Id_,
+                            key,
+                            value);
+                        FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value), EMergeStrategy::Overwrite);
+                        YT_VERIFY(SpecifiedAttributes_.emplace(internedKey, std::move(value)).second);
+                        YT_VERIFY(Attributes_->Remove(key));
+                    } catch (const std::exception& e) {
+                        YT_LOG_ERROR(e, "Cannot parse value of pool attribute "
+                            "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
+                            Id_,
+                            key,
+                            value);
+                    }
+                }
             }
         }
     }
@@ -208,6 +244,44 @@ void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
     }
 
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
+
+    // TODO(renadeen): kill after move attributes into subconfig.
+    if (context.GetVersion() != NCellMaster::GetCurrentReign()) {
+        const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
+        for (const auto& [key, value] : Attributes_->Attributes()) {
+            auto internedKey = TInternedAttributeKey::Lookup(key);
+            if (internedKey == InvalidInternedAttribute) {
+                continue;
+            }
+            if (schedulerPoolManager->GetKnownPoolTreeAttributes().contains(internedKey)) {
+                if (SpecifiedAttributes_.contains(internedKey)) {
+                    YT_LOG_ERROR("Found pool tree attribute that is stored in both SpecifiedAttributes map and common attributes map "
+                        "(ObjectId: %v, AttributeName: %v, CommonAttributeValue: %v, SpecifiedAttributeValue: %v)",
+                        TreeName_,
+                        key,
+                        value,
+                        SpecifiedAttributes_[internedKey]);
+                } else {
+                    try {
+                        YT_LOG_INFO("Moving pool tree attribute from common attributes map to SpecifiedAttributes map "
+                            "(PoolTreeName: %v, AttributeName: %v, AttributeValue: %v)",
+                            TreeName_,
+                            key,
+                            value);
+                        FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value), EMergeStrategy::Overwrite);
+                        YT_VERIFY(SpecifiedAttributes_.emplace(internedKey, std::move(value)).second);
+                        YT_VERIFY(Attributes_->Remove(key));
+                    } catch (const std::exception& e) {
+                        YT_LOG_ERROR(e, "Cannot parse value of pool tree attribute "
+                            "(PoolTreeName: %v, AttributeName: %v, AttributeValue: %v)",
+                            TreeName_,
+                            key,
+                            value);
+                    }
+                }
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
