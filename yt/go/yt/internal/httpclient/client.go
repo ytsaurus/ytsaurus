@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math/rand"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -45,7 +43,6 @@ type httpClient struct {
 	requestLogger   *internal.LoggingInterceptor
 	mutationRetrier *internal.MutationRetrier
 	readRetrier     *internal.Retrier
-	errorWrapper    *internal.ErrorWrapper
 
 	clusterURL yt.ClusterURL
 	netDialer  *net.Dialer
@@ -56,28 +53,23 @@ type httpClient struct {
 
 	credentials yt.Credentials
 
-	proxiesMu    sync.Mutex
-	refreshErr   error
-	refreshDone  chan struct{}
-	heavyProxies []string
-	refreshing   bool
+	proxySet *internal.ProxySet
 }
 
-func (c *httpClient) doListHeavyProxies(ctx context.Context) ([]string, error) {
-	req, err := http.NewRequest("GET", c.clusterURL.URL+"/hosts", nil)
+func (c *httpClient) listHeavyProxies() ([]string, error) {
+	if !c.stop.TryAdd() {
+		return nil, fmt.Errorf("client is stopped")
+	}
+	defer c.stop.Done()
+
+	req, err := http.NewRequest("GET", "http://"+c.clusterURL.Address+"/hosts", nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var rsp *http.Response
-	rsp, err = c.httpClient.Do(req.WithContext(ctx))
+	rsp, err = c.httpClient.Do(req.WithContext(c.stop.Context()))
 	if err != nil {
-		select {
-		case <-ctx.Done():
-			err = ctx.Err()
-		default:
-		}
-
 		return nil, err
 	}
 	defer func() { _ = rsp.Body.Close() }()
@@ -98,73 +90,17 @@ func (c *httpClient) doListHeavyProxies(ctx context.Context) ([]string, error) {
 	return proxies, nil
 }
 
-func (c *httpClient) refreshHeavyProxies(done chan struct{}) {
-	defer close(done)
-	defer c.stop.Done()
-
-	ctx := c.stop.Context()
-	proxies, err := c.doListHeavyProxies(ctx)
-
-	c.proxiesMu.Lock()
-	c.refreshing = false
-	if err != nil {
-		c.refreshErr = err
-	} else {
-		c.heavyProxies = proxies
-	}
-	c.proxiesMu.Unlock()
-}
-
-func (c *httpClient) listHeavyProxies(ctx context.Context) ([]string, error) {
-	c.proxiesMu.Lock()
-	if !c.refreshing {
-		if !c.stop.TryAdd() {
-			c.proxiesMu.Unlock()
-			return nil, xerrors.New("client is stopped")
-		}
-
-		c.refreshing = true
-		c.refreshDone = make(chan struct{})
-		go c.refreshHeavyProxies(c.refreshDone)
-	}
-
-	refreshDone := c.refreshDone
-	proxies := c.heavyProxies
-	c.proxiesMu.Unlock()
-
-	if len(proxies) > 0 {
-		return proxies, nil
-	}
-
-	select {
-	case <-refreshDone:
-	case <-ctx.Done():
-		return nil, fmt.Errorf("error waiting for heavy list: %w", ctx.Err())
-	}
-
-	c.proxiesMu.Lock()
-	refreshErr := c.refreshErr
-	proxies = c.heavyProxies
-	c.proxiesMu.Unlock()
-
-	if len(proxies) > 0 {
-		return proxies, nil
-	}
-
-	return nil, refreshErr
-}
-
 func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
 	if c.clusterURL.DisableDiscovery {
-		return c.clusterURL.URL, nil
+		return c.clusterURL.Address, nil
 	}
 
-	proxies, err := c.listHeavyProxies(ctx)
+	proxy, err := c.proxySet.PickRandom(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	return "http://" + proxies[rand.Int()%len(proxies)], nil
+	return proxy, nil
 }
 
 func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
@@ -196,16 +132,18 @@ func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 }
 
 func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, body io.Reader) (req *http.Request, err error) {
-	var url string
-	if call.ProxyURL != "" {
-		url = call.ProxyURL
+	var address string
+	if call.RequestedProxy != "" {
+		address = call.RequestedProxy
+		call.SelectedProxy = address
 	} else if call.Params.HTTPVerb().IsHeavy() {
-		url, err = c.pickHeavyProxy(ctx)
+		address, err = c.pickHeavyProxy(ctx)
 		if err != nil {
 			return nil, err
 		}
+		call.SelectedProxy = address
 	} else {
-		url = c.clusterURL.URL
+		address = c.clusterURL.Address
 	}
 
 	if body == nil {
@@ -213,7 +151,7 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 	}
 
 	verb := call.Params.HTTPVerb()
-	req, err = http.NewRequest(verb.HTTPMethod(), url+"/api/v4/"+verb.String(), body)
+	req, err = http.NewRequest(verb.HTTPMethod(), "http://"+address+"/api/v4/"+verb.String(), body)
 	if err != nil {
 		return
 	}
@@ -486,7 +424,6 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.netDialer = &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
-		DualStack: true,
 	}
 	client.httpClient = &http.Client{
 		Transport: &http.Transport{
@@ -498,6 +435,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		},
 	}
 	client.stop = internal.NewStopGroup()
+	client.proxySet = &internal.ProxySet{UpdateFn: client.listHeavyProxies}
 
 	client.Encoder.Invoke = client.do
 	client.Encoder.InvokeRead = client.doRead
@@ -508,21 +446,25 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.mutationRetrier = &internal.MutationRetrier{Log: client.log}
 	client.readRetrier = &internal.Retrier{Log: client.log}
 	client.requestLogger = &internal.LoggingInterceptor{Structured: client.log}
-	client.errorWrapper = &internal.ErrorWrapper{}
+	proxyBouncer := &internal.ProxyBouncer{ProxySet: client.proxySet}
+	errorWrapper := &internal.ErrorWrapper{}
 
 	client.Encoder.Invoke = client.Encoder.Invoke.
+		Wrap(proxyBouncer.Intercept).
 		Wrap(client.requestLogger.Intercept).
 		Wrap(client.mutationRetrier.Intercept).
 		Wrap(client.readRetrier.Intercept).
-		Wrap(client.errorWrapper.Intercept)
+		Wrap(errorWrapper.Intercept)
 
 	client.Encoder.InvokeRead = client.Encoder.InvokeRead.
+		Wrap(proxyBouncer.Read).
 		Wrap(client.requestLogger.Read).
-		Wrap(client.errorWrapper.Read)
+		Wrap(errorWrapper.Read)
 
 	client.Encoder.InvokeWrite = client.Encoder.InvokeWrite.
+		Wrap(proxyBouncer.Write).
 		Wrap(client.requestLogger.Write).
-		Wrap(client.errorWrapper.Write)
+		Wrap(errorWrapper.Write)
 
 	if c.Token != "" {
 		client.credentials = &yt.TokenCredentials{Token: c.Token}

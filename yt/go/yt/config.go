@@ -31,7 +31,7 @@ func NewConfigFromEnv() (*Config, error) {
 }
 
 type ClusterURL struct {
-	URL              string
+	Address          string
 	DisableDiscovery bool
 }
 
@@ -48,10 +48,7 @@ func NormalizeProxyURL(proxy string) ClusterURL {
 		url.DisableDiscovery = true
 	}
 
-	if !strings.HasPrefix(proxy, prefix) {
-		proxy = prefix + proxy
-	}
-
-	url.URL = proxy
+	proxy = strings.TrimPrefix(proxy, prefix)
+	url.Address = proxy
 	return url
 }

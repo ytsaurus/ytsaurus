@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal"
 )
@@ -11,11 +12,10 @@ import (
 type tabletTx struct {
 	internal.Encoder
 
-	txID           yt.TxID
-	coordinatorURL string
-	c              *httpClient
-	ctx            context.Context
-	commitOptions  *yt.CommitTxOptions
+	txID        yt.TxID
+	coordinator string
+	c           *httpClient
+	ctx         context.Context
 
 	pinger *internal.Pinger
 }
@@ -24,7 +24,7 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 	var tx tabletTx
 
 	var err error
-	tx.coordinatorURL, err = c.pickHeavyProxy(ctx)
+	tx.coordinator, err = c.pickHeavyProxy(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -32,19 +32,11 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 	tx.Invoke = tx.do
 	tx.InvokeReadRow = tx.doReadRow
 	tx.InvokeWriteRow = tx.doWriteRow
-	if options != nil {
-		tx.commitOptions = options.CommitOptions
-	}
 
 	tx.c = c
 
-	txType := "tablet"
-	if options != nil && options.Master {
-		txType = "master"
-	}
-
 	startOptions := &yt.StartTxOptions{
-		Type:   &txType,
+		Type:   ptr.String("tablet"),
 		Sticky: true,
 	}
 	if options != nil {
@@ -94,7 +86,7 @@ func (tx *tabletTx) do(ctx context.Context, call *internal.Call) (res *internal.
 		}
 	}
 
-	call.ProxyURL = tx.coordinatorURL
+	call.RequestedProxy = tx.coordinator
 	return tx.c.Invoke(ctx, call)
 }
 
@@ -103,7 +95,7 @@ func (tx *tabletTx) doReadRow(ctx context.Context, call *internal.Call) (r yt.Ta
 		return
 	}
 
-	call.ProxyURL = tx.coordinatorURL
+	call.RequestedProxy = tx.coordinator
 	tx.setTx(call)
 	return tx.c.InvokeReadRow(ctx, call)
 }
@@ -113,7 +105,7 @@ func (tx *tabletTx) doWriteRow(ctx context.Context, call *internal.Call) (r yt.T
 		return
 	}
 
-	call.ProxyURL = tx.coordinatorURL
+	call.RequestedProxy = tx.coordinator
 	tx.setTx(call)
 	return tx.c.InvokeWriteRow(ctx, call)
 }
@@ -123,13 +115,7 @@ func (tx *tabletTx) ID() yt.TxID {
 }
 
 func (tx *tabletTx) Commit() error {
-	var opts yt.CommitTxOptions
-	if tx.commitOptions != nil {
-		opts = *tx.commitOptions
-	}
-	opts.Sticky = true
-
-	return tx.CommitTx(tx.ctx, tx.txID, &opts)
+	return tx.CommitTx(tx.ctx, tx.txID, &yt.CommitTxOptions{Sticky: true})
 }
 
 func (tx *tabletTx) Abort() error {
