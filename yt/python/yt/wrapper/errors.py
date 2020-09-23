@@ -99,6 +99,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtRpcUnavailable
         elif self.is_all_target_nodes_failed():
             self.__class__ = YtAllTargetNodesFailed
+        elif self.is_transport_error():
+            self.__class__ = YtTransportError
         else:
             pass
 
@@ -198,6 +200,10 @@ class YtNoSuchTablet(YtHttpResponseError):
 
 class YtTabletNotMounted(YtHttpResponseError):
     """Tablet is not mounted error"""
+    pass
+
+class YtTransportError(YtHttpResponseError):
+    """Transpotr error"""
     pass
 
 class YtProxyUnavailable(YtError):
