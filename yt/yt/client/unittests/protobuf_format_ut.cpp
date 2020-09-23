@@ -1162,6 +1162,11 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
                 {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {"oneof_message_field", keyValueStruct},
             })},
+            {"optional_oneof_field", OptionalLogicalType(VariantStructLogicalType({
+                {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_message_field", keyValueStruct},
+            }))},
             {"map_field", DictLogicalType(
                 SimpleLogicalType(ESimpleLogicalValueType::Int64),
                 OptionalLogicalType(keyValueStruct))
@@ -1201,7 +1206,13 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
 
         {"optional_repeated_int64_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
 
-        {"oneof_field", OptionalLogicalType(VariantStructLogicalType({
+        {"oneof_field", VariantStructLogicalType({
+            {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_message_field", keyValueStruct},
+        })},
+
+        {"optional_oneof_field", OptionalLogicalType(VariantStructLogicalType({
             {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
             {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
             {"oneof_message_field", keyValueStruct},
@@ -1213,40 +1224,44 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
         },
     });
 
-    auto oneofConfig = BuildYsonNodeFluently()
-        .BeginMap()
-            .Item("name").Value("oneof_field")
-            .Item("proto_type").Value("oneof")
-            .Item("fields").BeginList()
-                .Item().BeginMap()
-                    .Item("name").Value("oneof_string_field_1")
-                    .Item("field_number").Value(101)
-                    .Item("proto_type").Value("string")
-                .EndMap()
-                .Item().BeginMap()
-                    .Item("name").Value("oneof_string_field")
-                    .Item("field_number").Value(102)
-                    .Item("proto_type").Value("string")
-                .EndMap()
-                .Item().BeginMap()
-                    .Item("name").Value("oneof_message_field")
-                    .Item("field_number").Value(1000)
-                    .Item("proto_type").Value("structured_message")
-                    .Item("fields").BeginList()
-                        .Item().BeginMap()
-                            .Item("name").Value("key")
-                            .Item("field_number").Value(1)
-                            .Item("proto_type").Value("string")
-                        .EndMap()
-                        .Item().BeginMap()
-                            .Item("name").Value("value")
-                            .Item("field_number").Value(2)
-                            .Item("proto_type").Value("string")
-                        .EndMap()
-                    .EndList()
-                .EndMap()
-            .EndList()
-        .EndMap();
+    auto buildOneofConfig = [] (TString prefix, int fieldNumberOffset) {
+        return BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("name").Value(prefix + "oneof_field")
+                .Item("proto_type").Value("oneof")
+                .Item("fields").BeginList()
+                    .Item().BeginMap()
+                        .Item("name").Value(prefix + "oneof_string_field_1")
+                        .Item("field_number").Value(101 + fieldNumberOffset)
+                        .Item("proto_type").Value("string")
+                    .EndMap()
+                    .Item().BeginMap()
+                        .Item("name").Value(prefix + "oneof_string_field")
+                        .Item("field_number").Value(102 + fieldNumberOffset)
+                        .Item("proto_type").Value("string")
+                    .EndMap()
+                    .Item().BeginMap()
+                        .Item("name").Value(prefix + "oneof_message_field")
+                        .Item("field_number").Value(1000 + fieldNumberOffset)
+                        .Item("proto_type").Value("structured_message")
+                        .Item("fields").BeginList()
+                            .Item().BeginMap()
+                                .Item("name").Value("key")
+                                .Item("field_number").Value(1)
+                                .Item("proto_type").Value("string")
+                            .EndMap()
+                            .Item().BeginMap()
+                                .Item("name").Value("value")
+                                .Item("field_number").Value(2)
+                                .Item("proto_type").Value("string")
+                            .EndMap()
+                        .EndList()
+                    .EndMap()
+                .EndList()
+            .EndMap();
+    };
+    auto oneofConfig = buildOneofConfig("", 0);
+    auto optionalOneofConfig = buildOneofConfig("optional_", 1000);
 
     auto keyValueFields = BuildYsonStringFluently()
         .BeginList()
@@ -1358,6 +1373,7 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
                                     .Item("repeated").Value(true)
                                 .EndMap()
                                 .Item().Value(oneofConfig)
+                                .Item().Value(optionalOneofConfig)
                                 .Item()
                                 .BeginMap()
                                     .Item("name").Value("map_field")
@@ -1542,6 +1558,7 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
                         .EndMap()
 
                         .Item().Value(oneofConfig)
+                        .Item().Value(optionalOneofConfig)
 
                         .Item()
                         .BeginMap()
@@ -1626,6 +1643,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     auto packedRepeatedInt64FieldId = nameTable->RegisterName("packed_repeated_int64_field");
     auto optionalRepeatedInt64FieldId = nameTable->RegisterName("optional_repeated_int64_field");
     auto oneofFieldId = nameTable->RegisterName("oneof_field");
+    auto optionalOneofFieldId = nameTable->RegisterName("optional_oneof_field");
     auto mapFieldId = nameTable->RegisterName("map_field");
 
     auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage(complexTypeMode);
@@ -1719,6 +1737,9 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
                         .Item().Entity()
                     .EndList()
                 .EndList()
+            // optional_oneof_field
+            .Item()
+                .Entity()
             // map_field
             .Item()
                 .BeginList()
@@ -1815,6 +1836,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     builder.AddValue(MakeUnversionedCompositeValue("[1;2;3]", optionalRepeatedInt64FieldId));
 
     builder.AddValue(MakeUnversionedCompositeValue("[0; foobaz]", oneofFieldId));
+    builder.AddValue(MakeUnversionedNullValue(optionalOneofFieldId));
 
     builder.AddValue(MakeUnversionedCompositeValue("[[2; [x; y]]; [5; [z; w]]]", mapFieldId));
 
@@ -1897,6 +1919,10 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         EXPECT_TRUE(first.has_oneof_message_field());
         EXPECT_EQ(first.oneof_message_field().key(), "foo");
         EXPECT_FALSE(first.oneof_message_field().has_value());
+
+        EXPECT_FALSE(first.has_optional_oneof_string_field_1());
+        EXPECT_FALSE(first.has_optional_oneof_string_field());
+        EXPECT_FALSE(first.has_optional_oneof_message_field());
 
         EXPECT_EQ(first.map_field().size(), 2);
         ASSERT_EQ(first.map_field().count(13), 1);
@@ -1984,6 +2010,10 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         EXPECT_FALSE(message.has_oneof_string_field());
         EXPECT_FALSE(message.has_oneof_message_field());
 
+        EXPECT_FALSE(message.has_optional_oneof_string_field_1());
+        EXPECT_FALSE(message.has_optional_oneof_string_field());
+        EXPECT_FALSE(message.has_optional_oneof_message_field());
+
         EXPECT_EQ(message.map_field().size(), 2);
         ASSERT_EQ(message.map_field().count(2), 1);
         EXPECT_EQ(message.map_field().at(2).key(), "x");
@@ -2048,6 +2078,8 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     // optional_repeated_bool_field is intentionally empty.
 
     first->mutable_oneof_message_field()->set_key("KEY");
+
+    // optional_oneof_field is intentionally empty.
 
     (*first->mutable_map_field())[111].set_key("key111");
     (*first->mutable_map_field())[111].set_value("value111");
@@ -2125,6 +2157,8 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
 
     message.add_optional_repeated_int64_field(-4242);
 
+    // optional_oneof_field is intentionally empty.
+
     message.set_oneof_string_field("spam");
 
     (*message.mutable_map_field())[777].set_key("key777");
@@ -2137,7 +2171,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         auto firstNode = GetComposite(rowCollector.GetRowValue(rowIndex, "first"));
         ASSERT_EQ(firstNode->GetType(), ENodeType::List);
         const auto& firstList = firstNode->AsList();
-        ASSERT_EQ(firstList->GetChildCount(), 16);
+        ASSERT_EQ(firstList->GetChildCount(), 17);
 
         EXPECT_EQ(firstList->GetChildOrThrow(0)->GetType(), ENodeType::Entity);
         EXPECT_EQ(firstList->GetChildOrThrow(1)->GetValue<TString>(), "Two");
@@ -2213,9 +2247,12 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
                     .EndList()
                 .EndList());
 
+        // optional_oneof_field.
+        ASSERT_EQ(firstList->GetChildOrThrow(14)->GetType(), ENodeType::Entity);
+
         // map_field.
         EXPECT_NODES_EQUAL(
-            SortMapByKey(firstList->GetChildOrThrow(14)),
+            SortMapByKey(firstList->GetChildOrThrow(15)),
             BuildYsonNodeFluently()
                 .BeginList()
                     .Item().BeginList()
@@ -2235,7 +2272,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
                 .EndList());
 
         // field_missing_from_proto2.
-        ASSERT_EQ(firstList->GetChildOrThrow(15)->GetType(), ENodeType::Entity);
+        ASSERT_EQ(firstList->GetChildOrThrow(16)->GetType(), ENodeType::Entity);
 
         auto secondNode = GetComposite(rowCollector.GetRowValue(rowIndex, "second"));
         ASSERT_EQ(secondNode->GetType(), ENodeType::List);
@@ -2301,6 +2338,8 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         EXPECT_NODES_EQUAL(
             GetComposite(rowCollector.GetRowValue(rowIndex, "oneof_field")),
             ConvertToNode(TYsonString("[1; \"spam\"]")));
+
+        EXPECT_FALSE(rowCollector.FindRowValue(rowIndex, "optional_oneof_field"));
 
         // map_field.
         EXPECT_NODES_EQUAL(
