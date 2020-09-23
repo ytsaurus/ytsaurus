@@ -38,6 +38,11 @@ func isTransientNetError(err error) bool {
 	return false
 }
 
+func isNetError(err error) bool {
+	var netErr net.Error
+	return xerrors.As(err, &netErr)
+}
+
 func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 	if isRead && isTransientNetError(err) {
 		return true

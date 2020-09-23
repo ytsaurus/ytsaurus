@@ -27,7 +27,7 @@ func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke Call
 
 		for i := 0; ; i++ {
 			res, err = invoke(ctx, call)
-			if err == nil || !isTransientNetError(err) {
+			if err == nil || !isNetError(err) {
 				return
 			}
 
