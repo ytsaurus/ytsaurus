@@ -658,7 +658,14 @@ private:
         TYsonPullParser* parser,
         int maxVarIntSize)
     {
-        parser->ParseBeginList();
+        if (fieldDescription.Optional) {
+            if (!parser->ParseOptionalBeginList()) {
+                return;
+            }
+        } else {
+            parser->ParseBeginList();
+        }
+
         auto alternativeIndex = parser->ParseInt64();
         auto alternative = fieldDescription.FindAlternative(alternativeIndex);
         if (alternative) {

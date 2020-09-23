@@ -39,6 +39,11 @@ message TMessageWithStructuredEmbedded
             string oneof_string_field = 102;
             TEmbeddedMessage oneof_message_field = 1000;
         }
+        oneof optional_oneof_field {
+            string optional_oneof_string_field_1 = 201;
+            string optional_oneof_string_field = 202;
+            TEmbeddedMessage optional_oneof_message_field = 2000;
+        }
         map<int64, TEmbeddedMessage> map_field = 13;
     }
 
@@ -81,6 +86,12 @@ message TMessageWithStructuredEmbedded
         string oneof_string_field_1 = 101;
         string oneof_string_field = 102;
         TEmbeddedMessage oneof_message_field = 1000;
+    }
+
+    oneof optional_oneof_field {
+        string optional_oneof_string_field_1 = 201;
+        string optional_oneof_string_field = 202;
+        TEmbeddedMessage optional_oneof_message_field = 2000;
     }
 
     map<int64, TEmbeddedMessage> map_field = 19;
