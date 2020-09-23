@@ -270,6 +270,10 @@ class YtResponseError(YtError):
         """No such service."""
         return self.contains_code(102)
 
+    def is_transport_error(self):
+        """Transport error."""
+        return self.contains_code(100)
+
     def is_tablet_in_intermediate_state(self):
         """Tablet is in intermediate state."""
         # TODO(ifsmirnov) migrate to error code, YT-10993
