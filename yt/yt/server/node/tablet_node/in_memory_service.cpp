@@ -127,7 +127,11 @@ private:
 
         for (size_t index = 0; index < request->chunk_id_size(); ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_id(index));
-            auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
+
+            // COMPAT(ifsmirnov)
+            auto tabletSnapshot = request->mount_revision_size() > 0
+                ? slotManager->FindTabletSnapshot(tabletId, request->mount_revision(index))
+                : slotManager->FindLatestTabletSnapshot(tabletId);
 
             if (!tabletSnapshot) {
                 YT_LOG_DEBUG("Tablet snapshot not found (TabletId: %v)", tabletId);

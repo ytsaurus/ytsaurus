@@ -96,15 +96,18 @@ struct TChunkInfo
     TChunkInfo(
         NChunkClient::TChunkId chunkId,
         NChunkClient::NProto::TChunkMeta chunkMeta,
-        TTabletId tabletId)
+        TTabletId tabletId,
+        NHydra::TRevision mountRevision)
         : ChunkId(chunkId)
         , ChunkMeta(std::move(chunkMeta))
         , TabletId(tabletId)
+        , MountRevision(mountRevision)
     { }
 
     NChunkClient::TChunkId ChunkId;
     NChunkClient::NProto::TChunkMeta ChunkMeta;
     TTabletId TabletId;
+    NHydra::TRevision MountRevision;
 };
 
 struct IRemoteInMemoryBlockCache

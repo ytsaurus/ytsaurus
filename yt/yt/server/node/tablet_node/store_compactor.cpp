@@ -175,6 +175,7 @@ private:
         IInvokerPtr Invoker;
 
         TTabletId TabletId;
+        TRevision MountRevision;
         TString TabletLoggingId;
         TPartitionId PartitionId;
         std::vector<TStoreId> StoreIds;
@@ -214,6 +215,7 @@ private:
             : Slot(slot)
             , Invoker(tablet->GetEpochAutomatonInvoker())
             , TabletId(tablet->GetId())
+            , MountRevision(tablet->GetMountRevision())
             , TabletLoggingId(tablet->GetLoggingId())
             , PartitionId(partition->GetId())
             , StoreIds(std::move(stores))
@@ -312,6 +314,7 @@ private:
         {
             explicit TTaskInfo(const TTask& task)
                 : TabletId(task.TabletId)
+                , MountRevision(task.MountRevision)
                 , PartitionId(task.PartitionId)
                 , StoreCount(task.StoreIds.size())
                 , DiscardStores(task.DiscardStores)
@@ -322,6 +325,7 @@ private:
             { }
 
             TTabletId TabletId;
+            TRevision MountRevision;
             TPartitionId PartitionId;
             int StoreCount;
 
@@ -341,6 +345,7 @@ private:
                 fluent.Item()
                 .BeginMap()
                     .Item("tablet_id").Value(TabletId)
+                    .Item("mount_revision").Value(MountRevision)
                     .Item("partition_id").Value(PartitionId)
                     .Item("store_count").Value(StoreCount)
                     .Item("task_priority")
@@ -1082,7 +1087,7 @@ private:
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId);
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId, task->MountRevision);
         if (!tabletSnapshot) {
             YT_LOG_DEBUG("Tablet snapshot is missing, aborting partitioning");
             return;
@@ -1454,7 +1459,8 @@ private:
                 chunkInfos.emplace_back(
                     FromProto<TChunkId>(chunkSpec.chunk_id()),
                     chunkSpec.chunk_meta(),
-                    tabletSnapshot->TabletId);
+                    tabletSnapshot->TabletId,
+                    tabletSnapshot->MountRevision);
             }
         }
 
@@ -1558,7 +1564,7 @@ private:
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId);
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(task->TabletId, task->MountRevision);
         if (!tabletSnapshot) {
             YT_LOG_DEBUG("Tablet snapshot is missing, aborting compaction");
             return;
@@ -1842,7 +1848,8 @@ private:
             chunkInfos.emplace_back(
                 FromProto<TChunkId>(chunkSpec.chunk_id()),
                 chunkSpec.chunk_meta(),
-                tabletSnapshot->TabletId);
+                tabletSnapshot->TabletId,
+                tabletSnapshot->MountRevision);
         }
 
         WaitFor(blockCache->Finish(chunkInfos))

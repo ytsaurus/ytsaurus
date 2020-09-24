@@ -298,7 +298,7 @@ private:
             auto mountRevision = request->mount_revisions(index);
             auto attachment = request->Attachments()[index];
 
-            if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
+            if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId, mountRevision)) {
                 if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
                     profilerGuard.SetProfilerTags(AddCurrentUserTag(tabletSnapshot->ProfilerTags));
                 }
@@ -312,10 +312,9 @@ private:
                         [&] {
                             TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
-                            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+                            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
                             slotManager->ValidateTabletAccess(tabletSnapshot, timestamp);
-                            tabletSnapshot->ValidateMountRevision(mountRevision);
 
                             auto requestData = requestCodec->Decompress(attachment);
 
@@ -335,7 +334,7 @@ private:
                             return responseCodec->Compress(writer.Finish());
                         });
                 } catch (const TErrorException&) {
-                    if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
+                    if (auto tabletSnapshot = slotManager->FindLatestTabletSnapshot(tabletId)) {
                         ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
                     }
 
@@ -370,7 +369,7 @@ private:
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
         for (auto tabletId : tabletIds) {
-            auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+            auto tabletSnapshot = slotManager->GetLatestTabletSnapshotOrThrow(tabletId);
 
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
@@ -409,7 +408,7 @@ private:
             request->timestamp());
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+        auto tabletSnapshot = slotManager->GetLatestTabletSnapshotOrThrow(tabletId);
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
             YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "

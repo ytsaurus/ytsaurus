@@ -56,6 +56,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
+using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +85,7 @@ public:
         , SlotManager_(std::move(slotManager))
         , WorkerInvoker_(std::move(workerInvoker))
         , TabletId_(tablet->GetId())
+        , MountRevision_(tablet->GetMountRevision())
         , TableSchema_(tablet->GetTableSchema())
         , NameTable_(TNameTable::FromSchema(*TableSchema_))
         , ReplicaId_(replicaInfo->GetId())
@@ -134,6 +136,7 @@ private:
     const IInvokerPtr WorkerInvoker_;
 
     const TTabletId TabletId_;
+    const TRevision MountRevision_;
     const TTableSchemaPtr TableSchema_;
     const TNameTablePtr NameTable_;
     const TTableReplicaId ReplicaId_;
@@ -164,7 +167,7 @@ private:
     {
         TTableReplicaSnapshotPtr replicaSnapshot;
         try {
-            auto tabletSnapshot = SlotManager_->FindTabletSnapshot(TabletId_);
+            auto tabletSnapshot = SlotManager_->FindTabletSnapshot(TabletId_, MountRevision_);
             if (!tabletSnapshot) {
                 THROW_ERROR_EXCEPTION("No tablet snapshot is available")
                     << HardErrorAttribute;

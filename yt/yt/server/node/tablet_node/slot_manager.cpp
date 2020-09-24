@@ -225,31 +225,18 @@ public:
         return snapshots;
     }
 
-    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId)
+    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TTabletSnapshotPtr snapshot;
-
-        TReaderGuard guard(TabletSnapshotsSpinLock_);
-        auto range = TabletIdToSnapshot_.equal_range(tabletId);
-        // NB: It is uncommon but possible to have multiple cells pretending to serve the same tablet.
-        // Among these, choose an active one.
-        // In case no active instances are known, return an arbitrary one (will do for AsyncLastCommitted reads).
-        for (auto it = range.first; it != range.second; ++it) {
-            snapshot = it->second;
-            if (snapshot->HydraManager->IsActive()) {
-                break;
-            }
-        }
-        return snapshot;
+        return DoFindTabletSnapshot(tabletId, std::nullopt);
     }
 
-    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId)
+    TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(TTabletId tabletId)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto snapshot = FindTabletSnapshot(tabletId);
+        auto snapshot = FindLatestTabletSnapshot(tabletId);
         if (!snapshot) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::NoSuchTablet,
@@ -257,6 +244,32 @@ public:
                 tabletId)
                 << TErrorAttribute("tablet_id", tabletId);
         }
+        return snapshot;
+    }
+
+    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto snapshot = DoFindTabletSnapshot(tabletId, mountRevision);
+        return snapshot && snapshot->MountRevision == mountRevision
+            ? snapshot
+            : nullptr;
+    }
+
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId, TRevision mountRevision)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto snapshot = DoFindTabletSnapshot(tabletId, mountRevision);
+        if (!snapshot) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::NoSuchTablet,
+                "Tablet %v is not known",
+                tabletId)
+                << TErrorAttribute("tablet_id", tabletId);
+        }
+        snapshot->ValidateMountRevision(mountRevision);
         return snapshot;
     }
 
@@ -525,7 +538,7 @@ private:
             if (it->second == snapshot) {
                 TabletIdToSnapshot_.erase(it);
                 guard.Release();
-                
+
                 // This is where snapshot dies. It's also nice to have logging moved outside
                 // of a critical section.
                 YT_LOG_DEBUG("Tablet snapshot evicted (TabletId: %v, CellId: %v)",
@@ -595,6 +608,39 @@ private:
             bundleName,
             slotCount);
         memoryTracker->SetPoolWeight(bundleName, slotCount);
+    }
+
+    TTabletSnapshotPtr DoFindTabletSnapshot(TTabletId tabletId, std::optional<TRevision> mountRevision)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TTabletSnapshotPtr snapshot;
+
+        TReaderGuard guard(TabletSnapshotsSpinLock_);
+        auto range = TabletIdToSnapshot_.equal_range(tabletId);
+
+        // NB: It is uncommon but possible to have multiple cells pretending to serve the same tablet.
+        // Tie breaking order is:
+        //  - if there is an instance with matching mount revision, pick it;
+        //  - if there are active instances, pick one of them with maximum mount revision;
+        //  - otherwise pick the instance with maximum mount revision.
+        // Outdated snapshots are useful for AsyncLastCommitted reads and ReadDynamicStore requests.
+
+        auto getComparisonSurrogate = [] (const TTabletSnapshotPtr& snapshot) {
+            return std::make_pair(snapshot->HydraManager->IsActive(), snapshot->MountRevision);
+        };
+
+        for (auto it = range.first; it != range.second; ++it) {
+            if (mountRevision && it->second->MountRevision == mountRevision) {
+                return it->second;
+            }
+
+            if (!snapshot || getComparisonSurrogate(snapshot) < getComparisonSurrogate(it->second)) {
+                snapshot = it->second;
+            }
+        }
+
+        return snapshot;
     }
 };
 
@@ -681,14 +727,24 @@ std::vector<TTabletSnapshotPtr> TSlotManager::GetTabletSnapshots()
     return Impl_->GetTabletSnapshots();
 }
 
-TTabletSnapshotPtr TSlotManager::FindTabletSnapshot(TTabletId tabletId)
+TTabletSnapshotPtr TSlotManager::FindLatestTabletSnapshot(TTabletId tabletId)
 {
-    return Impl_->FindTabletSnapshot(tabletId);
+    return Impl_->FindLatestTabletSnapshot(tabletId);
 }
 
-TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(TTabletId tabletId)
+TTabletSnapshotPtr TSlotManager::GetLatestTabletSnapshotOrThrow(TTabletId tabletId)
 {
-    return Impl_->GetTabletSnapshotOrThrow(tabletId);
+    return Impl_->GetLatestTabletSnapshotOrThrow(tabletId);
+}
+
+TTabletSnapshotPtr TSlotManager::FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision)
+{
+    return Impl_->FindTabletSnapshot(tabletId, mountRevision);
+}
+
+TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(TTabletId tabletId, TRevision mountRevision)
+{
+    return Impl_->GetTabletSnapshotOrThrow(tabletId, mountRevision);
 }
 
 void TSlotManager::ValidateTabletAccess(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)

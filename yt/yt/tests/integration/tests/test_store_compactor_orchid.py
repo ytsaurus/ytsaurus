@@ -53,6 +53,7 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
                 # We don't want to predict priorities in integration test
                 del task["task_priority"]
                 del task["partition_id"]
+                del task["mount_revision"]
             compaction_tasks["finished_tasks"].sort(key=lambda x: x["tablet_id"])
 
             expected_compaction_tasks = {
@@ -104,5 +105,6 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
                 return False
             del partition_task["finished_tasks"][0]["task_priority"]
             del partition_task["finished_tasks"][0]["partition_id"]
+            del partition_task["finished_tasks"][0]["mount_revision"]
             return partition_task == expected_partition_task
         wait(lambda: _partition_task_finished())
