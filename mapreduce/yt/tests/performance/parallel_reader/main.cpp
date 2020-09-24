@@ -11,7 +11,13 @@
 using namespace NYT;
 
 template <typename T>
-TTableReaderPtr<T> CreateReader(const IClientBasePtr& client, const TRichYPath& path, size_t threadCount, bool ordered, size_t bufferedRowCount)
+TTableReaderPtr<T> CreateReader(
+    const IClientBasePtr& client,
+    const TRichYPath& path,
+    size_t threadCount,
+    bool ordered,
+    size_t memoryLimit,
+    size_t batchSize)
 {
     if (threadCount == 1) {
         return client->CreateTableReader<T>(path);
@@ -19,8 +25,9 @@ TTableReaderPtr<T> CreateReader(const IClientBasePtr& client, const TRichYPath& 
         return CreateParallelTableReader<T>(client, path,
             TParallelTableReaderOptions()
                 .Ordered(ordered)
-                .BufferedRowCountLimit(bufferedRowCount)
-                .ThreadCount(threadCount));
+                .MemoryLimit(memoryLimit)
+                .ThreadCount(threadCount)
+                .BatchSizeBytes(batchSize));
     }
 }
 
@@ -50,29 +57,79 @@ void RunReader(const TTableReaderPtr<NTesting::TLogRow>& reader)
 }
 
 int main(int argc, const char** argv) {
-    if (argc < 6) {
-        Cerr << "Usage: " << argv[0] << " <path> <num-rows> <num-threads> <ordered> <format>" << Endl;
-        return 1;
-    }
-
     Initialize(argc, argv);
-    const TString ytProxy = "freud";
-    const TString path = argv[1];
-    const ui64 rowCount = FromString<ui64>(argv[2]);
-    const size_t threadCount = FromString<size_t>(argv[3]);
-    const bool ordered = FromString<bool>(argv[4]);
-    const TString format = argv[5];
+
+    NLastGetopt::TOpts options;
+
+    TString path;
+    options
+        .AddLongOption("path")
+        .Required()
+        .StoreResult(&path);
+
+    i64 rowCount;
+    options
+        .AddLongOption("row-count")
+        .Required()
+        .StoreResult(&rowCount);
+
+    int threadCount;
+    options
+        .AddLongOption("thread-count")
+        .Required()
+        .StoreResult(&threadCount);
+
+    i64 memoryLimit;
+    options
+        .AddLongOption("memory-limit")
+        .DefaultValue(100'000'000)
+        .StoreResult(&memoryLimit);
+
+    i64 batchSize;
+    options
+        .AddLongOption("batch-size")
+        .DefaultValue(2'000'000)
+        .StoreResult(&batchSize);
+
+    bool ordered;
+    options
+        .AddLongOption("ordered")
+        .Required()
+        .StoreResult(&ordered);
+
+    TString rowType;
+    options
+        .AddLongOption("row-type")
+        .Required()
+        .StoreResult(&rowType);
+    NLastGetopt::TOptsParseResult parsedOpts(&options, argc, argv);
+
+    const TString ytProxy = "hahn";
 
     Y_ENSURE(threadCount >= 1);
 
     auto richPath = TRichYPath(path).AddRange(TReadRange::FromRowIndices(0, rowCount));
     auto client = CreateClient(ytProxy);
 
-    if (format == "node") {
-        RunReader(CreateReader<TNode>(client, richPath, threadCount, ordered, 10000000));
+    if (rowType == "node") {
+        RunReader(CreateReader<TNode>(
+            client,
+            richPath,
+            threadCount,
+            ordered,
+            memoryLimit,
+            batchSize));
+    } else if (rowType == "proto") {
+        RunReader(CreateReader<NTesting::TLogRow>(
+            client,
+            richPath,
+            threadCount,
+            ordered,
+            memoryLimit,
+            batchSize));
     } else {
-        Y_ENSURE(format == "proto");
-        RunReader(CreateReader<NTesting::TLogRow>(client, richPath, threadCount, ordered, 20000000));
+        Cerr << "Expected row-type to be one of {\"node\", \"proto\"}" << Endl;
+        return 1;
     }
 
     return 0;

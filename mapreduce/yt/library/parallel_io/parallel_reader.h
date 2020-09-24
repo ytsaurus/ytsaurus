@@ -17,16 +17,6 @@ struct TParallelTableReaderOptions
     // due to ability to read from different chunks and thus from different nodes.
     FLUENT_FIELD_DEFAULT(bool, Ordered, true);
 
-    // Maximum number of rows allowed to be stored in memory.
-    // Together with ThreadCount it determines the read range size
-    // and thus the number of requests that will be issued.
-    //
-    // NOTE: Actual memory consumption depends on the underlying readers,
-    // e.g. each YSON TNode reader allocates additional buffer for parsed rows.
-    //
-    // This field is deprecated, use `MemoryLimit` instead
-    FLUENT_FIELD_DEFAULT(size_t, BufferedRowCountLimit, 1'000'000);
-
     // Maximum number of rows allowed to be stored in memory
     // is calculated as Min(BufferedRowCountLimit, MemoryLimit / "Average weight row in table")
     FLUENT_FIELD_DEFAULT(size_t, MemoryLimit, 300'000'000);
@@ -40,6 +30,23 @@ struct TParallelTableReaderOptions
 
     // Allows to fine tune format that is used for reading tables.
     FLUENT_FIELD_OPTION(TFormatHints, FormatHints);
+
+    // Size of batch to operate with (in bytes).
+    FLUENT_FIELD_DEFAULT(size_t, BatchSizeBytes, 4'000'000);
+
+    // Total number of RichYPath ranges that readers will use.
+    // Makes sense only for ordered reader.
+    FLUENT_FIELD_DEFAULT(size_t, TotalRangeCount, 50'000);
+
+    // Maximum number of rows allowed to be stored in memory.
+    // Together with ThreadCount it determines the read range size
+    // and thus the number of requests that will be issued.
+    //
+    // NOTE: Actual memory consumption depends on the underlying readers,
+    // e.g. each YSON TNode reader allocates additional buffer for parsed rows.
+    //
+    // This field is deprecated, use `MemoryLimit` instead
+    FLUENT_FIELD_DEFAULT(size_t, BufferedRowCountLimit, 1'000'000'000);
 };
 
 template <typename T>

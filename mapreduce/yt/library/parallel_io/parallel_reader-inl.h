@@ -5,13 +5,13 @@
 #endif
 #undef PARALLEL_READER_INL_H_
 
+#include "parallel_reader.h"
+
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/interface/mpl.h>
 
 #include <mapreduce/yt/interface/logging/log.h>
-
-#include <mapreduce/yt/util/batch.h>
 
 #include <library/cpp/threading/blocking_queue/blocking_queue.h>
 
@@ -20,8 +20,6 @@
 #include <util/generic/queue.h>
 #include <util/generic/scope.h>
 #include <util/generic/yexception.h>
-
-#include <util/random/shuffle.h>
 
 #include <util/string/builder.h>
 
@@ -32,504 +30,641 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//
-// Interface of table reader producer. Methods are not requested to be thread-safe.
-template <typename T>
-class ITableReaderFactory
-    : public TThrRefBase
+template <typename TRow>
+struct TReaderEntry
 {
-public:
-    virtual TTableReaderPtr<T> GetReader() = 0;
-    virtual ui32 GetTableIndex() const = 0;
-    virtual bool IsValid() const = 0;
-    virtual void Next() = 0;
+    TTableReaderPtr<TRow> Reader;
+    int TableIndex;
+    i64 SeqNum;
 };
-
-template <typename T>
-using ITableReaderFactoryPtr = ::TIntrusivePtr<ITableReaderFactory<T>>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-//
-// Implementation of ITableReaderFactory that produces readers of (almost) equal slices.
-template <typename T>
-class TEqualRangeTableReaderFactory
-    : public ITableReaderFactory<T>
-{
-public:
-    // NB: `paths` must be canonized.
-    TEqualRangeTableReaderFactory(
-        IClientBasePtr client,
-        const TVector<TRichYPath>& paths,
-        size_t rangeSize,
-        bool ordered,
-        const TTableReaderOptions& options)
-        : Client_(std::move(client))
-        , Paths_(paths)
-        , Options_(options)
-    {
-
-        for (ui32 tableIndex = 0; tableIndex < paths.size(); ++tableIndex) {
-            const auto& path = Paths_[tableIndex];
-            Y_ENSURE(!path.Ranges_.empty());
-            for (size_t rangeIndex = 0; rangeIndex < path.Ranges_.size(); ++rangeIndex) {
-                const auto& range = path.Ranges_[rangeIndex];
-                Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
-                Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
-                i64 lowerLimit = *range.LowerLimit_.RowIndex_;
-                while (lowerLimit < *range.UpperLimit_.RowIndex_) {
-                    i64 upperLimit = std::min<i64>(lowerLimit + rangeSize, *range.UpperLimit_.RowIndex_);
-                    TRange range;
-                    range.LowerLimit = lowerLimit;
-                    range.UpperLimit = upperLimit;
-                    range.TableIndex = tableIndex;
-                    range.RangeIndex = rangeIndex;
-
-                    Ranges_.push_back(range);
-                    lowerLimit = upperLimit;
-                }
-            }
-        }
-        if (!ordered) {
-            // Shuffle ranges to facilitate reading
-            // from different chunks and thus from different nodes.
-            Shuffle(Ranges_.begin(), Ranges_.end());
-        }
-        RangeIter_ = Ranges_.begin();
-    }
-
-    TTableReaderPtr<T> GetReader() override
-    {
-        CheckValidity();
-
-        auto path = Paths_[RangeIter_->TableIndex];
-        path.Ranges_.assign(1, TReadRange::FromRowIndices(RangeIter_->LowerLimit, RangeIter_->UpperLimit));
-        return Client_->CreateTableReader<T>(path, Options_);
-    }
-
-    ui32 GetTableIndex() const override
-    {
-        return RangeIter_->TableIndex;
-    }
-
-    ui32 GetRangeIndex() const
-    {
-        return RangeIter_->RangeIndex;
-    }
-
-    bool IsValid() const override
-    {
-        return RangeIter_ != Ranges_.end();
-    }
-
-    void Next() override
-    {
-        CheckValidity();
-        ++RangeIter_;
-    }
-
-private:
-    const IClientBasePtr Client_;
-    TVector<TRichYPath> Paths_;
-
-    struct TRange
-    {
-        i64 LowerLimit;
-        i64 UpperLimit;
-        ui32 TableIndex;
-        ui32 RangeIndex;
-    };
-
-    TVector<TRange> Ranges_;
-    typename TVector<TRange>::const_iterator RangeIter_;
-    const TTableReaderOptions Options_;
-
-private:
-    void CheckValidity() const
-    {
-        Y_ENSURE(IsValid(), "Factory is invalid");
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
 struct TReaderBuffer
+    : public TThrRefBase
 {
     TVector<T> Rows;
     ui32 TableIndex = 0;
     ui64 FirstRowIndex = 0;
-    size_t SequenceNumber = 0;
-};
-
-//
-// Table reader reading the rows from given buffer.
-template <typename TDerived, typename T>
-class TBufferTableReaderBase
-    : public TDerived
-{
-public:
-    TBufferTableReaderBase(TReaderBuffer<T>* buffer)
-        : Buffer_(buffer)
-        , Iterator_(Buffer_->Rows.begin())
-    { }
-
-    bool IsValid() const override
-    {
-        return Iterator_ != Buffer_->Rows.end();
-    }
-
-    void Next() override
-    {
-        CheckValidity();
-        ++Iterator_;
-    }
-
-    ui32 GetTableIndex() const override
-    {
-        Y_FAIL("Not implemented");
-    }
-
-    ui32 GetRangeIndex() const override
-    {
-        Y_FAIL("Not implemented");
-    }
-
-    ui64 GetRowIndex() const override
-    {
-        CheckValidity();
-        return Buffer_->FirstRowIndex + (Iterator_ - Buffer_->Rows.begin());
-    }
-
-    void NextKey() override
-    {
-        Y_FAIL("Not implemented");
-    }
-
-protected:
-    TReaderBuffer<T>* const Buffer_;
-    typename TVector<T>::iterator Iterator_;
-
-protected:
-    void CheckValidity() const
-    {
-        Y_ENSURE(IsValid(), "Iterator is not valid");
-    }
-};
-
-template <typename T, typename = void>
-class TBufferTableReader;
-
-template <>
-class TBufferTableReader<TNode>
-    : public TBufferTableReaderBase<INodeReaderImpl, TNode>
-{
-public:
-    using TBufferTableReaderBase<INodeReaderImpl, TNode>::TBufferTableReaderBase;
-
-    const TNode& GetRow() const override
-    {
-        CheckValidity();
-        return *Iterator_;
-    }
-
-    void MoveRow(TNode* row) override
-    {
-        CheckValidity();
-        *row = std::move(*Iterator_);
-    }
+    i64 SeqNum = 0;
 };
 
 template <typename T>
-class TBufferTableReader<
-    T,
-    std::enable_if_t<TIsBaseOf<Message, T>::Value>
->
-    : public TBufferTableReaderBase<IProtoReaderImpl, T>
+using TReaderBufferPtr = ::TIntrusivePtr<TReaderBuffer<T>>;
+
+struct TReadManagerConfigBase
+{
+    int ThreadCount;
+    i64 BatchSize;
+    i64 BatchCount;
+};
+
+struct TUnorderedReadManagerConfig
+    : TReadManagerConfigBase
+{ };
+
+struct TOrderedReadManagerConfig
+    : TReadManagerConfigBase
+{
+    i64 TotalRangeCount;
+};
+
+using TReadManagerConfigVariant = TVariant<
+    TUnorderedReadManagerConfig,
+    TOrderedReadManagerConfig>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//
+// Interface of table reader producer. GetNextEntry() must be thread-safe.
+template <typename TRow>
+class ITableReaderFactory
+    : public TThrRefBase
 {
 public:
-    using TBufferTableReaderBase<IProtoReaderImpl, T>::TBufferTableReaderBase;
+    // Returns Nothing when factory is exhausted.
+    virtual TMaybe<TReaderEntry<TRow>> GetNextEntry() = 0;
+};
 
-    void ReadRow(Message* row) override
-    {
-        this->CheckValidity();
-        static_cast<T&>(*row).Swap(this->Iterator_);
-    }
+template <typename TRow>
+using ITableReaderFactoryPtr = ::TIntrusivePtr<ITableReaderFactory<TRow>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 GetRowCount(const TRichYPath& path);
+
+class TTableSlicer
+{
+public:
+    // Default constructor for empty iterator.
+    TTableSlicer() = default;
+    TTableSlicer(TRichYPath path, i64 batchSize);
+
+    void Next();
+    bool IsValid() const;
+    TReadRange GetRange() const;
+
+private:
+    i64 GetLowerLimit() const;
+    i64 GetUpperLimit() const;
+
+private:
+    TRichYPath Path_;
+    i64 BatchSize_ = 0;
+    i64 RangeIndex_ = 0;
+    i64 Offset_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-struct TGreaterBySequenceNumber
+template <typename TRow>
+class TUnorderedTableReaderFactory
+    : public ITableReaderFactory<TRow>
 {
-    bool operator()(const TReaderBuffer<T>& left, const TReaderBuffer<T>& right)
+public:
+    // NB: `paths` must be canonized.
+    TUnorderedTableReaderFactory(
+        IClientBasePtr client,
+        const TVector<TRichYPath>& paths,
+        const TUnorderedReadManagerConfig& config,
+        const TTableReaderOptions& options)
+        : ThreadCount_(config.ThreadCount)
+        , Client_(std::move(client))
+        , Paths_(paths)
+        , Options_(options)
     {
-        return left.SequenceNumber > right.SequenceNumber;
+        Y_VERIFY(!Paths_.empty());
+        auto totalRowCount = GetRowCount(Paths_[TableIndex_]);
+        TableSlicer_ = TTableSlicer(Paths_[TableIndex_], totalRowCount / ThreadCount_ + 1);
     }
+
+    TMaybe<TReaderEntry<TRow>> GetNextEntry() override
+    {
+        TRichYPath path;
+        TReaderEntry<TRow> entry;
+        {
+            TGuard<TMutex> guard(Lock_);
+            while (!TableSlicer_.IsValid()) {
+                if (TableIndex_ >= static_cast<int>(Paths_.size()) - 1) {
+                    return Nothing();
+                }
+                ++TableIndex_;
+                auto totalRowCount = GetRowCount(Paths_[TableIndex_]);
+                TableSlicer_ = TTableSlicer(Paths_[TableIndex_], totalRowCount / ThreadCount_ + 1);
+            }
+            entry.TableIndex = TableIndex_;
+            path = TRichYPath(Paths_[TableIndex_]);
+            path.Ranges_ = {TableSlicer_.GetRange()};
+            TableSlicer_.Next();
+        }
+        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), Options_);
+        return entry;
+    }
+
+private:
+    const int ThreadCount_;
+    const IClientBasePtr Client_;
+    const TVector<TRichYPath> Paths_;
+    const TTableReaderOptions Options_;
+
+    TMutex Lock_;
+    int TableIndex_ = 0;
+    TTableSlicer TableSlicer_;
 };
 
-//
-// Base class for table reader using several threads to read the table in parallel.
-// Readers are produced by the passed factory.
-template <typename TDerived, typename T>
-class TParallelTableReaderBase
-    : public TDerived
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TRow>
+class TOrderedTableReaderFactory
+    : public ITableReaderFactory<TRow>
 {
 public:
-    using TRowType = T;
-
-public:
-    TParallelTableReaderBase(
-        bool ordered,
-        ITableReaderFactoryPtr<TRowType> factory,
-        size_t threadCount,
-        size_t bufferSize)
-        : Ordered_(ordered)
-        , Tasks_(0)
-        , FilledBuffers_(0)
-        , Factory_(std::move(factory))
+    // NB: `paths` must be canonized.
+    TOrderedTableReaderFactory(
+        IClientBasePtr client,
+        const TVector<TRichYPath>& paths,
+        const TOrderedReadManagerConfig& config,
+        const TTableReaderOptions& options)
+        : Config_(config)
+        , Client_(std::move(client))
+        , Paths_(paths)
+        , Options_(options)
     {
-        if (Factory_->IsValid()) {
-            CurrentReader_ = Factory_->GetReader();
-            CurrentTableIndex_ = Factory_->GetTableIndex();
-            Factory_->Next();
+        Y_VERIFY(!Paths_.empty());
+        TableSlicer_ = TTableSlicer(Paths_[TableIndex_], Config_.BatchSize);
+    }
+
+    TMaybe<TReaderEntry<TRow>> GetNextEntry() override
+    {
+        TRichYPath path;
+        TReaderEntry<TRow> entry;
+        {
+            TGuard<TMutex> guard(Lock_);
+            if (TableSlices_.empty()) {
+                RefillCurrentTableSlices();
+            }
+            if (TableSlices_.empty()) {
+                return Nothing();
+            }
+            std::tie(path, entry.SeqNum) = std::move(TableSlices_.front());
+            TableSlices_.pop();
+            entry.TableIndex = TableIndex_;
+        }
+        entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), Options_);
+        return entry;
+    }
+
+private:
+    // Lock_ must be taken on entry.
+    void RefillCurrentTableSlices()
+    {
+        while (!TableSlicer_.IsValid()) {
+            if (TableIndex_ >= static_cast<int>(Paths_.size()) - 1) {
+                return;
+            }
+            ++TableIndex_;
+            TableSlicer_ = TTableSlicer(Paths_[TableIndex_], Config_.BatchSize);
         }
 
-        Y_ENSURE(threadCount >= 1);
+        auto path = Paths_[TableIndex_];
+        // Add empty range to avoid having a path without ranges (meaning the whole table).
+        path.Ranges_ = {TReadRange::FromRowIndices(0, 0)};
+        TVector<TRichYPath> slices(Config_.ThreadCount, path);
+        i64 totalBatchCount = 0;
+        for (i64 batchIndex = 0; TableSlicer_.IsValid() && batchIndex < Config_.TotalRangeCount; ++batchIndex) {
+            slices[batchIndex % Config_.ThreadCount].AddRange(TableSlicer_.GetRange());
+            ++totalBatchCount;
+            TableSlicer_.Next();
+        }
+        auto seqNum = SeqNumBegin_;
+        for (auto& slice : slices) {
+            TableSlices_.push({std::move(slice), seqNum});
+            ++seqNum;
+        }
+        SeqNumBegin_ += totalBatchCount;
+    }
 
-        RunningThreadCount_ = threadCount;
-        for (size_t i = 0; i < threadCount; ++i) {
+private:
+    const TOrderedReadManagerConfig Config_;
+    const IClientBasePtr Client_;
+    const TVector<TRichYPath> Paths_;
+    const TTableReaderOptions Options_;
+
+    TMutex Lock_;
+    int TableIndex_ = 0;
+    i64 SeqNumBegin_ = 0;
+    // {Path, SeqNumBegin}.
+    TQueue<std::pair<TRichYPath, i64>> TableSlices_;
+    TTableSlicer TableSlicer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TRow>
+static void ReadRows(const TTableReaderPtr<TRow>& reader, i64 batchSize, TVector<TRow>& rows)
+{
+    // Don't clear the buffer to avoid unnecessary calls of destructors
+    // and memory allocation/deallocation.
+    i64 index = 0;
+    auto rowIndex = reader->GetRowIndex();
+    while (reader->IsValid() && rowIndex == reader->GetRowIndex() && index < batchSize) {
+        if (index >= static_cast<i64>(rows.size())) {
+            rows.push_back(reader->MoveRow());
+        } else {
+            reader->MoveRow(&rows[index]);
+        }
+        ++index;
+        ++rowIndex;
+        reader->Next();
+    }
+    rows.resize(index);
+}
+
+template <typename TRow>
+class TReadManagerBase
+{
+public:
+    TReadManagerBase(ITableReaderFactoryPtr<TRow> factory, int threadCount)
+        : Factory_(std::move(factory))
+        , RunningThreadCount_(threadCount)
+    {
+        for (int i = 0; i < threadCount; ++i) {
             TString threadName = ::TStringBuilder() << "par_reader_" << i;
             Threads_.push_back(::MakeHolder<TThread>(
                 TThread::TParams(ReaderThread, this).SetName(threadName)));
-            Threads_.back()->Start();
-        }
-
-        for (size_t i = 0; i < threadCount; ++i) {
-            if (!Factory_->IsValid()) {
-                break;
-            }
-            TReaderBuffer<TRowType> buffer;
-            buffer.Rows.reserve(bufferSize);
-            PrepareNextTask(&buffer);
         }
     }
 
-    ~TParallelTableReaderBase()
+    virtual ~TReadManagerBase() = default;
+
+    void Start()
     {
-        Tasks_.Stop();
-        FilledBuffers_.Stop();
+        for (auto& thread : Threads_) {
+            thread->Start();
+        }
+    }
+
+    void Stop()
+    {
+        DoStop();
         for (auto& thread : Threads_) {
             thread->Join();
         }
     }
 
-    bool IsValid() const override
+    TReaderBufferPtr<TRow> GetNextFilledBuffer()
     {
-        return CurrentReader_ != nullptr && CurrentReader_->IsValid();
-    }
-
-    void Next() override
-    {
-        CheckValidity();
-
-        CurrentReader_->Next();
-        if (CurrentReader_->IsValid()) {
-            return;
-        }
-
-        // Reset current reader pointer before dealing with CurrentBuffer_
-        // to avoid use-after-free in TBufferReader.
-        CurrentReader_.Reset();
-
-        if (CurrentBuffer_ && Factory_->IsValid()) {
-            PrepareNextTask(CurrentBuffer_.Get());
-            CurrentBuffer_.Clear();
-        }
-
-        if (!Factory_->IsValid() && Tasks_.Empty()) {
-            Tasks_.Stop();
-        }
-
-        if (Ordered_) {
-            OrderedNext();
-        } else {
-            UnorderedNext();
-        }
-    }
-
-    ui32 GetTableIndex() const override
-    {
-        return CurrentTableIndex_;
-    }
-
-    ui32 GetRangeIndex() const override
-    {
-        CheckValidity();
-        return CurrentReader_->GetRangeIndex();
-    }
-
-    ui64 GetRowIndex() const override
-    {
-        CheckValidity();
-        return CurrentReader_->GetRowIndex();
-    }
-
-    void NextKey() override
-    {
-        Y_FAIL("Not implemented as this reader is intended for use on client");
-    }
-
-protected:
-    TTableReaderPtr<TRowType> CurrentReader_;
-
-protected:
-    void CheckValidity() const
-    {
-        Y_ENSURE(IsValid(), "Iterator is invalid");
-    }
-
-private:
-    using TTask = std::pair<TTableReaderPtr<TRowType>, TReaderBuffer<TRowType>>;
-
-private:
-    const bool Ordered_ = true;
-    TMaybe<TReaderBuffer<TRowType>> CurrentBuffer_;
-    ui32 CurrentTableIndex_;
-    TVector<THolder<TThread>> Threads_;
-    int RunningThreadCount_ = 0;
-
-    NThreading::TBlockingQueue<TTask> Tasks_;
-    NThreading::TBlockingQueue<TReaderBuffer<TRowType>> FilledBuffers_;
-
-    ITableReaderFactoryPtr<T> Factory_;
-
-    TPriorityQueue<
-        TReaderBuffer<TRowType>,
-        TVector<TReaderBuffer<TRowType>>,
-        TGreaterBySequenceNumber<TRowType>
-    > ExtractedFilledBuffers_;
-
-    size_t NextInputSequenceNumber_ = 0;
-    size_t NextOutputSequenceNumber_ = 0;
-
-    TMutex Lock_;
-    TMaybe<yexception> Exception_;
-
-private:
-    void PrepareNextTask(TReaderBuffer<TRowType>* buffer)
-    {
-        auto reader = Factory_->GetReader();
-        buffer->SequenceNumber = NextInputSequenceNumber_++;
-        if (reader->IsValid()) {
-            buffer->FirstRowIndex = reader->GetRowIndex();
-            buffer->TableIndex = Factory_->GetTableIndex();
-        }
-        bool pushed = Tasks_.Push({reader, std::move(*buffer)});
-        Y_ENSURE(pushed, "Task queue can be stopped only by the main thread");
-        Factory_->Next();
-    }
-
-    void UnorderedNext()
-    {
-        if (FilledBuffers_.Empty() && Factory_->IsValid()) {
-            CurrentReader_ = Factory_->GetReader();
-            CurrentTableIndex_ = Factory_->GetTableIndex();
-            Factory_->Next();
-            return;
-        }
-
-        CurrentBuffer_ = FilledBuffers_.Pop();
-        if (!CurrentBuffer_) {
+        auto buffer = DoGetNextFilledBuffer();
+        if (!buffer) {
             TGuard<TMutex> guard(Lock_);
             if (Exception_) {
-                throw *Exception_;
-            }
-            return;
-        }
-        CurrentTableIndex_ = CurrentBuffer_->TableIndex;
-        auto bufferReader = ::MakeIntrusive<TBufferTableReader<TRowType>>(&*CurrentBuffer_);
-        CurrentReader_.Reset(new TTableReader<TRowType>(std::move(bufferReader)));
-    }
-
-    void OrderedNext()
-    {
-        if (!ExtractedFilledBuffers_.empty() &&
-            ExtractedFilledBuffers_.top().SequenceNumber == NextOutputSequenceNumber_)
-        {
-            CurrentBuffer_ = std::move(ExtractedFilledBuffers_.top());
-            ExtractedFilledBuffers_.pop();
-        } else {
-            while (true) {
-                auto maybeBuffer = FilledBuffers_.Pop();
-                if (!maybeBuffer) {
-                    TGuard<TMutex> guard(Lock_);
-                    if (Exception_) {
-                        throw *Exception_;
-                    }
-                    return;
-                }
-                if (maybeBuffer->SequenceNumber == NextOutputSequenceNumber_) {
-                    CurrentBuffer_ = std::move(*maybeBuffer);
-                    break;
-                } else {
-                    ExtractedFilledBuffers_.push(std::move(*maybeBuffer));
-                }
+                std::rethrow_exception(Exception_);
             }
         }
-        ++NextOutputSequenceNumber_;
-
-        CurrentTableIndex_ = CurrentBuffer_->TableIndex;
-        auto bufferReader = ::MakeIntrusive<TBufferTableReader<TRowType>>(&*CurrentBuffer_);
-        CurrentReader_.Reset(new TTableReader<TRowType>(std::move(bufferReader)));
+        return buffer;
     }
+
+    virtual void OnBufferDrained(TReaderBufferPtr<TRow> buffer) = 0;
+
+private:
+    virtual TReaderBufferPtr<TRow> DoGetNextFilledBuffer() = 0;
+    virtual bool ProcessEntry(TReaderEntry<TRow> entry) = 0;
+    virtual void DoStop() = 0;
 
     void ReaderThread()
     {
         try {
-            while (true) {
-                auto maybeTask = Tasks_.Pop();
-                if (!maybeTask) {
-                    break;
-                }
-                auto& [reader, buffer] = *maybeTask;
-
-                // Don't clear the buffer to avoid unnecessary calls of destructors
-                // and memory allocation/deallocation.
-                size_t index = 0;
-                for (; reader->IsValid(); reader->Next()) {
-                    if (index >= buffer.Rows.size()) {
-                        buffer.Rows.push_back(reader->MoveRow());
-                    } else {
-                        reader->MoveRow(&buffer.Rows[index]);
-                    }
-                    ++index;
-                }
-                buffer.Rows.resize(index);
-
-                if (!FilledBuffers_.Push(std::move(buffer))) {
+            while (auto entry = Factory_->GetNextEntry()) {
+                if (!ProcessEntry(std::move(*entry))) {
                     break;
                 }
             }
         } catch (const yexception& exception) {
+            LOG_ERROR("Exception in parallel reader thread: %s",
+                exception.what());
             TGuard<TMutex> guard(Lock_);
-            Exception_ = exception;
-            FilledBuffers_.Stop();
+            Exception_ = std::make_exception_ptr(exception);
+            DoStop();
         }
         {
             TGuard<TMutex> guard(Lock_);
             if (RunningThreadCount_ == 1) {
-                FilledBuffers_.Stop();
+                DoStop();
             }
             --RunningThreadCount_;
+            LOG_DEBUG("%d/%d parallel reader threads finished",
+                static_cast<int>(Threads_.size()) - RunningThreadCount_,
+                Threads_.size());
         }
     }
 
     static void* ReaderThread(void* opaque)
     {
-        static_cast<TParallelTableReaderBase<TDerived, T>*>(opaque)->ReaderThread();
+        static_cast<TReadManagerBase<TRow>*>(opaque)->ReaderThread();
         return nullptr;
     }
+
+private:
+    const ITableReaderFactoryPtr<TRow> Factory_;
+
+    TVector<THolder<TThread>> Threads_;
+
+    TMutex Lock_;
+    int RunningThreadCount_ = 0;
+    std::exception_ptr Exception_;
+
+};
+
+template <typename TRow>
+class TUnorderedReadManager
+    : public TReadManagerBase<TRow>
+{
+public:
+    TUnorderedReadManager(
+        IClientBasePtr client,
+        TVector<TRichYPath> paths,
+        const TUnorderedReadManagerConfig& config,
+        const TTableReaderOptions& options)
+        : TReadManagerBase<TRow>(
+            ::MakeIntrusive<TUnorderedTableReaderFactory<TRow>>(
+                std::move(client),
+                std::move(paths),
+                config,
+                options),
+            config.ThreadCount)
+        , Config_(config)
+        , EmptyBuffers_(0)
+        , FilledBuffers_(0)
+    {
+        for (i64 i = 0; i < Config_.BatchCount; ++i) {
+            EmptyBuffers_.Push(MakeIntrusive<TReaderBuffer<TRow>>());
+        }
+    }
+
+    void OnBufferDrained(TReaderBufferPtr<TRow> buffer) override
+    {
+        EmptyBuffers_.Push(std::move(buffer));
+    }
+
+private:
+    bool ProcessEntry(TReaderEntry<TRow> entry) override
+    {
+        const auto& reader = entry.Reader;
+        while (reader->IsValid()) {
+            auto buffer = EmptyBuffers_.Pop().GetOrElse(nullptr);
+            if (!buffer) {
+                return false;
+            }
+            buffer->TableIndex = entry.TableIndex;
+            buffer->FirstRowIndex = reader->GetRowIndex();
+            ReadRows(reader, Config_.BatchSize, buffer->Rows);
+            if (!FilledBuffers_.Push(std::move(buffer))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    TReaderBufferPtr<TRow> DoGetNextFilledBuffer() override
+    {
+        return FilledBuffers_.Pop().GetOrElse(nullptr);
+    }
+
+    void DoStop() override
+    {
+        FilledBuffers_.Stop();
+        EmptyBuffers_.Stop();
+    }
+
+private:
+    const TUnorderedReadManagerConfig Config_;
+
+    NThreading::TBlockingQueue<TReaderBufferPtr<TRow>> EmptyBuffers_;
+    NThreading::TBlockingQueue<TReaderBufferPtr<TRow>> FilledBuffers_;
+};
+
+template <typename TRow>
+class TOrderedReadManager
+    : public TReadManagerBase<TRow>
+{
+public:
+    TOrderedReadManager(
+        IClientBasePtr client,
+        TVector<TRichYPath> paths,
+        const TOrderedReadManagerConfig& config,
+        const TTableReaderOptions& options)
+        : TReadManagerBase<TRow>(
+            ::MakeIntrusive<TOrderedTableReaderFactory<TRow>>(
+                std::move(client),
+                std::move(paths),
+                config,
+                options),
+            config.ThreadCount)
+        , Config_(config)
+        , BucketCount_(config.ThreadCount)
+        , FilledBuffers_(0)
+    {
+        auto batchCountPerBucket = Config_.BatchCount / BucketCount_ + 1;
+        for (int bucketIndex = 0; bucketIndex < BucketCount_; ++bucketIndex) {
+            auto& bufferQueue = EmptyBuffers_.emplace_back(::MakeHolder<TQueue>(0));
+            for (int j = 0; j < batchCountPerBucket; ++j) {
+                bufferQueue->Push(MakeIntrusive<TReaderBuffer<TRow>>());
+            }
+        }
+    }
+
+    void OnBufferDrained(TReaderBufferPtr<TRow> buffer) override
+    {
+        auto bucketIndex = GetBucketIndex(buffer->SeqNum);
+        EmptyBuffers_[bucketIndex]->Push(std::move(buffer));
+    }
+
+private:
+    int GetBucketIndex(i64 seqNum) const
+    {
+        return seqNum % EmptyBuffers_.size();
+    }
+
+    TReaderBufferPtr<TRow> DoGetNextFilledBuffer() override
+    {
+        while (FilledBuffersOrdered_.empty() || FilledBuffersOrdered_.top()->SeqNum != CurrentSeqNum_) {
+            auto waitStart = TInstant::Now();
+            auto buffer = FilledBuffers_.Pop().GetOrElse(nullptr);
+            WaitTime_ += TInstant::Now() - waitStart;
+            if (!buffer) {
+                return nullptr;
+            }
+            FilledBuffersOrdered_.push(std::move(buffer));
+        }
+        ++CurrentSeqNum_;
+        auto buffer = FilledBuffersOrdered_.top();
+        FilledBuffersOrdered_.pop();
+        return buffer;
+    }
+
+    bool ProcessEntry(TReaderEntry<TRow> entry) override
+    {
+        const auto& reader = entry.Reader;
+        auto seqNum = entry.SeqNum;
+        auto bucketIndex = GetBucketIndex(seqNum);
+        while (reader->IsValid()) {
+            auto buffer = EmptyBuffers_[bucketIndex]->Pop().GetOrElse(nullptr);
+            if (!buffer) {
+                return false;
+            }
+            buffer->SeqNum = seqNum;
+            buffer->TableIndex = entry.TableIndex;
+            buffer->FirstRowIndex = reader->GetRowIndex();
+            ReadRows(reader, Config_.BatchSize, buffer->Rows);
+            seqNum += BucketCount_;
+            if (!FilledBuffers_.Push(std::move(buffer))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void DoStop() override
+    {
+        LOG_DEBUG("Finishing ordered parallel read manager; total wait time is %f seconds",
+            WaitTime_.SecondsFloat());
+        FilledBuffers_.Stop();
+        for (auto& queue : EmptyBuffers_) {
+            queue->Stop();
+        }
+    }
+
+private:
+    const TOrderedReadManagerConfig Config_;
+    const int BucketCount_;
+
+    TDuration WaitTime_;
+
+    using TQueue = NThreading::TBlockingQueue<TReaderBufferPtr<TRow>>;
+    TVector<THolder<TQueue>> EmptyBuffers_;
+    TQueue FilledBuffers_;
+
+    template <typename T>
+    struct TGreaterBySeqNum
+    {
+        bool operator()(const TReaderBufferPtr<T>& left, const TReaderBufferPtr<T>& right)
+        {
+            return left->SeqNum > right->SeqNum;
+        }
+    };
+
+    TPriorityQueue<
+        TReaderBufferPtr<TRow>,
+        TVector<TReaderBufferPtr<TRow>>,
+        TGreaterBySeqNum<TRow>
+    > FilledBuffersOrdered_;
+    i64 CurrentSeqNum_ = 0;
+};
+
+//
+// Base class for table reader using several threads to read the table in parallel.
+// Readers are produced by the passed factory.
+template <typename TDerived, typename TRow>
+class TParallelTableReaderBase
+    : public TDerived
+{
+public:
+    TParallelTableReaderBase(
+        IClientBasePtr client,
+        TVector<TRichYPath> paths,
+        const TReadManagerConfigVariant& config,
+        const TTableReaderOptions& options)
+    {
+        if (HoldsAlternative<TUnorderedReadManagerConfig>(config)) {
+            const auto& unorderedConfig = Get<TUnorderedReadManagerConfig>(config);
+            LOG_DEBUG("Starting unordered parallel reader: "
+                "ThreadCount = %d, BatchSize = %d, BatchCount = %d",
+                unorderedConfig.ThreadCount,
+                unorderedConfig.BatchSize,
+                unorderedConfig.BatchCount);
+            ReadManager_ = MakeHolder<TUnorderedReadManager<TRow>>(
+                std::move(client),
+                std::move(paths),
+                unorderedConfig,
+                options);
+        } else if (HoldsAlternative<TOrderedReadManagerConfig>(config)) {
+            const auto& orderedConfig = Get<TOrderedReadManagerConfig>(config);
+            LOG_DEBUG("Starting ordered parallel reader: "
+                "ThreadCount = %d, BatchSize = %d, BatchCount = %d, TotalRangeCount = %d",
+                orderedConfig.ThreadCount,
+                orderedConfig.BatchSize,
+                orderedConfig.BatchCount,
+                orderedConfig.TotalRangeCount);
+            ReadManager_ = MakeHolder<TOrderedReadManager<TRow>>(
+                std::move(client),
+                std::move(paths),
+                orderedConfig,
+                options);
+        } else {
+            Y_FAIL();
+        }
+        ReadManager_->Start();
+        NextBuffer();
+    }
+
+    bool IsValid() const override
+    {
+        return CurrentBuffer_ != nullptr;
+    }
+
+    void Next() override
+    {
+        if (!CurrentBuffer_) {
+            return;
+        }
+        ++CurrentBufferIt_;
+        while (CurrentBuffer_ && CurrentBufferIt_ == CurrentBuffer_->Rows.end()) {
+            ReadManager_->OnBufferDrained(std::move(CurrentBuffer_));
+            NextBuffer();
+        }
+    }
+
+    void NextBuffer()
+    {
+        CurrentBuffer_ = ReadManager_->GetNextFilledBuffer();
+        if (!CurrentBuffer_) {
+            return;
+        }
+        CurrentBufferIt_ = CurrentBuffer_->Rows.begin();
+    }
+
+    ui32 GetTableIndex() const override
+    {
+        Y_VERIFY(CurrentBuffer_);
+        return CurrentBuffer_->TableIndex;
+    }
+
+    ui32 GetRangeIndex() const override
+    {
+        Y_FAIL("Not implemented");
+    }
+
+    ui64 GetRowIndex() const override
+    {
+        Y_VERIFY(CurrentBuffer_);
+        return CurrentBuffer_->FirstRowIndex + (CurrentBufferIt_ - CurrentBuffer_->Rows.begin());
+    }
+
+    void NextKey() override
+    {
+        Y_FAIL("Not implemented");
+    }
+
+    ~TParallelTableReaderBase()
+    {
+        ReadManager_->Stop();
+    }
+
+protected:
+    typename TVector<TRow>::iterator CurrentBufferIt_;
+
+private:
+    TReaderBufferPtr<TRow> CurrentBuffer_;
+    THolder<TReadManagerBase<TRow>> ReadManager_;
 };
 
 template <typename T, typename = void>
@@ -544,12 +679,12 @@ public:
 
     const TNode& GetRow() const override
     {
-        return CurrentReader_->GetRow();
+        return *CurrentBufferIt_;
     }
 
     void MoveRow(TNode* row) override
     {
-        *row = CurrentReader_->MoveRow();
+        *row = *CurrentBufferIt_;
     }
 };
 
@@ -565,9 +700,16 @@ public:
 
     void ReadRow(Message* row) override
     {
-        this->CurrentReader_->MoveRow(static_cast<T*>(row));
+        static_cast<T&>(*row) = *this->CurrentBufferIt_;
     }
 };
+
+std::pair<IClientBasePtr, TVector<TRichYPath>> CreateRangeReaderClientAndPaths(
+    const IClientBasePtr& client,
+    const TVector<TRichYPath>& paths,
+    bool createTransaction);
+
+i64 EstimateTableRowWeight(const IClientBasePtr& client, const TVector<TRichYPath>& paths);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -581,113 +723,53 @@ TTableReaderPtr<T> CreateParallelTableReader(
     const TVector<TRichYPath>& paths,
     const TParallelTableReaderOptions& options)
 {
-    auto canonizePaths = [&] (const TVector<TRichYPath>& paths) {
-        return BatchTransform(client, paths, std::mem_fn(&IBatchRequest::CanonizeYPath));
-    };
+    Y_ENSURE_EX(!paths.empty(), TApiUsageError() << "Parallel table reader: paths should not be empty");
+    Y_ENSURE_EX(options.ThreadCount_ >= 1, TApiUsageError() << "ThreadCount can not be zero");
 
-    auto lockPaths = [&] (const IClientBasePtr& client, TVector<TRichYPath> paths) {
-        auto locks = BatchTransform(client, paths, [] (const TBatchRequestPtr& batch, const TRichYPath& path) {
-            return batch->Lock(path.Path_, ELockMode::LM_SNAPSHOT);
-        });
-        TVector<TRichYPath> result = std::move(paths);
-        for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
-            result[i].Path("#" + GetGuidAsString(locks[i]->GetLockedNodeId()));
-        }
-        return result;
-    };
-
-    auto getMissingRanges = [&] (const IClientBasePtr& client, TVector<TRichYPath> paths) {
-        auto rowCounts = BatchTransform(client, paths, [] (const TBatchRequestPtr& batch, const TRichYPath& path) {
-            if (path.Ranges_.empty()) {
-                return batch->Get(path.Path_ + "/@row_count");
-            }
-            for (const auto& range : path.Ranges_) {
-                Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
-                Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
-            }
-            return NThreading::MakeFuture(TNode());
-        });
-        for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
-            if (paths[i].Ranges_.empty()) {
-                paths[i].Ranges_.push_back(TReadRange::FromRowIndices(0, rowCounts[i].AsInt64()));
-            }
-        }
-        return paths;
-    };
-
-    auto rangeReaderPaths = canonizePaths(paths);
-
-    IClientBasePtr rangeReaderClient;
-    if (options.CreateTransaction_) {
-        rangeReaderClient = client->StartTransaction();
-        rangeReaderPaths = lockPaths(rangeReaderClient, std::move(rangeReaderPaths));
-    } else {
-        rangeReaderClient = client;
-    }
-
-    rangeReaderPaths = getMissingRanges(rangeReaderClient, std::move(rangeReaderPaths));
+    auto [rangeReaderClient, rangeReaderPaths] = NDetail::CreateRangeReaderClientAndPaths(
+        client,
+        paths,
+        options.CreateTransaction_);
 
     auto rangeReaderOptions = TTableReaderOptions()
         .CreateTransaction(false);
     rangeReaderOptions.FormatHints_ = options.FormatHints_;
     rangeReaderOptions.Config_ = options.Config_;
 
-    Y_ENSURE_EX(options.ThreadCount_ >= 1, TApiUsageError() << "ThreadCount can not be zero");
+    auto rowWeight = NDetail::EstimateTableRowWeight(rangeReaderClient, rangeReaderPaths);
 
-    i64 memoryPerRow = 1;
-    TVector<TRichYPath> pathsForColumnStatistics;
+    auto rowCount = Max<i64>(
+        1,
+        Min(options.MemoryLimit_ / rowWeight, options.BufferedRowCountLimit_));
+    auto batchSize = Max<i64>(
+        1,
+        Min(options.BatchSizeBytes_ / rowWeight, rowCount / options.ThreadCount_ + 1));
+    auto batchCount = Max<i64>(
+        1,
+        rowCount / batchSize);
 
-    auto dataWeights = BatchTransform(client, rangeReaderPaths, [&] (const TBatchRequestPtr& batch, const TRichYPath& path) {
-        if (path.Columns_) {
-            pathsForColumnStatistics.push_back(path);
-            return NThreading::MakeFuture(TNode(0));
-        } else {
-            return batch->Get(path.Path_ + "/@data_weight");
-        }
-    });
-    for (int i = 0; i < static_cast<int>(rangeReaderPaths.size()); ++i) {
-        auto dataWeight = dataWeights[i].AsInt64();
-        if (dataWeight == 0) {
-            continue;
-        }
-        auto rowCount = 1;
-        for (const auto& range : rangeReaderPaths[i].Ranges_) {
-            rowCount += *range.UpperLimit_.RowIndex_ - *range.LowerLimit_.RowIndex_;
-        }
-        memoryPerRow += dataWeight / rowCount;
+    NDetail::TReadManagerConfigVariant config;
+    if (options.Ordered_) {
+        NDetail::TOrderedReadManagerConfig cfg;
+        cfg.ThreadCount = options.ThreadCount_;
+        cfg.BatchSize = batchSize;
+        cfg.BatchCount = batchCount;
+        cfg.TotalRangeCount = options.TotalRangeCount_;
+        config = cfg;
+    } else {
+        NDetail::TUnorderedReadManagerConfig cfg;
+        cfg.ThreadCount = options.ThreadCount_;
+        cfg.BatchSize = batchSize;
+        cfg.BatchCount = batchCount;
+        config = cfg;
     }
-
-    if (!pathsForColumnStatistics.empty()) {
-        auto columnarStatistics = rangeReaderClient->GetTableColumnarStatistics(pathsForColumnStatistics);
-        for (size_t i = 0; i < columnarStatistics.size(); ++i) {
-            auto dataWeight = columnarStatistics[i].LegacyChunksDataWeight;
-            for (const auto& [columnName, columnWeight] : columnarStatistics[i].ColumnDataWeight) {
-                dataWeight += columnWeight;
-            }
-            auto rowCount = 1;
-            for (const auto& range : pathsForColumnStatistics[i].Ranges_) {
-                rowCount += *range.UpperLimit_.RowIndex_ - *range.LowerLimit_.RowIndex_;
-            }
-            memoryPerRow += dataWeight / rowCount;
-        }
-    }
-
-    ui64 rangeSize = Min(options.MemoryLimit_ / memoryPerRow, options.BufferedRowCountLimit_);
-    rangeSize /= options.ThreadCount_;
-    rangeSize += 1;
-    auto factory = ::MakeIntrusive<NDetail::TEqualRangeTableReaderFactory<T>>(
-        std::move(rangeReaderClient),
-        std::move(rangeReaderPaths),
-        rangeSize,
-        options.Ordered_,
-        rangeReaderOptions);
 
     return ::MakeIntrusive<TTableReader<T>>(
         new NDetail::TParallelTableReader<T>(
-            options.Ordered_,
-            std::move(factory),
-            options.ThreadCount_,
-            rangeSize));
+            std::move(rangeReaderClient),
+            std::move(rangeReaderPaths),
+            config,
+            rangeReaderOptions));
 }
 
 template <typename T>
