@@ -262,9 +262,7 @@ public:
         TTimestamp timestamp,
         bool suppressAccessTracking)
     {
-        auto tabletSnapshot = SlotManager_->GetTabletSnapshotOrThrow(tabletId);
-
-        tabletSnapshot->ValidateMountRevision(mountRevision);
+        auto tabletSnapshot = SlotManager_->GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
         SlotManager_->ValidateTabletAccess(tabletSnapshot, timestamp);
 

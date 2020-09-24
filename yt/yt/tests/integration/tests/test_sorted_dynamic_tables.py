@@ -1678,3 +1678,43 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
                 expected = self.DELTA_NODE_CONFIG["tablet_node"]["resource_limits"]["tablet_dynamic_memory"] * ratio
                 assert expected - 100000 < pool_size < expected + 100000
                 break
+
+class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
+    NUM_NODES = 1
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "resource_limits": {
+                "slots": 2,
+            },
+        },
+    }
+
+    @authors("ifsmirnov")
+    def test_compaction_after_alter(self):
+        cells = sync_create_cells(2)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}]
+
+        self._create_simple_table(
+            "//tmp/t",
+            schema=schema,
+            replication_factor=1,
+            enable_dynamic_store_read=False)
+
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+        rows = [{"key": 1, "value": "foo"}]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        schema[1:1] = [{"name": "key2", "type": "double", "sort_order": "ascending"}]
+        alter_table("//tmp/t", schema=schema)
+        chunk_id = get("//tmp/t/@chunk_ids/0")
+        set("//tmp/t/@forced_compaction_revision", 1)
+        sync_mount_table("//tmp/t", cell_id=cells[1])
+        wait(lambda: get("//tmp/t/@chunk_ids/0") != chunk_id)
+
+        rows[0]["key2"] = None
+        assert_items_equal(read_table("//tmp/t"), rows)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)

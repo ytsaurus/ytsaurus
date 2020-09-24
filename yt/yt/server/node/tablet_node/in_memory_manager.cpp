@@ -299,7 +299,9 @@ private:
         }
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(
+            tablet->GetId(),
+            tablet->GetMountRevision());
         if (!tabletSnapshot) {
             YT_LOG_INFO("Tablet snapshot is missing");
 
@@ -961,6 +963,7 @@ private:
                 ToProto(req->add_chunk_id(), chunkInfo.ChunkId);
                 ToProto(req->add_chunk_meta(), chunkInfo.ChunkMeta);
                 ToProto(req->add_tablet_id(), chunkInfo.TabletId);
+                req->add_mount_revision(chunkInfo.MountRevision);
             }
 
             asyncResults.push_back(req->Invoke().As<void>());

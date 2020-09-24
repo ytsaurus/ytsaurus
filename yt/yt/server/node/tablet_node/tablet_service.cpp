@@ -254,9 +254,8 @@ private:
         NHydra::TRevision mountRevision)
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId, mountRevision);
         tabletSnapshot->ValidateCellId(Slot_->GetCellId());
-        tabletSnapshot->ValidateMountRevision(mountRevision);
         return tabletSnapshot;
     }
 

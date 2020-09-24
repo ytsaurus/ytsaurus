@@ -790,7 +790,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         chunkInfos.emplace_back(
             tableWriter->GetChunkId(),
             tableWriter->GetNodeMeta(),
-            tabletSnapshot->TabletId);
+            tabletSnapshot->TabletId,
+            tabletSnapshot->MountRevision);
 
         WaitFor(blockCache->Finish(chunkInfos))
             .ThrowOnError();

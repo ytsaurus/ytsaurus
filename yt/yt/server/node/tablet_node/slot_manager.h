@@ -62,11 +62,19 @@ public:
     //! Returns the list of snapshots for all registered tablets.
     std::vector<TTabletSnapshotPtr> GetTabletSnapshots();
 
-    //! Returns the snapshot for a given tablet or |nullptr| if none.
-    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId);
+    //! Returns the snapshot for a given tablet with latest mount revision or |nullptr| if none.
+    TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId);
 
-    //! Returns the snapshot for a given tablet or throws if no such tablet is known.
-    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId);
+    //! Returns the snapshot for a given tablet with latest mount revision or throws
+    //! if no such tablet is known.
+    TTabletSnapshotPtr GetLatestTabletSnapshotOrThrow(TTabletId tabletId);
+
+    //! Returns the snapshot for a given tablet with given mount revision or |nullptr| if none.
+    TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, NHydra::TRevision mountRevision);
+
+    //! Returns the snapshot for a given tablet with given mount revision
+    //! or throws if no such tablet is known.
+    TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId, NHydra::TRevision mountRevision);
 
     //! If #timestamp is other than #AsyncLastCommitted then checks
     //! that the Hydra instance has a valid leader lease.

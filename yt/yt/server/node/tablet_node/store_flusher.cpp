@@ -104,6 +104,7 @@ private:
     {
         i64 MemoryUsage;
         TTabletId TabletId;
+        TRevision MountRevision;
         TString TabletLoggingId;
         TTabletSlotPtr Slot;
     };
@@ -213,7 +214,8 @@ private:
                 candidates.pop_back();
 
                 auto tabletId = candidate.TabletId;
-                auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId);
+                auto mountRevision = candidate.MountRevision;
+                auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId, mountRevision);
                 if (!tabletSnapshot) {
                     continue;
                 }
@@ -301,6 +303,7 @@ private:
                     TabletCellBundleData_[bundleName].ForcedRotationCandidates.push_back({
                         memoryUsage,
                         tablet->GetId(),
+                        tablet->GetMountRevision(),
                         tablet->GetLoggingId(),
                         slot
                     });
@@ -322,7 +325,7 @@ private:
         }
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
         if (!tabletSnapshot) {
             return;
         }
@@ -365,7 +368,7 @@ private:
             store->GetId());
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId());
+        auto tabletSnapshot = slotManager->FindTabletSnapshot(tablet->GetId(), tablet->GetMountRevision());
         if (!tabletSnapshot) {
             YT_LOG_DEBUG("Tablet snapshot is missing, aborting flush");
             storeManager->BackoffStoreFlush(store);
