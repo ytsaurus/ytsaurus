@@ -197,6 +197,10 @@ class YtResponseError(YtError):
         self.error = error
         self.inner_errors = [self.error]
 
+    def is_operation_progress_outdated(self):
+        """ Operation progress in Cypress is outdated while archive request failed """
+        return self.contains_code(1911)
+
     def is_resolve_error(self):
         """Resolution error."""
         return self.contains_code(500)
