@@ -134,8 +134,13 @@ default_config = {
 
     # Parameters for dynamic table requests retries.
     "dynamic_table_retries": retries_config(count=6, enable=True, total_timeout=None, backoff={
-        "policy": "constant_time",
-        "constant_time": 5 * 1000
+        "policy": "exponential",
+        "exponential_policy": {
+            "start_timeout": 5000,
+            "base": 1.5,
+            "max_timeout": 120000,
+            "decay_factor_bound": 0.3,
+        }
     }),
 
     # Maximum number of rows to sample without operation
