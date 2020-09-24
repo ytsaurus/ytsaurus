@@ -1457,6 +1457,7 @@ struct TOperationAttributes
     TMaybe<TOperationResult> Result;
     TMaybe<TOperationProgress> Progress;
     TMaybe<TVector<TOperationEvent>> Events;
+    TMaybe<THashMap<TString, TYtError>> Alerts;
 };
 
 enum class ECursorDirection
