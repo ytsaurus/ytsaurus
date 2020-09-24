@@ -266,7 +266,7 @@ def do_wait_for_instances(op, instance_count, operation_alias, client=None):
             logger.info("Clique started and ready for serving under alias %s", operation_alias)
             return op
         elif state.is_unsuccessfully_finished():
-            process_operation_unsuccesful_finish_state(op, state)
+            process_operation_unsuccesful_finish_state(op, op.get_error(state))
         else:
             op.printer(state)
 
