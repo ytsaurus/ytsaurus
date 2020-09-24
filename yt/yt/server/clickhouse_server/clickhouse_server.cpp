@@ -261,7 +261,7 @@ private:
 
         YT_LOG_DEBUG("Setting chyt custom setting prefix");
 
-        ServerContext_->getAccessControlManager().setCustomSettingsPrefixes("chyt_");
+        ServerContext_->getAccessControlManager().setCustomSettingsPrefixes(std::vector<std::string>{"chyt_", "chyt."});
 
         YT_LOG_INFO("Finished setting up context");
     }

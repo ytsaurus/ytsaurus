@@ -55,6 +55,13 @@ private:
     DB::Block OutputHeaderBlock_;
     std::vector<int> IdToColumnIndex_;
 
+    TDuration ConversionCpuTime_;
+    TDuration ConversionSyncWaitTime_;
+
+    NProfiling::TWallTimer IdleTimer_ = NProfiling::TWallTimer(false /* start */);
+
+    int ReadCount_ = 0;
+
     virtual DB::Block readImpl() override;
     void Prepare();
     DB::Block ConvertRowBatchToBlock(const NTableClient::IUnversionedRowBatchPtr& batch);

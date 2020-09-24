@@ -86,6 +86,11 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EKeyConditionScale,
+    (Partition)
+    (TopLevelDataSlice)
+)
+
 class TInputFetcher
     : public TRefCounted
 {
@@ -214,7 +219,11 @@ private:
                 if (!dataSlice->LowerLimit().Key && !dataSlice->UpperLimit().Key) {
                     return false;
                 }
-                return !GetRangeMask(dataSlice->LowerLimit().Key, dataSlice->UpperLimit().Key, dataSlice->InputStreamIndex).can_be_true;
+                return !GetRangeMask(
+                    EKeyConditionScale::TopLevelDataSlice,
+                    dataSlice->LowerLimit().Key,
+                    dataSlice->UpperLimit().Key,
+                    dataSlice->InputStreamIndex).can_be_true;
             });
             dataSlices.resize(it - dataSlices.begin());
 
@@ -434,7 +443,7 @@ private:
             .ThrowOnError();
         // Filter partitions.
         harvester->FilterPartitions([&] (TKey lowerKey, TKey upperKey) {
-            return GetRangeMask(lowerKey, upperKey, operandIndex).can_be_true;
+            return GetRangeMask(EKeyConditionScale::Partition, lowerKey, upperKey, operandIndex).can_be_true;
         });
         auto nameTable = TNameTable::FromKeyColumns(ColumnNames_);
         TColumnFilter columnFilter(nameTable->GetSize());
@@ -468,10 +477,11 @@ private:
         InputDataSlices_[tableIndex].emplace_back(std::move(dataSlice));
     }
 
-    BoolMask GetRangeMask(TKey lowerKey, TKey upperKey, int operandIndex)
+    BoolMask GetRangeMask(EKeyConditionScale scale, TKey lowerKey, TKey upperKey, int operandIndex)
     {
         YT_LOG_TRACE(
-            "Checking range mask (LowerKey: %v, UpperKey: %v, OperandIndex: %v, KeyCondition: %v)",
+            "Checking range mask (Scale: %v, LowerKey: %v, UpperKey: %v, OperandIndex: %v, KeyCondition: %v)",
+            scale,
             lowerKey,
             upperKey,
             operandIndex,
@@ -538,22 +548,28 @@ private:
         BoolMask result;
         if (!isMax) {
             YT_LOG_TRACE(
-                "Checking if predicate can be true in range (KeyColumnCount: %v, MinKey: %v, MaxKey: %v)",
+                "Checking if predicate can be true in range (Scale: %v, KeyColumnCount: %v, MinKey: %v, MaxKey: %v)",
+                scale,
                 KeyColumnCount_,
                 toFormattable(minKey),
                 toFormattable(maxKey));
             result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_), false);
         } else {
             YT_LOG_TRACE(
-                "Checking if predicate can be true in half-open ray (KeyColumnCount: %v, MinKey: %v)",
+                "Checking if predicate can be true in half-open ray (Scale: %v, KeyColumnCount: %v, MinKey: %v)",
+                scale,
                 KeyColumnCount_,
                 toFormattable(minKey));
             result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueAfter(*KeyColumnCount_, minKey, KeyColumnDataTypes_), false);
         }
-        YT_LOG_TRACE(
-            "Range mask (CanBeTrue: %v, CanBeFalse: %v)",
-            result.can_be_true,
-            result.can_be_false);
+
+        YT_LOG_EVENT(Logger,
+            StorageContext_->Settings->LogKeyConditionDetails ? ELogLevel::Debug : ELogLevel::Trace,
+            "Range mask (Scale: %v, LowerKey: %v, UpperKey: %v, CanBeTrue: %v)",
+            scale,
+            lowerKey,
+            upperKey,
+            result.can_be_true);
         return result;
     }
 };

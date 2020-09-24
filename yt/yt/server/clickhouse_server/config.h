@@ -135,6 +135,10 @@ public:
 
     bool UseBlockSampling;
 
+    bool LogKeyConditionDetails;
+
+    bool ConvertRowBatchesInWorkerThreadPool;
+
     TQuerySettings();
 };
 
