@@ -72,6 +72,8 @@ class YsonLexer(object):
         if ch == STRING_MARKER:
             return YsonToken(value=self._parse_string(), type=TOKEN_STRING)
 
+        elif ch == b"_" or ch == b'"' or ch.isalpha():
+            return YsonToken(value=self._parse_string(), type=TOKEN_STRING)
         elif ch == INT64_MARKER:
             return YsonToken(value=self._parse_binary_int64(), type=TOKEN_INT64)
 
@@ -107,8 +109,6 @@ class YsonLexer(object):
                 token_type = TOKEN_DOUBLE
             return YsonToken(value=value, type=token_type)
 
-        elif ch == b"_" or ch == b'"' or ch.isalpha():
-            return YsonToken(value=self._parse_string(), type=TOKEN_STRING)
 
         state = self._get_start_state(ch)
         self._read_char()
