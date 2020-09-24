@@ -162,12 +162,23 @@ void TBlockInputStream::readPrefixImpl()
     TTraceContextGuard guard(TraceContext_);
     TraceContext_ = GetCurrentTraceContext();
     YT_LOG_DEBUG("readPrefixImpl() is called");
+
+    IdleTimer_.Start();
 }
 
 void TBlockInputStream::readSuffixImpl()
 {
     TTraceContextGuard guard(TraceContext_);
     YT_LOG_DEBUG("readSuffixImpl() is called");
+
+    IdleTimer_.Stop();
+
+    YT_LOG_DEBUG(
+        "Block input stream timing statistics (ConversionCpuTime: %v, ConversionSyncWaitTime: %v, IdleTime: %v, ReadCount: %v)",
+        ConversionCpuTime_,
+        ConversionSyncWaitTime_,
+        IdleTimer_.GetElapsedTime(),
+        ReadCount_);
 
     if (TraceContext_) {
         NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.data_statistics", ToString(Reader_->GetDataStatistics()));
@@ -180,13 +191,18 @@ DB::Block TBlockInputStream::readImpl()
 {
     TTraceContextGuard guard(TraceContext_);
 
+    IdleTimer_.Stop();
+    ++ReadCount_;
+
     NProfiling::TWallTimer totalWallTimer;
     YT_LOG_TRACE("Started reading ClickHouse block");
 
     DB::Block block;
     while (block.rows() == 0) {
         TRowBatchReadOptions options{
-            .Columnar = Settings_->EnableColumnarRead
+            // .MaxRowsPerRead = 100 * 1000,
+            // .MaxDataWeightPerRead = 160_MB,
+            .Columnar = Settings_->EnableColumnarRead,
         };
         auto batch = Reader_->Read(options);
         if (!batch) {
@@ -203,10 +219,19 @@ DB::Block TBlockInputStream::readImpl()
             continue;
         }
 
-        block = WaitFor(BIND(&TBlockInputStream::ConvertRowBatchToBlock, this, batch)
-            .AsyncVia(Host_->GetClickHouseWorkerInvoker())
-            .Run())
-            .ValueOrThrow();
+        {
+            if (Settings_->ConvertRowBatchesInWorkerThreadPool) {
+                auto start = TInstant::Now();
+                block = WaitFor(BIND(&TBlockInputStream::ConvertRowBatchToBlock, this, batch)
+                    .AsyncVia(Host_->GetClickHouseWorkerInvoker())
+                    .Run())
+                    .ValueOrThrow();
+                auto finish = TInstant::Now();
+                ConversionSyncWaitTime_ += finish - start;
+            } else {
+                block = ConvertRowBatchToBlock(batch);
+            }
+        }
 
         if (PrewhereInfo_) {
             block = FilterRowsByPrewhereInfo(std::move(block), PrewhereInfo_);
@@ -218,6 +243,8 @@ DB::Block TBlockInputStream::readImpl()
 
     auto totalElapsed = totalWallTimer.GetElapsedTime();
     YT_LOG_TRACE("Finished reading ClickHouse block (WallTime: %v)", totalElapsed);
+
+    IdleTimer_.Start();
 
     return block;
 }
@@ -244,12 +271,17 @@ void TBlockInputStream::Prepare()
 
 DB::Block TBlockInputStream::ConvertRowBatchToBlock(const IUnversionedRowBatchPtr& batch)
 {
-    return NClickHouseServer::ConvertRowBatchToBlock(
+    NProfiling::TWallTimer timer;
+    auto result = NClickHouseServer::ConvertRowBatchToBlock(
         batch,
         *ReadSchema_,
         IdToColumnIndex_,
         RowBuffer_,
         InputHeaderBlock_);
+
+    ConversionCpuTime_ += timer.GetElapsedTime();
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

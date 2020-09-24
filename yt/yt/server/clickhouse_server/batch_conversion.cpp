@@ -346,7 +346,7 @@ DB::ColumnPtr ConvertStringLikeYTColumnToCHColumn(const IUnversionedColumnarRowB
     auto resizeCHChars = [&] (i64 size) {
         chChars.resize(size);
         initCHCharsCursor();
-        YT_LOG_DEBUG("String buffer resized (Size: %v)",
+        YT_LOG_TRACE("String buffer resized (Size: %v)",
             chChars.size());
     };
 

@@ -105,6 +105,12 @@ TQuerySettings::TQuerySettings()
 
     RegisterParameter("use_block_sampling", UseBlockSampling)
         .Default(false);
+
+    RegisterParameter("log_key_condition_details", LogKeyConditionDetails)
+        .Default(false);
+
+    RegisterParameter("convert_row_batches_in_worker_thread_pool", ConvertRowBatchesInWorkerThreadPool)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
