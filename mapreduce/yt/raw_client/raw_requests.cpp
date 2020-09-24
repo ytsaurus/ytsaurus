@@ -352,7 +352,14 @@ TOperationAttributes ParseOperationAttributes(const TNode& node)
         for (const auto& eventNode : eventsNode->AsList()) {
             result.Events->push_back(TOperationEvent{
                 eventNode["state"].AsString(),
-                TInstant::ParseIso8601(eventNode["time"].AsString())});
+                TInstant::ParseIso8601(eventNode["time"].AsString()),
+            });
+        }
+    }
+    if (auto alertsNode = mapNode.FindPtr("alerts")) {
+        result.Alerts.ConstructInPlace();
+        for (const auto& [alertType, alertError] : alertsNode->AsMap()) {
+            result.Alerts->emplace(alertType, TYtError(alertError));
         }
     }
 
