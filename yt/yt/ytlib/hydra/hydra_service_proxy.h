@@ -36,6 +36,8 @@ public:
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
     DEFINE_RPC_PROXY_METHOD(NProto, AbandonLeaderLease,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
+    DEFINE_RPC_PROXY_METHOD(NProto, ReportMutationsStateHashes,
+        .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

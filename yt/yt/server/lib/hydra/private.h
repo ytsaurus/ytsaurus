@@ -23,6 +23,7 @@ DECLARE_REFCOUNTED_CLASS(TLeaseTracker)
 DECLARE_REFCOUNTED_CLASS(TLeaderCommitter)
 DECLARE_REFCOUNTED_CLASS(TFollowerCommitter)
 DECLARE_REFCOUNTED_CLASS(TCheckpointer)
+DECLARE_REFCOUNTED_CLASS(TStateHashChecker)
 
 ////////////////////////////////////////////////////////////////////////////////
 

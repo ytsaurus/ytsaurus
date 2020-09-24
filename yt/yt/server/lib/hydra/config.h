@@ -359,6 +359,16 @@ public:
     //! Enables logging in mutation handlers even during recovery.
     bool ForceMutationLogging;
 
+    //! Enables state hash checker.
+    //! It checks that after applying each N-th mutation, automaton state hash is the same on all peers.
+    bool EnableStateHashChecker;
+
+    //! Maximum number of entries stored in state hash checker.
+    int MaxStateHashCheckerEntryCount;
+
+    //! Followers will report leader every "StateHashCheckerMutationVerificationSamplingRate"-th mutation's state hash.
+    int StateHashCheckerMutationVerificationSamplingRate;
+
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -448,6 +458,17 @@ public:
 
         RegisterParameter("force_mutation_logging", ForceMutationLogging)
             .Default(false);
+
+        RegisterParameter("enable_state_hash_checker", EnableStateHashChecker)
+            .Default(true);
+
+        RegisterParameter("max_state_hash_checker_entry_count", MaxStateHashCheckerEntryCount)
+            .GreaterThan(0)
+            .Default(1000);
+
+        RegisterParameter("state_hash_checker_mutation_verification_sampling_rate", StateHashCheckerMutationVerificationSamplingRate)
+            .GreaterThan(0)
+            .Default(10);
 
         RegisterPostprocessor([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {

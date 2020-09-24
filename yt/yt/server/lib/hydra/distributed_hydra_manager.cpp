@@ -13,6 +13,7 @@
 #include "recovery.h"
 #include "snapshot.h"
 #include "snapshot_discovery.h"
+#include "state_hash_checker.h"
 
 #include <yt/server/lib/election/election_manager.h>
 #include <yt/server/lib/election/config.h>
@@ -163,6 +164,7 @@ public:
         , ChangelogStoreFactory_(changelogStoreFactory)
         , SnapshotStore_(snapshotStore)
         , Options_(options)
+        , StateHashChecker_(New<TStateHashChecker>(Config_->MaxStateHashCheckerEntryCount, HydraLogger))
         , DynamicOptions_(dynamicOptions)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
         , Profiler(HydraProfiler.AddTags(Options_.ProfilingTagIds))
@@ -177,6 +179,7 @@ public:
             AutomatonInvoker_,
             ControlInvoker_,
             SnapshotStore_,
+            StateHashChecker_,
             Logger,
             Profiler);
 
@@ -195,6 +198,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Poke)
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonLeaderLease));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReportMutationsStateHashes)
+            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
     }
 
     virtual void Initialize() override
@@ -331,7 +336,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto epochContext = AutomatonEpochContext_;
+        const auto& epochContext = AutomatonEpochContext_;
 
         if (!epochContext || !IsActiveLeader()) {
             return MakeFuture<int>(TError(
@@ -408,7 +413,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto epochContext = DecoratedAutomaton_->GetEpochContext();
+        const auto& epochContext = DecoratedAutomaton_->GetEpochContext();
         if (!epochContext || !IsActive()) {
             return MakeFuture(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -531,6 +536,7 @@ private:
     const IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     const ISnapshotStorePtr SnapshotStore_;
     const TDistributedHydraManagerOptions Options_;
+    const TStateHashCheckerPtr StateHashChecker_;
 
     TDistributedHydraManagerDynamicOptions DynamicOptions_;
     TAdaptiveLock DynamicOptionsLock_;
@@ -647,7 +653,7 @@ private:
                     ControlState_);
             }
 
-            auto epochContext = GetControlEpochContext(epochId);
+            const auto& epochContext = GetControlEpochContext(epochId);
 
             switch (ControlState_) {
                 case EPeerState::Following: {
@@ -722,12 +728,12 @@ private:
                 ControlState_);
         }
 
-        auto epochContext = GetControlEpochContext(epochId);
+        const auto& epochContext = GetControlEpochContext(epochId);
 
         switch (ControlState_) {
             case EPeerState::Following:
                 epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::CommitMutations, DecoratedAutomaton_, committedVersion, true));
+                    BIND(&TDistributedHydraManager::CommitMutationsAtFollower, MakeStrong(this), committedVersion));
                 break;
 
             case EPeerState::FollowerRecovery: {
@@ -779,7 +785,7 @@ private:
             THROW_ERROR_EXCEPTION("Cannot build snapshot at follower");
         }
 
-        auto epochContext = GetControlEpochContext(epochId);
+        const auto& epochContext = GetControlEpochContext(epochId);
 
         SwitchTo(epochContext->EpochUserAutomatonInvoker);
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -852,7 +858,7 @@ private:
                     ControlState_);
             }
 
-            auto epochContext = GetControlEpochContext(epochId);
+            const auto& epochContext = GetControlEpochContext(epochId);
 
             switch (ControlState_) {
                 case EPeerState::Following: {
@@ -1030,6 +1036,23 @@ private:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, ReportMutationsStateHashes)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        context->SetRequestInfo();
+
+        if (Config_->EnableStateHashChecker) {
+            for (const auto& mutationInfo: request->mutations_info()) {
+                auto sequenceNumber = mutationInfo.sequence_number();
+                auto stateHash = mutationInfo.state_hash();
+                StateHashChecker_->Report(sequenceNumber, stateHash);
+            }
+        }
+
+        context->Reply();
+    }
+
     i64 GetElectionPriority()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1091,7 +1114,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (auto epochContext = weakEpochContext.Lock()) {
+        if (const auto& epochContext = weakEpochContext.Lock()) {
             ScheduleRestart(epochContext, error);
         }
     }
@@ -1307,7 +1330,7 @@ private:
         YT_VERIFY(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::LeaderRecovery;
 
-        auto epochContext = StartEpoch(electionEpochContext);
+        const auto& epochContext = StartEpoch(electionEpochContext);
 
         epochContext->LeaseTracker = New<TLeaseTracker>(
             Config_,
@@ -1364,7 +1387,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epochContext = ControlEpochContext_;
+        const auto& epochContext = ControlEpochContext_;
 
         try {
             epochContext->LeaderRecovery = New<TLeaderRecovery>(
@@ -1483,7 +1506,7 @@ private:
         YT_VERIFY(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::FollowerRecovery;
 
-        auto epochContext = StartEpoch(electionEpochContext);
+        const auto& epochContext = StartEpoch(electionEpochContext);
 
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
             Config_,
@@ -1510,7 +1533,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epochContext = ControlEpochContext_;
+        const auto& epochContext = ControlEpochContext_;
 
         try {
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
@@ -1636,7 +1659,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
 
-        auto epochContext = ControlEpochContext_;
+        const auto& epochContext = ControlEpochContext_;
 
         // Check if initial ping is already received.
         if (epochContext->FollowerRecovery) {
@@ -1682,7 +1705,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto epochContext = New<TEpochContext>();
+        const auto& epochContext = New<TEpochContext>();
         epochContext->CellManager = electionEpochContext->CellManager;
         epochContext->ChangelogStore = ChangelogStore_;
         epochContext->ReachableVersion = *ReachableVersion_;
@@ -1783,7 +1806,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto this_ = weakThis.Lock();
-        auto epochContext = weakEpochContext.Lock();
+        const auto& epochContext = weakEpochContext.Lock();
         if (!this_ || !epochContext) {
             return MakeFuture(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
         }
@@ -1832,7 +1855,7 @@ private:
 
         YT_LOG_DEBUG("Synchronizing with leader");
 
-        auto epochContext = AutomatonEpochContext_;
+        const auto& epochContext = AutomatonEpochContext_;
 
         YT_VERIFY(!epochContext->LeaderSyncPromise);
         epochContext->LeaderSyncPromise = NewPromise<void>();
@@ -1840,7 +1863,7 @@ private:
         auto channel = epochContext->CellManager->GetPeerChannel(epochContext->LeaderId);
         YT_VERIFY(channel);
 
-        THydraServiceProxy proxy(channel);
+        THydraServiceProxy proxy(std::move(channel));
         proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
 
         auto req = proxy.SyncWithLeader();
@@ -1857,7 +1880,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto epochContext = AutomatonEpochContext_;
+        const auto& epochContext = AutomatonEpochContext_;
 
         if (!rspOrError.IsOK()) {
             epochContext->LeaderSyncPromise.Set(TError(
@@ -1876,15 +1899,14 @@ private:
 
         YT_VERIFY(!epochContext->LeaderSyncVersion);
         epochContext->LeaderSyncVersion = committedVersion;
-        DecoratedAutomaton_->CommitMutations(committedVersion, true);
-        CheckForPendingLeaderSync();
+        CommitMutationsAtFollower(committedVersion);
     }
 
     void CheckForPendingLeaderSync()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto epochContext = AutomatonEpochContext_;
+        const auto& epochContext = AutomatonEpochContext_;
 
         if (!epochContext->LeaderSyncPromise || !epochContext->LeaderSyncVersion) {
             return;
@@ -1910,10 +1932,64 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        auto lastSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
+
         DecoratedAutomaton_->CommitMutations(committedVersion, true);
         CheckForPendingLeaderSync();
+
+        auto currentSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
+        
+        if (Config_->EnableStateHashChecker) {
+            ReportMutationStateHashesToLeader(lastSequenceNumber, currentSequenceNumber);
+        }
     }
 
+    void ReportMutationStateHashesToLeader(i64 startSequenceNumber, i64 endSequenceNumber)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto rate = Config_->StateHashCheckerMutationVerificationSamplingRate;
+
+        // First sequence number divisible by rate greater than startSequenceNumber, since
+        // startSequenceNumber was already reported.
+        startSequenceNumber += rate;
+        startSequenceNumber -= startSequenceNumber % rate;
+
+        endSequenceNumber -= endSequenceNumber % rate;
+
+        if (startSequenceNumber > endSequenceNumber) {
+            return;
+        }
+
+        const auto& epochContext = AutomatonEpochContext_;
+
+        auto channel = epochContext->CellManager->GetPeerChannel(AutomatonEpochContext_->LeaderId);
+        YT_VERIFY(channel);
+
+        THydraServiceProxy proxy(std::move(channel));
+        auto request = proxy.ReportMutationsStateHashes();
+
+        for (int sequenceNumber = startSequenceNumber; sequenceNumber <= endSequenceNumber; sequenceNumber += rate) {
+            auto stateHash = StateHashChecker_->GetStateHash(sequenceNumber);
+            if (stateHash) {
+                auto mutationInfo = request->add_mutations_info();
+                mutationInfo->set_sequence_number(sequenceNumber);
+                mutationInfo->set_state_hash(*stateHash);
+            }
+        }
+
+        request->Invoke().Subscribe(BIND([&, startSequenceNumber, endSequenceNumber] (const THydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
+            if (rspOrError.IsOK()) {
+                YT_LOG_DEBUG("Mutations state hashes reported (StartSequenceNumber: %v, EndSequenceNumber: %v)",
+                    startSequenceNumber,
+                    endSequenceNumber);
+            } else {
+                YT_LOG_DEBUG(rspOrError, "Error reporting mutations state hashes (StartSequenceNumber: %v, EndSequenceNumber: %v)",
+                    startSequenceNumber,
+                    endSequenceNumber);
+            }
+        }));
+    }
 
     void OnHeartbeatMutationCommit()
     {

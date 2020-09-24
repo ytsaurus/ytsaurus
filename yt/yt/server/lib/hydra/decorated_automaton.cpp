@@ -6,6 +6,7 @@
 #include "serialize.h"
 #include "snapshot.h"
 #include "snapshot_discovery.h"
+#include "state_hash_checker.h"
 
 #include <yt/server/lib/misc/fork_executor.h>
 
@@ -608,6 +609,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     IInvokerPtr automatonInvoker,
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
+    TStateHashCheckerPtr stateHashChecker,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
@@ -618,6 +620,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , ControlInvoker_(std::move(controlInvoker))
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
+    , StateHashChecker_(std::move(stateHashChecker))
     , Logger(logger)
     , Profiler(profiler)
 {
@@ -1175,6 +1178,10 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
 
     if (CommittedVersion_.load() < automatonVersion) {
         CommittedVersion_ = automatonVersion;
+    }
+
+    if (Config_->EnableStateHashChecker) {
+        StateHashChecker_->Report(SequenceNumber_.load(), StateHash_);
     }
 }
 
