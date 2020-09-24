@@ -238,6 +238,7 @@ private:
             const auto& tableRows = expectedRows[tableIndex];
             for (const auto& range : actualRanges) {
                 for (size_t rowIndex = range.first; rowIndex != range.second; ++rowIndex) {
+                    UNIT_ASSERT_UNEQUAL(resultIt, result.end());
                     UNIT_ASSERT_VALUES_EQUAL(resultIt->TableIndex, tableIndex);
                     UNIT_ASSERT_VALUES_EQUAL(resultIt->RowIndex, rowIndex);
                     UNIT_ASSERT_VALUES_EQUAL(resultIt->Row, tableRows[rowIndex]);
