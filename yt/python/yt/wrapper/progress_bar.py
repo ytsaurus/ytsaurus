@@ -8,7 +8,8 @@ class CustomTqdm(tqdm.tqdm):
     monitor_interval = 0
 
     def __init__(self, *args, **kwargs):
-        kwargs = update(dict(unit="b", unit_scale=True, ascii=True), kwargs)
+        # We use mebibytes instead of megabytes.
+        kwargs = update(dict(unit="iB", unit_scale=True, ascii=True), kwargs)
         super(CustomTqdm, self).__init__(*args, **kwargs)
 
     @classmethod
