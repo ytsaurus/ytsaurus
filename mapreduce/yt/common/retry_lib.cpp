@@ -216,8 +216,14 @@ static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorRespon
         // chunk client errors
         return TConfig::Get()->ChunkErrorsRetryInterval;
     }
-    if (allCodes.count(NRpc::TransportError) || allCodes.count(NRpc::Unavailable)) {
-        return TConfig::Get()->RetryInterval;
+    for (auto code : TVector<int>{
+        NRpc::TransportError,
+        NRpc::Unavailable,
+        NApi::OperationProgressOutdated,
+    }) {
+        if (allCodes.contains(code)) {
+            return TConfig::Get()->RetryInterval;
+        }
     }
     return Nothing();
 }

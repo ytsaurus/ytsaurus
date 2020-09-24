@@ -1,6 +1,6 @@
 from .common import ThreadPoolHelper, set_param, datetime_to_string, date_string_to_datetime, deprecated
 from .config import get_config
-from .errors import YtOperationFailedError, YtResponseError
+from .errors import YtOperationFailedError, YtResponseError, YtOperationProgressOutdated
 from .driver import make_request, make_formatted_request, get_api_version
 from .http_helpers import get_proxy_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
@@ -9,6 +9,7 @@ from .ypath import ypath_join
 from .file_commands import read_file
 from .job_commands import list_jobs, get_job_stderr
 from .local_mode import is_local_mode, get_local_mode_proxy_address
+from .retries import Retrier
 from . import yson
 
 import yt.logger as logger
@@ -30,6 +31,31 @@ except ImportError:  # Python 3
 
 OPERATIONS_PATH = "//sys/operations"
 
+
+class OperationInfoRetrier(Retrier):
+    def __init__(self, retry_config, command, params, format, timeout, client=None):
+        super(OperationInfoRetrier, self).__init__(
+            retry_config=retry_config,
+            timeout=timeout,
+            exceptions=get_retriable_errors() + (YtOperationProgressOutdated,))
+
+        self.command = command
+        self.params = params
+        self.format = format
+        self.client = client
+        self.timeout = timeout
+
+    def action(self):
+        return make_formatted_request(
+            self.command,
+            self.params,
+            format=self.format,
+            timeout=self.timeout,
+            client=self.client)
+
+    def except_action(self, error, attempt):
+        logger.warning('Request %s failed with error %s',
+                       self.command, repr(error))
 
 # Public functions
 
@@ -87,12 +113,14 @@ def get_operation(operation_id, attributes=None, include_scheduler=None, format=
 
     timeout = get_config(client)["operation_info_commands_timeout"]
 
-    return make_formatted_request(
+    return OperationInfoRetrier(
+        get_config(client)["get_operation_retries"],
         "get_operation",
         params,
         format=format,
         client=client,
-        timeout=timeout)
+        timeout=timeout).run()
+
 
 def list_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
                     from_time=None, to_time=None, cursor_time=None, cursor_direction=None,

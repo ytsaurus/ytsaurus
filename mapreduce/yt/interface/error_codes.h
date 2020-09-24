@@ -375,6 +375,7 @@ namespace NApi {
 
     constexpr int TooManyConcurrentRequests = 1900;
     constexpr int JobArchiveUnavailable     = 1910;
+    constexpr int OperationProgressOutdated = 1911;
     constexpr int NoSuchOperation           = 1915;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,6 +55,17 @@ def retries_config(**kwargs):
     config.update(**kwargs)
     return config
 
+def get_dynamic_table_retries():
+    return retries_config(count=6, enable=True, total_timeout=None, backoff={
+        "policy": "exponential",
+        "exponential_policy": {
+            "start_timeout": 5000,
+            "base": 1.5,
+            "max_timeout": 120000,
+            "decay_factor_bound": 0.3,
+        }
+    })
+
 default_config = {
     # "http" | "native" | "rpc" | None
     # If backend equals "http", then all requests will be done through http proxy and http_config will be used.
@@ -133,15 +144,7 @@ default_config = {
     },
 
     # Parameters for dynamic table requests retries.
-    "dynamic_table_retries": retries_config(count=6, enable=True, total_timeout=None, backoff={
-        "policy": "exponential",
-        "exponential_policy": {
-            "start_timeout": 5000,
-            "base": 1.5,
-            "max_timeout": 120000,
-            "decay_factor_bound": 0.3,
-        }
-    }),
+    "dynamic_table_retries": get_dynamic_table_retries(),
 
     # Maximum number of rows to sample without operation
     "max_row_count_for_local_sampling": 100,
@@ -518,6 +521,9 @@ default_config = {
             "decay_factor_bound": 0.3,
         }
     }),
+
+    # Parameters for get_operation request retries.
+    "get_operation_retries": get_dynamic_table_retries(),
 
     # Special timeouts for commands retrieving information about operations,
     # i.e. 'list_operations', 'list_jobs', 'get_operation', 'get_job'.

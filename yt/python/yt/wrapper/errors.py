@@ -101,6 +101,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtAllTargetNodesFailed
         elif self.is_transport_error():
             self.__class__ = YtTransportError
+        elif self.is_operation_progress_outdated():
+            self.__class__ = YtOperationProgressOutdated
         else:
             pass
 
@@ -249,4 +251,8 @@ class YtTransactionPingError(BaseException):
 
 class YtAllTargetNodesFailed(YtHttpResponseError):
     """Failed to write chunk since all target nodes have failed."""
+    pass
+
+class YtOperationProgressOutdated(YtHttpResponseError):
+    """Operation progress in Cypress is outdated while archive request failed."""
     pass
