@@ -35,31 +35,32 @@ TOKEN_DOUBLE = 24
 TOKEN_BOOLEAN = 25
 TOKEN_SPECIAL = 26
 
+CHAR_TO_TOKEN_TYPE = {
+    ";": TOKEN_SEMICOLON,
+    "=": TOKEN_EQUALS,
+    "{": TOKEN_LEFT_BRACE,
+    "}": TOKEN_RIGHT_BRACE,
+    "#": TOKEN_HASH,
+    "[": TOKEN_LEFT_BRACKET,
+    "]": TOKEN_RIGHT_BRACKET,
+    "<": TOKEN_LEFT_ANGLE,
+    ">": TOKEN_RIGHT_ANGLE,
+    "(": TOKEN_LEFT_PARENTHESIS,
+    ")": TOKEN_RIGHT_PARENTHESIS,
+    ":": TOKEN_COLON,
+    ",": TOKEN_COMMA,
+    "/": TOKEN_SLASH,
+    "@": TOKEN_AT,
+    "&": TOKEN_AMPERSAND,
+    "*": TOKEN_ASTERISK
+}
+
 def char_to_token_type(char_or_byte):
-    tokens = {
-        ";": TOKEN_SEMICOLON,
-        "=": TOKEN_EQUALS,
-        "{": TOKEN_LEFT_BRACE,
-        "}": TOKEN_RIGHT_BRACE,
-        "#": TOKEN_HASH,
-        "[": TOKEN_LEFT_BRACKET,
-        "]": TOKEN_RIGHT_BRACKET,
-        "<": TOKEN_LEFT_ANGLE,
-        ">": TOKEN_RIGHT_ANGLE,
-        "(": TOKEN_LEFT_PARENTHESIS,
-        ")": TOKEN_RIGHT_PARENTHESIS,
-        ":": TOKEN_COLON,
-        ",": TOKEN_COMMA,
-        "/": TOKEN_SLASH,
-        "@": TOKEN_AT,
-        "&": TOKEN_AMPERSAND,
-        "*": TOKEN_ASTERISK
-    }
     if PY3:
         char_or_byte = chr(char_or_byte)
-    if char_or_byte not in tokens:
+    if char_or_byte not in CHAR_TO_TOKEN_TYPE:
         return TOKEN_END_OF_STREAM
-    return tokens[char_or_byte]
+    return CHAR_TO_TOKEN_TYPE[char_or_byte]
 
 def token_type_to_string(token):
     names = {
