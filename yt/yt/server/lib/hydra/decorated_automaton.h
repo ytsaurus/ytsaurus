@@ -125,6 +125,7 @@ public:
         IInvokerPtr automatonInvoker,
         IInvokerPtr controlInvoker,
         ISnapshotStorePtr snapshotStore,
+        TStateHashCheckerPtr stateHashChecker,
         const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler);
 
@@ -257,6 +258,7 @@ private:
     const IInvokerPtr ControlInvoker_;
     const IInvokerPtr SystemInvoker_;
     const ISnapshotStorePtr SnapshotStore_;
+    const TStateHashCheckerPtr StateHashChecker_;
 
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};

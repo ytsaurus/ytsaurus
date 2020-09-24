@@ -159,3 +159,19 @@ message TRspAbandonLeaderLease
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TMutationInfo
+{
+    required int64 sequence_number = 1;
+    required uint64 state_hash = 2;
+}
+
+message TReqReportMutationsStateHashes
+{
+    repeated TMutationInfo mutations_info = 1;
+}
+
+message TRspReportMutationsStateHashes
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
