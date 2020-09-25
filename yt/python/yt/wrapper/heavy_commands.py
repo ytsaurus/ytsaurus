@@ -320,37 +320,33 @@ def _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False
 
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client,
                       filename_hint=None, request_size=False):
-    if not get_config(client)["read_retries"]["enable"] or retriable_state_class is None:
-        size_hint = _try_get_size(path, client, request_size)
-        reporter = _get_read_progress_reporter(size_hint, filename_hint, client, filelike=True)
-        response = _make_transactional_request(
-            command_name,
-            params,
-            return_content=False,
-            use_heavy_proxy=True,
-            client=client)
-        process_response_action(response)
-
-        # NB: __exit__() is done in __del__()
-        reporter.__enter__()
-        return reporter.wrap_file(response)
+    if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
+        title = "Python wrapper: read {0}".format(str(YPathSupportingAppend(path, client=client)))
+        tx = Transaction(attributes={"title": title}, interrupt_on_failed=False, client=client)
     else:
-        title = "Python wrapper: {0} {1}".format(command_name, path)
+        tx = FakeTransaction()
 
-        if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
-            title = "Python wrapper: read {0}".format(str(YPathSupportingAppend(path, client=client)))
-            tx = Transaction(attributes={"title": title}, interrupt_on_failed=False, client=client)
-        else:
-            tx = FakeTransaction()
-
-        try:
-            if tx:
-                with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
-                    lock(path, mode="snapshot", client=client)
-                    size_hint = _try_get_size(path, client, request_size)
-            else:
+    try:
+        if tx:
+            with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
+                lock(path, mode="snapshot", client=client)
                 size_hint = _try_get_size(path, client, request_size)
+        else:
+            size_hint = _try_get_size(path, client, request_size)
 
+        if not get_config(client)["read_retries"]["enable"] or retriable_state_class is None:
+            response = _get_read_response(
+                command_name,
+                params,
+                transaction_id=tx.transaction_id,
+                client=client)
+            process_response_action(response)
+
+            reporter = _get_read_progress_reporter(size_hint, filename_hint, client, filelike=True)
+            # NB: __exit__() is done in __del__()
+            reporter.__enter__()
+            return reporter.wrap_file(response)
+        else:
             iterator = ReadIterator(command_name, tx, process_response_action, retriable_state_class, client)
             reporter = _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False)
 
@@ -363,6 +359,6 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 process_error=lambda response: iterator.last_response._process_error(
                     iterator.last_response._get_response()),
                 get_response_parameters=lambda: iterator.start_response.response_parameters)
-        except:
-            tx.abort()
-            raise
+    except:
+        tx.abort()
+        raise
