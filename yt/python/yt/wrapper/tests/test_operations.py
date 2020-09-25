@@ -342,6 +342,11 @@ class TestOperations(object):
 
     @authors("ignat")
     def test_attached_mode_op_aborted(self, yt_env_with_rpc):
+        # yt-python binary does not support native driver.
+        # It is made intentionally to reduce binary size.
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
         script = """
 from __future__ import print_function
 

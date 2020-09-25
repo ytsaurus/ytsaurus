@@ -15,6 +15,11 @@ class TestIPython(object):
         if arcadia_interop.yatest_common is None:
             pytest.skip()
 
+        # yt-ipython binary does not support native driver.
+        # It is made intentionally to reduce binary size.
+        if yt.config["backend"] == "native":
+            pytest.skip()
+
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
         yt.write_table(input_table, [{"x": 1}])

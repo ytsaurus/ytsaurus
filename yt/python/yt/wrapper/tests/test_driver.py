@@ -62,7 +62,7 @@ def test_sanitize_structure():
 
 @authors("asaitgalin")
 @pytest.mark.usefixtures("yt_env")
-def test_catching_sigint(yt_env):
+def DISABLE_test_catching_sigint(yt_env):
     if yt.config["backend"] != "native":
         pytest.skip()
 
