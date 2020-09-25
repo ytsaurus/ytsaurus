@@ -93,7 +93,8 @@ void ValidateDynamicTableTimestamp(
     const NYPath::TRichYPath& path,
     bool dynamic,
     const TTableSchema& schema,
-    const NYTree::IAttributeDictionary& attributes);
+    const NYTree::IAttributeDictionary& attributes,
+    bool forceDisableDynamicStoreRead = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -430,7 +430,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         create("table", "//tmp/p")
         map(in_="//tmp/t", out="//tmp/p", command="cat", ordered=True, spec={
             "legacy_controller_fraction": 256 if use_legacy_controller else 0,
-            "disable_dynamic_store_read": True})
+            "enable_dynamic_store_read": False})
         assert read_table("//tmp/p") == self.simple_rows[::2]
 
 

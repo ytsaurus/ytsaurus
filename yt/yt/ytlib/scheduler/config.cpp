@@ -529,8 +529,8 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(256)
         .InRange(0, 256);
 
-    RegisterParameter("disable_dynamic_store_read", DisableDynamicStoreRead)
-        .Default(false);
+    RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
+        .Default();
 
     RegisterParameter("controller_agent_tag", ControllerAgentTag)
         .Default("default");
