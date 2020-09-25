@@ -200,7 +200,7 @@ int ComputeDepth(const TProtobufParserFieldDescription& description)
 {
     int depth = 0;
     for (const auto& child : description.Children) {
-        depth = std::max(depth, ComputeDepth(child) + 1);
+        depth = std::max(depth, ComputeDepth(*child) + 1);
     }
     return depth;
 }
@@ -342,7 +342,7 @@ private:
                     continue;
                 }
                 auto childIndex = *maybeChildIndex;
-                const auto& childDescription = description.Children[childIndex];
+                const auto& childDescription = *description.Children[childIndex];
                 if (Y_UNLIKELY(wireTag != childDescription.WireTag)) {
                     THROW_ERROR_EXCEPTION("Expected wire tag for field %Qv to be %v, got %v",
                         childDescription.GetDebugString(),
@@ -412,7 +412,7 @@ private:
         };
 
         auto isStructFieldPresentOrLegallyMissing = [&] (int childIndex, int lastOutputStructFieldIndex) {
-            const auto& childDescription = description.Children[childIndex];
+            const auto& childDescription = *description.Children[childIndex];
             if (ShouldOutputValueImmediately(inRoot, childDescription) && RootChildOutputFlags_[childIndex]) {
                 // The value is already output.
                 return true;
@@ -430,7 +430,7 @@ private:
             if (childIndex + 1 == description.Children.size()) {
                 return false;
             }
-            const auto& nextChildDescription = description.Children[childIndex + 1];
+            const auto& nextChildDescription = *description.Children[childIndex + 1];
             // The current alternative is missing, but the next one corresponds to the same field,
             // so the check is deferred to the next alternative.
             return childDescription.StructFieldIndex == nextChildDescription.StructFieldIndex;
@@ -440,7 +440,7 @@ private:
         auto childrenCount = static_cast<int>(description.Children.size());
         auto lastOutputStructFieldIndex = -1;
         for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
-            const auto& childDescription = description.Children[childIndex];
+            const auto& childDescription = *description.Children[childIndex];
             auto fieldRangeBegin = fieldIt;
             while (fieldIt != fields.cend() && fieldIt->ChildIndex == childIndex) {
                 ++fieldIt;

@@ -64,7 +64,7 @@ public:
     const TProtobufWriterFieldDescription* FindAlternative(int alternativeIndex) const;
 
 public:
-    std::vector<TProtobufWriterFieldDescription> Children;
+    std::vector<std::unique_ptr<TProtobufWriterFieldDescription>> Children;
 
 private:
     std::vector<int> AlternativeToChildIndex_;
@@ -94,7 +94,7 @@ private:
     void SetChildIndex(int fieldNumber, int childIndex);
 
 public:
-    std::vector<TProtobufParserFieldDescription> Children;
+    std::vector<std::unique_ptr<TProtobufParserFieldDescription>> Children;
     std::optional<int> AlternativeIndex;
 
     // For non-oneof members Parent points to the description
@@ -268,8 +268,7 @@ private:
     TProtobufParserFieldDescription RootDescription_;
 
     // Storage of oneof descriptions.
-    // NB. Use deque to avoid pointer invalidation on insertions.
-    std::deque<TProtobufParserFieldDescription> OneofDescriptions_;
+    std::vector<std::unique_ptr<TProtobufParserFieldDescription>> OneofDescriptions_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProtobufParserFormatDescription)

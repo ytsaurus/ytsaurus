@@ -658,6 +658,79 @@ TEST(TProtobufFormat, TestConfigParsing)
         "\"field_number\" is required");
 }
 
+TEST(TProtobufFormat, TestDebugStringHugeProto)
+{
+    constexpr int UncleCount = 10000;
+    auto configNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("proto_type").Value("structured_message")
+                            .Item("field_number").Value(13)
+                            .Item("fields").BeginList()
+                                .Item().BeginMap()
+                                    .Item("name").Value("parent")
+                                    .Item("proto_type").Value("structured_message")
+                                    .Item("field_number").Value(1)
+                                    .Item("fields").BeginList()
+                                        .Item()
+                                            .BeginMap()
+                                                .Item("name").Value("child")
+                                                .Item("proto_type").Value("int64")
+                                                .Item("field_number").Value(7)
+                                            .EndMap()
+                                    .EndList()
+                                .EndMap()
+                                .Do([] (auto fluent) {
+                                    for (int i = 0; i < UncleCount; ++i) {
+                                        fluent.Item()
+                                        .BeginMap()
+                                            .Item("name").Value(Format("uncle_%v", i + 1))
+                                            .Item("proto_type").Value("int64")
+                                            .Item("field_number").Value(i + 2)
+                                        .EndMap();
+                                    }
+                                })
+                            .EndList()
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    std::vector<TStructField> fields = {
+        {"parent", StructLogicalType({{"child", SimpleLogicalType(ESimpleLogicalValueType::Int64)}})},
+    };
+    for (int i = 0; i < UncleCount; ++i) {
+        fields.push_back({
+            Format("uncle_%v", i + 1),
+            SimpleLogicalType(ESimpleLogicalValueType::Int64)});
+    }
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"SomeColumn", OptionalLogicalType(StructLogicalType(std::move(fields)))}
+    });
+    auto description = New<TProtobufParserFormatDescription>();
+    description->Init(ParseFormatConfigFromNode(configNode), {schema});
+    const auto& root = description->GetRootDescription();
+
+    EXPECT_EQ(root.Children[0]->GetDebugString(), "<root>.SomeColumn");
+    EXPECT_EQ(root.Children[0]->Children[0]->GetDebugString(), "<root>.SomeColumn.parent");
+    EXPECT_EQ(root.Children[0]->Children[0]->Parent, root.Children[0].get());
+    EXPECT_EQ(root.Children[0]->Children[0]->Children[0]->GetDebugString(), "<root>.SomeColumn.parent.child");
+    EXPECT_EQ(root.Children[0]->Children[0]->Children[0]->Parent, root.Children[0]->Children[0].get());
+    for (int i = 0; i < UncleCount; ++i) {
+        EXPECT_EQ(root.Children[0]->Children[i + 1]->GetDebugString(), Format("<root>.SomeColumn.uncle_%v", i + 1));
+        EXPECT_EQ(root.Children[0]->Children[i + 1]->Parent, root.Children[0].get());
+    }
+}
+
 TEST(TProtobufFormat, TestDebugString)
 {
     auto configNode = BuildYsonNodeFluently()
@@ -713,10 +786,10 @@ TEST(TProtobufFormat, TestDebugString)
     description->Init(ParseFormatConfigFromNode(configNode), {schema});
     const auto& root = description->GetRootDescription();
 
-    EXPECT_EQ(root.Children[0].GetDebugString(), "<root>.SomeColumn");
-    EXPECT_EQ(root.Children[0].Children[0].GetDebugString(), "<root>.SomeColumn.oneof_field.struct_field");
+    EXPECT_EQ(root.Children[0]->GetDebugString(), "<root>.SomeColumn");
+    EXPECT_EQ(root.Children[0]->Children[0]->GetDebugString(), "<root>.SomeColumn.oneof_field.struct_field");
     EXPECT_EQ(
-        root.Children[0].Children[0].Children[0].GetDebugString(),
+        root.Children[0]->Children[0]->Children[0]->GetDebugString(),
         "<root>.SomeColumn.oneof_field.struct_field.int64_field");
 }
 

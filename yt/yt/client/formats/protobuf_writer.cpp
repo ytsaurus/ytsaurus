@@ -758,15 +758,16 @@ private:
         auto childIterator = fieldDescription.Children.cbegin();
         int elementIndex = 0;
         while (!parser->IsEndList()) {
-            if (childIterator == fieldDescription.Children.cend() || childIterator->StructFieldIndex != elementIndex) {
+            if (childIterator == fieldDescription.Children.cend() || (*childIterator)->StructFieldIndex != elementIndex) {
                 parser->SkipComplexValue();
                 ++elementIndex;
                 continue;
             }
-            if (childIterator->Repeated) {
-                Traverse(*childIterator, parser, maxVarIntSize);
+            const auto& child = **childIterator;
+            if (child.Repeated) {
+                Traverse(child, parser, maxVarIntSize);
             } else {
-                TraverseNonRepeated(*childIterator, parser, maxVarIntSize);
+                TraverseNonRepeated(child, parser, maxVarIntSize);
             }
             ++childIterator;
             ++elementIndex;
