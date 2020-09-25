@@ -13,18 +13,18 @@ const (
 )
 
 type OperationConfig struct {
-	Cluster string `json:"cluster"`
-	Pool    string `json:"pool"`
+	Cluster string `json:"cluster" yson:"cluster"`
+	Pool    string `json:"pool" yson:"pool"`
 
 	// Title операции. Должен быть заполнен строкой, по которой будет удобно искать операцию в архиве.
 	//
 	// Например: [TS] yt/yt/tests/integration/ytrecipe [test_layers.py] [0/3]
-	Title string `json:"title"`
+	Title string `json:"title" yson:"title"`
 
 	// CypressRoot задаёт директорию для хранения всех данных.
-	CypressRoot ypath.Path    `json:"cypress_root"`
-	OutputTTL   time.Duration `json:"output_ttl"`
-	BlobTTL     time.Duration `json:"blob_ttl"`
+	CypressRoot ypath.Path    `json:"cypress_root" yson:"cypress_root"`
+	OutputTTL   time.Duration `json:"output_ttl" yson:"output_ttl"`
+	BlobTTL     time.Duration `json:"blob_ttl" yson:"blob_ttl"`
 
 	// CoordinateUpload включает оптимизированную загрузку артефактов.
 	//
@@ -33,12 +33,12 @@ type OperationConfig struct {
 	// Если запустить одновременно 100 процессов ytexec с новым файлом, которого еще нет в кеше,
 	// то все 100 пойдут загружать один и тот же файл в кипарис. В случае координации, процессы договорятся между
 	// собой используя дин-таблицу. Один процесс займётся загрузкой, а 99 будут ждать результата.
-	CoordinateUpload bool `json:"coordinate_upload"`
+	CoordinateUpload bool `json:"coordinate_upload" yson:"coordinate_upload"`
 
 	// CPULimit будет поставлен в спеку операции. При этом, CPU reclaim
 	// для этой операции будет выключен. Это значит, что у джоба не будут забирать CPU,
 	// если он потребляет меньше лимита.
-	CPULimit float64 `json:"cpu_limit"`
+	CPULimit float64 `json:"cpu_limit" yson:"cpu_limit"`
 	// MemoryLimit будет поставлен в спеку операции. При этом,
 	// `memory_reserve_factor` для этой операции будет выставлен в 1.0. Это значит,
 	// что шедулер будет сразу запускать операцию с нужной гарантией, и будет выключен
@@ -47,16 +47,16 @@ type OperationConfig struct {
 	// этого контейнера будет засчитываться в общий лимит. В случае OOM, команда
 	// будет убита, но джоб, операция и ytexec завершатся успешно. Информация о том,
 	// что произошёл OOM будет доступна в ResultFile.
-	MemoryLimit int `json:"memory_limit"`
+	MemoryLimit int `json:"memory_limit" yson:"memory_limit"`
 
 	// Timeout задаёт общий таймаут на работу операции.
-	Timeout time.Duration `json:"timeout"`
+	Timeout time.Duration `json:"timeout" yson:"timeout"`
 
-	EnablePorto   bool `json:"enable_porto"`
-	EnableNetwork bool `json:"enable_network"`
+	EnablePorto   bool `json:"enable_porto" yson:"enable_porto"`
+	EnableNetwork bool `json:"enable_network" yson:"enable_network"`
 
-	SpecPatch interface{} `json:"spec_patch"`
-	TaskPatch interface{} `json:"task_patch"`
+	SpecPatch map[string]interface{} `json:"spec_patch" yson:"spec_patch"`
+	TaskPatch map[string]interface{} `json:"task_patch" yson:"task_patch"`
 }
 
 const (
@@ -79,15 +79,15 @@ func (c *OperationConfig) OutputDir() ypath.Path {
 
 type Cmd struct {
 	// Args задаёт команду и её аргументы.
-	Args []string `json:"args"`
+	Args []string `json:"args" yson:"args"`
 	// Cwd задаёт рабочую директорию команды.
-	Cwd string `json:"cwd"`
+	Cwd string `json:"cwd" yson:"cwd"`
 	// Environ задаёт переменные окружения, с которыми будет запущена команда.
 	// Формат VAR_NAME=VAR_VALUE.
-	Environ []string `json:"environ"`
+	Environ []string `json:"environ" yson:"environ"`
 
 	// *Timeout задают таймауты от старта выполнения команды, после которого команде будет послан сигнал.
-	SIGUSR2Timeout time.Duration `json:"sigusr2_timeout"`
-	SIGQUITTimeout time.Duration `json:"sigquit_timeout"`
-	SIGKILLTimeout time.Duration `json:"sigkill_timeout"`
+	SIGUSR2Timeout time.Duration `json:"sigusr2_timeout" yson:"sigusr2_timeout"`
+	SIGQUITTimeout time.Duration `json:"sigquit_timeout" yson:"sigquit_timeout"`
+	SIGKILLTimeout time.Duration `json:"sigkill_timeout" yson:"sigkill_timeout"`
 }
