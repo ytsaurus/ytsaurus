@@ -365,7 +365,7 @@ class TestJobShellInSubcontainer(TestJobProber):
         add_member("yt_dev", "superusers")
 
         op = run_test_vanilla(
-            with_breakpoint('portoctl create N ; BREAKPOINT'),
+            with_breakpoint('portoctl create N && BREAKPOINT'),
             spec={
                 "enable_porto": "isolate",
                 "job_shells": [
@@ -387,7 +387,11 @@ class TestJobShellInSubcontainer(TestJobProber):
             },
             task_patch={"enable_porto": "isolate"},
             authenticated_user="taxi_dev")
-        job_id = wait_breakpoint()[0]
+        try:
+            job_id = wait_breakpoint()[0]
+        except:
+            op.track()
+            assert False
 
         # Check that job shell starts in a proper container.
         def get_subcontainer_name(shell_name):
