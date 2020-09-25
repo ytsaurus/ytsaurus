@@ -843,7 +843,8 @@ TProtobufWriterFieldDescription* TProtobufWriterFieldDescription::AddChild(int f
     if (Type == EProtobufType::Oneof) {
         ResizeAndGetElement(AlternativeToChildIndex_, fieldIndex, InvalidChildIndex) = Children.size();
     }
-    return &Children.emplace_back();
+    Children.push_back(std::make_unique<TProtobufWriterFieldDescription>());
+    return Children.back().get();
 }
 
 const TProtobufWriterFieldDescription* TProtobufWriterFieldDescription::FindAlternative(int alternativeIndex) const
@@ -854,7 +855,7 @@ const TProtobufWriterFieldDescription* TProtobufWriterFieldDescription::FindAlte
     if (AlternativeToChildIndex_[alternativeIndex] == InvalidChildIndex) {
         return nullptr;
     }
-    return &Children[AlternativeToChildIndex_[alternativeIndex]];
+    return Children[AlternativeToChildIndex_[alternativeIndex]].get();
 }
 
 bool TProtobufWriterFormatDescription::NonOptionalMissingFieldsAllowed() const
@@ -948,7 +949,8 @@ const TProtobufWriterFieldDescription* TProtobufWriterFormatDescription::FindOth
 TProtobufParserFieldDescription* TProtobufParserFieldDescription::AddChild(int fieldNumber)
 {
     SetChildIndex(fieldNumber, Children.size());
-    return &Children.emplace_back();
+    Children.push_back(std::make_unique<TProtobufParserFieldDescription>());
+    return Children.back().get();
 }
 
 void TProtobufParserFieldDescription::IgnoreChild(int fieldNumber)
@@ -1032,9 +1034,9 @@ std::vector<ui16> TProtobufParserFormatDescription::CreateRootChildColumnIds(con
     std::vector<ui16> ids;
     ids.reserve(RootDescription_.Children.size());
     for (const auto& child: RootDescription_.Children) {
-        auto name = child.Name;
-        if (child.IsOneofAlternative()) {
-            name = child.Parent->Name;
+        auto name = child->Name;
+        if (child->IsOneofAlternative()) {
+            name = child->Parent->Name;
         }
         ids.push_back(static_cast<ui16>(nameTable->GetIdOrRegisterName(name)));
     }
@@ -1080,7 +1082,8 @@ TProtobufFieldDescriptionBase* TProtobufParserFormatDescription::AddField(
                 actualParent->GetDebugString(),
                 columnConfig->Name);
         }
-        child = &OneofDescriptions_.emplace_back();
+        OneofDescriptions_.push_back(std::make_unique<TProtobufParserFieldDescription>());
+        child = OneofDescriptions_.back().get();
     } else if (actualParent->Type == EProtobufType::Oneof) {
         YT_VERIFY(columnConfig->FieldNumber);
         child = actualParent->Parent->AddChild(*columnConfig->FieldNumber);
