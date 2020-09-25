@@ -139,6 +139,11 @@ public:
         DB::Pipes pipes;
         const auto& prewhereInfo = queryInfo.prewhere_info;
 
+        if (SubquerySpec_.DataSourceDirectory->DataSources()[0].GetType() == EDataSourceType::VersionedTable && prewhereInfo) {
+            // TODO(max42): CHYT-462.
+            THROW_ERROR_EXCEPTION("PREWHERE is not supported for dynamic tables (CHYT-462)");
+        }
+
         for (int threadIndex = 0;
             threadIndex < static_cast<int>(perThreadDataSliceDescriptors.size());
             ++threadIndex)
