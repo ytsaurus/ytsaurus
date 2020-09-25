@@ -3,7 +3,7 @@ from .common import require, get_value, total_seconds, generate_uuid, generate_t
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-                     YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, hide_auth_headers)
+                     YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction, hide_auth_headers)
 from .framing import unframed_iter_content
 from .command import parse_commands
 from .format import JsonFormat, YsonFormat
@@ -71,7 +71,7 @@ def get_retriable_errors():
             SocketError, ChunkedEncodingError, ReadTimeoutError,
             YtIncorrectResponse, YtProxyUnavailable, YtRequestRateLimitExceeded,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-            YtRequestTimedOut, YtRetriableError)
+            YtRequestTimedOut, YtRetriableError, YtTransportError)
 
 @add_metaclass(ABCMeta)
 class ProxyProvider(object):
