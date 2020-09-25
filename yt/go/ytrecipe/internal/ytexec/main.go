@@ -9,25 +9,45 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 var (
-	flagConfig string
+	flagJSONConfig string
+	flagYSONConfig string
 )
 
 func do() error {
-	pflag.StringVar(&flagConfig, "config", "", "path to json files with config")
+	pflag.StringVar(&flagJSONConfig, "config", "", "path to json config")
+	pflag.StringVar(&flagYSONConfig, "config-yson", "", "path to yson config")
 	pflag.Parse()
 
-	configJS, err := ioutil.ReadFile(flagConfig)
-	if err != nil {
-		return err
-	}
-
 	var config Config
-	if err := json.Unmarshal(configJS, &config); err != nil {
-		return fmt.Errorf("invalid config: %w", err)
+
+	switch {
+	case flagJSONConfig != "":
+		configJS, err := ioutil.ReadFile(flagJSONConfig)
+		if err != nil {
+			return err
+		}
+
+		if err := json.Unmarshal(configJS, &config); err != nil {
+			return fmt.Errorf("invalid config: %w", err)
+		}
+
+	case flagYSONConfig != "":
+		configYS, err := ioutil.ReadFile(flagYSONConfig)
+		if err != nil {
+			return err
+		}
+
+		if err := yson.Unmarshal(configYS, &config); err != nil {
+			return fmt.Errorf("invalid config: %w", err)
+		}
+
+	default:
+		return fmt.Errorf("either --config or --config-yson must be specified")
 	}
 
 	exec, err := New(config)

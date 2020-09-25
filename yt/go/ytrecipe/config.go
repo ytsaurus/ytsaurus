@@ -37,8 +37,8 @@ type Config struct {
 	UploadWorkFile []string `yson:"upload_workfile"`
 	UploadWorkDir  []string `yson:"upload_workdir"`
 
-	SpecPatch interface{} `yson:"spec_patch"`
-	TaskPatch interface{} `yson:"task_patch"`
+	SpecPatch map[string]interface{} `yson:"spec_patch"`
+	TaskPatch map[string]interface{} `yson:"task_patch"`
 }
 
 func (c *Config) CacheTTL() time.Duration {

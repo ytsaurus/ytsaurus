@@ -268,9 +268,16 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 	us.MakeRootFSWritable = true
 	us.EnablePorto = "isolate"
 
-	if e.config.Operation.TaskPatch != nil {
-		taskPatch, _ := yson.Marshal(e.config.Operation.TaskPatch)
-		if err = yson.Unmarshal(taskPatch, us); err != nil {
+	if taskPatch := e.config.Operation.TaskPatch; taskPatch != nil {
+		if memory, ok := taskPatch["memory_limit"]; ok {
+			switch v := memory.(type) {
+			case float64:
+				taskPatch["memory_limit"] = int64(v)
+			}
+		}
+
+		ys, _ := yson.Marshal(taskPatch)
+		if err = yson.Unmarshal(ys, us); err != nil {
 			err = fmt.Errorf("task patch failed: %w", err)
 			return
 		}
