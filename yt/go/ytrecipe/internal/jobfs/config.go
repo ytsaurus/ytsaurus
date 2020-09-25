@@ -1,5 +1,12 @@
 package jobfs
 
+import (
+	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
+)
+
 // Config описывает загрузку файлов на YT и сохранение результатов запуска.
 type Config struct {
 	// UploadFile задаёт список файлов, которые нужно загрузить на YT. Каждый файл заливается на YT
@@ -29,17 +36,53 @@ type Config struct {
 	// Сохраняется всё содержимое директорий, вместе с файлами и симлинками, но обход не проходит по симлинкам.
 	YTOutputs []string `json:"yt_outputs"`
 
-	// CoredumpDir задаёт директорию, куда будут сохранены `core` файлы. Эта директория должна быть расположена на жёстком диске.
+	// CoredumpDir задаёт директорию, куда будут сохранены `core` файлы. Эта директория будет расположена на жёстком диске.
 	// Содержимое директории будет сохранено в YT, использую отдельный формат для хранения sparse файлов.
 	CoredumpDir string `json:"coredump_dir"`
 
-	// Ext4Dirs задаёт список директорий, которые будут расположены на ext4 файловой системе, расположенной на реальном диске.
+	// Ext4Dirs задаёт список директорий, которые будут расположены на ext4 файловой системе.
 	Ext4Dirs []string `json:"ext4_dirs"`
 
 	// Download задаёт конфиг для утилиты ytrecipe-tool download.
 	//
 	// Каждая запись в map задаёт правило prefix -> replace.
-	// ytrecipe-tool download будет скачивать те файлы? путь до которых начинается с prefix.
+	// ytrecipe-tool download будет скачивать те файлы, путь до которых начинается с prefix.
 	// Файл prefix/a/b/c будет скачан в output/replace/a/b/c.
 	Download map[string]string `json:"download"`
+}
+
+func (c *Config) Validate() []error {
+	var errs []error
+	onError := func(msg string) {
+		errs = append(errs, errors.New(msg))
+	}
+
+	isInside := func(obj, dir string) bool {
+		obj = filepath.Clean(obj)
+		dir = filepath.Clean(dir)
+
+		return strings.HasPrefix(obj, dir+string([]rune{filepath.Separator}))
+	}
+
+	if c.CoredumpDir == "" {
+		onError(`"coredump_dir" is empty`)
+	}
+
+	for _, file := range c.UploadFile {
+		for _, tarDir := range c.UploadTarDir {
+			if isInside(file, tarDir) {
+				onError(fmt.Sprintf("file %q is located inside tar dir %q", file, tarDir))
+			}
+		}
+	}
+
+	for _, outerTarDir := range c.UploadTarDir {
+		for _, tarDir := range c.UploadTarDir {
+			if isInside(outerTarDir, tarDir) {
+				onError(fmt.Sprintf("tar dir %q is located inside tar dir %q", outerTarDir, tarDir))
+			}
+		}
+	}
+
+	return errs
 }

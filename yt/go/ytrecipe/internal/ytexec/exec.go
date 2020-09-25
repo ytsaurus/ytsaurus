@@ -51,6 +51,14 @@ func New(c Config) (*Exec, error) {
 		return nil, fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
+	errs := c.FS.Validate()
+	if len(errs) != 0 {
+		for _, err := range errs {
+			l.Error("config error", log.Error(err))
+			return nil, fmt.Errorf("config validation failed; see logs for more details")
+		}
+	}
+
 	var ytToken string
 	if c.Exec.YTTokenEnv != "" {
 		ytToken = os.Getenv(c.Exec.YTTokenEnv)
@@ -257,6 +265,7 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 		outputDir.Child(OutputTableName),
 		outputDir.Child(YTOutputTableName),
 	}
+	us.MakeRootFSWritable = true
 	us.EnablePorto = "isolate"
 
 	if e.config.Operation.TaskPatch != nil {
