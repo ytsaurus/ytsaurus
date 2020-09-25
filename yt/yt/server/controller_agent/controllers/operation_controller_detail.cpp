@@ -5073,7 +5073,7 @@ void TOperationControllerBase::FetchInputTables()
             if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
                 req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
             }
-            if (table->Dynamic && Spec_->DisableDynamicStoreRead) {
+            if (table->Dynamic && !Spec_->EnableDynamicStoreRead.value_or(true)) {
                 req->set_omit_dynamic_stores(true);
             }
             // NB: we always fetch parity replicas since
@@ -5130,12 +5130,12 @@ void TOperationControllerBase::FetchInputTables()
         }
 
         YT_LOG_INFO("Adding input table for fetch (Path: %v, RangeCount: %v, InferredRangeCount: %v, "
-            "HasColumnSelectors: %v, DisableDynamicStoreRead: %v)",
+            "HasColumnSelectors: %v, EnableDynamicStoreRead: %v)",
             table->GetPath(),
             originalRangeCount,
             ranges.size(),
             hasColumnSelectors,
-            Spec_->DisableDynamicStoreRead);
+            Spec_->EnableDynamicStoreRead);
 
         chunkSpecFetcher->Add(
             table->ObjectId,
@@ -5322,6 +5322,8 @@ void TOperationControllerBase::GetInputTablesAttributes()
     auto result = WaitFor(AllSucceeded(asyncResults));
     checkError(result);
 
+    bool haveTablesWithEnabledDynamicStoreRead = false;
+
     for (const auto& batchRsp : result.Value()) {
         checkError(GetCumulativeError(batchRsp));
         for (const auto& rspOrError : batchRsp->GetResponses<TTableYPathProxy::TRspGet>()) {
@@ -5335,8 +5337,15 @@ void TOperationControllerBase::GetInputTablesAttributes()
             table->ChunkCount = attributes->Get<int>("chunk_count");
             table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
 
+            haveTablesWithEnabledDynamicStoreRead |= attributes->Get<bool>("enable_dynamic_store_read", false);
+
             // Validate that timestamp is correct.
-            ValidateDynamicTableTimestamp(table->Path, table->Dynamic, *table->Schema, *attributes);
+            ValidateDynamicTableTimestamp(
+                table->Path,
+                table->Dynamic,
+                *table->Schema,
+                *attributes,
+                !Spec_->EnableDynamicStoreRead.value_or(true));
 
             YT_LOG_INFO("Input table locked (Path: %v, ObjectId: %v, Schema: %v, Dynamic: %v, ChunkCount: %v, SecurityTags: %v, "
                 "Revision: %llx, ContentRevision: %llx)",
@@ -5387,6 +5396,14 @@ void TOperationControllerBase::GetInputTablesAttributes()
                     *table->Schema);
             }
         }
+    }
+
+    if (Spec_->EnableDynamicStoreRead == true && !haveTablesWithEnabledDynamicStoreRead) {
+        SetOperationAlert(
+            EOperationAlertType::NoTablesWithEnabledDynamicStoreRead,
+            TError(
+                "enable_dynamic_store_read in operation spec set to true, "
+                "but no input tables have @enable_dynamic_store_read attribute set"));
     }
 }
 
@@ -5834,7 +5851,7 @@ void TOperationControllerBase::FetchUserFiles()
             if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
                 req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
             }
-            if (file.Dynamic && Spec_->DisableDynamicStoreRead) {
+            if (file.Dynamic && !Spec_->EnableDynamicStoreRead.value_or(true)) {
                 req->set_omit_dynamic_stores(true);
             }
             // NB: we always fetch parity replicas since
