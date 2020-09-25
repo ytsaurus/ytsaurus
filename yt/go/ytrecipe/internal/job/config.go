@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	DefaultBaseLayer     = ypath.Path("//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz")
+	DefaultBaseLayer     = ypath.Path("//porto_layers/ubuntu-xenial-base.tar.xz")
 	MemoryReserve        = 128 * (1 << 20)
 	OperationTimeReserve = time.Minute * 5
 )

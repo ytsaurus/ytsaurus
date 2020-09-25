@@ -87,7 +87,7 @@ func Receive(dir string, r io.Reader) error {
 
 		switch h.Typeflag {
 		case tar.TypeDir:
-			if err := os.Mkdir(absPath, 0777); err != nil {
+			if err := os.Mkdir(absPath, 0777); err != nil && !os.IsExist(err) {
 				return err
 			}
 

@@ -231,14 +231,10 @@ func (fs *FS) LocateBindPoints() ([]string, error) {
 
 		for i := 0; i < 1024; i++ {
 			parent := filepath.Dir(path)
-			if parent == "/" || parent == "." {
-				err = fmt.Errorf("can't bind %q inside job: reached root", fsPath)
-				return
-			}
 
 			_, err = os.Stat(parent)
 			if err == nil {
-				binds[parent] = struct{}{}
+				binds[path] = struct{}{}
 				return
 			} else if !os.IsNotExist(err) {
 				return

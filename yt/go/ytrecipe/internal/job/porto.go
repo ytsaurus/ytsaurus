@@ -28,8 +28,68 @@ func (j *Job) createRootFSVolumes(conn porto.PortoAPI) error {
 	}
 	j.L.Debug("located bind points", log.Strings("paths", bindPoints))
 
+	mkdirRoot := func(path string) error {
+		const ctName = "mkdir"
+		if err := conn.Create(ctName); err != nil {
+			return err
+		}
+
+		var err error
+		setProperty := func(name, value string) {
+			if err != nil {
+				return
+			}
+
+			err = conn.SetProperty(ctName, name, value)
+			if err != nil {
+				err = fmt.Errorf("error setting property %s=%q: %w", name, value, err)
+			}
+		}
+
+		setProperty("command", strings.Join([]string{os.Args[0], "-mkdir", path}, " "))
+		setProperty("user", "root")
+		setProperty("stderr_path", "/dev/fd/2")
+
+		if err != nil {
+			return err
+		}
+
+		if err := conn.Start(ctName); err != nil {
+			return err
+		}
+
+		state, err := conn.WaitContainer(ctName, time.Minute)
+		if err != nil {
+			return err
+		}
+
+		if state != "dead" {
+			return fmt.Errorf("mkdir container timed out")
+		}
+
+		exitCode, err := conn.GetProperty(ctName, "exit_code")
+		if err != nil {
+			return err
+		}
+
+		exitCodeInt, err := strconv.Atoi(exitCode)
+		if err != nil {
+			return fmt.Errorf("can't parse exit_code: %w", err)
+		}
+
+		if exitCodeInt != 0 {
+			return fmt.Errorf("mkdir failed: exit_code=%d", exitCodeInt)
+		}
+
+		if err := conn.Destroy(ctName); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
 	createBind := func(storage, path string) error {
-		if err := os.MkdirAll(path, 0777); err != nil {
+		if err := mkdirRoot(path); err != nil {
 			return err
 		}
 

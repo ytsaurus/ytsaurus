@@ -23,13 +23,14 @@ type File struct {
 }
 
 type UserScript struct {
-	Command      string            `yson:"command"`
-	Format       interface{}       `yson:"format,omitempty"`
-	InputFormat  interface{}       `yson:"input_format,omitempty"`
-	OutputFormat interface{}       `yson:"output_format,omitempty"`
-	Environment  map[string]string `yson:"environment,omitempty"`
-	FilePaths    []File            `yson:"file_paths,omitempty"`
-	LayerPaths   []ypath.Path      `yson:"layer_paths,omitempty"`
+	Command            string            `yson:"command"`
+	Format             interface{}       `yson:"format,omitempty"`
+	InputFormat        interface{}       `yson:"input_format,omitempty"`
+	OutputFormat       interface{}       `yson:"output_format,omitempty"`
+	Environment        map[string]string `yson:"environment,omitempty"`
+	FilePaths          []File            `yson:"file_paths,omitempty"`
+	LayerPaths         []ypath.Path      `yson:"layer_paths,omitempty"`
+	MakeRootFSWritable bool              `yson:"make_rootfs_writable,omitempty"`
 
 	TmpfsPath string `yson:"tmpfs_path,omitempty"`
 	CopyFiles bool   `yson:"copy_files,omitempty"`
