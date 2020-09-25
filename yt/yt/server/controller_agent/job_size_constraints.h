@@ -21,7 +21,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     double dataWeightRatio,
     i64 inputChunkCount,
     i64 primaryInputDataWeight,
-    i64 inputRowCount = std::numeric_limits<i64>::max(),
+    i64 inputRowCount = std::numeric_limits<i64>::max() / 4,
     i64 foreignInputDataWeight = 0,
     int inputTableCount = 1,
     int primaryInputTableCount = 1,

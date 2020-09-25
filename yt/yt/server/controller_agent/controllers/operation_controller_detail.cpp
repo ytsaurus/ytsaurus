@@ -1494,7 +1494,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
     i64 chunkCountPerMergeJob;
     switch (mode) {
         case EAutoMergeMode::Relaxed:
-            maxIntermediateChunkCount = std::numeric_limits<int>::max();
+            maxIntermediateChunkCount = std::numeric_limits<int>::max() / 4;
             chunkCountPerMergeJob = 500;
             break;
         case EAutoMergeMode::Economy:
@@ -6313,8 +6313,8 @@ void TOperationControllerBase::WriteInputQueryToJobSpec(TSchedulerJobSpecExt* sc
 {
     auto* querySpec = schedulerJobSpecExt->mutable_input_query_spec();
     ToProto(querySpec->mutable_query(), InputQuery->Query);
-    querySpec->mutable_query()->set_input_row_limit(std::numeric_limits<i64>::max());
-    querySpec->mutable_query()->set_output_row_limit(std::numeric_limits<i64>::max());
+    querySpec->mutable_query()->set_input_row_limit(std::numeric_limits<i64>::max() / 4);
+    querySpec->mutable_query()->set_output_row_limit(std::numeric_limits<i64>::max() / 4);
     ToProto(querySpec->mutable_external_functions(), InputQuery->ExternalCGInfo->Functions);
 }
 

@@ -32,7 +32,7 @@ public:
         TOperationOptionsPtr options,
         TLogger logger,
         i64 inputRowCount = -1,
-        i64 inputChunkCount = std::numeric_limits<i64>::max(),
+        i64 inputChunkCount = std::numeric_limits<i64>::max() / 4,
         int mergeInputTableCount = 1,
         int mergePrimaryInputTableCount = 1,
         TSamplingConfigPtr samplingConfig = nullptr)
@@ -412,7 +412,7 @@ public:
             spec,
             options,
             logger,
-            std::numeric_limits<i64>::max() /* inputRowCount */,
+            std::numeric_limits<i64>::max() / 4 /* inputRowCount */,
             inputChunkCount,
             mergeInputTableCount,
             mergePrimaryInputTableCount,
@@ -484,7 +484,7 @@ public:
 
     virtual i64 GetInputSliceRowCount() const override
     {
-        return std::numeric_limits<i64>::max();
+        return std::numeric_limits<i64>::max() / 4;
     }
 
     virtual i64 GetInputSliceDataWeight() const override
@@ -567,7 +567,7 @@ public:
 
     virtual i64 GetInputSliceRowCount() const override
     {
-        return std::numeric_limits<i64>::max();
+        return std::numeric_limits<i64>::max() / 4;
     }
 
     virtual void Persist(const TPersistenceContext& context) override
@@ -613,7 +613,7 @@ public:
             options,
             logger,
             inputRowCount,
-            std::numeric_limits<i64>::max() /* inputChunkCount */,
+            std::numeric_limits<i64>::max() / 4 /* inputChunkCount */,
             1 /* mergeInputTableCount */,
             1 /* primaryMergeInputTableCount */,
             spec->Sampling)
@@ -803,8 +803,8 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
         options->MaxDataSlicesPerJob,
         spec->MaxDataWeightPerJob,
         spec->MaxPrimaryDataWeightPerJob,
-        std::numeric_limits<i64>::max() /* inputSliceDataSize */,
-        std::numeric_limits<i64>::max() /* inputSliceRowCount */,
+        std::numeric_limits<i64>::max() / 4 /* inputSliceDataSize */,
+        std::numeric_limits<i64>::max() / 4 /* inputSliceRowCount */,
         std::nullopt /* samplingRate */);
 }
 

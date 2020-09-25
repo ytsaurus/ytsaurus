@@ -467,8 +467,8 @@ private:
     TIdGenerator OutputCookieGenerator_;
 
     EUnorderedChunkPoolMode Mode_;
-    i64 MinTeleportChunkSize_ = std::numeric_limits<i64>::max();
-    i64 MinTeleportChunkDataWeight_ = std::numeric_limits<i64>::max();
+    i64 MinTeleportChunkSize_ = std::numeric_limits<i64>::max() / 4;
+    i64 MinTeleportChunkDataWeight_ = std::numeric_limits<i64>::max() / 4;
     bool SliceErasureChunksByParts_ = false;
 
     TRowBufferPtr RowBuffer_;

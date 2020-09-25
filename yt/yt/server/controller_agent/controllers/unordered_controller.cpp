@@ -615,7 +615,7 @@ private:
 
     virtual i64 GetMinTeleportChunkSize() const override
     {
-        return std::numeric_limits<i64>::max();
+        return std::numeric_limits<i64>::max() / 4;
     }
 
     virtual bool IsInputDataSizeHistogramSupported() const override
@@ -720,7 +720,7 @@ private:
     virtual i64 GetMinTeleportChunkSize() const override
     {
         if (Spec->ForceTransform) {
-            return std::numeric_limits<i64>::max();
+            return std::numeric_limits<i64>::max() / 4;
         }
         if (!Spec->CombineChunks) {
             return 0;

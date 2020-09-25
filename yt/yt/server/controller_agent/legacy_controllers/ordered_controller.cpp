@@ -537,7 +537,7 @@ private:
     virtual i64 GetMinTeleportChunkSize() override
     {
         if (Spec_->ForceTransform || Spec_->InputQuery) {
-            return std::numeric_limits<i64>::max();
+            return std::numeric_limits<i64>::max() / 4;
         }
         if (!Spec_->CombineChunks) {
             return 0;
@@ -728,7 +728,7 @@ private:
 
     virtual i64 GetMinTeleportChunkSize() override
     {
-        return std::numeric_limits<i64>::max();
+        return std::numeric_limits<i64>::max() / 4;
     }
 
     virtual EJobType GetJobType() const override
@@ -1336,7 +1336,7 @@ private:
 
     virtual i64 GetMinTeleportChunkSize() override
     {
-        return std::numeric_limits<i64>::max();
+        return std::numeric_limits<i64>::max() / 4;
     }
 
     virtual TYsonSerializablePtr GetTypedSpec() const override

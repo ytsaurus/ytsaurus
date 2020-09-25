@@ -67,9 +67,9 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
             THROW_ERROR_EXCEPTION("Only row indices and chunk indices are supported as read limits in virtual static table");
         }
         auto lowerLimitRowIndex = lowerLimit.HasRowIndex() ? lowerLimit.GetRowIndex() : 0;
-        auto upperLimitRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<i64>::max();
+        auto upperLimitRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<i64>::max() / 4;
         auto lowerLimitChunkIndex = lowerLimit.HasChunkIndex() ? lowerLimit.GetChunkIndex() : 0;
-        auto upperLimitChunkIndex = upperLimit.HasChunkIndex() ? upperLimit.GetChunkIndex() : std::numeric_limits<i32>::max();
+        auto upperLimitChunkIndex = upperLimit.HasChunkIndex() ? upperLimit.GetChunkIndex() : std::numeric_limits<i32>::max() / 4;
         i64 tableRowIndex = 0;
         int chunkIndex = 0;
         for (auto chunkIt = Chunks_.begin(); chunkIt != Chunks_.end(); ++chunkIt, ++chunkIndex) {
