@@ -719,7 +719,7 @@ private:
             dataWeight += dataSlice->GetDataWeight();
         }
         i64 dataWeightPerJob = splitJobCount == 1
-            ? std::numeric_limits<i64>::max()
+            ? std::numeric_limits<i64>::max() / 4
             : DivCeil(dataWeight, static_cast<i64>(splitJobCount));
 
         // We create new job size constraints by incorporating the new desired data size per job
@@ -729,7 +729,7 @@ private:
             false /* isExplicitJobCount */,
             splitJobCount /* jobCount */,
             dataWeightPerJob,
-            std::numeric_limits<i64>::max(),
+            std::numeric_limits<i64>::max() / 4,
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),

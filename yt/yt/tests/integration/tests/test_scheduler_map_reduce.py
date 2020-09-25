@@ -927,6 +927,17 @@ print "x={0}\ty={1}".format(x, y)
                    mapper_command="cat; echo '{a=1}' >&4",
                    reducer_command="cat",
                    sort_by=["key"],
+                   spec={"sampling": {"sampling_rate": 1, "io_block_size": 10**5},
+                         "map_job_count": 10,
+                         "mapper_output_table_count": 1})
+        assert get("//tmp/t2/@row_count") > 1
+        assert get("//tmp/t3/@row_count") == 10000
+
+        map_reduce(in_="//tmp/t1",
+                   out=["//tmp/t2", "//tmp/t3"],
+                   mapper_command="cat; echo '{a=1}' >&4",
+                   reducer_command="cat",
+                   sort_by=["key"],
                    spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
                          "partition_count": 7,
                          "max_partition_factor": 2,

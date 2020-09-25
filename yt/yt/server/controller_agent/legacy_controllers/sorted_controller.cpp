@@ -329,7 +329,7 @@ protected:
                     DataWeightRatio,
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
-                    std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
+                    std::numeric_limits<i64>::max() / 4 /* InputRowCount */, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
                     InputTables_.size(),
                     GetPrimaryInputTableCount(),
@@ -700,7 +700,7 @@ public:
     virtual i64 GetMinTeleportChunkSize() override
     {
         if (Spec_->ForceTransform) {
-            return std::numeric_limits<i64>::max();
+            return std::numeric_limits<i64>::max() / 4;
         }
         if (!Spec_->CombineChunks) {
             return 0;

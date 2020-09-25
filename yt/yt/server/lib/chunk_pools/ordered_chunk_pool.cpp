@@ -344,7 +344,7 @@ private:
         }
         i64 dataSizePerJob;
         if (splitJobCount == 1) {
-            dataSizePerJob = std::numeric_limits<i64>::max();
+            dataSizePerJob = std::numeric_limits<i64>::max() / 4;
         } else {
             dataSizePerJob = DivCeil(dataSize, static_cast<i64>(splitJobCount));
         }
