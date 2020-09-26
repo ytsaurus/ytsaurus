@@ -97,8 +97,9 @@ public:
     //! Informs the manager that #slot no longer serves any tablet.
     void UnregisterTabletSnapshots(TTabletSlotPtr slot);
 
-    //! Informs the manager that #tablet's snapshot must be updated.
-    void UpdateTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet);
+    //! Informs the manager that the share of tablet dynamic memory
+    //! of the corresponding bundle has changed.
+    void UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName);
 
     //! Returns a thread pool invoker used for building tablet snapshots.
     IInvokerPtr GetSnapshotPoolInvoker();

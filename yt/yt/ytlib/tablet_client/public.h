@@ -48,6 +48,14 @@ constexpr int TypicalTabletSlotCount = 10;
 constexpr int TypicalPeerCount = 5;
 constexpr int MaxPeerCount = 10;
 
+constexpr int MaxDynamicMemoryPoolWeight = 1000;
+// NB: The product of maximum node memory limit, pool weight and tablet slot count
+// must not overflow int64. We estimate memory limit with 1T and tablet slot count
+// with 20.
+static_assert(
+    (1ull << 63) / (1ll << 40) / 20 >= MaxDynamicMemoryPoolWeight,
+    "MaxDynamicMemoryPoolWeight is too large");
+
 //! Signatures enable checking tablet transaction integrity.
 /*!
  *  When a transaction is created, its signature is #InitialTransactionSignature.

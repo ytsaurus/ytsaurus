@@ -326,11 +326,11 @@ public:
             auto snapshot = it->second;
             if (snapshot->CellId == slot->GetCellId()) {
                 guard.Release();
-                
+
                 YT_LOG_DEBUG("Tablet snapshot unregistered; eviction scheduled (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     slot->GetCellId());
-                
+
                 TDelayedExecutor::Submit(
                     BIND(&TImpl::EvictTabletSnapshot, MakeStrong(this), tablet->GetId(), snapshot)
                         .Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()),
@@ -370,6 +370,22 @@ public:
         }
     }
 
+    void UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName)
+    {
+        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
+
+        i64 totalWeight = 0;
+        for (int index = 0; index < Slots_.size(); ++index) {
+            if (Slots_[index] && Slots_[index]->GetTabletCellBundleName() == bundleName) {
+                totalWeight += Slots_[index]->GetDynamicOptions()->DynamicMemoryPoolWeight;
+            }
+        }
+
+        YT_LOG_DEBUG("Tablet cell bundle memory pool weight updated (Bundle: %v, Weight: %v)",
+            bundleName,
+            totalWeight);
+        memoryTracker->SetPoolWeight(bundleName, totalWeight);
+    }
 
     void PopulateAlerts(std::vector<TError>* alerts)
     {
@@ -593,23 +609,6 @@ private:
         YT_ABORT();
     }
 
-    void UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName)
-    {
-        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
-
-        int slotCount = 0;
-        for (int index = 0; index < Slots_.size(); ++index) {
-            if (Slots_[index] && Slots_[index]->GetTabletCellBundleName() == bundleName) {
-                ++slotCount;
-            }
-        }
-
-        YT_LOG_DEBUG("Tablet cell bundle memory pool weight updated (Bundle: %v, Weight: %v)",
-            bundleName,
-            slotCount);
-        memoryTracker->SetPoolWeight(bundleName, slotCount);
-    }
-
     TTabletSnapshotPtr DoFindTabletSnapshot(TTabletId tabletId, std::optional<TRevision> mountRevision)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -765,6 +764,11 @@ void TSlotManager::UnregisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet
 void TSlotManager::UnregisterTabletSnapshots(TTabletSlotPtr slot)
 {
     Impl_->UnregisterTabletSnapshots(std::move(slot));
+}
+
+void TSlotManager::UpdateTabletCellBundleMemoryPoolWeight(const TString& bundleName)
+{
+    Impl_->UpdateTabletCellBundleMemoryPoolWeight(bundleName);
 }
 
 void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)

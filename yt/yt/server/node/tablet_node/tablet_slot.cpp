@@ -371,6 +371,8 @@ public:
             // TODO(savrus): Write this to tablet cell errors once we have them.
             YT_LOG_ERROR(ex, "Error while updating dynamic config");
         }
+
+        Bootstrap_->GetTabletSlotManager()->UpdateTabletCellBundleMemoryPoolWeight(TabletCellBundleName_);
     }
 
     void Configure(const TConfigureTabletSlotInfo& configureInfo)

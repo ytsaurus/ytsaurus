@@ -1597,7 +1597,8 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
     }
 
     @authors("ifsmirnov")
-    def test_tablet_dynamic_multiple_bundles(self):
+    @pytest.mark.parametrize("eviction_type", ["remove_cell", "update_weight"])
+    def test_tablet_dynamic_multiple_bundles(self, eviction_type):
         create_tablet_cell_bundle("b1", attributes={"options": self.BUNDLE_OPTIONS})
         create_tablet_cell_bundle("b2", attributes={"options": self.BUNDLE_OPTIONS})
         cell1 = sync_create_cells(1, tablet_cell_bundle="b1")[0]
@@ -1624,9 +1625,15 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
             insert_rows("//tmp/t1", [_get_row.next()])
 
         remove("//tmp/t2")
-        remove("#{}".format(cell2))
-        node = ls("//sys/nodes")[0]
-        wait(lambda: cell2 not in ls("//sys/nodes/{}/orchid/tablet_cells".format(node)))
+        if eviction_type == "remove_cell":
+            remove("#{}".format(cell2))
+            node = ls("//sys/nodes")[0]
+            wait(lambda: cell2 not in ls("//sys/nodes/{}/orchid/tablet_cells".format(node)))
+        else:
+            set("//sys/tablet_cell_bundles/b1/@dynamic_options/dynamic_memory_pool_weight", 1000)
+            node = ls("//sys/nodes")[0]
+            wait(lambda: get("//sys/nodes/{}/orchid/tablet_cells/{}/dynamic_options/dynamic_memory_pool_weight".format(
+                node, cell1)) == 1000)
 
         insert_rows("//tmp/t1", [_get_row.next()])
 
