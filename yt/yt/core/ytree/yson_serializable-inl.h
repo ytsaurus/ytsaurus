@@ -167,6 +167,16 @@ void LoadFromNode(
     }
 }
 
+template <class T>
+T DeserializeMapKey(TStringBuf value)
+{
+    if constexpr (TEnumTraits<T>::IsEnum) {
+        return TEnumTraits<T>::FromString(DecodeEnumValue(value));
+    } else {
+        return FromString<T>(value);
+    }
+}
+
 // For any map.
 template <template <typename...> class Map, class... T, class M = typename Map<T...>::mapped_type>
 void LoadFromNode(
@@ -190,7 +200,7 @@ void LoadFromNode(
                     path + "/" + NYPath::ToYPathLiteral(key),
                     EMergeStrategy::Overwrite,
                     keepUnrecognizedRecursively);
-                parameter.emplace(FromString<typename Map<T...>::key_type>(key), std::move(value));
+                parameter.emplace(DeserializeMapKey<typename Map<T...>::key_type>(key), std::move(value));
             }
             break;
         }
@@ -205,7 +215,7 @@ void LoadFromNode(
                     path + "/" + NYPath::ToYPathLiteral(key),
                     EMergeStrategy::Combine,
                     keepUnrecognizedRecursively);
-                parameter[FromString<typename Map<T...>::key_type>(key)] = std::move(value);
+                parameter[DeserializeMapKey<typename Map<T...>::key_type>(key)] = std::move(value);
             }
             break;
         }

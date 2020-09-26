@@ -707,10 +707,29 @@ bool TObjectProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey /*key*/)
 }
 
 void TObjectProxyBase::ValidateCustomAttributeUpdate(
-    const TString& /*key*/,
+    const TString& key,
     const TYsonString& /*oldValue*/,
-    const TYsonString& /*newValue*/)
-{ }
+    const TYsonString& newValue)
+{
+    if (!newValue) {
+        return;
+    }
+
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ObjectManager;
+    const auto& reservedAttributes = config->ReservedAttributes;
+
+    auto it = reservedAttributes.find(Object_->GetType());
+    if (it == reservedAttributes.end()) {
+        return;
+    }
+
+    auto jt = it->second.find(key);
+    if (jt != it->second.end()) {
+        THROW_ERROR_EXCEPTION("Attribute %Qv is deprecated or reserved for future use: %v",
+            key,
+            jt->second);
+    }
+}
 
 void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
     const TString& key,

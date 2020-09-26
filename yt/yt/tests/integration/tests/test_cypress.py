@@ -243,6 +243,24 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t/@", [])
         with pytest.raises(YtError): set("//tmp/t/@", [1, 2, 3])
 
+    @authors("ifsmirnov")
+    def test_reserved_attributes(self):
+        set("//sys/@config/object_manager/reserved_attributes/table", {"cool_feature": "my error message"})
+        create("table", "//tmp/t")
+        with raises_yt_error("my error message"):
+            set("//tmp/t/@cool_feature", 123)
+
+        # Setting the attribute onto the object of different type is allowed.
+        create("map_node", "//tmp/m")
+        set("//tmp/m/@cool_feature", "foobar")
+
+        # Interned attributes cannot be reserved.
+        set("//sys/@config/object_manager/reserved_attributes/table/account", "message")
+        set("//tmp/t/@account", "tmp")
+
+        with pytest.raises(YtError):
+            set("//sys/@config/object_manager/reserved_attributes/bad_object_name", {"foo": "bar"})
+
     @authors("babenko", "ignat")
     def test_attributes_tx_read_table(self):
         set("//tmp/t", "<attr=100> 123", is_raw=True)
