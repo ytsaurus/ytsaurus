@@ -61,6 +61,10 @@ public:
 
     TMutationIdempotizerConfigPtr MutationIdempotizer;
 
+    //! Per-type list of attributes which will become interned in future versions
+    //! and thus should not be set. Maps attribute names to error messages.
+    THashMap<EObjectType, THashMap<TString, TString>> ReservedAttributes;
+
     TDynamicObjectManagerConfig()
     {
         RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
@@ -71,6 +75,8 @@ public:
             .Default(TDuration::MilliSeconds(100));
         RegisterParameter("mutation_idempotizer", MutationIdempotizer)
             .DefaultNew();
+        RegisterParameter("reserved_attributes", ReservedAttributes)
+            .Default();
     }
 };
 

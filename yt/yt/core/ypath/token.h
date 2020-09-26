@@ -24,6 +24,8 @@ DEFINE_ENUM(ETokenType,
 
 TString ToYPathLiteral(TStringBuf value);
 TString ToYPathLiteral(i64 value);
+template <class E, class = std::enable_if_t<TEnumTraits<E>::IsEnum>>
+TString ToYPathLiteral(E value);
 
 void AppendYPathLiteral(TStringBuilderBase* builder, TStringBuf value);
 void AppendYPathLiteral(TStringBuilderBase* builder, i64 value);
@@ -37,3 +39,7 @@ bool IsSpecialCharacter(char ch);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath
+
+#define TOKEN_INL_H_
+#include "token-inl.h"
+#undef TOKEN_INL_H_
