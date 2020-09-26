@@ -1697,6 +1697,27 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         self._assert_schema_equal(get("//tmp/t_merged/@schema"), unversioned_update_schema, reordered=True)
         assert get("//tmp/t_merged/@schema/@schema_modification") == modification
 
+    def test_chunk_timestamp(self):
+        sync_create_cells(1)
+
+        self._create_simple_dynamic_table(
+            "//tmp/t_output",
+            min_data_versions=0,
+            max_data_versions=1,
+            min_data_ttl=6000,
+            max_data_ttl=6000)
+        sync_mount_table("//tmp/t_output")
+        self._run_operation(self._prepare_write_row(
+            self._make_value("value", "foo"),
+            key=1))
+
+        # YT-13616. Data is not immediately discarded by TTL...
+        sleep(2)
+        assert select_rows("* from [//tmp/t_output]") == [{"key": 1, "value": "foo"}]
+
+        # but eventually is.
+        wait(lambda: select_rows("* from [//tmp/t_output]") == [])
+
 ##################################################################
 
 class TestBulkInsertMulticell(TestBulkInsert):
