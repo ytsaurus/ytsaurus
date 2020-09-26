@@ -86,6 +86,8 @@ class YtTestEnvironment(object):
             if need_suid and arcadia_interop.is_inside_distbuild():
                 pytest.skip()
 
+            ytrecipe = os.environ.get("YTRECIPE") is not None
+
             suffix = "need_suid_" + str(int(need_suid))
             if yatest_common.get_param("ram_drive_path") is not None:
                 prepare_dir = os.path.join(yatest_common.ram_drive_path(), suffix)
@@ -97,8 +99,8 @@ class YtTestEnvironment(object):
 
                 self.binaries_path = arcadia_interop.prepare_yt_environment(
                     prepare_dir,
-                    copy_ytserver_all=True,
-                    need_suid=need_suid)
+                    copy_ytserver_all=not ytrecipe,
+                    need_suid=need_suid and not ytrecipe)
                 os.environ["PATH"] = os.pathsep.join([self.binaries_path, os.environ.get("PATH", "")])
 
         common_delta_node_config = {
