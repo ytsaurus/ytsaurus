@@ -65,7 +65,7 @@ struct TUnorderedReadManagerConfig
 struct TOrderedReadManagerConfig
     : TReadManagerConfigBase
 {
-    i64 TotalRangeCount;
+    int RangeCount;
 };
 
 using TReadManagerConfigVariant = TVariant<
@@ -230,7 +230,8 @@ private:
         path.Ranges_ = {TReadRange::FromRowIndices(0, 0)};
         TVector<TRichYPath> slices(Config_.ThreadCount, path);
         i64 totalBatchCount = 0;
-        for (i64 batchIndex = 0; TableSlicer_.IsValid() && batchIndex < Config_.TotalRangeCount; ++batchIndex) {
+        auto totalRangeCount = static_cast<i64>(Config_.RangeCount) * Config_.ThreadCount;
+        for (i64 batchIndex = 0; TableSlicer_.IsValid() && batchIndex < totalRangeCount; ++batchIndex) {
             slices[batchIndex % Config_.ThreadCount].AddRange(TableSlicer_.GetRange());
             ++totalBatchCount;
             TableSlicer_.Next();
@@ -589,11 +590,11 @@ public:
         } else if (HoldsAlternative<TOrderedReadManagerConfig>(config)) {
             const auto& orderedConfig = Get<TOrderedReadManagerConfig>(config);
             LOG_DEBUG("Starting ordered parallel reader: "
-                "ThreadCount = %d, BatchSize = %d, BatchCount = %d, TotalRangeCount = %d",
+                "ThreadCount = %d, BatchSize = %d, BatchCount = %d, RangeCount = %d",
                 orderedConfig.ThreadCount,
                 orderedConfig.BatchSize,
                 orderedConfig.BatchCount,
-                orderedConfig.TotalRangeCount);
+                orderedConfig.RangeCount);
             ReadManager_ = MakeHolder<TOrderedReadManager<TRow>>(
                 std::move(client),
                 std::move(paths),
@@ -754,7 +755,7 @@ TTableReaderPtr<T> CreateParallelTableReader(
         cfg.ThreadCount = options.ThreadCount_;
         cfg.BatchSize = batchSize;
         cfg.BatchCount = batchCount;
-        cfg.TotalRangeCount = options.TotalRangeCount_;
+        cfg.RangeCount = options.RangeCount_;
         config = cfg;
     } else {
         NDetail::TUnorderedReadManagerConfig cfg;

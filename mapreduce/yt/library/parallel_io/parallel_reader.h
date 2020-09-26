@@ -34,9 +34,9 @@ struct TParallelTableReaderOptions
     // Size of batch to operate with (in bytes).
     FLUENT_FIELD_DEFAULT(size_t, BatchSizeBytes, 4'000'000);
 
-    // Total number of RichYPath ranges that readers will use.
+    // Number of RichYPath ranges each reader will use.
     // Makes sense only for ordered reader.
-    FLUENT_FIELD_DEFAULT(size_t, TotalRangeCount, 50'000);
+    FLUENT_FIELD_DEFAULT(int, RangeCount, 300);
 
     // Maximum number of rows allowed to be stored in memory.
     // Together with ThreadCount it determines the read range size
