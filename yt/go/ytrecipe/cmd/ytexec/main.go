@@ -7,6 +7,9 @@ import (
 )
 
 func main() {
+	if ytexec.IsMkdir() {
+		os.Exit(ytexec.Mkdir())
+	}
 	if mapreduce.InsideJob() {
 		os.Exit(mapreduce.JobMain())
 	}
