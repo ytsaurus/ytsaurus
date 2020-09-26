@@ -481,12 +481,12 @@ i64 TChunkStoreBase::GetRowCount() const
 
 TTimestamp TChunkStoreBase::GetMinTimestamp() const
 {
-    return MiscExt_.min_timestamp();
+    return ChunkTimestamp_ != NullTimestamp ? ChunkTimestamp_ : MiscExt_.min_timestamp();
 }
 
 TTimestamp TChunkStoreBase::GetMaxTimestamp() const
 {
-    return MiscExt_.max_timestamp();
+    return ChunkTimestamp_ != NullTimestamp ? ChunkTimestamp_ : MiscExt_.max_timestamp();
 }
 
 TCallback<void(TSaveContext&)> TChunkStoreBase::AsyncSave()
