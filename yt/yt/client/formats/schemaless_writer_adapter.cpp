@@ -65,11 +65,20 @@ TFuture<void> TSchemalessFormatWriterBase::GetReadyEvent()
 
 TFuture<void> TSchemalessFormatWriterBase::Close()
 {
+    if (Closed_) {
+        return MakeFuture(Error_);
+    }
+
     try {
+        if (ControlAttributesConfig_->EnableEndOfStream) {
+            WriteEndOfStream();
+        }
         DoFlushBuffer();
     } catch (const std::exception& ex) {
         Error_ = TError(ex);
     }
+
+    Closed_ = true;
 
     return MakeFuture(Error_);
 }
@@ -278,6 +287,9 @@ void TSchemalessFormatWriterBase::WriteRowIndex(i64 /* rowIndex */)
 void TSchemalessFormatWriterBase::WriteTabletIndex(i64 /* tabletIndex */)
 { }
 
+void TSchemalessFormatWriterBase::WriteEndOfStream()
+{ }
+
 bool TSchemalessFormatWriterBase::HasError() const
 {
     return !Error_.IsOK();
@@ -373,6 +385,11 @@ void TSchemalessWriterAdapter::WriteRangeIndex(i64 rangeIndex)
 void TSchemalessWriterAdapter::WriteTabletIndex(i64 tabletIndex)
 {
     WriteControlAttribute(EControlAttribute::TabletIndex, tabletIndex);
+}
+
+void TSchemalessWriterAdapter::WriteEndOfStream()
+{
+    WriteControlAttribute(EControlAttribute::EndOfStream, true);
 }
 
 void TSchemalessWriterAdapter::ConsumeRow(TUnversionedRow row)

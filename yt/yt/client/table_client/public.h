@@ -132,6 +132,7 @@ DEFINE_ENUM(EControlAttribute,
     (RangeIndex)
     (RowIndex)
     (TabletIndex)
+    (EndOfStream)
 );
 
 DEFINE_ENUM(EUnavailableChunkStrategy,

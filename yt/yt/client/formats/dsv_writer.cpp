@@ -239,6 +239,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
         THROW_ERROR_EXCEPTION("Tablet indices are not supported in DSV format");
     }
 
+    if (controlAttributesConfig->EnableEndOfStream) {
+        THROW_ERROR_EXCEPTION("End of stream attribute is not supported in DSV format");
+    }
+
     return New<TSchemalessWriterForDsv>(
         nameTable,
         enableContextSaving,

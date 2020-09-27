@@ -80,6 +80,7 @@ protected:
     virtual void WriteRangeIndex(i64 rangeIndex);
     virtual void WriteRowIndex(i64 rowIndex);
     virtual void WriteTabletIndex(i64 tabletIndex);
+    virtual void WriteEndOfStream();
 
     bool HasError() const;
     void RegisterError(const TError& error);
@@ -103,6 +104,8 @@ private:
     TError Error_;
 
     i64 WrittenSize_ = 0;
+
+    bool Closed_ = false;
 
     void DoFlushBuffer();
 };
@@ -137,6 +140,7 @@ private:
     virtual void WriteRangeIndex(i64 rangeIndex) override;
     virtual void WriteRowIndex(i64 rowIndex) override;
     virtual void WriteTabletIndex(i64 tabletIndex) override;
+    virtual void WriteEndOfStream() override;
 
 private:
     std::vector<TUnversionedValueYsonWriter> ValueWriters_;

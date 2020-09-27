@@ -408,6 +408,9 @@ public:
             }
             CurrentTableIndex_ = tableIndex;
             return Next();
+        } else if (rowSize == LenvalEndOfStream) {
+            EndOfStream_ = true;
+            return std::nullopt;
         } else if (
             rowSize == LenvalKeySwitch ||
             rowSize == LenvalRangeIndexMarker ||
@@ -423,9 +426,16 @@ public:
             return result;
         }
     }
+
+    bool IsEndOfStream() const
+    {
+        return EndOfStream_;
+    }
+
 private:
     IInputStream* Input_;
     ui32 CurrentTableIndex_ = 0;
+    bool EndOfStream_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2547,6 +2557,7 @@ TEST(TProtobufFormat, WriteSeveralTables)
     TStringOutput resultStream(result);
     auto controlAttributesConfig = New<TControlAttributesConfig>();
     controlAttributesConfig->EnableTableIndex = true;
+    controlAttributesConfig->EnableEndOfStream = true;
     auto writer = CreateWriterForProtobuf(
         std::move(config),
         schemas,
@@ -2628,6 +2639,9 @@ TEST(TProtobufFormat, WriteSeveralTables)
 
         EXPECT_EQ(message.string_field(), "blah");
     }
+    ASSERT_FALSE(lenvalParser.IsEndOfStream());
+    ASSERT_FALSE(lenvalParser.Next());
+    ASSERT_TRUE(lenvalParser.IsEndOfStream());
     ASSERT_FALSE(lenvalParser.Next());
 }
 

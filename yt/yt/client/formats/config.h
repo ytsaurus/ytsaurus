@@ -17,9 +17,14 @@ class TControlAttributesConfig
 public:
     bool EnableKeySwitch;
 
+    bool EnableEndOfStream;
+
     TControlAttributesConfig()
     {
         RegisterParameter("enable_key_switch", EnableKeySwitch)
+            .Default(false);
+        
+        RegisterParameter("enable_end_of_stream", EnableEndOfStream)
             .Default(false);
     }
 };

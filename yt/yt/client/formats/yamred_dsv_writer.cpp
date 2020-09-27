@@ -210,6 +210,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
         THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMRed DSV format");
     }
 
+    if (controlAttributesConfig->EnableEndOfStream) {
+        THROW_ERROR_EXCEPTION("End of stream control attribute is not supported in YAMRed DSV format");
+    }
+
     return New<TSchemalessWriterForYamredDsv>(
         nameTable,
         output,

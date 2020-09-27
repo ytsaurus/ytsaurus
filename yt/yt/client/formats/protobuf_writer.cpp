@@ -891,6 +891,11 @@ private:
         WritePod(*StreamWriter_, static_cast<ui64>(rowIndex));
     }
 
+    virtual void WriteEndOfStream() override
+    {
+        WritePod(*StreamWriter_, static_cast<ui32>(LenvalEndOfStream));
+    }
+
 private:
     const TProtobufWriterFormatDescriptionPtr Description_;
     TWriterImpl WriterImpl_;

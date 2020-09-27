@@ -1414,6 +1414,39 @@ done
 
         assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
+    @authors("gritukan")
+    def test_end_of_stream(self):
+        create("table", "//tmp/in1")
+        create("table", "//tmp/in2")
+        create("table", "//tmp/out")
+
+        write_table("//tmp/in1", [{"x": 1}])
+        write_table("//tmp/in2", [{"x": 2}])
+
+        op = map(
+            ordered=True,
+            in_=["//tmp/in1", "//tmp/in2"],
+            out="//tmp/out",
+            command="cat 1>&2",
+            spec={
+                "job_io": {"control_attributes": {"enable_end_of_stream": True}},
+                "mapper": {"format": yson.loads("<format=text>yson")},
+                "job_count": 1,
+            })
+
+        jobs_path = op.get_path() + "/jobs"
+        job_ids = ls(jobs_path)
+        assert len(job_ids) == 1
+        stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
+
+        assert stderr_bytes == \
+"""<"table_index"=0;>#;
+{"x"=1;};
+<"table_index"=1;>#;
+{"x"=2;};
+<"end_of_stream"=%true;>#;
+"""
+
 ##################################################################
 
 @patch_porto_env_only(TestSchedulerMapCommands)
