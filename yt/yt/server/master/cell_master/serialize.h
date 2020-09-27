@@ -122,7 +122,8 @@ DEFINE_ENUM(EMasterReign,
     ((DisallowSettingBundleOfMountedTables)                         (1331))  // ifsmirnov
     ((NonAliveTxInCloneForeignNode)                                 (1332))  // babenko
     ((ExtraPeerDroppingDelay)                                       (1333))  // gritukan
-    ((ReservedAttributes)                                           (1334))  // ifsmirnov
+    ((CellPeerLastSeenState)                                        (1334))  // gritukan
+    ((ReservedAttributes)                                           (1335))  // ifsmirnov
     // 20.3
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
