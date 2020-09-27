@@ -1415,7 +1415,7 @@ void TServiceBase::UnregisterRequest(TServiceContext* context)
         auto* bucket = GetReplyBusBucket(replyBus);
         auto guard = Guard(bucket->Lock);
         auto it = bucket->ReplyBusToContexts.find(replyBus);
-        // Missing replyBus in ReplyBusToContexts_ is OK; see OnReplyBusTerminated.
+        // Missing replyBus in ReplyBusToContexts is OK; see OnReplyBusTerminated.
         if (it != bucket->ReplyBusToContexts.end()) {
             auto& contexts = it->second;
             contexts.erase(context);
