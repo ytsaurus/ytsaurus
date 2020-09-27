@@ -755,7 +755,6 @@ private:
     {
         TAdaptiveLock Lock;
         THashMap<TRequestId, TServiceContext*> RequestIdToContext;
-        THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts;
         THashMap<TRequestId, TPendingPayloadsEntry> RequestIdToPendingPayloads;
     };
 
