@@ -171,6 +171,10 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
         THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMR format");
     }
 
+    if (controlAttributesConfig->EnableEndOfStream) {
+        THROW_ERROR_EXCEPTION("End of stream control attribute is not supported in YAMR format");
+    }
+
     return New<TSchemalessWriterForYamr>(
         nameTable,
         output,

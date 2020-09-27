@@ -848,6 +848,10 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
+    if (controlAttributesConfig->EnableEndOfStream) {
+        THROW_ERROR_EXCEPTION("End of stream control attribute is not supported in Skiff");
+    }
+
     auto result = New<TSkiffWriter>(
         nameTable,
         output,
