@@ -52,6 +52,7 @@ public:
     const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
     const TCoordinatorPtr& GetCoordinator() const;
     const TApiConfigPtr& GetConfig() const;
+    const NConcurrency::IPollerPtr& GetPoller() const;
 
     bool IsUserBannedInCache(const TString& user);
     void PutUserIntoBanCache(const TString& user);
@@ -80,6 +81,8 @@ private:
 
     const THttpAuthenticatorPtr HttpAuthenticator_;
     const TCoordinatorPtr Coordinator_;
+
+    const NConcurrency::IPollerPtr Poller_;
 
     NConcurrency::TReaderWriterSpinLock BanCacheLock_;
     THashMap<TString, TInstant> BanCache_;

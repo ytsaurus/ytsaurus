@@ -16,11 +16,15 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EFrameType, uint8_t,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFramingAsyncOutputStream::TFramingAsyncOutputStream(NConcurrency::IFlushableAsyncOutputStreamPtr underlying)
+TFramingAsyncOutputStream::TFramingAsyncOutputStream(
+    IFlushableAsyncOutputStreamPtr underlying,
+    IInvokerPtr invoker)
     : Underlying_(std::move(underlying))
+    , Invoker_(std::move(invoker))
 { }
 
-TFuture<void> TFramingAsyncOutputStream::WriteDataFrame(const TSharedRef& buffer) {
+TFuture<void> TFramingAsyncOutputStream::WriteDataFrame(const TSharedRef& buffer)
+{
     if (buffer.Size() > std::numeric_limits<uint32_t>::max()) {
         THROW_ERROR_EXCEPTION("Data frame is too large: got %v bytes, limit is %v",
             buffer.Size(),
@@ -33,7 +37,8 @@ TFuture<void> TFramingAsyncOutputStream::WriteDataFrame(const TSharedRef& buffer
     return DoWriteFrame(std::move(header), buffer);
 }
 
-TFuture<void> TFramingAsyncOutputStream::WriteKeepAliveFrame() {
+TFuture<void> TFramingAsyncOutputStream::WriteKeepAliveFrame()
+{
     auto header = TString::Uninitialized(1);
     header[0] = static_cast<char>(EFrameType::KeepAlive);
     return DoWriteFrame(std::move(header), std::nullopt);
@@ -44,18 +49,19 @@ TFuture<void> TFramingAsyncOutputStream::Write(const TSharedRef& buffer)
     return WriteDataFrame(buffer);
 }
 
-TFuture<void> TFramingAsyncOutputStream::Flush() {
+TFuture<void> TFramingAsyncOutputStream::Flush()
+{
     TGuard<TAdaptiveLock> guard(SpinLock_);
     if (Closed_) {
         return MakeFuture(TError("Can not flush closed framing stream"));
     }
 
-    PendingOperationFuture_ = PendingOperationFuture_.Apply(
-        BIND(&IFlushableAsyncOutputStream::Flush, Underlying_));
+    AddAction(BIND(&IFlushableAsyncOutputStream::Flush, Underlying_));
     return PendingOperationFuture_;
 }
 
-TFuture<void> TFramingAsyncOutputStream::Close() {
+TFuture<void> TFramingAsyncOutputStream::Close()
+{
     TGuard<TAdaptiveLock> guard(SpinLock_);
     if (Closed_) {
         return MakeFuture(TError("Framing stream is already closed (or is being closed)"));
@@ -63,24 +69,31 @@ TFuture<void> TFramingAsyncOutputStream::Close() {
 
     Closed_ = true;
 
-    PendingOperationFuture_ = PendingOperationFuture_.Apply(
-        BIND(&IFlushableAsyncOutputStream::Close, Underlying_));
+    AddAction(BIND(&IFlushableAsyncOutputStream::Close, Underlying_));
     return PendingOperationFuture_;
 }
 
-TFuture<void> TFramingAsyncOutputStream::DoWriteFrame(TString header, const std::optional<TSharedRef>& frame) {
+TFuture<void> TFramingAsyncOutputStream::DoWriteFrame(TString header, const std::optional<TSharedRef>& frame)
+{
     TGuard<TAdaptiveLock> guard(SpinLock_);
     if (Closed_) {
         return MakeFuture(TError("Can not write to closed framing stream"));
     }
 
-    PendingOperationFuture_ = PendingOperationFuture_.Apply(
-        BIND(&IFlushableAsyncOutputStream::Write, Underlying_, TSharedRef::FromString(std::move(header))));
+    auto headerRef = TSharedRef::FromString(std::move(header));
+    AddAction(BIND(&IFlushableAsyncOutputStream::Write, Underlying_, std::move(headerRef)));
     if (frame) {
-        PendingOperationFuture_ = PendingOperationFuture_.Apply(
-            BIND(&IFlushableAsyncOutputStream::Write, Underlying_, *frame));
+        AddAction(BIND(&IFlushableAsyncOutputStream::Write, Underlying_, *frame));
     }
     return PendingOperationFuture_;
 }
+
+void TFramingAsyncOutputStream::AddAction(TCallback<void()> action)
+{
+    auto asyncAction = BIND(action).AsyncVia(Invoker_);
+    PendingOperationFuture_ = PendingOperationFuture_.Apply(std::move(asyncAction));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHttpProxy

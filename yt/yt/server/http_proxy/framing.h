@@ -16,7 +16,10 @@ class TFramingAsyncOutputStream
     : public NConcurrency::IFlushableAsyncOutputStream
 {
 public:
-    explicit TFramingAsyncOutputStream(NConcurrency::IFlushableAsyncOutputStreamPtr underlying);
+    TFramingAsyncOutputStream(
+        NConcurrency::IFlushableAsyncOutputStreamPtr underlying,
+        IInvokerPtr invoker);
+
     TFuture<void> WriteDataFrame(const TSharedRef& buffer);
     TFuture<void> WriteKeepAliveFrame();
 
@@ -25,13 +28,17 @@ public:
     virtual TFuture<void> Close() override;
 
 private:
-    NConcurrency::IFlushableAsyncOutputStreamPtr Underlying_;
+    const NConcurrency::IFlushableAsyncOutputStreamPtr Underlying_;
+    const IInvokerPtr Invoker_;
     TFuture<void> PendingOperationFuture_ = VoidFuture;
     bool Closed_ = false;
     TAdaptiveLock SpinLock_;
 
 private:
     TFuture<void> DoWriteFrame(TString header, const std::optional<TSharedRef>& frame);
+
+    // SpinLock_ must be taken on entry.
+    void AddAction(TCallback<void()> action);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFramingAsyncOutputStream);
