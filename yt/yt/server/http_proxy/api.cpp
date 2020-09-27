@@ -41,6 +41,7 @@ TApi::TApi(TBootstrap* bootstrap)
     , DriverV4_(bootstrap->GetDriverV4())
     , HttpAuthenticator_(bootstrap->GetHttpAuthenticator())
     , Coordinator_(bootstrap->GetCoordinator())
+    , Poller_(bootstrap->GetPoller())
 { }
 
 const NDriver::IDriverPtr& TApi::GetDriverV3() const
@@ -66,6 +67,11 @@ const TCoordinatorPtr& TApi::GetCoordinator() const
 const TApiConfigPtr& TApi::GetConfig() const
 {
     return Config_;
+}
+
+const IPollerPtr& TApi::GetPoller() const
+{
+    return Poller_;
 }
 
 bool TApi::IsUserBannedInCache(const TString& user)

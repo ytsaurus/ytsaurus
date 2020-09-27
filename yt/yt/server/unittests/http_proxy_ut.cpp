@@ -49,7 +49,7 @@ TEST(THttpProxy, FramingOutputStream)
     TStringStream stringStream;
     {
         auto asyncStream = CreateAsyncAdapter(static_cast<IOutputStream*>(&stringStream));
-        auto framingStream = New<TFramingAsyncOutputStream>(asyncStream);
+        auto framingStream = New<TFramingAsyncOutputStream>(asyncStream, GetCurrentInvoker());
         auto frame1 = TString("abc");
         auto frame2 = TString("");
         auto frame3 = TString(AsStringBuf("123 456" "\x00" "789 ABC"));

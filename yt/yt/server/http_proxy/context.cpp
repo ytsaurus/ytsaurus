@@ -18,8 +18,8 @@
 
 #include <yt/core/logging/fluent_log.h>
 
-#include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/poller.h>
 
 #include <yt/core/http/http.h>
 #include <yt/core/http/helpers.h>
@@ -629,7 +629,8 @@ void TContext::SetupOutputStream()
     }
 
     if (IsFramingEnabled_) {
-        auto framingStream = New<TFramingAsyncOutputStream>(DriverRequest_.OutputStream);
+        auto invoker = Api_->GetPoller()->GetInvoker();
+        auto framingStream = New<TFramingAsyncOutputStream>(DriverRequest_.OutputStream, invoker);
         DriverRequest_.OutputStream = framingStream;
 
         // NB: This lambda should not capture |this| (by strong reference) to avoid cyclic references.
@@ -647,9 +648,8 @@ void TContext::SetupOutputStream()
         if (auto keepAlivePeriod = GetFramingConfig()->KeepAlivePeriod; keepAlivePeriod) {
             YT_LOG_DEBUG("Creating periodic executor to send keep_alive frames (KeepAlivePeriod: %v)",
                 *keepAlivePeriod);
-            auto connection = Api_->GetDriverV4()->GetConnection();
             SendKeepAliveExecutor_ = New<TPeriodicExecutor>(
-                connection->GetInvoker(),
+                invoker,
                 BIND(sendKeepAliveFrame, framingStream),
                 *keepAlivePeriod);
         }
