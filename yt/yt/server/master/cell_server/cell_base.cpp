@@ -69,6 +69,9 @@ void TCellBase::TPeer::Persist(NCellMaster::TPersistenceContext& context)
     if (context.GetVersion() >= EMasterReign::CellPeerRevocationReason) {
         Persist(context, LastRevocationReason);
     }
+    if (context.GetVersion() >= EMasterReign::CellPeerLastSeenState) {
+        Persist(context, LastSeenState);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +132,10 @@ void TCellBase::Load(TLoadContext& context)
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::ExtraPeerDroppingDelay) {
         Load(context, LastLeaderChangeTime_);
+    }
+    // COMPAT(gritukan)
+    if (context.GetVersion() < EMasterReign::CellPeerLastSeenState) {
+        LastLeaderChangeTime_ = TInstant::Zero();
     }
 }
 
