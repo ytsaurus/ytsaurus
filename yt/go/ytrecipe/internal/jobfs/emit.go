@@ -7,14 +7,41 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
+	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/mapreduce"
 )
 
-func emitDir(w mapreduce.Writer, dir string) error {
+const (
+	slowOperationTimeout = time.Minute * 5
+)
+
+func logSlow(l log.Structured, msg string, args ...log.Field) (done func()) {
+	doneCh := make(chan struct{})
+
+	go func() {
+		select {
+		case <-doneCh:
+			return
+		case <-time.After(slowOperationTimeout):
+		}
+
+		args = append(args, log.Duration("timeout", slowOperationTimeout))
+		l.Warn(msg, args...)
+	}()
+
+	return func() {
+		close(doneCh)
+	}
+}
+
+func emitDir(l log.Structured, w mapreduce.Writer, dir string) error {
+	defer logSlow(l, "directory processing exceeded timeout", log.String("dir", dir))()
+
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if errors.Is(err, os.ErrPermission) {
-			// TODO(prime@): log
+			l.Warn("file walk failed", log.Error(err))
 			return nil
 		}
 
@@ -30,7 +57,7 @@ func emitDir(w mapreduce.Writer, dir string) error {
 			return w.Write(FileRow{FilePath: path, IsDir: true})
 		}
 
-		return emitFile(w, path)
+		return emitFile(l, w, path)
 	})
 
 	if os.IsNotExist(err) {
@@ -44,10 +71,12 @@ func emitDir(w mapreduce.Writer, dir string) error {
 	return nil
 }
 
-func emitFile(w mapreduce.Writer, filename string) error {
+func emitFile(l log.Structured, w mapreduce.Writer, filename string) error {
+	defer logSlow(l, "file processing exceeded timeout", log.String("filename", filename))()
+
 	f, err := os.Open(filename)
 	if errors.Is(err, os.ErrPermission) {
-		// TODO(prime@): log
+		l.Warn("file open failed", log.Error(err))
 		return nil
 	} else if os.IsNotExist(err) {
 		return nil
@@ -81,7 +110,7 @@ func emitFile(w mapreduce.Writer, filename string) error {
 	return nil
 }
 
-func (fs *FS) EmitOutputs(output mapreduce.Writer) error {
+func (fs *FS) EmitOutputs(l log.Structured, output mapreduce.Writer) error {
 	for path := range fs.Outputs {
 		st, err := os.Stat(path)
 		if err != nil {
@@ -94,11 +123,11 @@ func (fs *FS) EmitOutputs(output mapreduce.Writer) error {
 
 		err = func() error {
 			if st.IsDir() {
-				if err := emitDir(output, path); err != nil {
+				if err := emitDir(l, output, path); err != nil {
 					return err
 				}
 			} else {
-				if err := emitFile(output, path); err != nil {
+				if err := emitFile(l, output, path); err != nil {
 					return err
 				}
 			}
@@ -116,12 +145,12 @@ func (fs *FS) EmitOutputs(output mapreduce.Writer) error {
 	}
 
 	for dir := range fs.YTOutputs {
-		if err := emitDir(output, dir); err != nil {
+		if err := emitDir(l, output, dir); err != nil {
 			return err
 		}
 	}
 
-	if err := emitCoreDumps(output, fs.CoredumpDir); err != nil {
+	if err := emitCoreDumps(l, output, fs.CoredumpDir); err != nil {
 		return err
 	}
 
@@ -132,7 +161,9 @@ func (fs *FS) EmitOutputs(output mapreduce.Writer) error {
 	return nil
 }
 
-func emitCoreDumps(w mapreduce.Writer, dir string) error {
+func emitCoreDumps(l log.Structured, w mapreduce.Writer, dir string) error {
+	defer logSlow(l, "coredump directory processing exceeded timeout", log.String("dir", dir))()
+
 	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if errors.Is(err, os.ErrPermission) {
 			// TODO(prime@): log
@@ -147,7 +178,7 @@ func emitCoreDumps(w mapreduce.Writer, dir string) error {
 			return w.Write(FileRow{FilePath: path, IsDir: true})
 		}
 
-		return emitSparseFile(w, path)
+		return emitSparseFile(l, w, path)
 	})
 }
 
@@ -158,7 +189,9 @@ const (
 	SeekHole = 4
 )
 
-func emitSparseFile(w mapreduce.Writer, filename string) error {
+func emitSparseFile(l log.Structured, w mapreduce.Writer, filename string) error {
+	defer logSlow(l, "coredump processing exceeded timeout", log.String("filename", filename))()
+
 	f, err := os.Open(filename)
 	if err != nil {
 		return err

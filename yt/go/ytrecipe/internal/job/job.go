@@ -125,7 +125,7 @@ func (j *Job) runJob(out mapreduce.Writer) error {
 	}
 
 	j.L.Info("test process finished", log.Error(err))
-	if err := j.FS.EmitOutputs(out); err != nil {
+	if err := j.FS.EmitOutputs(j.L, out); err != nil {
 		return fmt.Errorf("error saving outputs: %w", err)
 	}
 
