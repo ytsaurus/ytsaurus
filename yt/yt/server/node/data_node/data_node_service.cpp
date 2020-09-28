@@ -718,30 +718,32 @@ private:
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
         auto populateCache = request->populate_cache();
+        auto rejectIfThrottling = request->reject_if_throttling();
 
-        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, PopulateCache: %v",
+        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, PopulateCache: %v, RejectIfThrottling: %v",
             chunkId,
             readSessionId,
             workloadDescriptor,
-            populateCache);
+            populateCache,
+            rejectIfThrottling);
 
         ValidateConnected();
-        
+
         auto chunk = Bootstrap_->GetChunkRegistry()->GetChunkOrThrow(chunkId);
         YT_VERIFY(chunk->GetId() == chunkId);
 
+        // NB: Heating table schema caches up is of higher priority than advisory throttling.
         auto schemaData = request->schema_data();
         auto [tableSchema, schemaRequested] = TLookupSession::FindTableSchema(
             chunkId,
             readSessionId,
             schemaData,
             Bootstrap_->GetTableSchemaCache());
-
         if (!tableSchema) {
-            // NB: No throttling here.
             response->set_fetched_rows(false);
             response->set_request_schema(schemaRequested);
-            context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, SchemaRequested: %v",
+            context->SetResponseInfo(
+                "ChunkId: %v, ReadSessionId: %v, Workload: %v, SchemaRequested: %v",
                 chunkId,
                 readSessionId,
                 workloadDescriptor,
@@ -751,21 +753,45 @@ private:
         }
         YT_VERIFY(!schemaRequested);
 
-        bool diskThrottling = GetDiskReadQueueSize(chunk, workloadDescriptor) > Config_->DiskReadThrottlingLimit;
+        i64 diskQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
+        response->set_disk_queue_size(diskQueueSize);
         if (diskThrottling) {
             const auto& location = chunk->GetLocation();
-            const auto& locationProfiler = location->GetProfiler();
-            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledReads);
+            location->GetProfiler().Increment(location->GetPerformanceCounters().ThrottledReads);
         }
 
         i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
-        bool netThrottling = netThrottlerQueueSize + netOutQueueSize > Config_->NetOutThrottlingLimit;
+        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
+        response->set_net_queue_size(netQueueSize);
         if (netThrottling) {
             Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+        }
+
+        if (rejectIfThrottling && (diskThrottling || netThrottling)) {
+            YT_LOG_DEBUG("Lookup session rejects to start due to throttling "
+                "(ChunkId: %v, ReadSessionId: %v, DiskThrottling: %v, DiskQueueSize: %v, NetThrottling: %v, NetQueueSize: %v)",
+                chunkId,
+                readSessionId,
+                diskThrottling,
+                diskQueueSize,
+                netThrottling,
+                netQueueSize);
+
+            response->set_fetched_rows(false);
+            response->set_rejected_due_to_throttling(true);
+
+            context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v",
+                chunkId,
+                readSessionId,
+                workloadDescriptor);
+            context->Reply();
+            return;
         }
 
         auto timestamp = request->timestamp();
@@ -790,14 +816,49 @@ private:
 
         context->ReplyFrom(lookupSession->Run()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& result) {
-                response->Attachments().push_back(result);
+                context->SetResponseInfo(
+                    "ChunkId: %v, ReadSessionId: %v, Workload: %v, "
+                    "DiskThrottling: %v, DiskQueueSize: %v, NetThrottling: %v, NetQueueSize: %v",
+                    chunkId,
+                    readSessionId,
+                    workloadDescriptor,
+                    diskThrottling,
+                    diskQueueSize,
+                    netThrottling,
+                    netQueueSize);
 
+                if (rejectIfThrottling) {
+                    i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
+                    i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
+                    i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+                    bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
+                    if (netThrottling) {
+                        // NB: Flow of lookups may be dense enough, so upon start of throttling
+                        // we will come up with few throttled lookups on the data node. We would like to avoid this.
+                        // This may be even more painful when peer probing is disabled. 
+                        YT_LOG_DEBUG("Lookup session rejects to finish due to throttling "
+                            "(ChunkId: %v, ReadSessionId: %v, NetThrottling: %v, NetQueueSize: %v)",
+                            chunkId,
+                            readSessionId,
+                            netThrottling,
+                            netQueueSize);
+
+                        Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
+                            context->GetEndpointAttributes().Get("network", DefaultNetworkName));
+
+                        response->set_fetched_rows(false);
+                        response->set_rejected_due_to_throttling(true);
+                        response->set_net_throttling(netThrottling);
+                        response->set_net_queue_size(netQueueSize);
+
+                        context->SetComplete();
+                        return VoidFuture;
+                    }
+                }
+
+                response->Attachments().push_back(result);
                 response->set_fetched_rows(true);
                 ToProto(response->mutable_chunk_reader_statistics(), lookupSession->GetChunkReaderStatistics());
-
-                context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v",
-                    chunkId,
-                    readSessionId);
 
                 auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
                 context->SetComplete();

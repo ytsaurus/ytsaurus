@@ -142,8 +142,8 @@ public:
 
     bool EnableDataNodeLookup;
     std::optional<int> MaxParallelPartitionLookups;
-
     bool EnablePeerProbingInDataNodeLookup;
+    bool EnableRejectsInDataNodeLookupIfThrottling;
 
     bool EnableDynamicStoreRead;
 
@@ -337,6 +337,9 @@ public:
             .Optional()
             .GreaterThan(0)
             .LessThanOrEqual(MaxParallelPartitionLookupsLimit);
+
+        RegisterParameter("enable_rejects_in_data_node_lookup_if_throttling", EnableRejectsInDataNodeLookupIfThrottling)
+            .Default(false);
 
         RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
             .Default(false);

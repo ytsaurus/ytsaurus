@@ -34,7 +34,8 @@ struct ILookupReader
         NCompression::ECodec codecId,
         bool produceAllVersions,
         TTimestamp chunkTimestamp,
-        bool enablePeerProbing) = 0;
+        bool enablePeerProbing,
+        bool enableRejectsIfThrottling) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ILookupReader)
@@ -50,7 +51,8 @@ IVersionedReaderPtr CreateRowLookupReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     TTimestamp chunkTimestamp,
-    bool enablePeerProbing);
+    bool enablePeerProbing,
+    bool enableRejectsIfThrottling);
 
 ////////////////////////////////////////////////////////////////////////////////
 

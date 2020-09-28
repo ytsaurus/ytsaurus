@@ -232,8 +232,10 @@ message TReqLookupRows
     optional int32 compression_codec = 9;
     optional uint64 chunk_timestamp = 10;
     required TTableSchemaData schema_data = 6;
-    // COMPAT(akozhikhov): Make this field required.
+
+    // COMPAT(akozhikhov): Make these fields required.
     optional bool populate_cache = 11 [default = true];
+    optional bool reject_if_throttling = 12 [default = false];
 
     // Lookup keys are passed via attachments.
 }
@@ -243,10 +245,15 @@ message TRspLookupRows
     // Found rows are returned via attachment.
     required bool fetched_rows = 1;
     optional bool request_schema = 2;
+    optional bool rejected_due_to_throttling = 8 [default = false];
+
     optional TChunkReaderStatistics chunk_reader_statistics = 3;
 
     optional bool net_throttling = 4 [default = false];
     optional bool disk_throttling = 5 [default = false];
+
+    optional int64 net_queue_size = 6 [default = 0];
+    optional int64 disk_queue_size = 7 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
