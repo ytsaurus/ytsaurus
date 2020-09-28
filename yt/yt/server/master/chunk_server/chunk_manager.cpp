@@ -67,6 +67,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/chunk_client/chunk_replica.h>
+#include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -1466,6 +1467,8 @@ private:
     int TotalReplicaCount_ = 0;
 
     bool NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
+    // COMPAT(shakurov)
+    bool NeedFixTrunkNodeInvalidDeltaStatistics_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -2566,6 +2569,9 @@ private:
         // COMPAT(ifsmirnov)
         NeedToComputeCumulativeStatisticsForDynamicTables_ = context.GetVersion() <
             EMasterReign::YT_10639_CumulativeStatisticsInDynamicTables;
+
+        // COMPAT(shakurov)
+        NeedFixTrunkNodeInvalidDeltaStatistics_ = context.GetVersion() < EMasterReign::FixTrunkNodeInvalidDeltaStatistics;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2573,6 +2579,7 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
+        NeedFixTrunkNodeInvalidDeltaStatistics_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2624,6 +2631,29 @@ private:
         if (NeedToComputeCumulativeStatisticsForDynamicTables_) {
             ComputeCumulativeStatisticsForDynamicTables();
             NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
+        }
+
+        if (NeedFixTrunkNodeInvalidDeltaStatistics_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
+
+                if (!node->IsTrunk()) {
+                    continue;
+                }
+
+                if (node->GetType() != EObjectType::Table) {
+                    continue;
+                }
+
+                auto* chunkOwner = node->As<NChunkServer::TChunkOwnerBase>();
+                if (HasInvalidDataWeight(chunkOwner->DeltaStatistics())) {
+                    chunkOwner->DeltaStatistics().set_data_weight(0);
+                    YT_LOG_ALERT("Fixed invalid delta statistics (TableId: %v)", nodeId);
+                }
+            }
         }
 
         YT_LOG_INFO("Finished initializing chunks");

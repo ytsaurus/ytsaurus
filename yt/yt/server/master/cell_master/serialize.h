@@ -138,6 +138,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_11903_PreserveCreationTimeInMove)                          (1411))  // babenko
     ((PartitionedTables)                                            (1412))  // max42
     ((DegradedCellsAreHealthy)                                      (1413))  // babenko
+    ((FixTrunkNodeInvalidDeltaStatistics)                           (1414))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
