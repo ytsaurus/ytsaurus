@@ -1106,6 +1106,12 @@ struct TPutFileToCacheResult
     NYPath::TYPath Path;
 };
 
+struct TCheckClusterLivenessOptions
+    : public TTimeoutOptions
+{
+    bool CheckCypressRoot = false;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -1490,6 +1496,9 @@ struct IClient
     // Metadata
     virtual TFuture<TClusterMeta> GetClusterMeta(
         const TGetClusterMetaOptions& options = {}) = 0;
+
+    virtual TFuture<void> CheckClusterLiveness(
+        const TCheckClusterLivenessOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)
