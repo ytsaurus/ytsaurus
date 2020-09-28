@@ -141,6 +141,7 @@ public:
     bool EnableDiscardingExpiredPartitions;
 
     bool EnableDataNodeLookup;
+    std::optional<int> MaxParallelPartitionLookups;
 
     bool EnablePeerProbingInDataNodeLookup;
 
@@ -331,6 +332,11 @@ public:
 
         RegisterParameter("enable_peer_probing_in_data_node_lookup", EnablePeerProbingInDataNodeLookup)
             .Default(false);
+
+        RegisterParameter("max_parallel_partition_lookups", MaxParallelPartitionLookups)
+            .Optional()
+            .GreaterThan(0)
+            .LessThanOrEqual(MaxParallelPartitionLookupsLimit);
 
         RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
             .Default(false);

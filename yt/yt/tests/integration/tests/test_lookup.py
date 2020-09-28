@@ -483,13 +483,15 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
             set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
 
     @authors("akozhikhov")
-    def test_lookup_from_data_node_simple(self):
+    @pytest.mark.parametrize("parallel_lookups", [0, 1, 2])
+    def test_lookup_from_data_node_simple(self, parallel_lookups):
         self._set_nodes_state()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=1)
         set("//tmp/t/@enable_data_node_lookup", True)
-
+        if parallel_lookups:
+            set("//tmp/t/@max_parallel_partition_lookups", parallel_lookups)
         sync_mount_table("//tmp/t")
 
         keys = [{"key": i} for i in range(2)]
@@ -679,6 +681,45 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", row)
         sync_flush_table("//tmp/t")
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("parallel_lookups", [1, 3, 5])
+    def test_parallel_lookup_stress(self, parallel_lookups):
+        self._set_nodes_state()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=1, lookup_cache_rows_per_tablet=5)
+        self._create_partitions(partition_count=5)
+        set("//tmp/t/@enable_data_node_lookup", True)
+        set("//tmp/t/@max_parallel_partition_lookups", parallel_lookups)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_mount_table("//tmp/t")
+
+        reference = {}
+        for i in range(0, 10):
+            rows = [{"key": j, "value": str(random.randint(0, 100))} for j in range(i, i + 2)]
+            for row in rows:
+                reference[row["key"]] = row["value"]
+            insert_rows("//tmp/t", rows)
+            sync_flush_table("//tmp/t")
+
+        random_keys = []
+        random_rows = []
+        all_keys = []
+        all_rows = []
+
+        for key, value in reference.iteritems():
+            all_keys.append({"key": key})
+            all_rows.append({"key": key, "value": value})
+            if bool(random.getrandbits(1)):
+                random_keys.append({"key": key})
+                random_rows.append({"key": key, "value": value})
+
+        for use_lookup_cache in [False, True, True]:
+            assert lookup_rows("//tmp/t", [], use_lookup_cache=use_lookup_cache) == []
+            assert lookup_rows("//tmp/t", random_keys, use_lookup_cache=use_lookup_cache) == random_rows
+        for use_lookup_cache in [False, True, True]:
+            assert lookup_rows("//tmp/t", all_keys, use_lookup_cache=use_lookup_cache) == all_rows
 
 
 ################################################################################
