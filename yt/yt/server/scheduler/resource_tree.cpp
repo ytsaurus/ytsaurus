@@ -185,7 +185,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
     TJobResources *availableResourceLimitsOutput)
 {
     if (!element->GetAlive()) {
-        return EResourceTreeIncreaseResult::ElementDisabled;
+        return EResourceTreeIncreaseResult::ElementIsNotAlive;
     }
 
     TReaderGuard guard(StructureLock_);

@@ -1,4 +1,5 @@
-from yt_commands import get, YtError, print_debug
+from yt_commands import get, set, ls, create_pool_tree, print_debug
+from yt.test_helpers import wait
 
 from yt.packages import requests
 import time
@@ -278,3 +279,14 @@ def parse_yt_time(time):
 
 def get_current_time():
     return datetime.now(tzlocal())
+
+
+def create_custom_pool_tree_with_one_node(pool_tree):
+    tag = pool_tree
+    node = ls("//sys/cluster_nodes")[0]
+    set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
+    set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
+    create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
+    wait(lambda: tag in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(node)))
+    wait(lambda: pool_tree in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
+    return node

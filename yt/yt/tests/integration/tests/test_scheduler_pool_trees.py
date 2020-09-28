@@ -1493,3 +1493,44 @@ class TestSchedulingStrategyAlgorithmConfigPerTree(YTEnvSetup):
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op2.id, tree="other") + "/fair_share_ratio", default=0.0), 0.5))
 
         wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
+
+
+@authors("renadeen")
+class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
+    # Scenario:
+    # 1. operation is running in two trees
+    # 2. scheduler sends to controller request to schedule job in some tree
+    # 3. admin removes that tree from cypress (or controller bans that tree as tentative)
+    # 4. scheduler unregisters all operations and aborts jobs in removed tree
+    # 5. controller responds to schedule job request
+    # 6. operation element is not alive in that tree anymore
+    # 7. scheduler fails attempt to schedule job but doesn't abort job on controller
+    # 7. controller still thinks that job is running and will never complete or abort it
+    # 8. operation is stuck forever
+
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,  # Update pools configuration period
+            "node_shard_count": 2,
+        }
+    }
+
+    def test_race_between_scheduling_job_and_disabling_operation(self):
+        create_custom_pool_tree_with_one_node("other")
+        op = run_test_vanilla(":", job_count=2, spec={
+            "pool_trees": ["default", "other"],
+            "testing": {
+                "scheduling_delay": 3000,
+                "scheduling_delay_type": "async"
+            }
+        })
+        op.wait_for_state("running")
+        time.sleep(1)
+
+        remove("//sys/pool_trees/other")
+        op.wait_for_state("completed")
+        op.track()

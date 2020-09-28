@@ -102,6 +102,7 @@ DEFINE_ENUM(EAbortReason,
     ((SchedulingJobSpecThrottling)     (104))
     ((SchedulingOther)                 (105))
     ((SchedulingOperationDisabled)     (106))
+    ((SchedulingOperationIsNotAlive)   (107))
     ((SchedulingLast)                  (199))
 );
 

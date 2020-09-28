@@ -1108,7 +1108,7 @@ void TNodeShard::AbortJob(TJobId jobId, const TError& error)
 
     auto job = FindJob(jobId);
     if (!job) {
-        YT_LOG_DEBUG("Requested to abort an unknown job, ignored (JobId: %v)", jobId);
+        YT_LOG_DEBUG(error, "Requested to abort an unknown job, ignored (JobId: %v)", jobId);
         return;
     }
 
