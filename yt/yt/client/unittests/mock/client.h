@@ -376,6 +376,9 @@ public:
 
     MOCK_METHOD1(GetClusterMeta, TFuture<TClusterMeta>(
         const TGetClusterMetaOptions& options));
+
+    MOCK_METHOD1(CheckClusterLiveness, TFuture<void>(
+        const TCheckClusterLivenessOptions& options));
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockClient)

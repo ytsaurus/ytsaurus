@@ -230,6 +230,12 @@ public:
         ThrowUnimplemented("get_cluster_meta");
     }
 
+    virtual TFuture<void> CheckClusterLiveness(
+        const TCheckClusterLivenessOptions&) override
+    {
+        ThrowUnimplemented("check_cluster_liveness");
+    }
+
     virtual TFuture<NApi::TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath&,
         const NApi::TLocateSkynetShareOptions&) override

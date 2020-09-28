@@ -192,6 +192,7 @@ private:
             }
 
             return AllSucceeded(std::vector<TFuture<void>>{
+                CheckClusterLiveness(),
                 CheckTableExists(),
                 CheckBundleHealth(),
                 CheckClusterSafeMode(),
@@ -279,6 +280,17 @@ private:
         TDuration RetryOnFailureInterval_;
 
         TInstant LastUpdateTime_;
+
+        TFuture<void> CheckClusterLiveness()
+        {
+            TCheckClusterLivenessOptions options;
+            options.CheckCypressRoot = true;
+            return Client_->CheckClusterLiveness(options)
+                .Apply(BIND([clusterName = ClusterName_] (const TErrorOr<void>& result) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking cluster %Qlv liveness",
+                        clusterName);
+                }));
+        }
 
         TFuture<void> CheckBundleHealth()
         {

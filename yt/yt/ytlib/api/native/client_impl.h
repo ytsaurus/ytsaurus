@@ -428,6 +428,9 @@ public:
     IMPLEMENT_METHOD(TClusterMeta, GetClusterMeta, (
         const TGetClusterMetaOptions& options),
         (options))
+    IMPLEMENT_METHOD(void, CheckClusterLiveness, (
+        const TCheckClusterLivenessOptions& options),
+        (options))
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -1036,6 +1039,8 @@ private:
     // Misc.
     TClusterMeta DoGetClusterMeta(
         const TGetClusterMetaOptions& options);
+    void DoCheckClusterLiveness(
+        const TCheckClusterLivenessOptions& options);
 
 };
 

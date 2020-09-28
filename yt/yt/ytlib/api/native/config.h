@@ -136,6 +136,8 @@ public:
     TDuration NestedInputTransactionTimeout;
     TDuration NestedInputTransactionPingPeriod;
 
+    TDuration LivenessCheckTimeout;
+
     TConnectionConfig();
 };
 

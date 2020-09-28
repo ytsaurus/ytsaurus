@@ -187,6 +187,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("nested_input_transaction_ping_period", NestedInputTransactionPingPeriod)
         .Default(TDuration::Minutes(1));
 
+    RegisterParameter("liveness_check_timeout", LivenessCheckTimeout)
+        .Default(TDuration::Seconds(15));
+
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
 

@@ -429,6 +429,18 @@ TClusterMeta TClient::DoGetClusterMeta(
     return meta;
 }
 
+void TClient::DoCheckClusterLiveness(
+    const TCheckClusterLivenessOptions& options)
+{
+    if (options.CheckCypressRoot) {
+        TListNodeOptions listNodeOptions;
+        listNodeOptions.Timeout = Connection_->GetConfig()->LivenessCheckTimeout;
+        listNodeOptions.MaxSize = 1;
+        WaitFor(ListNode("/", listNodeOptions))
+            .ThrowOnError();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
