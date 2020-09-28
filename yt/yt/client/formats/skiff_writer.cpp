@@ -438,8 +438,13 @@ public:
             UnversionedValueToYsonConverter_.emplace_back(NameTable_, schema, EComplexTypeMode::Named, /* skipNullValues */ false);
         }
 
-        auto streamSchema = CreateVariant16Schema(tableSkiffSchemas);
-        SkiffWriter_.emplace(streamSchema, GetOutputStream());
+        TSkiffSchemaPtr streamSchema;
+        if (ControlAttributesConfig_->EnableEndOfStream) {
+            streamSchema = CreateRepeatedVariant16Schema(tableSkiffSchemas);
+        } else {
+            streamSchema = CreateVariant16Schema(tableSkiffSchemas);
+        }
+        SkiffWriter_.emplace(std::move(streamSchema), GetOutputStream());
 
         auto indexedSchemas = TIndexedSchemas(schemas);
 
@@ -779,6 +784,13 @@ private:
 
     TFuture<void> Close() override
     {
+        // NB(gritukan): You can't move it into WriteEndOfStream, since it
+        // will be called between SkiffWriter and buffer flushes leading to
+        // their inconsistency.
+        if (ControlAttributesConfig_->EnableEndOfStream) {
+            SkiffWriter_->WriteVariant16Tag(EndOfSequenceTag<ui16>());
+        }
+
         SkiffWriter_->Flush();
         return TSchemalessFormatWriterBase::Close();
     }
@@ -848,10 +860,6 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
-    if (controlAttributesConfig->EnableEndOfStream) {
-        THROW_ERROR_EXCEPTION("End of stream control attribute is not supported in Skiff");
-    }
-
     auto result = New<TSkiffWriter>(
         nameTable,
         output,

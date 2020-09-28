@@ -319,10 +319,12 @@ ISchemalessFormatWriterPtr CreateSkiffWriter(
     TNameTablePtr nameTable,
     IOutputStream* outputStream,
     const std::vector<TTableSchemaPtr>& tableSchemaList,
-    int keyColumnCount = 0)
+    int keyColumnCount = 0,
+    bool enableEndOfStream = false)
 {
     auto controlAttributesConfig = New<TControlAttributesConfig>();
     controlAttributesConfig->EnableKeySwitch = (keyColumnCount > 0);
+    controlAttributesConfig->EnableEndOfStream = enableEndOfStream;
     return CreateWriterForSkiff(
         {skiffSchema},
         nameTable,
@@ -1113,6 +1115,55 @@ TEST(TSkiffWriter, TestKeySwitch)
     ASSERT_EQ(checkedSkiffParser.ParseBoolean(), true);
 
     // end
+    ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
+    checkedSkiffParser.ValidateFinished();
+}
+
+TEST(TSkiffWriter, TestEndOfStream)
+{
+    auto skiffSchema = CreateTupleSchema({
+        CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
+    });
+
+    TStringStream resultStream;
+    auto nameTable = New<TNameTable>();
+    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1, true);
+
+    // Row 0.
+    writer->Write({
+        MakeRow({
+            MakeUnversionedStringValue("zero", nameTable->GetIdOrRegisterName("value")),
+            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        }).Get(),
+    });
+    // Row 1.
+    writer->Write({
+        MakeRow({
+            MakeUnversionedStringValue("one", nameTable->GetIdOrRegisterName("value")),
+            MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        }).Get(),
+    });
+    writer->Close()
+        .Get()
+        .ThrowOnError();
+
+    TStringInput resultInput(resultStream.Str());
+    TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+
+    TString buf;
+
+    // Row 0.
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseString32(), "zero");
+
+    // Row 1.
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
+    ASSERT_EQ(checkedSkiffParser.ParseString32(), "one");
+
+    // End of stream.
+    ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0xffff);
+
+    // The End.
     ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
     checkedSkiffParser.ValidateFinished();
 }

@@ -163,6 +163,13 @@ public:
 
     virtual void OnVariant8Tag(TValidatorNodeStack* validatorNodeStack, ui8 tag) override
     {
+        if (tag == EndOfSequenceTag<ui8>()) {
+            // Root validator is pushed into the stack before variant tag
+            // if the stack is empty.
+            validatorNodeStack->PopValidator();
+            return;
+        }
+
         if (tag >= Children_.size()) {
             THROW_ERROR_EXCEPTION("Variant tag %Qv exceeds number of children %Qv",
                 tag,
@@ -195,6 +202,13 @@ public:
 
     virtual void OnVariant16Tag(TValidatorNodeStack* validatorNodeStack, ui16 tag) override
     {
+        if (tag == EndOfSequenceTag<ui16>()) {
+            // Root validator is pushed into the stack before variant tag
+            // if the stack is empty.
+            validatorNodeStack->PopValidator();
+            return;
+        }
+
         if (tag >= Children_.size()) {
             THROW_ERROR_EXCEPTION("Variant tag %Qv exceeds number of children %Qv",
                 tag,
