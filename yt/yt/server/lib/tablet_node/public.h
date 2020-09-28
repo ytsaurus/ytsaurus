@@ -208,6 +208,9 @@ constexpr int DefaultMaxOverlappingStoreCount = 30;
 // Changing this constant requires promoting master reign.
 constexpr int DynamicStoreIdPoolSize = 2;
 
+// Limit on `MaxParallelPartitionLookups` parameter.
+constexpr int MaxParallelPartitionLookupsLimit = 5;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

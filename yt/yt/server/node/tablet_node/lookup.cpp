@@ -186,33 +186,63 @@ public:
             /*lookup*/ false,
             /*mergeRowsOnFlush*/ false);
 
-        CreateReadSessions(&DynamicEdenSessions_, dynamicEdenStores, LookupKeys_, false);
-        CreateReadSessions(&ChunkEdenSessions_, chunkEdenStores, ChunkLookupKeys_, UseLookupCache_);
+        // NB: We allow more parallelization in case of data node lookup
+        // due to lower cpu and memory usage on tablet nodes.
+        if (TabletSnapshot_->Config->MaxParallelPartitionLookups &&
+            TabletSnapshot_->Config->EnableDataNodeLookup)
+        {
+            auto asyncReadSessions = CreateReadSessions(
+                &DynamicEdenSessions_,
+                dynamicEdenStores,
+                LookupKeys_,
+                false);
+            auto otherAsyncReadSessions = CreateReadSessions(
+                &ChunkEdenSessions_,
+                chunkEdenStores,
+                ChunkLookupKeys_,
+                UseLookupCache_);
+            asyncReadSessions.insert(asyncReadSessions.end(), otherAsyncReadSessions.begin(), otherAsyncReadSessions.end());
 
-        auto currentIt = LookupKeys_.Begin();
-        int startChunkKeyIndex = 0;
-        while (currentIt != LookupKeys_.End()) {
-            auto nextPartitionIt = std::upper_bound(
-                TabletSnapshot_->PartitionList.begin(),
-                TabletSnapshot_->PartitionList.end(),
-                *currentIt,
-                [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
-                    return lhs < rhs->PivotKey;
-                });
-            YT_VERIFY(nextPartitionIt != TabletSnapshot_->PartitionList.begin());
-            auto nextIt = nextPartitionIt == TabletSnapshot_->PartitionList.end()
-                ? LookupKeys_.End()
-                : std::lower_bound(currentIt, LookupKeys_.End(), (*nextPartitionIt)->PivotKey);
+            ParallelLookupInPartitions(std::move(asyncReadSessions), onPartialRow, onRow);
+        } else {
+            auto dynamicEdenReadSessions = CreateReadSessions(
+                &DynamicEdenSessions_,
+                dynamicEdenStores,
+                LookupKeys_,
+                false);
+            if (!dynamicEdenReadSessions.empty()) {
+                WaitFor(AllSucceeded(dynamicEdenReadSessions))
+                    .ThrowOnError();
+            }
+            auto chunkEdenReadSessions = CreateReadSessions(
+                &ChunkEdenSessions_,
+                chunkEdenStores,
+                ChunkLookupKeys_,
+                UseLookupCache_);
+            if (!chunkEdenReadSessions.empty()) {
+                WaitFor(AllSucceeded(chunkEdenReadSessions))
+                    .ThrowOnError();
+            }
 
-            startChunkKeyIndex = LookupInPartition(
-                *(nextPartitionIt - 1),
-                currentIt - LookupKeys_.Begin(),
-                nextIt - LookupKeys_.Begin(),
-                startChunkKeyIndex,
-                onPartialRow,
-                onRow);
+            PartitionSessions_.resize(1);
+            auto currentIt = LookupKeys_.Begin();
+            int startChunkKeyIndex = 0;
+            while (currentIt != LookupKeys_.End()) {
+                auto sessionInfo = CreatePartitionSession(&currentIt, &startChunkKeyIndex, 0);
 
-            currentIt = nextIt;
+                if (!sessionInfo.AsyncReadSessions.empty()) {
+                    WaitFor(AllSucceeded(sessionInfo.AsyncReadSessions))
+                        .ThrowOnError();
+                }
+
+                LookupInPartition(
+                    sessionInfo.PartitionSnapshot,
+                    sessionInfo.StartKeyIndex,
+                    sessionInfo.EndKeyIndex,
+                    &PartitionSessions_[0],
+                    onPartialRow,
+                    onRow);
+            }
         }
 
         UpdateUnmergedStatistics(DynamicEdenSessions_);
@@ -234,7 +264,7 @@ public:
         }
 
         YT_LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, CacheHits: %v, CacheMisses: %v, "
-             "FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v, ReadSessionId: %v)",
+            "FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v, ReadSessionId: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             CacheHits_,
@@ -247,6 +277,14 @@ public:
     }
 
 private:
+    struct TPartitionSessionInfo
+    {
+        const TPartitionSnapshotPtr& PartitionSnapshot;
+        int StartKeyIndex;
+        int EndKeyIndex;
+        std::vector<TFuture<void>> AsyncReadSessions;
+    };
+
     class TReadSession
     {
     public:
@@ -254,6 +292,17 @@ private:
             : Reader_(std::move(reader))
         {
             Rows_.reserve(RowBufferCapacity);
+        }
+
+        TReadSession(const TReadSession& otherSession) = delete;
+        TReadSession(TReadSession&& otherSession) = default;
+
+        TReadSession& operator=(const TReadSession& otherSession) = delete;
+        TReadSession& operator=(TReadSession&& otherSession)
+        {
+            YT_VERIFY(!Reader_);
+            YT_VERIFY(!otherSession.Reader_);
+            return *this;
         }
 
         TVersionedRow FetchRow()
@@ -308,7 +357,7 @@ private:
     using TReadSessionList = SmallVector<TReadSession, TypicalSessionCount>;
     TReadSessionList DynamicEdenSessions_;
     TReadSessionList ChunkEdenSessions_;
-    TReadSessionList PartitionSessions_;
+    SmallVector<TReadSessionList, MaxParallelPartitionLookupsLimit> PartitionSessions_;
 
     int CacheHits_ = 0;
     int CacheMisses_ = 0;
@@ -325,7 +374,7 @@ private:
         return !Tags_.empty();
     }
 
-    void CreateReadSessions(
+    std::vector<TFuture<void>> CreateReadSessions(
         TReadSessionList* sessions,
         const std::vector<ISortedStorePtr>& stores,
         const TSharedRange<TKey>& keys,
@@ -336,7 +385,10 @@ private:
         // NB: Will remain empty for in-memory tables.
         std::vector<TFuture<void>> asyncFutures;
         for (const auto& store : stores) {
-            YT_LOG_DEBUG("Creating reader (Store: %v, KeysCount: %v)", store->GetId(), keys.Size());
+            YT_LOG_DEBUG("Creating reader (Store: %v, KeysCount: %v, ReadSessionId: %v)",
+                store->GetId(),
+                keys.Size(),
+                BlockReadOptions_.ReadSessionId);
 
             auto reader = store->CreateReader(
                 TabletSnapshot_,
@@ -346,8 +398,7 @@ private:
                 produceAllValues ? UniversalColumnFilter : ColumnFilter_,
                 BlockReadOptions_);
             auto future = reader->Open();
-            auto optionalError = future.TryGet();
-            if (optionalError) {
+            if (auto optionalError = future.TryGet()) {
                 optionalError->ThrowOnError();
             } else {
                 asyncFutures.emplace_back(std::move(future));
@@ -355,31 +406,54 @@ private:
             sessions->emplace_back(std::move(reader));
         }
 
-        if (!asyncFutures.empty()) {
-            WaitFor(AllSucceeded(asyncFutures))
-                .ThrowOnError();
-        }
+        return asyncFutures;
     }
 
-    int LookupInPartition(
-        const TPartitionSnapshotPtr& partitionSnapshot,
-        int startKeyIndex,
-        int endKeyIndex,
-        int startChunkKeyIndex,
-        const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
-        const std::function<std::pair<bool, size_t>()>& onRow)
+    TPartitionSessionInfo CreatePartitionSession(
+        decltype(LookupKeys_)::iterator* currentIt,
+        int* startChunkKeyIndex,
+        int sessionIndex)
     {
-        int endChunkKeyIndex = startChunkKeyIndex;
+        auto nextPartitionIt = std::upper_bound(
+            TabletSnapshot_->PartitionList.begin(),
+            TabletSnapshot_->PartitionList.end(),
+            **currentIt,
+            [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
+                return lhs < rhs->PivotKey;
+            });
+        YT_VERIFY(nextPartitionIt != TabletSnapshot_->PartitionList.begin());
+        const auto& partitionSnapshot = *(nextPartitionIt - 1);
+
+        auto nextIt = nextPartitionIt == TabletSnapshot_->PartitionList.end()
+            ? LookupKeys_.End()
+            : std::lower_bound(*currentIt, LookupKeys_.End(), (*nextPartitionIt)->PivotKey);
+        int startKeyIndex = *currentIt - LookupKeys_.Begin();
+        int endKeyIndex = nextIt - LookupKeys_.Begin();
+        int endChunkKeyIndex = *startChunkKeyIndex;
         for (int index = startKeyIndex; index < endKeyIndex; ++index) {
             endChunkKeyIndex += !RowsFromCache_[index];
         }
 
-        CreateReadSessions(
-            &PartitionSessions_,
+        auto asyncReadSessions = CreateReadSessions(
+            &PartitionSessions_[sessionIndex],
             partitionSnapshot->Stores,
-            ChunkLookupKeys_.Slice(startChunkKeyIndex, endChunkKeyIndex),
+            ChunkLookupKeys_.Slice(*startChunkKeyIndex, endChunkKeyIndex),
             UseLookupCache_);
 
+        *startChunkKeyIndex = endChunkKeyIndex;
+        *currentIt = nextIt;
+
+        return {partitionSnapshot, startKeyIndex, endKeyIndex, std::move(asyncReadSessions)};
+    }
+
+    void LookupInPartition(
+        const TPartitionSnapshotPtr& partitionSnapshot,
+        int startKeyIndex,
+        int endKeyIndex,
+        TReadSessionList* partitionSessions,
+        const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
+        const std::function<std::pair<bool, size_t>()>& onRow)
+    {
         auto processSessions = [&] (TReadSessionList& sessions, bool populateCache) {
             for (auto& session : sessions) {
                 auto row = session.FetchRow();
@@ -404,7 +478,7 @@ private:
                 YT_LOG_TRACE("Using row from cache (Row: %v)", rowFromCache->GetVersionedRow());
                 onPartialRow(rowFromCache->GetVersionedRow(), UnflushedTimestamp_);
             } else {
-                processSessions(PartitionSessions_, populateCache);
+                processSessions(*partitionSessions, populateCache);
                 processSessions(ChunkEdenSessions_, populateCache);
 
                 if (accessor) {
@@ -428,8 +502,7 @@ private:
             FoundDataWeight_ += statistics.second;
         }
 
-        UpdateUnmergedStatistics(PartitionSessions_);
-        return endChunkKeyIndex;
+        UpdateUnmergedStatistics(*partitionSessions);
     }
 
     void UpdateUnmergedStatistics(const TReadSessionList& sessions)
@@ -439,6 +512,60 @@ private:
             UnmergedRowCount_ += statistics.row_count();
             UnmergedDataWeight_ += statistics.data_weight();
             DecompressionCpuTime_ += session.GetDecompressionStatistics().GetTotalDuration();
+        }
+    }
+
+    void ParallelLookupInPartitions(
+        std::vector<TFuture<void>> asyncReadSessions,
+        const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
+        const std::function<std::pair<bool, size_t>()>& onRow)
+    {
+        YT_VERIFY(TabletSnapshot_->Config->MaxParallelPartitionLookups);
+        PartitionSessions_.resize(*TabletSnapshot_->Config->MaxParallelPartitionLookups);
+
+        auto currentIt = LookupKeys_.Begin();
+        int startChunkKeyIndex = 0;
+        while (currentIt != LookupKeys_.End()) {
+            std::vector<TPartitionSessionInfo> partitionSessionInfos;
+
+            while (partitionSessionInfos.size() < *TabletSnapshot_->Config->MaxParallelPartitionLookups &&
+                currentIt != LookupKeys_.End())
+            {
+                auto sessionInfo = CreatePartitionSession(&currentIt, &startChunkKeyIndex, partitionSessionInfos.size());
+                
+                for (auto& readSession : sessionInfo.AsyncReadSessions) {
+                    asyncReadSessions.push_back(std::move(readSession));
+                }
+                sessionInfo.AsyncReadSessions.clear();
+
+                partitionSessionInfos.push_back(std::move(sessionInfo));
+            }
+            
+            YT_LOG_DEBUG("Starting parallel lookups "
+                "(PartitionCount: %v, MaxPartitionCount: %v, ReadSessionId: %v, partitionSessionInfos: %v)",
+                partitionSessionInfos.size(),
+                *TabletSnapshot_->Config->MaxParallelPartitionLookups,
+                BlockReadOptions_.ReadSessionId,
+                MakeFormattableView(partitionSessionInfos, [] (auto* builder, const TPartitionSessionInfo& partitionInfo) {
+                    builder->AppendFormat("{Id: %v, KeyCount: %v}",
+                        partitionInfo.PartitionSnapshot->Id,
+                        partitionInfo.EndKeyIndex - partitionInfo.StartKeyIndex);
+                }));
+
+            WaitFor(AllSucceeded(asyncReadSessions))
+                .ThrowOnError();
+            asyncReadSessions.clear();
+
+            // NB: Processing of partitions is sequential.
+            for (int index = 0; index < partitionSessionInfos.size(); ++index) {
+                LookupInPartition(
+                    partitionSessionInfos[index].PartitionSnapshot,
+                    partitionSessionInfos[index].StartKeyIndex,
+                    partitionSessionInfos[index].EndKeyIndex,
+                    &PartitionSessions_[index],
+                    onPartialRow,
+                    onRow);
+            }
         }
     }
 };
