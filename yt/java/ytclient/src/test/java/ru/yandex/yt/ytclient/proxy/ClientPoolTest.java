@@ -17,6 +17,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
 import static ru.yandex.yt.testlib.FutureUtils.waitFuture;
+import static ru.yandex.yt.testlib.FutureUtils.waitOkResult;
 import static ru.yandex.yt.testlib.Matchers.isCausedBy;
 
 class CustomException extends Exception {
@@ -141,6 +142,72 @@ public class ClientPoolTest {
         } finally {
             done.complete(null);
         }
+    }
+
+    @Test
+    public void testBanUnban() {
+        ClientPool clientPool = newClientPool();
+
+        CompletableFuture<Void> done1 = new CompletableFuture<>();
+        CompletableFuture<Void> done2 = new CompletableFuture<>();
+        try {
+            waitOkResult(
+                    clientPool.updateClients(List.of(HostPort.parse("localhost:1"))),
+                    100);
+            var clientFuture1 = clientPool.peekClient(done1);
+            waitFuture(clientFuture1, 100);
+            assertThat(clientFuture1.join().destinationName(), is("localhost:1"));
+
+            var banResult = clientPool.banErrorClient(HostPort.parse("localhost:1"), new RuntimeException("foo"));
+            waitFuture(banResult, 100);
+
+            assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
+
+            done1.complete(null);
+
+            assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(false));
+
+            var clientFuture2 = clientPool.peekClient(done2);
+            assertThat(clientFuture2.isDone(), is(false));
+
+            waitOkResult(
+                    clientPool.updateClients(List.of(HostPort.parse("localhost:1"))),
+                    100);
+
+            waitFuture(clientFuture2, 100);
+            assertThat(clientFuture2.join().destinationName(), is("localhost:1"));
+        } finally {
+            done1.complete(null);
+            done2.complete(null);
+        }
+    }
+
+    @Test
+    public void testChangedProxyList() {
+        ClientPool clientPool = newClientPool();
+
+        waitOkResult(
+                clientPool.updateClients(List.of(HostPort.parse("localhost:1"))),
+                100);
+
+        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
+
+        waitOkResult(
+                clientPool.updateClients(List.of(HostPort.parse("localhost:2"), HostPort.parse("localhost:3"))),
+                100);
+
+        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(false));
+        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:2"), is(true));
+        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:3"), is(true));
+
+        waitOkResult(
+                clientPool.updateClients(List.of(HostPort.parse("localhost:3"), HostPort.parse("localhost:4"))),
+                100);
+
+        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(false));
+        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:2"), is(false));
+        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:3"), is(true));
+        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:4"), is(true));
     }
 
     ClientPool newClientPool() {
