@@ -29,6 +29,22 @@ public class FutureUtils {
     }
 
     /**
+     * Wait until future is completed successfully for specified amount of time.
+     *
+     * @param future future to wait
+     * @param timeoutMs timeout in milliseconds
+     *
+     * @throws RuntimeException if wait time is exceeded or future is completed with error.
+     */
+    static public void waitOkResult(CompletableFuture<?> future, long timeoutMs) {
+        try {
+            future.get(timeoutMs, TimeUnit.MILLISECONDS);
+        } catch (ExecutionException | InterruptedException | TimeoutException error) {
+            throw new RuntimeException(error);
+        }
+    }
+
+    /**
      * Get the error that the given future was completed with.
      *
      * @throws RuntimeException if future is not completed or it is completed successfully.

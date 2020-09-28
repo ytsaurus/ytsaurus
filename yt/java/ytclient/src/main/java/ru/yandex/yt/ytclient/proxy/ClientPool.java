@@ -26,6 +26,7 @@ import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.misc.SerializedExecutorService;
@@ -419,7 +420,7 @@ class ClientPool implements DataCenterRpcClientPool {
     private final Random random;
 
     // Healthy clients.
-    private final Map<HostPort, PooledRpcClient> activeClients = new HashMap<>();
+    private final Map<GUID, PooledRpcClient> activeClients = new HashMap<>();
 
     private CompletableFuture<Void> nextUpdate = new CompletableFuture<>();
 
@@ -506,31 +507,49 @@ class ClientPool implements DataCenterRpcClientPool {
         return false;
     }
 
-    private void banErrorClient(HostPort hostPort, Throwable error) {
-        logger.warn("Client {} is banned due to error", hostPort, error);
-        safeExecutorService.submit(() -> banClientUnsafe(hostPort, true));
+    CompletableFuture<Void> banErrorClient(HostPort hostPort, Throwable error) {
+        return safeExecutorService.submit(
+                () -> {
+                    for (PooledRpcClient client : activeClients.values()) {
+                        if (client.hostPort.equals(hostPort)) {
+                            banClientUnsafe(client, true);
+                        }
+                    }
+                }
+        );
+    }
+
+    private void banErrorClient(PooledRpcClient client, Throwable error) {
+        safeExecutorService.submit(() -> banClientUnsafe(client, true));
     }
 
     private void updateClientsUnsafe(Set<HostPort> proxies) {
-        for (PooledRpcClient pooledClient : activeClients.values()) {
-            if (proxies.contains(pooledClient.hostPort)) {
-                proxies.remove(pooledClient.hostPort);
-            } else {
-                banClientUnsafe(pooledClient.hostPort, false);
+        {
+            ArrayList<PooledRpcClient> toBan = new ArrayList<>();
+            for (PooledRpcClient client : activeClients.values()) {
+                if (proxies.contains(client.hostPort)) {
+                    proxies.remove(client.hostPort);
+                } else {
+                    toBan.add(client);
+                }
+            }
+            for (PooledRpcClient client : toBan) {
+                banClientUnsafe(client, false);
             }
         }
 
-        ArrayList<HostPort> remainigProxies = new ArrayList<>(proxies);
-        Collections.shuffle(remainigProxies, random);
+        ArrayList<HostPort> remainingProxies = new ArrayList<>(proxies);
+        Collections.shuffle(remainingProxies, random);
 
-        for (HostPort hostPort : remainigProxies) {
+        for (HostPort hostPort : remainingProxies) {
             if (activeClients.size() >= maxSize) {
                 break;
             }
 
             RpcClient client = clientFactory.create(hostPort, dataCenterName);
-            PooledRpcClient pooledClient = new PooledRpcClient(hostPort, client);
-            activeClients.put(hostPort, pooledClient);
+            GUID clientGuid = GUID.create();
+            PooledRpcClient pooledClient = new PooledRpcClient(hostPort, client, clientGuid);
+            activeClients.put(clientGuid, pooledClient);
         }
         updateGoodClientsCacheUnsafe();
         CompletableFuture<Void> oldNextUpdate = nextUpdate;
@@ -552,13 +571,14 @@ class ClientPool implements DataCenterRpcClientPool {
         logger.debug("Updated client cache; {} clients available", clientCache.length);
     }
 
-    private void banClientUnsafe(HostPort hostPort, boolean updateClientCache) {
-        PooledRpcClient pooledClient = activeClients.get(hostPort);
-        if (pooledClient.banned) {
+    private void banClientUnsafe(PooledRpcClient client, boolean updateClientCache) {
+        PooledRpcClient pooledClient = activeClients.get(client.guid);
+        if (pooledClient == null || pooledClient.banned) {
             return;
         }
         pooledClient.banned = true;
         pooledClient.unref();
+        activeClients.remove(client.guid);
 
         if (updateClientCache) {
             updateGoodClientsCacheUnsafe();
@@ -571,19 +591,21 @@ class ClientPool implements DataCenterRpcClientPool {
         final HostPort hostPort;
         final RpcClient internalClient;
         final RpcClient publicClient;
+        final GUID guid;
 
         volatile boolean banned = false;
 
         private final AtomicInteger referenceCounter = new AtomicInteger(1);
 
-        PooledRpcClient(HostPort hostPort, RpcClient client) {
+        PooledRpcClient(HostPort hostPort, RpcClient client, GUID guid) {
             this.hostPort = hostPort;
             this.internalClient = client;
             this.publicClient = new FailureDetectingRpcClient(
                     internalClient,
                     RpcError::isUnrecoverable,
-                    e -> banErrorClient(hostPort, e)
+                    e -> banErrorClient(this, e)
             );
+            this.guid = guid;
         }
 
         boolean ref() {
