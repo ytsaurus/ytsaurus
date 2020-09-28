@@ -68,7 +68,7 @@ DEFINE_ENUM(EJobRevivalPhase,
 
 DEFINE_ENUM(EResourceTreeIncreaseResult,
     (Success)
-    (ElementDisabled)
+    (ElementIsNotAlive)
     (ResourceLimitExceeded)
 );
 

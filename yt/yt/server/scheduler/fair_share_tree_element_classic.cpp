@@ -2518,7 +2518,7 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     if (increaseResult == EResourceTreeIncreaseResult::ResourceLimitExceeded) {
         return EDeactivationReason::ResourceLimitsExceeded;
     }
-    if (increaseResult == EResourceTreeIncreaseResult::ElementDisabled) {
+    if (increaseResult == EResourceTreeIncreaseResult::ElementIsNotAlive) {
         return EDeactivationReason::IsNotAlive;
     }
 
@@ -2894,7 +2894,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         context->SchedulingContext()->GetNodeDescriptor().Id,
         FormatResourceUsage(context->SchedulingContext()->ResourceUsage(), context->SchedulingContext()->ResourceLimits()));
 
-    auto disableOperationElement = [&] (EDeactivationReason reason) {
+    auto deactivateOperationElement = [&] (EDeactivationReason reason) {
         OPERATION_LOG_DETAILED(this,
             "Failed to schedule job, operation deactivated "
             "(DeactivationReason: %v, NodeResourceUsage: %v)",
@@ -2913,7 +2913,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     };
 
     if (auto blockedReason = CheckBlocked(context->SchedulingContext())) {
-        disableOperationElement(*blockedReason);
+        deactivateOperationElement(*blockedReason);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2930,7 +2930,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
                     builder->AppendFormat("%v",
                         Host_->FormatResources(resources));
                 }));
-        disableOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
+        deactivateOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2939,7 +2939,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
 
     auto deactivationReason = TryStartScheduleJob(*context, &precommittedResources, &availableResources);
     if (deactivationReason) {
-        disableOperationElement(*deactivationReason);
+        deactivateOperationElement(*deactivationReason);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2957,7 +2957,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         if (!acceptPacking) {
             recordHeartbeatWithTimer(*heartbeatSnapshot);
             TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-            disableOperationElement(EDeactivationReason::BadPacking);
+            deactivateOperationElement(EDeactivationReason::BadPacking);
             context->BadPackingOperations().emplace_back(this);
             FinishScheduleJob(context->SchedulingContext());
             return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
@@ -2979,7 +2979,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         }
 
         ++context->StageState()->ScheduleJobFailureCount;
-        disableOperationElement(EDeactivationReason::ScheduleJobFailed);
+        deactivateOperationElement(EDeactivationReason::ScheduleJobFailed);
 
         Controller_->OnScheduleJobFailed(
             context->SchedulingContext()->GetNow(),
@@ -2996,7 +2996,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
     if (!OnJobStarted(startDescriptor.Id, startDescriptor.ResourceLimits.ToJobResources(), precommittedResources)) {
         Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
-        disableOperationElement(EDeactivationReason::OperationDisabled);
+        deactivateOperationElement(EDeactivationReason::OperationDisabled);
         TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
         FinishScheduleJob(context->SchedulingContext());
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
@@ -3338,24 +3338,38 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
         // Note: resourceDelta might be negative.
         const auto resourceDelta = startDescriptor.ResourceLimits.ToJobResources() - *precommittedResources;
         auto increaseResult = TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta);
-        if (increaseResult == EResourceTreeIncreaseResult::Success) {
-            *precommittedResources += resourceDelta;
-        } else if (increaseResult == EResourceTreeIncreaseResult::ResourceLimitExceeded) {
-            auto jobId = scheduleJobResult->StartDescriptor->Id;
-            const auto availableDelta = GetHierarchicalAvailableResources(*context);
-            YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, Limits: %v, JobResources: %v)",
-                jobId,
-                FormatResources(*precommittedResources + availableDelta),
-                FormatResources(startDescriptor.ResourceLimits.ToJobResources()));
+        switch (increaseResult) {
+            case EResourceTreeIncreaseResult::Success: {
+                *precommittedResources += resourceDelta;
+                break;
+            }
+            case EResourceTreeIncreaseResult::ResourceLimitExceeded: {
+                auto jobId = scheduleJobResult->StartDescriptor->Id;
+                const auto availableDelta = GetHierarchicalAvailableResources(*context);
+                YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, Limits: %v, JobResources: %v)",
+                    jobId,
+                    FormatResources(*precommittedResources + availableDelta),
+                    FormatResources(startDescriptor.ResourceLimits.ToJobResources()));
 
-            Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
+                Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
 
-            // Reset result.
-            scheduleJobResult = New<TControllerScheduleJobResult>();
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
-        } else { // Operation is disabled
-            scheduleJobResult = New<TControllerScheduleJobResult>();
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationDisabled);
+                // Reset result.
+                scheduleJobResult = New<TControllerScheduleJobResult>();
+                scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
+                break;
+            }
+            case EResourceTreeIncreaseResult::ElementIsNotAlive: {
+                auto jobId = scheduleJobResult->StartDescriptor->Id;
+                YT_LOG_DEBUG("Aborting job as operation is not alive in tree anymore (JobId: %v)", jobId);
+
+                Controller_->AbortJob(jobId, EAbortReason::SchedulingOperationIsNotAlive);
+
+                scheduleJobResult = New<TControllerScheduleJobResult>();
+                scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationIsNotAlive);
+                break;
+            }
+            default:
+                YT_ABORT();
         }
     } else if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
         YT_LOG_WARNING("Job scheduling timed out");
