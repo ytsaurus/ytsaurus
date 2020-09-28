@@ -1061,6 +1061,12 @@ protected:
 
         for (size_t rowIndex = 0; rowIndex < rows.Size(); ++rowIndex) {
             auto row = rows[rowIndex];
+
+            if (!row) {
+                THROW_ERROR_EXCEPTION("Unexpected null row")
+                    << TErrorAttribute("row_index", rowIndex);
+            }
+
             ValidateDuplicateIds(row);
 
             int maxColumnCount = Schema_->Columns().size() + (Schema_->GetStrict() ? 0 : row.GetCount());
