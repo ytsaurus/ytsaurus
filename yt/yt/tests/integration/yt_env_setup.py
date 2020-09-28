@@ -933,6 +933,7 @@ class YTEnvSetup(object):
         if yt_commands.exists(scheduler_pool_trees_root + "/default", driver=driver):
             restore_pool_trees_requests.extend([
                 yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"),
+                # TODO(eshcherbin): Clear default tree's config when it is moved to a separate attribute.
                 yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@nodes_filter", input=""),
             ])
         else:
