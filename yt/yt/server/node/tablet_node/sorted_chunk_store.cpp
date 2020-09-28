@@ -389,7 +389,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             timestamp,
             produceAllVersions,
             ChunkTimestamp_,
-            tabletSnapshot->Config->EnablePeerProbingInDataNodeLookup));
+            tabletSnapshot->Config->EnablePeerProbingInDataNodeLookup,
+            tabletSnapshot->Config->EnableRejectsInDataNodeLookupIfThrottling));
     }
 
     auto chunkState = PrepareChunkState(readers.ChunkReader, blockReadOptions);

@@ -274,7 +274,7 @@ public:
         RegisterParameter("session_timeout", SessionTimeout)
             .Default(TDuration::Minutes(20));
         RegisterParameter("lookup_sleep_duration", LookupSleepDuration)
-            .Default(TDuration::MilliSeconds(10));
+            .Default(TDuration::MilliSeconds(25));
         RegisterParameter("single_pass_iteration_limit_for_lookup", SinglePassIterationLimitForLookup)
             .Default(2);
         RegisterParameter("lookup_request_peer_count", LookupRequestPeerCount)

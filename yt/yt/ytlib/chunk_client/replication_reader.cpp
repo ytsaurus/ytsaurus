@@ -219,7 +219,8 @@ public:
         NCompression::ECodec codecId,
         bool produceAllVersions,
         TTimestamp chunkTimestamp,
-        bool enablePeerProbing) override;
+        bool enablePeerProbing,
+        bool enableRejectsIfThrottling) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -2078,7 +2079,8 @@ public:
         NCompression::ECodec codecId,
         bool produceAllVersions,
         TTimestamp chunkTimestamp,
-        bool enablePeerProbing)
+        bool enablePeerProbing,
+        bool enableRejectsIfThrottling)
         : TSessionBase(reader, options)
         , LookupKeys_(std::move(lookupKeys))
         , TableId_(tableId)
@@ -2091,6 +2093,7 @@ public:
         , ProduceAllVersions_(produceAllVersions)
         , ChunkTimestamp_(chunkTimestamp)
         , EnablePeerProbing_(enablePeerProbing)
+        , EnableRejectsIfThrottling_(enableRejectsIfThrottling)
     {
         Logger.AddTag("TableId: %v, Revision: %llx",
             TableId_,
@@ -2132,6 +2135,7 @@ private:
     const bool ProduceAllVersions_;
     const TTimestamp ChunkTimestamp_;
     const bool EnablePeerProbing_;
+    const bool EnableRejectsIfThrottling_;
 
     //! Promise representing the session.
     const TPromise<TSharedRef> Promise_ = NewPromise<TSharedRef>();
@@ -2148,6 +2152,7 @@ private:
     int SinglePassIterationCount_;
     int CandidateIndex_;
     TPeerList SinglePassCandidates_;
+    THashMap<TAddressWithNetwork, double> ThrottlingRateByPeer_;
 
     virtual bool IsCanceled() const override
     {
@@ -2176,6 +2181,7 @@ private:
         CandidateIndex_ = 0;
         SinglePassCandidates_.clear();
         SinglePassIterationCount_ = 0;
+        ThrottlingRateByPeer_.clear();
 
         RequestRows();
     }
@@ -2268,15 +2274,17 @@ private:
 
         if (CandidateIndex_ == SinglePassCandidates_.size()) {
             YT_LOG_DEBUG("Lookup replication reader is out of peers for lookup, will sleep for a while "
-                "(CandidateCount: %v, SinglePassIterationCounter: %v)",
+                "(CandidateCount: %v, SinglePassIterationCount: %v)",
                 SinglePassCandidates_.size(),
                 SinglePassIterationCount_);
 
             CandidateIndex_ = 0;
             ++SinglePassIterationCount_;
+            SortCandidates();
 
-            // All candidates (in current pass) are waiting for schema from other tablet nodes,
-            // so it's better to sleep a little.
+            // All candidates (in current pass) are either
+            // waiting for schema from other tablet nodes or are throttling.
+            // So it's better to sleep for a while.
             TDelayedExecutor::Submit(
                 CreateRequestCallback(),
                 ReaderConfig_->LookupSleepDuration);
@@ -2345,6 +2353,20 @@ private:
         req->set_chunk_timestamp(ChunkTimestamp_);
         req->set_populate_cache(true);
 
+        // NB: By default if peer is throttling it will immediately fail,
+        // but if we have to request the same throttling peer again,
+        // then we should stop iterating and make it finish the request.
+        bool isPeerThrottling = ThrottlingRateByPeer_.contains(peerAddressWithNetwork);
+        req->set_reject_if_throttling(EnableRejectsIfThrottling_ && !isPeerThrottling);
+        if (isPeerThrottling) {
+            YT_LOG_DEBUG("Lookup replication reader sends request to throttling peer "
+                "(Address: %v, CandidateIndex: %v, IterationCount: %v, ThrottlingRate: %v)",
+                peerAddressWithNetwork,
+                CandidateIndex_ - 1,
+                SinglePassIterationCount_,
+                ThrottlingRateByPeer_[peerAddressWithNetwork]);
+        }
+
         auto schemaData = req->mutable_schema_data();
         ToProto(schemaData->mutable_table_id(), TableId_);
         schemaData->set_revision(Revision_);
@@ -2410,16 +2432,6 @@ private:
             response->GetTotalSize(),
             chosenPeer.NodeDescriptor);
 
-        if (response->net_throttling() || response->disk_throttling()) {
-            YT_LOG_DEBUG("Peer is throttling "
-                "(Address: %v, NetThrottling: %v, DiskThrottling: %v, CandidateIndex: %v, IterationCount: %v)",
-                peerAddressWithNetwork,
-                response->net_throttling(),
-                response->disk_throttling(),
-                CandidateIndex_ - 1,
-                SinglePassIterationCount_);
-        }
-
         if (response->has_request_schema() && response->request_schema()) {
             YT_VERIFY(!response->fetched_rows());
             YT_VERIFY(!sentSchema);
@@ -2434,17 +2446,46 @@ private:
             return;
         }
 
-        if (!response->fetched_rows()) {
-            // NB(akozhikhov): If data node waits for schema from other tablet node,
-            // then we switch to next data node in order to warm up as many schema caches as possible.
-            YT_LOG_DEBUG("Data node is waiting for schema from other tablet "
-                "(Address: %v, PeerType: %v, CandidateIndex: %v, IterationCount: %v)",
+        if (response->net_throttling() || response->disk_throttling()) {
+            double throttlingRate =
+                ReaderConfig_->NetQueueSizeFactor * response->net_queue_size() +
+                ReaderConfig_->DiskQueueSizeFactor * response->disk_queue_size();
+            YT_LOG_DEBUG("Peer is throttling on lookup (Address: %v, "
+                "NetThrottling: %v, NetQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v, "
+                "CandidateIndex: %v, IterationCount: %v, ThrottlingRate: %v)",
                 peerAddressWithNetwork,
-                chosenPeer.Type,
+                response->net_throttling(),
+                response->net_queue_size(),
+                response->disk_throttling(),
+                response->disk_queue_size(),
                 CandidateIndex_ - 1,
-                SinglePassIterationCount_);
+                SinglePassIterationCount_,
+                throttlingRate);
+            YT_VERIFY(response->net_queue_size() > 0 || response->disk_queue_size());
 
-            WaitedForSchemaForTooLong_ = true;
+            ThrottlingRateByPeer_[peerAddressWithNetwork] = throttlingRate;
+        } else if (ThrottlingRateByPeer_.contains(peerAddressWithNetwork)) {
+            ThrottlingRateByPeer_.erase(peerAddressWithNetwork);
+        }
+
+        if (!response->fetched_rows()) {
+            if (response->rejected_due_to_throttling()) {
+                YT_LOG_DEBUG("Peer rejected to execute request due to throttling (Address: %v)",
+                    peerAddressWithNetwork);
+                YT_VERIFY(response->net_throttling() || response->disk_throttling());
+            } else {
+                // NB(akozhikhov): If data node waits for schema from other tablet node,
+                // then we switch to next data node in order to warm up as many schema caches as possible.
+                YT_LOG_DEBUG("Data node is waiting for schema from other tablet "
+                    "(Address: %v, PeerType: %v, CandidateIndex: %v, IterationCount: %v)",
+                    peerAddressWithNetwork,
+                    chosenPeer.Type,
+                    CandidateIndex_ - 1,
+                    SinglePassIterationCount_);
+
+                WaitedForSchemaForTooLong_ = true;
+            }
+
             RequestRows();
             return;
         }
@@ -2482,6 +2523,15 @@ private:
         TotalBytesReceived_ += FetchedRowset_.Size();
         BytesToThrottle_ += FetchedRowset_.Size();
     }
+
+    // Sort is called after iterating over all candidates.
+    void SortCandidates()
+    {
+        SortBy(SinglePassCandidates_, [&] (const TPeer& candidate) {
+            auto throttlingRate = ThrottlingRateByPeer_.find(candidate.AddressWithNetwork);
+            return throttlingRate != ThrottlingRateByPeer_.end() ? throttlingRate->second : 0.;
+        });
+    }
 };
 
 TFuture<TSharedRef> TReplicationReader::LookupRows(
@@ -2496,7 +2546,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     NCompression::ECodec codecId,
     bool produceAllVersions,
     TTimestamp chunkTimestamp,
-    bool enablePeerProbing)
+    bool enablePeerProbing,
+    bool enableRejectsIfThrottling)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2513,7 +2564,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         codecId,
         produceAllVersions,
         chunkTimestamp,
-        enablePeerProbing);
+        enablePeerProbing,
+        enableRejectsIfThrottling);
     return session->Run();
 }
 
