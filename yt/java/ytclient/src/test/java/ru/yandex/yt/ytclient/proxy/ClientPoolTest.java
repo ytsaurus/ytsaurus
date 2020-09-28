@@ -158,7 +158,7 @@ public class ClientPoolTest {
             waitFuture(clientFuture1, 100);
             assertThat(clientFuture1.join().destinationName(), is("localhost:1"));
 
-            var banResult = clientPool.banErrorClient(HostPort.parse("localhost:1"), new RuntimeException("foo"));
+            var banResult = clientPool.banErrorClient(HostPort.parse("localhost:1"));
             waitFuture(banResult, 100);
 
             assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));

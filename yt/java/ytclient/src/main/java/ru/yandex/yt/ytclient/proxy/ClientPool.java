@@ -507,7 +507,7 @@ class ClientPool implements DataCenterRpcClientPool {
         return false;
     }
 
-    CompletableFuture<Void> banErrorClient(HostPort hostPort, Throwable error) {
+    CompletableFuture<Void> banErrorClient(HostPort hostPort) {
         return safeExecutorService.submit(
                 () -> {
                     for (PooledRpcClient client : activeClients.values()) {
@@ -519,7 +519,7 @@ class ClientPool implements DataCenterRpcClientPool {
         );
     }
 
-    private void banErrorClient(PooledRpcClient client, Throwable error) {
+    private void banErrorClient(PooledRpcClient client) {
         safeExecutorService.submit(() -> banClientUnsafe(client, true));
     }
 
@@ -534,6 +534,7 @@ class ClientPool implements DataCenterRpcClientPool {
                 }
             }
             for (PooledRpcClient client : toBan) {
+                logger.debug("Banning unknown rpc-proxy connection {}", client);
                 banClientUnsafe(client, false);
             }
         }
@@ -546,9 +547,10 @@ class ClientPool implements DataCenterRpcClientPool {
                 break;
             }
 
-            RpcClient client = clientFactory.create(hostPort, dataCenterName);
+            RpcClient rpcClient = clientFactory.create(hostPort, dataCenterName);
             GUID clientGuid = GUID.create();
-            PooledRpcClient pooledClient = new PooledRpcClient(hostPort, client, clientGuid);
+            PooledRpcClient pooledClient = new PooledRpcClient(hostPort, rpcClient, clientGuid);
+            logger.debug("Opened new rpc-proxy connection: {}", pooledClient);
             activeClients.put(clientGuid, pooledClient);
         }
         updateGoodClientsCacheUnsafe();
@@ -603,7 +605,10 @@ class ClientPool implements DataCenterRpcClientPool {
             this.publicClient = new FailureDetectingRpcClient(
                     internalClient,
                     RpcError::isUnrecoverable,
-                    e -> banErrorClient(this, e)
+                    e -> {
+                        logger.debug("Banning rpc-proxy connection {} due to error:", this, e);
+                        banErrorClient(this);
+                    }
             );
             this.guid = guid;
         }
@@ -616,9 +621,14 @@ class ClientPool implements DataCenterRpcClientPool {
         void unref() {
             int ref = referenceCounter.decrementAndGet();
             if (ref == 0) {
+                logger.debug("Closing rpc-proxy connection {}", this);
                 internalClient.close();
             }
         }
+
+        @Override
+        public String toString() {
+            return String.format("[%s/%s]", guid, hostPort);
+        }
     }
 }
-
