@@ -3643,7 +3643,6 @@ class TestIntegralGuaranteesVector(YTEnvSetup):
             integral=0.3,
             weight_proportional=0.5)
 
-
     def test_min_share_vs_burst(self):
         create_pool("min_share_pool", attributes={
             "min_share_resources": {"cpu": 5},
@@ -3934,13 +3933,17 @@ class TestIntegralGuaranteesVector(YTEnvSetup):
         })
 
         wait(lambda: exists(scheduler_orchid_pool_path("test_pool")))
-        wait(lambda: get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_ratio_volume") > 3)
+        wait(lambda: get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_volume/cpu") > 30)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            set("//sys/pools/test_pool/@integral_guarantees/resource_flow/cpu", 0)
+            pass
 
-        wait(lambda: exists(scheduler_orchid_pool_path("test_pool")))
-        assert get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_ratio_volume") > 3
+        wait(lambda: exists(scheduler_orchid_pool_path("test_pool")), sleep_backoff=0.1)
+        # Wait for total resource limits to appear.
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>") + "/resource_limits/cpu") > 0, sleep_backoff=0.1)
+
+        volume = get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_volume/cpu")
+        assert 30 < volume < 50
 
     def test_integral_pools_orchid(self):
         create_pool("burst_pool", attributes={
