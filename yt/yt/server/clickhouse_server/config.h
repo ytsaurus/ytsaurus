@@ -26,6 +26,35 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This class will be accessible either via settings or via default_settings.
+class TQuerySettings
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableColumnarRead;
+
+    bool EnableComputedColumnDeduction;
+
+    // TODO(max42): move to testing options.
+    bool ThrowTestingExceptionInDistributor;
+    bool ThrowTestingExceptionInSubquery;
+    i64 TestingSubqueryAllocationSize;
+
+    bool UseBlockSampling;
+
+    EDeducedStatementMode DeducedStatementMode;
+
+    bool LogKeyConditionDetails;
+
+    bool ConvertRowBatchesInWorkerThreadPool;
+
+    TQuerySettings();
+};
+
+DEFINE_REFCOUNTED_TYPE(TQuerySettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class THealthCheckerConfig
     : public NYTree::TYsonSerializable
 {
@@ -116,33 +145,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig);
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! This class will be accessible either via pragmas or via default_settings.
-class TQuerySettings
-    : public NYTree::TYsonSerializable
-{
-public:
-    bool EnableColumnarRead;
-
-    bool EnableComputedColumnDeduction;
-
-    // TODO(max42): move to testing options.
-    bool ThrowTestingExceptionInDistributor;
-    bool ThrowTestingExceptionInSubquery;
-    i64 TestingSubqueryAllocationSize;
-
-    bool UseBlockSampling;
-
-    bool LogKeyConditionDetails;
-
-    bool ConvertRowBatchesInWorkerThreadPool;
-
-    TQuerySettings();
-};
-
-DEFINE_REFCOUNTED_TYPE(TQuerySettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 

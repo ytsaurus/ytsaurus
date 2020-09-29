@@ -3,6 +3,7 @@
 #include "schema.h"
 #include "helpers.h"
 #include "format.h"
+#include "config.h"
 
 #include <yt/ytlib/query_client/query_preparer.h>
 #include <yt/ytlib/query_client/folding_profiler.h>
@@ -17,9 +18,15 @@
 
 #include <Storages/MergeTree/KeyCondition.h>
 
+#include <Interpreters/evaluateConstantExpression.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/InDepthNodeVisitor.h>
 #include <Interpreters/TreeRewriter.h>
+#include <Interpreters/ActionsVisitor.h>
+
+#include <DataTypes/DataTypeTuple.h>
+
+#include <library/cpp/iterator/functools.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -31,10 +38,91 @@ using namespace NQueryClient;
 
 struct TComputedColumnEntry
 {
-    THashSet<TString> References;
+    std::vector<TString> References;
     TConstExpressionPtr Expression;
     TString ComputedColumn;
 };
+
+//! Representation or an inclusion statement.
+//! Example:
+//!   #ColumnNames = {"key", "computed_key"};
+//!   #PossibleTuples = {{2, 1234}, {5, 6789}, {-1, 4242}}.
+//! In this case result corresponds to the statement:
+//!   (key, computed_key) in ((2, 1234), (5, 6789), (-1, 4242)).
+struct TInclusionStatement
+{
+    std::vector<TString> ColumnNames;
+    THashMap<TString, int> ColumnPosition;
+    std::vector<std::vector<DB::Field>> PossibleTuples;
+    TInclusionStatement(std::vector<TString> columnNames, std::vector<std::vector<DB::Field>> possibleTuples)
+        : ColumnNames(std::move(columnNames))
+        , PossibleTuples(std::move(possibleTuples))
+    {
+        // NB: if some column name appears twice in the list, we do not mind. The resulting deduction AST will still be correct.
+        for (const auto& [index, columnName] : Enumerate(ColumnNames)) {
+            ColumnPosition[columnName] = index;
+        }
+        for (const auto& tuple : PossibleTuples) {
+            YT_VERIFY(tuple.size() == ColumnNames.size());
+        }
+    }
+
+    bool ContainsReferences(const std::vector<TString>& references) const
+    {
+        for (const auto& item : references) {
+            if (!ColumnPosition.contains(item)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    TInclusionStatement Filter(const std::vector<TString>& references) const
+    {
+        std::vector<std::vector<DB::Field>> filteredTuples(PossibleTuples.size());
+        for (const auto& reference : references) {
+            auto columnIndex = GetOrCrash(ColumnPosition, reference);
+            for (size_t tupleIndex = 0; tupleIndex < PossibleTuples.size(); ++tupleIndex) {
+                filteredTuples[tupleIndex].emplace_back(PossibleTuples[tupleIndex][columnIndex]);
+            }
+        }
+        return TInclusionStatement(references, filteredTuples);
+    }
+};
+
+std::vector<std::vector<DB::Field>> Transpose(std::vector<DB::Field> fields)
+{
+    std::vector<std::vector<DB::Field>> result;
+    result.reserve(fields.size());
+    for (const auto& field : fields) {
+        result.emplace_back(std::vector<DB::Field>{field});
+    }
+    return result;
+}
+
+TString ToString(const TInclusionStatement& statement)
+{
+    return Format("{Columns: %v, PossibleTuples: %v}", statement.ColumnNames, statement.PossibleTuples);
+}
+
+std::optional<std::vector<TString>> IdentifierTupleToColumnNames(const DB::IAST& ast)
+{
+    if (auto* functionAst = ast.as<DB::ASTFunction>()) {
+        if (functionAst->name != "tuple") {
+            return std::nullopt;
+        }
+        std::vector<TString> result;
+        for (const auto& childAst : functionAst->arguments->children) {
+            if (const auto* identifierAst = childAst->as<DB::ASTIdentifier>()) {
+                result.emplace_back(identifierAst->shortName());
+            } else {
+                return std::nullopt;
+            }
+        }
+        return result;
+    }
+    return std::nullopt;
+}
 
 struct TComputedColumnPopulationMatcher
 {
@@ -43,6 +131,9 @@ struct TComputedColumnPopulationMatcher
         const std::vector<TComputedColumnEntry>& Entries;
         DB::Block& BlockWithConstants;
         const TTableSchemaPtr& TableSchema;
+        DB::PreparedSets& PreparedSets;
+        const DB::Context& Context;
+        const TQuerySettingsPtr& Settings;
         TLogger Logger;
     };
 
@@ -53,8 +144,9 @@ struct TComputedColumnPopulationMatcher
 
     static void visit(DB::ASTPtr& ast, Data& data)
     {
-        // Single-term equation case.
-        // key == 5 -> (key == 5 AND computed_key == f(5))
+        // key == 5 -> ... AND ((key, computed_key) in ((5, f(5)))).
+        // key in (4, 5) -> ... AND ((key, computed_key) in ((4, f(4)), (5, f(5)))).
+        // (key, smth) == (4, 'x') -> ... AND ((key, computed_key) in ((4, f(4)))).
         if (auto astFunction = ast->as<DB::ASTFunction>()) {
             if (auto rewrittenAst = visit(*astFunction, data)) {
                 ast = rewrittenAst;
@@ -63,42 +155,193 @@ struct TComputedColumnPopulationMatcher
         }
     }
 
-    static DB::ASTPtr DeduceComputedColumn(
+    static TInclusionStatement DeduceComputedColumn(
         const TComputedColumnEntry& entry,
-        const TUnversionedValue& value,
+        const TInclusionStatement& statement,
         Data& data)
     {
         const auto& Logger = data.Logger;
 
-        YT_LOG_TRACE("Deducing computed column value (ComputedColumn: %v, Value: %v)", entry.ComputedColumn, value);
+        YT_LOG_TRACE(
+            "Deducing computed column value (ComputedColumn: %v, OriginalStatement: %v, Type: %v)",
+            entry.ComputedColumn,
+            statement,
+            entry.Expression->Type);
 
-        TUnversionedValue result;
-        try {
-            TCGVariables variables;
-            auto callback = Profile(entry.Expression, data.TableSchema->Filter(entry.References), nullptr, &variables)();
-            auto rowBuffer = New<TRowBuffer>();
-            callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &result, &value, rowBuffer.Get());
-            result.Id = 0;
-        } catch (const TErrorException& ex) {
-            YT_LOG_TRACE(ex, "Caught exception while evaluating expresion");
-            // Return false literal. This will result in dropping current equation,
-            // which is ok as we deduced that it actually can't take supposed value
-            // (YT would not allow writing value which reuslts in exception in computed
-            // column computation).
-            return std::make_shared<DB::ASTLiteral>(DB::Field(static_cast<ui8>(0)));
+        auto rowBuffer = New<TRowBuffer>();
+
+        std::vector<std::vector<DB::Field>> ResultTuples;
+
+        for (auto possibleTuple : statement.PossibleTuples) {
+            // Convert field to YT unversioned value.
+            std::vector<TUnversionedValue> referenceValues(possibleTuple.size());
+            for (const auto& [fieldIndex, field] : Enumerate(possibleTuple)) {
+                auto& referenceValue = referenceValues[fieldIndex];
+                referenceValue.Id = fieldIndex;
+                referenceValue.Type = ToValueType(field.getType());
+                ConvertToUnversionedValue(field, &referenceValue);
+                YT_LOG_TRACE(
+                    "Converted reference field to YT unversioned value (Value: %v, Field: %v)",
+                    field,
+                    referenceValue);
+            }
+
+            TUnversionedValue resultValue;
+            try {
+                TCGVariables variables;
+                auto callback = Profile(entry.Expression, data.TableSchema->Filter(entry.References), nullptr, &variables)();
+                callback(variables.GetLiteralValues(), variables.GetOpaqueData(), &resultValue, referenceValues.data(), rowBuffer.Get());
+                resultValue.Id = 0;
+            } catch (const TErrorException& ex) {
+                YT_LOG_TRACE(ex, "Caught exception while evaluating expresion");
+                // Skip this value. We just deduced that it actually can't take supposed value
+                // (YT would not allow writing value which results in exception in computed
+                // column computation).
+                continue;
+            }
+            YT_LOG_TRACE("Calculated expression result (ComputedColumnValue: %v)", resultValue);
+
+            auto resultField = ConvertToField(resultValue);
+            YT_LOG_TRACE("Converted to CH field (ComputedColumnValue: %v)", resultField);
+            possibleTuple.emplace_back(std::move(resultField));
+            ResultTuples.emplace_back(std::move(possibleTuple));
         }
-        YT_LOG_TRACE("Calculated expression result (ComputedColumnValue: %v)", result);
 
-        auto resultField = ConvertToField(result);
-        YT_LOG_TRACE("Converted to CH field (ComputedColumnValue: %v)", resultField.dump());
+        auto columnNames = statement.ColumnNames;
+        columnNames.push_back(entry.ComputedColumn);
 
-        auto resultAst = DB::makeASTFunction(
-            "equals",
-            std::make_shared<DB::ASTIdentifier>(entry.ComputedColumn),
-            std::make_shared<DB::ASTLiteral>(resultField));
-        YT_LOG_TRACE("Deduced equation (Ast: %v)", resultAst);
+        TInclusionStatement resultStatement(std::move(columnNames), std::move(ResultTuples));
 
-        return resultAst;
+        YT_LOG_TRACE(
+            "Deduced computed values (ResultStatement: %v)",
+            resultStatement,
+            resultStatement);
+
+        return resultStatement;
+    }
+
+    static void PopulatePreparedSets(DB::ASTPtr literal, std::vector<DB::DataTypePtr> dataTypes, Data& data)
+    {
+        const auto& Logger = data.Logger;
+
+        YT_LOG_TRACE("Populating prepared set for literal (Literal: %v)", literal);
+
+        // Part below is done similarly to DB::makeExplicitSet.
+
+        auto setKey = DB::PreparedSetKey::forLiteral(*literal, dataTypes);
+        if (data.PreparedSets.count(setKey)) {
+            // Already prepared.
+            return;
+        }
+
+        DB::Block block;
+        const auto& functionAst = std::dynamic_pointer_cast<DB::ASTFunction>(literal);
+        if (functionAst && (functionAst->name == "tuple" || functionAst->name == "array")) {
+            block = DB::createBlockForSet(std::make_shared<DB::DataTypeTuple>(dataTypes), functionAst, dataTypes, data.Context);
+        } else {
+            YT_ABORT();
+        }
+
+        auto set = std::make_shared<DB::Set>(DB::SizeLimits(), true /* fill_set_elements */, data.Context.getSettingsRef().transform_null_in);
+        set->setHeader(block.cloneEmpty());
+        set->insertFromBlock(block);
+        set->finishInsert();
+
+        data.PreparedSets[setKey] = set;
+    }
+
+    static DB::ASTPtr PrepareInStatement(const TInclusionStatement& resultStatement, Data& data)
+    {
+        std::vector<DB::ASTPtr> innerTupleAsts;
+        for (const auto& tuple : resultStatement.PossibleTuples) {
+            auto innerTupleAst = DB::makeASTFunction("tuple");
+            for (const auto& field : tuple) {
+                innerTupleAst->arguments->children.emplace_back(std::make_shared<DB::ASTLiteral>(field));
+            }
+            innerTupleAsts.emplace_back(std::move(innerTupleAst));
+        }
+
+        auto outerTupleAst = DB::makeASTFunction("tuple");
+        outerTupleAst->arguments->children = innerTupleAsts;
+
+        std::vector<DB::ASTPtr> columnAsts;
+
+        std::vector<DB::DataTypePtr> dataTypes;
+        for (const auto& columnName : resultStatement.ColumnNames) {
+            dataTypes.emplace_back(ToDataType(data.TableSchema->FindColumn(columnName)->LogicalType()));
+            columnAsts.emplace_back(std::make_shared<DB::ASTIdentifier>(columnName));
+        }
+
+        auto columnTupleAst = DB::makeASTFunction("tuple");
+        columnTupleAst->arguments->children = std::move(columnAsts);
+
+        auto inAst = DB::makeASTFunction("in", columnTupleAst, outerTupleAst);
+
+        PopulatePreparedSets(outerTupleAst, dataTypes, data);
+
+        return inAst;
+    }
+
+    static DB::ASTPtr PrepareDNFStatement(const TInclusionStatement& resultStatement, Data& /* data */)
+    {
+        std::vector<DB::ASTPtr> conjuncts;
+        for (const auto& tuple : resultStatement.PossibleTuples) {
+            std::vector<DB::ASTPtr> equations;
+            for (const auto& [columnName, field] : Zip(resultStatement.ColumnNames, tuple)) {
+                auto equationAst = DB::makeASTFunction(
+                    "equals",
+                    std::make_shared<DB::ASTIdentifier>(columnName),
+                    std::make_shared<DB::ASTLiteral>(field));
+                equations.emplace_back(std::move(equationAst));
+            }
+            auto conjunctAst = DB::makeASTForLogicalAnd(std::move(equations));
+            conjuncts.emplace_back(conjunctAst);
+        }
+
+        auto dnfAst = DB::makeASTForLogicalOr(std::move(conjuncts));
+
+        return dnfAst;
+    }
+
+    static DB::ASTPtr PrepareConjunctionWithDeductions(DB::ASTFunction& originalAst, TInclusionStatement originalStatement, Data& data)
+    {
+        const auto& Logger = data.Logger;
+
+        // It may happen that original statement is not implied by any of the deductions, so we always include the original statement.
+        std::vector<DB::ASTPtr> conjunctAsts = {originalAst.clone()};
+        for (const auto& entry : data.Entries) {
+            if (originalStatement.ContainsReferences(entry.References)) {
+                auto filteredOriginalStatement = originalStatement.Filter(entry.References);
+                auto resultStatement = DeduceComputedColumn(entry, filteredOriginalStatement, data);
+
+                if (resultStatement.PossibleTuples.empty()) {
+                    // We have proven that reference column can't take given values.
+                    conjunctAsts.emplace_back(std::make_shared<DB::ASTLiteral>(DB::Field(static_cast<ui8>(0))));
+                    continue;
+                }
+
+                if (data.Settings->DeducedStatementMode == EDeducedStatementMode::In) {
+                    conjunctAsts.emplace_back(PrepareInStatement(resultStatement, data));
+                } else {
+                    conjunctAsts.emplace_back(PrepareDNFStatement(resultStatement, data));
+                }
+            }
+        }
+
+        auto conjunctionAst = DB::makeASTForLogicalAnd(std::move(conjunctAsts));
+        YT_LOG_TRACE("Query part rewritten (Ast: %v, NewAst: %v)", originalAst, conjunctionAst);
+
+        return conjunctionAst;
+    }
+
+    static bool EvaluateConstant(DB::ASTPtr& ast, DB::Field& field, DB::DataTypePtr& dataType, const DB::Context& context)
+    {
+        try {
+            std::tie(field, dataType) = DB::evaluateConstantExpression(ast, context);
+            return true;
+        } catch (const std::exception& ex) {
+            return false;
+        }
     }
 
     static DB::ASTPtr visit(DB::ASTFunction& ast, Data& data)
@@ -106,54 +349,129 @@ struct TComputedColumnPopulationMatcher
         const auto& Logger = data.Logger;
 
         if (ast.name == "equals") {
-            YT_LOG_TRACE("Processing equation (Ast: %v)", ast);
+            YT_LOG_TRACE("Processing 'equals' (Ast: %v)", ast);
             YT_VERIFY(ast.arguments->children.size() == 2);
-            std::vector<TString> identifierArgNames;
-            std::vector<DB::ASTPtr> otherArgs;
 
-            for (const auto& argumentAst : ast.arguments->children) {
-                if (auto* argumentIdentifierAst = argumentAst->as<DB::ASTIdentifier>()) {
-                    identifierArgNames.emplace_back(argumentIdentifierAst->shortName());
+            auto lhs = ast.arguments->children[0];
+            auto rhs = ast.arguments->children[1];
+            // Assume that lhs is an identifier or identifier tuple and rhs is a constant value.
+            // If this is not the case, swap lhs and rhs and repeat the procedure.
+            for (int swapAttempt = 0; swapAttempt < 2; ++swapAttempt, lhs.swap(rhs)) {
+                std::vector<TString> columnNames;
+                bool isLhsTuple = false;
+                if (auto* identifierAst = lhs->as<DB::ASTIdentifier>()) {
+                    columnNames.emplace_back(identifierAst->shortName());
+                } else if (auto maybeColumnNames = IdentifierTupleToColumnNames(*lhs)) {
+                    isLhsTuple = true;
+                    columnNames = *maybeColumnNames;
                 } else {
-                    otherArgs.emplace_back(argumentAst);
+                    continue;
                 }
+
+                YT_LOG_TRACE(
+                    "Left-hand corresponds to column names (Lhs: %v, ColumnNames: %v, SwapAttempt: %v)",
+                    lhs,
+                    columnNames,
+                    swapAttempt);
+
+                // Check if expression is constant.
+                DB::Field constField;
+                DB::DataTypePtr constDataType;
+
+                if (!EvaluateConstant(rhs, constField, constDataType, data.Context)) {
+                    YT_LOG_TRACE("Right-hand is non-constant (Rhs: %v, SwapAttempt: %v)", rhs, swapAttempt);
+                    continue;
+                }
+                YT_LOG_TRACE("Right-hand is constant (Rhs: %v, Value: %v, SwapAttempt: %v)", rhs, constField, swapAttempt);
+
+                std::vector<DB::Field> constTuple;
+
+                if (isLhsTuple) {
+                    if (constField.getType() == DB::Field::Types::Tuple) {
+                        constTuple = constField.get<const DB::Tuple&>();
+                    } else {
+                        continue;
+                    }
+                } else {
+                    constTuple = {constField};
+                }
+
+                if (constTuple.size() != columnNames.size()) {
+                    YT_LOG_TRACE(
+                        "Left-hand and right-hand have different lengths (Lhs: %v, Rhs: %v)",
+                        lhs,
+                        rhs);
+                    continue;
+                }
+
+                return PrepareConjunctionWithDeductions(ast, TInclusionStatement(columnNames, {constTuple}), data);
             }
-            YT_LOG_TRACE("Equation args (IdentifierArgNames: %v, OtherArgs: %v)", identifierArgNames, otherArgs);
-            // Check if equation has form (column) = (const expression).
-            if (identifierArgNames.size() != 1) {
+
+            return nullptr;
+        } else if (ast.name == "in") {
+            YT_LOG_TRACE("Processing 'in' (Ast: %v)", ast);
+            YT_VERIFY(ast.arguments->children.size() == 2);
+            auto lhs = ast.arguments->children[0];
+            auto rhs = ast.arguments->children[1];
+            bool isLhsTuple = false;
+
+            std::vector<TString> columnNames;
+            if (auto* identifierAst = lhs->as<DB::ASTIdentifier>()) {
+                columnNames.emplace_back(identifierAst->shortName());
+            } else if (auto maybeColumnNames = IdentifierTupleToColumnNames(*lhs)) {
+                isLhsTuple = true;
+                columnNames = *maybeColumnNames;
+            } else {
                 return nullptr;
             }
-            YT_VERIFY(otherArgs.size() == 1);
-            auto columnName = identifierArgNames.back();
-            auto valueAst = otherArgs.back();
+
+            YT_LOG_TRACE(
+                "Left-hand corresponds to column names (Lhs: %v, ColumnNames: %v, IsLhsTuple: %v)",
+                lhs,
+                columnNames,
+                isLhsTuple);
+
+            std::vector<DB::Field> constFields;
 
             // Check if expression is constant.
             DB::Field constField;
             DB::DataTypePtr constDataType;
-            if (!DB::KeyCondition::getConstant(valueAst, data.BlockWithConstants, constField, constDataType)) {
-                YT_LOG_TRACE("Expression is non-constant");
+            if (!EvaluateConstant(rhs, constField, constDataType, data.Context)) {
+                YT_LOG_TRACE("Right-hand is non-constant (Rhs: %v, SwapAttempt: %v)", rhs);
                 return nullptr;
             }
-            YT_LOG_TRACE("Expression is constant (Value: %v)", constField.dump());
+            YT_LOG_TRACE("Right-hand is constant (Rhs: %v, Value: %v, SwapAttempt: %v)", rhs, constField);
 
-            // Convert it to YT unversioned value.
-            TUnversionedValue constValue;
-            constValue.Id = 0;
-            constValue.Type = ToValueType(constField.getType());
-            ConvertToUnversionedValue(constField, &constValue);
-            YT_LOG_TRACE("Converted to YT unversioned value (Value: %v)", constValue);
+            if (DB::Tuple tuple; constField.tryGet<DB::Tuple>(tuple)) {
+                constFields = tuple;
+            } else {
+                // Assume "key in (42)".
+                YT_LOG_TRACE("Right-hand is non-tuple, assuming single-element tuple");
+                constFields = {constField};
+            }
 
-            std::vector<DB::ASTPtr> conjunctAsts = {ast.clone()};
-            for (const auto& entry : data.Entries) {
-                if (entry.References == THashSet<TString>{columnName}) {
-                    auto deducedComputedColumn = DeduceComputedColumn(entry, constValue, data);
-                    conjunctAsts.emplace_back(std::move(deducedComputedColumn));
+            std::vector<std::vector<DB::Field>> possibleTuples;
+
+            if (isLhsTuple) {
+                for (const auto& constField : constFields) {
+                    if (DB::Tuple tuple; constField.tryGet<DB::Tuple>(tuple)) {
+                        possibleTuples.emplace_back(tuple);
+                    } else {
+                        return nullptr;
+                    }
+                }
+            } else {
+                possibleTuples = Transpose(constFields);
+            }
+
+            for (const auto& tuple : possibleTuples) {
+                if (tuple.size() != columnNames.size()) {
+                    YT_LOG_TRACE("Right-hand tuple and column names have different sizes (RhsTuple: %v, Columns: %v)", tuple, columnNames);
+                    return nullptr;
                 }
             }
 
-            auto conjunctionAst = DB::makeASTForLogicalAnd(std::move(conjunctAsts));
-            YT_LOG_TRACE("Equation rewritten (Ast: %v, NewAst: %v)", ast, conjunctionAst);
-            return conjunctionAst;
+            return PrepareConjunctionWithDeductions(ast, TInclusionStatement(columnNames, possibleTuples), data);
         }
 
         return nullptr;
@@ -165,6 +483,8 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
     DB::ASTPtr ast,
     const TTableSchemaPtr& schema,
     const DB::Context& context,
+    DB::PreparedSets& preparedSets,
+    const TQuerySettingsPtr& settings,
     NLogging::TLogger logger)
 {
     const auto& Logger = logger;
@@ -173,8 +493,9 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
 
     for (const auto& columnSchema : schema->Columns()) {
         if (columnSchema.Expression() && columnSchema.SortOrder()) {
-            THashSet<TString> references;
-            auto expr = PrepareExpression(*columnSchema.Expression(), *schema, BuiltinTypeInferrersMap, &references);
+            THashSet<TString> referenceSet;
+            auto expr = PrepareExpression(*columnSchema.Expression(), *schema, BuiltinTypeInferrersMap, &referenceSet);
+            std::vector<TString> references(referenceSet.begin(), referenceSet.end());
             entries.emplace_back(TComputedColumnEntry{references, expr, columnSchema.Name()});
             YT_LOG_DEBUG(
                 "Key computed column found (Column: %v, References: %v, Expression: %v)",
@@ -198,12 +519,15 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
         .Entries = std::move(entries),
         .BlockWithConstants = blockWithConstants,
         .TableSchema = schema,
+        .PreparedSets = preparedSets,
+        .Context = context,
+        .Settings = settings,
         .Logger = logger
     };
     auto oldAst = ast->clone();
     TComputedColumnPopulationVisitor(data).visit(ast);
 
-    YT_LOG_DEBUG("Predicates populated with computed column (Ast: %v, NewAst: %v)", oldAst, ast);
+    YT_LOG_DEBUG("Predicate populated with computed column (Ast: %v, NewAst: %v)", oldAst, ast);
 
     return ast;
 }

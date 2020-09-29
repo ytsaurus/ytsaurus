@@ -96,6 +96,9 @@ TQuerySettings::TQuerySettings()
     RegisterParameter("enable_computed_column_deduction", EnableComputedColumnDeduction)
         .Default(true);
 
+    RegisterParameter("deduced_statement_mode", DeducedStatementMode)
+        .Default(EDeducedStatementMode::In);
+
     RegisterParameter("throw_testing_exception_in_distributor", ThrowTestingExceptionInDistributor)
         .Default(false);
     RegisterParameter("throw_testing_exception_in_subquery", ThrowTestingExceptionInSubquery)

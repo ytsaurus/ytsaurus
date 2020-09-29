@@ -356,6 +356,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
                         selectQuery->where(),
                         schema,
                         Context_,
+                        queryInfoForKeyCondition.sets,
+                        settings,
                         Logger);
                 }
             }

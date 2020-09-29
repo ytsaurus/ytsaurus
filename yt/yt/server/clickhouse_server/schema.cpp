@@ -40,20 +40,20 @@ std::vector<TString> ToVectorString(const DB::Names& columnNames)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DataTypePtr RepresentYtType(const TLogicalTypePtr& valueType)
+DB::DataTypePtr ToDataType(const TLogicalTypePtr& logicalType)
 {
     // TODO(max42): CHYT-140.
-    if (!SimplifyLogicalType(valueType).first) {
+    if (!SimplifyLogicalType(logicalType).first) {
         // This is an ultimately rich type (like optional<optional<...>> or list<...> etc).
         // It is physically represented as Any, so we currently treat it as string.
         return std::make_shared<DB::DataTypeString>();
     }
 
-    switch (valueType->GetMetatype()) {
+    switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Optional:
-            return std::make_shared<DB::DataTypeNullable>(RepresentYtType(valueType->GetElement()));
+            return std::make_shared<DB::DataTypeNullable>(ToDataType(logicalType->GetElement()));
         case ELogicalMetatype::Simple: {
-            auto simpleLogicalType = valueType->AsSimpleTypeRef().GetElement();
+            auto simpleLogicalType = logicalType->AsSimpleTypeRef().GetElement();
             switch (simpleLogicalType) {
                 case ESimpleLogicalValueType::Int64:
                 case ESimpleLogicalValueType::Interval:
@@ -102,7 +102,7 @@ DB::DataTypePtr RepresentYtType(const TLogicalTypePtr& valueType)
             }
         }
         default:
-            THROW_ERROR_EXCEPTION("YT metatype %Qlv is not supported", valueType->GetMetatype());
+            THROW_ERROR_EXCEPTION("YT metatype %Qlv is not supported", logicalType->GetMetatype());
     }
 }
 
@@ -112,7 +112,7 @@ DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema)
     result.reserve(schema.GetColumnCount());
 
     for (const auto& column : schema.Columns()) {
-        result.emplace_back(RepresentYtType(column.LogicalType()));
+        result.emplace_back(ToDataType(column.LogicalType()));
     }
 
     return result;

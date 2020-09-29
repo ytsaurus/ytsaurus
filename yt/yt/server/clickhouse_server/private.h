@@ -100,6 +100,11 @@ DEFINE_ENUM(EQueryPhase,
     ((Finish)         (3))
 );
 
+DEFINE_ENUM(EDeducedStatementMode,
+    ((In)             (0))
+    ((DNF)            (1))
+)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using TQueryId = TGuid;
