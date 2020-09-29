@@ -1170,12 +1170,20 @@ private:
                     "debug completion");
 
                 auto nestedInputTransactionIds = attributes->Get<std::vector<TTransactionId>>("nested_input_transaction_ids", {});
+                THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
                 for (auto transactionId : nestedInputTransactionIds) {
-                    transactions.NestedInputTransactions.push_back(attachTransaction(
-                        transactionId,
-                        true,
-                        "nested input transaction"
-                    ));
+                    auto it = transactionIdToTransaction.find(transactionId);
+                    if (it == transactionIdToTransaction.end()) {
+                        auto transaction = attachTransaction(
+                            transactionId,
+                            true,
+                            "nested input transaction"
+                        );
+                        YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
+                        transactions.NestedInputTransactions.push_back(transaction);
+                    } else {
+                        transactions.NestedInputTransactions.push_back(it->second);
+                    }
                 }
 
                 const auto& userTransactionId = operation->GetUserTransactionId();
