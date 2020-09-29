@@ -44,6 +44,8 @@
 #include <yt/ytlib/table_client/partitioned_table_harvester.h>
 #include <yt/ytlib/table_client/table_read_spec.h>
 
+#include <yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -76,6 +78,7 @@ using namespace NCypressClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
@@ -88,6 +91,7 @@ using NYT::ToProto;
 
 DEFINE_ENUM(EKeyConditionScale,
     (Partition)
+    (Tablet)
     (TopLevelDataSlice)
 )
 
@@ -336,6 +340,58 @@ private:
         dataSlices = CombineVersionedChunkSlices(chunkSlices);
     }
 
+    //! When reading from dynamic tables, it is generally a good idea to start with checking each of the tablets
+    //! against key condition in order to reduce number of chunk specs to be fetched from master.
+    //! This method does such optimization.
+    void InferDynamicTableRangesFromPivotKeys()
+    {
+        YT_LOG_DEBUG("Inferring dynamic table ranges from tablet pivot keys");
+        for (const auto& inputTable : InputTables_) {
+            if (!inputTable->Dynamic) {
+                continue;
+            }
+            if (inputTable->Path.HasNontrivialRanges()) {
+                // We skip tables with non-trivial ranges.
+                YT_LOG_DEBUG("Skipping table as it already has non-trivial ranges (Table: %v)", inputTable->Path);
+                continue;
+            }
+            std::vector<TReadRange> ranges;
+
+            const auto& tablets = inputTable->TableMountInfo->Tablets;
+
+            std::optional<TKey> beginKey;
+
+            auto flushRange = [&] (TKey key) {
+                YT_VERIFY(beginKey);
+                auto& range = ranges.emplace_back();
+                range.LowerLimit().SetKey(TOwningKey(*beginKey));
+                range.UpperLimit().SetKey(TOwningKey(key));
+                beginKey = std::nullopt;
+            };
+
+            for (int index = 0; index < static_cast<int>(tablets.size()); ++index) {
+                const auto& lowerKey = tablets[index]->PivotKey;
+                const auto& upperKey = (index + 1 < static_cast<int>(tablets.size())) ? tablets[index + 1]->PivotKey : MaxKey();
+                if (GetRangeMask(EKeyConditionScale::Tablet, lowerKey, upperKey, inputTable->OperandIndex).can_be_true) {
+                    if (!beginKey) {
+                        beginKey = lowerKey;
+                    }
+                } else {
+                    if (beginKey) {
+                        flushRange(lowerKey);
+                    }
+                }
+            }
+
+            if (beginKey) {
+                flushRange(MaxKey());
+            }
+
+            YT_LOG_DEBUG("Dynamic table ranges inferred from tablet pivot keys (Table: %v, Ranges: %v)", inputTable->Path, ranges);
+            inputTable->Path.SetRanges(ranges);
+        }
+    }
+
     void FetchRegularTables()
     {
         i64 totalChunkCount = 0;
@@ -347,6 +403,10 @@ private:
         YT_LOG_INFO("Fetching regular tables (RegularTableCount: %v, TotalChunkCount: %v)",
             InputTables_.size(),
             totalChunkCount);
+
+        if (StorageContext_->Settings->InferDynamicTableRangesFromPivotKeys) {
+            InferDynamicTableRangesFromPivotKeys();
+        }
 
         auto chunkSpecFetcher = New<TChunkSpecFetcher>(
             Client_,

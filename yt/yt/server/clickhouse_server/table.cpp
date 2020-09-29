@@ -2,6 +2,11 @@
 
 #include "host.h"
 
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/tablet_client/table_mount_cache.h>
+
 #include <yt/client/ypath/rich.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -15,6 +20,8 @@ using namespace NLogging;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +67,8 @@ std::vector<TTablePtr> FetchTables(
 
     auto attributesOrErrors = host->GetObjectAttributes(paths, client);
 
+    int dynamicTableCount = 0;
+
     std::vector<TTablePtr> tables;
     std::vector<TError> errors;
     for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
@@ -89,7 +98,11 @@ std::vector<TTablePtr> FetchTables(
                     path.GetPath());
             }
 
-            tables.emplace_back(New<TTable>(path, attributes));
+            auto& table = tables.emplace_back(New<TTable>(path, attributes));
+
+            if (table->Dynamic) {
+                ++dynamicTableCount;
+            }
         } catch (const std::exception& ex) {
             if (!skipUnsuitableNodes) {
                 errors.emplace_back(TError("Error fetching table %v", path)
@@ -99,15 +112,42 @@ std::vector<TTablePtr> FetchTables(
         }
     }
 
-    if (!errors.empty()) {
-        // CH drops the error below, so log it.
-        auto error = TError("Table fetching failed")
-            << errors;
-        YT_LOG_DEBUG(error, "Table fetching failed");
-        THROW_ERROR error;
-    }
+    auto throwOnErrors = [&] {
+        if (!errors.empty()) {
+            // CH drops the error below, so log it.
+            auto error = TError("Table fetching failed")
+                << errors;
+            YT_LOG_DEBUG(error, "Table fetching failed");
+            THROW_ERROR error;
+        }
+    };
+
+    throwOnErrors();
 
     YT_LOG_INFO("Tables fetched (SkippedCount: %v)", richPaths.size() - tables.size());
+
+    if (dynamicTableCount) {
+        // Let's fetch table mount infos.
+        YT_LOG_INFO("Fetching table mount infos (TableCount: %v)", dynamicTableCount);
+        const auto& connection = client->GetNativeConnection();
+        const auto& tableMountCache = connection->GetTableMountCache();
+        std::vector<TFuture<void>> asyncResults;
+        for (auto& table : tables) {
+            if (table->Dynamic) {
+                asyncResults.emplace_back(tableMountCache->GetTableInfo(table->GetPath())
+                    .Apply(BIND([&] (const TErrorOr<TTableMountInfoPtr>& errorOrMountInfo) {
+                        table->TableMountInfo = errorOrMountInfo.ValueOrThrow();
+                    })));
+            }
+        }
+        errors = WaitFor(AllSet(asyncResults))
+            .ValueOrThrow();
+        auto it = std::remove_if(errors.begin(), errors.end(), [] (TError error) { return error.IsOK(); });
+        errors.erase(it, errors.end());
+        YT_LOG_INFO("Table mount infos fetched");
+    }
+
+    throwOnErrors();
 
     return tables;
 }
