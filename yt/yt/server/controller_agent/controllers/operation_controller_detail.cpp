@@ -387,8 +387,16 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     auto debugCompletionTransaction = attachTransaction(transactions.DebugCompletionId, Client, false);
 
     std::vector<ITransactionPtr> nestedInputTransactions;
+    THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
     for (auto transactionId : transactions.NestedInputIds) {
-        nestedInputTransactions.push_back(attachTransaction(transactionId, InputClient, true));
+        auto it = transactionIdToTransaction.find(transactionId);
+        if (it == transactionIdToTransaction.end()) {
+            auto transaction = attachTransaction(transactionId, InputClient, true);
+            YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
+            nestedInputTransactions.push_back(transaction);
+        } else {
+            nestedInputTransactions.push_back(it->second);
+        }
     }
 
     bool cleanStart = false;
@@ -397,6 +405,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     {
         std::vector<std::pair<ITransactionPtr, TFuture<void>>> asyncCheckResults;
 
+        THashSet<ITransactionPtr> checkedTransactions;
         auto checkTransaction = [&] (
             const ITransactionPtr& transaction,
             ETransactionType transactionType,
@@ -415,7 +424,9 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
                 return;
             }
 
-            asyncCheckResults.emplace_back(transaction, transaction->Ping());
+            if (checkedTransactions.emplace(transaction).second) {
+                asyncCheckResults.emplace_back(transaction, transaction->Ping());
+            }
         };
 
         // NB: Async transaction is not checked.
@@ -463,8 +474,9 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     {
         std::vector<TFuture<void>> asyncResults;
 
+        THashSet<ITransactionPtr> abortedTransactions;
         auto scheduleAbort = [&] (const ITransactionPtr& transaction, const NNative::IClientPtr& client) {
-            if (transaction) {
+            if (transaction && abortedTransactions.emplace(transaction).second) {
                 // Transaction object may be in incorrect state, we need to abort using only transaction id.
                 asyncResults.push_back(AttachTransaction(transaction->GetId(), client)->Abort());
             }
@@ -2035,15 +2047,17 @@ void TOperationControllerBase::CommitTransactions()
 
     YT_LOG_INFO("Scheduler transactions committed");
 
-    // Fire-and-forget.
-    if (InputTransaction) {
-        InputTransaction->Abort();
-    }
-    if (AsyncTransaction) {
-        AsyncTransaction->Abort();
-    }
+    THashSet<ITransactionPtr> abortedTransactions;
+    auto abortTransaction = [&] (const ITransactionPtr& transaction) {
+        if (transaction && abortedTransactions.emplace(transaction).second) {
+            // Fire-and-forget.
+            transaction->Abort();
+        }
+    };
+    abortTransaction(InputTransaction);
+    abortTransaction(AsyncTransaction);
     for (const auto& transaction : NestedInputTransactions) {
-        transaction->Abort();
+        abortTransaction(transaction);
     }
 }
 
@@ -3368,12 +3382,21 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     }
 
     std::vector<TFuture<void>> abortTransactionFutures;
+    THashMap<ITransactionPtr, TFuture<void>> transactionToAbortFuture;
     auto abortTransaction = [&] (const ITransactionPtr& transaction, const NNative::IClientPtr& client, bool sync = true) {
         if (transaction) {
-            // Transaction object may be in incorrect state, we need to abort using only transaction id.
-            auto asyncResult = AttachTransaction(transaction->GetId(), client)->Abort();
+            TFuture<void> abortFuture;
+            auto it = transactionToAbortFuture.find(transaction);
+            if (it == transactionToAbortFuture.end()) {
+                // Transaction object may be in incorrect state, we need to abort using only transaction id.
+                abortFuture = AttachTransaction(transaction->GetId(), client)->Abort();
+                YT_VERIFY(transactionToAbortFuture.emplace(transaction, abortFuture).second);
+            } else {
+                abortFuture = it->second;
+            }
+
             if (sync) {
-                abortTransactionFutures.push_back(asyncResult);
+                abortTransactionFutures.push_back(abortFuture);
             }
         }
     };

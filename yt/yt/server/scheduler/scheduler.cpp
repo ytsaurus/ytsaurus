@@ -3464,12 +3464,18 @@ private:
             initialState == EOperationState::ReviveInitializing;
         if (owningTransactions && operation->Transactions()) {
             std::vector<TFuture<void>> asyncResults;
+            THashSet<ITransactionPtr> abortedTransactions;
             auto scheduleAbort = [&] (const ITransactionPtr& transaction, TString transactionType) {
+                if (abortedTransactions.contains(transaction)) {
+                    return;
+                }
+
                 if (transaction) {
                     YT_LOG_DEBUG("Aborting transaction %v (Type: %v, OperationId: %v)",
                         transaction->GetId(),
                         transactionType,
                         operation->GetId());
+                    YT_VERIFY(abortedTransactions.emplace(transaction).second);
                     asyncResults.push_back(transaction->Abort());
                 } else {
                     YT_LOG_DEBUG("Transaction missed, skipping abort (Type: %v, OperationId: %v)",
@@ -3590,11 +3596,17 @@ private:
         YT_LOG_INFO(error, "Aborting operation without revival (OperationId: %v)",
              operation->GetId());
 
+        THashSet<ITransactionPtr> abortedTransactions;
         auto abortTransaction = [&] (ITransactionPtr transaction, const TString& type) {
+            if (abortedTransactions.contains(transaction)) {
+                return;
+            }
+
             if (transaction) {
                 YT_LOG_DEBUG("Aborting transaction %v (Type: %v, OperationId: %v)", transaction->GetId(), type, operation->GetId());
                 // Fire-and-forget.
                 transaction->Abort();
+                YT_VERIFY(abortedTransactions.emplace(transaction).second);
             } else {
                 YT_LOG_DEBUG("Transaction is missing, skipping abort (Type: %v, OperationId: %v)", type, operation->GetId());
             }

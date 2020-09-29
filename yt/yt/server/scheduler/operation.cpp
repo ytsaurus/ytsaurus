@@ -78,18 +78,27 @@ void FromProto(
     std::function<NNative::IClientPtr(TCellTag)> getClient,
     TDuration pingPeriod)
 {
+    THashMap<TTransactionId, ITransactionPtr> transactionIdToTransaction;
     auto attachTransaction = [&] (TTransactionId transactionId) -> ITransactionPtr {
         if (!transactionId) {
             return nullptr;
         }
 
-        auto client = getClient(CellTagFromId(transactionId));
+        auto it = transactionIdToTransaction.find(transactionId);
+        if (it == transactionIdToTransaction.end()) {
+            auto client = getClient(CellTagFromId(transactionId));
 
-        TTransactionAttachOptions options;
-        options.Ping = true;
-        options.PingAncestors = false;
-        options.PingPeriod = pingPeriod;
-        return client->AttachTransaction(transactionId, options);
+            TTransactionAttachOptions options;
+            options.Ping = true;
+            options.PingAncestors = false;
+            options.PingPeriod = pingPeriod;
+
+            auto transaction = client->AttachTransaction(transactionId, options);
+            YT_VERIFY(transactionIdToTransaction.emplace(transactionId, transaction).second);
+            return transaction;
+        } else {
+            return it->second;
+        }
     };
 
     transactions->AsyncTransaction = attachTransaction(FromProto<TTransactionId>(transactionIdsProto.async_id()));
