@@ -434,7 +434,7 @@ void TClient::DoCheckClusterLiveness(
 {
     if (options.CheckCypressRoot) {
         TListNodeOptions listNodeOptions;
-        listNodeOptions.Timeout = Connection_->GetConfig()->LivenessCheckTimeout;
+        listNodeOptions.Timeout = Connection_->GetConfig()->ClusterLivenessCheckTimeout;
         listNodeOptions.MaxSize = 1;
         WaitFor(ListNode("/", listNodeOptions))
             .ThrowOnError();
