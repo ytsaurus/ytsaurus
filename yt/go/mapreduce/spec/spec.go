@@ -42,6 +42,7 @@ type UserScript struct {
 	EnableCPUReclaim    *bool   `yson:"enable_cpu_reclaim,omitempty"`
 	MemoryLimit         int64   `yson:"memory_limit,omitempty"`
 	MemoryReserveFactor float64 `yson:"memory_reserve_factor,omitempty"`
+	GPULimit            int     `yson:"gpu_limit,omitempty"`
 
 	EnablePorto string `yson:"enable_porto,omitempty"`
 

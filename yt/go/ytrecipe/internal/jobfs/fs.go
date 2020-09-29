@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -144,7 +145,7 @@ func (fs *FS) AddStructure(dir string) error {
 }
 
 func copyFile(src, dst string) (int64, error) {
-	in, err := os.Open(src)
+	in, err := os.OpenFile(src, os.O_RDWR, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -156,7 +157,7 @@ func copyFile(src, dst string) (int64, error) {
 	}
 	defer out.Close()
 
-	n, err := io.CopyBuffer(out, in, make([]byte, bufferSize))
+	n, err := io.CopyBuffer(out, &punchholeReader{f: in}, make([]byte, bufferSize))
 	if err != nil {
 		return n, err
 	}
@@ -220,6 +221,13 @@ func (fs *FS) LocateBindPoints() ([]string, error) {
 	binds := map[string]struct{}{}
 
 	visit := func(fsPath string, isDir bool) {
+		fsPath = filepath.Clean(fsPath)
+
+		// tmp directory is already created by the job proxy
+		if strings.HasPrefix(fsPath, "/var/tmp/") || strings.HasPrefix(fsPath, "/tmp/") {
+			return
+		}
+
 		if err != nil {
 			return
 		}
@@ -265,11 +273,6 @@ func (fs *FS) LocateBindPoints() ([]string, error) {
 
 	var bindPoints []string
 	for p := range binds {
-		// tmp directory is already created by the job proxy
-		if p == "/var/tmp" || p == "/tmp" {
-			continue
-		}
-
 		bindPoints = append(bindPoints, p)
 	}
 	return bindPoints, nil
@@ -345,7 +348,7 @@ func (fs *FS) Recreate(l log.Structured) (err error) {
 		tar := tar
 
 		eg.Go(func() error {
-			tarFile, err := os.Open(filepath.Join(BlobDir, md5Hash.String()))
+			tarFile, err := os.OpenFile(filepath.Join(BlobDir, md5Hash.String()), os.O_RDWR, 0)
 			if err != nil {
 				return err
 			}
@@ -354,7 +357,8 @@ func (fs *FS) Recreate(l log.Structured) (err error) {
 			l.Debug("started unpacking directory",
 				log.String("path", tar.LocalPath))
 
-			if err := tarstream.Receive(tar.LocalPath, bufio.NewReaderSize(tarFile, bufferSize)); err != nil {
+			br := bufio.NewReaderSize(&punchholeReader{f: tarFile}, bufferSize)
+			if err := tarstream.Receive(tar.LocalPath, br); err != nil {
 				return err
 			}
 
