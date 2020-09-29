@@ -33,6 +33,7 @@ type UserScript struct {
 	MakeRootFSWritable bool              `yson:"make_rootfs_writable,omitempty"`
 
 	TmpfsPath string `yson:"tmpfs_path,omitempty"`
+	TmpfsSize int64  `yson:"tmpfs_size,omitempty"`
 	CopyFiles bool   `yson:"copy_files,omitempty"`
 
 	// CPULimit corresponds to cpu_limit job setting.

@@ -23,7 +23,7 @@ func init() {
 
 	downloadCmd.Flags().StringVar(&flagPath, "path", "", "cypress path")
 	downloadCmd.Flags().StringVar(&flagOutput, "output", "", "output directory")
-	downloadCmd.Flags().Bool("update-me-to-v2", false, "dummy flag to check for version compatibility")
+	downloadCmd.Flags().Bool("update-me-to-v3", false, "dummy flag to check for version compatibility")
 	downloadCmd.Flags().BoolVar(&flagSkipYaOutput, "skip-ya-output", false, "")
 }
 

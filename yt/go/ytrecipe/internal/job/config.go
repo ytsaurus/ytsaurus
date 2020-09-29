@@ -7,8 +7,11 @@ import (
 )
 
 const (
-	DefaultBaseLayer     = ypath.Path("//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz")
-	MemoryReserve        = 128 * (1 << 20)
+	DefaultBaseLayer = ypath.Path("//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz")
+
+	MemoryReserve = 128 * (1 << 20)
+	TmpfsReserve  = 256 * (1 << 20)
+
 	OperationTimeReserve = time.Minute * 5
 )
 
@@ -35,19 +38,30 @@ type OperationConfig struct {
 	// собой используя дин-таблицу. Один процесс займётся загрузкой, а 99 будут ждать результата.
 	CoordinateUpload bool `json:"coordinate_upload" yson:"coordinate_upload"`
 
-	// CPULimit будет поставлен в спеку операции. При этом, CPU reclaim
-	// для этой операции будет выключен. Это значит, что у джоба не будут забирать CPU,
+	// CPULimit будет поставлен в спеку операции.
+	//
+	// При этом, CPU reclaim для этой операции будет выключен. Это значит, что у джоба не будут забирать CPU,
 	// если он потребляет меньше лимита.
 	CPULimit float64 `json:"cpu_limit" yson:"cpu_limit"`
-	// MemoryLimit будет поставлен в спеку операции. При этом,
-	// `memory_reserve_factor` для этой операции будет выставлен в 1.0. Это значит,
+
+	// MemoryLimit задаёт максимальное потребление памяти в байтах.
+	//
+	// `memory_reserve_factor` для операции будет выставлен в 1.0. Это значит,
 	// что шедулер будет сразу запускать операцию с нужной гарантией, и будет выключен
-	// алгоритм подгонки `memory_limit`. Внутри джобы, будет создан вложенный контейнер,
-	// на котором будет включен memory контроллер. Потребление памяти и tmpfs внутри
-	// этого контейнера будет засчитываться в общий лимит. В случае OOM, команда
-	// будет убита, но джоб, операция и ytexec завершатся успешно. Информация о том,
+	// алгоритм подгонки `memory_limit`.
+	//
+	// Внутри джобы, будет создан вложенный контейнер, на котором будет включен memory контроллер.
+	//
+	// В случае OOM, команда будет убита, но джоб, операция и ytexec завершатся успешно. Информация о том,
 	// что произошёл OOM будет доступна в ResultFile.
 	MemoryLimit int `json:"memory_limit" yson:"memory_limit"`
+
+	// TmpfsSize задаёт максимальный размер tmpfs в байтах.
+	//
+	// При запуске на YT, все файлы по умолчанию располагаются на tmpfs.
+	//
+	// Реальный размер tmpfs будет равен TmpfsSize + сумма размеров всех файлов.
+	TmpfsSize int `json:"tmpfs_size" yson:"tmpfs_size"`
 
 	// Timeout задаёт общий таймаут на работу операции.
 	Timeout time.Duration `json:"timeout" yson:"timeout"`

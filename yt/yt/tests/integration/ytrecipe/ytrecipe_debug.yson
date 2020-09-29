@@ -28,7 +28,8 @@
 
     resource_limits={
         cpu_limit=10;
-        memory_limit=30000000000;
+        memory_limit=10000000000;
+        tmpfs_size=10000000000;
     };
 
     job_timeout_seconds=1700;
