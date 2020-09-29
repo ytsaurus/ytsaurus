@@ -37,7 +37,7 @@ public class LocalYt {
     }
 
     private static Address getAddressInstance() {
-        var tmpAddress = address;
+        Address tmpAddress = address;
         if (tmpAddress == null) {
             synchronized (LocalYt.class) {
                 tmpAddress = address;
@@ -55,7 +55,7 @@ public class LocalYt {
         private final int port;
 
         private Address() {
-            final var ytProxy = System.getenv("YT_PROXY");
+            final String ytProxy = System.getenv("YT_PROXY");
             if (ytProxy == null) {
                 throw new RuntimeException(
                         "Cannot get address of local YT instance: environment variable $YT_PROXY is not set."
@@ -79,7 +79,7 @@ public class LocalYt {
             if (host.contains(".yt.yandex.net")
                     || !host.contains(".") && !host.equals("localhost"))
             {
-                var confirmation = System.getenv("YT_DANGEROUS_CONFIRMATION");
+                String confirmation = System.getenv("YT_DANGEROUS_CONFIRMATION");
                 if (confirmation == null || !confirmation.equals("hereby I confirm that I understand consequences of my actions")) {
                     // NB. It's dangerous to run tests on the production instance.
                     // (Especially if you are developer of YT).
