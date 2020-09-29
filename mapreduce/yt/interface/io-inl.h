@@ -113,6 +113,7 @@ struct IReaderImplBase
     // Not pure virtual because of clients that has already implemented this interface.
     virtual TMaybe<size_t> GetReadByteCount() const;
     virtual i64 GetTabletIndex() const;
+    virtual bool IsEndOfStream() const;
 };
 
 struct INodeReaderImpl
@@ -182,6 +183,11 @@ public:
         Reader_->Next();
         ++ReadRowCount_;
         RowState_ = ERowState::None;
+    }
+
+    bool IsEndOfStream()
+    {
+        return Reader_->IsEndOfStream();
     }
 
     ui32 GetTableIndex() const

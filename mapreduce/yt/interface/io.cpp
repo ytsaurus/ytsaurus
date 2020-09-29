@@ -15,7 +15,12 @@ TMaybe<size_t> IReaderImplBase::GetReadByteCount() const
 
 i64 IReaderImplBase::GetTabletIndex() const
 {
-    Y_FAIL("Unimplemented");   
+    Y_FAIL("Unimplemented");
+}
+
+bool IReaderImplBase::IsEndOfStream() const
+{
+    Y_FAIL("Unimplemented");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

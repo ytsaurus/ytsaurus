@@ -10,10 +10,11 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const i32 CONTROL_ATTR_TABLE_INDEX = -1;
-const i32 CONTROL_ATTR_KEY_SWITCH  = -2;
-const i32 CONTROL_ATTR_RANGE_INDEX = -3;
-const i32 CONTROL_ATTR_ROW_INDEX   = -4;
+const i32 CONTROL_ATTR_TABLE_INDEX   = -1;
+const i32 CONTROL_ATTR_KEY_SWITCH    = -2;
+const i32 CONTROL_ATTR_RANGE_INDEX   = -3;
+const i32 CONTROL_ATTR_ROW_INDEX     = -4;
+const i32 CONTROL_ATTR_END_OF_STREAM = -5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +58,7 @@ void TLenvalTableReader::Next()
                 return;
             }
 
-            while (value < 0) {
+            while (value < 0 && !IsEndOfStream_) {
                 switch (value) {
                     case CONTROL_ATTR_KEY_SWITCH:
                         if (!AtStart_) {
@@ -87,6 +88,10 @@ void TLenvalTableReader::Next()
                         ReadInteger(&tmp);
                         RangeIndex_ = tmp;
                         ReadInteger(&value);
+                        break;
+                    }
+                    case CONTROL_ATTR_END_OF_STREAM: {
+                        IsEndOfStream_ = true;
                         break;
                     }
                     default:
@@ -158,6 +163,11 @@ ui64 TLenvalTableReader::GetRowIndex() const
 TMaybe<size_t> TLenvalTableReader::GetReadByteCount() const
 {
     return Input_.GetReadByteCount();
+}
+
+bool TLenvalTableReader::IsEndOfStream() const
+{
+    return IsEndOfStream_;
 }
 
 bool TLenvalTableReader::PrepareRetry()

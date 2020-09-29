@@ -171,7 +171,7 @@ public:
     /// Check whether all the rows were read.
     bool IsValid() const;
 
-    /// Move the cursor to the next row. 
+    /// Move the cursor to the next row.
     void Next();
 
     /// Get table index of the current row.
@@ -185,6 +185,9 @@ public:
 
     /// Get current tablet index (for ordered dynamic tables).
     i64 GetTabletIndex() const;
+
+    /// Returns `true` if job consumed all the input and `false` otherwise.
+    bool IsEndOfStream() const;
 };
 
 /// @brief Iterator for use in range-based-for.

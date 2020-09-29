@@ -22,6 +22,7 @@ protected:
     ui64 GetRowIndex() const;
     void NextKey();
     TMaybe<size_t> GetReadByteCount() const;
+    bool IsEndOfStream() const;
 
     void CheckValidity() const;
 
@@ -50,6 +51,7 @@ protected:
     ui32 TableIndex_ = 0;
     TMaybe<ui64> RowIndex_;
     TMaybe<ui32> RangeIndex_;
+    bool IsEndOfStream_ = false;
     bool AtStart_ = true;
     bool RowTaken_ = true;
     ui32 Length_ = 0;

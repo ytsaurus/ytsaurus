@@ -83,6 +83,7 @@ public:
     i64 GetTabletIndex() const override;
     void NextKey() override;
     TMaybe<size_t> GetReadByteCount() const override;
+    bool IsEndOfStream() const override;
 
 private:
     void NextImpl();
@@ -102,6 +103,7 @@ private:
     TMaybe<ui64> RowIndex_;
     TMaybe<ui32> RangeIndex_;
     TMaybe<i64> TabletIndex_;
+    bool IsEndOfStream_ = false;
     bool AtStart_ = true;
 
     TMaybe<TRowElement> Row_;
