@@ -69,6 +69,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NRpc;
 using namespace NApi;
+using namespace NLogging;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadLimit;
@@ -820,6 +821,11 @@ public:
         YT_ABORT();
     }
 
+    ~TSchemalessMergingMultiChunkReader()
+    {
+        YT_LOG_DEBUG("Schemaless merging multi chunk reader data statistics (DataStatistics: %v)", TSchemalessMergingMultiChunkReader::GetDataStatistics());
+    }
+
 private:
     const TTableReaderOptionsPtr Options_;
     const ISchemafulUnversionedReaderPtr UnderlyingReader_;
@@ -860,6 +866,8 @@ private:
 
     const TPromise<void> ErrorPromise_ = NewPromise<void>();
 
+    TLogger Logger;
+
     TSchemalessMergingMultiChunkReader(
         TTableReaderOptionsPtr options,
         ISchemafulUnversionedReaderPtr underlyingReader,
@@ -868,7 +876,8 @@ private:
         std::vector<int> idMapping,
         TNameTablePtr nameTable,
         i64 rowCount,
-        IMultiReaderMemoryManagerPtr parallelReaderMemoryManager)
+        IMultiReaderMemoryManagerPtr parallelReaderMemoryManager,
+        TLogger logger)
         : Options_(options)
         , UnderlyingReader_(std::move(underlyingReader))
         , DataSliceDescriptor_(dataSliceDescriptor)
@@ -877,6 +886,7 @@ private:
         , NameTable_(nameTable)
         , RowCount_(rowCount)
         , ParallelReaderMemoryManager_(std::move(parallelReaderMemoryManager))
+        , Logger(std::move(logger))
     {
         if (!DataSliceDescriptor_.ChunkSpecs.empty()) {
             TableIndex_ = DataSliceDescriptor_.ChunkSpecs.front().table_index();
@@ -1230,7 +1240,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         std::move(idMapping),
         std::move(nameTable),
         rowCount,
-        std::move(readerMemoryManager));
+        std::move(readerMemoryManager),
+        Logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
