@@ -139,7 +139,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
         }
     }
 
-    if (context.GetVersion() != NCellMaster::GetCurrentReign()) {
+    if (context.GetVersion() != NCellMaster::GetCurrentReign() && Attributes_) {
         const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
         for (const auto& [key, value] : Attributes_->Attributes()) {
             auto internedKey = TInternedAttributeKey::Lookup(key);
@@ -246,7 +246,7 @@ void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
 
     // TODO(renadeen): kill after move attributes into subconfig.
-    if (context.GetVersion() != NCellMaster::GetCurrentReign()) {
+    if (context.GetVersion() != NCellMaster::GetCurrentReign() && Attributes_) {
         const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
         for (const auto& [key, value] : Attributes_->Attributes()) {
             auto internedKey = TInternedAttributeKey::Lookup(key);
