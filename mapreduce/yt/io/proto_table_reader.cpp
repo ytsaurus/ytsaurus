@@ -186,6 +186,11 @@ TMaybe<size_t> TProtoTableReader::GetReadByteCount() const
     return NodeReader_->GetReadByteCount();
 }
 
+bool TProtoTableReader::IsEndOfStream() const
+{
+    return NodeReader_->IsEndOfStream();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLenvalProtoTableReader::TLenvalProtoTableReader(
@@ -253,6 +258,11 @@ void TLenvalProtoTableReader::NextKey()
 TMaybe<size_t> TLenvalProtoTableReader::GetReadByteCount() const
 {
     return TLenvalTableReader::GetReadByteCount();
+}
+
+bool TLenvalProtoTableReader::IsEndOfStream() const
+{
+    return TLenvalTableReader::IsEndOfStream();
 }
 
 void TLenvalProtoTableReader::SkipRow()

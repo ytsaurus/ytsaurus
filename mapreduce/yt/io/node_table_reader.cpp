@@ -324,6 +324,8 @@ void TNodeTableReader::NextImpl()
                     RangeIndex_ = static_cast<ui32>(entry.second.AsInt64());
                 } else if (entry.first == "tablet_index") {
                     TabletIndex_ = entry.second.AsInt64();
+                } else if (entry.first == "end_of_stream") {
+                    IsEndOfStream_ = true;
                 }
             }
 
@@ -390,6 +392,11 @@ void TNodeTableReader::NextKey()
 TMaybe<size_t> TNodeTableReader::GetReadByteCount() const
 {
     return Input_.GetReadByteCount();
+}
+
+bool TNodeTableReader::IsEndOfStream() const
+{
+    return IsEndOfStream_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
