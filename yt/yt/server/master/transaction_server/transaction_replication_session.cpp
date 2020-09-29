@@ -566,7 +566,7 @@ TFuture<void> RunTransactionReplicationSession(
                     context->Reply(error);
                 }
             })
-            .Via(std::move(automatonInvoker)));
+            .AsyncVia(std::move(automatonInvoker)));
     }
 }
 
