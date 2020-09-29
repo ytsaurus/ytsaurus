@@ -1480,6 +1480,8 @@ class TestJobInput(ClickHouseTestBase):
 
     @authors("max42")
     def test_computed_column_chunk_filter(self):
+        # See also: computed_columns_ut.cpp.
+
         create("table", "//tmp/t", attributes={"schema": [{"name": "c", "type": "int64", "sort_order": "ascending",
                                                            "expression": "i *  2"},
                                                           {"name": "i", "type": "int64", "sort_order": "ascending"}]})
@@ -1494,9 +1496,14 @@ class TestJobInput(ClickHouseTestBase):
                 clique.make_query_and_validate_row_count('select * from "//tmp/t" where i == 3', exact=correct_row_count(2))
                 clique.make_query_and_validate_row_count('select * from "//tmp/t" where i == 6 or i == 7', exact=correct_row_count(2))
                 clique.make_query_and_validate_row_count('select * from "//tmp/t" where i == 0 or i == 9', exact=correct_row_count(4))
-                # These cases should not be optimized.
+                clique.make_query_and_validate_row_count('select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=correct_row_count(4))
+                clique.make_query_and_validate_row_count('select * from "//tmp/t" where i in tuple(-1, 2, 8, 8, 15)', exact=correct_row_count(4))
+                clique.make_query_and_validate_row_count('select * from "//tmp/t" where i in (1)', exact=correct_row_count(2))
+                clique.make_query_and_validate_row_count('select * from "//tmp/t" where i in tuple(1)', exact=correct_row_count(2))
+
+                # This case should not be optimized.
                 clique.make_query_and_validate_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', exact=10)
-                clique.make_query_and_validate_row_count('select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
+
 
     @authors("max42")
     def test_dynamic_table_farm_hash(self):
@@ -1518,6 +1525,29 @@ class TestJobInput(ClickHouseTestBase):
             clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)
             clique.make_query_and_validate_row_count("select * from `//tmp/t` where key == 'k1' or key = 'k3'", exact=2)
             clique.make_query_and_validate_row_count("select * from (select * from `//tmp/t` where key == 'k4')", exact=1)
+
+    @authors("max42")
+    def test_dynamic_table_farm_hash_two_components(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "computed_key", "type": "uint64", "sort_order": "ascending",
+                                                           "expression": "farm_hash(key, subkey)"},
+                                                          {"name": "key", "type": "string", "sort_order": "ascending"},
+                                                          {"name": "subkey", "type": "string", "sort_order": "ascending"},
+                                                          {"name": "value", "type": "string"}],
+                                               "dynamic": True,
+                                               "enable_dynamic_store_read": True})
+        tablet_count = 100
+        sync_reshard_table("//tmp/t", [[]] + [[yson.YsonUint64(i * 2**64 // tablet_count)] for i in xrange(tablet_count)])
+        sync_mount_table("//tmp/t")
+        key_count = 5
+        for i in xrange(key_count):
+            insert_rows("//tmp/t", [{"key": "k" + str(i), "subkey": "sk" + str(i), "value": "v" + str(i)}])
+
+        with Clique(1, config_patch={"yt": {"settings": {"enable_computed_column_deduction": True},
+                                            "enable_dynamic_tables": True}}) as clique:
+            assert len(clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)) == 5
+            assert len(clique.make_query_and_validate_row_count("select * from `//tmp/t` where (key, subkey) == ('k1', 'sk1') or (key, subkey) = ('k3', 'sk3')", exact=2)) == 2
+            assert len(clique.make_query_and_validate_row_count("select * from (select * from `//tmp/t` where (key, subkey) == ('k4', 'sk4'))", exact=1)) == 1
+
 
     @authors("dakovalkov")
     def test_common_schema_sorted(self):

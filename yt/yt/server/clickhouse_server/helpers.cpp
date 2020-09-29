@@ -320,6 +320,11 @@ void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson:
         .EndMap();
 }
 
+TString ToString(const Field& field)
+{
+    return TString(field.dump());
+}
+
 TString ToString(const Block& block)
 {
     NYT::TStringBuilder content;

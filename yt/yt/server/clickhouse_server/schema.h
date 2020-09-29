@@ -19,6 +19,8 @@ std::vector<TString> ToVectorString(const DB::Names& columnNames);
 
 // YT logical type system -> CH data type system.
 
+DB::DataTypePtr ToDataType(const NTableClient::TLogicalTypePtr& logicalType);
+
 DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema);
 
 DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema);
