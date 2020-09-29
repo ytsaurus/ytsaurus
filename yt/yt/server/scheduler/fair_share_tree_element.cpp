@@ -3898,6 +3898,7 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
         switch (increaseResult) {
             case EResourceTreeIncreaseResult::Success: {
                 *precommittedResources += resourceDelta;
+                break;
             }
             case EResourceTreeIncreaseResult::ResourceLimitExceeded: {
                 auto jobId = scheduleJobResult->StartDescriptor->Id;
@@ -3912,6 +3913,7 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
                 // Reset result.
                 scheduleJobResult = New<TControllerScheduleJobResult>();
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
+                break;
             }
             case EResourceTreeIncreaseResult::ElementIsNotAlive: {
                 auto jobId = scheduleJobResult->StartDescriptor->Id;
@@ -3921,6 +3923,7 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
 
                 scheduleJobResult = New<TControllerScheduleJobResult>();
                 scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationIsNotAlive);
+                break;
             }
             default:
                 YT_ABORT();

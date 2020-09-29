@@ -6,6 +6,7 @@ from yt_helpers import *
 
 from yt.test_helpers import are_almost_equal
 import yt.environment.init_operation_archive as init_operation_archive
+import yt.common
 
 from flaky import flaky
 
@@ -1496,7 +1497,7 @@ class TestSchedulingStrategyAlgorithmConfigPerTree(YTEnvSetup):
 
 
 @authors("renadeen")
-class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
+class BaseTestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
     # Scenario:
     # 1. operation is running in two trees
     # 2. scheduler sends to controller request to schedule job in some tree
@@ -1512,7 +1513,7 @@ class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
+    BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,  # Update pools configuration period
             "node_shard_count": 2,
@@ -1534,3 +1535,13 @@ class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
         remove("//sys/pool_trees/other")
         op.wait_for_state("completed")
         op.track()
+
+class TestRaceBetweenSchedulingJobAndDisablingOperationClassic(BaseTestRaceBetweenSchedulingJobAndDisablingOperation):
+    DELTA_SCHEDULER_CONFIG = BaseTestRaceBetweenSchedulingJobAndDisablingOperation.BASE_DELTA_SCHEDULER_CONFIG
+
+class TestRaceBetweenSchedulingJobAndDisablingOperationVector(BaseTestRaceBetweenSchedulingJobAndDisablingOperation):
+    DELTA_SCHEDULER_CONFIG = yt.common.update(
+        BaseTestRaceBetweenSchedulingJobAndDisablingOperation.BASE_DELTA_SCHEDULER_CONFIG,
+        {"scheduler": {"use_classic_scheduler": False}}
+    )
+
