@@ -39,7 +39,7 @@ Cypress link: {{.CypressURL}}
 
 Use following command to download all logs and core dumps:
 
-ytrecipe-tool download --proxy {{$cluster}} --path {{.CypressOutDir}} --update-me-to-v2
+ytrecipe-tool download --proxy {{$cluster}} --path {{.CypressOutDir}} --update-me-to-v3
 
 Install ytrecipe-tool from source:
 
@@ -56,7 +56,7 @@ yt --proxy {{$cluster}} download {{.CypressPath}} > {{filepathBase .LocalPath}}
 var downloadTmpl = template.Must(template.New("").Parse(`
 #!/bin/sh
 {{$cluster := .Cluster}}
-ytrecipe-tool download --proxy {{$cluster}} --path {{.CypressOutDir}} --output $(dirname "$0") --skip-ya-output --update-me-to-v2
+ytrecipe-tool download --proxy {{$cluster}} --path {{.CypressOutDir}} --output $(dirname "$0") --skip-ya-output --update-me-to-v3
 `[1:]))
 
 func (e *Exec) writePrepare(job *job.Job, outDir ypath.Path) error {

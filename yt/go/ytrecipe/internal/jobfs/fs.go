@@ -41,10 +41,11 @@ type File struct {
 
 // FS describes local file system that should be efficiently transferred to and from YT.
 type FS struct {
-	TarDirs  map[MD5]*TarDir
-	Files    map[MD5]*File
-	Symlinks map[string]string
-	Dirs     map[string]struct{}
+	TotalSize int64
+	TarDirs   map[MD5]*TarDir
+	Files     map[MD5]*File
+	Symlinks  map[string]string
+	Dirs      map[string]struct{}
 
 	Outputs   map[string]struct{}
 	YTOutputs map[string]struct{}
@@ -65,6 +66,17 @@ func New() *FS {
 	}
 }
 
+type counter struct {
+	w     io.Writer
+	total int64
+}
+
+func (c *counter) Write(p []byte) (int, error) {
+	n, err := c.w.Write(p)
+	c.total += int64(n)
+	return n, err
+}
+
 func (fs *FS) AddTarDir(dir string) error {
 	st, err := os.Stat(dir)
 	if err != nil {
@@ -79,9 +91,13 @@ func (fs *FS) AddTarDir(dir string) error {
 	}
 
 	hw := md5.New()
-	if err := tarstream.Send(dir, hw); err != nil {
+	counter := &counter{w: hw}
+
+	if err := tarstream.Send(dir, counter); err != nil {
 		return err
 	}
+
+	fs.TotalSize += counter.total
 
 	var h MD5
 	copy(h[:], hw.Sum(nil))
@@ -105,9 +121,12 @@ func (fs *FS) AddFile(path string) error {
 	}
 
 	hw := md5.New()
-	if _, err := io.Copy(hw, f); err != nil {
+
+	var n int64
+	if n, err = io.Copy(hw, f); err != nil {
 		return err
 	}
+	fs.TotalSize += n
 
 	var h MD5
 	copy(h[:], hw.Sum(nil))

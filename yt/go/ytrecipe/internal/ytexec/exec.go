@@ -235,7 +235,10 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 	}
 
 	s = spec.Vanilla().AddVanillaTask("testtool", 1)
-	s.MaxFailedJobCount = 1
+
+	// Retry errors caused by infrastructure problems. E.g portod restarts.
+	s.MaxFailedJobCount = 3
+
 	s.Pool = e.config.Operation.Pool
 	s.TimeLimit = yson.Duration(e.config.Operation.Timeout + job.OperationTimeReserve)
 	s.Title = e.config.Operation.Title
@@ -257,7 +260,9 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 	j.FS.AttachFiles(us)
 
 	us.TmpfsPath = "tmpfs"
-	us.MemoryLimit = int64(e.config.Operation.MemoryLimit) + job.MemoryReserve
+	us.TmpfsSize = int64(e.config.Operation.TmpfsSize) + j.FS.TotalSize + job.TmpfsReserve
+	us.MemoryLimit = int64(e.config.Operation.MemoryLimit) + job.MemoryReserve + us.TmpfsSize
+
 	us.MemoryReserveFactor = 1.0
 	us.CPULimit = float32(e.config.Operation.CPULimit)
 	us.LayerPaths = []ypath.Path{job.DefaultBaseLayer}

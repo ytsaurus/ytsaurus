@@ -54,6 +54,7 @@ func (c *Config) FillConfig(e *ytexec.Config) error {
 	e.Operation.Cluster = c.Cluster
 	e.Operation.CPULimit = float64(c.ResourceLimits.CPULimit)
 	e.Operation.MemoryLimit = c.ResourceLimits.MemoryLimit
+	e.Operation.TmpfsSize = c.ResourceLimits.TmpfsSize
 	e.Operation.CypressRoot = c.CachePath
 	e.Operation.CoordinateUpload = c.CoordinateUpload
 	e.Operation.EnablePorto = true
@@ -97,5 +98,6 @@ var DefaultConfig = Config{
 
 	ResourceLimits: ResourceLimits{
 		MemoryLimit: 8192 * (1 << 20),
+		TmpfsSize:   1024 * (1 << 20),
 	},
 }
