@@ -50,6 +50,13 @@ public:
 
     virtual TCoreDump WriteCoreDump(const std::vector<TString>& notes, const TString& reason) override
     {
+#ifdef _asan_enabled_
+        Y_UNUSED(notes);
+        Y_UNUSED(reason);
+
+        // Core dumps are huge under ASAN, so just give up.
+        THROW_ERROR_EXCEPTION("Writing core dumps is not supported under ASAN build");
+#else
         ++ActiveCoreDumpCount_;
         auto activeCoreDumpCountGuard = Finally([&] { --ActiveCoreDumpCount_; });
 
@@ -145,6 +152,7 @@ public:
         }
 #else
         THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
 #endif
     }
 
