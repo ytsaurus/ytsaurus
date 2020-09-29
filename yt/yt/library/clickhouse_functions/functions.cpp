@@ -1,4 +1,5 @@
-#include "public.h"
+#include "functions.h"
+
 #include "convert_yson.h"
 #include "ypath.h"
 #include "yson_extract.h"

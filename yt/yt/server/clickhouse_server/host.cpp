@@ -15,8 +15,6 @@
 #include "memory_watchdog.h"
 #include "health_checker.h"
 
-#include <yt/server/clickhouse_server/functions/public.h>
-
 #include <yt/server/lib/misc/address_helpers.h>
 
 #include <yt/ytlib/api/native/client.h>
@@ -32,6 +30,8 @@
 #include <yt/ytlib/object_client/object_attribute_cache.h>
 
 #include <yt/client/misc/discovery.h>
+
+#include <yt/yt/library/clickhouse_functions/functions.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
