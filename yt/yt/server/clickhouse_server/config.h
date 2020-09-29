@@ -48,6 +48,8 @@ public:
 
     bool ConvertRowBatchesInWorkerThreadPool;
 
+    bool InferDynamicTableRangesFromPivotKeys;
+
     TQuerySettings();
 };
 

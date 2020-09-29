@@ -198,6 +198,7 @@ class Clique(object):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        print_debug("Exiting clique %s", self.op.id)
         time.sleep(2)
         try:
             self.op.complete()

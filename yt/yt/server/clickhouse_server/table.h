@@ -30,6 +30,9 @@ struct TTable
     bool Dynamic = false;
     bool IsPartitioned = false;
 
+    //! Only for dynamic tables.
+    NTabletClient::TTableMountInfoPtr TableMountInfo;
+
     TTable(NYPath::TRichYPath path, const NYTree::IAttributeDictionaryPtr& attributes);
 };
 
@@ -48,3 +51,4 @@ std::vector<TTablePtr> FetchTables(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
+

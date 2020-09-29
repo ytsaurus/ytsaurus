@@ -114,6 +114,9 @@ TQuerySettings::TQuerySettings()
 
     RegisterParameter("convert_row_batches_in_worker_thread_pool", ConvertRowBatchesInWorkerThreadPool)
         .Default(true);
+
+    RegisterParameter("infer_dynamic_table_ranges_from_pivot_keys", InferDynamicTableRangesFromPivotKeys)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
