@@ -2470,10 +2470,16 @@ double TPool::GetSpecifiedResourceFlowRatio() const
 
 void TPool::UpdateAccumulatedResourceVolume(TDuration periodSinceLastUpdate)
 {
+    if (TotalResourceLimits_ == TJobResources()) {
+        YT_LOG_TRACE("Skip update of AccumulatedResourceVolume");
+        return;
+    }
+    YT_LOG_DEBUG("AccumulatedResourceVolume before update: %v", PersistentAttributes_.AccumulatedResourceVolume);
     PersistentAttributes_.AccumulatedResourceVolume += TotalResourceLimits_ * Attributes_.ResourceFlowRatio * periodSinceLastUpdate.SecondsFloat();
     PersistentAttributes_.AccumulatedResourceVolume -= TotalResourceLimits_ * PersistentAttributes_.LastIntegralShareRatio * periodSinceLastUpdate.SecondsFloat();
     PersistentAttributes_.AccumulatedResourceVolume = Max(PersistentAttributes_.AccumulatedResourceVolume, TJobResources());
     PersistentAttributes_.AccumulatedResourceVolume = Min(PersistentAttributes_.AccumulatedResourceVolume, GetIntegralPoolCapacity());
+    YT_LOG_DEBUG("AccumulatedResourceVolume after update: %v", PersistentAttributes_.AccumulatedResourceVolume);
 }
 
 void TPool::ApplyLimitsForRelaxedPool()
