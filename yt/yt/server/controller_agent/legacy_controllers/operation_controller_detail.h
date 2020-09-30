@@ -1073,6 +1073,8 @@ private:
     int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
+    int FailedJobCount_ = 0;
+
     // Finished jobs to be sent to scheduler in EAgentToSchedulerJobEventType::Released.
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
     std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;

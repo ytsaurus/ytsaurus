@@ -2687,6 +2687,10 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
+    YT_LOG_DEBUG("Job failed (JobId: %v)", jobId);
+
+    ++FailedJobCount_;
+
     auto error = FromProto<TError>(result.error());
 
     ParseStatistics(jobSummary.get(), joblet->StartTime, joblet->StatisticsYson);
@@ -2736,9 +2740,8 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
         return;
     }
 
-    int failedJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetFailed();
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
-    if (failedJobCount >= maxFailedJobCount) {
+    if (FailedJobCount_ >= maxFailedJobCount) {
         OnOperationFailed(
             TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
                 << TErrorAttribute("max_failed_job_count", maxFailedJobCount)
@@ -8738,6 +8741,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RetainedJobCount_);
     Persist(context, FinishedJobs_);
     Persist(context, JobSpecCompletedArchiveCount_);
+    Persist(context, FailedJobCount_);
     Persist(context, Sink_);
     Persist(context, AutoMergeTask_);
     Persist(context, AutoMergeTaskGroup);
