@@ -49,7 +49,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixDataFlowGraphPersistence)          (300416))
     ((JobResourcesIntToLong)                (300417))
     ((SchemafulMapReduce)                   (300418))
-    ((PartitionedTables)                    (300425))
+    ((PartitionedTables)                    (300419))
+    ((FailedJobCount)                       (300420))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
