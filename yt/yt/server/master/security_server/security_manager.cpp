@@ -129,7 +129,6 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     NRpc::TAuthenticationIdentity identity)
 {
     User_ = securityManager->GetUserByNameOrThrow(identity.User, true /*activeLifeStageOnly*/);
-
     securityManager->SetAuthenticatedUser(User_);
     SecurityManager_ = std::move(securityManager);
 
@@ -347,7 +346,7 @@ class TSecurityManager::TImpl
 {
 public:
     TImpl(
-        const TSecurityManagerConfigPtr& config, 
+        const TSecurityManagerConfigPtr& config,
         NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::SecurityManager)
         , RequestTracker_(New<TRequestTracker>(config->UserThrottler, bootstrap))
@@ -1675,6 +1674,7 @@ public:
         if (target.Column) {
             error.Attributes().Set("object_column", target.Column);
         }
+        error.Attributes().Set("object_type", target.Object->GetType());
         THROW_ERROR(error);
     }
 
