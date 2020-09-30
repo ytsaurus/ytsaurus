@@ -1612,6 +1612,7 @@ static TJobComparator GetJobsComparator(
 static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
 {
     if (auto archiveState = archiveJob->GetState(); archiveState && IsJobFinished(*archiveState)) {
+        // Archive job is most recent, it will not change anymore.
         return;
     }
 
@@ -1662,6 +1663,11 @@ static void UpdateJobsAndAddMissing(std::vector<std::vector<TJob>>&& controllerA
         archiveJobs->end(),
         std::make_move_iterator(newJobs.begin()),
         std::make_move_iterator(newJobs.end()));
+}
+
+static bool IsJobStale(std::optional<EJobState> controllerAgentState, std::optional<EJobState> archiveState)
+{
+    return !controllerAgentState && archiveState && IsJobInProgress(*archiveState);
 }
 
 TListJobsResult TClient::DoListJobs(
@@ -1755,7 +1761,7 @@ TListJobsResult TClient::DoListJobs(
 
     // Compute job staleness.
     for (auto& job : result.Jobs) {
-        job.IsStale = !job.ControllerAgentState && job.ArchiveState && IsJobInProgress(*job.ArchiveState);
+        job.IsStale = IsJobStale(job.ControllerAgentState, job.ArchiveState);
     }
 
     return result;
@@ -1905,12 +1911,18 @@ TYsonString TClient::DoGetJob(
 
     const auto& attributes = options.Attributes.value_or(DefaultGetJobAttributes);
 
-    auto job = DoGetJobFromArchive(operationId, jobId, deadline, attributes, options);
-    if (!job) {
-        job = DoGetJobFromControllerAgent(operationId, jobId, deadline, attributes, options);
-    }
+    auto controllerAgentJob = DoGetJobFromControllerAgent(operationId, jobId, deadline, attributes, options);
+    auto archiveJob = DoGetJobFromArchive(operationId, jobId, deadline, attributes, options);
 
-    if (!job) {
+    TJob job;
+    if (archiveJob && controllerAgentJob) {
+        job = std::move(*archiveJob);
+        MergeJobs(std::move(*controllerAgentJob), &job);
+    } else if (archiveJob) {
+        job = std::move(*archiveJob);
+    } else if (controllerAgentJob) {
+        job = std::move(*controllerAgentJob);
+    } else {
         THROW_ERROR_EXCEPTION(
             EErrorCode::NoSuchJob,
             "Job %v or operation %v not found neither in archive nor in controller agent",
@@ -1918,9 +1930,11 @@ TYsonString TClient::DoGetJob(
             operationId);
     }
 
+    job.IsStale = IsJobStale(job.ControllerAgentState, job.ArchiveState);
+
     return BuildYsonStringFluently()
         .Do([&] (TFluentAny fluent) {
-            Serialize(*job, fluent.GetConsumer(), "job_id");
+            Serialize(job, fluent.GetConsumer(), "job_id");
         });
 }
 
