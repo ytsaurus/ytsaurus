@@ -1,6 +1,7 @@
 package ru.yandex.yson;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 import javax.annotation.Nonnull;
 
@@ -41,6 +42,10 @@ public interface YsonConsumer {
      * Argument is byte array since yson string is an arbitrary byte sequence.
      */
     void onString(@Nonnull byte[] value);
+
+    default void onString(@Nonnull byte[] value, int offset, int length) {
+        onString(Arrays.copyOfRange(value, offset, offset + length));
+    }
 
     /**
      * Convenience method equivalent to calling {@link #onString(byte[])} with utf-8 representation of java string.
@@ -92,6 +97,10 @@ public interface YsonConsumer {
      * Called when map key or attribute key is encountered.
      */
     void onKeyedItem(@Nonnull byte[] value);
+
+    default void onKeyedItem(@Nonnull byte[] value, int offset, int length) {
+        onKeyedItem(Arrays.copyOfRange(value, offset, offset + length));
+    }
 
     /**
      * Convenience method equivalent to calling {@link #onKeyedItem(byte[])} with utf-8 representation of java string.
