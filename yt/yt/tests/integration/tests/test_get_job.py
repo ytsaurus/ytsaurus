@@ -5,8 +5,6 @@ import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.common import date_string_to_datetime, uuid_to_parts
 
-from yt.wrapper.common import uuid_hash_pair
-
 import __builtin__
 import copy
 import datetime
@@ -14,7 +12,46 @@ import datetime
 OPERATION_JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
 
 
-class TestGetJobBase(YTEnvSetup):
+def _delete_job_from_archive(op_id, job_id):
+    op_id_hi, op_id_lo = uuid_to_parts(op_id)
+    job_id_hi, job_id_lo = uuid_to_parts(job_id)
+    delete_rows(
+        OPERATION_JOB_ARCHIVE_TABLE,
+        [{
+            "operation_id_hi": op_id_hi,
+            "operation_id_lo": op_id_lo,
+            "job_id_hi": job_id_hi,
+            "job_id_lo": job_id_lo,
+        }],
+        atomicity="none",
+    )
+
+
+def _update_job_in_archive(op_id, job_id, attributes):
+    op_id_hi, op_id_lo = uuid_to_parts(op_id)
+    job_id_hi, job_id_lo = uuid_to_parts(job_id)
+    attributes.update({
+        "operation_id_hi": op_id_hi,
+        "operation_id_lo": op_id_lo,
+        "job_id_hi": job_id_hi,
+        "job_id_lo": job_id_lo,
+    })
+    insert_rows(OPERATION_JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none")
+
+
+def _get_job_from_archive(op_id, job_id):
+    op_id_hi, op_id_lo = uuid_to_parts(op_id)
+    job_id_hi, job_id_lo = uuid_to_parts(job_id)
+    rows = lookup_rows(OPERATION_JOB_ARCHIVE_TABLE, [{
+        "operation_id_hi": op_id_hi,
+        "operation_id_lo": op_id_lo,
+        "job_id_hi": job_id_hi,
+        "job_id_lo": job_id_lo,
+    }])
+    return rows[0] if rows else None
+
+
+class _TestGetJobBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -46,44 +83,41 @@ class TestGetJobBase(YTEnvSetup):
             override_tablet_cell_bundle="default",
         )
 
-    def _check_get_job(self, op_id, job_id, before_start_time, state, check_has_spec):
+    def _check_get_job(self, op_id, job_id, before_start_time, state=None,
+                       has_spec=True, is_stale=False,
+                       archive_state=None, controller_agent_state=None):
+        """None arguments mean do not check corresponding field in job"""
+
         job_info = retry(lambda: get_job(op_id, job_id))
 
         assert job_info["job_id"] == job_id
         assert job_info["operation_id"] == op_id
         assert job_info["type"] == "map"
-        assert job_info["state"] == state
+        if state is not None:
+            assert job_info["state"] == state
+        if archive_state is not None:
+            assert job_info["archive_state"] == archive_state
+        if controller_agent_state is not None:
+            assert job_info["controller_agent_state"] == controller_agent_state
         start_time = date_string_to_datetime(job_info["start_time"])
         assert before_start_time < start_time < datetime.datetime.utcnow()
+        assert job_info.get("is_stale") == is_stale
 
         attributes = ["job_id", "state", "start_time"]
         job_info = retry(lambda: get_job(op_id, job_id, attributes=attributes))
         assert __builtin__.set(attributes).issubset(__builtin__.set(job_info.keys()))
         attribute_difference = __builtin__.set(job_info.keys()) - __builtin__.set(attributes)
         assert attribute_difference.issubset(__builtin__.set(["archive_state", "controller_agent_state", "is_stale"]))
+        assert job_info.get("is_stale") == is_stale
 
-        if not check_has_spec:
-            return
-
-        def has_spec():
+        def check_has_spec():
             job_info = retry(lambda: get_job(op_id, job_id))
-            assert "has_spec" in job_info and job_info["has_spec"]
-        wait_assert(has_spec)
+            assert job_info.get("has_spec") == has_spec
+        if has_spec is not None:
+            wait_assert(check_has_spec)
 
-    def _delete_job_from_archive(self, op_id, job_id):
-        op_id_hi, op_id_lo = uuid_to_parts(op_id)
-        job_id_hi, job_id_lo = uuid_to_parts(job_id)
-        delete_rows(
-            OPERATION_JOB_ARCHIVE_TABLE,
-            [{
-                "operation_id_hi": op_id_hi,
-                "operation_id_lo": op_id_lo,
-                "job_id_hi": job_id_hi,
-                "job_id_lo": job_id_lo,
-            }],
-            atomicity="none",
-        )
 
+class _TestGetJobCommon(_TestGetJobBase):
     @authors("levysotsky")
     def test_get_job(self):
         create("table", "//tmp/t1")
@@ -106,7 +140,7 @@ class TestGetJobBase(YTEnvSetup):
         )
         job_id, = wait_breakpoint()
 
-        self._check_get_job(op.id, job_id, before_start_time, state="running", check_has_spec=False)
+        self._check_get_job(op.id, job_id, before_start_time, state="running", has_spec=None)
 
         def correct_stderr_size():
             job_info = retry(lambda: get_job(op.id, job_id))
@@ -116,16 +150,16 @@ class TestGetJobBase(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        self._check_get_job(op.id, job_id, before_start_time, state="failed", check_has_spec=True)
+        self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=True)
 
-        self._delete_job_from_archive(op.id, job_id)
+        _delete_job_from_archive(op.id, job_id)
 
         # Controller agent must be able to respond as it stores
         # zombie operation orchids.
-        self._check_get_job(op.id, job_id, before_start_time, state="failed", check_has_spec=False)
+        self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=None)
 
 
-class TestGetJob(TestGetJobBase):
+class TestGetJob(_TestGetJobCommon):
     @authors("gritukan")
     def test_get_job_task_name_attribute_vanilla(self):
         op = vanilla(
@@ -176,19 +210,8 @@ class TestGetJob(TestGetJobBase):
         )
         job_id, = wait_breakpoint()
 
-        operation_hash = uuid_hash_pair(op.id)
-        job_hash = uuid_hash_pair(job_id)
-        archive_path = init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
-        def get_job_from_archive(job_id):
-            rows = lookup_rows(archive_path, [{
-                "operation_id_hi": operation_hash.hi,
-                "operation_id_lo": operation_hash.lo,
-                "job_id_hi": job_hash.hi,
-                "job_id_lo": job_hash.lo,
-            }])
-            return rows[0] if rows else None
-        wait(lambda: get_job_from_archive(job_id) is not None)
-        job_from_archive = get_job_from_archive(job_id)
+        wait(lambda: _get_job_from_archive(op.id, job_id) is not None)
+        job_from_archive = _get_job_from_archive(op.id, job_id)
 
         abort_job(job_id)
         release_breakpoint()
@@ -197,21 +220,15 @@ class TestGetJob(TestGetJobBase):
         # We emulate the situation when aborted (in CA's opinion) job
         # still reports "running" to archive.
         del job_from_archive["operation_id_hash"]
-        insert_rows(
-            init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs",
-            [job_from_archive],
-            update=True,
-            atomicity="none",
-        )
+        _update_job_in_archive(op.id, job_id, job_from_archive)
 
-        self._check_get_job(op.id, job_id, before_start_time, state="running", check_has_spec=False)
-        job_info = retry(lambda: get_job(op.id, job_id))
-        assert job_info["archive_state"] == job_info["state"] == "running"
+        self._check_get_job(op.id, job_id, before_start_time, archive_state="running", has_spec=None)
 
-        self._delete_job_from_archive(op.id, job_id)
-        self._check_get_job(op.id, job_id, before_start_time, state="aborted", check_has_spec=False)
+        _delete_job_from_archive(op.id, job_id)
+
+        self._check_get_job(op.id, job_id, before_start_time, state="aborted", controller_agent_state="aborted", has_spec=None)
         job_info = retry(lambda: get_job(op.id, job_id))
-        assert job_info["controller_agent_state"] == job_info["state"] == "aborted"
+        assert "archive_state" not in job_info
 
     @authors("levysotsky")
     def test_not_found(self):
@@ -219,9 +236,50 @@ class TestGetJob(TestGetJobBase):
             get_job("1-2-3-4", "5-6-7-8")
 
 
-class TestGetJobStatisticsLz4(TestGetJobBase):
-    DELTA_NODE_CONFIG = copy.deepcopy(TestGetJobBase.DELTA_NODE_CONFIG)
+class TestGetJobStatisticsLz4(_TestGetJobCommon):
+    DELTA_NODE_CONFIG = copy.deepcopy(_TestGetJobBase.DELTA_NODE_CONFIG)
     DELTA_NODE_CONFIG["exec_agent"]["job_reporter"]["report_statistics_lz4"] = True
+
+
+class TestGetJobIsStale(_TestGetJobBase):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "zombie_operation_orchids": {
+                "clean_period": 5 * 1000,
+            },
+        }
+    }
+
+    @authors("levysotsky")
+    def test_get_job_is_stale(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("echo SOME-STDERR >&2; cat; BREAKPOINT"),
+        )
+        job_id, = wait_breakpoint()
+
+        abort_job(job_id)
+        release_breakpoint()
+        op.track()
+
+        # We emulate the situation when aborted (in CA's opinion) job
+        # still reports "running" to archive.
+        _update_job_in_archive(op.id, job_id, {"state": "running", "transient_state": "running"})
+
+        def is_job_removed_from_controller_agent():
+            job_info = retry(lambda: get_job(op.id, job_id))
+            return job_info.get("controller_agent_state") is None
+        wait(is_job_removed_from_controller_agent)
+
+        job_info = retry(lambda: get_job(op.id, job_id))
+        assert job_info.get("controller_agent_state") is None
+        assert job_info.get("archive_state") == "running"
+        assert job_info.get("is_stale") == True
 
 ##################################################################
 
