@@ -73,7 +73,7 @@ public class ClientPoolTest {
             assertThat(clientFuture1.isDone(), is(false));
             clientPool.updateClients(List.of());
 
-            waitFuture(clientFuture1, 100);
+            waitFuture(clientFuture1, 1000);
             assertThat(getError(clientFuture1).getMessage(), containsString("Cannot get rpc proxies"));
         } finally {
             done.complete(null);

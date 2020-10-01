@@ -1,6 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-public class GetLikeReq<T extends GetLikeReq> extends RequestBase<T> {
+public class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T> {
     protected final String path;
     protected ColumnFilter attributes;
     protected Integer maxSize;

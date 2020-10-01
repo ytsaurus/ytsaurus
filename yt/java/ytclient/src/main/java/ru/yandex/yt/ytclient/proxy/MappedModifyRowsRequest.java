@@ -11,7 +11,7 @@ import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
-public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
+public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest<MappedModifyRowsRequest<T>> {
 
     private final List<T> rows = new ArrayList<>();
     private final WireRowSerializer<T> serializer;
@@ -24,12 +24,6 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
     public MappedModifyRowsRequest(String path, WireRowSerializer<T> serializer) {
         super(path, serializer.getSchema());
         this.serializer = Objects.requireNonNull(serializer);
-    }
-
-    @Override
-    public MappedModifyRowsRequest<T> setRequireSyncReplica(boolean requireSyncReplica) {
-        super.setRequireSyncReplica(requireSyncReplica);
-        return this;
     }
 
     public void addInsert(T value) {

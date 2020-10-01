@@ -3,7 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 
-public abstract class CopyLikeReq<T extends CopyLikeReq> extends MutateNode<T> {
+public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T> {
 
     protected final String source;
     protected final String destination;

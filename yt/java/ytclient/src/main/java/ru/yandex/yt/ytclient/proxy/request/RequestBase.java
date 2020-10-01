@@ -12,7 +12,7 @@ import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.tracing.TTracingExt;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
-public class RequestBase<T extends RequestBase> {
+public class RequestBase<T extends RequestBase<T>> {
     private Duration timeout;
     private @Nullable GUID requestId;
     private @Nullable GUID traceId;

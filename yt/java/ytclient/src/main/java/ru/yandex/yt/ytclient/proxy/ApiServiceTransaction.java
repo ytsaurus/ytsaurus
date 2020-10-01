@@ -245,22 +245,22 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
     }
 
     @Override
-    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
+    public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request) {
         return client.lookupRows(request.setTimestamp(startTimestamp));
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> lookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer) {
+    public <T> CompletableFuture<List<T>> lookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer) {
         return client.lookupRows(request.setTimestamp(startTimestamp), serializer);
     }
 
     @Override
-    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
+    public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request) {
         return client.versionedLookupRows(request.setTimestamp(startTimestamp));
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(LookupRowsRequest request,
+    public <T> CompletableFuture<List<T>> versionedLookupRows(AbstractLookupRowsRequest<?> request,
                                                               YTreeObjectSerializer<T> serializer) {
         return client.versionedLookupRows(request.setTimestamp(startTimestamp), serializer);
     }
@@ -279,7 +279,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return client.selectRows(request.setTimestamp(startTimestamp), serializer);
     }
 
-    public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest request) {
+    public CompletableFuture<Void> modifyRows(AbstractModifyRowsRequest<?> request) {
         // TODO: hide id to request
         return client.modifyRows(id, request);
     }
