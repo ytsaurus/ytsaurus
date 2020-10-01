@@ -55,9 +55,11 @@ func emitDir(l log.Structured, w mapreduce.Writer, dir string) error {
 
 		if info.IsDir() {
 			return w.Write(FileRow{FilePath: path, IsDir: true})
+		} else if info.Mode().IsRegular() {
+			return emitFile(l, w, path)
 		}
 
-		return emitFile(l, w, path)
+		return nil
 	})
 
 	if os.IsNotExist(err) {
@@ -176,9 +178,11 @@ func emitCoreDumps(l log.Structured, w mapreduce.Writer, dir string) error {
 
 		if info.IsDir() {
 			return w.Write(FileRow{FilePath: path, IsDir: true})
+		} else if info.Mode().IsRegular() {
+			return emitSparseFile(l, w, path)
 		}
 
-		return emitSparseFile(l, w, path)
+		return nil
 	})
 }
 
