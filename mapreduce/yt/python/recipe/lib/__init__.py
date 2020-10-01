@@ -69,6 +69,7 @@ def start(args):
         fout.write(str(yt_stuff.yt_proxy_port))
 
     set_env("YT_PROXY", "localhost:" + str(yt_stuff.yt_proxy_port))
+    set_env("YT_ID", yt_stuff.yt_id)
 
     return yt_stuff
 

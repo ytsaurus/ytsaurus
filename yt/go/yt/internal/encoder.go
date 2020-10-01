@@ -658,3 +658,24 @@ func (e *Encoder) GenerateTimestamp(
 		})
 	return
 }
+
+func (e *Encoder) GetInSyncReplicas(
+	ctx context.Context,
+	path ypath.Path,
+	ts yt.Timestamp,
+	keys []interface{},
+	options *yt.GetInSyncReplicasOptions,
+) (ids []yt.NodeID, err error) {
+	call := e.newCall(NewGetInSyncReplicasParams(path, ts, options))
+
+	call.YSONValue, err = marshalKeys(keys)
+	if err != nil {
+		return nil, err
+	}
+
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return res.decode(&ids)
+	})
+
+	return
+}
