@@ -108,7 +108,6 @@ func ReadOutputTable(r yt.TableReader, transformPath func(string) (string, bool)
 			}
 
 		default:
-			// ignore stdout, stderr and exit code rows.
 		}
 	}
 
