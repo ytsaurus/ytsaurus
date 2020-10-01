@@ -14,17 +14,19 @@ type proxyBan struct {
 	at time.Time
 }
 
-func (b proxyBan) expired() bool {
+func (b proxyBan) expired(banDuration time.Duration) bool {
 	return time.Since(b.at) > banDuration
 }
 
 const (
-	updatePeriod = time.Second * 30
-	banDuration  = 5 * time.Minute
+	defaultUpdatePeriod = time.Second * 30
+	defaultBanDuration  = 5 * time.Minute
 )
 
 type ProxySet struct {
-	UpdateFn func() ([]string, error)
+	UpdatePeriod time.Duration
+	BanDuration  time.Duration
+	UpdateFn     func() ([]string, error)
 
 	banned sync.Map
 
@@ -38,6 +40,22 @@ type ProxySet struct {
 
 	alive      []string
 	aliveIndex map[string]int
+}
+
+func (s *ProxySet) updatePeriod() time.Duration {
+	if s.UpdatePeriod != 0 {
+		return s.UpdatePeriod
+	} else {
+		return defaultUpdatePeriod
+	}
+}
+
+func (s *ProxySet) banDuration() time.Duration {
+	if s.BanDuration != 0 {
+		return s.BanDuration
+	} else {
+		return defaultBanDuration
+	}
 }
 
 var errProxyListEmpty = errors.New("proxy list is empty")
@@ -65,7 +83,7 @@ func (s *ProxySet) updateProxies(updateDone chan struct{}) {
 		proxy := key.(string)
 		ban := value.(proxyBan)
 
-		if ban.expired() {
+		if ban.expired(s.banDuration()) {
 			cleanBan = append(cleanBan, proxy)
 		}
 
@@ -114,10 +132,11 @@ func (s *ProxySet) scheduleUpdate(force bool) (updateDone <-chan struct{}) {
 		return s.updateDone
 	}
 
-	if !force && time.Since(s.lastUpdateTime) > updatePeriod {
+	if !force && time.Since(s.lastUpdateTime) < s.updatePeriod() {
 		return s.updateDone
 	}
 
+	s.lastUpdateTime = time.Now()
 	s.updating = true
 	s.updateDone = make(chan struct{})
 	go s.updateProxies(s.updateDone)
