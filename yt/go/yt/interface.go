@@ -1020,6 +1020,8 @@ type LocateSkynetShareOptions struct{}
 
 type GenerateTimestampOptions struct{}
 
+type GetInSyncReplicasOptions struct{}
+
 type Client interface {
 	CypressClient
 	FileClient
@@ -1059,6 +1061,17 @@ type Client interface {
 		path ypath.YPath,
 		options *LocateSkynetShareOptions,
 	) (l ShareLocation, err error)
+
+	// http:verb:"get_in_sync_replicas"
+	// http:params:"path","timestamp"
+	// http:extra
+	GetInSyncReplicas(
+		ctx context.Context,
+		path ypath.Path,
+		ts Timestamp,
+		keys []interface{},
+		options *GetInSyncReplicasOptions,
+	) (ids []NodeID, err error)
 
 	// Stop() cancels and waits for completion of all background activity associated with this client.
 	//

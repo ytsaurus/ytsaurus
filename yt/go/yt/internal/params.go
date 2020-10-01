@@ -816,6 +816,12 @@ func writeGenerateTimestampOptions(w *yson.Writer, o *yt.GenerateTimestampOption
 	}
 }
 
+func writeGetInSyncReplicasOptions(w *yson.Writer, o *yt.GetInSyncReplicasOptions) {
+	if o == nil {
+		return
+	}
+}
+
 type CreateNodeParams struct {
 	verb    Verb
 	path    ypath.YPath
@@ -3135,4 +3141,48 @@ func (p *LocateSkynetShareParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("path")
 	w.Any(p.path)
 	writeLocateSkynetShareOptions(w, p.options)
+}
+
+type GetInSyncReplicasParams struct {
+	verb    Verb
+	path    ypath.Path
+	ts      yt.Timestamp
+	options *yt.GetInSyncReplicasOptions
+}
+
+func NewGetInSyncReplicasParams(
+	path ypath.Path,
+	ts yt.Timestamp,
+	options *yt.GetInSyncReplicasOptions,
+) *GetInSyncReplicasParams {
+	if options == nil {
+		options = &yt.GetInSyncReplicasOptions{}
+	}
+	return &GetInSyncReplicasParams{
+		Verb("get_in_sync_replicas"),
+		path,
+		ts,
+		options,
+	}
+}
+
+func (p *GetInSyncReplicasParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *GetInSyncReplicasParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
+func (p *GetInSyncReplicasParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+		log.Any("ts", p.ts),
+	}
+}
+
+func (p *GetInSyncReplicasParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	w.MapKeyString("timestamp")
+	w.Any(p.ts)
+	writeGetInSyncReplicasOptions(w, p.options)
 }

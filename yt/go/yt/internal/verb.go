@@ -52,6 +52,8 @@ const (
 	VerbGenerateTimestamp Verb = "generate_timestamp"
 
 	VerbLocateSkynetShare Verb = "locate_skynet_share"
+
+	VerbGetInSyncReplicas Verb = "get_in_sync_replicas"
 )
 
 func (v Verb) hasInput() bool {
@@ -60,6 +62,9 @@ func (v Verb) hasInput() bool {
 		return true
 
 	case VerbInsertRows, VerbDeleteRows, VerbLookupRows, VerbLockRows:
+		return true
+
+	case VerbGetInSyncReplicas:
 		return true
 	}
 
@@ -79,6 +84,9 @@ func (v Verb) IsHeavy() bool {
 
 	case VerbGetJobStderr:
 		return true
+
+	case VerbGetInSyncReplicas:
+		return true
 	}
 
 	return false
@@ -96,6 +104,9 @@ func (v Verb) volatile() bool {
 		return false
 
 	case VerbGenerateTimestamp:
+		return false
+
+	case VerbGetInSyncReplicas:
 		return false
 	}
 
