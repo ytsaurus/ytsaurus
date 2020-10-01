@@ -89,7 +89,7 @@ func isProxyBannedError(err error) bool {
 func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
 	for {
 		res, err = invoke(ctx, call)
-		if err == nil {
+		if err == nil || call.DisableRetries {
 			return
 		}
 
