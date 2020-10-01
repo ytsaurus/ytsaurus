@@ -208,8 +208,8 @@ class TOperationControllerStrategyHostMock
     : public IOperationControllerStrategyHost
 {
 public:
-    explicit TOperationControllerStrategyHostMock(const TJobResourcesWithQuotaList& jobResourcesList)
-        : JobResourcesList(jobResourcesList)
+    explicit TOperationControllerStrategyHostMock(TJobResourcesWithQuotaList jobResourcesList)
+        : JobResourcesList(std::move(jobResourcesList))
     { }
 
     MOCK_METHOD3(ScheduleJob, TFuture<TControllerScheduleJobResultPtr>(
@@ -265,8 +265,8 @@ private:
     TJobResourcesWithQuotaList JobResourcesList;
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationControllerStrategyHostMock)
 DECLARE_REFCOUNTED_TYPE(TOperationControllerStrategyHostMock)
+DEFINE_REFCOUNTED_TYPE(TOperationControllerStrategyHostMock)
 
 class TOperationStrategyHostMock
     : public TRefCounted
@@ -429,7 +429,7 @@ protected:
             host,
             FairShareTreeHostMock_.Get(),
             name,
-            config,
+            std::move(config),
             /* defaultConfigured */ true,
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
@@ -590,6 +590,8 @@ MATCHER_P2(ResourceVectorNear, vec, absError, "") {
 
 TEST_F(TFairShareTreeTest, TestAttributes)
 {
+    constexpr int OperationCount = 4;
+
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
     nodeResources.SetCpu(10);
@@ -600,24 +602,50 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     jobResources.SetCpu(1);
     jobResources.SetMemory(10);
 
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions->Weight = 1.0;
-
     auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
 
     auto rootElement = CreateTestRootElement(host.Get());
 
+    auto fifoPoolConfig = New<TPoolConfig>();
+    fifoPoolConfig->Mode = ESchedulingMode::Fifo;
+
     auto poolA = CreateTestPool(host.Get(), "PoolA");
     auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolC = CreateTestPool(host.Get(), "PoolC", fifoPoolConfig);
+    auto poolD = CreateTestPool(host.Get(), "PoolD", fifoPoolConfig);
 
     poolA->AttachParent(rootElement.Get());
     poolB->AttachParent(rootElement.Get());
+    poolC->AttachParent(rootElement.Get());
+    poolD->AttachParent(rootElement.Get());
 
-    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    operationOptions->Weight = 1.0;
 
-    operationElementX->AttachParent(poolA.Get(), true);
-    operationElementX->Enable();
+    std::array<TIntrusivePtr<TOperationStrategyHostMock>, OperationCount> operations;
+    std::array<TOperationElementPtr, OperationCount> operationElements;
+
+    for (auto& operation : operations) {
+        operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
+    }
+
+    for (int i = 0; i < OperationCount; ++i) {
+        if (i == OperationCount - 1) {
+            // Sleep to ensure FIFO order of operations 2 and 3.
+            Sleep(TDuration::MilliSeconds(10));
+        }
+
+        operationElements[i] = CreateTestOperationElement(host.Get(), operations[i].Get(), operationOptions);
+    }
+
+    operationElements[0]->AttachParent(poolA.Get(), true);
+    operationElements[1]->AttachParent(poolA.Get(), true);
+    operationElements[2]->AttachParent(poolC.Get(), true);
+    operationElements[3]->AttachParent(poolC.Get(), true);
+
+    for (auto& operationElement : operationElements) {
+        operationElement->Enable();
+    }
 
     {
         TDynamicAttributesList dynamicAttributes = {};
@@ -626,41 +654,93 @@ TEST_F(TFairShareTreeTest, TestAttributes)
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
         rootElement->Update(&dynamicAttributes, &updateContext);
 
-        TResourceVector expectedOperationDemand = TResourceVector::FromJobResources(jobResources, nodeResources, 0.0, 1.0);
-        EXPECT_EQ(expectedOperationDemand, rootElement->Attributes().DemandShare);
-        EXPECT_EQ(expectedOperationDemand, poolA->Attributes().DemandShare);
-        EXPECT_EQ(TResourceVector::Zero(), poolB->Attributes().DemandShare);
-        EXPECT_EQ(expectedOperationDemand, operationElementX->Attributes().DemandShare);
+        auto expectedOperationDemand = TResourceVector::FromJobResources(jobResources, nodeResources, 0.0, 1.0);
+        auto poolExpectedDemand = expectedOperationDemand * (OperationCount / 2.0);
+        auto totalExpectedDemand = expectedOperationDemand * OperationCount;
 
-        EXPECT_EQ(expectedOperationDemand, rootElement->Attributes().FairShare.Total);
-        EXPECT_EQ(expectedOperationDemand, rootElement->Attributes().DemandShare);
-        EXPECT_EQ(TResourceVector::Zero(), poolB->Attributes().FairShare.Total);
-        EXPECT_EQ(expectedOperationDemand, operationElementX->Attributes().FairShare.Total);
+        EXPECT_THAT(totalExpectedDemand, ResourceVectorNear(rootElement->Attributes().DemandShare, 1e-7));
+        EXPECT_THAT(poolExpectedDemand, ResourceVectorNear(poolA->Attributes().DemandShare, 1e-7));
+        EXPECT_THAT(TResourceVector::Zero(), ResourceVectorNear(poolB->Attributes().DemandShare, 1e-7));
+        EXPECT_THAT(poolExpectedDemand, ResourceVectorNear(poolC->Attributes().DemandShare, 1e-7));
+        EXPECT_THAT(TResourceVector::Zero(), ResourceVectorNear(poolD->Attributes().DemandShare, 1e-7));
+        for (const auto& operationElement : operationElements) {
+            EXPECT_THAT(expectedOperationDemand, ResourceVectorNear(operationElement->Attributes().DemandShare, 1e-7));
+        }
+
+        EXPECT_THAT(totalExpectedDemand, ResourceVectorNear(rootElement->Attributes().FairShare.Total, 1e-7));
+        EXPECT_THAT(poolExpectedDemand, ResourceVectorNear(poolA->Attributes().FairShare.Total, 1e-7));
+        EXPECT_THAT(TResourceVector::Zero(), ResourceVectorNear(poolB->Attributes().FairShare.Total, 1e-7));
+        EXPECT_THAT(poolExpectedDemand, ResourceVectorNear(poolC->Attributes().FairShare.Total, 1e-7));
+        EXPECT_THAT(TResourceVector::Zero(), ResourceVectorNear(poolD->Attributes().FairShare.Total, 1e-7));
+        for (const auto& operationElement : operationElements) {
+            EXPECT_THAT(expectedOperationDemand, ResourceVectorNear(operationElement->Attributes().FairShare.Total, 1e-7));
+        }
     }
 
-    std::vector<TJobId> jobIds;
     for (int i = 0; i < 10; ++i) {
-        auto jobId = TGuid::Create();
-        jobIds.push_back(jobId);
-        operationElementX->OnJobStarted(
-            jobId,
+        operationElements[0]->OnJobStarted(
+            TGuid::Create(),
+            jobResources.ToJobResources(),
+            /* precommitedResources */ {});
+        operationElements[2]->OnJobStarted(
+            TGuid::Create(),
             jobResources.ToJobResources(),
             /* precommitedResources */ {});
     }
 
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
-        auto dynamicAttributes = TDynamicAttributesList(4);
 
+        TDynamicAttributesList dynamicAttributes;
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
         rootElement->Update(&dynamicAttributes, &updateContext);
 
         // Demand increased to 0.2 due to started jobs, so did fair share.
         // usage(0.1) / fair_share(0.2) = 0.5
-        EXPECT_EQ(0.5, dynamicAttributes[operationElementX->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(0.5, dynamicAttributes[operationElements[0]->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(0.0, dynamicAttributes[operationElements[1]->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(0.5, dynamicAttributes[operationElements[2]->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(0.0, dynamicAttributes[operationElements[3]->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(0.0, dynamicAttributes[poolA->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(InfiniteSatisfactionRatio, dynamicAttributes[poolB->GetTreeIndex()].SatisfactionRatio);
+        // NB(eshcherbin): Here it's 0.5 because in FIFO pools we don't search for the least satisfied child;
+        // instead we take the first child from the queue.
+        EXPECT_EQ(0.5, dynamicAttributes[poolC->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(InfiniteSatisfactionRatio, dynamicAttributes[poolD->GetTreeIndex()].SatisfactionRatio);
+    }
+
+    for (int i = 0; i < 10; ++i) {
+        operationElements[1]->OnJobStarted(
+            TGuid::Create(),
+            jobResources.ToJobResources(),
+            /* precommitedResources */ {});
+        operationElements[3]->OnJobStarted(
+            TGuid::Create(),
+            jobResources.ToJobResources(),
+            /* precommitedResources */ {});
+    }
+
+    {
+        ResetFairShareFunctionsRecursively(rootElement.Get());
+
+        TDynamicAttributesList dynamicAttributes;
+        TUpdateFairShareContext updateContext;
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        // Demand increased to 0.2 due to started jobs, so did fair share.
+        // usage(0.1) / fair_share(0.2) = 0.5
+        EXPECT_EQ(0.5, dynamicAttributes[operationElements[0]->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(0.5, dynamicAttributes[operationElements[1]->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(0.5, dynamicAttributes[operationElements[2]->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(0.5, dynamicAttributes[operationElements[3]->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(0.5, dynamicAttributes[poolA->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(InfiniteSatisfactionRatio, dynamicAttributes[poolB->GetTreeIndex()].SatisfactionRatio);
+        // NB(eshcherbin): Here it's 0.5 because in FIFO pools we don't search for the least satisfied child;
+        // instead we take the first child from the queue.
+        EXPECT_EQ(0.5, dynamicAttributes[poolC->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(InfiniteSatisfactionRatio, dynamicAttributes[poolD->GetTreeIndex()].SatisfactionRatio);
     }
 }
 

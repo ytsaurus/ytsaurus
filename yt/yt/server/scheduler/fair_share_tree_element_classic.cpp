@@ -969,16 +969,16 @@ void TCompositeSchedulerElement::UpdateWeightProportionalShares(TDynamicAttribut
     UpdatePreemptionSettingsLimits();
 
     for (const auto& child : EnabledChildren_) {
-        // It is necessary to update satisfaction ratio in global attributes during update.
-        auto& dynamicAttributes = (*dynamicAttributesList)[child->GetTreeIndex()];
-        dynamicAttributes.Active = true;
-        child->UpdateDynamicAttributes(dynamicAttributesList);
-
         // Propagate updates to children.
         UpdateChildPreemptionSettings(child);
         if (auto* childPool = child->AsPool()) {
             childPool->UpdateWeightProportionalShares(dynamicAttributesList, context);
         }
+
+        // It is necessary to update satisfaction ratio in global attributes during update.
+        auto& dynamicAttributes = (*dynamicAttributesList)[child->GetTreeIndex()];
+        dynamicAttributes.Active = true;
+        child->UpdateDynamicAttributes(dynamicAttributesList);
     }
 }
 
