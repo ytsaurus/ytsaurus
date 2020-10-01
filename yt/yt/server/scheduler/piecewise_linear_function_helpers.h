@@ -12,6 +12,10 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const double CompressFunctionEpsilon = 1e-15;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TScalarPiecewiseLinearFunction ExtractComponent(int resourceIndex, const TVectorPiecewiseLinearFunction& vecFunc);
 
 TScalarPiecewiseSegment ExtractComponent(int resourceIndex, const TVectorPiecewiseSegment& vecSegment);
@@ -58,7 +62,7 @@ TUnpackedVectorPiecewiseSegmentBounds GetBounds(const TUnpackedVectorPiecewiseSe
 //! Details: https://wiki.yandex-team.ru/yt/internal/hdrfv-function-compression/.
 TVectorPiecewiseLinearFunction CompressFunction(
     const TVectorPiecewiseLinearFunction& vecFunc,
-    double epsilon = RatioComputationPrecision);
+    double epsilon);
 
 ////////////////////////////////////////////////////////////////////////////////
 

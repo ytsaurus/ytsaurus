@@ -511,7 +511,7 @@ protected:
 
     IFairShareTreeHost* GetTreeHost() const;
 
-    ESchedulableStatus GetStatus(double defaultTolerance) const;
+    ESchedulableStatus GetStatusImpl(double defaultTolerance) const;
 
     void CheckForStarvationImpl(
         TDuration minSharePreemptionTimeout,
@@ -856,8 +856,8 @@ protected:
 
 DEFINE_ENUM(EOperationPreemptionStatus,
     (Allowed)
-    (ForbiddenSinceStarving)
-    (ForbiddenSinceUnsatisfied)
+    (ForbiddenSinceStarvingParentOrSelf)
+    (ForbiddenSinceUnsatisfiedParentOrSelf)
     (ForbiddenSinceLowJobCount)
 );
 

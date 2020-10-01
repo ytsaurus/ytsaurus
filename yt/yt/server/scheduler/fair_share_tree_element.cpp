@@ -522,7 +522,8 @@ double TSchedulerElement::GetMaxShareRatio() const
 
 TResourceVector TSchedulerElement::GetResourceUsageShare() const
 {
-    return TResourceVector::FromJobResources(ResourceTreeElement_->GetResourceUsage(), TotalResourceLimits_, 0, 1);
+    return TResourceVector::FromJobResources(
+        ResourceTreeElement_->GetResourceUsage(), TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
 }
 
 double TSchedulerElement::GetResourceUsageRatio() const
@@ -533,7 +534,7 @@ double TSchedulerElement::GetResourceUsageRatio() const
 TResourceVector TSchedulerElement::GetResourceUsageShareWithPrecommit() const
 {
     return TResourceVector::FromJobResources(
-        ResourceTreeElement_->GetResourceUsageWithPrecommit(), TotalResourceLimits_, 0, 1);
+        ResourceTreeElement_->GetResourceUsageWithPrecommit(), TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
 }
 
 TString TSchedulerElement::GetTreeId() const
@@ -608,36 +609,37 @@ IFairShareTreeHost* TSchedulerElement::GetTreeHost() const
 
 double TSchedulerElement::ComputeLocalSatisfactionRatio() const
 {
-    const TResourceVector& fairShare = Attributes_.FairShare.Total;
+    const auto& fairShare = Attributes_.FairShare.Total;
 
-    auto resourceUsage = TreeConfig_->UseRecentResourceUsageForLocalSatisfaction
-        ? ResourceTreeElement_->GetResourceUsage()
-        : ResourceUsageAtUpdate_;
-
-    auto usageShare = TResourceVector::FromJobResources(resourceUsage, TotalResourceLimits_, 0, 1);
-
-    // Starvation is disabled for operations in FIFO pool.
-    if (Attributes_.FifoIndex >= 0) {
+    // Check for corner cases.
+    if (Dominates(TResourceVector::SmallEpsilon(), fairShare)) {
         return InfiniteSatisfactionRatio;
     }
 
+    auto resourceUsage = TreeConfig_->UseRecentResourceUsageForLocalSatisfaction
+        ? GetInstantResourceUsage()
+        : ResourceUsageAtUpdate_;
+
+    auto usageShare = TResourceVector::FromJobResources(resourceUsage, TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
+
     // Check if the element is over-satisfied.
     if (TResourceVector::Any(usageShare, fairShare, [] (double usage, double fair) { return usage > fair; })) {
-        double satisfactionRatio = MaxComponent(
-            Div(usageShare, fairShare, /* zeroDivByZero */ 0, /* oneDivByZero */ InfiniteSatisfactionRatio));
-        YT_VERIFY(satisfactionRatio > 1);
+        double satisfactionRatio = std::min(
+            MaxComponent(
+                Div(usageShare, fairShare, /* zeroDivByZero */ 0.0, /* oneDivByZero */ InfiniteSatisfactionRatio)),
+            InfiniteSatisfactionRatio);
+        YT_VERIFY(satisfactionRatio >= 1.0);
         return satisfactionRatio;
     }
 
     double satisfactionRatio = 0.0;
-
     if (AreAllResourcesBlocked()) {
-        // NB(antonkikh): Using MaxComponent would lead to satisfaction ratio being non-monotonous.
-        satisfactionRatio = MinComponent(Div(usageShare, fairShare, 1, 1));
+        // NB(antonkikh): Using |MaxComponent| would lead to satisfaction ratio being non-monotonous.
+        satisfactionRatio = MinComponent(Div(usageShare, fairShare, /* zeroDivByZero */ 1.0, /* oneDivByZero */ 1.0));
     } else {
-        satisfactionRatio = 0;
+        satisfactionRatio = 0.0;
         for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
-            if (!IsResourceBlocked(resourceType) && fairShare[resourceType] != 0) {
+            if (!IsResourceBlocked(resourceType) && fairShare[resourceType] != 0.0) {
                 satisfactionRatio = std::max(satisfactionRatio, usageShare[resourceType] / fairShare[resourceType]);
             }
         }
@@ -687,10 +689,9 @@ bool TSchedulerElement::IsStrictlyDominatesNonBlocked(const TResourceVector& lhs
     return true;
 }
 
-ESchedulableStatus TSchedulerElement::GetStatus(double tolerance) const
+ESchedulableStatus TSchedulerElement::GetStatusImpl(double tolerance) const
 {
-    TResourceVector usageShare = GetResourceUsageShare();
-
+    auto usageShare = GetResourceUsageShare();
     if (IsStrictlyDominatesNonBlocked(Attributes_.FairShare.Total * tolerance, usageShare)) {
         return ESchedulableStatus::BelowFairShare;
     }
@@ -815,8 +816,8 @@ void TSchedulerElement::PrepareFairShareFunctions(TUpdateFairShareContext* conte
         context->PrepareMaxFitFactorBySuggestionTotalTime += timer.GetElapsedCpuTime();
     }
     YT_VERIFY(MaxFitFactorBySuggestion_.has_value());
-    YT_VERIFY(MaxFitFactorBySuggestion_->LeftFunctionBound() == 0);
-    YT_VERIFY(MaxFitFactorBySuggestion_->RightFunctionBound() == 1);
+    YT_VERIFY(MaxFitFactorBySuggestion_->LeftFunctionBound() == 0.0);
+    YT_VERIFY(MaxFitFactorBySuggestion_->RightFunctionBound() == 1.0);
     NDetail::VerifyNondecreasing(*MaxFitFactorBySuggestion_, Logger);
     YT_VERIFY(MaxFitFactorBySuggestion_->IsTrimmed());
 
@@ -826,15 +827,14 @@ void TSchedulerElement::PrepareFairShareFunctions(TUpdateFairShareContext* conte
         context->ComposeTotalTime += timer.GetElapsedCpuTime();
     }
     YT_VERIFY(FairShareBySuggestion_.has_value());
-    YT_VERIFY(FairShareBySuggestion_->LeftFunctionBound() == 0);
-    YT_VERIFY(FairShareBySuggestion_->RightFunctionBound() == 1);
+    YT_VERIFY(FairShareBySuggestion_->LeftFunctionBound() == 0.0);
+    YT_VERIFY(FairShareBySuggestion_->RightFunctionBound() == 1.0);
     NDetail::VerifyNondecreasing(*FairShareBySuggestion_, Logger);
     YT_VERIFY(FairShareBySuggestion_->IsTrimmed());
 
     {
         TWallTimer timer;
-        // TODO(HDRFV, eshcherbin): Extract 1e-15 as a non-magic constant.
-        *FairShareBySuggestion_ = NDetail::CompressFunction(*FairShareBySuggestion_, 1e-15);
+        *FairShareBySuggestion_ = NDetail::CompressFunction(*FairShareBySuggestion_, NDetail::CompressFunctionEpsilon);
         context->CompressFunctionTotalTime += timer.GetElapsedCpuTime();
     }
     NDetail::VerifyNondecreasing(*FairShareBySuggestion_, Logger);
@@ -843,15 +843,15 @@ void TSchedulerElement::PrepareFairShareFunctions(TUpdateFairShareContext* conte
         const TResourceVector suggestedVector = GetVectorSuggestion(suggestion);
 
         double maxFitFactor;
-        if (Dominates(suggestedVector, FairShareByFitFactor_->ValueAt(0))) {
+        if (Dominates(suggestedVector, FairShareByFitFactor_->ValueAt(0.0))) {
             maxFitFactor = FloatingPointInverseLowerBound(
-                /* lo */ 0,
+                /* lo */ 0.0,
                 /* hi */ FairShareByFitFactor_->RightFunctionBound(),
                 /* predicate */ [&] (double mid) {
                     return Dominates(suggestedVector, FairShareByFitFactor_->ValueAt(mid));
                 });
         } else {
-            maxFitFactor = 0;
+            maxFitFactor = 0.0;
         }
 
         return FairShareByFitFactor_->ValueAt(maxFitFactor);
@@ -1306,8 +1306,10 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
         return;
     }
 
-    // Satisfaction ratio of a composite element is a minimum of satisfaction ratios of its children.
-    attributes.SatisfactionRatio = InfiniteSatisfactionRatio;
+    // Satisfaction ratio of a composite element is the minimum of its children's satisfaction ratios.
+    // NB(eshcherbin): We initialize with local satisfaction ratio in case all children have no pending jobs
+    // and thus are not in the |SchedulableChildren_| list.
+    attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
 
     // Declare the element passive if all children are passive.
     attributes.Active = false;
@@ -2266,7 +2268,7 @@ EIntegralGuaranteeType TPool::GetIntegralGuaranteeType() const
 
 ESchedulableStatus TPool::GetStatus() const
 {
-    return TSchedulerElement::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
+    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance);
 }
 
 double TPool::GetFairShareStarvationTolerance() const
@@ -2604,16 +2606,16 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
     TWriterGuard guard(JobPropertiesMapLock_);
 
     auto getUsageShare = [&] (const TJobResources& resourceUsage) -> TResourceVector {
-        return TResourceVector::FromJobResources(resourceUsage, totalResourceLimits, 0, 1);
+        return TResourceVector::FromJobResources(resourceUsage, totalResourceLimits, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
     };
 
     auto balanceLists = [&] (
         TJobIdList* left,
         TJobIdList* right,
         TJobResources resourceUsage,
-        TResourceVector fairShareBound,
-        std::function<void(TJobProperties*)> onMovedLeftToRight,
-        std::function<void(TJobProperties*)> onMovedRightToLeft)
+        const TResourceVector& fairShareBound,
+        const std::function<void(TJobProperties*)>& onMovedLeftToRight,
+        const std::function<void(TJobProperties*)>& onMovedRightToLeft)
     {
         // Move from left to right and decrease |resourceUsage| until the next move causes
         // |operationElement->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(nextUsage))| to become true.
@@ -3619,7 +3621,7 @@ ESchedulableStatus TOperationElement::GetStatus() const
         return ESchedulableStatus::Normal;
     }
 
-    return TSchedulerElement::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
+    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance);
 }
 
 void TOperationElement::SetStarving(bool starving)
@@ -3665,35 +3667,40 @@ bool TOperationElement::IsPreemptionAllowed(bool isAggressivePreemption, const T
     if (Spec_->PreemptionMode == EPreemptionMode::Graceful) {
         return false;
     }
-    int jobCount = GetRunningJobCount();
+
     int maxUnpreemptableJobCount = config->MaxUnpreemptableRunningJobCount;
     if (Spec_->MaxUnpreemptableRunningJobCount) {
         maxUnpreemptableJobCount = std::min(maxUnpreemptableJobCount, *Spec_->MaxUnpreemptableRunningJobCount);
     }
+
+    int jobCount = GetRunningJobCount();
     if (jobCount <= maxUnpreemptableJobCount) {
         OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceLowJobCount);
         return false;
     }
 
+    // TODO(eshcherbin): Rethink this check. Perhaps we don't need to perform it at every ancestor.
     const TSchedulerElement* element = this;
+    while (element && !element->IsRoot()) {
+        if (config->PreemptionCheckStarvation && element->GetStarving()) {
+            OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarvingParentOrSelf);
+            return false;
+        }
 
-    if (config->PreemptionCheckStarvation && element->GetStarving()) {
-        OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarving);
-        return false;
-    }
+        bool aggressivePreemptionEnabled = isAggressivePreemption &&
+            element->IsAggressiveStarvationPreemptionAllowed() &&
+            IsAggressiveStarvationPreemptionAllowed();
+        auto threshold = aggressivePreemptionEnabled
+            ? config->AggressivePreemptionSatisfactionThreshold
+            : config->PreemptionSatisfactionThreshold;
 
-    // TODO(eshcherbin): This is a bug in vector strategy, as we now don't check if the ancestors are OK with preemption.
-    bool aggressivePreemptionEnabled = isAggressivePreemption &&
-        element->IsAggressiveStarvationPreemptionAllowed() &&
-        IsAggressiveStarvationPreemptionAllowed();
-    auto threshold = aggressivePreemptionEnabled
-        ? config->AggressivePreemptionSatisfactionThreshold
-        : config->PreemptionSatisfactionThreshold;
+        // NB: We want to use *local* satisfaction ratio here.
+        if (config->PreemptionCheckSatisfaction && element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
+            OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParentOrSelf);
+            return false;
+        }
 
-    // NB: we want to use <s>local</s> satisfaction here.
-    if (config->PreemptionCheckSatisfaction && element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
-        OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfied);
-        return false;
+        element = element->GetParent();
     }
 
     OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::Allowed);

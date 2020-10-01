@@ -387,6 +387,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
         assert abs(op1.get_job_count("running") - op2.get_job_count("running")) <= self.CONCURRENT_HEARTBEAT_LIMIT
 
 
+# TODO(ignat): Rename this suite as its current name is too generic.
 class TestStrategies(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
@@ -1673,6 +1674,7 @@ class TestSchedulerAggressivePreemptionVector(BaseTestSchedulerAggressivePreempt
 
 ##################################################################
 
+# TODO(eshcherbin): This test seems to be useless because it passes even if the relevant logic is broken.
 class BaseTestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
@@ -1701,15 +1703,7 @@ class BaseTestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_allow_aggressive_starvation_preemption(self):
-        create("table", "//tmp/t_in")
-        for i in xrange(3):
-            write_table("<append=true>//tmp/t_in", {"foo": "bar"})
-
-        create("table", "//tmp/t_out")
-
-        create_pool("special_pool")
-        set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
-
+        create_pool("special_pool", attributes={"aggressive_starvation_enabled": True})
         for index in xrange(4):
             create_pool("pool" + str(index))
 
@@ -1721,23 +1715,11 @@ class BaseTestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 
         ops = []
         for index in xrange(4):
-            create("table", "//tmp/t_out" + str(index))
-
-            spec = {
-                "pool": "pool" + str(index),
-                "job_count": 3,
-                "locality_timeout": 0,
-                "mapper": {"memory_limit": 10 * 1024 * 1024},
-            }
+            spec = {"pool": "pool" + str(index)}
             if index == 0:
                 spec["allow_aggressive_starvation_preemption"] = False
 
-            op = map(
-                command="sleep 1000; cat",
-                in_=["//tmp/t_in"],
-                out="//tmp/t_out" + str(index),
-                spec=spec,
-                track=False)
+            op = run_sleeping_vanilla(spec=spec, job_count=3)
             ops.append(op)
 
         for op in ops:
@@ -1755,26 +1737,48 @@ class BaseTestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 
         special_op_jobs.sort(key=lambda x: x["start_time"])
         # There is no correct method to determine last started job by the opinion of scheduler.
-        #preemtable_job_id = special_op_jobs[-1]["id"]
+        # preemtable_job_id = special_op_jobs[-1]["id"]
 
-        op = map(
-            command="sleep 1000; cat",
-            in_=["//tmp/t_in"],
-            out="//tmp/t_out",
-            spec={
-                "pool": "special_pool",
-                "job_count": 1,
-                "locality_timeout": 0,
-                "mapper": {"cpu_limit": 2}
-            },
-            track=False)
+        op = run_sleeping_vanilla(
+            spec={"pool": "special_pool"},
+            task_patch={"cpu_limit": 2})
 
         wait(lambda: len(op.get_running_jobs()) == 1)
 
-        special_op_running_job_count = len(special_op.get_running_jobs())
-        assert special_op_running_job_count >= 2
-        #if special_op_running_job_count == 2:
-        #    assert preemtable_job_id not in special_op.get_running_jobs()
+        wait(lambda: len(special_op.get_running_jobs()) >= 2, iter=10)
+        # if special_op_running_job_count == 2:
+        #     assert preemtable_job_id not in special_op.get_running_jobs()
+
+    @authors("eshcherbin")
+    def test_allow_aggressive_starvation_preemption_ancestor(self):
+        create_pool("special_pool", attributes={"aggressive_starvation_enabled": True})
+        for index in range(4):
+            attributes = {}
+            if index == 0:
+                attributes = {"allow_aggressive_starvation_preemption": False}
+            create_pool("pool" + str(index), attributes=attributes)
+
+        get_fair_share_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/fair_share_ratio".format(op_id))
+
+        get_usage_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/usage_ratio".format(op_id))
+
+        ops = []
+        for index in range(4):
+            ops.append(run_sleeping_vanilla(spec={"pool": "pool" + str(index)}, job_count=3))
+
+        for op in ops:
+            wait(lambda: are_almost_equal(get_fair_share_ratio(op.id), 1.0 / 4.0))
+            wait(lambda: are_almost_equal(get_usage_ratio(op.id), 1.0 / 4.0))
+            wait(lambda: len(op.get_running_jobs()) == 3)
+
+        special_op = ops[0]
+
+        op = run_sleeping_vanilla(spec={"pool": "special_pool"}, task_patch={"cpu_limit": 2})
+
+        wait(lambda: len(op.get_running_jobs()) == 1)
+        wait(lambda: len(special_op.get_running_jobs()) >= 2, iter=10)
 
 class TestSchedulerAggressiveStarvationPreemptionClassic(BaseTestSchedulerAggressiveStarvationPreemption):
     DELTA_SCHEDULER_CONFIG = BaseTestSchedulerAggressiveStarvationPreemption.BASE_DELTA_SCHEDULER_CONFIG
@@ -3132,6 +3136,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             }
         })
 
+##################################################################
 
 @authors("renadeen")
 class TestIntegralGuaranteesClassic(YTEnvSetup):
@@ -3570,6 +3575,7 @@ class TestIntegralGuaranteesClassic(YTEnvSetup):
         assert get(resource_distribution_info_path + "/undistributed_resource_flow/cpu") == 2.0
         assert get(resource_distribution_info_path + "/undistributed_burst_guarantee_resources/cpu") == 0.0
 
+##################################################################
 
 @authors("renadeen")
 class TestIntegralGuaranteesVector(YTEnvSetup):
@@ -3978,3 +3984,45 @@ class TestIntegralGuaranteesVector(YTEnvSetup):
 
         assert get(root_pool_path + "/total_resource_flow_ratio") == 0.8
         assert get(root_pool_path + "/total_burst_ratio") == 0.7
+
+##################################################################
+
+class BaseTestSatisfactionRatio(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    BASE_DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,  # Update pools configuration period
+        }
+    }
+
+    @authors("eshcherbin")
+    def test_satisfaction_simple(self):
+        create_pool("pool")
+
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "pool"}, job_count=2)
+        wait_breakpoint(job_count=1)
+
+        op2 = run_sleeping_vanilla(spec={"pool": "pool"})
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op1.id) + "/satisfaction_ratio"), 2.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op2.id) + "/satisfaction_ratio"), 0.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("pool") + "/satisfaction_ratio"), 0.0))
+
+        release_breakpoint()
+
+        op1.wait_for_state("completed")
+
+        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op2.id) + "/satisfaction_ratio"), 1.0))
+        wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("pool") + "/satisfaction_ratio"), 1.0))
+
+class TestSatisfactionRatioClassic(BaseTestSatisfactionRatio):
+    DELTA_SCHEDULER_CONFIG = BaseTestSatisfactionRatio.BASE_DELTA_SCHEDULER_CONFIG
+
+class TestSatisfactionRatioVector(BaseTestSatisfactionRatio):
+    DELTA_SCHEDULER_CONFIG = yt.common.update(
+        BaseTestSatisfactionRatio.BASE_DELTA_SCHEDULER_CONFIG,
+        {"scheduler": {"use_classic_scheduler": False}}
+    )
