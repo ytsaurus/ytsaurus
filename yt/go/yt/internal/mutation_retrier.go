@@ -21,7 +21,7 @@ type MutatingParams interface {
 }
 
 func (r *MutationRetrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
-	if params, ok := call.Params.(MutatingParams); ok {
+	if params, ok := call.Params.(MutatingParams); ok && !call.DisableRetries {
 		mut := params.MutatingOptions()
 		*mut = &yt.MutatingOptions{MutationID: yt.MutationID(guid.New())}
 

@@ -31,6 +31,7 @@ type Call struct {
 	RequestedProxy string
 	SelectedProxy  string
 	Backoff        backoff.BackOff
+	DisableRetries bool
 
 	OnRspParams func(b []byte) error
 }

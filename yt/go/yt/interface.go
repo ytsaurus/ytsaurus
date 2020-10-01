@@ -78,6 +78,8 @@ const (
 )
 
 // ReadRetryOptions is marker for distinguishing requests that might be safely retried.
+//
+// TODO(prime@): rename to SafeRetryOptions
 type ReadRetryOptions struct {
 }
 
@@ -327,15 +329,11 @@ type StartTxOptions struct {
 	Type   *string `http:"type,omitnil"`
 	Sticky bool    `http:"sticky"`
 
-	PrerequisiteTransactionIDs []TxID `http:"prerequisite_transaction_ids,omitnil"`
-
-	Attributes map[string]interface{} `http:"attributes,omitnil"`
-
-	// Internal option.
-	Atomicity *string `http:"atomicity,omitnil"`
+	PrerequisiteTransactionIDs []TxID                 `http:"prerequisite_transaction_ids,omitnil"`
+	Attributes                 map[string]interface{} `http:"attributes,omitnil"`
 
 	*TransactionOptions
-	*MutatingOptions
+	*ReadRetryOptions
 }
 
 type PingTxOptions struct {
@@ -366,6 +364,12 @@ type LowLevelTxClient interface {
 	StartTx(
 		ctx context.Context,
 		options *StartTxOptions,
+	) (id TxID, err error)
+
+	// http:verb:"start_transaction"
+	StartTabletTx(
+		ctx context.Context,
+		options *StartTabletTxOptions,
 	) (id TxID, err error)
 
 	// http:verb:"ping_transaction"
@@ -879,6 +883,9 @@ type SelectRowsOptions struct {
 type StartTabletTxOptions struct {
 	Atomicity *string        `http:"atomicity,omitnil"`
 	Timeout   *yson.Duration `http:"timeout,omitnil"`
+
+	Type   string `http:"type"`
+	Sticky bool   `http:"sticky"`
 }
 
 type TabletClient interface {

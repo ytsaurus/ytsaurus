@@ -238,6 +238,18 @@ func (e *Encoder) StartTx(
 	return
 }
 
+func (e *Encoder) StartTabletTx(
+	ctx context.Context,
+	options *yt.StartTabletTxOptions,
+) (id yt.TxID, err error) {
+	call := e.newCall(NewStartTabletTxParams(options))
+	err = e.do(ctx, call, func(res *CallResult) error {
+		err = res.decodeSingle("transaction_id", &id)
+		return err
+	})
+	return
+}
+
 func (e *Encoder) PingTx(
 	ctx context.Context,
 	id yt.TxID,

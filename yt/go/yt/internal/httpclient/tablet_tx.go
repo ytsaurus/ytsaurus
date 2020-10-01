@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal"
 )
@@ -35,8 +34,8 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 
 	tx.c = c
 
-	startOptions := &yt.StartTxOptions{
-		Type:   ptr.String("tablet"),
+	startOptions := &yt.StartTabletTxOptions{
+		Type:   "tablet",
 		Sticky: true,
 	}
 	if options != nil {
@@ -51,7 +50,7 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 		txTimeout = time.Duration(*startOptions.Timeout)
 	}
 
-	tx.txID, err = tx.StartTx(ctx, startOptions)
+	tx.txID, err = tx.StartTabletTx(ctx, startOptions)
 	tx.ctx = ctx
 	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, txTimeout, c.stop)
 
@@ -61,6 +60,7 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 }
 
 func (tx *tabletTx) setTx(call *internal.Call) {
+	call.DisableRetries = true
 	txOpts := call.Params.(internal.TransactionParams).TransactionOptions()
 	*txOpts = &yt.TransactionOptions{TransactionID: tx.txID}
 }

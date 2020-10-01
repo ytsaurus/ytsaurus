@@ -301,12 +301,8 @@ func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)
 	}
-	if o.Atomicity != nil {
-		w.MapKeyString("atomicity")
-		w.Any(o.Atomicity)
-	}
 	writeTransactionOptions(w, o.TransactionOptions)
-	writeMutatingOptions(w, o.MutatingOptions)
+	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
 
 func writePingTxOptions(w *yson.Writer, o *yt.PingTxOptions) {
@@ -802,6 +798,10 @@ func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 		w.MapKeyString("timeout")
 		w.Any(o.Timeout)
 	}
+	w.MapKeyString("type")
+	w.Any(o.Type)
+	w.MapKeyString("sticky")
+	w.Any(o.Sticky)
 }
 
 func writeLocateSkynetShareOptions(w *yson.Writer, o *yt.LocateSkynetShareOptions) {
@@ -1407,8 +1407,39 @@ func (p *StartTxParams) TransactionOptions() **yt.TransactionOptions {
 	return &p.options.TransactionOptions
 }
 
-func (p *StartTxParams) MutatingOptions() **yt.MutatingOptions {
-	return &p.options.MutatingOptions
+func (p *StartTxParams) ReadRetryOptions() **yt.ReadRetryOptions {
+	return &p.options.ReadRetryOptions
+}
+
+type StartTabletTxParams struct {
+	verb    Verb
+	options *yt.StartTabletTxOptions
+}
+
+func NewStartTabletTxParams(
+	options *yt.StartTabletTxOptions,
+) *StartTabletTxParams {
+	if options == nil {
+		options = &yt.StartTabletTxOptions{}
+	}
+	return &StartTabletTxParams{
+		Verb("start_transaction"),
+		options,
+	}
+}
+
+func (p *StartTabletTxParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *StartTabletTxParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *StartTabletTxParams) Log() []log.Field {
+	return []log.Field{}
+}
+
+func (p *StartTabletTxParams) MarshalHTTP(w *yson.Writer) {
+	writeStartTabletTxOptions(w, p.options)
 }
 
 type PingTxParams struct {
