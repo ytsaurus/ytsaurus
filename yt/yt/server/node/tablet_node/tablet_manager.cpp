@@ -3411,7 +3411,8 @@ private:
                 tablet->GetId(),
                 ETabletState::Mounted)
                 << TErrorAttribute("tablet_id", tablet->GetId())
-                << TErrorAttribute("table_path", tablet->GetTablePath());
+                << TErrorAttribute("table_path", tablet->GetTablePath())
+                << TErrorAttribute("tablet_state", tablet->GetState());
         }
     }
 

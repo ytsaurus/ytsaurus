@@ -56,7 +56,7 @@ public:
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) override;
     virtual TTabletInfoPtr FindTablet(TTabletId tabletId) override;
     virtual void InvalidateTablet(TTabletInfoPtr tabletInfo) override;
-    virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error) override;
+    virtual std::pair<bool, TTabletInfoPtr> InvalidateOnError(const TError& error, bool forceRetry) override;
     virtual void Clear();
 
 protected:

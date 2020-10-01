@@ -971,7 +971,7 @@ auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(T&& callback) -> decltyp
         const auto& tableMountCache = Connection_->GetTableMountCache();
         bool retry;
         TTabletInfoPtr tabletInfo;
-        std::tie(retry, tabletInfo) = tableMountCache->InvalidateOnError(error);
+        std::tie(retry, tabletInfo) = tableMountCache->InvalidateOnError(error, false /*forceRetry*/);
 
         if (retry && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
             YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",

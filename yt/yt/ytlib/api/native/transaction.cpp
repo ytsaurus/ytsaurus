@@ -1214,7 +1214,7 @@ private:
                 auto error = TError("Error sending transaction rows")
                     << rspOrError;
                 YT_LOG_DEBUG(error);
-                TableMountCache_->InvalidateOnError(error);
+                TableMountCache_->InvalidateOnError(error, true /*forceRetry*/);
                 InvokePromise_.Set(error);
                 return;
             }
