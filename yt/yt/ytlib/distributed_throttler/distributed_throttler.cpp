@@ -823,10 +823,6 @@ public:
 
         UpdateLimitsExecutor_->Start();
         UpdateLeaderExecutor_->Start();
-
-        if (LeaderId_ == MemberId_) {
-            DistributedThrottlerService_->Initialize();
-        }
     }
 
     void Stop()
