@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,9 @@ func TestProxySet(t *testing.T) {
 	)
 
 	set := &ProxySet{
-		UpdateFn: func() ([]string, error) { return updateResult, updateErr },
+		UpdatePeriod: time.Second,
+		BanDuration:  time.Second,
+		UpdateFn:     func() ([]string, error) { return updateResult, updateErr },
 	}
 
 	_, err := set.PickRandom(context.Background())
@@ -56,4 +59,14 @@ func TestProxySet(t *testing.T) {
 
 	set.BanProxy("a")
 	require.Equal(t, []string{"a", "b", "c"}, pickRepeatedly())
+
+	updateErr = nil
+	updateResult = []string{"a", "b", "c", "d"}
+
+	time.Sleep(time.Second)
+
+	_, _ = set.PickRandom(context.Background())
+	time.Sleep(time.Millisecond * 100)
+
+	require.Equal(t, []string{"a", "b", "c", "d"}, pickRepeatedly())
 }
