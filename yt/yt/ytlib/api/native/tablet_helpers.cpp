@@ -147,20 +147,23 @@ void ValidateTabletMountedOrFrozen(const TTabletInfoPtr& tabletInfo)
             "Cannot read from tablet %v while it is in %Qlv state",
             tabletInfo->TabletId,
             state)
-            << TErrorAttribute("tablet_id", tabletInfo->TabletId);
+            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
+            << TErrorAttribute("tablet_state", state);
     }
 }
 
 void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInfoPtr& tabletInfo)
 {
-    if (tabletInfo->State != ETabletState::Mounted) {
+    auto state = tabletInfo->State;
+    if (state != ETabletState::Mounted) {
         THROW_ERROR_EXCEPTION(
             NTabletClient::EErrorCode::TabletNotMounted,
             "Tablet %v of table %v is in %Qlv state",
             tabletInfo->TabletId,
             tableInfo->Path,
             tabletInfo->State)
-            << TErrorAttribute("tablet_id", tabletInfo->TabletId);
+            << TErrorAttribute("tablet_id", tabletInfo->TabletId)
+            << TErrorAttribute("tablet_state", state);
     }
 }
 

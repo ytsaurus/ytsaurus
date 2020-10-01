@@ -82,6 +82,33 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)
 
     @authors("savrus")
+    def test_lookup_from_removed_table(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t2")
+        self._sync_mount_table("//tmp/t2")
+        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
+
+        # Do lookup to clear metadata and master cache.
+        # Unfortunately master cache has old schema and it is retreived in driver where key is constructed.
+        # Client invalidate&retry doesn't rebuild driver's key so this lookup has no chances to be completed.
+        try:
+            lookup_rows("//tmp/t2", [{"key": 0}])
+        except YtError:
+            pass
+
+        insert_rows("//tmp/t2", rows)
+        assert_items_equal(select_rows("* from [//tmp/t2]"), rows)
+        remove("//tmp/t2")
+        self._create_simple_table("//tmp/t2")
+        self._sync_mount_table("//tmp/t2")
+        actual = lookup_rows("//tmp/t2", [{"key": 0}])
+        assert actual == []
+
+
+class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCaching):
+    USE_MASTER_CACHE = False
+
+    @authors("savrus")
     @skip_if_rpc_driver_backend
     def test_metadata_cache_invalidation(self):
         sync_create_cells(1)
@@ -126,37 +153,21 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t1", rows)
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
-    @authors("savrus")
-    def test_lookup_from_removed_table(self):
-        sync_create_cells(1)
-        self._create_simple_table("//tmp/t2")
-        self._sync_mount_table("//tmp/t2")
-        rows = [{"key": i, "value": str(i)} for i in xrange(2)]
-
-        # Do lookup to clear metadata and master cache.
-        # Unfortunately master cache has old schema and it is retreived in driver where key is constructed.
-        # Client invalidate&retry doesn't rebuild driver's key so this lookup has no chances to be completed.
-        try:
-            lookup_rows("//tmp/t2", [{"key": 0}])
-        except YtError:
-            pass
-
-        insert_rows("//tmp/t2", rows)
-        assert_items_equal(select_rows("* from [//tmp/t2]"), rows)
-        remove("//tmp/t2")
-        self._create_simple_table("//tmp/t2")
-        self._sync_mount_table("//tmp/t2")
-        actual = lookup_rows("//tmp/t2", [{"key": 0}])
-        assert actual == []
-
 ##################################################################
 
 class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMetadataCaching):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-##################################################################
+class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMetadataCaching2):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+###################################################################
 
 class TestSortedDynamicTablesMetadataCachingRpcProxy(TestSortedDynamicTablesMetadataCaching):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMetadataCaching2):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 

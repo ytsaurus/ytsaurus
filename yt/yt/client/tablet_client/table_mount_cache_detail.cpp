@@ -144,7 +144,7 @@ void TTableMountCacheBase::InvalidateTablet(TTabletInfoPtr tabletInfo)
     }
 }
 
-std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TError& error)
+std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TError& error, bool forceRetry)
 {
     static std::vector<TErrorCode> retriableCodes = {
         NTabletClient::EErrorCode::NoSuchTablet,
@@ -160,12 +160,17 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                 if (!tabletId) {
                     continue;
                 }
+
+                auto tabletState = retriableError->Attributes().Find<ETabletState>("tablet_state");
                 auto tabletInfo = FindTablet(*tabletId);
                 if (tabletInfo) {
-                    YT_LOG_DEBUG(error, "Invalidating tablet in table mount cache (TabletId: %v, CellId: %v, MountRevision: %llx, Owners: %v)",
+                    YT_LOG_DEBUG(error,
+                        "Invalidating tablet in table mount cache "
+                        "(TabletId: %v, CellId: %v, MountRevision: %llx, TabletState: %v, Owners: %v)",
                         tabletInfo->TabletId,
                         tabletInfo->CellId,
                         tabletInfo->MountRevision,
+                        tabletState,
                         MakeFormattableView(tabletInfo->Owners, [] (auto* builder, const auto& weakOwner) {
                             if (auto owner = weakOwner.Lock()) {
                                 FormatValue(builder, owner->Path, TStringBuf());
@@ -176,7 +181,14 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
 
                     InvalidateTablet(tabletInfo);
                 }
-                return std::make_pair(true, tabletInfo);
+
+                bool dontRetry =
+                    code == NTabletClient::EErrorCode::TabletNotMounted &&
+                    tabletState &&
+                    *tabletState == ETabletState::Unmounted &&
+                    !forceRetry;
+
+                return std::make_pair(!dontRetry, tabletInfo);
             }
         }
     }
