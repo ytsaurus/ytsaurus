@@ -30,7 +30,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStri
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeUnsignedLongSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
 import ru.yandex.yson.ClosableYsonConsumer;
 import ru.yandex.yson.YsonConsumer;
@@ -140,7 +139,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         builder.setUniqueKeys(hasKeys);
     }
 
-    private static class YTreeConsumerProxy implements YTreeConsumer {
+    private static class YTreeConsumerProxy implements YsonConsumer {
         private final YTreeConsumerDirect direct;
 
         private ByteArrayOutputStream output;
@@ -256,6 +255,11 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
+        public void onKeyedItem(@Nonnull byte[] value) {
+            onKeyedItem(new String(value, StandardCharsets.UTF_8));
+        }
+
+        @Override
         public void onKeyedItem(@Nonnull String key) {
             current.onKeyedItem(key);
         }
@@ -286,7 +290,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
     }
 
-    private static class YTreeConsumerDirect implements YTreeConsumer {
+    private static class YTreeConsumerDirect implements YsonConsumer {
 
         // Сериализуем столбцы по одному, пока не наткнемся на любое поле, кроме примитивного
         // Т.е. это будет любой
@@ -374,6 +378,11 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         @Override
         public void onEndMap() {
             throw new IllegalStateException("Unsupported operation");
+        }
+
+        @Override
+        public void onKeyedItem(@Nonnull byte[] value) {
+            onKeyedItem(new String(value, StandardCharsets.UTF_8));
         }
 
         @Override
