@@ -1105,13 +1105,13 @@ TEST_P(TFairShareSchedulerTest, Test)
     for (size_t id = 0; id < numWorkers; ++id) {
         auto invoker = threadPool->GetInvoker(Format("pool%v", id % numPools), 1.0, Format("worker%v", id));
         auto worker = [&, id] () mutable {
+            auto poolId = id % numPools;
 
             auto initialShift = getShift(id);
             auto sleepDuration = DoSleep(initialShift);
             {
                 TGuard<TAdaptiveLock> guard(lock);
-
-                pools[id % numPools] += sleepDuration;
+                pools[poolId] += sleepDuration;
                 progresses[id] += sleepDuration;
             }
 
@@ -1125,20 +1125,20 @@ TEST_P(TFairShareSchedulerTest, Test)
                     if (numThreads == 1) {
                         auto minPool = TDuration::Max();
                         auto minPoolIndex = numPools;
-                        for (size_t id = 0; id < numPools; ++id) {
+                        for (size_t index = 0; index < numPools; ++index) {
                             bool hasBucketsInPool = false;
-                            for (size_t workerId = id; workerId < numWorkers; workerId += numPools) {
+                            for (size_t workerId = index; workerId < numWorkers; workerId += numPools) {
                                 if (progresses[workerId] < work + getShift(workerId)) {
                                     hasBucketsInPool = true;
                                 }
                             }
-                            if (hasBucketsInPool && pools[id] < minPool) {
-                                minPool = pools[id];
-                                minPoolIndex = id;
+                            if (hasBucketsInPool && pools[index] < minPool) {
+                                minPool = pools[index];
+                                minPoolIndex = index;
                             }
                         }
 
-                        if (pools[id % numPools].MilliSeconds() != minPool.MilliSeconds()) {
+                        if (pools[poolId].MilliSeconds() != minPool.MilliSeconds()) {
                             YT_LOG_TRACE("Pools time: [%v]",
                                 MakeFormattableView(
                                     pools,
@@ -1147,12 +1147,12 @@ TEST_P(TFairShareSchedulerTest, Test)
                                     }));
                         }
 
-                        EXPECT_EQ(pools[id % numPools].MilliSeconds(), minPool.MilliSeconds());
+                        EXPECT_EQ(pools[poolId].MilliSeconds(), minPool.MilliSeconds());
 
                         auto min = TDuration::Max();
-                        for (size_t id = minPoolIndex; id < numWorkers; id += numPools) {
-                            if (progresses[id] < min && progresses[id] < work + getShift(id)) {
-                                min = progresses[id];
+                        for (size_t index = poolId; index < numWorkers; index += numPools) {
+                            if (progresses[index] < min && progresses[index] < work + getShift(index)) {
+                                min = progresses[index];
                             }
                         }
 
@@ -1175,14 +1175,14 @@ TEST_P(TFairShareSchedulerTest, Test)
                         EXPECT_EQ(progresses[id].MilliSeconds(), min.MilliSeconds());
                     }
 
-                    pools[id % numPools] += FSSleepQuantum;
+                    pools[poolId] += FSSleepQuantum;
                     progresses[id] += FSSleepQuantum;
                 }
 
                 auto sleepDuration = DoSleep(FSSleepQuantum - timer.GetElapsedTime());
                 {
                     TGuard<TAdaptiveLock> guard(lock);
-                    pools[id % numPools] += sleepDuration;
+                    pools[poolId] += sleepDuration;
                     progresses[id] += sleepDuration;
                 }
 
