@@ -615,14 +615,14 @@ public class ApiServiceClient implements TransactionalClient {
     /* */
 
     @Override
-    public CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request) {
+    public CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request) {
         return lookupRowsImpl(request, response ->
                 ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
                         response.attachments()));
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> lookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer) {
+    public <T> CompletableFuture<List<T>> lookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer) {
         return lookupRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
@@ -631,7 +631,7 @@ public class ApiServiceClient implements TransactionalClient {
         });
     }
 
-    public <T> CompletableFuture<Void> lookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer,
+    public <T> CompletableFuture<Void> lookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer,
                                                   ConsumerSource<T> consumer) {
         return lookupRowsImpl(request, response -> {
             ApiServiceUtil.deserializeUnversionedRowset(response.body().getRowsetDescriptor(),
@@ -640,7 +640,7 @@ public class ApiServiceClient implements TransactionalClient {
         });
     }
 
-    private <T> CompletableFuture<T> lookupRowsImpl(LookupRowsRequest request,
+    private <T> CompletableFuture<T> lookupRowsImpl(AbstractLookupRowsRequest<?> request,
                                                     Function<RpcClientResponse<TRspLookupRows>, T> responseReader) {
         RpcClientRequestBuilder<TReqLookupRows.Builder, RpcClientResponse<TRspLookupRows>> builder =
                 service.lookupRows();
@@ -667,13 +667,13 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     @Override
-    public CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request) {
+    public CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request) {
         return versionedLookupRowsImpl(request, response -> ApiServiceUtil
                 .deserializeVersionedRowset(response.body().getRowsetDescriptor(), response.attachments()));
     }
 
     @Override
-    public <T> CompletableFuture<List<T>> versionedLookupRows(LookupRowsRequest request,
+    public <T> CompletableFuture<List<T>> versionedLookupRows(AbstractLookupRowsRequest<?> request,
                                                               YTreeObjectSerializer<T> serializer) {
         return versionedLookupRowsImpl(request, response -> {
             final ConsumerSourceRet<T> result = ConsumerSource.list();
@@ -692,7 +692,7 @@ public class ApiServiceClient implements TransactionalClient {
         });
     }
 
-    private <T> CompletableFuture<T> versionedLookupRowsImpl(LookupRowsRequest request,
+    private <T> CompletableFuture<T> versionedLookupRowsImpl(AbstractLookupRowsRequest<?> request,
                                                              Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader) {
         RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, RpcClientResponse<TRspVersionedLookupRows>> builder =
                 service.versionedLookupRows();
@@ -789,7 +789,7 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
 
-    public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest request) {
+    public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request) {
         RpcClientRequestBuilder<TReqModifyRows.Builder, RpcClientResponse<TRspModifyRows>> builder =
                 service.modifyRows();
         request.writeHeaderTo(builder.header());
@@ -1652,6 +1652,6 @@ public class ApiServiceClient implements TransactionalClient {
 
     @Override
     public String toString() {
-        return rpcClient.toString();
+        return rpcClient != null ? rpcClient.toString() : super.toString();
     }
 }

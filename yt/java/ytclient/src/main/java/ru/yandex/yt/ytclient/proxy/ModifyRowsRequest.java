@@ -13,7 +13,7 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
-public class ModifyRowsRequest extends AbstractModifyRowsRequest {
+public class ModifyRowsRequest extends AbstractModifyRowsRequest<ModifyRowsRequest> {
     private final List<UnversionedRow> rows = new ArrayList<>();
 
     public ModifyRowsRequest(String path, TableSchema schema) {
@@ -22,12 +22,6 @@ public class ModifyRowsRequest extends AbstractModifyRowsRequest {
 
     public List<UnversionedRow> getRows() {
         return Collections.unmodifiableList(rows);
-    }
-
-    @Override
-    public ModifyRowsRequest setRequireSyncReplica(boolean requireSyncReplica) {
-        super.setRequireSyncReplica(requireSyncReplica);
-        return this;
     }
 
     private UnversionedRow convertValuesToRow(List<?> values, boolean skipMissingValues, boolean aggregate) {

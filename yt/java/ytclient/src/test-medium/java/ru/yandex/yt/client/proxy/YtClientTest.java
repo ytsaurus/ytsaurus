@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
 import com.google.common.base.Charsets;
@@ -39,6 +40,8 @@ import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
+import ru.yandex.yt.ytclient.proxy.LookupRowsRequest;
+import ru.yandex.yt.ytclient.proxy.MappedLookupRowsRequest;
 import ru.yandex.yt.ytclient.proxy.MappedModifyRowsRequest;
 import ru.yandex.yt.ytclient.proxy.SelectRowsRequest;
 import ru.yandex.yt.ytclient.proxy.TableReader;
@@ -56,6 +59,7 @@ import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
+import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 
@@ -238,6 +242,96 @@ public class YtClientTest {
     }
 
     @Test(timeout = 10000)
+    public void lookupRowsDefault() throws ExecutionException, InterruptedException {
+        final String table = path + "/dir1/table6";
+        createDynamicTable(client, table);
+
+        final List<MappedObject> objects = Arrays.asList(
+                new MappedObject(1, "test1"),
+                new MappedObject(2, "test2"));
+
+        final YTreeObjectSerializer<MappedObject> serializer =
+                (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class);
+
+        insertData(client, table, objects, serializer);
+
+        final TableSchema schema = new TableSchema.Builder()
+                .addKey("k1", ColumnValueType.INT64)
+                .addValue("v1", ColumnValueType.STRING)
+                .build()
+                .toLookup();
+
+        LookupRowsRequest request = new LookupRowsRequest(table, schema)
+                .addLookupColumns("k1", "v1")
+                .addFilter(2);
+        List<UnversionedRow> result = client.lookupRows(request).get().getRows();
+
+        Assert.assertEquals(1, result.size());
+        Assert.assertEquals(new UnversionedRow(Arrays.asList(
+                new UnversionedValue(0, ColumnValueType.INT64, false, 2L),
+                new UnversionedValue(1, ColumnValueType.STRING, false, "test2".getBytes(Charsets.UTF_8)))),
+                result.get(0));
+
+    }
+
+    @Test(timeout = 10000)
+    public void lookupRowsMapped() throws ExecutionException, InterruptedException {
+        final String table = path + "/dir1/table7";
+        createDynamicTable(client, table);
+
+        final List<MappedObject> objects = Arrays.asList(
+                new MappedObject(1, "test1"),
+                new MappedObject(2, "test2"));
+
+        final YTreeObjectSerializer<MappedObject> serializer =
+                (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class);
+
+        insertData(client, table, objects, serializer);
+
+
+        // Достаем только ключи
+        MappedLookupRowsRequest<MappedObject> request1 = new MappedLookupRowsRequest<>(table, serializer)
+                .addKeyLookupColumns()
+                .addFilter(objects.get(1));
+        List<MappedObject> result1 = client.lookupRows(request1, serializer).get();
+
+        Assert.assertEquals(1, result1.size());
+        Assert.assertEquals(new MappedObject(2, null), result1.get(0));
+        Assert.assertNotSame(objects.get(0), result1.get(0));
+
+
+        // Достаем все поля
+        MappedLookupRowsRequest<MappedObject> request2 = new MappedLookupRowsRequest<>(table, serializer)
+                .addAllLookupColumns()
+                .addFilter(objects.get(1));
+        List<MappedObject> result2 = client.lookupRows(request2, serializer).get();
+
+        Assert.assertEquals(1, result2.size());
+        Assert.assertEquals(objects.get(1), result2.get(0));
+        Assert.assertNotSame(objects.get(1), result2.get(0));
+
+        // Достаем все поля и все записи
+        MappedLookupRowsRequest<MappedObject> request3 = new MappedLookupRowsRequest<>(table, serializer)
+                .addAllLookupColumns()
+                .addFilters(objects);
+        List<MappedObject> result3 = client.lookupRows(request3, serializer).get();
+
+        Assert.assertEquals(2, result3.size());
+        Assert.assertEquals(objects, result3);
+
+        // Достаем все поля и все записи, передавая списка ключей в обратном порядке
+        // Результатом будут записи также в обратном (указанном) порядке
+        MappedLookupRowsRequest<MappedObject> request4 = new MappedLookupRowsRequest<>(table, serializer)
+                .addAllLookupColumns()
+                .addFilter(new MappedObject(2, null))
+                .addFilter(new MappedObject(1, null));
+        List<MappedObject> result4 = client.lookupRows(request4, serializer).get();
+
+        Assert.assertEquals(2, result4.size());
+        Assert.assertEquals(List.of(objects.get(1), objects.get(0)), result4);
+    }
+
+    @Test(timeout = 10000)
     public void earlyReaderClose() throws IOException {
         String table = path + "/table";
 
@@ -246,7 +340,7 @@ public class YtClientTest {
         {
             TableWriter<MappedObject> writer =
                     client.writeTable(
-                            new WriteTable<MappedObject>(table, YTreeObjectSerializerFactory.forClass(MappedObject.class)))
+                            new WriteTable<>(table, YTreeObjectSerializerFactory.forClass(MappedObject.class)))
                             .join();
             List<MappedObject> data = new ArrayList<>();
             for (int i = 0; i < 1000; ++i) {
@@ -259,7 +353,7 @@ public class YtClientTest {
 
         {
             TableReader<MappedObject> reader = client.readTable(
-                    new ReadTable<MappedObject>(
+                    new ReadTable<>(
                             table,
                             YTreeObjectSerializerFactory.forClass(MappedObject.class)))
                     .join();
@@ -299,7 +393,6 @@ public class YtClientTest {
     }
 
     public static void createDynamicTable(YtClient client, String table) {
-        LOGGER.info("Creating table: {}", table);
         createTable(client, table, true);
     }
 
@@ -341,6 +434,8 @@ public class YtClientTest {
     }
 
     public static void createTable(YtClient client, String table, YTreeNode schema, boolean dynamic) {
+        LOGGER.info("Creating {} table: {}", dynamic ? "dynamic" : "static", table);
+
         final Map<String, YTreeNode> attrs = YTree.mapBuilder()
                 .key("dynamic").value(YTree.booleanNode(dynamic))
                 .key("schema").value(schema)
@@ -386,18 +481,18 @@ public class YtClientTest {
 
     public static <T> void insertData(YtClient client, String table, Collection<T> objects,
                                       YTreeObjectSerializer<T> serializer, boolean dynamic) {
-        LOGGER.info("Inserting {} rows into table: {}", objects.size(), table);
-        final MappedModifyRowsRequest<T> request = new MappedModifyRowsRequest<>(table, serializer);
-        request.addInserts(objects);
+        LOGGER.info("Inserting {} rows into {} table: {}", objects.size(), dynamic ? "dynamic" : "static", table);
 
         final ApiServiceTransactionOptions options =
                 new ApiServiceTransactionOptions(ETransactionType.TT_MASTER).setSticky(true);
 
         try (ApiServiceTransaction tx = client.startTransaction(options).join()) {
             if (dynamic) {
+                final MappedModifyRowsRequest<T> request = new MappedModifyRowsRequest<>(table, serializer);
+                request.addInserts(objects);
                 tx.modifyRows(request).join();
             } else {
-                final TableWriter<T> writer = tx.writeTable(new WriteTable<T>(table, serializer)).join();
+                final TableWriter<T> writer = tx.writeTable(new WriteTable<>(table, serializer)).join();
                 writer.write(new ArrayList<>(objects));
                 writer.readyEvent().join();
                 writer.close().join();

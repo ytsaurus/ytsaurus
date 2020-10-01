@@ -10,7 +10,7 @@ import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-public abstract class AbstractModifyRowsRequest extends RequestBase<AbstractModifyRowsRequest> {
+public abstract class AbstractModifyRowsRequest<R extends AbstractModifyRowsRequest<R>> extends RequestBase<R> {
     protected final String path;
     protected final TableSchema schema;
     protected Boolean requireSyncReplica = null;
@@ -36,9 +36,10 @@ public abstract class AbstractModifyRowsRequest extends RequestBase<AbstractModi
         return Collections.unmodifiableList(rowModificationTypes);
     }
 
-    public AbstractModifyRowsRequest setRequireSyncReplica(boolean requireSyncReplica) {
+    @SuppressWarnings("unchecked")
+    public R setRequireSyncReplica(boolean requireSyncReplica) {
         this.requireSyncReplica = requireSyncReplica;
-        return this;
+        return (R) this;
     }
 
     public Optional<Boolean> getRequireSyncReplica() {

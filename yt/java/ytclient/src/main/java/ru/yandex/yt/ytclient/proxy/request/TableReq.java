@@ -1,6 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-public class TableReq<T extends TableReq> extends RequestBase<T> {
+public class TableReq<T extends TableReq<T>> extends RequestBase<T> {
     protected String path;
     protected MutatingOptions mutatingOptions;
     protected TabletRangeOptions tabletRangeOptions;

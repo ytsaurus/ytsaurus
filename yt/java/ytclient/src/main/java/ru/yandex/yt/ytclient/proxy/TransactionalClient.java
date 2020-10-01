@@ -27,13 +27,13 @@ import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
 public interface TransactionalClient {
-    CompletableFuture<UnversionedRowset> lookupRows(LookupRowsRequest request);
+    CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request);
 
-    <T> CompletableFuture<List<T>> lookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer);
+    <T> CompletableFuture<List<T>> lookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer);
 
-    CompletableFuture<VersionedRowset> versionedLookupRows(LookupRowsRequest request);
+    CompletableFuture<VersionedRowset> versionedLookupRows(AbstractLookupRowsRequest<?> request);
 
-    <T> CompletableFuture<List<T>> versionedLookupRows(LookupRowsRequest request, YTreeObjectSerializer<T> serializer);
+    <T> CompletableFuture<List<T>> versionedLookupRows(AbstractLookupRowsRequest<?> request, YTreeObjectSerializer<T> serializer);
 
     CompletableFuture<UnversionedRowset> selectRows(SelectRowsRequest request);
 

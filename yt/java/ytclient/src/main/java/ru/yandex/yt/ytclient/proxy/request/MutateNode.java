@@ -4,7 +4,7 @@ import java.util.Optional;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 
-public abstract class MutateNode<T extends MutateNode> extends RequestBase<T> {
+public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T> {
     protected TransactionalOptions transactionalOptions;
     protected PrerequisiteOptions prerequisiteOptions;
     protected MutatingOptions mutatingOptions;
