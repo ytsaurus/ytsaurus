@@ -704,7 +704,7 @@ void TOperationControllerBase::InitializeStructures()
     if (InputTables_.size() > maxInputTableCount) {
         THROW_ERROR_EXCEPTION(
             "Too many input tables: maximum allowed %v, actual %v",
-            Config->MaxInputTableCount,
+            maxInputTableCount,
             InputTables_.size());
     }
 
