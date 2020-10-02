@@ -33,7 +33,6 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
 
     StreamBase(RpcClientStreamControl control) {
         this.control = control;
-        this.control.subscribe(this);
     }
 
     protected abstract RpcMessageParser<RspType> responseParser();
