@@ -129,9 +129,11 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
     }
 
     // Stop watching for new cores.
-    WaitFor(PeriodicExecutor_->GetExecutedEvent())
-        .ThrowOnError();
     WaitFor(PeriodicExecutor_->Stop())
+        .ThrowOnError();
+    WaitFor(BIND(&TCoreWatcher::DoWatchCores, MakeWeak(this))
+        .AsyncVia(ControlInvoker_)
+        .Run())
         .ThrowOnError();
 
     YT_LOG_DEBUG("Core watcher has stopped, no new cores will be processed");
