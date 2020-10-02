@@ -14,7 +14,6 @@ import javax.annotation.Nonnull;
  * All underlying writer exceptions are transformed to UncheckedIOException.
  */
 public class YsonTextWriter implements ClosableYsonConsumer {
-    private static final char[] digits = "0123456789abcdef".toCharArray();
     private final Writer writer;
     private boolean firstItem = false;
 
@@ -60,10 +59,17 @@ public class YsonTextWriter implements ClosableYsonConsumer {
 
     @Override
     public void onDouble(double value) {
-        if (Double.isNaN(value)) {
-            write("%nan");
-        } else {
+        if (Double.isFinite(value)) {
             write(Double.toString(value));
+        } else if (Double.isNaN(value)) {
+            write("%nan");
+        } else if (value == Double.POSITIVE_INFINITY) {
+            write("%+inf");
+        } else if (value == Double.NEGATIVE_INFINITY) {
+            write("%-inf");
+        } else {
+            // Actually we must never go to this case
+            throw new IllegalStateException("Unexpected double: " + value);
         }
     }
 
@@ -136,30 +142,7 @@ public class YsonTextWriter implements ClosableYsonConsumer {
     }
 
     private void appendQuotedByte(byte b) {
-        switch (b) {
-            case '\t':
-                write("\\t");
-                return;
-            case '\n':
-                write("\\n");
-                return;
-            case '\r':
-                write("\\r");
-                return;
-            case '"':
-                write("\\\"");
-                return;
-            case '\\':
-                write("\\\\");
-                return;
-        }
-        if (b <= 0x1f || b >= 0x7f) {
-            write("\\x");
-            write(digits[(b & 255) >>> 4]);
-            write(digits[b & 15]);
-        } else {
-            write(b);
-        }
+        YsonTextUtils.writeQuotedByte(b, writer);
     }
 
     private void appendQuotedBytes(byte[] bytes) {
@@ -202,6 +185,41 @@ public class YsonTextWriter implements ClosableYsonConsumer {
 
         @Override
         public void close() {
+        }
+    }
+}
+
+class YsonTextUtils {
+    private static final char[] digits = "0123456789abcdef".toCharArray();
+
+    static void writeQuotedByte(byte b, Writer out) {
+        try {
+            switch (b) {
+                case '\t':
+                    out.append("\\t");
+                    return;
+                case '\n':
+                    out.append("\\n");
+                    return;
+                case '\r':
+                    out.append("\\r");
+                    return;
+                case '"':
+                    out.append("\\\"");
+                    return;
+                case '\\':
+                    out.append("\\\\");
+                    return;
+            }
+            if (b <= 0x1f || b >= 0x7f) {
+                out.append("\\x");
+                out.append(digits[(b & 255) >>> 4]);
+                out.append(digits[b & 15]);
+            } else {
+                out.append((char)b);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }
