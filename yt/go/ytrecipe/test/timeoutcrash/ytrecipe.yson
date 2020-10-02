@@ -1,8 +1,0 @@
-{
-    cluster=freud;
-    pool="yt-integration-tests";
-    upload_binaries=[
-        "yt/go/ytrecipe/test/timeoutcrash/timeoutcrash"
-    ];
-    job_timeout_seconds=10;
-}

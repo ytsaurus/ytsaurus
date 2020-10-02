@@ -11,10 +11,6 @@ import (
 )
 
 func TestOutputLimit(t *testing.T) {
-	if os.Getenv("AUTOCHECK") != "" {
-		return
-	}
-
 	require.NoError(t, os.MkdirAll(yatest.WorkPath("ytrecipe_output"), 0777))
 
 	f, err := os.Create(filepath.Join(yatest.WorkPath("ytrecipe_output"), "big.log"))

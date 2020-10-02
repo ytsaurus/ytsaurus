@@ -15,10 +15,10 @@ func TestNestedPorto(t *testing.T) {
 	conn, err := porto.Dial()
 	require.NoError(t, err)
 
-	require.NoError(t, os.MkdirAll(yatest.WorkPath("ytrecipe_output"), 0777))
-	require.NoError(t, os.MkdirAll(yatest.WorkPath("ytrecipe_hdd"), 0777))
+	require.NoError(t, os.MkdirAll(yatest.OutputPath("ytrecipe_output"), 0777))
+	require.NoError(t, os.MkdirAll(os.Getenv("HDD_PATH"), 0777))
 
-	volumePath := filepath.Join(yatest.WorkPath("ytrecipe_output"), "volume")
+	volumePath := filepath.Join(yatest.OutputPath("ytrecipe_output"), "volume")
 
 	require.NoError(t, os.Mkdir(volumePath, 0777))
 	_, err = conn.CreateVolume(volumePath, map[string]string{
@@ -28,7 +28,7 @@ func TestNestedPorto(t *testing.T) {
 
 	require.NoError(t, err)
 
-	volumePath = filepath.Join(yatest.WorkPath("ytrecipe_hdd"), "volume")
+	volumePath = filepath.Join(os.Getenv("HDD_PATH"), "volume")
 
 	require.NoError(t, os.Mkdir(volumePath, 0777))
 	_, err = conn.CreateVolume(volumePath, map[string]string{
