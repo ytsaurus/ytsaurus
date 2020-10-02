@@ -2451,7 +2451,8 @@ class TestMinNeededResources(YTEnvSetup):
             "job_controller": {
                 "resource_limits": {
                     "memory": 10 * 1024 * 1024 * 1024,
-                    "cpu": 3
+                    "cpu": 3,
+                    "user_slots": 2,
                 }
             }
         },
@@ -2480,7 +2481,7 @@ class TestMinNeededResources(YTEnvSetup):
                 "mapper": {
                     "memory_limit": 8 * 1024 * 1024 * 1024,
                     "memory_reserve_factor": 1.0,
-                    "cpu_limit": 1
+                    "cpu_limit": 2
                 }
             },
             track=False)
@@ -2504,7 +2505,7 @@ class TestMinNeededResources(YTEnvSetup):
                 "mapper": {
                     "memory_limit": 3 * 1024 * 1024 * 1024,
                     "memory_reserve_factor": 1.0,
-                    "cpu_limit": 1
+                    "cpu_limit": 2
                 }
             },
             track=False)
@@ -2518,6 +2519,11 @@ class TestMinNeededResources(YTEnvSetup):
         abort_op(op1.id)
 
         op2.track()
+
+    @authors("eshcherbin")
+    def test_min_needed_resources_unsatisfied_count(self):
+        op = run_sleeping_vanilla(task_patch={"cpu_limit": 2}, job_count=2)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/min_needed_resources_unsatisfied_count/cpu", default=0) >= 10)
 
 ##################################################################
 

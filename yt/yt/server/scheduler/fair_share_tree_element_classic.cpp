@@ -2496,6 +2496,7 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
 
     auto nodeFreeResources = context.SchedulingContext()->GetNodeFreeResourcesWithDiscount();
     if (!Dominates(nodeFreeResources, minNeededResources)) {
+        OnMinNeededResourcesUnsatisfied(context, nodeFreeResources, minNeededResources);
         return EDeactivationReason::MinNeededResourcesUnsatisfied;
     }
 
@@ -2919,8 +2920,10 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
 
     if (!HasJobsSatisfyingResourceLimits(*context)) {
         OPERATION_LOG_DETAILED(this,
-            "No pending jobs can satisfy available resources on node "
-            "(FreeResources: %v, DiscountResources: %v, MinNeededResources: %v, DetailedMinNeededResources: %v)",
+            "No pending jobs can satisfy available resources on node ("
+            "FreeResources: %v, DiscountResources: %v, "
+            "MinNeededResources: %v, DetailedMinNeededResources: %v, "
+            "Address: %v)",
             FormatResources(context->SchedulingContext()->GetNodeFreeResourcesWithoutDiscount()),
             FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
             FormatResources(Controller_->GetAggregatedMinNeededJobResources()),
@@ -2929,7 +2932,13 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
                 [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
                     builder->AppendFormat("%v",
                         Host_->FormatResources(resources));
-                }));
+                }),
+            context->SchedulingContext()->GetNodeDescriptor().Address);
+
+        OnMinNeededResourcesUnsatisfied(
+            *context,
+            context->SchedulingContext()->GetNodeFreeResourcesWithDiscount(),
+            Controller_->GetAggregatedMinNeededJobResources());
         deactivateOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
