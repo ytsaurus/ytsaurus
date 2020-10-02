@@ -1,11 +1,12 @@
 from .conftest import authors
+from .helpers import get_operation_path, wait, yatest_common
 
-import yt.wrapper as yt
+from yt.environment.arcadia_interop import yatest_common
 
 from yt.wrapper.native_driver import get_driver_instance
 from yt.wrapper.spec_builders import VanillaSpecBuilder
 
-from .helpers import get_operation_path, wait
+import yt.wrapper as yt
 
 import pytest
 import os
@@ -19,6 +20,9 @@ class TestAdminCommands(object):
         # we don't want to run it in too many parametrizations.
         if yt.config["api_version"] != "v4":
             pytest.skip()
+
+        if yatest_common.context.sanitize == "address":
+            pytest.skip("core dumps are not supported under asan")
 
         op = yt.run_operation(VanillaSpecBuilder().task("sample", {"command": "sleep 1000", "job_count": 1}), sync=False)
 

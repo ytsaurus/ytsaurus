@@ -22,6 +22,9 @@ class TestDownloadCoreDump(object):
         if yatest_common is None:
             pytest.skip("test is not supported in pytest environment")
 
+        if yatest_common.context.sanitize == "address":
+            pytest.skip("core dumps are not supported under asan")
+
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         core_dump_table = TEST_DIR + "/core_dump_table"
@@ -73,6 +76,9 @@ class TestDownloadCoreDump(object):
     def test_error_core_dump(self):
         if yatest_common is None:
             pytest.skip("test is not supported in pytest environment")
+
+        if yatest_common.context.sanitize == "address":
+            pytest.skip("core dumps are not supported under asan")
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
