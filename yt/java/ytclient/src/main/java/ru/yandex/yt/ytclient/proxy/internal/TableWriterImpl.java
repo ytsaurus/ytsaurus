@@ -37,8 +37,8 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
     private final WireRowSerializer<T> serializer;
     private final Map<String, Integer> column2id = new HashMap<>();
 
-    public TableWriterImpl(RpcClientStreamControl control, long windowSize, long packetSize, WireRowSerializer<T> serializer) {
-        super(control, windowSize, packetSize);
+    public TableWriterImpl(RpcClientStreamControl control, Compression compression, long windowSize, long packetSize, WireRowSerializer<T> serializer) {
+        super(control, compression, windowSize, packetSize);
 
         this.serializer = Objects.requireNonNull(serializer);
     }

@@ -7,11 +7,12 @@ import ru.yandex.yt.ytclient.proxy.FileWriter;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 
 public class FileWriterImpl extends StreamWriterImpl<TRspWriteFile> implements FileWriter, RpcStreamConsumer {
-    public FileWriterImpl(RpcClientStreamControl control, long windowSize, long packetSize) {
-        super(control, windowSize, packetSize);
+    public FileWriterImpl(RpcClientStreamControl control, Compression compression, long windowSize, long packetSize) {
+        super(control, compression, windowSize, packetSize);
     }
 
     @Override

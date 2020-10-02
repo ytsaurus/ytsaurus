@@ -5,6 +5,7 @@ import java.util.List;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 /**
  * Базовый интерфейс для построения rpc запросов
@@ -75,4 +76,12 @@ public interface RpcClientRequest {
     }
 
     RpcOptions getOptions();
+
+    default Compression getCompression() {
+        if (header().hasRequestCodec()) {
+            return Compression.fromValue(header().getRequestCodec());
+        } else {
+            return Compression.None;
+        }
+    }
 }
