@@ -336,7 +336,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& epochContext = AutomatonEpochContext_;
+        auto epochContext = AutomatonEpochContext_;
 
         if (!epochContext || !IsActiveLeader()) {
             return MakeFuture<int>(TError(
@@ -413,7 +413,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& epochContext = DecoratedAutomaton_->GetEpochContext();
+        auto epochContext = DecoratedAutomaton_->GetEpochContext();
         if (!epochContext || !IsActive()) {
             return MakeFuture(TError(
                 NRpc::EErrorCode::Unavailable,
@@ -653,7 +653,7 @@ private:
                     ControlState_);
             }
 
-            const auto& epochContext = GetControlEpochContext(epochId);
+            auto epochContext = GetControlEpochContext(epochId);
 
             switch (ControlState_) {
                 case EPeerState::Following: {
@@ -728,7 +728,7 @@ private:
                 ControlState_);
         }
 
-        const auto& epochContext = GetControlEpochContext(epochId);
+        auto epochContext = GetControlEpochContext(epochId);
 
         switch (ControlState_) {
             case EPeerState::Following:
@@ -785,7 +785,7 @@ private:
             THROW_ERROR_EXCEPTION("Cannot build snapshot at follower");
         }
 
-        const auto& epochContext = GetControlEpochContext(epochId);
+        auto epochContext = GetControlEpochContext(epochId);
 
         SwitchTo(epochContext->EpochUserAutomatonInvoker);
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -858,7 +858,7 @@ private:
                     ControlState_);
             }
 
-            const auto& epochContext = GetControlEpochContext(epochId);
+            auto epochContext = GetControlEpochContext(epochId);
 
             switch (ControlState_) {
                 case EPeerState::Following: {
@@ -1043,7 +1043,7 @@ private:
         context->SetRequestInfo();
 
         if (Config_->EnableStateHashChecker) {
-            for (const auto& mutationInfo: request->mutations_info()) {
+            for (const auto& mutationInfo : request->mutations_info()) {
                 auto sequenceNumber = mutationInfo.sequence_number();
                 auto stateHash = mutationInfo.state_hash();
                 StateHashChecker_->Report(sequenceNumber, stateHash);
@@ -1114,7 +1114,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (const auto& epochContext = weakEpochContext.Lock()) {
+        if (auto epochContext = weakEpochContext.Lock()) {
             ScheduleRestart(epochContext, error);
         }
     }
@@ -1330,7 +1330,7 @@ private:
         YT_VERIFY(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::LeaderRecovery;
 
-        const auto& epochContext = StartEpoch(electionEpochContext);
+        auto epochContext = StartEpoch(electionEpochContext);
 
         epochContext->LeaseTracker = New<TLeaseTracker>(
             Config_,
@@ -1387,7 +1387,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& epochContext = ControlEpochContext_;
+        auto epochContext = ControlEpochContext_;
 
         try {
             epochContext->LeaderRecovery = New<TLeaderRecovery>(
@@ -1506,7 +1506,7 @@ private:
         YT_VERIFY(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::FollowerRecovery;
 
-        const auto& epochContext = StartEpoch(electionEpochContext);
+        auto epochContext = StartEpoch(electionEpochContext);
 
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
             Config_,
@@ -1533,7 +1533,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& epochContext = ControlEpochContext_;
+        auto epochContext = ControlEpochContext_;
 
         try {
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
@@ -1659,7 +1659,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
 
-        const auto& epochContext = ControlEpochContext_;
+        auto epochContext = ControlEpochContext_;
 
         // Check if initial ping is already received.
         if (epochContext->FollowerRecovery) {
@@ -1705,7 +1705,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        const auto& epochContext = New<TEpochContext>();
+        auto epochContext = New<TEpochContext>();
         epochContext->CellManager = electionEpochContext->CellManager;
         epochContext->ChangelogStore = ChangelogStore_;
         epochContext->ReachableVersion = *ReachableVersion_;
@@ -1806,7 +1806,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto this_ = weakThis.Lock();
-        const auto& epochContext = weakEpochContext.Lock();
+        auto epochContext = weakEpochContext.Lock();
         if (!this_ || !epochContext) {
             return MakeFuture(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
         }
@@ -1855,7 +1855,7 @@ private:
 
         YT_LOG_DEBUG("Synchronizing with leader");
 
-        const auto& epochContext = AutomatonEpochContext_;
+        auto epochContext = AutomatonEpochContext_;
 
         YT_VERIFY(!epochContext->LeaderSyncPromise);
         epochContext->LeaderSyncPromise = NewPromise<void>();
@@ -1880,7 +1880,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& epochContext = AutomatonEpochContext_;
+        auto epochContext = AutomatonEpochContext_;
 
         if (!rspOrError.IsOK()) {
             epochContext->LeaderSyncPromise.Set(TError(
@@ -1906,7 +1906,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& epochContext = AutomatonEpochContext_;
+        auto epochContext = AutomatonEpochContext_;
 
         if (!epochContext->LeaderSyncPromise || !epochContext->LeaderSyncVersion) {
             return;
@@ -1961,7 +1961,7 @@ private:
             return;
         }
 
-        const auto& epochContext = AutomatonEpochContext_;
+        auto epochContext = AutomatonEpochContext_;
 
         auto channel = epochContext->CellManager->GetPeerChannel(AutomatonEpochContext_->LeaderId);
         YT_VERIFY(channel);
