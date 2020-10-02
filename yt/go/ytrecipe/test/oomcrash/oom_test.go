@@ -3,7 +3,6 @@ package oomcrash
 import (
 	"bytes"
 	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,9 +16,6 @@ func TestOther(t *testing.T) {
 }
 
 func TestOOM(t *testing.T) {
-	if os.Getenv("AUTOCHECK") != "" {
-		return
-	}
 
 	t.Logf("OOM test started")
 

@@ -12,7 +12,7 @@ import (
 )
 
 func TestYTOutput(t *testing.T) {
-	require.NoError(t, os.MkdirAll(yatest.WorkPath("ytrecipe_output"), 0777))
-	path := filepath.Join(yatest.WorkPath("ytrecipe_output"), "test.txt")
+	require.NoError(t, os.MkdirAll(yatest.OutputPath("ytrecipe_output"), 0777))
+	path := filepath.Join(yatest.OutputPath("ytrecipe_output"), "test.txt")
 	require.NoError(t, ioutil.WriteFile(path, []byte("hello"), 0666))
 }
