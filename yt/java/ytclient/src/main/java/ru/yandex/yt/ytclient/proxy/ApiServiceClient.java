@@ -1600,6 +1600,7 @@ public class ApiServiceClient implements TransactionalClient {
                 control -> {
                     TableWriterImpl<T> writer = new TableWriterImpl<>(
                         control,
+                        builder.getCompression(),
                         req.getWindowSize(),
                         req.getPacketSize(),
                         req.getSerializer());
@@ -1641,7 +1642,11 @@ public class ApiServiceClient implements TransactionalClient {
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
         CompletableFuture<FileWriter> result = streamControlFuture.thenCompose(
                 control -> {
-                    FileWriterImpl fileWriter = new FileWriterImpl(control, req.getWindowSize(), req.getPacketSize());
+                    FileWriterImpl fileWriter = new FileWriterImpl(
+                            control,
+                            builder.getCompression(),
+                            req.getWindowSize(),
+                            req.getPacketSize());
                     control.subscribe(fileWriter);
                     return fileWriter.startUpload();
                 });

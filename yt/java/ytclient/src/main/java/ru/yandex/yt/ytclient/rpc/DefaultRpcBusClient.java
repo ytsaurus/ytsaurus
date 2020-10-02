@@ -39,7 +39,6 @@ import ru.yandex.yt.ytclient.bus.Bus;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 import ru.yandex.yt.ytclient.bus.BusListener;
-import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolderImpl;
 
@@ -633,15 +632,6 @@ public class DefaultRpcBusClient implements RpcClient {
             }
             builder.setWindowSize(options.getStreamingWindowSize());
             request.header().setServerAttachmentsStreamingParameters(builder);
-        }
-
-        @Override
-        public Compression compression() {
-            if (request.header().hasRequestCodec()) {
-                return Compression.fromValue(request.header().getRequestCodec());
-            } else {
-                return Compression.None;
-            }
         }
 
         @Override
