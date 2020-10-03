@@ -80,7 +80,7 @@ private:
     TSlot& GetSlot(int blockIndex);
     void ReleaseBlocks(int flushedBlockIndex);
     NChunkClient::TBlock GetBlock(int blockIndex);
-    void MarkAllSlotsWritten(const TError& error);
+    void MarkAllSlotsFailed(const TError& error);
 
     void AbortWriter();
     NChunkClient::NProto::TChunkInfo CloseWriter(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);

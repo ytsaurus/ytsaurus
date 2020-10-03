@@ -389,12 +389,7 @@ void TBlobSession::DoCancel(const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    for (const auto& slot : Window_) {
-        if (const auto& promise = slot.WrittenPromise) {
-            promise.TrySet(error);
-        }
-    }
-
+    MarkAllSlotsFailed(error);
     AbortWriter();
 }
 
@@ -611,14 +606,13 @@ TBlock TBlobSession::GetBlock(int blockIndex)
     return slot.Block;
 }
 
-void TBlobSession::MarkAllSlotsWritten(const TError& error)
+void TBlobSession::MarkAllSlotsFailed(const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    for (auto& slot : Window_) {
-        if (slot.State == ESlotState::Received) {
-            slot.State = ESlotState::Written;
-            slot.WrittenPromise.Set(error);
+    for (const auto& slot : Window_) {
+        if (const auto& promise = slot.WrittenPromise) {
+            promise.TrySet(error);
         }
     }
 }
@@ -640,7 +634,7 @@ void TBlobSession::SetFailed(const TError& error, bool fatal)
 
     Error_ = TError("Session failed") << error;
 
-    MarkAllSlotsWritten(error);
+    MarkAllSlotsFailed(error);
 
     if (fatal) {
         Location_->Disable(Error_);
