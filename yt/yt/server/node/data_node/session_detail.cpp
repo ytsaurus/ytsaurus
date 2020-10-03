@@ -136,6 +136,10 @@ void TSessionBase::Cancel(const TError& error)
         BIND([=, this_ = MakeStrong(this)] {
             VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
+            if (Canceled_.load()) {
+                return;
+            }
+
             if (!Active_) {
                 YT_LOG_DEBUG(error, "Session will be canceled after becoming active");
                 PendingCancelationError_ = error;
