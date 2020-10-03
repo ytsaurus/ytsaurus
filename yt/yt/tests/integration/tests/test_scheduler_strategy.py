@@ -3,7 +3,7 @@ import pytest
 from yt_commands import *
 from yt_helpers import *
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, is_asan_build
 from yt.test_helpers import are_almost_equal
 from yt.common import date_string_to_timestamp
 import yt.common
@@ -2565,6 +2565,12 @@ class BaseTestSchedulingSegments(YTEnvSetup):
 
     def _get_fair_share_ratio(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
+    
+    @classmethod
+    def setup_class(cls):
+        if is_asan_build():
+            pytest.skip("test suite has too high memory consumption for ASAN build")
+        super(BaseTestSchedulingSegments, cls).setup_class()
 
     def setup_method(self, method):
         super(BaseTestSchedulingSegments, self).setup_method(method)
