@@ -5,6 +5,7 @@
 #include <yt/core/profiling/profiler.h>
 
 #include <Common/ProfileEvents.h>
+#include <Common/COW.h>
 
 #include <Parsers/IAST_fwd.h>
 
@@ -66,6 +67,7 @@ DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig);
 DECLARE_REFCOUNTED_CLASS(TLauncherConfig);
 DECLARE_REFCOUNTED_CLASS(TMemoryConfig);
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog);
+DECLARE_REFCOUNTED_CLASS(TCompositeSettings);
 
 struct TValue;
 class TSubquerySpec;
@@ -160,6 +162,14 @@ struct ProcessListForUserInfo;
 struct QueryStatusInfo;
 struct ASTTableExpression;
 class AccessControlManager;
+
+class IDataType;
+using DataTypePtr = std::shared_ptr<const IDataType>;
+
+class IColumn;
+using ColumnPtr = COW<IColumn>::Ptr;
+using MutableColumnPtr = COW<IColumn>::MutablePtr;
+
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory & factory);

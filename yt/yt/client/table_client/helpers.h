@@ -283,7 +283,7 @@ NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToAny(TRowBuffer* context, TUnversionedValue* result, TUnversionedValue* value);
+void ToAny(TRowBuffer* context, TUnversionedValue* result, TUnversionedValue* value, NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
 
 ////////////////////////////////////////////////////////////////////////////////
 

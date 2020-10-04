@@ -6,6 +6,51 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCompositeSettings::TCompositeSettings()
+{
+    RegisterParameter("default_yson_format", DefaultYsonFormat)
+        .Default(NYson::EYsonFormat::Binary);
+
+    RegisterParameter("enable_conversion", EnableConversion)
+        .Default(false);
+}
+
+TQuerySettings::TQuerySettings()
+{
+    RegisterParameter("enable_columnar_read", EnableColumnarRead)
+        .Default(true);
+
+    RegisterParameter("enable_computed_column_deduction", EnableComputedColumnDeduction)
+        .Default(true);
+
+    RegisterParameter("deduced_statement_mode", DeducedStatementMode)
+        .Default(EDeducedStatementMode::In);
+
+    RegisterParameter("throw_testing_exception_in_distributor", ThrowTestingExceptionInDistributor)
+        .Default(false);
+    RegisterParameter("throw_testing_exception_in_subquery", ThrowTestingExceptionInSubquery)
+        .Default(false);
+    RegisterParameter("testing_subquery_allocation_size", TestingSubqueryAllocationSize)
+        .Default(0);
+
+    RegisterParameter("use_block_sampling", UseBlockSampling)
+        .Default(false);
+
+    RegisterParameter("log_key_condition_details", LogKeyConditionDetails)
+        .Default(false);
+
+    RegisterParameter("convert_row_batches_in_worker_thread_pool", ConvertRowBatchesInWorkerThreadPool)
+        .Default(true);
+
+    RegisterParameter("infer_dynamic_table_ranges_from_pivot_keys", InferDynamicTableRangesFromPivotKeys)
+        .Default(true);
+
+    RegisterParameter("composite", Composite)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 THealthCheckerConfig::THealthCheckerConfig()
 {
     RegisterParameter("period", Period)
@@ -84,39 +129,6 @@ TSecurityManagerConfig::TSecurityManagerConfig()
         .Default(true);
     RegisterParameter("operation_acl_update_period", OperationAclUpdatePeriod)
         .Default(TDuration::Seconds(15));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TQuerySettings::TQuerySettings()
-{
-    RegisterParameter("enable_columnar_read", EnableColumnarRead)
-        .Default(true);
-
-    RegisterParameter("enable_computed_column_deduction", EnableComputedColumnDeduction)
-        .Default(true);
-
-    RegisterParameter("deduced_statement_mode", DeducedStatementMode)
-        .Default(EDeducedStatementMode::In);
-
-    RegisterParameter("throw_testing_exception_in_distributor", ThrowTestingExceptionInDistributor)
-        .Default(false);
-    RegisterParameter("throw_testing_exception_in_subquery", ThrowTestingExceptionInSubquery)
-        .Default(false);
-    RegisterParameter("testing_subquery_allocation_size", TestingSubqueryAllocationSize)
-        .Default(0);
-
-    RegisterParameter("use_block_sampling", UseBlockSampling)
-        .Default(false);
-
-    RegisterParameter("log_key_condition_details", LogKeyConditionDetails)
-        .Default(false);
-
-    RegisterParameter("convert_row_batches_in_worker_thread_pool", ConvertRowBatchesInWorkerThreadPool)
-        .Default(true);
-
-    RegisterParameter("infer_dynamic_table_ranges_from_pivot_keys", InferDynamicTableRangesFromPivotKeys)
-        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -22,7 +22,25 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/yson/public.h>
+
 namespace NYT::NClickHouseServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Settings affecting how CHYT behaves around composite values and any columns.
+class TCompositeSettings
+    : public NYTree::TYsonSerializable
+{
+public:
+    NYson::EYsonFormat DefaultYsonFormat;
+
+    bool EnableConversion;
+
+    TCompositeSettings();
+};
+
+DEFINE_REFCOUNTED_TYPE(TCompositeSettings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +67,8 @@ public:
     bool ConvertRowBatchesInWorkerThreadPool;
 
     bool InferDynamicTableRangesFromPivotKeys;
+
+    TCompositeSettingsPtr Composite;
 
     TQuerySettings();
 };

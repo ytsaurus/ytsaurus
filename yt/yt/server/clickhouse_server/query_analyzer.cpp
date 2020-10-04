@@ -337,7 +337,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
         std::optional<DB::KeyCondition> keyCondition;
         if (schema->IsSorted()) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(
-                ToNamesAndTypesList(*schema),
+                ToNamesAndTypesList(*schema, settings->Composite),
                 Context_);
 
             auto queryInfoForKeyCondition = QueryInfo_;

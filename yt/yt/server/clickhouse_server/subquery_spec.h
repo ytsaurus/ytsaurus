@@ -29,6 +29,7 @@ public:
     int SubqueryIndex;
     int TableIndex;
     NTableClient::TTableReaderConfigPtr TableReaderConfig;
+    TQuerySettingsPtr QuerySettings;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -94,6 +94,8 @@ TQueryContext::TQueryContext(
 
     UserTagId = Host->GetQueryRegistry()->GetUserProfilingTag(User);
 
+    Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context.getSettings().allCustom(), Logger);
+
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
         "InitialQueryId: %v, Interface: %v, ClientHostname: %v, HttpUserAgent: %v)",

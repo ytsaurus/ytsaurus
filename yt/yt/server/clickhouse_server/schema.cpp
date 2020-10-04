@@ -1,5 +1,8 @@
 #include "schema.h"
 
+#include "composite.h"
+#include "config.h"
+
 #include <yt/client/table_client/schema.h>
 
 #include <DataTypes/DataTypesNumber.h>
@@ -7,6 +10,7 @@
 #include <DataTypes/DataTypeNullable.h>
 #include <DataTypes/DataTypeDate.h>
 #include <DataTypes/DataTypeDateTime.h>
+#include <DataTypes/DataTypeNothing.h>
 
 #include <Storages/ColumnsDescription.h>
 
@@ -40,18 +44,25 @@ std::vector<TString> ToVectorString(const DB::Names& columnNames)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::DataTypePtr ToDataType(const TLogicalTypePtr& logicalType)
+DB::DataTypePtr ToDataType(const TLogicalTypePtr& logicalType, const TCompositeSettingsPtr& settings)
 {
-    // TODO(max42): CHYT-140.
+    // TODO(max42): this functions seems redundant. Maybe we can always ask composite converter
+    // to deduce resulting data type for us.
     if (!SimplifyLogicalType(logicalType).first) {
         // This is an ultimately rich type (like optional<optional<...>> or list<...> etc).
-        // It is physically represented as Any, so we currently treat it as string.
-        return std::make_shared<DB::DataTypeString>();
+        if (settings->EnableConversion) {
+            return TCompositeValueToClickHouseColumnConverter(TComplexTypeFieldDescriptor(logicalType), New<TCompositeSettings>())
+                .GetDataType();
+        } else {
+            return std::make_shared<DB::DataTypeString>();
+        }
     }
 
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Optional:
-            return std::make_shared<DB::DataTypeNullable>(ToDataType(logicalType->GetElement()));
+            return std::make_shared<DB::DataTypeNullable>(ToDataType(logicalType->GetElement(), settings));
+        case ELogicalMetatype::Tagged:
+            return ToDataType(logicalType->GetElement(), settings);
         case ELogicalMetatype::Simple: {
             auto simpleLogicalType = logicalType->AsSimpleTypeRef().GetElement();
             switch (simpleLogicalType) {
@@ -97,6 +108,11 @@ DB::DataTypePtr ToDataType(const TLogicalTypePtr& logicalType)
                     // return std::make_shared<DB::DataTypeDateTime>();
                     return std::make_shared<DB::DataTypeUInt64>();
 
+                case ESimpleLogicalValueType::Null:
+                case ESimpleLogicalValueType::Void:
+                    // TODO(max42): map null and void to nothing.
+                    return std::make_shared<DB::DataTypeString>();
+
                 default:
                     THROW_ERROR_EXCEPTION("YT value type %Qlv is not supported", simpleLogicalType);
             }
@@ -106,21 +122,21 @@ DB::DataTypePtr ToDataType(const TLogicalTypePtr& logicalType)
     }
 }
 
-DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema)
+DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings)
 {
     DB::DataTypes result;
     result.reserve(schema.GetColumnCount());
 
     for (const auto& column : schema.Columns()) {
-        result.emplace_back(ToDataType(column.LogicalType()));
+        result.emplace_back(ToDataType(column.LogicalType(), settings));
     }
 
     return result;
 }
 
-DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema)
+DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings)
 {
-    const auto& dataTypes = ToDataTypes(schema);
+    const auto& dataTypes = ToDataTypes(schema, settings);
 
     DB::NamesAndTypesList result;
 
@@ -131,11 +147,11 @@ DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& sche
     return result;
 }
 
-DB::Block ToHeaderBlock(const TTableSchema& schema)
+DB::Block ToHeaderBlock(const TTableSchema& schema, const TCompositeSettingsPtr& settings)
 {
     DB::Block headerBlock;
 
-    auto namesAndTypesList = ToNamesAndTypesList(schema);
+    auto namesAndTypesList = ToNamesAndTypesList(schema, settings);
 
     for (const auto& nameAndTypePair : namesAndTypesList) {
         auto column = nameAndTypePair.type->createColumn();

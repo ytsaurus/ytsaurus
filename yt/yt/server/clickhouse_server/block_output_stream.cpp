@@ -2,6 +2,7 @@
 
 #include "helpers.h"
 #include "schema.h"
+#include "config.h"
 
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
@@ -95,7 +96,7 @@ private:
 
     void Prepare()
     {
-        HeaderBlock_ = ToHeaderBlock(*Schema_);
+        HeaderBlock_ = ToHeaderBlock(*Schema_, New<TCompositeSettings>());
 
         for (const auto& column : Schema_->Columns()) {
             PositionToId_.emplace_back(NameTable_->GetIdOrRegisterName(column.Name()));
