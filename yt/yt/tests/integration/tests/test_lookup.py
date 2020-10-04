@@ -469,7 +469,7 @@ class TestLookup(TestSortedDynamicTablesBase):
             lookup_rows("//tmp/t{key}", [{"key": 1}])
 
 
-class TestLookupFromDataNode(TestSortedDynamicTablesBase):
+class TestDataNodeLookup(TestSortedDynamicTablesBase):
     schema = [
         {"name": "key", "type": "int64", "sort_order": "ascending"},
         {"name": "value", "type": "string"},
@@ -484,7 +484,7 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("parallel_lookups", [0, 1, 2])
-    def test_lookup_from_data_node_simple(self, parallel_lookups):
+    def test_data_node_lookup_simple(self, parallel_lookups):
         self._set_nodes_state()
         sync_create_cells(1)
 
@@ -511,7 +511,7 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    def test_lookup_from_data_node_with_alter(self, replication_factor):
+    def test_data_node_lookup_with_alter(self, replication_factor):
         self._set_nodes_state()
         sync_create_cells(1)
 
@@ -551,7 +551,7 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    def test_lookup_from_data_node_chunks_with_overlap(self, replication_factor):
+    def test_data_node_lookup_chunks_with_overlap(self, replication_factor):
         self._set_nodes_state()
         sync_create_cells(1)
 
@@ -597,7 +597,7 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    def test_lookup_from_data_node_with_timestamp(self, replication_factor):
+    def test_data_node_lookup_with_timestamp(self, replication_factor):
         self._set_nodes_state()
         sync_create_cells(1)
 
@@ -632,7 +632,7 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("replication_factor", [1, 3])
     @pytest.mark.parametrize("enable_peer_probing", [True, False])
     @pytest.mark.parametrize("enable_rejects_if_throttling", [True, False])
-    def test_lookup_from_data_node_stress(self, replication_factor, enable_peer_probing, enable_rejects_if_throttling):
+    def test_data_node_lookup_stress(self, replication_factor, enable_peer_probing, enable_rejects_if_throttling):
         self._set_nodes_state()
         sync_create_cells(1)
 
@@ -670,7 +670,7 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", expected_keys) == expected_values
 
     @authors("akozhikhov")
-    def test_lookup_from_data_node_local_reader(self):
+    def test_data_node_lookup_local_reader(self):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=self.NUM_NODES)
