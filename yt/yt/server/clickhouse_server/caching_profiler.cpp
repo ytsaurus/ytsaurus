@@ -6,6 +6,8 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr TDuration SameValueUpdatePeriod = TDuration::Minutes(1);
+
 TCachingProfilerWrapper::TCachingProfilerWrapper(const TProfiler* underlyingProfiler)
     : UnderlyingProfiler_(underlyingProfiler)
 { }
@@ -17,14 +19,15 @@ void TCachingProfilerWrapper::Enqueue(
     const TTagIdList& tagIds) const
 {
     TKey key(path, tagIds);
+    auto now = TInstant::Now();
     auto it = PreviousValues_.find(key);
     if (it != PreviousValues_.end()) {
-        if (it->second == value && value == 0) {
+        if (it->second.Value == value && now - it->second.Instant < SameValueUpdatePeriod) {
             return;
         }
-        it->second = value;
+        it->second = {value, now};
     } else {
-        PreviousValues_[key] = value;
+        PreviousValues_[key] = {value, now};
     }
     UnderlyingProfiler_->Enqueue(path, value, metricType, tagIds);
 }
