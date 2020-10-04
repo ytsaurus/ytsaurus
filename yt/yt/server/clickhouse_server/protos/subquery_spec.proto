@@ -17,4 +17,5 @@ message TSubquerySpec
     optional int64 table_index = 9;
     optional string initial_query = 10;
     optional bytes table_reader_config = 11; // YSON-serialized TTableReaderConfig
+    optional bytes query_settings = 12; // YSON-serialized TQuerySettings
 };

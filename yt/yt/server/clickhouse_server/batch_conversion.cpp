@@ -1,6 +1,8 @@
 #include "batch_conversion.h"
 
 #include "helpers.h"
+#include "composite.h"
+#include "config.h"
 
 #include <yt/ytlib/table_client/columnar.h>
 
@@ -40,16 +42,13 @@ DB::ColumnPtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& column, F func)
     auto& chars = anyColumn->getChars();
 
     for (size_t index = 0; index < column.size(); ++index) {
-        if (index > 0) {
-            offsets.push_back(chars.size());
-        }
         ysonBuffer.clear();
         func(index, &ysonWriter);
         ysonWriter.Flush();
         chars.insert(chars.end(), ysonBuffer.begin(), ysonBuffer.end());
         chars.push_back('\x0');
+        offsets.push_back(chars.size());
     }
-    offsets.push_back(chars.size());
 
     return anyColumn;
 }
@@ -561,9 +560,33 @@ bool IsIntegerLikeType(ESimpleLogicalValueType type)
         type == ESimpleLogicalValueType::Timestamp;
 }
 
+DB::ColumnPtr ConvertCHColumnToComposite(
+    const DB::IColumn& column,
+    const DB::IColumn* nullColumn,
+    const TColumnSchema& schema,
+    const TCompositeSettingsPtr& settings)
+{
+    auto* typedColumn = DB::checkAndGetColumn<DB::ColumnString>(column);
+    auto* typedNullColumn = (nullColumn) ? DB::checkAndGetColumn<DB::ColumnUInt8>(nullColumn) : nullptr;
+
+    TCompositeValueToClickHouseColumnConverter converter(TComplexTypeFieldDescriptor(schema), settings);
+    for (int index = 0; index < typedColumn->size(); ++index) {
+        if (typedNullColumn && typedNullColumn->getBool(index)) {
+            converter.ConsumeNull();
+        } else {
+            auto yson = typedColumn->getDataAt(index);
+            converter.ConsumeYson(TStringBuf(yson.data, yson.size));
+        }
+    }
+
+    return converter.FlushColumn();
+}
+
+
 DB::ColumnPtr ConvertYTColumnToCHColumn(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn,
-    const TColumnSchema& chSchema)
+    const TColumnSchema& chSchema,
+    const TCompositeSettingsPtr& compositeSettings)
 {
     DB::ColumnPtr chColumn;
 
@@ -608,9 +631,20 @@ DB::ColumnPtr ConvertYTColumnToCHColumn(
         chColumn = ConvertCHColumnToAny(*chColumn, ytType);
     }
 
+    DB::ColumnPtr nullMapCHColumn;
     if (chSchema.LogicalType()->GetMetatype() == ELogicalMetatype::Optional) {
-        auto nullMapCHColumn = BuildNullBytemapForCHColumn(ytColumn);
-        chColumn = DB::ColumnNullable::create(std::move(chColumn), std::move(nullMapCHColumn));
+        nullMapCHColumn = BuildNullBytemapForCHColumn(ytColumn);
+    }
+
+    if (chSchema.GetPhysicalType() == EValueType::Any && compositeSettings->EnableConversion) {
+        // Composite type converter wraps resulting column into nullable internally,
+        // so just provide information about physical-level nulls to it.
+        chColumn = ConvertCHColumnToComposite(*chColumn, nullMapCHColumn.get(), chSchema, compositeSettings);
+    } else {
+        // Wrap with nullable manually.
+        if (nullMapCHColumn) {
+            chColumn = DB::ColumnNullable::create(std::move(chColumn), std::move(nullMapCHColumn));
+        }
     }
 
     return chColumn;
@@ -620,7 +654,8 @@ DB::Block ConvertColumnarRowBatchToBlock(
     const IUnversionedColumnarRowBatchPtr& batch,
     const TTableSchema& readSchema,
     const std::vector<int>& idToColumnIndex,
-    const DB::Block& headerBlock)
+    const DB::Block& headerBlock,
+    const TCompositeSettingsPtr& compositeSettings)
 {
     // NB(max42): CHYT-256.
     // If chunk schema contains not all of the requested columns (which may happen
@@ -638,7 +673,7 @@ DB::Block ConvertColumnarRowBatchToBlock(
 
         const auto& columnSchema = readSchema.Columns()[columnIndex];
 
-        auto chColumn = ConvertYTColumnToCHColumn(*ytColumn, columnSchema);
+        auto chColumn = ConvertYTColumnToCHColumn(*ytColumn, columnSchema, compositeSettings);
 
         block.getByPosition(columnIndex).column = std::move(chColumn);
 
@@ -660,7 +695,8 @@ DB::Block ConvertNonColumnarRowBatchToBlock(
     const TTableSchema& readSchema,
     const std::vector<int>& idToColumnIndex,
     const TRowBufferPtr& rowBuffer,
-    const DB::Block& headerBlock)
+    const DB::Block& headerBlock,
+    const TCompositeSettingsPtr& compositeSettings)
 {
     // NB(max42): CHYT-256.
     // If chunk schema contains not all of the requested columns (which may happen
@@ -671,6 +707,17 @@ DB::Block ConvertNonColumnarRowBatchToBlock(
     std::vector<bool> presentValueMask;
 
     auto block = headerBlock.cloneEmpty();
+
+    // Indexed by column indices.
+    std::vector<std::optional<TCompositeValueToClickHouseColumnConverter>> compositeValueConverters(block.columns());
+
+    for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
+        const auto& columnSchema = readSchema.Columns()[columnIndex];
+        if (columnSchema.GetPhysicalType() == EValueType::Any && compositeSettings->EnableConversion) {
+            TComplexTypeFieldDescriptor descriptor(columnSchema);
+            compositeValueConverters[columnIndex].emplace(descriptor, compositeSettings);
+        }
+    }
 
     for (auto row : batch->MaterializeRows()) {
         presentValueMask.assign(readSchema.GetColumnCount(), false);
@@ -683,21 +730,31 @@ DB::Block ConvertNonColumnarRowBatchToBlock(
             switch (value.Type) {
                 case EValueType::Null:
                     // TODO(max42): consider transforming to Y_ASSERT.
-                    YT_VERIFY(!readSchema.Columns()[columnIndex].Required());
-                    block.getByPosition(columnIndex).column->assumeMutableRef().insertDefault();
+                    YT_VERIFY(readSchema.Columns()[columnIndex].LogicalType()->IsNullable());
+                    if (compositeValueConverters[columnIndex]) {
+                        compositeValueConverters[columnIndex]->ConsumeNull();
+                    } else {
+                        block.getByPosition(columnIndex).column->assumeMutableRef().insertDefault();
+                    }
                     break;
 
                 // NB(max42): When rewriting this properly, remember that Int64 may
                 // correspond to shorter integer columns.
-                case EValueType::String:
                 case EValueType::Any:
                 case EValueType::Composite:
+                    if (compositeValueConverters[columnIndex]) {
+                        compositeValueConverters[columnIndex]->ConsumeYson(TStringBuf(value.Data.String, value.Length));
+                        break;
+                    }
+                    [[fallthrough]];
+
+                case EValueType::String:
                 case EValueType::Int64:
                 case EValueType::Uint64:
                 case EValueType::Double:
                 case EValueType::Boolean: {
                     if (readSchema.Columns()[columnIndex].GetPhysicalType() == EValueType::Any) {
-                        ToAny(rowBuffer.Get(), &value, &value);
+                        ToAny(rowBuffer.Get(), &value, &value, compositeSettings->DefaultYsonFormat);
                     }
                     auto field = ConvertToField(value);
                     block.getByPosition(columnIndex).column->assumeMutableRef().insert(field);
@@ -709,9 +766,21 @@ DB::Block ConvertNonColumnarRowBatchToBlock(
         }
         for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
             if (!presentValueMask[columnIndex]) {
-                YT_VERIFY(!readSchema.Columns()[columnIndex].Required());
-                block.getByPosition(columnIndex).column->assumeMutableRef().insertDefault();
+                YT_VERIFY(readSchema.Columns()[columnIndex].LogicalType()->IsNullable());
+                if (compositeValueConverters[columnIndex]) {
+                    compositeValueConverters[columnIndex]->ConsumeNull();
+                } else {
+                    block.getByPosition(columnIndex).column->assumeMutableRef().insertDefault();
+                }
             }
+        }
+    }
+
+    for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
+        if (compositeValueConverters[columnIndex]) {
+            auto column = compositeValueConverters[columnIndex]->FlushColumn();
+            YT_VERIFY(column->size() == batch->GetRowCount());
+            block.getByPosition(columnIndex).column = std::move(column);
         }
     }
 
@@ -725,21 +794,24 @@ DB::Block ConvertRowBatchToBlock(
     const TTableSchema& readSchema,
     const std::vector<int>& idToColumnIndex,
     const TRowBufferPtr& rowBuffer,
-    const DB::Block& headerBlock)
+    const DB::Block& headerBlock,
+    const TCompositeSettingsPtr& compositeSettings)
 {
     if (auto columnarBatch = batch->TryAsColumnar()) {
         return ConvertColumnarRowBatchToBlock(
             columnarBatch,
             readSchema,
             idToColumnIndex,
-            headerBlock);
+            headerBlock,
+            compositeSettings);
     } else {
         return ConvertNonColumnarRowBatchToBlock(
             batch,
             readSchema,
             idToColumnIndex,
             rowBuffer,
-            headerBlock);
+            headerBlock,
+            compositeSettings);
     }
 }
 

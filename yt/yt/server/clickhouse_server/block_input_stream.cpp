@@ -251,8 +251,8 @@ DB::Block TBlockInputStream::readImpl()
 
 void TBlockInputStream::Prepare()
 {
-    InputHeaderBlock_ = ToHeaderBlock(*ReadSchema_);
-    OutputHeaderBlock_ = ToHeaderBlock(*ReadSchema_);
+    InputHeaderBlock_ = ToHeaderBlock(*ReadSchema_, Settings_->Composite);
+    OutputHeaderBlock_ = ToHeaderBlock(*ReadSchema_, Settings_->Composite);
 
     if (PrewhereInfo_) {
         // Create header with executed prewhere actions.
@@ -277,7 +277,8 @@ DB::Block TBlockInputStream::ConvertRowBatchToBlock(const IUnversionedRowBatchPt
         *ReadSchema_,
         IdToColumnIndex_,
         RowBuffer_,
-        InputHeaderBlock_);
+        InputHeaderBlock_,
+        Settings_->Composite);
 
     ConversionCpuTime_ += timer.GetElapsedTime();
 

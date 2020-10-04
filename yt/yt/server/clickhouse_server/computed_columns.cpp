@@ -268,7 +268,7 @@ struct TComputedColumnPopulationMatcher
 
         std::vector<DB::DataTypePtr> dataTypes;
         for (const auto& columnName : resultStatement.ColumnNames) {
-            dataTypes.emplace_back(ToDataType(data.TableSchema->FindColumn(columnName)->LogicalType()));
+            dataTypes.emplace_back(ToDataType(data.TableSchema->FindColumn(columnName)->LogicalType(), data.Settings->Composite));
             columnAsts.emplace_back(std::make_shared<DB::ASTIdentifier>(columnName));
         }
 
@@ -511,7 +511,7 @@ DB::ASTPtr PopulatePredicateWithComputedColumns(
     }
 
     auto contextCopy = context;
-    auto syntaxAnalyzerResult = DB::TreeRewriter(contextCopy).analyze(ast, ToNamesAndTypesList(*schema));
+    auto syntaxAnalyzerResult = DB::TreeRewriter(contextCopy).analyze(ast, ToNamesAndTypesList(*schema, settings->Composite));
     auto blockWithConstants = DB::KeyCondition::getBlockWithConstants(ast, syntaxAnalyzerResult, contextCopy);
     YT_LOG_TRACE("Block with constants (Block: %v)", blockWithConstants);
 

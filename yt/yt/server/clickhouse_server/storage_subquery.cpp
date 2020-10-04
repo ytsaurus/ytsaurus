@@ -31,7 +31,7 @@ public:
         , SubquerySpec_(std::move(subquerySpec))
     {
         DB::StorageInMemoryMetadata storage_metadata;
-        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema)));
+        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema, SubquerySpec_.QuerySettings->Composite)));
         setInMemoryMetadata(storage_metadata);
 
         QueryContext_->MoveToPhase(EQueryPhase::Preparation);

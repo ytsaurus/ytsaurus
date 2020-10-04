@@ -66,7 +66,7 @@ DEPENDS(
     yt/python/yt/wrapper/tests/files/cpp_bin
 )
 
-IF(NOT GCC)
+IF(NOT GCC AND NOT OS_DARWIN)
     DEPENDS(
         ${YT_ROOT}/yt/server/clickhouse_server/bin
         ${YT_ROOT}/yt/server/clickhouse_trampoline

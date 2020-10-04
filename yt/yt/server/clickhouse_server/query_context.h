@@ -74,6 +74,8 @@ public:
 
     NTableClient::TRowBufferPtr RowBuffer;
 
+    TQuerySettingsPtr Settings;
+
     TQueryContext(
         THost* host,
         const DB::Context& context,

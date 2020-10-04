@@ -187,7 +187,7 @@ private:
             if (KeyColumnCount_) {
                 commonSchemaPart.resize(*KeyColumnCount_);
             }
-            KeyColumnDataTypes_ = ToDataTypes(TTableSchema(commonSchemaPart));
+            KeyColumnDataTypes_ = ToDataTypes(TTableSchema(commonSchemaPart), StorageContext_->Settings->Composite);
         }
 
         FetchTables();

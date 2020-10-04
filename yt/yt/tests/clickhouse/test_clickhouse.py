@@ -441,6 +441,7 @@ class ClickHouseTestBase(YTEnvSetup):
         if exists("//sys/clickhouse"):
             return
         create("map_node", "//sys/clickhouse")
+        create("document", "//sys/clickhouse/config", attributes={"value": {}})
 
         # We need to inject cluster_connection into yson config.
         Clique.base_config = get_clickhouse_server_config()
@@ -2028,7 +2029,9 @@ class TestClickHouseNoCache(ClickHouseTestBase):
                 clique.make_query("select * from \"//tmp/t\"") == [{"a": 123}]
 
 
-class TestCompositeTypes(ClickHouseTestBase):
+class TestYsonFunctionsBase(ClickHouseTestBase):
+    ENABLE_COMPOSITE_CONVERSION = False
+
     def setup(self):
         self._setup()
 
@@ -2090,6 +2093,11 @@ class TestCompositeTypes(ClickHouseTestBase):
                 "key": "/unknown",
             },
         ])
+        set("//sys/clickhouse/config/yt/settings/composite/enable_conversion", self.ENABLE_COMPOSITE_CONVERSION,
+            recursive=True)
+
+    def teardown(self):
+        remove("//sys/clickhouse/config/yt/settings/composite/enable_conversion", force=True)
 
     @authors("max42")
     def test_read_int64_strict(self):
@@ -2257,7 +2265,6 @@ class TestCompositeTypes(ClickHouseTestBase):
 
             assert clique.make_query("select a from `//tmp/t2`")[0] == {"a": yson.dumps(lst, yson_format="binary")}
 
-
     # CHYT-370.
     @authors("max42")
     def test_const_arguments(self):
@@ -2272,6 +2279,12 @@ class TestCompositeTypes(ClickHouseTestBase):
         with Clique(1) as clique:
             assert clique.make_query("select YPathRaw(v, '', fmt) as a from `//tmp/t[#1:#5]`") == \
                 [{"a": yson.dumps(row["v"], row["fmt"])} for row in read_table("//tmp/t[#1:#5]")]
+
+class TestYsonFunctionsCompositeConversionEnabled(TestYsonFunctionsBase):
+    ENABLE_COMPOSITE_CONVERSION = True
+
+class TestYsonFunctionsCompositeConversionDisabled(TestYsonFunctionsBase):
+    ENABLE_COMPOSITE_CONVERSION = False
 
 
 class TestYtDictionaries(ClickHouseTestBase):

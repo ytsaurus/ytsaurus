@@ -149,7 +149,7 @@ private:
 
     void ValidateSchema(const TTableSchema& schema)
     {
-        auto namesAndTypesList = ToNamesAndTypesList(schema);
+        auto namesAndTypesList = ToNamesAndTypesList(schema, New<TCompositeSettings>());
         if (namesAndTypesList != NamesAndTypesList_) {
             THROW_ERROR_EXCEPTION("Dictionary table schema does not match schema from config")
                 << TErrorAttribute("config_schema", NamesAndTypesList_.toString())

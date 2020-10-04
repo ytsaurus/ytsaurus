@@ -16,7 +16,7 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger Logger("Test");
+static TLogger Logger("Test");
 
 DB::SharedContextHolder SharedContext = DB::Context::createShared();
 

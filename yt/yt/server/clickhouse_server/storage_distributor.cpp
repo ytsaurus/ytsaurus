@@ -231,6 +231,7 @@ public:
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQueryId = QueryContext_->QueryId;
         SpecTemplate_.InitialQuery = SerializeAndMaybeTruncateSubquery(*QueryInfo_.query);
+        SpecTemplate_.QuerySettings = StorageContext_->Settings;
 
         auto cliqueNodes = QueryContext_->Host->GetNodes();
         if (cliqueNodes.empty()) {
@@ -488,7 +489,7 @@ public:
                 << TErrorAttribute("path", getTableName());
         }
         DB::StorageInMemoryMetadata storage_metadata;
-        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_)));
+        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_, QueryContext_->Settings->Composite)));
         setInMemoryMetadata(storage_metadata);
     }
 

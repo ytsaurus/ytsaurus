@@ -69,6 +69,8 @@ TString ToString(const Field& field);
 
 TString ToString(const Block& block);
 
+void PrintTo(const Field& field, ::std::ostream* os);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace DB

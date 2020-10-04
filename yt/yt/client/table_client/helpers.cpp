@@ -1147,10 +1147,10 @@ TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enab
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* value)
+void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* value, EYsonFormat format)
 {
     TStringStream stream;
-    NYson::TYsonWriter writer(&stream);
+    NYson::TYsonWriter writer(&stream, format);
 
     switch (value->Type) {
         case EValueType::Null: {
@@ -1159,8 +1159,13 @@ void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* 
         }
         case EValueType::Any:
         case EValueType::Composite: {
-            *result = *value;
-            return;
+            if (format == EYsonFormat::Binary) {
+                *result = *value;
+                return;
+            } else {
+                writer.OnRaw(TStringBuf(value->Data.String, value->Length));
+            }
+            break;
         }
         case EValueType::String: {
             writer.OnStringScalar(TStringBuf(value->Data.String, value->Length));

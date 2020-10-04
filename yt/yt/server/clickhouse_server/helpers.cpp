@@ -27,6 +27,8 @@
 #include <Access/AccessControlManager.h>
 #include <Access/User.h>
 
+#include <util/string/escape.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
@@ -322,7 +324,7 @@ void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson:
 
 TString ToString(const Field& field)
 {
-    return TString(field.dump());
+    return EscapeC(TString(field.dump()));
 }
 
 TString ToString(const Block& block)
@@ -353,6 +355,12 @@ TString ToString(const Block& block)
         block.dumpStructure(),
         content.Flush());
 }
+
+void PrintTo(const Field& field, std::ostream* os)
+{
+    *os << ToString(field);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

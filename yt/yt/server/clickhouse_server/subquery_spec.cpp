@@ -1,5 +1,6 @@
 #include "subquery_spec.h"
 
+#include "config.h"
 #include "schema.h"
 
 #include <yt/client/table_client/config.h>
@@ -42,6 +43,7 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     protoSpec->set_table_index(spec.TableIndex);
     protoSpec->set_initial_query(spec.InitialQuery);
     protoSpec->set_table_reader_config(ConvertToYsonString(spec.TableReaderConfig).GetData());
+    protoSpec->set_query_settings(ConvertToYsonString(spec.QuerySettings).GetData());
 }
 
 void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
@@ -67,6 +69,8 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
 
     auto tableReaderConfigYson = TYsonString(protoSpec.table_reader_config());
     spec->TableReaderConfig = ConvertTo<TTableReaderConfigPtr>(tableReaderConfigYson);
+    auto querySettingsYson = TYsonString(protoSpec.query_settings());
+    spec->QuerySettings = ConvertTo<TQuerySettingsPtr>(querySettingsYson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
