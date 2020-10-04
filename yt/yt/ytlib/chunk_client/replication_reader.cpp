@@ -2235,18 +2235,22 @@ private:
             if (EnablePeerProbing_) {
                 AsyncProbeAndSelectBestPeers(SinglePassCandidates_, SinglePassCandidates_.size(), {}, std::move(reader))
                     .Subscribe(BIND(
-                    [=, this_ = MakeStrong(this), pickPeerTimer = std::move(pickPeerTimer)] (const TErrorOr<TPeerList>& result) {
-                        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+                        [
+                            =,
+                            this_ = MakeStrong(this),
+                            pickPeerTimer = std::move(pickPeerTimer)
+                        ] (const TErrorOr<TPeerList>& result) {
+                            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-                        SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
+                            SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
 
-                        SinglePassCandidates_ = result.ValueOrThrow();
-                        if (SinglePassCandidates_.empty()) {
-                            OnPassCompleted();
-                        } else {
-                            DoRequestRows();
-                        }
-                    }));
+                            SinglePassCandidates_ = result.ValueOrThrow();
+                            if (SinglePassCandidates_.empty()) {
+                                OnPassCompleted();
+                            } else {
+                                DoRequestRows();
+                            }
+                        }).Via(SessionInvoker_));
                 return;
             }
         }
