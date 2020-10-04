@@ -23,7 +23,13 @@ public:
 private:
     using TKey = std::pair<NYPath::TYPath, NProfiling::TTagIdList>;
 
-    mutable THashMap<TKey, NProfiling::TValue> PreviousValues_;
+    struct TState
+    {
+        NProfiling::TValue Value;
+        TInstant Instant;
+    };
+
+    mutable THashMap<TKey, TState> PreviousValues_;
     const NProfiling::TProfiler* UnderlyingProfiler_;
 };
 
