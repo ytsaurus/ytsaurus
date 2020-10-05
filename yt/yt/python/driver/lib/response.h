@@ -1,5 +1,6 @@
 #pragma once
 
+#include <yt/python/common/shutdown.h>
 #include <yt/python/common/stream.h>
 
 #include <yt/python/yson/object_builder.h>
@@ -81,7 +82,8 @@ public:
     static void InitType(const TString& moduleName);
 
 private:
-    TFuture<void> Response_;
+    TFuture<void> ResponseFuture_;
+    TFutureCookie ResponseCookie_;
     TIntrusivePtr<TDriverResponseHolder> Holder_;
 
     static TString TypeName_;

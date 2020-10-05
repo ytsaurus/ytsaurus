@@ -124,7 +124,11 @@ TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args,
 
 void TDriverResponse::SetResponse(TFuture<void> response)
 {
-    Response_ = response;
+    ResponseFuture_ = response;
+    ResponseCookie_ = RegisterFuture(ResponseFuture_);
+    if (ResponseCookie_ == InvalidFutureCookie) {
+        throw CreateYtError("Finalization started");
+    }
 }
 
 TIntrusivePtr<TDriverResponseHolder> TDriverResponse::GetHolder() const
@@ -146,10 +150,11 @@ Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
 {
     {
         TReleaseAcquireGilGuard guard;
-        auto result = WaitForSettingFuture(Response_);
+        auto result = WaitForSettingFuture(ResponseFuture_);
         if (!result) {
-            Response_.Cancel(TError("Wait canceled"));
+            ResponseFuture_.Cancel(TError(NYT::EErrorCode::Canceled, "Wait canceled"));
         }
+        UnregisterFuture(ResponseCookie_);
     }
 
     if (PyErr_Occurred()) {
@@ -160,27 +165,27 @@ Py::Object TDriverResponse::Wait(Py::Tuple& args, Py::Dict& kwargs)
 
 Py::Object TDriverResponse::IsSet(Py::Tuple& args, Py::Dict& kwargs)
 {
-    return Py::Boolean(Response_.IsSet());
+    return Py::Boolean(ResponseFuture_.IsSet());
 }
 
 Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict& kwargs)
 {
-    if (!Response_.IsSet()) {
+    if (!ResponseFuture_.IsSet()) {
         throw CreateYtError("Response is not set");
     }
-    return Py::Boolean(Response_.Get().IsOK());
+    return Py::Boolean(ResponseFuture_.Get().IsOK());
 }
 
 Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
 {
-    if (!Response_.IsSet()) {
+    if (!ResponseFuture_.IsSet()) {
         throw CreateYtError("Response is not set");
     }
     Py::Object object;
 #if PY_MAJOR_VERSION < 3
-    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), std::nullopt);
+    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.Get()), std::nullopt);
 #else
-    Deserialize(object, NYTree::ConvertToNode(Response_.Get()), std::make_optional<TString>("utf-8"));
+    Deserialize(object, NYTree::ConvertToNode(ResponseFuture_.Get()), std::make_optional<TString>("utf-8"));
 #endif
     return object;
 }
@@ -188,8 +193,8 @@ Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
 TDriverResponse::~TDriverResponse()
 {
     try {
-        if (Response_) {
-            Response_.Cancel(TError("Driver response destroyed"));
+        if (ResponseFuture_) {
+            ResponseFuture_.Cancel(TError(NYT::EErrorCode::Canceled, "Driver response destroyed"));
         }
     } catch (...) {
         // intentionally doing nothing

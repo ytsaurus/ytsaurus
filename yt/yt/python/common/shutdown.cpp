@@ -1,6 +1,9 @@
 #include "shutdown.h"
+#include "helpers.h"
 
 #include <yt/core/misc/shutdown.h>
+
+#include <yt/core/actions/future.h>
 
 #include <Objects.hxx> // pycxx
 #include <Extensions.hxx> // pycxx
@@ -15,6 +18,15 @@ static constexpr int MaxAdditionalShutdownCallbackCount = 10;
 static std::array<TCallback<void()>, MaxAdditionalShutdownCallbackCount> BeforeFinalizeShutdownCallbacks;
 static std::array<TCallback<void()>, MaxAdditionalShutdownCallbackCount> AfterFinalizeShutdownCallbacks;
 static std::array<TCallback<void()>, MaxAdditionalShutdownCallbackCount> AfterShutdownCallbacks;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static std::atomic<i64> ReleaseAcquiredCounter = 0;
+
+static TAdaptiveLock FutureSpinLock;
+static i64 FutureCookieCounter = 0;
+static bool FutureFinalizationStarted = false;
+static THashMap<TFutureCookie, TFuture<void>> RegisteredFutures;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +114,63 @@ void RegisterShutdown()
 {
     static TShutdownModule* shutdown = new NYT::NPython::TShutdownModule;
     Y_UNUSED(shutdown);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void EnterReleaseAcquireGuard()
+{
+    ++ReleaseAcquiredCounter;
+}
+
+void LeaveReleaseAcquireGuard()
+{
+    --ReleaseAcquiredCounter;
+}
+
+TFutureCookie RegisterFuture(TFuture<void> future)
+{
+    auto guard = Guard(FutureSpinLock);
+
+    if (FutureFinalizationStarted) {
+        return InvalidFutureCookie;
+    }
+
+    ++FutureCookieCounter;
+    YT_VERIFY(RegisteredFutures.emplace(FutureCookieCounter, std::move(future)).second);
+
+    return FutureCookieCounter;
+}
+
+void UnregisterFuture(TFutureCookie cookie)
+{
+    auto guard = Guard(FutureSpinLock);
+
+    YT_VERIFY(RegisteredFutures.erase(cookie) == 1);
+}
+
+void FinalizeFutures()
+{
+    bool hasUnsetFuture = false;
+    {
+        auto guard = Guard(FutureSpinLock);
+
+        FutureFinalizationStarted = true;
+
+        for (const auto& [_, future] : RegisteredFutures) {
+            if (!future.IsSet()) {
+                hasUnsetFuture = true;
+                future.Cancel(TError(NYT::EErrorCode::Canceled, "Python finalization started"));
+            }
+        }
+    }
+
+    if (hasUnsetFuture) {
+        TReleaseAcquireGilGuard guard;
+        while (ReleaseAcquiredCounter.load() > 1) {
+            Sleep(TDuration::MilliSeconds(100));
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

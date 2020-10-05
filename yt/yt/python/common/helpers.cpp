@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "shutdown.h"
 
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/finally.h>
@@ -182,11 +183,6 @@ TGilGuard::TGilGuard()
 
 TGilGuard::~TGilGuard()
 {
-    // See comment for TReleaseAcquireGilGuard destructor.
-    if (!Py_IsInitialized()) {
-        return;
-    }
-
     YT_VERIFY(ThreadId_ == GetCurrentThreadId());
     PyGILState_Release(State_);
 }
@@ -196,10 +192,15 @@ TGilGuard::~TGilGuard()
 TReleaseAcquireGilGuard::TReleaseAcquireGilGuard()
     : State_(PyEval_SaveThread())
     , ThreadId_(GetCurrentThreadId())
-{ }
+{
+    EnterReleaseAcquireGuard();
+}
 
 TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
 {
+    // NB: this check is outdated, but it worth to remember about it.
+    // Now the problem is solved by waiting that all threads leave this guard in BeforeShutdown.
+    //
     // See YT-13246 for details.
     // Suppose the following situation:
     // 1. Some thread has acquired TReleaseAcquireGilGuard and then tries to acquire GIL,
@@ -207,11 +208,13 @@ TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
     // In this case c-python runtime tries to exit the thread on attempt to acquire GIL;
     // this causes unwind of the stack, that executes this destructor,
     // but PyEval_RestoreThread checks existance of GIL that can be already destroyed.
-    if (!Py_IsInitialized()) {
-        return;
-    }
+    // if (!Py_IsInitialized()) {
+    //     return;
+    // }
     YT_VERIFY(ThreadId_ == GetCurrentThreadId());
     PyEval_RestoreThread(State_);
+
+    LeaveReleaseAcquireGuard();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -251,10 +254,6 @@ bool WaitForSettingFuture(TFuture<void> future)
         }
 
         {
-            if (!Py_IsInitialized()) {
-                return false;
-            }
-
             TGilGuard guard;
             auto signals = PyErr_CheckSignals();
             if (signals == -1) {

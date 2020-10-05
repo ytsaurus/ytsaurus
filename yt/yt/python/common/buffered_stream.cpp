@@ -9,8 +9,8 @@ TBufferedStream::TBufferedStream(size_t capacity)
     : Data_(TSharedMutableRef::Allocate(capacity, false))
     , Begin_(Data_.Begin())
     , Capacity_(capacity)
-    , AllowRead_(NewPromise<void>())
-    , AllowWrite_(NewPromise<void>())
+    , AllowReadPromise_(NewPromise<void>())
+    , AllowWritePromise_(NewPromise<void>())
 { }
 
 size_t TBufferedStream::WaitDataToRead(size_t size)
@@ -27,21 +27,30 @@ size_t TBufferedStream::WaitDataToRead(size_t size)
             Capacity_ = std::max(Capacity_, size * 2);
             if (Full_) {
                 Full_ = false;
-                AllowWrite_.Set(TError());
+                AllowWritePromise_.Set(TError());
             }
             if (!Finished_) {
                 wait = true;
-                AllowRead_ = NewPromise<void>();
+                AllowReadPromise_ = NewPromise<void>();
+                AllowReadCookie_ = RegisterFuture(AllowReadPromise_);
+                if (AllowReadCookie_ == InvalidFutureCookie) { // Finalization started.
+                    return 0;
+                }
             }
         }
     }
 
     if (wait) {
         // Busy wait.
-        auto result = WaitForSettingFuture(AllowRead_.ToFuture());
-        if (!result) {
+        auto future = AllowReadPromise_.ToFuture();
+        auto result = WaitForSettingFuture(future);
+        if (!result) { // Some error occured.
             return 0;
         }
+        if (!future.Get().IsOK()) { // Finalization is in progress.
+            return 0;
+        }
+        UnregisterFuture(AllowReadCookie_);
     }
 
     {
@@ -64,7 +73,7 @@ void TBufferedStream::Read(size_t size, char* dest)
 
     if (Size_ * 2 < Capacity_ && Full_) {
         Full_ = false;
-        AllowWrite_.Set(TError());
+        AllowWritePromise_.Set(TError());
     }
 }
 
@@ -82,7 +91,7 @@ void TBufferedStream::Finish()
 
     Finished_ = true;
 
-    AllowRead_.TrySet(TError());
+    AllowReadPromise_.TrySet(TError());
 }
 
 TFuture<void> TBufferedStream::Close()
@@ -113,13 +122,13 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
     }
 
     if (Size_ >= SizeToRead_) {
-        AllowRead_.TrySet(TError());
+        AllowReadPromise_.TrySet(TError());
     }
 
     if (Capacity_ <= Size_ * 2) {
         Full_ = true;
-        AllowWrite_ = NewPromise<void>();
-        return AllowWrite_
+        AllowWritePromise_ = NewPromise<void>();
+        return AllowWritePromise_
             .ToFuture()
             .ToImmediatelyCancelable();
     } else {
