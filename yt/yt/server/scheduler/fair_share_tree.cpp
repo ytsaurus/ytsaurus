@@ -2613,7 +2613,7 @@ private:
         auto unlimitedDemandFairShareResources = element->GetTotalResourceLimits() * attributes.GetUnlimitedDemandFairShare();
 
         fluent
-            .Item("scheduling_status").Value(element->GetStatus())
+            .Item("scheduling_status").Value(element->GetStatus(/* atUpdate */ true))
             .Item("starving").Value(element->GetStarving())
             .Item("fair_share_starvation_tolerance").Value(element->GetFairShareStarvationTolerance())
             .Item("min_share_preemption_timeout").Value(element->GetMinSharePreemptionTimeout())
@@ -2632,7 +2632,7 @@ private:
             .Item("unlimited_demand_fair_share_ratio").Value(attributes.GetUnlimitedDemandFairShareRatio())
             .Item("unlimited_demand_fair_share_resources").Value(unlimitedDemandFairShareResources)
             .Item("possible_usage_ratio").Value(attributes.GetPossibleUsageRatio())
-            .Item("usage_ratio").Value(element->GetResourceUsageRatio())
+            .Item("usage_ratio").Value(element->GetResourceUsageRatioAtUpdate())
             .Item("demand_ratio").Value(attributes.GetDemandRatio())
             .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
             .Item("best_allocation_ratio").Value(element->GetBestAllocationRatio())
@@ -2685,7 +2685,7 @@ private:
         const auto& dynamicAttributes = GetDynamicAttributes(rootElementSnapshot, element);
 
         fluent
-            .Item("usage_ratio").Value(element->GetResourceUsageRatio())
+            .Item("usage_ratio").Value(element->GetResourceUsageRatioAtUpdate())
             .Item("demand_ratio").Value(attributes.GetDemandRatio())
             .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
             .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)

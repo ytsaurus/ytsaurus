@@ -393,10 +393,10 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& 
         "Starving: %v, "
         "Weight: %v, "
         "Volume: %v",
-        GetStatus(),
+        GetStatus(/* atUpdate */ true),
         Attributes_.DominantResource,
         Attributes_.DemandShare,
-        GetResourceUsageShare(),
+        Attributes_.UsageShare,
         Attributes_.LimitsShare,
         Attributes_.MinShare,
         Attributes_.FairShare,
@@ -490,7 +490,7 @@ int TSchedulerElement::GetPendingJobCount() const
     return PendingJobCount_;
 }
 
-ESchedulableStatus TSchedulerElement::GetStatus() const
+ESchedulableStatus TSchedulerElement::GetStatus(bool /* atUpdate */) const
 {
     return ESchedulableStatus::Normal;
 }
@@ -536,6 +536,11 @@ TResourceVector TSchedulerElement::GetResourceUsageShare() const
 double TSchedulerElement::GetResourceUsageRatio() const
 {
     return MaxComponent(GetResourceUsageShare());
+}
+
+double TSchedulerElement::GetResourceUsageRatioAtUpdate() const
+{
+    return MaxComponent(Attributes_.UsageShare);
 }
 
 TResourceVector TSchedulerElement::GetResourceUsageShareWithPrecommit() const
@@ -696,9 +701,11 @@ bool TSchedulerElement::IsStrictlyDominatesNonBlocked(const TResourceVector& lhs
     return true;
 }
 
-ESchedulableStatus TSchedulerElement::GetStatusImpl(double tolerance) const
+ESchedulableStatus TSchedulerElement::GetStatusImpl(double tolerance, bool atUpdate) const
 {
-    auto usageShare = GetResourceUsageShare();
+    auto usageShare = atUpdate
+        ? Attributes_.UsageShare
+        : GetResourceUsageShare();
     if (IsStrictlyDominatesNonBlocked(Attributes_.FairShare.Total * tolerance, usageShare)) {
         return ESchedulableStatus::BelowFairShare;
     }
@@ -722,7 +729,7 @@ void TSchedulerElement::CheckForStarvationImpl(
         }
     };
 
-    auto status = GetStatus();
+    auto status = GetStatus(/* atUpdate */ true);
     switch (status) {
         case ESchedulableStatus::BelowFairShare:
             updateStarving(fairSharePreemptionTimeout);
@@ -2291,9 +2298,9 @@ EIntegralGuaranteeType TPool::GetIntegralGuaranteeType() const
     return Config_->IntegralGuarantees->GuaranteeType;
 }
 
-ESchedulableStatus TPool::GetStatus() const
+ESchedulableStatus TPool::GetStatus(bool atUpdate) const
 {
-    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance);
+    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance, atUpdate);
 }
 
 double TPool::GetFairShareStarvationTolerance() const
@@ -2332,7 +2339,7 @@ void TPool::SetStarving(bool starving)
 
     if (starving && !GetStarving()) {
         TSchedulerElement::SetStarving(true);
-        YT_LOG_INFO("Pool is now starving (Status: %v)", GetStatus());
+        YT_LOG_INFO("Pool is now starving (Status: %v)", GetStatus(/* atUpdate */ true));
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
         YT_LOG_INFO("Pool is no longer starving");
@@ -3649,13 +3656,13 @@ const TSchedulingTagFilter& TOperationElement::GetSchedulingTagFilter() const
     return SchedulingTagFilter_;
 }
 
-ESchedulableStatus TOperationElement::GetStatus() const
+ESchedulableStatus TOperationElement::GetStatus(bool atUpdate) const
 {
     if (UnschedulableReason_) {
         return ESchedulableStatus::Normal;
     }
 
-    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance);
+    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance, atUpdate);
 }
 
 void TOperationElement::SetStarving(bool starving)
