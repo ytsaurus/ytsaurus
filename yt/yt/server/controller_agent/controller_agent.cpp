@@ -1668,6 +1668,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        YT_LOG_DEBUG("Building static orchid");
+
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("connected").Value(Connected_)
@@ -1692,6 +1694,8 @@ private:
                 )
                 .Item("tags").Value(MasterConnector_->GetTags())
             .EndMap();
+        
+        YT_LOG_DEBUG("Static orchid built");
     }
 
     IYPathServicePtr BuildZombieOrchid(const IOperationControllerPtr& controller)
