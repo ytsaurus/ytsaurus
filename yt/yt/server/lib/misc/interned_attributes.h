@@ -276,6 +276,8 @@
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \
     XX(Priority, priority) \
+    XX(ProfiledOperationResources, profiled_operation_resources) \
+    XX(ProfiledPoolResources, profiled_pool_resources) \
     XX(ProfilingMode, profiling_mode) \
     XX(ProfilingTag, profiling_tag) \
     XX(ProjectId, project_id) \

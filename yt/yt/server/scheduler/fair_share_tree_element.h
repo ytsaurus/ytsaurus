@@ -75,6 +75,8 @@ struct TSchedulableAttributes
     double ResourceFlowRatio = 0.0;
     double TotalResourceFlowRatio = 0.0;
 
+    double LocalSatisfactionRatio = 0.0;
+
     int FifoIndex = -1;
 
     double AdjustedFairShareStarvationTolerance = 1.0;
@@ -369,9 +371,7 @@ public:
     virtual void PublishFairShareAndUpdatePreemption() = 0;
 
     virtual void UpdatePreemptionAttributes();
-    virtual void UpdateDynamicAttributes(
-        TDynamicAttributesList* dynamicAttributesList,
-        TUpdateFairShareContext* context);
+    virtual void UpdateGlobalDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
 
@@ -595,9 +595,7 @@ public:
     virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void PublishFairShareAndUpdatePreemption() override;
     virtual void UpdatePreemptionAttributes() override;
-    virtual void UpdateDynamicAttributes(
-        TDynamicAttributesList* dynamicAttributesList,
-        TUpdateFairShareContext* context) override;
+    virtual void UpdateGlobalDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
 
     virtual double GetFairShareStarvationToleranceLimit() const;
     virtual TDuration GetMinSharePreemptionTimeoutLimit() const;

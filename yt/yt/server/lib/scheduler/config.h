@@ -271,6 +271,9 @@ public:
 
     bool EnableLimitingAncestorCheck;
 
+    THashSet<EJobResourceType> ProfiledPoolResources;
+    THashSet<EJobResourceType> ProfiledOperationResources;
+
     TFairShareStrategyTreeConfig();
 };
 

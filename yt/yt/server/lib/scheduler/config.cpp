@@ -225,6 +225,24 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("enable_limiting_ancestor_check", EnableLimitingAncestorCheck)
         .Default(true);
 
+    RegisterParameter("profiled_pool_resources", ProfiledPoolResources)
+        .Default({
+            EJobResourceType::Cpu,
+            EJobResourceType::Memory,
+            EJobResourceType::UserSlots,
+            EJobResourceType::Gpu,
+            EJobResourceType::Network
+        });
+
+    RegisterParameter("profiled_operation_resources", ProfiledOperationResources)
+        .Default({
+            EJobResourceType::Cpu,
+            EJobResourceType::Memory,
+            EJobResourceType::UserSlots,
+            EJobResourceType::Gpu,
+            EJobResourceType::Network
+        });
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")

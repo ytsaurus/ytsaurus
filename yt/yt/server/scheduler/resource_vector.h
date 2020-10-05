@@ -134,15 +134,15 @@ inline void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsume
 
 inline void ProfileResourceVector(
     NProfiling::TMetricsAccumulator& accumulator,
+    const THashSet<EJobResourceType>& resourceTypes,
     const TResourceVector& resourceVector,
     const TString& prefix,
     const NProfiling::TTagIdList& tagIds)
 {
-    const auto& resourceNames = TEnumTraits<EJobResourceType>::GetDomainNames();
-    for (int index = 0; index < ResourceCount; ++index) {
+    for (auto resourceType : resourceTypes) {
         accumulator.Add(
-            prefix + "_x100000/" + resourceNames[index],
-            static_cast<i64>(resourceVector[index] * 1e5),
+            prefix + "_x100000/" + FormatEnum(resourceType),
+            static_cast<i64>(resourceVector[resourceType] * 1e5),
             NProfiling::EMetricType::Gauge,
             tagIds);
     }
