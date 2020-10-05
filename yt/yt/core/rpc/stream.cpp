@@ -308,7 +308,7 @@ TFuture<void> TAttachmentsOutputStream::Close()
     }
 
     if (ClosePromise_) {
-        return VoidFuture;
+        return ClosePromise_.ToFuture();
     }
 
     auto promise = ClosePromise_ = NewPromise<void>();
@@ -380,7 +380,8 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TAdaptiveLock>& guard, const TErro
 
     for (const auto& promise : promises) {
         if (promise) {
-            promise.Set(error);
+            // Avoid double-setting ClosePromise_.
+            promise.TrySet(error);
         }
     }
 
@@ -439,7 +440,8 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
 
     for (const auto& promise : promises) {
         if (promise) {
-            promise.Set();
+            //Avoid double-setting ClosePromise_.
+            promise.TrySet();
         }
     }
 }
