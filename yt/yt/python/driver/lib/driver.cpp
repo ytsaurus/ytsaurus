@@ -293,8 +293,10 @@ void TDriverModuleBase::Initialize(
     RegisterShutdown();
     RegisterBeforeFinalizeShutdownCallback(
         BIND(&TDriverResponseHolder::OnBeforePythonFinalize),
-        /*index*/ 0
-    );
+        /*index*/ 0);
+    RegisterBeforeFinalizeShutdownCallback(
+        BIND(&FinalizeFutures),
+        /*index*/ 1);
     RegisterAfterFinalizeShutdownCallback(
         BIND([] () {
             YT_LOG_INFO("Module shutdown started");
@@ -309,12 +311,10 @@ void TDriverModuleBase::Initialize(
             ActiveDrivers.clear();
             YT_LOG_INFO("Module shutdown finished");
         }),
-        /*index*/ 0
-    );
+        /*index*/ 0);
     RegisterAfterShutdownCallback(
         BIND(&TDriverResponseHolder::OnAfterPythonFinalize),
-        /*index*/ 0
-    );
+        /*index*/ 0);
 }
 
 Py::Object TDriverModuleBase::ConfigureLogging(const Py::Tuple& args_, const Py::Dict& kwargs_)

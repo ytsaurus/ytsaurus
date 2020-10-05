@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "shutdown.h"
 
 #include <yt/core/concurrency/async_stream.h>
 
@@ -57,10 +58,11 @@ private:
     bool Full_ = false;
 
     // Marks that buffer contains enough bytes to be read by waiting read command.
-    TPromise<void> AllowRead_;
+    TPromise<void> AllowReadPromise_;
+    TFutureCookie AllowReadCookie_;
 
     // Marks that stream ready to receive more bytes.
-    TPromise<void> AllowWrite_;
+    TPromise<void> AllowWritePromise_;
 
     TMutex Mutex_;
     TMutex ReadMutex_;
