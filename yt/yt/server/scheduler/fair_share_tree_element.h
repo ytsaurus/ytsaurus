@@ -428,7 +428,7 @@ public:
     TInstant GetStartTime() const;
     int GetPendingJobCount() const;
 
-    virtual ESchedulableStatus GetStatus() const;
+    virtual ESchedulableStatus GetStatus(bool atUpdate = false) const;
 
     bool GetStarving() const;
     virtual void SetStarving(bool starving);
@@ -441,6 +441,7 @@ public:
 
     // For compatibility with the classic scheduler.
     double GetResourceUsageRatio() const;
+    double GetResourceUsageRatioAtUpdate() const;
 
     virtual TString GetTreeId() const;
 
@@ -511,7 +512,7 @@ protected:
 
     IFairShareTreeHost* GetTreeHost() const;
 
-    ESchedulableStatus GetStatusImpl(double defaultTolerance) const;
+    ESchedulableStatus GetStatusImpl(double defaultTolerance, bool atUpdate) const;
 
     void CheckForStarvationImpl(
         TDuration minSharePreemptionTimeout,
@@ -778,7 +779,7 @@ public:
     virtual TResourceVector GetMaxShare() const override;
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const override;
 
-    virtual ESchedulableStatus GetStatus() const override;
+    virtual ESchedulableStatus GetStatus(bool atUpdate = false) const override;
 
     virtual double GetFairShareStarvationTolerance() const override;
     virtual TDuration GetMinSharePreemptionTimeout() const override;
@@ -1060,7 +1061,7 @@ public:
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
-    virtual ESchedulableStatus GetStatus() const override;
+    virtual ESchedulableStatus GetStatus(bool atUpdate = false) const override;
 
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;

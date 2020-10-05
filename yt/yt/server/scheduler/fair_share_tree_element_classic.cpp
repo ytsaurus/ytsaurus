@@ -383,7 +383,7 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& 
         "FairShare: %v, IntegralVolume: %.6lf, Satisfaction: %.4lg, "
         "UnlimitedDemandFairShare: %.6lf, PossibleUsage: %.6lf,  BestAllocation: %.6lf, "
         "Starving: %v, Weight: %v",
-        GetStatus(),
+        GetStatus(/* atUpdate */ true),
         Attributes_.DominantResource,
         Attributes_.DemandRatio,
         GetResourceUsageRatio(),
@@ -490,7 +490,7 @@ int TSchedulerElement::GetPendingJobCount() const
     return PendingJobCount_;
 }
 
-ESchedulableStatus TSchedulerElement::GetStatus() const
+ESchedulableStatus TSchedulerElement::GetStatus(bool /* atUpdate */) const
 {
     return ESchedulableStatus::Normal;
 }
@@ -525,6 +525,11 @@ TJobMetrics TSchedulerElement::GetJobMetrics() const
 double TSchedulerElement::GetResourceUsageRatio() const
 {
     return ComputeResourceUsageRatio(ResourceTreeElement_->GetResourceUsage());
+}
+
+double TSchedulerElement::GetResourceUsageRatioAtUpdate() const
+{
+    return ComputeResourceUsageRatio(ResourceUsageAtUpdate_);
 }
 
 double TSchedulerElement::GetResourceUsageRatioWithPrecommit() const
@@ -639,9 +644,11 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio() const
     }
 }
 
-ESchedulableStatus TSchedulerElement::GetStatus(double defaultTolerance) const
+ESchedulableStatus TSchedulerElement::GetStatusImpl(double defaultTolerance, bool atUpdate) const
 {
-    double usageRatio = GetResourceUsageRatio();
+    double usageRatio = atUpdate
+        ? GetResourceUsageRatioAtUpdate()
+        : GetResourceUsageRatio();
     double demandRatio = Attributes_.DemandRatio;
 
     double tolerance =
@@ -673,7 +680,7 @@ void TSchedulerElement::CheckForStarvationImpl(
         }
     };
 
-    auto status = GetStatus();
+    auto status = GetStatus(/* atUpdate */ true);
     switch (status) {
         case ESchedulableStatus::BelowMinShare:
             updateStarving(minSharePreemptionTimeout);
@@ -1788,9 +1795,9 @@ double TPool::GetMaxShareRatio() const
     return Config_->MaxShareRatio.value_or(1.0);
 }
 
-ESchedulableStatus TPool::GetStatus() const
+ESchedulableStatus TPool::GetStatus(bool atUpdate) const
 {
-    return TSchedulerElement::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
+    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance, atUpdate);
 }
 
 double TPool::GetFairShareStarvationTolerance() const
@@ -1829,7 +1836,7 @@ void TPool::SetStarving(bool starving)
 
     if (starving && !GetStarving()) {
         TSchedulerElement::SetStarving(true);
-        YT_LOG_INFO("Pool is now starving (Status: %v)", GetStatus());
+        YT_LOG_INFO("Pool is now starving (Status: %v)", GetStatus(/* atUpdate */ true));
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
         YT_LOG_INFO("Pool is no longer starving");
@@ -3071,13 +3078,13 @@ const TSchedulingTagFilter& TOperationElement::GetSchedulingTagFilter() const
     return SchedulingTagFilter_;
 }
 
-ESchedulableStatus TOperationElement::GetStatus() const
+ESchedulableStatus TOperationElement::GetStatus(bool atUpdate) const
 {
     if (UnschedulableReason_) {
         return ESchedulableStatus::Normal;
     }
 
-    return TSchedulerElement::GetStatus(Attributes_.AdjustedFairShareStarvationTolerance);
+    return TSchedulerElement::GetStatusImpl(Attributes_.AdjustedFairShareStarvationTolerance, atUpdate);
 }
 
 void TOperationElement::SetStarving(bool starving)
@@ -3091,7 +3098,7 @@ void TOperationElement::SetStarving(bool starving)
     if (starving && !GetStarving()) {
         OperationElementSharedState_->ResetDeactivationReasonsFromLastNonStarvingTime();
         TSchedulerElement::SetStarving(true);
-        YT_LOG_INFO("Operation is now starving (Status: %v)", GetStatus());
+        YT_LOG_INFO("Operation is now starving (Status: %v)", GetStatus(/* atUpdate */ true));
     } else if (!starving && GetStarving()) {
         TSchedulerElement::SetStarving(false);
         YT_LOG_INFO("Operation is no longer starving");
