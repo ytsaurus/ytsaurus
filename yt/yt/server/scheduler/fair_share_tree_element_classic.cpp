@@ -776,6 +776,11 @@ void TSchedulerElement::Profile(
         static_cast<i64>(detailedFairShare.WeightProportionalRatio * 1e5),
         EMetricType::Gauge,
         tags);
+    accumulator.Add(
+        profilingPrefix + "/unlimited_demand_fair_share_ratio_x100000",
+        static_cast<i64>(Attributes_.GetUnlimitedDemandFairShareRatio() * 1e5),
+        EMetricType::Gauge,
+        tags);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

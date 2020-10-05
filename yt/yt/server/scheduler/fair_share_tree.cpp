@@ -2426,11 +2426,6 @@ private:
             EMetricType::Gauge,
             tags);
         accumulator.Add(
-            profilingPrefix + "/unlimited_demand_fair_share_x100000",
-            static_cast<i64>(element->Attributes().GetUnlimitedDemandFairShareRatio() * 1e5),
-            EMetricType::Gauge,
-            tags);
-        accumulator.Add(
             profilingPrefix + "/accumulated_resource_ratio_volume_x100000",
             static_cast<i64>(element->GetAccumulatedResourceRatioVolume() * 1e5),
             EMetricType::Gauge,

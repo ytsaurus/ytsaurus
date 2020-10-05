@@ -103,6 +103,7 @@ void Serialize(const TDetailedFairShare& detailedFairShare, NYson::IYsonConsumer
             .Item("min_share_guarantee").Value(detailedFairShare.MinShareGuarantee)
             .Item("integral_guarantee").Value(detailedFairShare.IntegralGuarantee)
             .Item("weight_proportional").Value(detailedFairShare.WeightProportional)
+            .Item("total").Value(detailedFairShare.Total)
         .EndMap();
 }
 
@@ -305,11 +306,11 @@ void TSchedulerElement::UpdatePreemptionAttributes()
     }
 }
 
-void TSchedulerElement::UpdateDynamicAttributes(
-    TDynamicAttributesList* dynamicAttributesList,
-    TUpdateFairShareContext* context)
+void TSchedulerElement::UpdateGlobalDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
 {
     YT_VERIFY(Mutable_);
+
+    Attributes_.LocalSatisfactionRatio = ComputeLocalSatisfactionRatio();
 
     (*dynamicAttributesList)[GetTreeIndex()].Active = true;
     UpdateDynamicAttributes(dynamicAttributesList);
@@ -383,8 +384,11 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& 
         "DominantResource: %v, "
         "DemandShare: %.6v, "
         "UsageShare: %.6v, "
+        "LimitsShare: %.6v"
+        "MinShare: %.6v"
         "FairShare: %.6v, "
         "Satisfaction: %.4lg, "
+        "LocalSatisfaction: %.4lg, "
         "UnlimitedDemandFairShare: %.6v, "
         "Starving: %v, "
         "Weight: %v, "
@@ -393,8 +397,11 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& 
         Attributes_.DominantResource,
         Attributes_.DemandShare,
         GetResourceUsageShare(),
+        Attributes_.LimitsShare,
+        Attributes_.MinShare,
         Attributes_.FairShare,
         dynamicAttributes.SatisfactionRatio,
+        Attributes_.LocalSatisfactionRatio,
         Attributes_.UnlimitedDemandFairShare,
         GetStarving(),
         GetWeight(),
@@ -1002,7 +1009,8 @@ void TSchedulerElement::BuildYson(TFluentMap fluent) const
         .Item("limits_share").Value(Attributes_.LimitsShare)
         .Item("min_share").Value(Attributes_.MinShare)
         .Item("proposed_integral_share").Value(Attributes_.ProposedIntegralShare)
-        .Item("unlimited_demand_fair_share").Value(Attributes_.UnlimitedDemandFairShare);
+        .Item("unlimited_demand_fair_share").Value(Attributes_.UnlimitedDemandFairShare)
+        .Item("local_satisfaction_ratio").Value(Attributes_.LocalSatisfactionRatio);
 }
 
 void TSchedulerElement::Profile(
@@ -1036,56 +1044,75 @@ void TSchedulerElement::Profile(
         tags);
 
     if (enableVectorProfiling) {
+        const auto& profiledResources = IsOperation()
+            ? TreeConfig_->ProfiledOperationResources
+            : TreeConfig_->ProfiledPoolResources;
+
         ProfileResourceVector(
             accumulator,
+            profiledResources,
             detailedFairShare.MinShareGuarantee,
-            profilingPrefix + "/min_share_guarantee",
+            profilingPrefix + "/fair_share/min_share_guarantee",
             tags);
         ProfileResourceVector(
             accumulator,
+            profiledResources,
             detailedFairShare.IntegralGuarantee,
-            profilingPrefix + "/integral_guarantee",
+            profilingPrefix + "/fair_share/integral_guarantee",
             tags);
         ProfileResourceVector(
             accumulator,
+            profiledResources,
             detailedFairShare.WeightProportional,
-            profilingPrefix + "/weight_proportional",
+            profilingPrefix + "/fair_share/weight_proportional",
+            tags);
+        ProfileResourceVector(
+            accumulator,
+            profiledResources,
+            detailedFairShare.Total,
+            profilingPrefix + "/fair_share/total",
             tags);
 
         ProfileResourceVector(
             accumulator,
+            profiledResources,
             Attributes_.UsageShare,
             profilingPrefix + "/usage_share",
             tags);
 
         ProfileResourceVector(
             accumulator,
+            profiledResources,
             Attributes_.DemandShare,
             profilingPrefix + "/demand_share",
             tags);
 
         ProfileResourceVector(
             accumulator,
+            profiledResources,
             Attributes_.LimitsShare,
             profilingPrefix + "/limits_share",
             tags);
 
         ProfileResourceVector(
             accumulator,
+            profiledResources,
             Attributes_.MinShare,
             profilingPrefix + "/min_share",
             tags);
 
         ProfileResourceVector(
             accumulator,
+            profiledResources,
             Attributes_.ProposedIntegralShare,
             profilingPrefix + "/proposed_integral_share",
             tags);
 
         ProfileResourceVector(
             accumulator,
+            profiledResources,
             Attributes_.UnlimitedDemandFairShare,
-            profilingPrefix + "/unlimited_demand_vector_fair_share",
+            profilingPrefix + "/unlimited_demand_fair_share",
             tags);
     }
 }
@@ -1270,15 +1297,13 @@ void TCompositeSchedulerElement::UpdatePreemptionAttributes()
     }
 }
 
-void TCompositeSchedulerElement::UpdateDynamicAttributes(
-    TDynamicAttributesList* dynamicAttributesList,
-    TUpdateFairShareContext* context)
+void TCompositeSchedulerElement::UpdateGlobalDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
 {
     for (const auto& child : EnabledChildren_) {
-        child->UpdateDynamicAttributes(dynamicAttributesList, context);
+        child->UpdateGlobalDynamicAttributes(dynamicAttributesList);
     }
 
-    TSchedulerElement::UpdateDynamicAttributes(dynamicAttributesList, context);
+    TSchedulerElement::UpdateGlobalDynamicAttributes(dynamicAttributesList);
 }
 
 double TCompositeSchedulerElement::GetFairShareStarvationToleranceLimit() const
@@ -4233,7 +4258,7 @@ void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdate
     UpdateFairShare(context);
 
     PublishFairShareAndUpdatePreemption();
-    UpdateDynamicAttributes(dynamicAttributesList, context);
+    UpdateGlobalDynamicAttributes(dynamicAttributesList);
 }
 
 void TRootElement::UpdateFairShare(TUpdateFairShareContext* context)

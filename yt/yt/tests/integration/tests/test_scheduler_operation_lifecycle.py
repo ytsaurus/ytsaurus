@@ -680,7 +680,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             with_tags={"pool": "unique_pool"},
             aggr_method="max")
         unlimited_demand_fair_share_max = Metric.at_scheduler(
-            metric_prefix + "unlimited_demand_fair_share_x100000",
+            metric_prefix + "unlimited_demand_fair_share_ratio_x100000",
             with_tags={"pool": "unique_pool"},
             aggr_method="max")
         cpu_usage_max = Metric.at_scheduler(
@@ -790,7 +790,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             grouped_by_tags=["slot_index"],
             aggr_method="last")
         unlimited_demand_fair_share_last = Metric.at_scheduler(
-            metric_prefix + "unlimited_demand_fair_share_x100000",
+            metric_prefix + "unlimited_demand_fair_share_ratio_x100000",
             with_tags={"pool": "some_pool"},
             grouped_by_tags=["slot_index"],
             aggr_method="last")
@@ -880,7 +880,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             grouped_by_tags=["pool", "user_name", "custom"],
             aggr_method="last")
         unlimited_demand_fair_share_last = Metric.at_scheduler(
-            metric_prefix + "unlimited_demand_fair_share_x100000",
+            metric_prefix + "unlimited_demand_fair_share_ratio_x100000",
             grouped_by_tags=["pool", "user_name", "custom"],
             aggr_method="last")
         cpu_usage_last = Metric.at_scheduler(
