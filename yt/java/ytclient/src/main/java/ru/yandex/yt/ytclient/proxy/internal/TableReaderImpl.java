@@ -10,6 +10,7 @@ import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.TableReader;
+import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
@@ -23,7 +24,8 @@ public class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implemen
     private final TableAttachmentReader<T> reader;
     private TRspReadTableMeta metadata = null;
 
-    public TableReaderImpl(TableAttachmentReader<T> reader) {
+    public TableReaderImpl(RpcClientStreamControl control, TableAttachmentReader<T> reader) {
+        super(control);
         this.reader = reader;
     }
 

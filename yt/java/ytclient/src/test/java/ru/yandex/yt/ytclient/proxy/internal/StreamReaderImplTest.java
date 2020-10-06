@@ -60,16 +60,12 @@ public class StreamReaderImplTest {
 
     private StreamReaderImpl<TRspReadTable> createReader() {
         RpcClientStreamControl control = mock(RpcClientStreamControl.class);
-        StreamReaderImpl<TRspReadTable> result = new StreamReaderImpl<>() {
+        return new StreamReaderImpl<TRspReadTable>(control) {
             @Override
             protected RpcMessageParser<TRspReadTable> responseParser() {
                 return null;
             }
         };
-
-        result.onStartStream(control);
-        control.subscribe(result);
-        return result;
     }
 
     private void payload(byte[] bytes,
