@@ -214,3 +214,33 @@ func TestLockRows(t *testing.T) {
 	require.NoError(t, tx0.LockRows(env.Ctx, testTable, []string{"lock"}, yt.LockTypeSharedStrong, key, nil))
 	require.Error(t, tx0.Commit())
 }
+
+func TestExecTabletTx(t *testing.T) {
+	t.Parallel()
+
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	testTable := env.TmpPath().Child("table")
+	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(env.Ctx, env.YT, testTable))
+
+	rows := []interface{}{&testRow{"foo", "1"}}
+	keys := []interface{}{&testKey{"foo"}}
+
+	err := yt.ExecTabletTx(env.Ctx, env.YT, func(ctx context.Context, tx yt.TabletTx) error {
+		return tx.InsertRows(ctx, testTable, rows, nil)
+	}, nil)
+	require.NoError(t, err)
+
+	r, err := env.YT.LookupRows(env.Ctx, testTable, keys, nil)
+	require.NoError(t, err)
+
+	var res testRow
+	require.True(t, r.Next())
+	require.NoError(t, r.Scan(&res))
+	assert.Equal(t, rows[0], &res)
+
+	require.False(t, r.Next())
+	require.NoError(t, r.Err())
+}
