@@ -149,6 +149,7 @@ public class YsonParserTest {
     @Test
     public void testBinaryDouble() {
         assertThat(canonizeNode("\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\x0A\\x40"), is("3.25"));
+        assertThat(canonizeNode("\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\xc0\\xbf"), is("-0.125"));
         assertThat(canonizeNode("\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\xf8\\x7f"), is("%nan"));
     }
 
@@ -299,8 +300,10 @@ public class YsonParserTest {
     @Test
     public void testBufferBoundaries() {
         final String textData = "[123;\\x02\\x82\\x06;{\\x01\\x02a=\\x02\\x84\\x34;\\x01\\x06foo=<bar=\"baz \">\\x05};" +
-                "\\x06\\x80\\x80\\x84\\x85\\x86\\x87\\x88\\x89\\x02]";
-        final String expectedCanonized = "[123;385;{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true};149217164168069120u]";
+                "\\x06\\x80\\x80\\x84\\x85\\x86\\x87\\x88\\x89\\x02;" +
+                "\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\xc0\\xbf" +
+                "]";
+        final String expectedCanonized = "[123;385;{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true};149217164168069120u;-0.125]";
         byte[] binaryData = unescapeBytes(textData);
         for (int bufferSize = 1; bufferSize != binaryData.length; ++bufferSize) {
             StringBuilder result = new StringBuilder();
