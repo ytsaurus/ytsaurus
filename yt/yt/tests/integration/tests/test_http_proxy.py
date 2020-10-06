@@ -140,7 +140,7 @@ class TestHttpProxy(HttpProxyTestBase):
         rsp = requests.get(self._get_proxy_address() + "/api/v4/get?path=//@")
         rsp.raise_for_status()
 
-        assert rsp.headers['cache-control'] == 'no-cache'
+        assert rsp.headers['cache-control'] == 'no-store'
 
     @authors("prime")
     def test_dynamic_config(self):
