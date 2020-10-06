@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"a.yandex-team.ru/library/go/core/xerrors"
 	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -195,6 +196,48 @@ func TestTables(t *testing.T) {
 		rowCount, ok := yt.ApproximateRowCount(r)
 		require.True(t, ok)
 		require.Greater(t, rowCount, int64(0))
+	})
+
+	t.Run("ExecTx", func(t *testing.T) {
+		t.Run("commit", func(t *testing.T) {
+			name := tmpPath()
+			err := yt.ExecTx(env.Ctx, env.YT, func(ctx context.Context, tx yt.Tx) error {
+				_, err := tx.CreateNode(ctx, name, yt.NodeTable, nil)
+				require.NoError(t, err)
+
+				w, err := tx.WriteTable(ctx, name, nil)
+				require.NoError(t, err)
+				defer func() { _ = w.Commit() }()
+
+				require.NoError(t, w.Write(exampleRow{"foo", 1}))
+
+				return nil
+			}, nil)
+			require.NoError(t, err)
+
+			var count int
+			require.NoError(t, env.YT.GetNode(ctx, name.Attr("row_count"), &count, nil))
+			require.Equal(t, 1, count)
+		})
+
+		t.Run("abort", func(t *testing.T) {
+			name := tmpPath()
+			err := yt.ExecTx(env.Ctx, env.YT, func(ctx context.Context, tx yt.Tx) error {
+				_, err := tx.CreateNode(ctx, name, yt.NodeTable, nil)
+				require.NoError(t, err)
+
+				w, err := tx.WriteTable(ctx, name, nil)
+				require.NoError(t, err)
+				defer func() { _ = w.Commit() }()
+
+				require.NoError(t, w.Write(exampleRow{"foo", 1}))
+				return xerrors.New("some error")
+			}, nil)
+			require.Error(t, err)
+
+			var count int
+			require.Error(t, env.YT.GetNode(ctx, name.Attr("row_count"), &count, nil))
+		})
 	})
 }
 

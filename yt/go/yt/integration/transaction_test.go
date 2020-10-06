@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"a.yandex-team.ru/library/go/core/xerrors"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
@@ -101,4 +102,78 @@ func TestNestedTransactions(t *testing.T) {
 	ok, err = env.YT.NodeExists(env.Ctx, p, nil)
 	require.NoError(t, err)
 	require.False(t, ok)
+}
+
+func TestExecTx_retries(t *testing.T) {
+	t.Parallel()
+
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	wrapExecTx := func(ctx context.Context, cb func() error, opts yt.ExecTxRetryOptions) error {
+		return yt.ExecTx(ctx, env.YT, func(ctx context.Context, tx yt.Tx) error {
+			return cb()
+		}, &yt.ExecTxOptions{RetryOptions: opts})
+	}
+
+	wrapExecTabletTx := func(ctx context.Context, cb func() error, opts yt.ExecTxRetryOptions) error {
+		return yt.ExecTabletTx(env.Ctx, env.YT, func(ctx context.Context, tx yt.TabletTx) error {
+			return cb()
+		}, &yt.ExecTabletTxOptions{RetryOptions: opts})
+	}
+
+	wrappers := map[string]func(ctx context.Context, cb func() error, opts yt.ExecTxRetryOptions) error{
+		"master": wrapExecTx,
+		"tablet": wrapExecTabletTx,
+	}
+
+	for txType, execTx := range wrappers {
+		t.Run(txType, func(t *testing.T) {
+			t.Run("simple", func(t *testing.T) {
+				v := 0
+				err := execTx(env.Ctx, func() error {
+					v++
+					if v <= 2 {
+						return xerrors.New("some error")
+					}
+					return nil
+				}, nil)
+				require.NoError(t, err)
+				require.Equal(t, 1+2, v)
+			})
+
+			t.Run("default retry options", func(t *testing.T) {
+				v := 0
+				err := execTx(env.Ctx, func() error {
+					v++
+					return xerrors.New("some error")
+				}, nil)
+				require.Error(t, err)
+				require.Equal(t, 1+yt.DefaultExecTxRetryCount, v)
+			})
+
+			t.Run("no retries", func(t *testing.T) {
+				v := 0
+				err := execTx(env.Ctx, func() error {
+					v++
+					return xerrors.New("some error")
+				}, &yt.ExecTxRetryOptionsNone{})
+				require.Error(t, err)
+				require.Equal(t, 1, v)
+			})
+
+			t.Run("retry cancellation", func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+				defer cancel()
+
+				v := 0
+				err := execTx(ctx, func() error {
+					v++
+					return xerrors.New("some error")
+				}, nil)
+				require.Error(t, err)
+				require.True(t, v >= 3)
+			})
+		})
+	}
 }
