@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.object;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 import org.junit.Assert;
 import org.junit.Before;
@@ -48,17 +49,18 @@ public class ObjectsMetadataTest<T> {
 
     @Test
     public void testToString() {
-        LOGGER.info("{}", metadata.generateObjects(1).get(0));
+        LOGGER.info("{}", metadata.generateObjects(1, new Random(54)).get(0));
     }
 
     @Test
     public void testGenerate0() {
-        Assert.assertEquals(0, metadata.generateObjects(0).size());
+        Assert.assertEquals(0, metadata.generateObjects(0, new Random(42)).size());
     }
 
     @Test
     public void testGenerate3() {
-        final List<T> items = metadata.generateObjects(3);
+        final Random random = new Random(42);
+        final List<T> items = metadata.generateObjects(3, random);
         Assert.assertEquals(3, items.size());
         Assert.assertNotEquals(items.get(0), items.get(1));
         Assert.assertNotEquals(items.get(0), items.get(2));
@@ -66,7 +68,9 @@ public class ObjectsMetadataTest<T> {
 
     @Test
     public void testSerializeDeserializeMapped() {
-        final List<T> expect = metadata.generateObjects(3);
+        final Random random = new Random(42);
+
+        final List<T> expect = metadata.generateObjects(3, random);
 
         final List<byte[]> serialized = metadata.serializeMappedObjects(expect);
 
@@ -83,7 +87,9 @@ public class ObjectsMetadataTest<T> {
 
     @Test
     public void testSerializeDeserializeUnversioned() {
-        final List<T> expect = metadata.generateObjects(3);
+        final Random random = new Random(42);
+
+        final List<T> expect = metadata.generateObjects(3, random);
 
         final List<byte[]> serialized = metadata.serializeMappedObjects(expect);
 
@@ -103,7 +109,8 @@ public class ObjectsMetadataTest<T> {
 
     @Test
     public void testSerializeDeserializeLegacy() {
-        final List<T> expect = metadata.generateObjects(3);
+        final Random random = new Random(42);
+        final List<T> expect = metadata.generateObjects(3, random);
         final List<byte[]> serialized = metadata.serializeLegacyMappedObjects(expect);
 
         final List<T> actual = metadata.deserializeLegacyMappedObjects(serialized);
@@ -112,8 +119,9 @@ public class ObjectsMetadataTest<T> {
 
     @Test
     public void testCrossSerialization() {
+        final Random random = new Random(42);
 
-        final List<T> expect = metadata.generateObjects(1);
+        final List<T> expect = metadata.generateObjects(1, random);
 
         LOGGER.info("serializeMappedObjects >>>");
         final List<byte[]> serializedMapped = metadata.serializeMappedObjects(expect);

@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.object;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -14,19 +15,18 @@ public class LargeUnflattenObjectClassWithStateSupportTest {
 
     @Test
     public void testSerializationDeserialization() {
+        final Random random = new Random(42);
         final List<LargeUnflattenObjectClassWithStateSupport> list = new ArrayList<>();
         final ObjectsMetadata<LargeUnflattenObjectClassWithStateSupport> meta =
                 ObjectsMetadata.getMetadata(LargeUnflattenObjectClassWithStateSupport.class, list::add);
 
-
-        final LargeUnflattenObjectClassWithStateSupport object = meta.generateObjects(1).get(0);
+        final LargeUnflattenObjectClassWithStateSupport object = meta.generateObjects(1, random).get(0);
         object.saveYTreeObjectState();
         object.getObject1().setLongField2(object.getObject1().getLongField2() + 1);
 
         final LargeUnflattenObjectClassWithStateSupport expect = new LargeUnflattenObjectClassWithStateSupport();
         expect.setIntField1(object.getIntField1());
         expect.setObject1(object.getObject1());
-
 
         list.clear();
         meta.deserializeMappedObjects(meta.serializeMappedObjects(Collections.singletonList(object)));

@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.object;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Collectors;
 
 import org.junit.Assert;
@@ -28,11 +29,12 @@ public class ObjectsMetadataWithStateSupportTest<T extends YTreeStateSupport<T>>
 
     @Test
     public void testSerializeDeserializeMappedWithStateSupport() {
+        final Random random = new Random(42);
         final List<YTreeObjectField<?>> keyFields = metadata.getyTreeSerializer().getFieldMap().values().stream()
                 .filter(field -> field.isKeyField)
                 .collect(Collectors.toList());
 
-        final List<T> toSave = metadata.generateObjects(3);
+        final List<T> toSave = metadata.generateObjects(3, random);
         final List<T> expect = new ArrayList<>();
         toSave.forEach(YTreeStateSupport.saveProxy(value -> {
             // В таком режиме будут сериализованы только ключевые поля

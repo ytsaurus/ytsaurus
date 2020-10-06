@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Random;
 import java.util.stream.Stream;
 
 import org.junit.Assert;
@@ -23,6 +24,7 @@ public class MappedLookupRowsRequestTest {
 
     @Test
     public void testMappedModifyRowsRequest() {
+        final Random random = new Random(42);
         final ObjectsMetadata<SmallObjectClassPartial> metadata =
                 ObjectsMetadata.getMetadata(SmallObjectClassPartial.class, value -> {
 
@@ -30,12 +32,12 @@ public class MappedLookupRowsRequestTest {
 
         final MappedLookupRowsRequest<SmallObjectClassPartial> request =
                 new MappedLookupRowsRequest<>("", metadata.getMappedSerializer());
-        final List<SmallObjectClassPartial> sample1 = metadata.generateObjects(1);
-        final List<SmallObjectClassPartial> sample2 = metadata.generateObjects(2);
-        final List<SmallObjectClassPartial> sample3 = metadata.generateObjects(1);
-        final List<SmallObjectClassPartial> sample4 = metadata.generateObjects(2);
-        final List<SmallObjectClassPartial> sample5 = metadata.generateObjects(1);
-        final List<SmallObjectClassPartial> sample6 = metadata.generateObjects(2);
+        final List<SmallObjectClassPartial> sample1 = metadata.generateObjects(1, random);
+        final List<SmallObjectClassPartial> sample2 = metadata.generateObjects(2, random);
+        final List<SmallObjectClassPartial> sample3 = metadata.generateObjects(1, random);
+        final List<SmallObjectClassPartial> sample4 = metadata.generateObjects(2, random);
+        final List<SmallObjectClassPartial> sample5 = metadata.generateObjects(1, random);
+        final List<SmallObjectClassPartial> sample6 = metadata.generateObjects(2, random);
 
         Stream.of(sample1, sample2).flatMap(Collection::stream)
                 .forEach(YTreeStateSupport.saveProxy(obj -> obj.setStringField("Changed value")));
