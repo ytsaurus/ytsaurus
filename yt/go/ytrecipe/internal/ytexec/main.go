@@ -55,11 +55,13 @@ func do() error {
 		return err
 	}
 
-	if err := exec.Run(context.Background()); err != nil {
+	ctx := context.Background()
+
+	if err := exec.Run(ctx); err != nil {
 		return err
 	}
 
-	_, err = exec.ReadOutputs(context.Background())
+	_, err = exec.ReadOutputs(ctx)
 	return err
 }
 

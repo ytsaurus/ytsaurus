@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -150,8 +151,12 @@ func (e *Exec) Run(ctx context.Context) error {
 	e.outputDir = outDir
 	e.scheduledAt = time.Now()
 
-	e.op, err = e.mr.Vanilla(s, map[string]mapreduce.Job{"testtool": j})
-	if err != nil {
+	doStartOperation := func() error {
+		e.op, err = e.mr.Vanilla(s, map[string]mapreduce.Job{"testtool": j})
+		return err
+	}
+
+	if err = e.retry(doStartOperation); err != nil {
 		return err
 	}
 
@@ -159,47 +164,66 @@ func (e *Exec) Run(ctx context.Context) error {
 		return err
 	}
 
+	// Internal retries in Wait() should be good enough.
 	opErr := e.op.Wait()
 
-	if err := e.downloadJobLog(ctx, s.StderrTablePath); err != nil {
+	doDownloadJobLog := func() error {
+		return e.downloadJobLog(ctx, s.StderrTablePath)
+	}
+
+	if err = e.retry(doDownloadJobLog); err != nil {
 		return err
 	}
 
 	return opErr
 }
 
+func (e *Exec) retry(op func() error) error {
+	bf := backoff.NewExponentialBackOff()
+	bf.MaxElapsedTime = time.Hour
+
+	return backoff.RetryNotify(op, bf, func(err error, duration time.Duration) {
+		e.l.Error("retrying error", log.Error(err), log.Duration("backoff", duration))
+	})
+}
+
 func (e *Exec) ReadOutputs(ctx context.Context) (*jobfs.ExitRow, error) {
-	outR, err := e.yc.ReadTable(ctx, e.outputDir.Child(OutputTableName), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer outR.Close()
-
-	stdout, err := os.Create(e.config.FS.StdoutFile)
-	if err != nil {
-		return nil, err
-	}
-	defer stdout.Close()
-
-	stderr, err := os.Create(e.config.FS.StderrFile)
-	if err != nil {
-		return nil, err
-	}
-	defer stderr.Close()
-
-	ident := func(s string) (string, bool) { return s, true }
-	exitRow, err := jobfs.ReadOutputTable(outR, ident, stdout, stderr)
-	if err != nil {
-		return nil, fmt.Errorf("error reading results: %w", err)
-	} else if exitRow == nil {
-		return nil, fmt.Errorf("exit code is missing in output table")
-	} else {
-		if err := e.writeResult(exitRow); err != nil {
-			return nil, err
+	var exitRow *jobfs.ExitRow
+	doReadOutputs := func() error {
+		outR, err := e.yc.ReadTable(ctx, e.outputDir.Child(OutputTableName), nil)
+		if err != nil {
+			return err
 		}
+		defer outR.Close()
 
-		return exitRow, nil
+		stdout, err := os.Create(e.config.FS.StdoutFile)
+		if err != nil {
+			return err
+		}
+		defer stdout.Close()
+
+		stderr, err := os.Create(e.config.FS.StderrFile)
+		if err != nil {
+			return err
+		}
+		defer stderr.Close()
+
+		ident := func(s string) (string, bool) { return s, true }
+		exitRow, err = jobfs.ReadOutputTable(outR, ident, stdout, stderr)
+		if err != nil {
+			return fmt.Errorf("error reading results: %w", err)
+		} else if exitRow == nil {
+			return fmt.Errorf("exit code is missing in output table")
+		} else {
+			if err := e.writeResult(exitRow); err != nil {
+				return err
+			}
+
+			return nil
+		}
 	}
+
+	return exitRow, e.retry(doReadOutputs)
 }
 
 const (
@@ -229,8 +253,12 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 		return
 	}
 
-	outputDir, err = e.createOutputDir(ctx)
-	if err != nil {
+	doCreateOutputDir := func() error {
+		var err error
+		outputDir, err = e.createOutputDir(ctx)
+		return err
+	}
+	if err = e.retry(doCreateOutputDir); err != nil {
 		return
 	}
 
@@ -238,13 +266,18 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 
 	// Retry errors caused by infrastructure problems. E.g portod restarts.
 	s.MaxFailedJobCount = 3
+	s.TimeLimit = yson.Duration(job.OperationTimeout)
 
 	s.Pool = e.config.Operation.Pool
-	s.TimeLimit = yson.Duration(e.config.Operation.Timeout + job.OperationTimeReserve)
 	s.Title = e.config.Operation.Title
 
 	s.StderrTablePath = outputDir.Child(StderrTableName)
-	if _, err = mapreduce.CreateStderrTable(ctx, e.yc, s.StderrTablePath); err != nil {
+	doCreateStderrTable := func() error {
+		_, err = mapreduce.CreateStderrTable(ctx, e.yc, s.StderrTablePath, yt.WithForce())
+		return err
+	}
+
+	if err = e.retry(doCreateStderrTable); err != nil {
 		return
 	}
 
@@ -274,6 +307,7 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 	us.EnablePorto = "isolate"
 
 	if taskPatch := e.config.Operation.TaskPatch; taskPatch != nil {
+		// TODO(prime@): remove this once we are no longer using json config
 		if memory, ok := taskPatch["memory_limit"]; ok {
 			switch v := memory.(type) {
 			case float64:
