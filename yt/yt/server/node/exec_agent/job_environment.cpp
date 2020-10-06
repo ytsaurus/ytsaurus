@@ -292,6 +292,8 @@ private:
 
 #ifdef _linux_
 
+constexpr int MaxStderrSizeInError = 500;
+
 constexpr double CpuUpdatePrecision = 0.01;
 
 class TPortoJobEnvironment
@@ -367,10 +369,19 @@ public:
                     WaitFor(process->Spawn())
                         .ThrowOnError();
                 } catch (const std::exception& ex) {
+                    auto instanceStderr = instance->GetStderr();
                     YT_LOG_WARNING(ex, "Setup command failed (JobId: %v, Stderr: %v)",
                         jobId,
-                        instance->GetStderr());
-                    throw;
+                        instanceStderr);
+
+                    auto error = TError(ex);
+                    if (instanceStderr.size() > MaxStderrSizeInError) {
+                        error.Attributes().Set("stderr_truncated", true);
+                        instanceStderr = instanceStderr.substr(0, MaxStderrSizeInError);
+                    }
+                    error.Attributes().Set("stderr", instanceStderr);
+
+                    THROW_ERROR error;
                 }
             }
         })
