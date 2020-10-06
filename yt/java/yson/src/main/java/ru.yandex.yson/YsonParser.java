@@ -38,6 +38,10 @@ public class YsonParser {
         this(new BufferedStreamZeroCopyInput(input, bufferSize));
     }
 
+    public YsonParser(InputStream input, byte[] buffer) {
+        this(new BufferedStreamZeroCopyInput(input, buffer));
+    }
+
     public YsonParser(byte[] buffer) {
         this(buffer, 0, buffer.length);
     }
@@ -754,17 +758,17 @@ class YsonTokenizer {
     public long readFixed64() {
         long bits = 0;
         if (bufferOffset + 8 <= bufferLength) {
-            bits |= buffer[bufferOffset++];
-            bits |= buffer[bufferOffset++] << 8;
-            bits |= buffer[bufferOffset++] << 16;
-            bits |= buffer[bufferOffset++] << 24;
-            bits |= (long)buffer[bufferOffset++] << 32;
-            bits |= (long)buffer[bufferOffset++] << 40;
-            bits |= (long)buffer[bufferOffset++] << 48;
-            bits |= (long)buffer[bufferOffset++] << 56;
+            bits |= (buffer[bufferOffset++] & 0xFF);
+            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 8;
+            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 16;
+            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 24;
+            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 32;
+            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 40;
+            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 48;
+            bits |= (long)(buffer[bufferOffset++] & 0xFF) << 56;
         } else {
             for (int i = 0; i < 64; i += 8) {
-                bits |= (long) readByte() << i;
+                bits |= (long)(readByte() & 0xFF) << i;
             }
         }
         return bits;
@@ -780,8 +784,15 @@ class BufferedStreamZeroCopyInput implements ZeroCopyInput {
     final byte[] buffer;
 
     public BufferedStreamZeroCopyInput(InputStream input, int bufferSize) {
+        this(input, new byte[bufferSize]);
+    }
+
+    public BufferedStreamZeroCopyInput(InputStream input, byte[] buffer) {
+        if (buffer.length == 0) {
+            throw new IllegalArgumentException("Buffer must be nonempty");
+        }
         underlying = input;
-        buffer = new byte[bufferSize];
+        this.buffer = buffer;
     }
 
     @Override
