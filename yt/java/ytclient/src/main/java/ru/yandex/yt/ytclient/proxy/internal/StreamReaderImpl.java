@@ -121,6 +121,7 @@ public abstract class StreamReaderImpl<RspType extends Message> extends StreamBa
     private static final int MAX_WINDOW_SIZE = 16384;
 
     private final Stash stash = new Stash();
+    private boolean started = false;
     private final SlidingWindow<Payload> window = new SlidingWindow<>(MAX_WINDOW_SIZE, payload -> {
         for (Attachment attachment : payload.getAttachments()) {
             try {
@@ -131,7 +132,10 @@ public abstract class StreamReaderImpl<RspType extends Message> extends StreamBa
         }
     });
 
-    StreamReaderImpl() {
+    StreamReaderImpl(RpcClientStreamControl control) {
+        super(control);
+        this.start();
+
         result.whenComplete((unused, ex) -> {
             if (ex != null) {
                 stash.error(ex);
@@ -139,10 +143,12 @@ public abstract class StreamReaderImpl<RspType extends Message> extends StreamBa
         });
     }
 
-    @Override
-    public void onStartStream(RpcClientStreamControl control) {
-        super.onStartStream(control);
-        control.sendEof();
+    private void start() {
+        if (started) {
+            throw new IllegalArgumentException("already started");
+        }
+        started = true;
+        this.control.sendEof();
     }
 
     @Override

@@ -19,6 +19,7 @@ import ru.yandex.yt.rpcproxy.TWriteTableMeta;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.TableWriter;
+import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
@@ -36,8 +37,8 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
     private final WireRowSerializer<T> serializer;
     private final Map<String, Integer> column2id = new HashMap<>();
 
-    public TableWriterImpl(Compression compression, long windowSize, long packetSize, WireRowSerializer<T> serializer) {
-        super(compression, windowSize, packetSize);
+    public TableWriterImpl(RpcClientStreamControl control, Compression compression, long windowSize, long packetSize, WireRowSerializer<T> serializer) {
+        super(control, compression, windowSize, packetSize);
 
         this.serializer = Objects.requireNonNull(serializer);
     }

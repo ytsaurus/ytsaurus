@@ -543,11 +543,6 @@ public class DefaultRpcBusClient implements RpcClient {
         int nextStashedMessageIndex = 0;
 
         @Override
-        public void onStartStream(RpcClientStreamControl control) {
-            throw new IllegalStateException("unexpected call");
-        }
-
-        @Override
         public void onFeedback(RpcClient unused, TStreamingFeedbackHeader header, List<byte[]> attachments) {
             StashedMessage message = new StashedMessage();
             message.feedbackHeader = header;

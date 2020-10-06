@@ -10,7 +10,6 @@ import com.google.protobuf.Message;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.tracing.TTracingExt;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 public class RequestBase<T extends RequestBase<T>> {
@@ -99,7 +98,7 @@ public class RequestBase<T extends RequestBase<T>> {
         return (T)this;
     }
 
-    public void writeHeaderTo(TRequestHeader.Builder header, RpcClient client) {
+    public void writeHeaderTo(TRequestHeader.Builder header) {
         if (timeout != null) {
             header.setTimeout(RpcUtil.durationToMicros(timeout));
         }
@@ -111,9 +110,6 @@ public class RequestBase<T extends RequestBase<T>> {
             tracing.setSampled(traceSampled);
             tracing.setTraceId(RpcUtil.toProto(traceId));
             header.setExtension(TRequestHeader.tracingExt, tracing.build());
-        }
-        if (client != null) {
-            client.setDefaultHeader(header);
         }
     }
 }
