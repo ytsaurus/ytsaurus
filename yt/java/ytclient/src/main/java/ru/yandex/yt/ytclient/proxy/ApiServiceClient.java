@@ -352,7 +352,7 @@ public class ApiServiceClient implements TransactionalClient {
     @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
         RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getValue()));
     }
@@ -368,7 +368,7 @@ public class ApiServiceClient implements TransactionalClient {
     @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         RpcClientRequestBuilder<TReqListNode.Builder, RpcClientResponse<TRspListNode>> builder = service.listNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getValue()));
     }
@@ -384,7 +384,7 @@ public class ApiServiceClient implements TransactionalClient {
     @Override
     public CompletableFuture<Void> setNode(SetNode req) {
         RpcClientRequestBuilder<TReqSetNode.Builder, RpcClientResponse<TRspSetNode>> builder = service.setNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
@@ -409,7 +409,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         RpcClientRequestBuilder<TReqExistsNode.Builder, RpcClientResponse<TRspExistsNode>> builder =
                 service.existsNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder),
                 response -> response.body().getExists());
@@ -484,7 +484,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<GUID> createNode(CreateNode req) {
         RpcClientRequestBuilder<TReqCreateNode.Builder, RpcClientResponse<TRspCreateNode>> builder =
                 service.createNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder),
@@ -515,7 +515,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<Void> removeNode(RemoveNode req) {
         RpcClientRequestBuilder<TReqRemoveNode.Builder, RpcClientResponse<TRspRemoveNode>> builder =
                 service.removeNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
@@ -526,7 +526,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
         RpcClientRequestBuilder<TReqLockNode.Builder, RpcClientResponse<TRspLockNode>> builder = service.lockNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> new LockNodeResult(
                 RpcUtil.fromProto(response.body().getNodeId()),
@@ -543,7 +543,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<GUID> copyNode(CopyNode req) {
         RpcClientRequestBuilder<TReqCopyNode.Builder, RpcClientResponse<TRspCopyNode>> builder = service.copyNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder),
@@ -562,7 +562,7 @@ public class ApiServiceClient implements TransactionalClient {
     @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
         RpcClientRequestBuilder<TReqMoveNode.Builder, RpcClientResponse<TRspMoveNode>> builder = service.moveNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder),
@@ -580,7 +580,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<GUID> linkNode(LinkNode req) {
         RpcClientRequestBuilder<TReqLinkNode.Builder, RpcClientResponse<TRspLinkNode>> builder = service.linkNode();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder),
@@ -596,7 +596,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         RpcClientRequestBuilder<TReqConcatenateNodes.Builder, RpcClientResponse<TRspConcatenateNodes>> builder =
                 service.concatenateNodes();
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
@@ -644,7 +644,7 @@ public class ApiServiceClient implements TransactionalClient {
                                                     Function<RpcClientResponse<TRspLookupRows>, T> responseReader) {
         RpcClientRequestBuilder<TReqLookupRows.Builder, RpcClientResponse<TRspLookupRows>> builder =
                 service.lookupRows();
-        request.writeHeaderTo(builder.header());
+        request.writeHeaderTo(builder.header(), rpcClient);
         builder.body().setPath(request.getPath());
         builder.body().addAllColumns(request.getLookupColumns());
         if (request.getKeepMissingRows().isPresent()) {
@@ -696,7 +696,7 @@ public class ApiServiceClient implements TransactionalClient {
                                                              Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader) {
         RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, RpcClientResponse<TRspVersionedLookupRows>> builder =
                 service.versionedLookupRows();
-        request.writeHeaderTo(builder.header());
+        request.writeHeaderTo(builder.header(), rpcClient);
         builder.body().setPath(request.getPath());
         builder.body().addAllColumns(request.getLookupColumns());
         if (request.getKeepMissingRows().isPresent()) {
@@ -756,7 +756,7 @@ public class ApiServiceClient implements TransactionalClient {
                                                     Function<RpcClientResponse<TRspSelectRows>, T> responseReader) {
         RpcClientRequestBuilder<TReqSelectRows.Builder, RpcClientResponse<TRspSelectRows>> builder =
                 service.selectRows();
-        request.writeHeaderTo(builder.header());
+        request.writeHeaderTo(builder.header(), rpcClient);
         builder.body().setQuery(request.getQuery());
         if (request.getTimestamp().isPresent()) {
             builder.body().setTimestamp(request.getTimestamp().get().getValue());
@@ -792,7 +792,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request) {
         RpcClientRequestBuilder<TReqModifyRows.Builder, RpcClientResponse<TRspModifyRows>> builder =
                 service.modifyRows();
-        request.writeHeaderTo(builder.header());
+        request.writeHeaderTo(builder.header(), rpcClient);
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));
         builder.body().setPath(request.getPath());
         if (request.getRequireSyncReplica().isPresent()) {
@@ -841,7 +841,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, RpcClientResponse<TRspGetInSyncReplicas>> builder =
                 service.getInSyncReplicas();
 
-        request.writeHeaderTo(builder.header());
+        request.writeHeaderTo(builder.header(), rpcClient);
         builder.body().setPath(request.getPath());
         builder.body().setTimestamp(timestamp.getValue());
         builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
@@ -1111,7 +1111,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqAlterTable.Builder, RpcClientResponse<TRspAlterTable>> builder =
                 service.alterTable();
 
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
@@ -1218,7 +1218,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqStartOperation.Builder, RpcClientResponse<TRspStartOperation>>
                 builder = service.startOperation();
 
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder), response -> RpcUtil.fromProto(response.body().getOperationId()));
@@ -1553,7 +1553,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>>
                 builder = service.checkPermission();
 
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder), response -> response.body().getResult());
@@ -1570,11 +1570,13 @@ public class ApiServiceClient implements TransactionalClient {
 
     public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
                                                            TableAttachmentReader<T> reader) {
-        RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
-                builder = service.readTable();
+        RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>> builder = service.readTable();
 
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
+        if (rpcClient != null) {
+            rpcClient.setDefaultHeader(builder.header());
+        }
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
         CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
@@ -1592,7 +1594,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqWriteTable.Builder, RpcClientResponse<TRspWriteTable>>
                 builder = service.writeTable();
 
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
@@ -1617,7 +1619,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqReadFile.Builder, RpcClientResponse<TRspReadFile>>
                 builder = service.readFile();
 
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
@@ -1636,7 +1638,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqWriteFile.Builder, RpcClientResponse<TRspWriteFile>>
                 builder = service.writeFile();
 
-        req.writeHeaderTo(builder.header());
+        req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
