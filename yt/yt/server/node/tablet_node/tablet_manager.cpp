@@ -309,7 +309,11 @@ public:
             actualizeTablet();
 
             ValidateTabletStoreLimit(tablet);
-            ValidateMemoryLimit(tablet->GetPoolTagByMemoryCategory(EMemoryCategory::TabletDynamic));
+
+            auto poolTag = Slot_->GetDynamicOptions()->EnableTabletDynamicMemoryLimit
+                ? tablet->GetPoolTagByMemoryCategory(EMemoryCategory::TabletDynamic)
+                : std::nullopt;
+            ValidateMemoryLimit(poolTag);
 
             auto tabletId = tablet->GetId();
             const auto& storeManager = tablet->GetStoreManager();

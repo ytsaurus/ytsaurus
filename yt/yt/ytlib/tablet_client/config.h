@@ -44,6 +44,7 @@ public:
     std::optional<bool> SuppressTabletCellDecommission;
     double ForcedRotationMemoryRatio;
     int DynamicMemoryPoolWeight;
+    bool EnableTabletDynamicMemoryLimit;
 
     TDynamicTabletCellOptions()
     {
@@ -57,6 +58,8 @@ public:
         RegisterParameter("dynamic_memory_pool_weight", DynamicMemoryPoolWeight)
             .InRange(1, MaxDynamicMemoryPoolWeight)
             .Default(1);
+        RegisterParameter("enable_tablet_dynamic_memory_limit", EnableTabletDynamicMemoryLimit)
+            .Default(true);
     }
 };
 
