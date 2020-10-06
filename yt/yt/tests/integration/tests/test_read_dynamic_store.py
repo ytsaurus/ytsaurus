@@ -423,6 +423,46 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         expected = range(50, 49950)
         assert actual == expected
 
+    def test_read_nothing_from_located_chunk(self):
+        cell_id = sync_create_cells(1)[0]
+        node = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
+        node_id = self._get_node_env_id(node)
+
+        self._create_simple_table("//tmp/t", attributes={"dynamic_store_auto_flush_period": YsonEntity()})
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i} for i in range(50000)])
+        timestamp = generate_timestamp()
+        insert_rows("//tmp/t", [{"key": i} for i in range(50000, 60000)])
+
+        create("table", "//tmp/out")
+        op = map(
+            in_="<timestamp={}>//tmp/t".format(timestamp),
+            out="//tmp/out",
+            spec={
+                "job_io": {"table_reader": {"dynamic_store_reader": {"window_size": 1}}},
+                "mapper": {"format": "json"},
+                "max_failed_job_count": 1},
+            command='sleep 10; cat',
+            ordered=True,
+            track=False)
+
+        wait(lambda: op.get_state() in ("running", "completed"))
+        sleep(1)
+        sync_freeze_table("//tmp/t")
+
+        with Restarter(self.Env, NODES_SERVICE, indexes=[node_id]):
+            op.track()
+
+        assert op.get_state() == "completed"
+
+        # Stupid testing libs require quadratic time to compare lists
+        # of unhashable items.
+        actual = [row["key"] for row in read_table("//tmp/out", verbose=False)]
+        expected = range(50000)
+        assert actual == expected
+
     @pytest.mark.parametrize("use_legacy_controller", [True, False])
     def test_map_without_dynamic_stores(self, use_legacy_controller):
         sync_create_cells(1)

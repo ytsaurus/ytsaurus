@@ -448,15 +448,20 @@ public:
 
         try {
             bool result = CurrentReader_->Read(rows);
-            if (!rows->empty()) {
-                auto lastKey = rows->back();
-                LastKey_ = TOwningKey(lastKey.BeginKeys(), lastKey.EndKeys());
+
+            if (!ChunkReaderFallbackOccured_) {
+                if (!rows->empty()) {
+                    auto lastKey = rows->back();
+                    YT_VERIFY(lastKey);
+                    LastKey_ = TOwningKey(lastKey.BeginKeys(), lastKey.EndKeys());
+                }
+                if (result) {
+                    CurrentReader_->GetReadyEvent().Subscribe(
+                        BIND(&TRetryingRemoteDynamicStoreReader::OnUnderlyingReaderReadyEvent, MakeStrong(this))
+                            .Via(GetCurrentInvoker()));
+                }
             }
-            if (result && !ChunkReaderFallbackOccured_) {
-                CurrentReader_->GetReadyEvent().Subscribe(
-                    BIND(&TRetryingRemoteDynamicStoreReader::OnUnderlyingReaderReadyEvent, MakeStrong(this))
-                        .Via(GetCurrentInvoker()));
-            }
+
             return result;
         } catch (const std::exception& ex) {
             OnReaderFailed(ex);
