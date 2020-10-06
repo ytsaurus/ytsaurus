@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/cenkalti/backoff"
 	"golang.org/x/sync/errgroup"
 
 	"a.yandex-team.ru/library/go/core/log"
@@ -96,8 +95,7 @@ func (e *Exec) uploadFS(ctx context.Context, fs *jobfs.FS) error {
 		}
 
 		eg.Go(func() error {
-			backOffPolicy := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
-			return backoff.Retry(doUploadBlob, backOffPolicy)
+			return e.retry(doUploadBlob)
 		})
 	}
 

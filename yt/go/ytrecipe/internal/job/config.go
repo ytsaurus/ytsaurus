@@ -12,7 +12,7 @@ const (
 	MemoryReserve = 128 * (1 << 20)
 	TmpfsReserve  = 256 * (1 << 20)
 
-	OperationTimeReserve = time.Minute * 5
+	OperationTimeout = time.Hour * 3
 )
 
 type OperationConfig struct {
