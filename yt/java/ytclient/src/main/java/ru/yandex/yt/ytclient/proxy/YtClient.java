@@ -35,7 +35,6 @@ import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.Manifold;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
-import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactoryImpl;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;

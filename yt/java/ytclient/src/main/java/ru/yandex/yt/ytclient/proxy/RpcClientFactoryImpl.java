@@ -1,14 +1,16 @@
-package ru.yandex.yt.ytclient.proxy.internal;
+package ru.yandex.yt.ytclient.proxy;
 
 import java.net.InetSocketAddress;
 
 import ru.yandex.yt.ytclient.bus.BusConnector;
+import ru.yandex.yt.ytclient.proxy.internal.HostPort;
+import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 
-public class RpcClientFactoryImpl implements RpcClientFactory {
+class RpcClientFactoryImpl implements RpcClientFactory {
     final private BusConnector connector;
     final private RpcCredentials credentials;
     final private RpcCompression compression;
