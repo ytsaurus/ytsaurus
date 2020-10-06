@@ -39,8 +39,8 @@ public class TokenAuthentication implements RpcClient {
         client.close();
     }
 
-    private void patchHeader(RpcClientRequest request) {
-        TRequestHeader.Builder header = request.header();
+    @Override
+    public void setDefaultHeader(TRequestHeader.Builder header) {
         if (!header.hasUser()) {
             header.setUser(credentials.getUser());
         }
@@ -53,19 +53,12 @@ public class TokenAuthentication implements RpcClient {
 
     @Override
     public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
-        patchHeader(request);
         return client.send(sender, request, handler);
     }
 
     @Override
     public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
-        patchHeader(request);
         return client.startStream(sender, request);
-    }
-
-    private static String getLocalAddress() {
-        // Пока используем 127.0.0.1
-        return "127.0.0.1";
     }
 
     @Override

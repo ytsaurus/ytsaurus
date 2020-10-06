@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.util.concurrent.ScheduledExecutorService;
 
+import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.ytclient.rpc.internal.RpcClientWithCompression;
 import ru.yandex.yt.ytclient.rpc.internal.TokenAuthentication;
 
@@ -49,6 +50,9 @@ public interface RpcClient extends AutoCloseable {
 
     default RpcClient withCompression(RpcCompression compression) {
         return new RpcClientWithCompression(this, compression);
+    }
+
+    default void setDefaultHeader(TRequestHeader.Builder header) {
     }
 
     String destinationName();
