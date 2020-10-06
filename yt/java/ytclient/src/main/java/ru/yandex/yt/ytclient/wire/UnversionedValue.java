@@ -154,24 +154,6 @@ public class UnversionedValue implements YTreeConvertible {
         throw illegalValue(type, value);
     }
 
-    /**
-     * Конвертирует сырое 64-х битное число для сериализации в правильный для type тип данных
-     */
-    public static Object convertRawBitsTo(long bits, ColumnValueType type) {
-        switch (type) {
-            case INT64:
-            case UINT64:
-                return bits;
-            case DOUBLE:
-                return Double.longBitsToDouble(bits);
-            case BOOLEAN:
-                // bool is byte-sized in C++, have to be careful about random garbage
-                return (bits & 0xff) != 0;
-            default:
-                throw new IllegalArgumentException(type + " cannot be represented as raw bits");
-        }
-    }
-
     public int getId() {
         return id;
     }
@@ -209,21 +191,17 @@ public class UnversionedValue implements YTreeConvertible {
     }
 
     public double doubleValue() {
-        switch (type) {
-            case DOUBLE:
-                return (Double) value;
-            default:
-                throw new IllegalArgumentException(type + " is not a double value");
+        if (type != ColumnValueType.DOUBLE) {
+            throw new IllegalArgumentException(type + " is not a double value");
         }
+        return (Double) value;
     }
 
     public boolean booleanValue() {
-        switch (type) {
-            case BOOLEAN:
-                return (Boolean) value;
-            default:
-                throw new IllegalArgumentException(type + " is not a boolean value");
+        if (type != ColumnValueType.BOOLEAN) {
+            throw new IllegalArgumentException(type + " is not a boolean value");
         }
+        return (Boolean) value;
     }
 
     public byte[] bytesValue() {
