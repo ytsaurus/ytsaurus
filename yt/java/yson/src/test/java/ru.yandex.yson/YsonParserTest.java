@@ -124,6 +124,9 @@ public class YsonParserTest {
         assertThat(canonizeNode("\\x02\\x02"), is("1"));
         assertThat(canonizeNode("\\x02\\x06"), is("3"));
         assertThat(canonizeNode("\\x02\\x84\\x85\\x86\\x87\\x88\\x89\\x02"), is("4553746465090"));
+        assertThat(
+                canonizeNode("\\x02\\x81\\xd5\\xf4\\xd9\\xea\\xa4\\xbd\\xd3\\x95\\x01"),
+                is("-5391787952107853121"));
 
         assertThrows(YsonError.class,
                 () -> canonizeNode("\\x02\\x84\\x85\\x86\\x87\\x88\\x89\\x90\\x91\\x92\\x93\\x72"));

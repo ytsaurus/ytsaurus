@@ -13,6 +13,6 @@ class VarintUtils {
     }
 
     static long decodeZigZag64(final long value) {
-        return (value >> 1) ^ (~(value & 1) + 1);
+        return (value >>> 1) ^ -(value & 1);
     }
 }

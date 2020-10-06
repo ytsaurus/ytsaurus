@@ -124,21 +124,27 @@ public class YsonParser {
                     readBinaryString(bufferReference);
                     consumer.onString(bufferReference.buffer, bufferReference.offset, bufferReference.length);
                     return;
-                case YsonTags.BINARY_INT:
-                    consumer.onInteger(readSInt64());
+                case YsonTags.BINARY_INT: {
+                    long value = readSInt64();
+                    consumer.onInteger(value);
                     return;
-                case YsonTags.BINARY_DOUBLE:
-                    consumer.onDouble(readDouble());
+                }
+                case YsonTags.BINARY_DOUBLE: {
+                    double value = readDouble();
+                    consumer.onDouble(value);
                     return;
+                }
                 case YsonTags.BINARY_FALSE:
                     consumer.onBoolean(false);
                     return;
                 case YsonTags.BINARY_TRUE:
                     consumer.onBoolean(true);
                     return;
-                case YsonTags.BINARY_UINT:
-                    consumer.onUnsignedInteger(tokenizer.readVarUint64());
+                case YsonTags.BINARY_UINT: {
+                    long value = tokenizer.readVarUint64();
+                    consumer.onUnsignedInteger(value);
                     return;
+                }
                 case YsonTags.ENTITY:
                     consumer.onEntity();
                     return;
