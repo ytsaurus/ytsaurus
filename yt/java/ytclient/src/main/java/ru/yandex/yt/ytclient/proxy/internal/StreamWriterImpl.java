@@ -12,7 +12,6 @@ import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.proxy.StreamWriter;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
@@ -105,9 +104,7 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
     private final List<byte[]> payloadAttachments = new LinkedList<>();
     private long payloadOffset = 0;
 
-    StreamWriterImpl(RpcClientStreamControl control, Compression compression, long windowSize, long packetSize) {
-        super(control);
-
+    StreamWriterImpl(Compression compression, long windowSize, long packetSize) {
         this.windowSize = windowSize;
         this.packetSize = packetSize;
         this.supplier = new WrappedSupplier(new MessagesSupplier(), Codec.codecFor(compression));
