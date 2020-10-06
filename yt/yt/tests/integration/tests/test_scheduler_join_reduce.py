@@ -664,7 +664,7 @@ echo {v = 2} >&7
                 {"key": "b", "@table_index": "1"},
             ])
 
-        histogram = get(op.get_path() + "/@progress/input_data_size_histogram")
+        histogram = get(op.get_path() + "/@progress/tasks/0/input_data_weight_histogram")
         assert sum(histogram["count"]) == 2
 
     # Check compatibility with deprecated <primary=true> attribute

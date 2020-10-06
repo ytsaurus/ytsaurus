@@ -78,6 +78,14 @@ TTask::TTask(ITaskHostPtr taskHost)
     : TTask(taskHost, taskHost->GetStandardEdgeDescriptors())
 { }
 
+void TTask::Prepare()
+{
+    if (IsInputDataWeightHistogramSupported()) {
+        EstimatedInputDataWeightHistogram_ = CreateHistogram();
+        InputDataWeightHistogram_ = CreateHistogram();
+    }
+}
+
 void TTask::Initialize()
 {
     auto operationId = TaskHost_->GetOperationId();
@@ -484,6 +492,9 @@ void TTask::ScheduleJob(
     TaskHost_->RegisterJoblet(joblet);
     if (!joblet->Speculative) {
         TaskHost_->AddValueToEstimatedHistogram(joblet);
+        if (EstimatedInputDataWeightHistogram_) {
+            EstimatedInputDataWeightHistogram_->AddValue(joblet->InputStripeList->TotalDataWeight);
+        }
     }
 
     OnJobStarted(joblet);
@@ -526,6 +537,14 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         })
         .DoIf(static_cast<bool>(CompletionTime_), [&] (TFluentMap fluent) {
             fluent.Item("completion_time").Value(*CompletionTime_);
+        })
+        .DoIf(static_cast<bool>(EstimatedInputDataWeightHistogram_), [&] (TFluentMap fluent) {
+            EstimatedInputDataWeightHistogram_->BuildHistogramView();
+            fluent.Item("estimated_input_data_weight_histogram").Value(*EstimatedInputDataWeightHistogram_);
+        })
+        .DoIf(static_cast<bool>(InputDataWeightHistogram_), [&] (TFluentMap fluent) {
+            InputDataWeightHistogram_->BuildHistogramView();
+            fluent.Item("input_data_weight_histogram").Value(*InputDataWeightHistogram_);
         });
 }
 
@@ -612,6 +631,9 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, StartTime_);
     Persist(context, CompletionTime_);
+
+    Persist(context, EstimatedInputDataWeightHistogram_);
+    Persist(context, InputDataWeightHistogram_);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -721,6 +743,12 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
     UpdateMaximumUsedTmpfsSizes(statistics);
 
+    if (auto dataWeight = FindNumericValue(statistics, "/data/input/data_weight")) {
+        if (InputDataWeightHistogram_ && *dataWeight > 0) {
+            InputDataWeightHistogram_->AddValue(*dataWeight);
+        }
+    }
+
     return result;
 }
 
@@ -739,6 +767,9 @@ void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputC
 void TTask::ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot)
 {
     TaskHost_->RemoveValueFromEstimatedHistogram(joblet);
+    if (EstimatedInputDataWeightHistogram_) {
+        EstimatedInputDataWeightHistogram_->RemoveValue(joblet->InputStripeList->TotalDataWeight);
+    }
     TaskHost_->ReleaseChunkTrees(joblet->ChunkListIds, /* recursive */ true, waitForSnapshot);
 }
 
@@ -1069,6 +1100,11 @@ void TTask::FinishTaskInput(const TTaskPtr& task)
 void TTask::SetEdgeDescriptors(TJobletPtr joblet) const
 {
     joblet->EdgeDescriptors = EdgeDescriptors_;
+}
+
+bool TTask::IsInputDataWeightHistogramSupported() const
+{
+    return true;
 }
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)

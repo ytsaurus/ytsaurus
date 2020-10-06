@@ -141,6 +141,12 @@ public:
         return Spec_->InterruptionSignal.has_value();
     }
 
+protected:
+    virtual bool IsInputDataWeightHistogramSupported() const override
+    {
+        return false;
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaTask, 0x55e9aacd);
 

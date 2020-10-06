@@ -1542,8 +1542,8 @@ class TestJobSizeAdjuster(YTEnvSetup):
         expected = [{"lines": str(2**i)} for i in xrange(5)]
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
-        estimated = get(op.get_path() + "/@progress/estimated_input_data_size_histogram")
-        histogram = get(op.get_path() + "/@progress/input_data_size_histogram")
+        estimated = get(op.get_path() + "/@progress/tasks/0/estimated_input_data_weight_histogram")
+        histogram = get(op.get_path() + "/@progress/tasks/0/input_data_weight_histogram")
         assert estimated == histogram
         assert histogram["max"]/histogram["min"] == 16
         assert histogram["count"][0] == 1
