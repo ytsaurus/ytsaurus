@@ -20,6 +20,7 @@
 #include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/core/misc/digest.h>
+#include <yt/core/misc/histogram.h>
 
 namespace NYT::NControllerAgent::NLegacyControllers {
 
@@ -38,6 +39,10 @@ public:
     TTask();
     TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors);
     explicit TTask(ITaskHostPtr taskHost);
+
+    //! This method is called on task object creation at clean creation but not at revival.
+    //! It may be used when calling virtual method is needed, but not allowed.
+    virtual void Prepare();
 
     //! This method is called on task object creation (both at clean creation and at revival).
     //! It may be used when calling virtual method is needed, but not allowed.
@@ -269,6 +274,8 @@ protected:
 
     virtual void SetEdgeDescriptors(TJobletPtr joblet) const;
 
+    virtual bool IsInputDataWeightHistogramSupported() const;
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd4);
 
@@ -300,6 +307,9 @@ private:
     //! Caches results of SerializeToWireProto serializations.
     // NB: This field is transient intentionally.
     THashMap<NTableClient::TTableSchemaPtr, TString> TableSchemaToProtobufTableSchema_;
+
+    std::unique_ptr<IHistogram> EstimatedInputDataWeightHistogram_;
+    std::unique_ptr<IHistogram> InputDataWeightHistogram_;
 
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 

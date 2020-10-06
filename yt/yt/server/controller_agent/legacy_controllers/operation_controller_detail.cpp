@@ -4160,6 +4160,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
 void TOperationControllerBase::RegisterTask(TTaskPtr task)
 {
+    task->Prepare();
     task->Initialize();
     Tasks.emplace_back(std::move(task));
 }
@@ -7688,6 +7689,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
                     .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
                 .EndMap();
         })
+        // COMPAT(gritukan): Drop it in favour of per-task histograms.
         .DoIf(static_cast<bool>(EstimatedInputDataSizeHistogram_), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent

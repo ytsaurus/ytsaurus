@@ -51,6 +51,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SchemafulMapReduce)                   (300418))
     ((PartitionedTables)                    (300419))
     ((FailedJobCount)                       (300420))
+    ((PerTaskInputDataSizeHistograms)       (300421))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
