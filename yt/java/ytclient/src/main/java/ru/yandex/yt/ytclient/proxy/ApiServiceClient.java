@@ -1578,10 +1578,11 @@ public class ApiServiceClient implements TransactionalClient {
             rpcClient.setDefaultHeader(builder.header());
         }
 
+        TableReaderImpl<T> tableReader = new TableReaderImpl<>(reader);
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
         CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
                 control -> {
-                    TableReaderImpl<T> tableReader = new TableReaderImpl<>(control, reader);
+                    tableReader.onStartStream(control);
                     control.subscribe(tableReader);
                     return tableReader.waitMetadata();
                 });
@@ -1597,18 +1598,17 @@ public class ApiServiceClient implements TransactionalClient {
         req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
+        TableWriterImpl<T> tableWriter = new TableWriterImpl<>(
+                builder.getCompression(),
+                req.getWindowSize(),
+                req.getPacketSize(),
+                req.getSerializer());
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
         CompletableFuture<TableWriter<T>> result = streamControlFuture.thenCompose(
                 control -> {
-                    TableWriterImpl<T> writer = new TableWriterImpl<>(
-                        control,
-                        builder.getCompression(),
-                        req.getWindowSize(),
-                        req.getPacketSize(),
-                        req.getSerializer());
-                    control.subscribe(writer);
-
-                    return writer.startUpload();
+                    tableWriter.onStartStream(control);
+                    control.subscribe(tableWriter);
+                    return tableWriter.startUpload();
                 });
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
@@ -1622,10 +1622,11 @@ public class ApiServiceClient implements TransactionalClient {
         req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
+        FileReaderImpl fileReader = new FileReaderImpl();
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
         CompletableFuture<FileReader> result = streamControlFuture.thenCompose(
                 control -> {
-                    FileReaderImpl fileReader = new FileReaderImpl(control);
+                    fileReader.onStartStream(control);
                     control.subscribe(fileReader);
                     return fileReader.waitMetadata();
                 });
@@ -1641,14 +1642,14 @@ public class ApiServiceClient implements TransactionalClient {
         req.writeHeaderTo(builder.header(), rpcClient);
         req.writeTo(builder.body());
 
+        FileWriterImpl fileWriter = new FileWriterImpl(
+                builder.getCompression(),
+                req.getWindowSize(),
+                req.getPacketSize());
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
         CompletableFuture<FileWriter> result = streamControlFuture.thenCompose(
                 control -> {
-                    FileWriterImpl fileWriter = new FileWriterImpl(
-                            control,
-                            builder.getCompression(),
-                            req.getWindowSize(),
-                            req.getPacketSize());
+                    fileWriter.onStartStream(control);
                     control.subscribe(fileWriter);
                     return fileWriter.startUpload();
                 });
