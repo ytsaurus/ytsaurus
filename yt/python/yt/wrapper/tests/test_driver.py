@@ -62,8 +62,8 @@ def test_sanitize_structure():
 
 @authors("asaitgalin")
 @pytest.mark.usefixtures("yt_env")
-def DISABLE_test_catching_sigint(yt_env):
-    if yt.config["backend"] != "native":
+def test_catching_sigint(yt_env):
+    if yt.config["backend"] != "rpc":
         pytest.skip()
 
     driver_config_path = yt_env.env.config_paths["driver"]
