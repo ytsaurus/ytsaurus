@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.object;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -15,12 +16,13 @@ public class SmallObjectWithComplexFieldAndStateSupportTest {
 
     @Test
     public void testSerializationDeserialization() {
+        Random random = new Random(42);
         final List<SmallObjectWithComplexFieldAndStateSupport> list = new ArrayList<>();
         final ObjectsMetadata<SmallObjectWithComplexFieldAndStateSupport> meta =
                 ObjectsMetadata.getMetadata(SmallObjectWithComplexFieldAndStateSupport.class, list::add);
 
 
-        final SmallObjectWithComplexFieldAndStateSupport object = meta.generateObjects(1).get(0);
+        final SmallObjectWithComplexFieldAndStateSupport object = meta.generateObjects(1, random).get(0);
         object.saveYTreeObjectState();
 
         final SmallObjectWithComplexFieldAndStateSupport prevState = object.getYTreeObjectState();

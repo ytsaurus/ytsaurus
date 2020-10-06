@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Random;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -54,18 +55,20 @@ public class MappedModifyRowsRequestTest {
 
     private <T extends YTreeStateSupport<T>> void testMappedModifyRowsRequestImpl(
             Class<T> clazz, Supplier<T> newInstance, Consumer<T> changeSetter,
-            BiConsumer<T, T> keySetter, BiConsumer<T, T> persistentSetter) {
-        final ObjectsMetadata<T> metadata = ObjectsMetadata.getMetadata(clazz, value -> {
-        });
+            BiConsumer<T, T> keySetter, BiConsumer<T, T> persistentSetter)
+    {
+
+        final Random random = new Random(42);
+        final ObjectsMetadata<T> metadata = ObjectsMetadata.getMetadata(clazz, value -> { });
 
         final MappedModifyRowsRequest<T> request =
                 new MappedModifyRowsRequest<>("", metadata.getMappedSerializer());
-        final List<T> sample1 = metadata.generateObjects(1);
-        final List<T> sample2 = metadata.generateObjects(2);
-        final List<T> sample3 = metadata.generateObjects(1);
-        final List<T> sample4 = metadata.generateObjects(2);
-        final List<T> sample5 = metadata.generateObjects(1);
-        final List<T> sample6 = metadata.generateObjects(2);
+        final List<T> sample1 = metadata.generateObjects(1, random);
+        final List<T> sample2 = metadata.generateObjects(2, random);
+        final List<T> sample3 = metadata.generateObjects(1, random);
+        final List<T> sample4 = metadata.generateObjects(2, random);
+        final List<T> sample5 = metadata.generateObjects(1, random);
+        final List<T> sample6 = metadata.generateObjects(2, random);
 
         Stream.of(sample1, sample2).flatMap(Collection::stream).forEach(YTreeStateSupport.saveProxy(changeSetter));
 

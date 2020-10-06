@@ -1,12 +1,12 @@
 package ru.yandex.yt.ytclient.object;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Random;
 
-import org.apache.commons.lang3.RandomStringUtils;
-import org.apache.commons.lang3.RandomUtils;
 import org.joda.time.Instant;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -64,14 +64,14 @@ public class ObjectsGenerators {
         @Override
         public T generateNext(Random random) {
             final YTreeBuilder builder = YTree.builder();
-            generator.generateNext(builder);
+            generator.generateNext(builder, random);
             return serializer.deserialize(builder.build());
         }
     }
 
 
     private interface NodeGenerator {
-        void generateNext(YTreeBuilder builder);
+        void generateNext(YTreeBuilder builder, Random random);
     }
 
 
@@ -99,7 +99,7 @@ public class ObjectsGenerators {
         }
 
         @Override
-        public void generateNext(YTreeBuilder builder) {
+        public void generateNext(YTreeBuilder builder, Random random) {
             if (!flatten) {
                 builder.beginMap();
             }
@@ -107,7 +107,7 @@ public class ObjectsGenerators {
                 if (!field.field.isFlatten) {
                     builder.onKeyedItem(field.field.key);
                 }
-                field.generator.generateNext(builder);
+                field.generator.generateNext(builder, random);
             }
             if (!flatten) {
                 builder.endMap();
@@ -166,48 +166,47 @@ public class ObjectsGenerators {
 
     private static class YTreeBytesGenerator implements NodeGenerator {
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onString(RandomUtils.nextBytes(64));
+        public void generateNext(YTreeBuilder builder, Random random) {
+            byte[] bytes = new byte[64];
+            random.nextBytes(bytes);
+            builder.onString(bytes);
         }
     }
 
     private static class YTreeLongGenerator implements NodeGenerator {
-
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onInteger(RandomUtils.nextLong());
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onInteger(random.nextLong());
         }
     }
 
     private static class YTreeIntegerGenerator implements NodeGenerator {
-
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onInteger(RandomUtils.nextInt());
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onInteger(random.nextInt());
         }
     }
 
     private static class YTreeBooleanGenerator implements NodeGenerator {
-
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onBoolean(RandomUtils.nextDouble(0, 1) >= 0.5);
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onBoolean(random.nextBoolean());
         }
     }
 
     private static class YTreeDoubleGenerator implements NodeGenerator {
 
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onDouble(RandomUtils.nextDouble());
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onDouble(random.nextDouble());
         }
     }
 
     private static class YTreeFloatGenerator implements NodeGenerator {
 
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onDouble(RandomUtils.nextFloat());
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onDouble(random.nextFloat());
         }
     }
 
@@ -221,8 +220,8 @@ public class ObjectsGenerators {
 
 
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onString(values[RandomUtils.nextInt(0, values.length)]);
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onString(values[random.nextInt(values.length)]);
         }
     }
 
@@ -235,13 +234,12 @@ public class ObjectsGenerators {
         }
 
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onInteger(values[RandomUtils.nextInt(0, values.length)]);
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onInteger(values[random.nextInt(values.length)]);
         }
     }
 
     private static class YTreeEnumGenerator implements NodeGenerator {
-
         private final String[] values;
 
         <T extends Enum<T>> YTreeEnumGenerator(ClassX<T> clazz) {
@@ -249,8 +247,8 @@ public class ObjectsGenerators {
         }
 
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onString(values[RandomUtils.nextInt(0, values.length)]);
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onString(values[random.nextInt(values.length)]);
         }
     }
 
@@ -263,11 +261,11 @@ public class ObjectsGenerators {
         }
 
         @Override
-        public void generateNext(YTreeBuilder builder) {
+        public void generateNext(YTreeBuilder builder, Random random) {
             builder.onBeginList();
             for (int i = 0; i < 8; i++) {
                 builder.onListItem();
-                this.generator.generateNext(builder);
+                this.generator.generateNext(builder, random);
             }
             builder.onEndList();
         }
@@ -281,35 +279,59 @@ public class ObjectsGenerators {
         }
 
         @Override
-        public void generateNext(YTreeBuilder builder) {
+        public void generateNext(YTreeBuilder builder, Random random) {
             builder.onBeginMap();
             for (int i = 0; i < 8; i++) {
-                builder.onKeyedItem(RandomStringUtils.randomAlphabetic(16));
-                generator.generateNext(builder);
-
+                builder.onKeyedItem(RandomStringUtils.nextString(16, random));
+                generator.generateNext(builder, random);
             }
             builder.onEndMap();
         }
     }
 
-    private static class YTreeLocalDateTimeGenerator implements NodeGenerator {
+    private static class RandomStringUtils {
+        private static final char[] alphas = "abcdefghijklmnopqrstuvwxyz".toCharArray();
+        static String nextString(int count, Random random) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < count; ++i) {
+                sb.append(alphas[random.nextInt(alphas.length)]);
+            }
+            return sb.toString();
+        }
+    }
 
+    private static class RandomTimeUtils {
+        static final LocalDateTime beginTime = LocalDateTime.of(2020, 1, 1, 12, 0);
+        static final int secondsInDay = 3600 * 24;
+        static final int daysIn2020 = 366;
+
+        static LocalDateTime nextLocalDateTime(Random random) {
+            int toAdd = random.nextInt(secondsInDay * daysIn2020);
+            return beginTime.plus(toAdd, ChronoUnit.SECONDS);
+        }
+
+        static Instant nextJodaInstant(Random random) {
+            LocalDateTime value = nextLocalDateTime(random);
+            long millis = value.atZone(ZoneId.of("Europe/Moscow")).toInstant().toEpochMilli();
+            return Instant.ofEpochMilli(millis);
+        }
+    }
+
+    private static class YTreeLocalDateTimeGenerator implements NodeGenerator {
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onString(LocalDateTime.now().toString());
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onString(RandomTimeUtils.nextLocalDateTime(random).toString());
         }
     }
 
     private static class YTreeStringGenerator implements NodeGenerator {
-
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onString(RandomStringUtils.randomAscii(64));
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onString(RandomStringUtils.nextString(64, random));
         }
     }
 
     private static class YTreeDateTimeGenerator implements NodeGenerator {
-
         private final DateTimeFormatter formatter;
 
         YTreeDateTimeGenerator(DateTimeFormatter formatter) {
@@ -317,9 +339,8 @@ public class ObjectsGenerators {
         }
 
         @Override
-        public void generateNext(YTreeBuilder builder) {
-            builder.onString(formatter.print(Instant.now()));
+        public void generateNext(YTreeBuilder builder, Random random) {
+            builder.onString(formatter.print(RandomTimeUtils.nextJodaInstant(random)));
         }
     }
-
 }

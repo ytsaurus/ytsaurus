@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient;
 
 import java.util.List;
+import java.util.Random;
 
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -510,6 +511,7 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
 
     @State(Scope.Thread)
     public static class Serializers extends ForClassInstantiationJMH.ObjectMetadata {
+        private final Random random = new Random();
         private final List<SmallObjectClass> smallObjectsData;
         private final List<SmallObjectClassWithStateSupport> smallObjectsDataWithStateSupport;
         private final List<UnversionedRow> smallObjectsDataUnversioned;
@@ -532,34 +534,34 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
         private final List<UnversionedRow> largeUnflattenPrimitivesDataUnversioned;
 
         public Serializers() {
-            smallObjectsData = smallObjects.generateObjects(1000);
-            smallObjectsDataWithStateSupport = smallObjectsWithStateSupport.generateObjects(1000);
+            smallObjectsData = smallObjects.generateObjects(1000, random);
+            smallObjectsDataWithStateSupport = smallObjectsWithStateSupport.generateObjects(1000, random);
             smallObjectsDataWithStateSupport.forEach(YTreeStateSupport.saveProxy(object -> {
                 // Меняем только 2 поля (плюс ключ) - все остальные не должны быть сериализованы
                 object.setLongField(object.getLongField() + 1);
                 object.setStringField(object.getStringField() + "+1");
             }));
             smallObjectsDataUnversioned = smallObjects.convertObjectsToUnversioned(smallObjectsData);
-            smallPrimitiveData = smallPrimitives.generateObjects(1000);
+            smallPrimitiveData = smallPrimitives.generateObjects(1000, random);
             smallPrimitiveDataUnversioned = smallPrimitives.convertObjectsToUnversioned(smallPrimitiveData);
-            largeObjectsData = largeObjects.generateObjects(1000);
-            largeObjectsDataWithStateSupport = largeObjectsWithStateSupport.generateObjects(1000);
+            largeObjectsData = largeObjects.generateObjects(1000, random);
+            largeObjectsDataWithStateSupport = largeObjectsWithStateSupport.generateObjects(1000, random);
             largeObjectsDataWithStateSupport.forEach(YTreeStateSupport.saveProxy(object -> {
                 // Меняем только 2 поля (плюс ключ) - все остальные не должны быть сериализованы
                 object.setLongField1(object.getLongField1() + 1);
                 object.setStringField1(object.getStringField1() + "+1");
             }));
             largeObjectsDataUnversioned = largeObjects.convertObjectsToUnversioned(largeObjectsData);
-            largePrimitiveData = largePrimitives.generateObjects(1000);
+            largePrimitiveData = largePrimitives.generateObjects(1000, random);
             largePrimitiveDataUnversioned = largePrimitives.convertObjectsToUnversioned(largePrimitiveData);
-            largeFlattenObjectsData = largeFlattenObjects.generateObjects(1000);
+            largeFlattenObjectsData = largeFlattenObjects.generateObjects(1000, random);
             largeFlattenObjectsDataUnversioned =
                     largeFlattenObjects.convertObjectsToUnversioned(largeFlattenObjectsData);
-            largeFlattenPrimitivesData = largeFlattenPrimitives.generateObjects(1000);
+            largeFlattenPrimitivesData = largeFlattenPrimitives.generateObjects(1000, random);
             largeFlattenPrimitivesDataUnversioned =
                     largeFlattenPrimitives.convertObjectsToUnversioned(largeFlattenPrimitivesData);
-            largeUnflattenObjectsData = largeUnflattenObjects.generateObjects(1000);
-            largeUnflattenObjectsDataWithStateSupport = largeUnflattenObjectsWithStateSupport.generateObjects(1000);
+            largeUnflattenObjectsData = largeUnflattenObjects.generateObjects(1000, random);
+            largeUnflattenObjectsDataWithStateSupport = largeUnflattenObjectsWithStateSupport.generateObjects(1000, random);
             largeUnflattenObjectsDataWithStateSupport.forEach(YTreeStateSupport.saveProxy(object -> {
                 // Меняем только 2 поля (плюс ключ) - все остальные не должны быть сериализованы
                 object.setIntField2(object.getIntField2());
@@ -568,10 +570,10 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
 
             largeUnflattenObjectsDataUnversioned =
                     largeUnflattenObjects.convertObjectsToUnversioned(largeUnflattenObjectsData);
-            largeUnflattenPrimitivesData = largeUnflattenPrimitives.generateObjects(1000);
+            largeUnflattenPrimitivesData = largeUnflattenPrimitives.generateObjects(1000, random);
             largeUnflattenPrimitivesDataUnversioned =
                     largeUnflattenPrimitives.convertObjectsToUnversioned(largeUnflattenPrimitivesData);
-            largeObjectsWithListData = largeObjectsWithList.generateObjects(1000);
+            largeObjectsWithListData = largeObjectsWithList.generateObjects(1000, random);
         }
     }
 

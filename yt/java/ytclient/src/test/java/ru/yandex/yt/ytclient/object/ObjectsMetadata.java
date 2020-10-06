@@ -66,8 +66,7 @@ public class ObjectsMetadata<T> {
         return mappedSerializer;
     }
 
-    public List<T> generateObjects(int size) {
-        final Random random = new Random();
+    public List<T> generateObjects(int size, Random random) {
         final List<T> target = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             target.add(objectGenerator.generateNext(random));
@@ -75,8 +74,8 @@ public class ObjectsMetadata<T> {
         return target;
     }
 
-    public List<byte[]> generateAndSerializeObjects(int size) {
-        return serializeMappedObjects(generateObjects(size));
+    public List<byte[]> generateAndSerializeObjects(int size, Random random) {
+        return serializeMappedObjects(generateObjects(size, random));
     }
 
     public void deserializeMappedObjects(List<byte[]> chunks) {

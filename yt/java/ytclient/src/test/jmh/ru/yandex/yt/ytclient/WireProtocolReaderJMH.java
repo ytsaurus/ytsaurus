@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient;
 
 import java.util.List;
+import java.util.Random;
 
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -434,6 +435,7 @@ WireProtocolReaderJMH.test24_deserializeUnversionedLargeUnflattenPrimitives:·gc
 
     @State(Scope.Thread)
     public static class Deserializers extends ForClassInstantiationJMH.ObjectMetadata {
+        private final Random random = new Random(42);
         private final List<byte[]> smallObjectsData;
         private final List<byte[]> smallPrimitiveData;
         private final List<byte[]> largeObjectsData;
@@ -446,16 +448,16 @@ WireProtocolReaderJMH.test24_deserializeUnversionedLargeUnflattenPrimitives:·gc
         private final List<byte[]> largeObjectWithListData;
 
         public Deserializers() {
-            smallObjectsData = smallObjects.generateAndSerializeObjects(1000);
-            smallPrimitiveData = smallPrimitives.generateAndSerializeObjects(1000);
-            largeObjectsData = largeObjects.generateAndSerializeObjects(1000);
-            largePrimitiveData = largePrimitives.generateAndSerializeObjects(1000);
-            largeFlattenObjectsData = largeFlattenObjects.generateAndSerializeObjects(1000);
-            largeFlattenPrimitivesData = largeFlattenPrimitives.generateAndSerializeObjects(1000);
-            largeUnflattenObjectsData = largeUnflattenObjects.generateAndSerializeObjects(1000);
-            largeUnflattenPrimitivesData = largeUnflattenPrimitives.generateAndSerializeObjects(1000);
-            largeWithAllSupportedSerializersData = largeWithAllSupportedSerializers.generateAndSerializeObjects(1000);
-            largeObjectWithListData = largeObjectsWithList.generateAndSerializeObjects(1000);
+            smallObjectsData = smallObjects.generateAndSerializeObjects(1000, random);
+            smallPrimitiveData = smallPrimitives.generateAndSerializeObjects(1000, random);
+            largeObjectsData = largeObjects.generateAndSerializeObjects(1000, random);
+            largePrimitiveData = largePrimitives.generateAndSerializeObjects(1000, random);
+            largeFlattenObjectsData = largeFlattenObjects.generateAndSerializeObjects(1000, random);
+            largeFlattenPrimitivesData = largeFlattenPrimitives.generateAndSerializeObjects(1000, random);
+            largeUnflattenObjectsData = largeUnflattenObjects.generateAndSerializeObjects(1000, random);
+            largeUnflattenPrimitivesData = largeUnflattenPrimitives.generateAndSerializeObjects(1000, random);
+            largeWithAllSupportedSerializersData = largeWithAllSupportedSerializers.generateAndSerializeObjects(1000, random);
+            largeObjectWithListData = largeObjectsWithList.generateAndSerializeObjects(1000, random);
         }
     }
 
