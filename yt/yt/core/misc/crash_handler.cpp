@@ -7,6 +7,7 @@
 #include <yt/core/misc/raw_formatter.h>
 
 #include <yt/core/concurrency/fls.h>
+#include <yt/core/concurrency/fiber_api.h>
 
 #include <util/system/defaults.h>
 
@@ -336,7 +337,10 @@ void DumpSignalInfo(int signal, siginfo_t* si)
     formatter.AppendString(")");
     formatter.AppendString(" received by PID ");
     formatter.AppendNumber(getpid());
-    formatter.AppendString(" (TID 0x");
+
+    formatter.AppendString(" (FID 0x");
+    formatter.AppendNumber(NConcurrency::GetCurrentFiberId(), 16);
+    formatter.AppendString(" TID 0x");
     // We assume pthread_t is an integral number or a pointer, rather
     // than a complex struct. In some environments, pthread_self()
     // returns an uint64 but in some other environments pthread_self()
