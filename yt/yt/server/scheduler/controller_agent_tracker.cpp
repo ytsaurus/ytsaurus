@@ -971,20 +971,27 @@ public:
 
         auto controllerAgentTag = operation->Spec()->ControllerAgentTag;
 
+        int excludedByTagCount = 0;
+
         std::vector<TControllerAgentPtr> registeredAgents;
         for (const auto& [agentId, agent] : IdToAgent_) {
             if (agent->GetState() != EControllerAgentState::Registered) {
                 continue;
             }
             if (!agent->GetTags().contains(controllerAgentTag)) {
+                ++excludedByTagCount;
                 continue;
             }
             registeredAgents.push_back(agent);
         }
 
         if (registeredAgents.size() < Config_->MinAgentCount) {
-            YT_LOG_DEBUG("Not enough agents to pick (AgentCount: %v, MinAgentCount: %v, OperationId: %v, ControllerAgentTag: %v)",
+            YT_LOG_DEBUG(
+                "Not enough agents to pick (AgentCount: %v, SuitableAgentCount: %v, ExcludedByTagAgentCount: %v, "
+                "MinAgentCount: %v, OperationId: %v, ControllerAgentTag: %v)",
+                IdToAgent_.size(),
                 registeredAgents.size(),
+                excludedByTagCount,
                 Config_->MinAgentCount,
                 operation->GetId(),
                 controllerAgentTag);
