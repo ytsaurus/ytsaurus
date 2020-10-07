@@ -1,8 +1,6 @@
 package ru.yandex.yt.ytclient.wire;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
@@ -312,11 +310,7 @@ public class UnversionedValue implements YTreeConvertible {
                 consumer.onString(bytesValue());
                 break;
             case ANY: {
-                try {
-                    YTreeBinarySerializer.deserialize(new ByteArrayInputStream(bytesValue()), consumer);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                YTreeBinarySerializer.deserialize(new ByteArrayInputStream(bytesValue()), consumer);
                 break;
             }
             default:
