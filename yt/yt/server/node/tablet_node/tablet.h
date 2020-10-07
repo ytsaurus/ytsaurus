@@ -86,6 +86,8 @@ struct TReplicaCounters
     NProfiling::TShardedAggregateGauge ReplicationRowsWriteTime;
     NProfiling::TShardedAggregateGauge ReplicationBatchRowCount;
     NProfiling::TShardedAggregateGauge ReplicationBatchDataWeight;
+    NProfiling::TShardedMonotonicCounter ReplicationRowCount;
+    NProfiling::TShardedMonotonicCounter ReplicationDataWeight;
 
     const NProfiling::TTagIdList Tags;
 };
