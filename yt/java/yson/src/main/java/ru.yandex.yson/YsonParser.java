@@ -840,6 +840,9 @@ class ByteZeroCopyInput implements ZeroCopyInput {
     public boolean next(@Nonnull BufferReference out) {
         if (buffer == null) {
             return false;
+        } else if (length == 0) {
+            buffer = null;
+            return false;
         }
         out.buffer = buffer;
         out.offset = offset;
