@@ -102,10 +102,7 @@ public:
         , NodeInThrottler_(std::move(nodeInThrottler))
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeOutThrottler),
-            CreateReconfigurableThroughputThrottler(
-                MountConfig_->ReplicationThrottler,
-                Logger,
-                Profiler.AppendPath("/replica/replication_data_weight_throttler").AddTags(replicaInfo->GetCounters()->Tags))}))
+            CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)}))
     { }
 
     void Enable()
@@ -263,6 +260,8 @@ private:
             bool checkPrevReplicationRowIndex = true;
             i64 newReplicationRowIndex;
             TTimestamp newReplicationTimestamp;
+            i64 batchRowCount;
+            i64 batchDataWeight;
 
             // TODO(savrus) profile chunk reader statistics.
             TClientBlockReadOptions blockReadOptions;
@@ -282,6 +281,8 @@ private:
                         &rowBuffer,
                         &newReplicationRowIndex,
                         &newReplicationTimestamp,
+                        &batchRowCount,
+                        &batchDataWeight,
                         isVersioned);
                 };
 
@@ -340,6 +341,11 @@ private:
                 replicaRuntimeData->LastReplicationTimestamp.store(newReplicationTimestamp);
             }
             replicaRuntimeData->Error.Store(TError());
+
+            Profiler.Update(counters->ReplicationBatchRowCount, batchRowCount);
+            Profiler.Update(counters->ReplicationBatchDataWeight, batchDataWeight);
+            Profiler.Increment(counters->ReplicationRowCount, batchRowCount);
+            Profiler.Increment(counters->ReplicationDataWeight, batchDataWeight);
         } catch (const std::exception& ex) {
             TError error(ex);
             if (replicaSnapshot) {
@@ -470,6 +476,8 @@ private:
         TRowBufferPtr* rowBuffer,
         i64* newReplicationRowIndex,
         TTimestamp* newReplicationTimestamp,
+        i64* batchRowCount,
+        i64* batchDataWeight,
         bool isVersioned)
     {
         auto sessionId = TReadSessionId::Create();
@@ -599,10 +607,8 @@ private:
 
         *newReplicationRowIndex = startRowIndex + rowCount;
         *newReplicationTimestamp = prevTimestamp;
-
-        auto* counters = replicaSnapshot->Counters;
-        Profiler.Update(counters->ReplicationBatchRowCount, rowCount);
-        Profiler.Update(counters->ReplicationBatchDataWeight, dataWeight);
+        *batchRowCount = rowCount;
+        *batchDataWeight = dataWeight;
 
         YT_LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
             "NewReplicationRowIndex: %v, NewReplicationTimestamp: %llx)",
