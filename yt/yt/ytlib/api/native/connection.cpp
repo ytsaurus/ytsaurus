@@ -111,8 +111,11 @@ public:
 
     void Initialize()
     {
-        if (Config_->ThreadPoolSize) {
-            ThreadPool_ = New<TThreadPool>(*Config_->ThreadPoolSize, "Connection");
+        if (Options_.ThreadPoolInvoker) {
+            ThreadPoolInvoker_ = Options_.ThreadPoolInvoker;
+        } else {
+            ThreadPool_ = New<TThreadPool>(Config_->ThreadPoolSize, "Connection");
+            ThreadPoolInvoker_ = ThreadPool_->GetInvoker();
         }
 
         MasterCellDirectory_ = New<NCellMasterClient::TCellDirectory>(
@@ -241,7 +244,7 @@ public:
 
     virtual IInvokerPtr GetInvoker() override
     {
-        return ThreadPool_ ? ThreadPool_->GetInvoker() : GetCurrentInvoker();
+        return ThreadPoolInvoker_;
     }
 
     virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
@@ -505,6 +508,7 @@ private:
     TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
 
     TThreadPoolPtr ThreadPool_;
+    IInvokerPtr ThreadPoolInvoker_;
 
     TProfiler Profiler_;
 

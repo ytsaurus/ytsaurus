@@ -1166,6 +1166,7 @@ private:
             proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
 
             auto req = proxy.Write();
+            req->SetHeavy(true);
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
             ToProto(req->mutable_transaction_id(), transaction->GetId());
             if (transaction->GetAtomicity() == EAtomicity::Full) {
@@ -1199,13 +1200,8 @@ private:
                 req->versioned(),
                 TableSession_->GetUpstreamReplicaId());
 
-            // NB: OnResponse is trivial for the last batch; otherwise use thread pool invoker.
-            auto invoker = InvokeBatchIndex_ == Batches_.size()
-                ? GetSyncInvoker()
-                : transaction->GetThreadPoolInvoker();
             req->Invoke().Subscribe(
-                BIND(&TTabletCommitSession::OnResponse, MakeStrong(this))
-                    .Via(std::move(invoker)));
+                BIND(&TTabletCommitSession::OnResponse, MakeStrong(this)));
         }
 
         void OnResponse(const TTabletServiceProxy::TErrorOrRspWritePtr& rspOrError)
@@ -1319,6 +1315,7 @@ private:
         {
             TTabletServiceProxy proxy(channel);
             auto req = proxy.RegisterTransactionActions();
+            req->SetHeavy(true);
             ToProto(req->mutable_transaction_id(), owner->GetId());
             req->set_transaction_start_timestamp(owner->GetStartTimestamp());
             req->set_transaction_timeout(ToProto<i64>(owner->GetTimeout()));
@@ -1331,6 +1328,7 @@ private:
         {
             TTransactionServiceProxy proxy(channel);
             auto req = proxy.RegisterTransactionActions();
+            req->SetHeavy(true);
             ToProto(req->mutable_transaction_id(), owner->GetId());
             ToProto(req->mutable_actions(), Actions_);
             return req->Invoke().As<void>();
