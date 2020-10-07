@@ -55,10 +55,17 @@ private:
         int DistributionCount = 0;
     };
 
+    struct TChunkEntry
+    {
+        THashMap<int, TDistributionEntry> Blocks;
+        THashSet<TNodeId> Nodes;
+    };
+
     // NB: Two fields below are accessed only from `Invoker_`, so there are no races nor contention here.
 
     //! All necessary information about blocks that were at least once accessed during last `Config_->WindowLength`.
-    THashMap<TBlockId, TDistributionEntry> BlockIdToDistributionEntry_;
+    THashMap<TChunkId, TChunkEntry> DistributionHistory_;
+
     //! At the beginning of each iteration requests that become obsolete (older than `Config_->WindowLength`)
     //! are swept out and corresponding entries in `BlockRequestCount_` are decremented.
     std::queue<std::pair<TInstant, TBlockId>> RequestHistory_;
@@ -89,8 +96,11 @@ private:
     };
     TChosenBlocks ChooseBlocks();
 
-    std::vector<std::pair<NNodeTrackerClient::TNodeId, NNodeTrackerClient::TNodeDescriptor>> ChooseDestinationNodes(
-        const std::vector<std::pair<NNodeTrackerClient::TNodeId, NNodeTrackerClient::TNodeDescriptor>>& nodes) const;
+    std::vector<std::pair<NNodeTrackerClient::TNodeId, const NNodeTrackerClient::TNodeDescriptor*>> ChooseDestinationNodes(
+        const THashMap<TNodeId, NNodeTrackerClient::TNodeDescriptor>& nodeSet,
+        const std::vector<std::pair<NNodeTrackerClient::TNodeId, NNodeTrackerClient::TNodeDescriptor>>& nodes,
+        const TBlockPeerDataPtr& peerData,
+        THashSet<NNodeTrackerClient::TNodeId>* preferredPeers) const;
 
     void UpdateTransmittedBytes();
 

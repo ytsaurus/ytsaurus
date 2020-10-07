@@ -1,3 +1,5 @@
+import threading
+
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 from yt_helpers import *
@@ -123,6 +125,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
                 "destination_node_count": 2,
                 "consecutive_distribution_delay": 200,
             },
+            "net_out_throttling_limit": 1,
             "block_cache": {
                 "compressed_data": {
                     "capacity": 256 * 1024 * 1024,
@@ -137,8 +140,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     }
 
     # Test relies on timing of rpc calls and periods of node directory synchronizer and distribution iteration.
-    @authors("max42")
-    @flaky(max_runs=5)
+    @authors("max42", "prime")
     @clear_everything_after_test
     def test_wow_such_flappy_test_so_many_failures(self):
         metric_s_delta = Metric.at_node(self.seed, "data_node/block_cache/compressed_data/hit")
@@ -146,8 +148,18 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
         metric_ns1_delta = Metric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit")
         metric_ns2_delta = Metric.at_node(self.non_seeds[2], "data_node/block_cache/compressed_data/hit")
 
-        for i in range(300):
-            self._access()
+        def read_table():
+            for i in range(300):
+                self._access()
+
+        readers = []
+        for _ in xrange(10):
+            reader = threading.Thread(target=read_table)
+            reader.start()
+            readers.append(reader)
+
+        for reader in readers:
+            reader.join()
 
         wait(lambda: metric_s_delta.update().get(verbose=True) > 0)
         wait(lambda: metric_ns0_delta.update().get(verbose=True) > 0)
