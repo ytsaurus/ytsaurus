@@ -175,6 +175,15 @@ public class YsonParserTest {
         assertThat(canonizeNode("\"foo\""), is("\"foo\""));
         assertThat(canonizeNode("\"25\""), is("\"25\""));
         assertThat(canonizeNode("\"foo\""), is("\"foo\""));
+        assertThat(canonizeNode("\"\\\\000\""), is("\"\\x00\""));
+        assertThat(canonizeNode("\"\\\\102\""), is("\"B\""));
+        assertThat(canonizeNode("\"\\\\377\""), is("\"\\xff\""));
+        assertThat(canonizeNode("\"\\\\x42\""), is("\"B\""));
+
+        assertThrows(YsonError.class,
+                () -> canonizeNode("\"\\\\400\""));
+        assertThrows(YsonError.class,
+                () -> canonizeNode("\"\\\\x8\""));
     }
 
     @Test

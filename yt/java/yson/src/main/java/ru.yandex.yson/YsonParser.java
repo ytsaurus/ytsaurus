@@ -550,7 +550,7 @@ public class YsonParser {
                         tokenizer.unreadByte();
                     } else {
                         value = (value << 3) | thirdOctal;
-                        if (value < 255) {
+                        if (value > 255) {
                             throw new YsonError(String.format(
                                     "Invalid escape sequence: \\%d%d%d",
                                     firstOctal, secondOctal, thirdOctal));
