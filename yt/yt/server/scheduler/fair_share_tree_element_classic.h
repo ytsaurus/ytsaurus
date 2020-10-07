@@ -458,6 +458,8 @@ public:
         const TString& profilingPrefix,
         const NProfiling::TTagIdList& tags) const;
 
+    virtual bool AreDetailedLogsEnabled() const;
+
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
 
@@ -772,6 +774,8 @@ public:
 
     double GetIntegralShareRatioLimitForRelaxedType() const;
 
+    virtual bool AreDetailedLogsEnabled() const override;
+
 private:
     TPoolConfigPtr Config_;
     TSchedulingTagFilter SchedulingTagFilter_;
@@ -1028,8 +1032,6 @@ public:
 
     TString GetUserName() const;
 
-    bool DetailedLogsEnabled() const;
-
     bool OnJobStarted(
         TJobId jobId,
         const TJobResources& resourceUsage,
@@ -1074,6 +1076,8 @@ public:
     void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
 
     bool IsLimitingAncestorCheckEnabled() const;
+
+    virtual bool AreDetailedLogsEnabled() const override;
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 
@@ -1208,6 +1212,18 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TRootElement)
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define YT_ELEMENT_LOG_DETAILED(schedulerElement, ...) \
+    do { \
+        const auto& Logger = schedulerElement->GetLogger(); \
+        if (schedulerElement->AreDetailedLogsEnabled()) { \
+            YT_LOG_DEBUG(__VA_ARGS__); \
+        } else { \
+            YT_LOG_TRACE(__VA_ARGS__); \
+        } \
+    } while(false)
 
 ////////////////////////////////////////////////////////////////////////////////
 

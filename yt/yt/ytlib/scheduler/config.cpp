@@ -1663,6 +1663,9 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("integral_guarantees", IntegralGuarantees)
         .DefaultNew();
+
+    RegisterParameter("enable_detailed_logs", EnableDetailedLogs)
+        .Default(false);
 }
 
 void TPoolConfig::Validate()

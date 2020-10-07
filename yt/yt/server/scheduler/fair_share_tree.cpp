@@ -12,8 +12,6 @@
 #include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
 
-#include "operation_log.h"
-
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/job_metrics.h>
 #include <yt/server/lib/scheduler/resource_metering.h>

@@ -493,6 +493,8 @@ public:
         const TString& profilingPrefix,
         const NProfiling::TTagIdList& tags) const;
 
+    virtual bool AreDetailedLogsEnabled() const;
+
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
 
@@ -825,6 +827,8 @@ public:
     void ApplyLimitsForRelaxedPool();
     TResourceVector GetIntegralShareLimitForRelaxedPool() const;
 
+    virtual bool AreDetailedLogsEnabled() const override;
+
 private:
     TPoolConfigPtr Config_;
     TSchedulingTagFilter SchedulingTagFilter_;
@@ -1088,8 +1092,6 @@ public:
 
     TString GetUserName() const;
 
-    bool DetailedLogsEnabled() const;
-
     virtual TResourceVector ComputeLimitsShare() const override;
 
     virtual double GetBestAllocationRatio() const override;
@@ -1138,6 +1140,8 @@ public:
     void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
 
     bool IsLimitingAncestorCheckEnabled() const;
+
+    virtual bool AreDetailedLogsEnabled() const override;
 
     DEFINE_BYVAL_RW_PROPERTY(TOperationFairShareTreeRuntimeParametersPtr, RuntimeParameters);
 
@@ -1280,6 +1284,20 @@ DEFINE_REFCOUNTED_TYPE(TRootElement)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler::NVectorScheduler
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define YT_ELEMENT_LOG_DETAILED(schedulerElement, ...) \
+    do { \
+        const auto& Logger = schedulerElement->GetLogger(); \
+        if (schedulerElement->AreDetailedLogsEnabled()) { \
+            YT_LOG_DEBUG(__VA_ARGS__); \
+        } else { \
+            YT_LOG_TRACE(__VA_ARGS__); \
+        } \
+    } while(false)
+
+////////////////////////////////////////////////////////////////////////////////
 
 #define FAIR_SHARE_TREE_ELEMENT_INL_H_
 #include "fair_share_tree_element-inl.h"

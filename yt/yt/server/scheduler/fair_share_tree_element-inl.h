@@ -39,11 +39,6 @@ inline const NLogging::TLogger& TSchedulerElement::GetLogger() const
     return Logger;
 }
 
-inline bool TOperationElement::DetailedLogsEnabled() const
-{
-    return RuntimeParameters_->EnableDetailedLogs;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler::NVectorScheduler
