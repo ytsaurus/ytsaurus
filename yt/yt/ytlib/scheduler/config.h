@@ -255,6 +255,8 @@ public:
 
     TPoolIntegralGuaranteesConfigPtr IntegralGuarantees;
 
+    bool EnableDetailedLogs;
+
     TPoolConfig();
 
     void Validate();

@@ -7,8 +7,6 @@
 #include "scheduling_context.h"
 #include "scheduling_segment_manager.h"
 
-#include "operation_log.h"
-
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
 
@@ -788,6 +786,11 @@ void TSchedulerElement::Profile(
         static_cast<i64>(Attributes_.GetUnlimitedDemandFairShareRatio() * 1e5),
         EMetricType::Gauge,
         tags);
+}
+
+bool TSchedulerElement::AreDetailedLogsEnabled() const
+{
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2002,20 +2005,36 @@ double TPool::GetSpecifiedResourceFlowRatio() const
 void TPool::UpdateAccumulatedResourceVolume(TDuration period)
 {
     if (TotalResourceLimits_ == TJobResources()) {
-        YT_LOG_TRACE("Skip update of AccumulatedResourceVolume");
+        YT_ELEMENT_LOG_DETAILED(this, "Skip update of accumulated resource volume");
         return;
     }
-    YT_LOG_TRACE("AccumulatedResourceVolume before update: %v", PersistentAttributes_.AccumulatedResourceVolume);
+    YT_ELEMENT_LOG_DETAILED(this,
+        "Updating accumulated resource volume "
+        "(CompleteResourceFlow: %v, PeriodInSeconds: %v, TotalResourceLimits: %v, "
+        "LastIntegralShareRatio: %v, PoolCapacity: %v, VolumeBeforeUpdate: %v)",
+        Attributes_.CompleteResourceFlow,
+        period.SecondsFloat(),
+        TotalResourceLimits_,
+        PersistentAttributes_.LastIntegralShareRatio,
+        GetIntegralPoolCapacity(),
+        PersistentAttributes_.AccumulatedResourceVolume);
+
     PersistentAttributes_.AccumulatedResourceVolume += Attributes_.CompleteResourceFlow * period.SecondsFloat();
     PersistentAttributes_.AccumulatedResourceVolume -= TotalResourceLimits_ * PersistentAttributes_.LastIntegralShareRatio * period.SecondsFloat();
     PersistentAttributes_.AccumulatedResourceVolume = Max(PersistentAttributes_.AccumulatedResourceVolume, TJobResources());
     PersistentAttributes_.AccumulatedResourceVolume = Min(PersistentAttributes_.AccumulatedResourceVolume, GetIntegralPoolCapacity());
-    YT_LOG_TRACE("AccumulatedResourceVolume after update: %v", PersistentAttributes_.AccumulatedResourceVolume);
+
+    YT_ELEMENT_LOG_DETAILED(this, "Accumulated resource volume updated (Volume: %v)", PersistentAttributes_.AccumulatedResourceVolume);
 }
 
 double TPool::GetIntegralShareRatioLimitForRelaxedType() const
 {
     return Attributes_.ResourceFlowRatio * TreeConfig_->IntegralGuarantees->RelaxedShareMultiplierLimit;
+}
+
+bool TPool::AreDetailedLogsEnabled() const
+{
+    return Config_->EnableDetailedLogs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2901,14 +2920,14 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
 {
     YT_VERIFY(IsActive(context->DynamicAttributesList()));
 
-    OPERATION_LOG_DETAILED(this,
+    YT_ELEMENT_LOG_DETAILED(this,
         "Trying to schedule job (SatisfactionRatio: %v, NodeId: %v, NodeResourceUsage: %v)",
         context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext()->GetNodeDescriptor().Id,
         FormatResourceUsage(context->SchedulingContext()->ResourceUsage(), context->SchedulingContext()->ResourceLimits()));
 
     auto deactivateOperationElement = [&] (EDeactivationReason reason) {
-        OPERATION_LOG_DETAILED(this,
+        YT_ELEMENT_LOG_DETAILED(this,
             "Failed to schedule job, operation deactivated "
             "(DeactivationReason: %v, NodeResourceUsage: %v)",
             FormatEnum(reason),
@@ -2931,7 +2950,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     }
 
     if (!HasJobsSatisfyingResourceLimits(*context)) {
-        OPERATION_LOG_DETAILED(this,
+        YT_ELEMENT_LOG_DETAILED(this,
             "No pending jobs can satisfy available resources on node ("
             "FreeResources: %v, DiscountResources: %v, "
             "MinNeededResources: %v, DetailedMinNeededResources: %v, "
@@ -3039,7 +3058,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
 
     FinishScheduleJob(context->SchedulingContext());
 
-    OPERATION_LOG_DETAILED(this,
+    YT_ELEMENT_LOG_DETAILED(this,
         "Scheduled a job (SatisfactionRatio: %v, NodeId: %v, JobId: %v, JobResourceLimits: %v)",
         context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext()->GetNodeDescriptor().Id,
@@ -3237,7 +3256,7 @@ bool TOperationElement::OnJobStarted(
     const TJobResources& precommittedResources,
     bool force)
 {
-    OPERATION_LOG_DETAILED(this, "Adding job to strategy (JobId: %v)", jobId);
+    YT_ELEMENT_LOG_DETAILED(this, "Adding job to strategy (JobId: %v)", jobId);
 
     auto resourceUsageDelta = OperationElementSharedState_->AddJob(jobId, resourceUsage, force);
     if (resourceUsageDelta) {
@@ -3251,7 +3270,7 @@ bool TOperationElement::OnJobStarted(
 
 void TOperationElement::OnJobFinished(TJobId jobId)
 {
-    OPERATION_LOG_DETAILED(this, "Removing job from strategy (JobId: %v)", jobId);
+    YT_ELEMENT_LOG_DETAILED(this, "Removing job from strategy (JobId: %v)", jobId);
 
     auto delta = OperationElementSharedState_->RemoveJob(jobId);
     if (delta) {
@@ -3564,6 +3583,11 @@ void TOperationElement::InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode m
 bool TOperationElement::IsLimitingAncestorCheckEnabled() const
 {
     return Spec_->EnableLimitingAncestorCheck;
+}
+
+bool TOperationElement::AreDetailedLogsEnabled() const
+{
+    return RuntimeParameters_->EnableDetailedLogs;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

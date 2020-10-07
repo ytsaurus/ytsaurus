@@ -1,9 +1,8 @@
-#include "operation_log.h"
+#include "fair_share_tree_element.h"
+#include "fair_share_tree_element_classic.h"
 #include "private.h"
 #include "packing.h"
 #include "packing_detail.h"
-
-#include <yt/server/lib/scheduler/config.h>
 
 namespace NYT::NScheduler {
 
@@ -113,7 +112,7 @@ bool TPackingStatistics::CheckPacking(
     bool decision = WindowOfHeartbeats_.size() >= config->MinWindowSizeForSchedule
         && betterPastSnapshots < config->MaxBetterPastSnapshots;
 
-    OPERATION_LOG_DETAILED(operationElement,
+    YT_ELEMENT_LOG_DETAILED(operationElement,
         "Packing decision made (BetterPastSnapshots: %v, CurrentMetricValue: %v, "
         "WindowSize: %v, NodeResources: %v, JobResources: %v, Decision: %v)",
         betterPastSnapshots,
