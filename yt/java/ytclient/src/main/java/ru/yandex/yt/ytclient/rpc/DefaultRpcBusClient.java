@@ -39,6 +39,7 @@ import ru.yandex.yt.ytclient.bus.Bus;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 import ru.yandex.yt.ytclient.bus.BusListener;
+import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolderImpl;
 
@@ -543,6 +544,11 @@ public class DefaultRpcBusClient implements RpcClient {
         int nextStashedMessageIndex = 0;
 
         @Override
+        public void onStartStream(RpcClientStreamControl control) {
+            throw new IllegalStateException("unexpected call");
+        }
+
+        @Override
         public void onFeedback(RpcClient unused, TStreamingFeedbackHeader header, List<byte[]> attachments) {
             StashedMessage message = new StashedMessage();
             message.feedbackHeader = header;
@@ -695,6 +701,15 @@ public class DefaultRpcBusClient implements RpcClient {
                 }
                 writeTimeoutFuture = session.eventLoop()
                         .schedule(this::handleTimeout, writeTimeout.toNanos(), TimeUnit.NANOSECONDS);
+            }
+        }
+
+        @Override
+        public Compression getExpectedPayloadCompression() {
+            if (request.header().hasRequestCodec()) {
+                return Compression.fromValue(request.header().getRequestCodec());
+            } else {
+                return Compression.None;
             }
         }
 
