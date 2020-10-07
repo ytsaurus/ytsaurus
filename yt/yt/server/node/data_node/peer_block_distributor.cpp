@@ -98,11 +98,20 @@ void TPeerBlockDistributor::SweepObsoleteRequests()
         if (requestTime + Config_->WindowLength > now) {
             break;
         }
-        auto it = BlockIdToDistributionEntry_.find(blockId);
-        YT_VERIFY(it != BlockIdToDistributionEntry_.end());
+
+        auto chunkIt = DistributionHistory_.find(blockId.ChunkId);
+        YT_VERIFY(chunkIt != DistributionHistory_.end());
+
+        auto it = chunkIt->second.Blocks.find(blockId.BlockIndex);
+        YT_VERIFY(it != chunkIt->second.Blocks.end());
+
         if (--it->second.RequestCount == 0) {
-            BlockIdToDistributionEntry_.erase(it);
+            chunkIt->second.Blocks.erase(it);
         }
+        if (chunkIt->second.Blocks.empty()) {
+            DistributionHistory_.erase(chunkIt);
+        }
+
         RequestHistory_.pop();
     }
 }
@@ -113,7 +122,7 @@ void TPeerBlockDistributor::ProcessNewRequests()
 
     RecentlyRequestedBlocks_.DequeueAll(true /* reversed */, [&] (const TBlockId& blockId) {
         RequestHistory_.push(std::make_pair(now, blockId));
-        ++BlockIdToDistributionEntry_[blockId].RequestCount;
+        ++DistributionHistory_[blockId.ChunkId].Blocks[blockId.BlockIndex].RequestCount;
     });
 }
 
@@ -184,7 +193,7 @@ void TPeerBlockDistributor::DistributeBlocks()
 
     auto now = TInstant::Now();
     for (const auto& blockId : blockIds) {
-        BlockIdToDistributionEntry_[blockId].LastDistributionTime = now;
+        DistributionHistory_[blockId.ChunkId].Blocks[blockId.BlockIndex].LastDistributionTime = now;
     }
 
     YT_VERIFY(blocks.size() == blockIds.size() && blocks.size() == reqTemplates.size());
@@ -194,6 +203,8 @@ void TPeerBlockDistributor::DistributeBlocks()
         ->GetNativeConnection()
         ->GetChannelFactory();
 
+    const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
+
     // Filter nodes that are not local and that are allowed by node tag filter.
     auto nodes = Bootstrap_->GetNodeDirectory()->GetAllDescriptors();
     auto localNodeId = Bootstrap_->GetMasterConnector()->GetNodeId();
@@ -202,30 +213,32 @@ void TPeerBlockDistributor::DistributeBlocks()
             pair.first == localNodeId ||
             !Config_->NodeTagFilter.IsSatisfiedBy(pair.second.GetTags());
     }), nodes.end());
+    THashMap<TNodeId, TNodeDescriptor> nodeSet{nodes.begin(), nodes.end()};
 
     for (size_t index = 0; index < blocks.size(); ++index) {
-        // TODO(max42): maybe we should try to avoid the nodes already having our block here
-        // using the information from peer block table.
-        auto destinationNodes = ChooseDestinationNodes(nodes);
+        const auto& block = blocks[index];
+        const auto& blockId = blockIds[index];
+        const auto& reqTemplate = reqTemplates[index];
+        auto& chunk = DistributionHistory_[blockId.ChunkId];
+
+        auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, true);
+
+        auto destinationNodes = ChooseDestinationNodes(nodeSet, nodes, peerData, &chunk.Nodes);
         if (destinationNodes.empty()) {
             YT_LOG_WARNING("No suitable destination nodes found");
             // We have no chances to succeed with following blocks.
             break;
         }
 
-        const auto& block = blocks[index];
-        const auto& blockId = blockIds[index];
-        const auto& reqTemplate = reqTemplates[index];
-
         YT_LOG_DEBUG("Sending block to destination nodes (BlockId: %v, DestinationNodes: %v)",
             blockId,
-            MakeFormattableView(destinationNodes, [] (TStringBuilderBase* builder, const std::pair<TNodeId, TNodeDescriptor>& pair) {
-                 FormatValue(builder, pair.second, TStringBuf());
+            MakeFormattableView(destinationNodes, [] (TStringBuilderBase* builder, const std::pair<TNodeId, const TNodeDescriptor*>& pair) {
+                 FormatValue(builder, *(pair.second), TStringBuf());
              }));
 
         for (const auto& destinationNode : destinationNodes) {
-            const auto& [nodeId,    nodeDescriptor] = destinationNode;
-            const auto& destinationAddress = nodeDescriptor.GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
+            const auto& [nodeId, nodeDescriptor] = destinationNode;
+            const auto& destinationAddress = nodeDescriptor->GetAddressOrThrow(Bootstrap_->GetLocalNetworks());
             auto heavyChannel = CreateRetryingChannel(
                 Config_->NodeChannel,
                 channelFactory->CreateChannel(destinationAddress));
@@ -238,7 +251,7 @@ void TPeerBlockDistributor::DistributeBlocks()
                 &TPeerBlockDistributor::OnBlockDistributed,
                 MakeWeak(this),
                 destinationAddress,
-                nodeDescriptor,
+                *nodeDescriptor,
                 nodeId,
                 blockId,
                 block.Size()));
@@ -279,19 +292,21 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     };
 
     std::vector<TBlockCandidate> candidates;
-    for (const auto& pair : BlockIdToDistributionEntry_) {
-        const auto& blockId = pair.first;
-        const auto& distributionEntry = pair.second;
-        YT_VERIFY(distributionEntry.RequestCount > 0);
-        if (distributionEntry.LastDistributionTime + Config_->ConsecutiveDistributionDelay <= now &&
-            distributionEntry.DistributionCount <= Config_->MaxDistributionCount &&
-            distributionEntry.RequestCount >= Config_->MinRequestCount)
-        {
-            candidates.emplace_back(TBlockCandidate{
-                blockId,
-                distributionEntry.LastDistributionTime,
-                distributionEntry.DistributionCount,
-                distributionEntry.RequestCount});
+    for (const auto& [chunkId, chunkHistory] : DistributionHistory_) {
+        for (const auto& [blockIndex, distributionEntry] : chunkHistory.Blocks) {
+            TBlockId blockId{chunkId, blockIndex};
+
+            YT_VERIFY(distributionEntry.RequestCount > 0);
+            if (distributionEntry.LastDistributionTime + Config_->ConsecutiveDistributionDelay <= now &&
+                distributionEntry.DistributionCount <= Config_->MaxDistributionCount &&
+                distributionEntry.RequestCount >= Config_->MinRequestCount)
+            {
+                candidates.emplace_back(TBlockCandidate{
+                    blockId,
+                    distributionEntry.LastDistributionTime,
+                    distributionEntry.DistributionCount,
+                    distributionEntry.RequestCount});
+            }
         }
     }
 
@@ -357,16 +372,52 @@ TPeerBlockDistributor::TChosenBlocks TPeerBlockDistributor::ChooseBlocks()
     return chosenBlocks;
 }
 
-std::vector<std::pair<TNodeId, TNodeDescriptor>> TPeerBlockDistributor::ChooseDestinationNodes(const std::vector<std::pair<TNodeId, TNodeDescriptor>>& nodes) const
+std::vector<std::pair<TNodeId, const TNodeDescriptor*>> TPeerBlockDistributor::ChooseDestinationNodes(
+    const THashMap<TNodeId, TNodeDescriptor>& nodeSet,
+    const std::vector<std::pair<TNodeId, TNodeDescriptor>>& nodes,
+    const TBlockPeerDataPtr& peerData,
+    THashSet<TNodeId>* preferredPeers) const
 {
-    THashSet<std::pair<TNodeId, TNodeDescriptor>> destinationNodes;
+    auto activePeerList = peerData->GetPeers();
+    THashSet<TNodeId> activePeers{activePeerList.begin(), activePeerList.end()};
 
-    while (destinationNodes.size() < Config_->DestinationNodeCount && destinationNodes.size() < nodes.size()) {
-        auto index = RandomNumber<size_t>(nodes.size());
-        destinationNodes.insert(nodes[index]);
+    THashMap<TNodeId, const TNodeDescriptor*> destinationNodes;
+
+    auto addPeer = [&] (auto nodeId) {
+        if (activePeers.find(nodeId) != activePeers.end()) {
+            return false;
+        }
+
+        auto it = nodeSet.find(nodeId);
+        if (it == nodeSet.end()) {
+            return false;
+        }
+
+        destinationNodes[nodeId] = &(it->second);                
+        return destinationNodes.size() >= Config_->DestinationNodeCount;
+    };
+
+    bool done = false;
+    for (auto peer : *preferredPeers) {
+        if (addPeer(peer)) {
+            done = true;
+            break;
+        }
     }
 
-    return std::vector<std::pair<TNodeId, TNodeDescriptor>>(destinationNodes.begin(), destinationNodes.end());
+    if (!done) {
+        while (destinationNodes.size() + activePeers.size() < nodes.size()) {
+            auto index = RandomNumber<size_t>(nodes.size());
+            auto randomPeer = nodes[index].first;
+
+            preferredPeers->insert(randomPeer);
+            if (addPeer(randomPeer)) {
+                break;
+            }
+        }
+    }
+
+    return {destinationNodes.begin(), destinationNodes.end()};
 }
 
 void TPeerBlockDistributor::UpdateTransmittedBytes()
