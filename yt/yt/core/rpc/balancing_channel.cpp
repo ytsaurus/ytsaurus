@@ -19,6 +19,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
+#include <util/generic/hash.h>
 #include <util/random/random.h>
 
 namespace NYT::NRpc {
@@ -607,7 +608,7 @@ private:
     template <class F>
     void GeneratePeerHashes(const TString& address, F f)
     {
-        TRandomGenerator generator(address.hash());
+        TRandomGenerator generator(ComputeHash(address));
         for (int index = 0; index < Config_->HashesPerPeer; ++index) {
             f(generator.Generate<size_t>());
         }

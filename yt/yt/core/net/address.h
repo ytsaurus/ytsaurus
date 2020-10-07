@@ -9,6 +9,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <util/generic/hash.h>
+
 #ifdef _WIN32
     #include <ws2tcpip.h>
 #else
@@ -259,6 +261,6 @@ struct THash<NYT::NNet::TNetworkAddress>
     inline size_t operator()(const NYT::NNet::TNetworkAddress& address) const
     {
         TStringBuf rawAddress{reinterpret_cast<const char*>(address.GetSockAddr()), address.GetLength()};
-        return rawAddress.hash();
+        return ComputeHash(rawAddress);
     }
 };
