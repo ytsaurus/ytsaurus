@@ -9,6 +9,8 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>
 
+#include <util/generic/hash.h>
+
 namespace NYT {
 
 using namespace NYson;
@@ -721,7 +723,7 @@ size_t TGenericFormulaImpl::CalculateHash(const std::vector<TFormulaToken>& toke
 
     for (const auto& token : tokens) {
         HashCombine(result, static_cast<size_t>(token.Type));
-        HashCombine(result, token.Name.hash());
+        HashCombine(result, ComputeHash(token.Name));
         HashCombine(result, static_cast<size_t>(token.Number));
     }
 

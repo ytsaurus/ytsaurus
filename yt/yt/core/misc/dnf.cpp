@@ -7,6 +7,8 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>
 
+#include <util/generic/hash.h>
+
 namespace NYT {
 
 using namespace NYson;
@@ -68,7 +70,7 @@ size_t TConjunctiveClause::GetHash() const
 
         size_t result = 0;
         for (const auto& str : container) {
-            result = result * multiplier + str.hash();
+            result = result * multiplier + ComputeHash(str);
         }
         return result;
     };
