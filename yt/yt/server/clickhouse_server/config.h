@@ -230,7 +230,12 @@ public:
     //! Initial memory reservation for reader.
     i64 ReaderMemoryRequirement;
 
+    //! Period of profiling export for values that are not exported
+    //! using our standard profiling primitives.
     TDuration ProfilingPeriod;
+
+    //! Period of forceful flush for all standard YT profiling primitives.
+    TDuration IdlenessProfilingPeriod;
 
     THealthCheckerConfigPtr HealthChecker;
 

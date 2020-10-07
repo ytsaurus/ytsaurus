@@ -123,6 +123,10 @@ public:
             ControlInvoker_,
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             Config_->ProfilingPeriod))
+        , IdlenessProfilingExecutor_(New<TPeriodicExecutor>(
+            ControlInvoker_,
+            BIND(&TImpl::OnIdlenessProfiling, MakeWeak(this)),
+            Config_->IdlenessProfilingPeriod))
         , GossipExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TImpl::MakeGossip, MakeWeak(this)),
@@ -176,6 +180,7 @@ public:
         QueryRegistry_->Start();
         MemoryWatchdog_->Start();
 
+        IdlenessProfilingExecutor_->Start();
         ProfilingExecutor_->Start();
         GossipExecutor_->Start();
         HealthChecker_->Start();
@@ -321,10 +326,14 @@ public:
             EMetricType::Gauge);
 
         HealthChecker_->OnProfiling();
+    }
 
+    void OnIdlenessProfiling()
+    {
         // TODO(max42): workarounds for YT-13120.
         auto dummyFiber = New<TFiber>();
         Connection_->GetBlockCache()->OnProfiling();
+        QueryRegistry_->OnIdlenessProfiling();
     }
 
     const IInvokerPtr& GetControlInvoker() const
@@ -423,6 +432,7 @@ private:
     TMemoryWatchdogPtr MemoryWatchdog_;
     TQueryRegistryPtr QueryRegistry_;
     TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr IdlenessProfilingExecutor_;
     TPeriodicExecutorPtr GossipExecutor_;
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
     IInvokerPtr WorkerInvoker_;

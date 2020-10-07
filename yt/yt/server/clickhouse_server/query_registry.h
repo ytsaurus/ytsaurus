@@ -24,10 +24,16 @@ public:
 
     void AccountPhaseCounter(TQueryContextPtr queryContext, EQueryPhase fromPhase, EQueryPhase toPhase);
 
+    //! Invoker affinity: any.
+    void AccountPhaseDuration(EQueryPhase phase, TDuration duration);
+    //! Invoker affinity: any.
+    void AccountTotalDuration(TDuration duration);
+
     size_t GetQueryCount() const;
     TFuture<void> GetIdleFuture() const;
 
     void OnProfiling() const;
+    void OnIdlenessProfiling();
 
     NYTree::IYPathServicePtr GetOrchidService() const;
 

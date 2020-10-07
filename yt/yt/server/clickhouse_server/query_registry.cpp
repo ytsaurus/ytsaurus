@@ -12,8 +12,11 @@
 #include <yt/core/misc/crash_handler.h>
 
 #include <yt/core/profiling/profile_manager.h>
+#include <yt/core/profiling/exponential_bins.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
+
+#include <util/generic/bitops.h>
 
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/Context.h>
@@ -183,6 +186,8 @@ private:
     int StatePointer_ = 0;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryRegistry::TImpl
     : public TRefCounted
 {
@@ -205,6 +210,11 @@ public:
     {
         for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
             QueryPhaseToProfilingTagId_[queryPhase] = NProfiling::TProfileManager::Get()->RegisterTag("query_phase", FormatEnum(queryPhase));
+        }
+
+        TotalDurationBins_.emplace(QueryRegistryProfiler_, "/total_duration");
+        for (const auto& queryPhase : {EQueryPhase::Preparation, EQueryPhase::Execution}) {
+            PhaseDurationBins_[queryPhase].emplace(QueryRegistryProfiler_, "/phase_duration", TTagIdList{QueryPhaseToProfilingTagId_[queryPhase]});
         }
     }
 
@@ -303,6 +313,16 @@ public:
         }
     }
 
+    void AccountPhaseDuration(EQueryPhase phase, TDuration duration)
+    {
+        PhaseDurationBins_[phase]->Account(duration.MicroSeconds());
+    }
+
+    void AccountTotalDuration(TDuration duration)
+    {
+        TotalDurationBins_->Account(duration.MicroSeconds());
+    }
+
     size_t GetQueryCount() const
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
@@ -389,6 +409,11 @@ public:
         }
     }
 
+    void OnIdlenessProfiling()
+    {
+        TotalDurationBins_->FlushBins();
+    }
+
     void WriteStateToStderr() const
     {
         SignalSafeState_.WriteToStderr();
@@ -439,6 +464,9 @@ private:
     TProfiler QueryRegistryProfiler_;
     TCachingProfilerWrapper CachingQueryRegistryProfiler_;
     TCachingProfilerWrapper CachingClickHouseNativeProfiler_;
+
+    TEnumIndexedVector<EQueryPhase, std::optional<TExponentialBins>> PhaseDurationBins_;
+    std::optional<TExponentialBins> TotalDurationBins_;
 
     void BuildYson(IYsonConsumer* consumer) const
     {
@@ -497,6 +525,16 @@ void TQueryRegistry::AccountPhaseCounter(TQueryContextPtr queryContext, EQueryPh
     Impl_->AccountPhaseCounter(std::move(queryContext), fromPhase, toPhase);
 }
 
+void TQueryRegistry::AccountPhaseDuration(EQueryPhase phase, TDuration duration)
+{
+    Impl_->AccountPhaseDuration(phase, duration);
+}
+
+void TQueryRegistry::AccountTotalDuration(TDuration duration)
+{
+    Impl_->AccountTotalDuration(duration);
+}
+
 size_t TQueryRegistry::GetQueryCount() const
 {
     return Impl_->GetQueryCount();
@@ -510,6 +548,11 @@ TFuture<void> TQueryRegistry::GetIdleFuture() const
 void TQueryRegistry::OnProfiling() const
 {
     Impl_->OnProfiling();
+}
+
+void TQueryRegistry::OnIdlenessProfiling()
+{
+    Impl_->OnIdlenessProfiling();
 }
 
 IYPathServicePtr TQueryRegistry::GetOrchidService() const
