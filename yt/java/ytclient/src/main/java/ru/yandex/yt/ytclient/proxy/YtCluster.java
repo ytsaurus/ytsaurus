@@ -35,21 +35,25 @@ public class YtCluster {
         return name;
     }
 
-    private static String getFqdn(String name) {
+    static String getFqdn(String name) {
         int index = name.indexOf(":");
         if (index < 0) {
-            return name + ".yt.yandex.net";
+            if (name.contains(".")) {
+                return name;
+            } else {
+                return name + ".yt.yandex.net";
+            }
         } else {
             return name.substring(0, index);
         }
     }
 
-    private static int getPort(String name) {
-        int index = name.indexOf(":");
+    static int getPort(String name) {
+        int index = name.lastIndexOf(":");
         if (index < 0) {
             return 80;
         } else {
-            return Integer.valueOf(name.substring(index+1));
+            return Integer.parseInt(name.substring(index+1));
         }
     }
 }
