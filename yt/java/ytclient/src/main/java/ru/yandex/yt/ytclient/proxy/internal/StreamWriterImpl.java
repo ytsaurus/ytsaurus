@@ -16,7 +16,6 @@ import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
-import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 interface DataSupplier
 {
@@ -93,7 +92,7 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
     final CompletableFuture<List<byte[]>> startUpload = new CompletableFuture<>();
 
     private final Object lock = new Object();
-    private final DataSupplier supplier;
+    private volatile DataSupplier supplier;
 
     private CompletableFuture<Void> readyEvent = new CompletableFuture<>();
     private long writePosition = 0;
@@ -105,18 +104,21 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
     private final List<byte[]> payloadAttachments = new LinkedList<>();
     private long payloadOffset = 0;
 
-    StreamWriterImpl(RpcClientStreamControl control, Compression compression, long windowSize, long packetSize) {
-        super(control);
-
+    StreamWriterImpl(long windowSize, long packetSize) {
         this.windowSize = windowSize;
         this.packetSize = packetSize;
-        this.supplier = new WrappedSupplier(new MessagesSupplier(), Codec.codecFor(compression));
 
         result.whenComplete((unused, ex) -> {
             if (ex != null) {
                 startUpload.completeExceptionally(ex);
             }
         });
+    }
+
+    @Override
+    public void onStartStream(RpcClientStreamControl control) {
+        this.supplier = new WrappedSupplier(new MessagesSupplier(), Codec.codecFor(control.getExpectedPayloadCompression()));
+        super.onStartStream(control);
     }
 
     private void reinitReadyEvent() {

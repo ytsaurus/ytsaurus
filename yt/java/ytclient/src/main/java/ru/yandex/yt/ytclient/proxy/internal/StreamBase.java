@@ -25,14 +25,18 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
 
     protected final CompletableFuture<RpcClientResponse<RspType>> result = new CompletableFuture<>();
 
-    final RpcClientStreamControl control;
+    private final CompletableFuture<RpcClientStreamControl> controlFuture = new CompletableFuture<>();
+
+    volatile RpcClientStreamControl control;
 
     protected Compression compression;
     protected Codec codec = null;
     private int currentCodecId = -1;
 
-    StreamBase(RpcClientStreamControl control) {
+    @Override
+    public void onStartStream(RpcClientStreamControl control) {
         this.control = control;
+        controlFuture.complete(control);
     }
 
     protected abstract RpcMessageParser<RspType> responseParser();
@@ -95,6 +99,6 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
     }
 
     public void cancel() {
-        control.cancel();
+        controlFuture.thenApply(RpcClientStreamControl::cancel);
     }
 }

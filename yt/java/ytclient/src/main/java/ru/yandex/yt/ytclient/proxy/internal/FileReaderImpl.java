@@ -5,7 +5,6 @@ import java.util.concurrent.CompletableFuture;
 import ru.yandex.yt.rpcproxy.TReadFileMeta;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
 import ru.yandex.yt.ytclient.proxy.FileReader;
-import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
@@ -14,8 +13,7 @@ import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 public class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReader {
     private long revision = -1;
 
-    public FileReaderImpl(RpcClientStreamControl control) {
-        super(control);
+    public FileReaderImpl() {
     }
 
     @Override
