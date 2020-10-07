@@ -90,6 +90,10 @@ DEFINE_REFCOUNTED_TYPE(IConnection)
 struct TConnectionOptions
 {
     bool RetryRequestQueueSizeLimitExceeded = false;
+    
+    //! If non-null, overrides TConnectionConfig::ThreadPoolSize and
+    //! suppresses creation of a per-connection thread pool.
+    IInvokerPtr ThreadPoolInvoker;
 };
 
 //! Native connection talks directly to the cluster via internal

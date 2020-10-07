@@ -99,7 +99,7 @@ public:
     TAsyncExpiringCacheConfigPtr FunctionRegistryCache;
     TSlruCacheConfigPtr FunctionImplCache;
 
-    std::optional<int> ThreadPoolSize;
+    int ThreadPoolSize;
 
     int MaxConcurrentRequests;
 

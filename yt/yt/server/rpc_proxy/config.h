@@ -182,8 +182,6 @@ public:
             .Default(true);
 
         RegisterPostprocessor([&] {
-            ClusterConnection->ThreadPoolSize = std::nullopt;
-
             if (GrpcServer && GrpcServer->Addresses.size() > 1) {
                 THROW_ERROR_EXCEPTION("Multiple GRPC addresses are not supported");
             }

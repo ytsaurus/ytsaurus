@@ -114,8 +114,10 @@ void TBootstrap::DoRun()
         GetValues(LocalAddresses_),
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
-    NNative::TConnectionOptions connectionOptions;
-    connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
+    NNative::TConnectionOptions connectionOptions{
+        .RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded,
+        .ThreadPoolInvoker = GetWorkerInvoker()
+    };
     NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
