@@ -162,6 +162,9 @@ TYtConfig::TYtConfig()
     RegisterParameter("profiling_period", ProfilingPeriod)
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("idleness_profiling_period", IdlenessProfilingPeriod)
+        .Default(TDuration::Minutes(1));
+
     RegisterParameter("memory_watchdog", MemoryWatchdog)
         .Default(New<TMemoryWatchdogConfig>());
 

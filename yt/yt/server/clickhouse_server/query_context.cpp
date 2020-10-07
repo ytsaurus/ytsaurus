@@ -2,12 +2,10 @@
 
 #include "host.h"
 #include "helpers.h"
-#include "config.h"
 #include "query_registry.h"
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
-#include <yt/ytlib/api/native/client_cache.h>
 
 #include <yt/client/table_client/row_buffer.h>
 
@@ -22,7 +20,6 @@ namespace NYT::NClickHouseServer {
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
-using namespace DB;
 using namespace NTracing;
 using namespace NLogging;
 
@@ -121,6 +118,11 @@ TQueryContext::~TQueryContext()
 
     auto finishTime = TInstant::Now();
     auto duration = finishTime - StartTime_;
+
+    if (QueryKind == EQueryKind::InitialQuery) {
+        Host->GetQueryRegistry()->AccountTotalDuration(duration);
+    }
+
     YT_LOG_INFO("Query time statistics (StartTime: %v, FinishTime: %v, Duration: %v)", StartTime_, finishTime, duration);
     YT_LOG_INFO("Query phase debug string (DebugString: %v)", PhaseDebugString_);
     YT_LOG_INFO("Query context destroyed");
@@ -163,6 +165,10 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
     auto oldPhase = QueryPhase_.load();
 
     YT_LOG_INFO("Query phase changed (FromPhase: %v, ToPhase: %v, Duration: %v)", oldPhase, nextPhase, duration);
+
+    if (QueryKind == EQueryKind::InitialQuery && (oldPhase == EQueryPhase::Preparation || oldPhase == EQueryPhase::Execution)) {
+        Host->GetQueryRegistry()->AccountPhaseDuration(oldPhase, duration);
+    }
 
     // It is effectively useless to count queries in state "Finish" in query registry,
     // and also we do not want exceptions to throw in query context destructor.
