@@ -5,12 +5,15 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
 import javax.annotation.Nonnull;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -18,7 +21,19 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThrows;
 
+@RunWith(Parameterized.class)
 public class YsonParserTest {
+    final String testType;
+
+    @Parameterized.Parameters(name = "{0}")
+    public static Collection<String> testTypes() {
+        return List.of("stream", "bytes");
+    }
+
+    public YsonParserTest(String testType) {
+        this.testType = testType;
+    }
+
     // Simple function that decodes escape sequences like \xFF
     static byte[] unescapeBytes(String data) {
         List<Byte> byteList = new ArrayList<>();
@@ -70,11 +85,22 @@ public class YsonParserTest {
         assertThat(unescapeBytes("ab\\x5Fcd\\xf5"), is(new byte[]{'a', 'b', 0x5f, 'c', 'd', -11}));
     }
 
+    public YsonParser createParser(byte[] bytes) {
+        if (testType.equals("stream")) {
+            return new YsonParser(new ByteArrayInputStream(bytes));
+        } else if (testType.equals("bytes")) {
+            return new YsonParser(bytes);
+        } else {
+            throw new IllegalStateException();
+        }
+    }
+
     public String canonizeNode(String escapedBytes) {
         final byte[] binary = unescapeBytes(escapedBytes);
 
         StringBuilder result = new StringBuilder();
-        YsonParser parser = new YsonParser(new ByteArrayInputStream(binary));
+        YsonParser parser = createParser(binary);
+
         try (YsonTextWriter textWriter = new YsonTextWriter(result)) {
             parser.parseNode(textWriter);
         }
@@ -85,7 +111,7 @@ public class YsonParserTest {
         final byte[] binary = unescapeBytes(escapedBytes);
 
         StringBuilder result = new StringBuilder();
-        YsonParser parser = new YsonParser(new ByteArrayInputStream(binary));
+        YsonParser parser = createParser(binary);
         try (ClosableYsonConsumer textWriter = new FragmentYsonTextWriter(result)) {
             parser.parseListFragment(textWriter);
         }
@@ -352,7 +378,7 @@ public class YsonParserTest {
                 "\\x06\\x80\\x80\\x84\\x85\\x86\\x87\\x88\\x89\\x02";
         final byte[] binaryData = unescapeBytes(textData);
 
-        YsonParser parser = new YsonParser(binaryData);
+        YsonParser parser = createParser(binaryData);
 
         Supplier<String> nextItem = () -> {
             StringBuilder result = new StringBuilder();
