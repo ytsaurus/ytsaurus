@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -26,10 +27,13 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.protobuf.MessageLite;
 import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.bus.BusConnector;
+import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
@@ -48,8 +52,14 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 public class YtClient extends DestinationsSelector implements AutoCloseable {
     private static final Object KEY = new Object();
 
+    private final BusConnector busConnector;
+    private final boolean isBusConnectorOwner;
     private final ScheduledExecutorService executor;
     private final ClientPoolProvider poolProvider;
+
+    static public Builder builder() {
+        return new Builder();
+    }
 
     public YtClient(
             BusConnector connector,
@@ -77,32 +87,20 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             String proxyRole,
             RpcCredentials credentials,
             RpcCompression compression,
-            RpcOptions options) {
-        super(options);
-
-        this.executor = connector.executorService();
-
-        RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(connector, credentials, compression);
-        if (options.isNewDiscoveryServiceEnabled()) {
-            poolProvider = new NewClientPoolProvider(
-                    connector,
-                    clusters,
-                    localDataCenterName,
-                    proxyRole,
-                    rpcClientFactory,
-                    credentials,
-                    options);
-        } else {
-            poolProvider = new OldClientPoolProvider(
-                    connector,
-                    clusters,
-                    localDataCenterName,
-                    proxyRole,
-                    rpcClientFactory,
-                    credentials,
-                    compression,
-                    options);
-        }
+            RpcOptions options)
+    {
+        this(
+                builder()
+                        .setSharedBusConnector(connector)
+                        .setClusters(clusters)
+                        .setPreferredClusterName(localDataCenterName)
+                        .setProxyRole(proxyRole)
+                        .setRpcCredentials(credentials)
+                        .setRpcCompression(compression)
+                        .setRpcOptions(options)
+                        // old constructors did not validate their arguments
+                        .disableValidation()
+        );
     }
 
     public YtClient(
@@ -110,7 +108,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             YtCluster cluster,
             RpcCredentials credentials,
             RpcOptions options) {
-        this(connector, Cf.list(cluster), cluster.name, credentials, options);
+        this(connector, Cf.list(cluster), cluster.getName(), credentials, options);
     }
 
     public YtClient(
@@ -139,6 +137,9 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     @Override
     public void close() {
         poolProvider.close();
+        if (isBusConnectorOwner) {
+            busConnector.close();
+        }
     }
 
     @SuppressWarnings("unused")
@@ -169,6 +170,47 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         return builder.startStream(executor, poolProvider.getClientPool());
     }
 
+    private YtClient(Builder builder) {
+        super(builder.options);
+
+        builder.validate();
+
+        BusConnector busConnector = builder.busConnector;
+        if (busConnector == null) {
+            busConnector = new DefaultBusConnector();
+        }
+        this.busConnector = busConnector;
+        this.isBusConnectorOwner = builder.isBusConnectorOwner;
+        this.executor = busConnector.executorService();
+
+        RpcCredentials credentials = builder.credentials;
+        if (credentials == null) {
+            credentials = RpcCredentials.loadFromEnvironment();
+        }
+        final RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(busConnector, credentials, builder.compression);
+
+        if (builder.options.isNewDiscoveryServiceEnabled()) {
+            poolProvider = new NewClientPoolProvider(
+                    busConnector,
+                    builder.clusters,
+                    builder.preferredClusterName,
+                    builder.proxyRole,
+                    rpcClientFactory,
+                    credentials,
+                    builder.options);
+        } else {
+            poolProvider = new OldClientPoolProvider(
+                    busConnector,
+                    builder.clusters,
+                    builder.preferredClusterName,
+                    builder.proxyRole,
+                    rpcClientFactory,
+                    credentials,
+                    builder.compression,
+                    builder.options);
+        }
+    }
+
     private interface ClientPoolProvider extends AutoCloseable {
         void close();
         CompletableFuture<Void> waitProxies();
@@ -187,7 +229,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         NewClientPoolProvider(
             BusConnector connector,
             List<YtCluster> clusters,
-            String localDataCenterName,
+            @Nullable String localDataCenterName,
             @Nullable String proxyRole,
             RpcClientFactory rpcClientFactory,
             RpcCredentials credentials,
@@ -359,7 +401,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         OldClientPoolProvider(
                 BusConnector connector,
                 List<YtCluster> clusters,
-                String localDataCenterName,
+                @Nullable String localDataCenterName,
                 @Nullable String proxyRole,
                 RpcClientFactory rpcClientFactory,
                 RpcCredentials credentials,
@@ -498,6 +540,219 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                         localDataCenter != null,
                         random,
                         !options.getFailoverPolicy().randomizeDcs());
+            }
+        }
+    }
+
+    @NonNullFields
+    @NonNullApi
+    public static class Builder {
+        @Nullable BusConnector busConnector;
+        boolean isBusConnectorOwner = true;
+        List<YtCluster> clusters = new ArrayList<>();
+        @Nullable String preferredClusterName;
+        @Nullable String proxyRole;
+        @Nullable RpcCredentials credentials;
+        RpcCompression compression = new RpcCompression();
+        RpcOptions options = new RpcOptions();
+        boolean enableValidation = true;
+
+        Builder() {
+        }
+
+        /**
+         * Set BusConnector for YT client.
+         *
+         * <p>
+         * Connector will be owned by YtClient.
+         * YtClient will close it when {@link YtClient#close()} is called.
+         *
+         * <p>
+         * If bus is never set default bus will be created
+         * (default bus will be owned by YtClient so you don't need to worry about closing it).
+         */
+        public Builder setOwnBusConnector(BusConnector connector) {
+            this.busConnector = connector;
+            isBusConnectorOwner = true;
+            return this;
+        }
+
+        /**
+         * Set BusConnector for YT client.
+         *
+         * <p>
+         * Connector will not be owned by YtClient. It's user responsibility to close the connector.
+         *
+         * @see #setOwnBusConnector
+         */
+        public Builder setSharedBusConnector(BusConnector connector) {
+            this.busConnector = connector;
+            isBusConnectorOwner = false;
+            return this;
+        }
+
+        /**
+         * Create and use default connector with specified working thread count.
+         */
+        public Builder setDefaultBusConnectorWithThreadCount(int threadCount) {
+            setOwnBusConnector(new DefaultBusConnector(new NioEventLoopGroup(threadCount), true));
+            isBusConnectorOwner = true;
+            return this;
+        }
+
+        /**
+         * Set YT cluster to use.
+         *
+         * @param cluster address of YT cluster http balancer, examples:
+         *                "hahn"
+         *                "arnold.yt.yandex.net"
+         *                "localhost:8054"
+         */
+        public Builder setCluster(String cluster) {
+            return setClusters(cluster);
+        }
+
+        /**
+         * Set YT cluster to use.
+         *
+         * <p>
+         * Similar to {@link #setCluster(String)} but allows to create connections to several clusters.
+         * YtClient will chose cluster to send requests based on cluster availability and their ping.
+         */
+        public Builder setClusters(String firstCluster, String... rest) {
+            List<YtCluster> ytClusters = new ArrayList<>();
+            ytClusters.add(new YtCluster(normalizeName(firstCluster)));
+            for (String clusterName : rest) {
+                ytClusters.add(new YtCluster(normalizeName(clusterName)));
+            }
+            return setClusters(ytClusters);
+        }
+
+        /**
+         * Set YT clusters to use.
+         *
+         * <p>
+         * Similar to {@link #setClusters(String, String...)}  } but allows finer configuration.
+         */
+        public Builder setClusters(List<YtCluster> clusters) {
+            this.clusters = clusters;
+            return this;
+        }
+
+        /**
+         * Set name of preferred cluster
+         *
+         * <p>
+         * When YT is configured to use multiple clusters and preferred cluster is set
+         * it will be used for all requests unless it's unavailable.
+         *
+         * <p>
+         * If preferred cluster is not set or is set but unavailable YtClient choses
+         * cluster based on network metrics.
+         */
+        public Builder setPreferredClusterName(@Nullable String preferredClusterName) {
+            this.preferredClusterName = normalizeName(preferredClusterName);
+            return this;
+        }
+
+        /**
+         * Set proxy role to use.
+         *
+         * <p>
+         * Projects that have dedicated proxies should use this option so YtClient will use them.
+         * If no proxy role is specified default proxies will be used.
+         */
+        public Builder setProxyRole(@Nullable String proxyRole) {
+            this.proxyRole = proxyRole;
+            return this;
+        }
+
+        /**
+         * Set authentication information i.e. user name and user token.
+         *
+         * <p>
+         * When no rpc credentials is set they are loaded from environment.
+         * @see RpcCredentials#loadFromEnvironment()
+         */
+        public Builder setRpcCredentials(RpcCredentials rpcCredentials) {
+            this.credentials = rpcCredentials;
+            return this;
+        }
+
+        /**
+         * Set compression to be used for requests and responses.
+         *
+         * <p>
+         * If it's not specified no compression will be used.
+         */
+        public Builder setRpcCompression(RpcCompression rpcCompression) {
+            this.compression = rpcCompression;
+            return this;
+        }
+
+        /**
+         * Set miscellaneous options.
+         */
+        public Builder setRpcOptions(RpcOptions rpcOptions) {
+            this.options = rpcOptions;
+            return this;
+        }
+
+        /**
+         * Finally create a client.
+         */
+        public YtClient build() {
+            return new YtClient(this);
+        }
+
+        void validate() {
+            if (!enableValidation) {
+                return;
+            }
+
+            if (clusters.isEmpty()) {
+                throw new IllegalArgumentException("No YT cluster specified");
+            }
+            {
+                // Check cluster uniqueness.
+                Set<String> clusterNames = new HashSet<>();
+                boolean foundPreferredCluster = false;
+                for (YtCluster cluster : clusters) {
+                    if (clusterNames.contains(cluster.name)) {
+                        throw new IllegalArgumentException(
+                                String.format("Cluster %s is specified multiple times",
+                                        cluster.name));
+                    }
+                    clusterNames.add(cluster.name);
+                    if (cluster.name.equals(preferredClusterName)) {
+                        foundPreferredCluster = true;
+                    }
+                }
+
+                if (preferredClusterName != null && !foundPreferredCluster) {
+                    throw new IllegalArgumentException(
+                            String.format("Preferred cluster %s is not found among specified clusters",
+                                    preferredClusterName));
+                }
+            }
+        }
+
+        Builder disableValidation() {
+            enableValidation = false;
+            return this;
+        }
+
+        static @Nullable String normalizeName(@Nullable String name) {
+            if (name == null || name.equals("")) {
+                return null;
+            } else if (name.contains(":")) {
+                return name;
+            } else if (name.contains(".")) {
+                return name;
+            } else if (name.equals("localhost")) {
+                return name;
+            } else {
+                return name + ".yt.yandex.net";
             }
         }
     }
