@@ -3847,11 +3847,10 @@ class TestIntegralGuaranteesVector(YTEnvSetup):
             integral=1.0,
             weight_proportional=0.0)
 
-    @pytest.mark.xfail(run=False, reason="TODO(renadeen): Enable when weight proportional will be independent of min share (YT-13578).")
-    def test_weight_proportional_distribution_among_min_share_and_burst_and_relaxed_pools(self):
+    def test_all_kinds_of_pools_weight_proportional_distribution(self):
         create_pool("min_share_pool", attributes={
             "min_share_resources": {"cpu": 1},
-            "weight": 4
+            "weight": 3
         })
 
         create_pool("burst_pool", attributes={
@@ -3868,17 +3867,22 @@ class TestIntegralGuaranteesVector(YTEnvSetup):
                 "guarantee_type": "relaxed",
                 "resource_flow": {"cpu": 1},
             },
+            "weight": 1
+        })
+
+        create_pool("no_guarantee_pool", attributes={
             "weight": 2
         })
 
         run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
         run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
         run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "no_guarantee_pool"})
 
         self.wait_pool_fair_share("min_share_pool",
             min_share=0.1,
             integral=0.0,
-            weight_proportional=0.4)
+            weight_proportional=0.3)
 
         self.wait_pool_fair_share("burst_pool",
             min_share=0.0,
@@ -3888,12 +3892,17 @@ class TestIntegralGuaranteesVector(YTEnvSetup):
         self.wait_pool_fair_share("relaxed_pool",
             min_share=0.0,
             integral=0.1,
+            weight_proportional=0.1)
+
+        self.wait_pool_fair_share("no_guarantee_pool",
+            min_share=0.0,
+            integral=0.0,
             weight_proportional=0.2)
 
         self.wait_pool_fair_share("<Root>",
-            min_share=0.8,
+            min_share=0.1,
             integral=0.2,
-            weight_proportional=0.0)
+            weight_proportional=0.7)
 
     def test_min_share_and_burst_guarantees_adjustment(self):
         create_pool("min_share_pool", attributes={
