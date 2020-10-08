@@ -8,14 +8,13 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.execution.InputAdapter
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.v2.YtScan
-import org.apache.spark.sql.yt.YtSourceScanExec
 import org.apache.spark.sql.{AnalysisException, Encoders, Row, SaveMode}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.format.tmp._
 import ru.yandex.spark.yt.fs.conf.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
@@ -697,6 +696,40 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
   it should "read big csv" in {
     writeFileFromResource("test.csv", tmpPath)
     spark.read.csv(s"yt:/$tmpPath").count() shouldEqual 100000
+  }
+
+  it should "read and write yson" in {
+    val initial = Seq(Seq(1, 2, 3), Seq(4, 5, 6))
+    initial.toDF().coalesce(1).write.yt(s"$tmpPath/1")
+    spark.read.yt(s"$tmpPath/1").printSchema()
+    spark.read.yt(s"$tmpPath/1").show()
+    spark.read.yt(s"$tmpPath/1").withColumn("value", 'value.cast(BinaryType)).show()
+
+    val expected = spark.read.yt(s"$tmpPath/1").as[Array[Byte]].collect()
+
+    spark.read.yt(s"$tmpPath/1").write.yt(s"$tmpPath/2")
+
+    val resBinary = spark.read.yt(s"$tmpPath/2").as[Array[Byte]].collect()
+    resBinary should contain theSameElementsAs expected
+
+    val dfWithHint = spark.read.schemaHint("value" -> ArrayType(LongType)).yt(s"$tmpPath/2")
+    dfWithHint.as[Array[Long]].collect() should contain theSameElementsAs initial
+
+    dfWithHint.write.yt(s"$tmpPath/3")
+
+    val resBinary2 = spark.read.yt(s"$tmpPath/3").as[Array[Byte]].collect()
+    resBinary2 should contain theSameElementsAs expected
+  }
+
+  it should "write non-yson bytes as string" in {
+    val initial = Seq(
+      Array(1, 2, 3, 4, 5).map(_.toByte),
+      Array(6, 7, 8, 9, 10).map(_.toByte)
+    )
+    initial.toDF().coalesce(1).write.schemaHint("value" -> YtLogicalType.String).yt(tmpPath)
+
+    val res = spark.read.schemaHint("value" -> BinaryType).yt(tmpPath).as[Array[Byte]].collect()
+    res should contain theSameElementsAs initial
   }
 }
 

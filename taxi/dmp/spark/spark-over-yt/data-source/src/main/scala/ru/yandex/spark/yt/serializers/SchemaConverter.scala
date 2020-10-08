@@ -22,23 +22,6 @@ object SchemaConverter {
     })
   }
 
-  def ytType(sparkType: DataType): ColumnValueType = {
-    sparkType match {
-      case StringType => ColumnValueType.STRING
-      case ByteType => ColumnValueType.INT64
-      case ShortType => ColumnValueType.INT64
-      case IntegerType => ColumnValueType.INT64
-      case LongType => ColumnValueType.INT64
-      case FloatType => ColumnValueType.DOUBLE
-      case DoubleType => ColumnValueType.DOUBLE
-      case BooleanType => ColumnValueType.BOOLEAN
-      case _: ArrayType => ColumnValueType.ANY
-      case _: StructType => ColumnValueType.ANY
-      case _: MapType => ColumnValueType.ANY
-      case BinaryType => ColumnValueType.ANY
-    }
-  }
-
   def structField(fieldName: String,
                   stringDataType: String,
                   metadata: Metadata): StructField = {
@@ -104,15 +87,19 @@ object SchemaConverter {
     case BinaryType => YtLogicalType.Any
   }
 
-  def ytLogicalSchema(sparkSchema: StructType, sortColumns: Seq[String]): YTreeNode = {
+  def ytLogicalSchema(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType]): YTreeNode = {
     import scala.collection.JavaConverters._
+
+    def logicalType(field: StructField): YtLogicalType = {
+      hint.getOrElse(field.name, ytLogicalType(field.dataType))
+    }
 
     val columns = sortColumns.map{ name =>
       val sparkField = sparkSchema(name)
       YTree.builder
         .beginMap
         .key("name").value(name)
-        .key("type").value(ytLogicalType(sparkField.dataType).name)
+        .key("type").value(logicalType(sparkField).name)
         .key("required").value(!sparkField.nullable)
         .key("sort_order").value(ColumnSortOrder.ASCENDING.getName)
         .buildMap
@@ -122,7 +109,7 @@ object SchemaConverter {
           YTree.builder
             .beginMap
             .key("name").value(field.name)
-            .key("type").value(ytLogicalType(field.dataType).name)
+            .key("type").value(logicalType(field).name)
             .key("required").value(!field.nullable)
             .buildMap
         )
@@ -138,22 +125,26 @@ object SchemaConverter {
       .build
   }
 
-  def ytSchema(sparkSchema: StructType, sortColumns: Seq[String]): YTreeNode = {
-    tableSchema(sparkSchema, sortColumns).toYTree
+  def ytSchema(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType]): YTreeNode = {
+    tableSchema(sparkSchema, sortColumns, hint).toYTree
   }
 
-  def tableSchema(sparkSchema: StructType, sortColumns: Seq[String]): TableSchema = {
+  def tableSchema(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType]): TableSchema = {
     val builder = new TableSchema.Builder()
       .setStrict(true)
       .setUniqueKeys(false)
 
+    def columnType(field: StructField): ColumnValueType = {
+      hint.getOrElse(field.name, ytLogicalType(field.dataType)).columnValueType
+    }
+
     sortColumns.foreach { name =>
       val sparkField = sparkSchema(name)
-      builder.add(new ColumnSchema(name, ytType(sparkField.dataType), ColumnSortOrder.ASCENDING))
+      builder.add(new ColumnSchema(name, columnType(sparkField), ColumnSortOrder.ASCENDING))
     }
     sparkSchema.foreach { field =>
       if (!sortColumns.contains(field.name)) {
-        builder.add(new ColumnSchema(field.name, ytType(field.dataType)))
+        builder.add(new ColumnSchema(field.name, columnType(field)))
       }
     }
 

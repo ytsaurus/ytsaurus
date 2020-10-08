@@ -121,7 +121,7 @@ class YsonRowConverter(schema: StructType, skipNulls: Boolean) extends YTreeSeri
     new GenericRowWithSchema(values, schema)
   }
 
-  private val tableSchema = SchemaConverter.tableSchema(schema, Nil)
+  private val tableSchema = SchemaConverter.tableSchema(schema, Nil, Map.empty)
 
   @tailrec
   final def writeRows(writer: TableWriter[Row], rows: Seq[Row]): Unit = {
@@ -286,7 +286,9 @@ object YsonRowConverter {
     output.toByteArray
   }
 
-  private val serializer: ThreadLocal[mutable.Map[StructType, YsonRowConverter]] = ThreadLocal.withInitial(() => mutable.ListMap.empty)
+  private val serializer: ThreadLocal[mutable.Map[StructType, YsonRowConverter]] = {
+    ThreadLocal.withInitial(() => mutable.ListMap.empty)
+  }
 
   def getOrCreate(schema: StructType, skipNulls: Boolean): YsonRowConverter = {
     serializer.get().getOrElseUpdate(schema, new YsonRowConverter(schema, skipNulls))

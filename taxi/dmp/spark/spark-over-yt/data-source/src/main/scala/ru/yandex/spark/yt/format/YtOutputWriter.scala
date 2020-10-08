@@ -11,7 +11,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types.StructType
 import ru.yandex.inside.yt.kosher.common.GUID
-import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
+import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
 import ru.yandex.spark.yt.wrapper.LogLazy
@@ -20,6 +20,7 @@ import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.proxy.request.{TransactionalOptions, WriteTable}
 
 import scala.concurrent.{Await, Future}
+import ru.yandex.spark.yt.fs.conf._
 
 class YtOutputWriter(path: String,
                      schema: StructType,
@@ -31,6 +32,8 @@ class YtOutputWriter(path: String,
   import writeConfiguration._
 
   private val log = Logger.getLogger(getClass)
+
+  private val schemaHint = options.ytConf(YtTableSparkSettings.WriteSchemaHint)
 
   private val client = YtClientProvider.ytClient(ytClientConfiguration)
   private val requestPath = s"""<"append"=true>/${new Path(path).toUri}"""
@@ -117,7 +120,7 @@ class YtOutputWriter(path: String,
   }
 
   private def initializeWriter(): TableWriter[InternalRow] = {
-    val request = new WriteTable[InternalRow](requestPath, new InternalRowSerializer(schema))
+    val request = new WriteTable[InternalRow](requestPath, new InternalRowSerializer(schema, schemaHint))
       .setTransactionalOptions(new TransactionalOptions(GUID.valueOf(transactionGuid)))
     client.writeTable(request).join()
   }

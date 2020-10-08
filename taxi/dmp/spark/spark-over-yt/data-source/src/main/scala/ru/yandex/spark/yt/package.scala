@@ -4,11 +4,11 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import ru.yandex.spark.yt.fs.conf.{ConfigEntry, YtLogicalType}
 import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
 import ru.yandex.spark.yt.serializers.SchemaConverter
-import ru.yandex.yt.ytclient.proxy.YtClient
-import org.apache.spark.sql.functions._
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
+import ru.yandex.yt.ytclient.proxy.YtClient
 
 package object yt {
   lazy val yt: YtClient = YtClientProvider.ytClient(ytClientConfiguration(SparkSession.getDefaultSession.get))
@@ -56,8 +56,13 @@ package object yt {
   implicit class YtWriter[T](writer: DataFrameWriter[T]) {
     def yt(path: String): Unit = writer.format("yt").save(normalizePath(path))
 
+    def option[S](config: ConfigEntry[S], value: S): DataFrameWriter[T] = {
+      val stringValue = config.set(value)
+      writer.option(config.name, stringValue)
+    }
+
     def optimizeFor(optimizeMode: OptimizeMode): DataFrameWriter[T] = {
-      writer.option(YtTableSparkSettings.OptimizeFor.name, optimizeMode.name)
+      writer.option(YtTableSparkSettings.OptimizeFor, optimizeMode.name)
     }
 
     def optimizeFor(optimizeMode: String): DataFrameWriter[T] = {
@@ -65,7 +70,15 @@ package object yt {
     }
 
     def sortedBy(cols: String*): DataFrameWriter[T] = {
-      writer.option(YtTableSparkSettings.SortColumns.name, cols.mkString(","))
+      writer.option(YtTableSparkSettings.SortColumns, cols)
+    }
+
+    def schemaHint(schemaHint: Map[String, YtLogicalType]): DataFrameWriter[T] = {
+      writer.option(YtTableSparkSettings.WriteSchemaHint, schemaHint)
+    }
+
+    def schemaHint(field: (String, YtLogicalType), fields: (String, YtLogicalType)*): DataFrameWriter[T] = {
+      schemaHint(fields.toMap + field)
     }
   }
 
