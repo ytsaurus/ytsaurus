@@ -222,6 +222,11 @@ public:
         return ConfigRevision_;
     }
 
+    bool TagsLoaded() const
+    {
+        return static_cast<bool>(Tags_);
+    }
+
     const std::vector<TString>& GetTags() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1543,6 +1548,11 @@ TFuture<void> TMasterConnector::UpdateConfig()
 ui64 TMasterConnector::GetConfigRevision() const
 {
     return Impl_->GetConfigRevision();
+}
+
+bool TMasterConnector::TagsLoaded() const
+{
+    return Impl_->TagsLoaded();
 }
 
 const std::vector<TString>& TMasterConnector::GetTags() const

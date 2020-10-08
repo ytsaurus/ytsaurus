@@ -1692,7 +1692,14 @@ private:
                         ->GetNativeConnection()
                         ->GetMediumDirectory()
                 )
-                .Item("tags").Value(MasterConnector_->GetTags())
+                .Do([&] (TFluentMap fluent) {
+                    std::vector<TString> tags;
+                    if (MasterConnector_->TagsLoaded()) {
+                        tags = MasterConnector_->GetTags();
+                    }
+                    fluent
+                        .Item("tags").Value(tags);
+                })
             .EndMap();
         
         YT_LOG_DEBUG("Static orchid built");

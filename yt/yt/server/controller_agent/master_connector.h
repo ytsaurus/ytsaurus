@@ -56,6 +56,10 @@ public:
     TFuture<void> UpdateConfig();
     ui64 GetConfigRevision() const;
 
+    //! Returns |true| if tags were already downloaded from the master
+    //! and |false| otherwise.
+    bool TagsLoaded() const;
+
     const std::vector<TString>& GetTags() const;
 
 private:
