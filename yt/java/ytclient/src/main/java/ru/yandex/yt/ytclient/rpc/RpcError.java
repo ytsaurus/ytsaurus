@@ -1,28 +1,58 @@
 package ru.yandex.yt.ytclient.rpc;
 
-import java.util.Arrays;
+import javax.annotation.Nullable;
 
-import com.google.protobuf.ByteString;
-
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.yson.YsonConsumer;
+import ru.yandex.yson.YsonError;
+import ru.yandex.yson.YsonParser;
+import ru.yandex.yson.YsonTextWriter;
 import ru.yandex.yt.TError;
 import ru.yandex.yt.ytree.TAttribute;
-import ru.yandex.yt.ytree.TAttributeDictionary;
 
+@NonNullApi
 public class RpcError extends RuntimeException {
     private final TError error;
 
     public RpcError(TError error) {
-        super(errorMessage(error));
+        super(createFullErrorDescription(error));
         this.error = error;
-        for (TError innerError : error.getInnerErrorsList()) {
-            addSuppressed(new RpcError(innerError));
-        }
     }
 
-    public static boolean isUnrecoverable(Throwable e) {
-        return !(e instanceof RpcError) || ((RpcError) e).isUnrecoverable();
+    public TError getError() {
+        return error;
+    }
+
+    /**
+     * Check if error or one of inner error has specified code.
+     */
+    public boolean matches(int code) {
+        return findMatchingError(code) != null;
+    }
+
+    /**
+     * Returns error of one of the inner error which has specified code.
+     * Returns null if no such error is found.
+     */
+    @Nullable
+    public TError findMatchingError(int code) {
+        return findMatching(error, code);
+    }
+
+    /**
+     * Prefer to use  {@link #findMatchingError(int)}.
+     */
+    @Nullable
+    @Deprecated
+    public RpcError findMatching(int code) {
+        if (error.getCode() == code) {
+            return this;
+        }
+        TError matching = findMatching(error, code);
+        if (matching == null) {
+            return null;
+        }
+        return new RpcError(matching);
     }
 
     public boolean isUnrecoverable() {
@@ -36,54 +66,87 @@ public class RpcError extends RuntimeException {
                 code == RpcErrorCode.ProtocolError.code;
     }
 
-    public TError getError() {
-        return error;
+    public static boolean isUnrecoverable(Throwable e) {
+        return !(e instanceof RpcError) || ((RpcError) e).isUnrecoverable();
     }
 
-    public RpcError findMatching(int code) {
-        if (error.getCode() == code) {
-            return this;
-        }
-
-        for (Throwable e : getSuppressed()) {
-            RpcError matching;
-            if (e instanceof RpcError && (matching = ((RpcError)e).findMatching(code)) != null) {
-                return matching;
-            }
-        }
-
-        return null;
-    }
-
-    private static YTreeNode parseByteString(ByteString byteString) {
-        return YTreeBinarySerializer.deserialize(byteString.newInput());
-    }
-
-    private static String errorMessage(TError error) {
+    public static String createFullErrorDescription(TError error) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Error ").append(error.getCode());
-        String message = error.getMessage();
-        if (message.length() > 0) {
-            sb.append(": ").append(message);
-        }
-        TAttributeDictionary attributes = error.getAttributes();
-        if (attributes.getAttributesCount() > 0) {
-            sb.append(" {");
-            for (int index = 0; index < attributes.getAttributesCount(); index++) {
-                if (index != 0) {
-                    sb.append("; ");
-                }
-                TAttribute attr = attributes.getAttributes(index);
-                sb.append(attr.getKey()).append('=');
-                ByteString rawValue = attr.getValue();
-                try {
-                    sb.append(parseByteString(rawValue).toString());
-                } catch (RuntimeException e) {
-                    sb.append("<failed to parse ").append(Arrays.toString(rawValue.toByteArray())).append(">");
-                }
-            }
-            sb.append("}");
+        writeShortErrorDescription(error, sb);
+        sb.append("; full error: ");
+        try {
+            serializeError(error, new YsonTextWriter(sb));
+        } catch (YsonError ex) {
+            sb.append("<yson parsing error occurred>");
         }
         return sb.toString();
+    }
+
+    @Nullable
+    private static TError findMatching(@Nullable TError error, int code) {
+        if (error == null) {
+            return null;
+        } else if (error.getCode() == code) {
+            return error;
+        }
+
+        TError result = null;
+        for (TError inner : error.getInnerErrorsList()) {
+            result = findMatching(inner, code);
+            if (result != null) {
+                break;
+            }
+        }
+        return result;
+    }
+
+    private static void writeShortErrorDescription(TError error, StringBuilder sb) {
+        while (true) {
+            sb.append('\'').append(error.getMessage()).append('\'');
+            if (error.getInnerErrorsCount() > 0) {
+                sb.append(" <== ");
+                // Usually we have no more than one inner error.
+                // If there are many of them we output only the first one in short message description to ease reading.
+                // All other inner errors will also printed in "full error:" section.
+                error = error.getInnerErrors(0);
+            } else {
+                break;
+            }
+        }
+    }
+
+    private static void serializeError(TError error, YsonConsumer consumer) {
+        consumer.onBeginMap();
+        {
+            consumer.onKeyedItem("code");
+            consumer.onInteger(error.getCode());
+
+            consumer.onKeyedItem("message");
+            consumer.onString(error.getMessage());
+
+            if (error.getAttributes().getAttributesCount() != 0) {
+                consumer.onKeyedItem("attributes");
+                consumer.onBeginMap();
+                {
+                    for (TAttribute attribute : error.getAttributes().getAttributesList()) {
+                        consumer.onKeyedItem(attribute.getKey());
+                        new YsonParser(attribute.getValue().toByteArray()).parseNode(consumer);
+                    }
+                }
+                consumer.onEndMap();
+            }
+
+            if (error.getInnerErrorsCount() > 0) {
+                consumer.onKeyedItem("inner_errors");
+                {
+                    consumer.onBeginList();
+                    for (TError innerError : error.getInnerErrorsList()) {
+                        serializeError(innerError, consumer);
+                    }
+                    consumer.onEndList();
+                }
+            }
+        }
+        consumer.onEndMap();
     }
 }
