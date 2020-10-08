@@ -1,17 +1,15 @@
 package ru.yandex.spark.yt.format.batch
 
+import org.apache.arrow.vector.VectorSchemaRoot
 import org.apache.arrow.vector.dictionary.Dictionary
 import org.apache.arrow.vector.ipc.ArrowStreamReader
-import org.apache.arrow.vector.{VarBinaryVector, VectorSchemaRoot}
 import org.apache.log4j.Logger
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch}
-import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.wrapper.table.YtArrowInputStream
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 
 class ArrowBatchReader(stream: YtArrowInputStream,
                        totalRowCount: Long,

@@ -9,6 +9,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonEncoder
+import ru.yandex.spark.yt.fs.conf.YtLogicalType
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
 import ru.yandex.yt.ytclient.proxy.TableWriter
@@ -19,10 +20,12 @@ import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future}
 
-class InternalRowSerializer(schema: StructType) extends WireRowSerializer[InternalRow] with LogLazy {
+class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogicalType])
+  extends WireRowSerializer[InternalRow] with LogLazy {
+
   private val log = Logger.getLogger(getClass)
 
-  private val tableSchema = SchemaConverter.tableSchema(schema, Nil)
+  private val tableSchema = SchemaConverter.tableSchema(schema, Nil, schemaHint)
 
   override def getSchema: TableSchema = tableSchema
 
@@ -95,8 +98,10 @@ object InternalRowSerializer {
   private val deserializers: ThreadLocal[mutable.Map[StructType, InternalRowSerializer]] = ThreadLocal.withInitial(() => mutable.ListMap.empty)
   private val context = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(4))
 
-  def getOrCreate(schema: StructType, filters: Array[Filter] = Array.empty): InternalRowSerializer = {
-    deserializers.get().getOrElseUpdate(schema, new InternalRowSerializer(schema))
+  def getOrCreate(schema: StructType,
+                  schemaHint: Map[String, YtLogicalType],
+                  filters: Array[Filter] = Array.empty): InternalRowSerializer = {
+    deserializers.get().getOrElseUpdate(schema, new InternalRowSerializer(schema, schemaHint))
   }
 
   final def writeRows(writer: TableWriter[InternalRow],

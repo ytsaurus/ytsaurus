@@ -2,13 +2,10 @@ package ru.yandex.spark.yt.serializers
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
-import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.bolts.collection.ListF
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonDecoder
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
 

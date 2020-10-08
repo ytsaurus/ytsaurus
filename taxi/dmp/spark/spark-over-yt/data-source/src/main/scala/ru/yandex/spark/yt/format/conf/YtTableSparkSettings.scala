@@ -13,9 +13,11 @@ case class YtTableSparkSettings(configuration: Configuration) extends YtTableSet
 
   private def sortColumns: Seq[String] = configuration.ytConf(SortColumns)
 
+  private def writeSchemaHints: Map[String, YtLogicalType] = configuration.ytConf(WriteSchemaHint)
+
   private def schema: StructType = configuration.ytConf(Schema)
 
-  override def ytSchema: YTreeNode = SchemaConverter.ytLogicalSchema(schema, sortColumns)
+  override def ytSchema: YTreeNode = SchemaConverter.ytLogicalSchema(schema, sortColumns, writeSchemaHints)
 
   override def optionsAny: Map[String, Any] = {
     val optionsKeys = configuration.ytConf(Options)
@@ -33,6 +35,8 @@ object YtTableSparkSettings {
 
   // write
   case object SortColumns extends StringListConfigEntry("sort_columns", Some(Nil))
+
+  case object WriteSchemaHint extends YtLogicalTypeMapConfigEntry("write_schema_hint", Some(Map.empty))
 
   case object Schema extends StructTypeConfigEntry("schema")
 
