@@ -904,7 +904,8 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
             .Transpose()
             .Narrow(guarantee, limit)
             .TrimLeft()
-            .Extend(/* newLeftBound */ 0.0, /* newRightBound */ 1.0)
+            .Shift(/* deltaArgument */ -guarantee)
+            .ExtendRight(/* newRightBound */ 1.0)
             .Trim();
         mffForComponents.push_back(std::move(mffForComponent));
     }
@@ -1691,24 +1692,23 @@ void TCompositeSchedulerElement::AdjustMinShares()
             /* maxSum */ Attributes().MinShare);
     }
 
-    // TODO(renadeen): should be rethought when weight proportional will be independent of min share
     if (IsRoot()) {
         Attributes_.UnlimitedDemandFairShare = TResourceVector::Ones();
     }
-    double minWeight = GetMinChildWeight(EnabledChildren_);
-    ComputeByFitting(
-        [&] (double fitFactor, const TSchedulerElementPtr& child) -> TResourceVector {
-            const auto& childAttributes = child->Attributes();
-            auto result = TResourceVector::FromDouble(fitFactor * child->GetWeight() / minWeight);
-            result = TResourceVector::Max(result, childAttributes.MinShare + TResourceVector::FromDouble(childAttributes.ResourceFlowRatio));
-            result = TResourceVector::Min(result, childAttributes.LimitsShare);
-            return result;
-        },
-        [&] (const TSchedulerElementPtr& child, const TResourceVector& value) {
-            child->Attributes().UnlimitedDemandFairShare = value;
-        },
-        Attributes_.UnlimitedDemandFairShare,
-        /* strictMode */ false);
+
+    double weightSum = 0.0;
+    auto undistributedUnlimitedDemandFairShare = Attributes_.UnlimitedDemandFairShare;
+    for (const auto& child : EnabledChildren_) {
+        weightSum += child->GetWeight();
+        child->Attributes().UnlimitedDemandFairShare = child->Attributes().MinShare + TResourceVector::FromDouble(child->Attributes().TotalResourceFlowRatio);
+        undistributedUnlimitedDemandFairShare -= child->Attributes().UnlimitedDemandFairShare;
+    }
+
+    for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
+        for (const auto& child : EnabledChildren_) {
+            child->Attributes().UnlimitedDemandFairShare[resourceType] += undistributedUnlimitedDemandFairShare[resourceType] * child->GetWeight() / weightSum;
+        }
+    }
 
     for (const auto& child : EnabledChildren_) {
         if (auto* childPool = child->AsPool()) {
@@ -4568,17 +4568,10 @@ void TRootElement::UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* cont
         weight = weight / minWeight;
     }
 
-    auto calculateSuggestion = [] (const TPoolPtr& relaxedPool, double fitFactor, double weight) {
-        auto suggestion = fitFactor * weight;
-        auto minShareRatio = MaxComponent(relaxedPool->Attributes().MinShare);
-        // TODO(renadeen): rewrite when suggestion becomes an addition above min share.
-        return std::min(1.0, suggestion + minShareRatio);
-    };
-
     auto checkFitFactor = [&] (double fitFactor) {
         TResourceVector fairShareResult;
         for (int index = 0; index < relaxedPools.size(); ++index) {
-            auto suggestion = calculateSuggestion(relaxedPools[index], fitFactor, weights[index]);
+            auto suggestion = std::min(1.0, fitFactor * weights[index]);
             auto fairShare = relaxedPools[index]->FairShareBySuggestion()->ValueAt(suggestion);
             fairShareResult += TResourceVector::Max(fairShare - relaxedPools[index]->Attributes().MinShare, TResourceVector::Zero());
         }
@@ -4594,7 +4587,7 @@ void TRootElement::UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* cont
     for (int index = 0; index < relaxedPools.size(); ++index) {
         auto weight = weights[index];
         const auto& relaxedPool = relaxedPools[index];
-        auto suggestion = calculateSuggestion(relaxedPool, fitFactor, weight);
+        auto suggestion = std::min(1.0, fitFactor * weight);
         auto fairShareWithinGuarantees = relaxedPool->FairShareBySuggestion()->ValueAt(suggestion);
         auto integralShare = TResourceVector::Max(fairShareWithinGuarantees - relaxedPool->Attributes().MinShare, TResourceVector::Zero());
 
