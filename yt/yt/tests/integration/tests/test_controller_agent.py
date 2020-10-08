@@ -343,6 +343,7 @@ class TestControllerAgentTags(YTEnvSetup):
         cls.controller_agent_counter += 1
         if controller_agent_tag is not None:
             config["controller_agent"]["tags"] = [controller_agent_tag]
+        config["controller_agent"]["controller_static_orchid_update_period"] = 100
 
     @authors("gritukan")
     def test_controller_agent_tags(self):
@@ -350,6 +351,12 @@ class TestControllerAgentTags(YTEnvSetup):
         bar_agent = None
         default_agent = None
 
+        def wait_for_tags_loaded():
+            for agent in get("//sys/controller_agents/instances").keys():
+                tags_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(agent)
+                wait(lambda: len(get(tags_path)) > 0)
+
+        wait_for_tags_loaded()
         for agent in get("//sys/controller_agents/instances").keys():
             agent_tags = get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(agent))
             assert len(agent_tags) == 1
@@ -400,6 +407,7 @@ class TestControllerAgentTags(YTEnvSetup):
             set("//sys/controller_agents/instances/{}/@tags".format(baz_agent), ["baz"])
             set("//sys/controller_agents/instances/{}/@tags".format(default_agent), ["boo", "booo"])
 
+        wait_for_tags_loaded()
         assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(foo_agent)) == ["foo"]
         assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(baz_agent)) == ["baz"]
         assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(boo_agent)) == ["boo", "booo"]
