@@ -191,6 +191,11 @@ bool TProtoTableReader::IsEndOfStream() const
     return NodeReader_->IsEndOfStream();
 }
 
+bool TProtoTableReader::IsRawReaderExhausted() const
+{
+    return NodeReader_->IsRawReaderExhausted();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TLenvalProtoTableReader::TLenvalProtoTableReader(
@@ -263,6 +268,11 @@ TMaybe<size_t> TLenvalProtoTableReader::GetReadByteCount() const
 bool TLenvalProtoTableReader::IsEndOfStream() const
 {
     return TLenvalTableReader::IsEndOfStream();
+}
+
+bool TLenvalProtoTableReader::IsRawReaderExhausted() const
+{
+    return TLenvalTableReader::IsRawReaderExhausted();
 }
 
 void TLenvalProtoTableReader::SkipRow()

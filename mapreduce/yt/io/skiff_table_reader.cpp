@@ -144,6 +144,11 @@ TMaybe<size_t> TSkiffTableReader::GetReadByteCount() const
     return Input_.GetReadByteCount();
 }
 
+bool TSkiffTableReader::IsRawReaderExhausted() const
+{
+    return Finished_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TVector<TSkiffTableReader::TSkiffTableSchema> TSkiffTableReader::CreateSkiffTableSchemas(

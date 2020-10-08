@@ -84,6 +84,7 @@ public:
     void NextKey() override;
     TMaybe<size_t> GetReadByteCount() const override;
     bool IsEndOfStream() const override;
+    bool IsRawReaderExhausted() const override;
 
 private:
     void NextImpl();

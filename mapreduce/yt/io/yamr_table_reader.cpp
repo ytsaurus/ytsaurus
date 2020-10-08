@@ -152,6 +152,16 @@ TMaybe<size_t> TYaMRTableReader::GetReadByteCount() const
     return TLenvalTableReader::GetReadByteCount();
 }
 
+bool TYaMRTableReader::IsEndOfStream() const
+{
+    return TLenvalTableReader::IsEndOfStream();
+}
+
+bool TYaMRTableReader::IsRawReaderExhausted() const
+{
+    return TLenvalTableReader::IsRawReaderExhausted();
+}
+
 void TYaMRTableReader::ReadField(TString* result, i32 length)
 {
     result->resize(length);

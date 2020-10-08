@@ -114,6 +114,7 @@ struct IReaderImplBase
     virtual TMaybe<size_t> GetReadByteCount() const;
     virtual i64 GetTabletIndex() const;
     virtual bool IsEndOfStream() const;
+    virtual bool IsRawReaderExhausted() const;
 };
 
 struct INodeReaderImpl
@@ -188,6 +189,11 @@ public:
     bool IsEndOfStream()
     {
         return Reader_->IsEndOfStream();
+    }
+
+    bool IsRawReaderExhausted()
+    {
+        return Reader_->IsRawReaderExhausted();
     }
 
     ui32 GetTableIndex() const

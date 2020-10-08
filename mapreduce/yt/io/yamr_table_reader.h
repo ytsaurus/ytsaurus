@@ -45,6 +45,8 @@ public:
     ui64 GetRowIndex() const override;
     void NextKey() override;
     TMaybe<size_t> GetReadByteCount() const override;
+    bool IsEndOfStream() const override;
+    bool IsRawReaderExhausted() const override;
 
 private:
     void ReadField(TString* result, i32 length);

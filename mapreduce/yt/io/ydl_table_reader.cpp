@@ -57,6 +57,14 @@ TMaybe<size_t> TNodeYdlTableReader::GetReadByteCount() const
     return NodeReader_->GetReadByteCount();
 }
 
+bool TNodeYdlTableReader::IsEndOfStream() const {
+    return NodeReader_->IsEndOfStream();
+}
+
+bool TNodeYdlTableReader::IsRawReaderExhausted() const {
+    return NodeReader_->IsRawReaderExhausted();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -23,6 +23,7 @@ protected:
     void NextKey();
     TMaybe<size_t> GetReadByteCount() const;
     bool IsEndOfStream() const;
+    bool IsRawReaderExhausted() const;
 
     void CheckValidity() const;
 
