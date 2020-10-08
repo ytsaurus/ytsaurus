@@ -230,7 +230,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
                 this.node = integerNode;
                 break;
             case UINT64:
-                integerNode.setUnsignedLong0(value);
+                integerNode.setUnsignedLong(value);
                 this.node = integerNode;
                 break;
             default:
