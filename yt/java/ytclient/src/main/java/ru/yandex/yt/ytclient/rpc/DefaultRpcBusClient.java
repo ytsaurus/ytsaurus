@@ -990,7 +990,7 @@ public class DefaultRpcBusClient implements RpcClient {
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
         StreamingRequest pendingRequest = new StreamingRequest(sender, getSession(), request, stats);
         pendingRequest.start();
         return pendingRequest;

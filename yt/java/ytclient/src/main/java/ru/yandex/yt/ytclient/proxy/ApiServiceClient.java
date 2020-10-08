@@ -193,6 +193,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -1577,7 +1578,7 @@ public class ApiServiceClient implements TransactionalClient {
         req.writeTo(builder.body());
 
         TableReaderImpl<T> tableReader = new TableReaderImpl<>(reader);
-        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
+        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
                 control -> {
                     tableReader.onStartStream(control);
@@ -1600,7 +1601,7 @@ public class ApiServiceClient implements TransactionalClient {
                 req.getWindowSize(),
                 req.getPacketSize(),
                 req.getSerializer());
-        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
+        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
         CompletableFuture<TableWriter<T>> result = streamControlFuture.thenCompose(
                 control -> {
                     tableWriter.onStartStream(control);
@@ -1620,7 +1621,7 @@ public class ApiServiceClient implements TransactionalClient {
         req.writeTo(builder.body());
 
         FileReaderImpl fileReader = new FileReaderImpl();
-        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
+        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, fileReader);
         CompletableFuture<FileReader> result = streamControlFuture.thenCompose(
                 control -> {
                     fileReader.onStartStream(control);
@@ -1642,7 +1643,7 @@ public class ApiServiceClient implements TransactionalClient {
         FileWriterImpl fileWriter = new FileWriterImpl(
                 req.getWindowSize(),
                 req.getPacketSize());
-        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder);
+        CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, fileWriter);
         CompletableFuture<FileWriter> result = streamControlFuture.thenCompose(
                 control -> {
                     fileWriter.onStartStream(control);
@@ -1666,9 +1667,9 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<RpcClientStreamControl>
-    startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder)
+    startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder, RpcStreamConsumer consumer)
     {
-        return CompletableFuture.completedFuture(builder.startStream(rpcClient));
+        return CompletableFuture.completedFuture(builder.startStream(rpcClient, consumer));
     }
 
     @Override

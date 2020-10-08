@@ -25,7 +25,7 @@ public class RpcClientTestStubs {
         }
 
         @Override
-        public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+        public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
             return null;
         }
 

@@ -46,6 +46,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 
@@ -166,8 +167,11 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
 
     @Override
     protected <RequestType extends MessageLite.Builder, ResponseType>
-    CompletableFuture<RpcClientStreamControl> startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder) {
-        return builder.startStream(executor, poolProvider.getClientPool());
+    CompletableFuture<RpcClientStreamControl> startStream(
+            RpcClientRequestBuilder<RequestType, ResponseType> builder,
+            RpcStreamConsumer consumer)
+    {
+        return builder.startStream(executor, poolProvider.getClientPool(), consumer);
     }
 
     private YtClient(Builder builder) {

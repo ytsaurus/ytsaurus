@@ -166,7 +166,7 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient unused, RpcClientRequest request) {
+    public RpcClientStreamControl startStream(RpcClient unused, RpcClientRequest request, RpcStreamConsumer consumer) {
         throw new IllegalArgumentException();
     }
 

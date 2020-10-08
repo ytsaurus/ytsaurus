@@ -11,6 +11,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
+import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 /**
  * Декоратор для RpcClient, добавляющий аутентификацию по токену
@@ -58,9 +59,9 @@ public class TokenAuthentication implements RpcClient {
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
         patchHeader(request);
-        return client.startStream(sender, request);
+        return client.startStream(sender, request, consumer);
     }
 
     private static String getLocalAddress() {

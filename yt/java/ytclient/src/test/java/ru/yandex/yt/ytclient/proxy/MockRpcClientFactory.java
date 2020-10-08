@@ -11,6 +11,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
+import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 class MockRpcClientFactory implements RpcClientFactory {
     Set<HostPort> openedConnections = new HashSet<>();
@@ -38,7 +39,7 @@ class MockRpcClientFactory implements RpcClientFactory {
             }
 
             @Override
-            public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+            public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
                 return null;
             }
 

@@ -9,6 +9,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
+import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 public class RpcClientWithCompression implements RpcClient {
     private final RpcClient client;
@@ -40,9 +41,9 @@ public class RpcClientWithCompression implements RpcClient {
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
         patchHeader(request);
-        return client.startStream(sender, request);
+        return client.startStream(sender, request, consumer);
     }
 
     @Override

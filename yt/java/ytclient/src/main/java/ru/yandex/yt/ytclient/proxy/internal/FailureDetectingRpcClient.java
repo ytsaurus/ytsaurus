@@ -17,6 +17,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
+import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 // TODO: move closer to user an make package private
 public class FailureDetectingRpcClient implements RpcClient {
@@ -78,8 +79,8 @@ public class FailureDetectingRpcClient implements RpcClient {
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
-        return innerClient.startStream(sender, request);
+    public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
+        return innerClient.startStream(sender, request, consumer);
     }
 
     @Override
@@ -93,8 +94,8 @@ public class FailureDetectingRpcClient implements RpcClient {
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClientRequest request) {
-        return innerClient.startStream(this, request);
+    public RpcClientStreamControl startStream(RpcClientRequest request, RpcStreamConsumer consumer) {
+        return innerClient.startStream(this, request, consumer);
     }
 
     @Override
