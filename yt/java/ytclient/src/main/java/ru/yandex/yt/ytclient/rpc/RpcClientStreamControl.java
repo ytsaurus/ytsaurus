@@ -8,8 +8,6 @@ import ru.yandex.yt.ytclient.rpc.internal.Compression;
 public interface RpcClientStreamControl extends RpcClientRequestControl {
     Compression getExpectedPayloadCompression();
 
-    void subscribe(RpcStreamConsumer consumer);
-
     CompletableFuture<Void> feedback(long offset);
     CompletableFuture<Void> sendEof();
 

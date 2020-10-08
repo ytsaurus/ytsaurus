@@ -68,7 +68,6 @@ public class StreamReaderImplTest {
         };
 
         result.onStartStream(control);
-        control.subscribe(result);
         return result;
     }
 
