@@ -1,5 +1,7 @@
 package ru.yandex.spark.yt.fs
 
+import java.util.concurrent.atomic.AtomicReference
+
 import org.apache.log4j.Logger
 import org.apache.spark.sql.SparkSession
 import ru.yandex.inside.yt.kosher.Yt
@@ -13,31 +15,27 @@ import scala.collection.mutable
 object YtClientProvider {
   private val log = Logger.getLogger(getClass)
 
-  private val client = new ThreadLocal[Option[YtRpcClient]]
-  private val conf = new ThreadLocal[YtClientConfiguration]
-  private val fsClient = mutable.HashMap.empty[String, YtRpcClient]
+  private val conf = new AtomicReference[YtClientConfiguration]
+  private val client = mutable.HashMap.empty[String, YtRpcClient]
 
-  private def cachedYtClient: Option[YtClient] = cachedClient.map(_.yt)
+  private def threadId: String = Thread.currentThread().getId.toString
 
-  private def cachedClient: Option[YtRpcClient] = Option(client.get()).flatten
+  private def sparkDefaultConf: YtClientConfiguration = SparkSession.getDefaultSession
+    .map(ytClientConfiguration)
+    .getOrElse(throw new IllegalStateException("Spark is not initialized"))
 
-  def ytClient(conf: YtClientConfiguration): YtClient = cachedYtClient.getOrElse {
+  def ytClient(conf: YtClientConfiguration, id: String): YtClient = ytRpcClient(conf, id).yt
+
+  // for java
+  def ytClient(conf: YtClientConfiguration): YtClient = ytRpcClient(conf, threadId).yt
+
+  def ytClient: YtClient = client.getOrElseUpdate(threadId, ytRpcClient(sparkDefaultConf)).yt
+
+  def ytRpcClient(conf: YtClientConfiguration, id: String = threadId): YtRpcClient = client.getOrElseUpdate(threadId, {
     this.conf.set(conf)
-    val client = YtWrapper.createRpcClient(conf)
-    this.client.set(Some(client))
-    this.client.get.get.yt
-  }
-
-  def ytClient(conf: YtClientConfiguration, id: String): YtClient = fsClient
-    .getOrElseUpdate(id, {
-      log.info(s"Create YT Client for id $id")
-      YtWrapper.createRpcClient(conf)
-    })
-    .yt
-
-  def ytClient: YtClient = cachedYtClient
-    .orElse(SparkSession.getDefaultSession.map(spark => ytClient(ytClientConfiguration(spark))))
-    .getOrElse(throw new IllegalStateException("YtClient is not initialized"))
+    log.info(s"Create YtClient for id $id")
+    YtWrapper.createRpcClient(conf)
+  })
 
   def httpClient: Yt = {
     YtWrapper.createHttpClient(conf.get())
@@ -45,15 +43,13 @@ object YtClientProvider {
 
   def close(): Unit = {
     log.info(s"Close all YT Clients")
-    cachedClient.foreach(_.close())
-    fsClient.foreach(_._2.close())
-    fsClient.clear()
-    this.client.set(None)
+    client.foreach(_._2.close())
+    client.clear()
   }
 
   def close(id: String): Unit = {
     log.info(s"Close YT Client for id $id")
-    fsClient.get(id).foreach(_.close())
-    fsClient.remove(id)
+    client.get(id).foreach(_.close())
+    client.remove(id)
   }
 }
