@@ -4,6 +4,7 @@
 #include "format.h"
 #include "guid.h"
 
+#include <util/generic/hash.h>
 #include <util/string/ascii.h>
 
 namespace NYT {
@@ -360,7 +361,7 @@ size_t TCaseInsensitiveStringHasher::operator()(TStringBuf arg) const
         for (size_t index = 0; index < arg.length(); ++index) {
             buffer[index] = AsciiToLower(arg[index]);
         }
-        return TString::hashVal(buffer, arg.length());
+        return ComputeHash(TStringBuf(buffer, arg.length()));
     };
     const size_t SmallSize = 256;
     if (arg.length() <= SmallSize) {
