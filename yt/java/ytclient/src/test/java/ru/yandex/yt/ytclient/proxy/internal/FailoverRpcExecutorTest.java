@@ -28,6 +28,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -187,7 +188,7 @@ public class FailoverRpcExecutorTest {
             }
 
             @Override
-            public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+            public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
                 return null;
             }
 

@@ -15,6 +15,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
 
@@ -67,7 +68,7 @@ public class BalancingDestination {
             }
 
             @Override
-            public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request) {
+            public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
                 return null;
             }
 

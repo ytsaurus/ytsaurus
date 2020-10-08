@@ -28,10 +28,10 @@ public interface RpcClient extends AutoCloseable {
         return send(this, request, handler);
     }
 
-    RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request);
+    RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer);
 
-    default RpcClientStreamControl startStream(RpcClientRequest request) {
-        return startStream(this, request);
+    default RpcClientStreamControl startStream(RpcClientRequest request, RpcStreamConsumer consumer) {
+        return startStream(this, request, consumer);
     }
 
     /**

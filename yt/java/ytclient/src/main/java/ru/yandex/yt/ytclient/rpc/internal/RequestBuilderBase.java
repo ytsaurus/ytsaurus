@@ -18,6 +18,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
@@ -106,19 +107,20 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public RpcClientStreamControl startStream(RpcClient client) {
-        return client.startStream(this);
+    public RpcClientStreamControl startStream(RpcClient client, RpcStreamConsumer consumer) {
+        return client.startStream(this, consumer);
     }
 
     @Override
     public CompletableFuture<RpcClientStreamControl> startStream(
             ScheduledExecutorService executor,
-            RpcClientPool clientPool)
+            RpcClientPool clientPool,
+            RpcStreamConsumer consumer)
     {
         CompletableFuture<RpcClientStreamControl> result = new CompletableFuture<>();
         CompletableFuture<RpcClient> clientFuture = clientPool.peekClient(result);
         RpcUtil.relay(
-                clientFuture.thenApply(client -> client.startStream(this)),
+                clientFuture.thenApply(client -> client.startStream(this, consumer)),
                 result
         );
         return result;
