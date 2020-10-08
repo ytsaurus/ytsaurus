@@ -80,10 +80,12 @@ Y_UNIT_TEST_SUITE(Readers)
         TVector<TNode> expectedRows = {TNode()("a", 13)("b", "string"), TNode()("c", TNode()("d", 12))};
         for (const auto& expectedRow : expectedRows) {
             UNIT_ASSERT(reader.IsValid());
+            UNIT_ASSERT(!reader.IsRawReaderExhausted());
             UNIT_ASSERT_EQUAL(reader.GetRow(), expectedRow);
             reader.Next();
         }
         UNIT_ASSERT(!reader.IsValid());
+        UNIT_ASSERT(reader.IsRawReaderExhausted());
     }
 
     Y_UNIT_TEST(YsonBad)
@@ -113,10 +115,12 @@ Y_UNIT_TEST_SUITE(Readers)
         };
         for (const auto& expectedRow : expectedRows) {
             UNIT_ASSERT(reader.IsValid());
+            UNIT_ASSERT(!reader.IsRawReaderExhausted());
             UNIT_ASSERT_EQUAL(reader.GetRow(), expectedRow);
             reader.Next();
         }
         UNIT_ASSERT(!reader.IsValid());
+        UNIT_ASSERT(reader.IsRawReaderExhausted());
     }
 
     Y_UNIT_TEST(SkiffBad)
@@ -157,6 +161,7 @@ Y_UNIT_TEST_SUITE(Readers)
         for (const auto& expectedRow : expectedRows) {
             TRow row;
             UNIT_ASSERT(reader.IsValid());
+            UNIT_ASSERT(!reader.IsRawReaderExhausted());
             reader.ReadRow(&row);
             UNIT_ASSERT_VALUES_EQUAL(row.GetString(), expectedRow.GetString());
             UNIT_ASSERT_VALUES_EQUAL(row.GetInt32(), expectedRow.GetInt32());
@@ -164,6 +169,7 @@ Y_UNIT_TEST_SUITE(Readers)
             reader.Next();
         }
         UNIT_ASSERT(!reader.IsValid());
+        UNIT_ASSERT(reader.IsRawReaderExhausted());
     }
 
     Y_UNIT_TEST(ProtobufBad)

@@ -23,6 +23,11 @@ bool IReaderImplBase::IsEndOfStream() const
     Y_FAIL("Unimplemented");
 }
 
+bool IReaderImplBase::IsRawReaderExhausted() const
+{
+    Y_FAIL("Unimplemented");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {

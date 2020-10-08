@@ -134,9 +134,11 @@ Y_UNIT_TEST_SUITE(TestYamrTableReader)
             TYaMRTableReader tableReader(rawReader);
             TVector<std::tuple<TString, TString, TString>> actualResult;
             for (; tableReader.IsValid(); tableReader.Next()) {
+                UNIT_ASSERT(!tableReader.IsRawReaderExhausted());
                 auto row = tableReader.GetRow();
                 actualResult.emplace_back(row.Key, row.SubKey, row.Value);
             }
+            UNIT_ASSERT(tableReader.IsRawReaderExhausted());
             UNIT_ASSERT_VALUES_EQUAL(actualResult, expectedResult);
         }
     }
@@ -168,8 +170,10 @@ Y_UNIT_TEST_SUITE(TestYamrTableReader)
                 TYaMRTableReader tableReader(rawReader);
                 ui32 rowCount = 0;
                 for (; tableReader.IsValid(); tableReader.Next()) {
+                    UNIT_ASSERT(!tableReader.IsRawReaderExhausted());
                     ++rowCount;
                 }
+                UNIT_ASSERT(tableReader.IsRawReaderExhausted());
                 UNIT_ASSERT_VALUES_EQUAL(rowCount, 3);
             } catch (const yexception& ex) {
                 Cerr << breakPoint << Endl;

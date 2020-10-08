@@ -170,6 +170,11 @@ bool TLenvalTableReader::IsEndOfStream() const
     return IsEndOfStream_;
 }
 
+bool TLenvalTableReader::IsRawReaderExhausted() const
+{
+    return Finished_;
+}
+
 bool TLenvalTableReader::PrepareRetry()
 {
     if (Input_.Retry(RangeIndex_, RowIndex_)) {

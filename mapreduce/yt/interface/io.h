@@ -188,6 +188,9 @@ public:
 
     /// Returns `true` if job consumed all the input and `false` otherwise.
     bool IsEndOfStream() const;
+
+    /// Returns `true` if job raw input stream was closed and `false` otherwise.
+    bool IsRawReaderExhausted() const;
 };
 
 /// @brief Iterator for use in range-based-for.

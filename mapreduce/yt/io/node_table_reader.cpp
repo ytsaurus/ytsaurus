@@ -399,6 +399,11 @@ bool TNodeTableReader::IsEndOfStream() const
     return IsEndOfStream_;
 }
 
+bool TNodeTableReader::IsRawReaderExhausted() const
+{
+    return Finished_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TNodeTableReader::PrepareParsing()
