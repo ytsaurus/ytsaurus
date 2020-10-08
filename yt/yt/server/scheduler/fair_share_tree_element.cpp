@@ -3740,7 +3740,7 @@ bool TOperationElement::IsPreemptionAllowed(bool isAggressivePreemption, const T
         return false;
     }
 
-    // TODO(eshcherbin): Rethink this check. Perhaps we don't need to perform it at every ancestor.
+    // TODO(eshcherbin): Rethink this check, perhaps we don't need to perform it at every ancestor (see: YT-13670)
     const TSchedulerElement* element = this;
     while (element && !element->IsRoot()) {
         if (config->PreemptionCheckStarvation && element->GetStarving()) {
