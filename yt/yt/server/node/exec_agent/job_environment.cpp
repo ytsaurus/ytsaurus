@@ -327,6 +327,13 @@ public:
                 "0.05c"))
                 .ThrowOnError();
 
+            // Reset CPU limit.
+            WaitFor(PortoExecutor_->SetContainerProperty(
+                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
+                "cpu_limit",
+                "0"))
+                .ThrowOnError();
+
             // Drop reference to a process if there were any.
             JobProxyProcesses_.erase(slotIndex);
 
