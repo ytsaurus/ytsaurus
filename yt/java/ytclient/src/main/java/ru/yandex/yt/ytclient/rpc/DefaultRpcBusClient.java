@@ -530,83 +530,8 @@ public class DefaultRpcBusClient implements RpcClient {
         }
     }
 
-    private static class StashedMessage {
-        TStreamingFeedbackHeader feedbackHeader = null;
-        TStreamingPayloadHeader payloadHeader = null;
-        TResponseHeader responseHeader = null;
-        List<byte[]> attachments = null;
-        Throwable cause = null;
-        CancellationException cancel = null;
-    }
-
-    private static class Stash implements RpcStreamConsumer {
-        ArrayList<StashedMessage> stashedMessages = new ArrayList<>();
-        int nextStashedMessageIndex = 0;
-
-        @Override
-        public void onStartStream(RpcClientStreamControl control) {
-            throw new IllegalStateException("unexpected call");
-        }
-
-        @Override
-        public void onFeedback(RpcClient unused, TStreamingFeedbackHeader header, List<byte[]> attachments) {
-            StashedMessage message = new StashedMessage();
-            message.feedbackHeader = header;
-            message.attachments = attachments;
-            stashedMessages.add(message);
-        }
-
-        @Override
-        public void onPayload(RpcClient unused, TStreamingPayloadHeader header, List<byte[]> attachments) {
-            StashedMessage message = new StashedMessage();
-            message.payloadHeader = header;
-            message.attachments = attachments;
-            stashedMessages.add(message);
-        }
-
-        @Override
-        public void onResponse(RpcClient unused, TResponseHeader header, List<byte[]> attachments) {
-            StashedMessage message = new StashedMessage();
-            message.responseHeader = header;
-            message.attachments = attachments;
-            stashedMessages.add(message);
-        }
-
-        @Override
-        public void onError(RpcClient unused, Throwable cause) {
-            StashedMessage message = new StashedMessage();
-            message.cause = cause;
-            stashedMessages.add(message);
-        }
-
-        @Override
-        public void onCancel(RpcClient sender, CancellationException cancel) {
-            StashedMessage message = new StashedMessage();
-            message.cancel = cancel;
-            stashedMessages.add(message);
-        }
-
-        void unstash(RpcClient sender, RpcStreamConsumer consumer) {
-            while (nextStashedMessageIndex < stashedMessages.size()) {
-                StashedMessage message = stashedMessages.get(nextStashedMessageIndex++);
-
-                if (message.feedbackHeader != null) {
-                    consumer.onFeedback(sender, message.feedbackHeader, message.attachments);
-                } else if (message.payloadHeader != null) {
-                    consumer.onPayload(sender, message.payloadHeader, message.attachments);
-                } else if (message.responseHeader != null) {
-                    consumer.onResponse(sender, message.responseHeader, message.attachments);
-                } else if (message.cause != null) {
-                    consumer.onError(sender, message.cause);
-                } else if (message.cancel != null) {
-                    consumer.onCancel(sender, message.cancel);
-                }
-            }
-        }
-    }
-
     private static class StreamingRequest extends RequestBase implements RpcClientStreamControl {
-        RpcStreamConsumer consumer = new Stash();
+        final RpcStreamConsumer consumer;
         final AtomicInteger sequenceNumber = new AtomicInteger(0);
         Duration readTimeout;
         Duration writeTimeout;
@@ -615,14 +540,21 @@ public class DefaultRpcBusClient implements RpcClient {
         ScheduledFuture<?> readTimeoutFuture = null;
         ScheduledFuture<?> writeTimeoutFuture = null;
 
-        StreamingRequest(RpcClient sender, Session session, RpcClientRequest request, Statistics stat) {
+        StreamingRequest(RpcClient sender, Session session, RpcClientRequest request, RpcStreamConsumer consumer, Statistics stat) {
             super(sender, session, request, stat);
+            this.consumer = consumer;
             this.options = request.getOptions();
             this.readTimeout = options.getStreamingReadTimeout();
             this.writeTimeout = options.getStreamingWriteTimeout();
             this.resetWriteTimeout();
             this.resetReadTimeout();
             setStreamingOptions();
+        }
+
+        @Override
+        public void start() {
+            super.start();
+            consumer.onStartStream(this);
         }
 
         private void setStreamingOptions() {
@@ -822,26 +754,6 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         @Override
-        public void subscribe(RpcStreamConsumer consumer) {
-            lock.lock();
-            try {
-                Stash stash = (Stash) this.consumer;
-                this.consumer = consumer;
-                // Make sure to fully drain the stash.
-                while (true) {
-                    try {
-                        stash.unstash(sender, this.consumer);
-                        break;
-                    } catch (Throwable e) {
-                        handleError(e);
-                    }
-                }
-            } finally {
-                lock.unlock();
-            }
-        }
-
-        @Override
         public CompletableFuture<Void> feedback(long offset) {
             TStreamingFeedbackHeader.Builder builder = TStreamingFeedbackHeader.newBuilder();
             TRequestHeaderOrBuilder header = request.header();
@@ -991,7 +903,7 @@ public class DefaultRpcBusClient implements RpcClient {
 
     @Override
     public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
-        StreamingRequest pendingRequest = new StreamingRequest(sender, getSession(), request, stats);
+        StreamingRequest pendingRequest = new StreamingRequest(sender, getSession(), request, consumer, stats);
         pendingRequest.start();
         return pendingRequest;
     }

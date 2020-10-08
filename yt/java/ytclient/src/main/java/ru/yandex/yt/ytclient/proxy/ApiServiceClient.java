@@ -1580,11 +1580,7 @@ public class ApiServiceClient implements TransactionalClient {
         TableReaderImpl<T> tableReader = new TableReaderImpl<>(reader);
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
-                control -> {
-                    tableReader.onStartStream(control);
-                    control.subscribe(tableReader);
-                    return tableReader.waitMetadata();
-                });
+                control -> tableReader.waitMetadata());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }
@@ -1602,12 +1598,7 @@ public class ApiServiceClient implements TransactionalClient {
                 req.getPacketSize(),
                 req.getSerializer());
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableWriter);
-        CompletableFuture<TableWriter<T>> result = streamControlFuture.thenCompose(
-                control -> {
-                    tableWriter.onStartStream(control);
-                    control.subscribe(tableWriter);
-                    return tableWriter.startUpload();
-                });
+        CompletableFuture<TableWriter<T>> result = streamControlFuture.thenCompose(control -> tableWriter.startUpload());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }
@@ -1623,11 +1614,7 @@ public class ApiServiceClient implements TransactionalClient {
         FileReaderImpl fileReader = new FileReaderImpl();
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, fileReader);
         CompletableFuture<FileReader> result = streamControlFuture.thenCompose(
-                control -> {
-                    fileReader.onStartStream(control);
-                    control.subscribe(fileReader);
-                    return fileReader.waitMetadata();
-                });
+                control -> fileReader.waitMetadata());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }
@@ -1644,12 +1631,7 @@ public class ApiServiceClient implements TransactionalClient {
                 req.getWindowSize(),
                 req.getPacketSize());
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, fileWriter);
-        CompletableFuture<FileWriter> result = streamControlFuture.thenCompose(
-                control -> {
-                    fileWriter.onStartStream(control);
-                    control.subscribe(fileWriter);
-                    return fileWriter.startUpload();
-                });
+        CompletableFuture<FileWriter> result = streamControlFuture.thenCompose(control -> fileWriter.startUpload());
         RpcUtil.relayCancel(result, streamControlFuture);
         return result;
     }
