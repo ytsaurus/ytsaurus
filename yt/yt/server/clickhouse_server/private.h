@@ -68,6 +68,7 @@ DECLARE_REFCOUNTED_CLASS(TLauncherConfig);
 DECLARE_REFCOUNTED_CLASS(TMemoryConfig);
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog);
 DECLARE_REFCOUNTED_CLASS(TCompositeSettings);
+DECLARE_REFCOUNTED_CLASS(TDynamicTableSettings);
 
 struct TValue;
 class TSubquerySpec;

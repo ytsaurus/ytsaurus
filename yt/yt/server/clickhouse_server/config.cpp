@@ -15,6 +15,12 @@ TCompositeSettings::TCompositeSettings()
         .Default(false);
 }
 
+TDynamicTableSettings::TDynamicTableSettings()
+{
+    RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
+        .Default(true);
+}
+
 TQuerySettings::TQuerySettings()
 {
     RegisterParameter("enable_columnar_read", EnableColumnarRead)
@@ -46,6 +52,9 @@ TQuerySettings::TQuerySettings()
         .Default(true);
 
     RegisterParameter("composite", Composite)
+        .DefaultNew();
+
+    RegisterParameter("dynamic_table", DynamicTable)
         .DefaultNew();
 }
 

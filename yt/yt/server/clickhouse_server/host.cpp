@@ -88,6 +88,7 @@ static const std::vector<TString> AttributesToCache{
     "partitions",
     "partitioned_by",
     "boundary_keys",
+    "enable_dynamic_store_read",
 };
 
 static const std::vector<TString> DiscoveryAttributes{

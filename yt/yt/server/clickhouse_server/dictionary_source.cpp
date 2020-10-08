@@ -63,6 +63,7 @@ public:
             Host_,
             {Path_},
             /* skipUnsuitableNodes */ false,
+            /* enableDynamicStoreRead */ true,
             Logger).front();
 
         ValidateSchema(*table->Schema);
