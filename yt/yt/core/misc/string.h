@@ -21,9 +21,9 @@ struct TDefaultFormatter
     }
 };
 
-static constexpr TStringBuf DefaultJoinToStringDelimiter = AsStringBuf(", ");
-static constexpr TStringBuf DefaultKeyValueDelimiter = AsStringBuf(": ");
-static constexpr TStringBuf DefaultRangeEllipsisFormat = AsStringBuf("...");
+static constexpr TStringBuf DefaultJoinToStringDelimiter = ", ";
+static constexpr TStringBuf DefaultKeyValueDelimiter = ": ";
+static constexpr TStringBuf DefaultRangeEllipsisFormat = "...";
 
 //! Joins a range of items into a string intermixing them with the delimiter.
 /*!
