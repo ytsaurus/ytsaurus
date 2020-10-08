@@ -3598,8 +3598,10 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
         sync_flush_table("//tmp/t")
         sync_compact_table("//tmp/t")
 
+        settings = {"chyt.dynamic_table.enable_dynamic_store_read": 0}
+
         with Clique(instance_count, config_patch=self._get_config_patch()) as clique:
-            assert_items_equal(clique.make_query("select * from `<timestamp=%s>//tmp/t`" % ts), rows)
+            assert_items_equal(clique.make_query("select * from `<timestamp=%s>//tmp/t`" % ts, settings=settings), rows)
 
             # TODO(max42): these checks are not working for now but TBH I can't imagine
             # anybody using dynamic table timestamps in CHYT.
@@ -3632,11 +3634,44 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
             ypath_with_ts = "<timestamp={}>//tmp/t".format(ts)
 
             insert_rows("//tmp/t", rows[1500:])
+
             assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows
             assert clique.make_query("select * from `{}` order by key".format(ypath_with_ts), verbose=False) == rows[:1500]
 
             sync_freeze_table("//tmp/t")
             assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows
+
+    @authors("dakovalkov")
+    def test_enable_dynamic_store_read(self):
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        rows = [{"key": i, "value": str(i)} for i in range(30)]
+
+        create("table", "//tmp/t", attributes={"schema": schema}, force=True)
+        write_table("//tmp/t", rows)
+
+        create_dynamic_table("//tmp/dyn_on", schema=schema, enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/dyn_on")
+        insert_rows("//tmp/dyn_on", rows)
+
+        create_dynamic_table("//tmp/dyn_off", schema=schema, enable_dynamic_store_read=False)
+        sync_mount_table("//tmp/dyn_off")
+        insert_rows("//tmp/dyn_off", rows)
+
+        settings = {"chyt.dynamic_table.enable_dynamic_store_read": 0}
+
+        with Clique(2, config_patch=self._get_config_patch()) as clique:
+            assert clique.make_query("select * from `//tmp/t`") == rows
+            assert clique.make_query("select * from `//tmp/t`", settings=settings) == rows
+
+            assert clique.make_query("select * from `//tmp/dyn_on`") == rows
+            assert clique.make_query("select * from `//tmp/dyn_on`", settings=settings) == []
+
+            with pytest.raises(YtError):
+                clique.make_query("select * from `//tmp/dyn_off`")
+            assert clique.make_query("select * from `//tmp/dyn_off`", settings=settings) == []
 
 
 class TestColumnarRead(ClickHouseTestBase):

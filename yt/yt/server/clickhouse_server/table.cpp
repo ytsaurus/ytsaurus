@@ -53,6 +53,7 @@ std::vector<TTablePtr> FetchTables(
     THost* host,
     const std::vector<TRichYPath>& richPaths,
     bool skipUnsuitableNodes,
+    bool enableDynamicStoreRead,
     TLogger logger)
 {
     const auto& Logger = logger;
@@ -95,6 +96,16 @@ std::vector<TTablePtr> FetchTables(
             if (attributes->Get<bool>("dynamic", false) && !attributes->Get<TTableSchemaPtr>("schema")->IsSorted()) {
                 THROW_ERROR_EXCEPTION(
                     "Table %Qv is an ordered dynamic table; they are not supported yet (CHYT-419)",
+                    path.GetPath());
+            }
+            if (attributes->Get<bool>("dynamic", false) &&
+                enableDynamicStoreRead && !attributes->Get<bool>("enable_dynamic_store_read", false))
+            {
+                THROW_ERROR_EXCEPTION(
+                    "Dynamic store read for table %Qv is disabled; in order to read dynamic stores, "
+                    "set attribute \"enable_dynamic_store_read\" to true and remount table; "
+                    "if you indeed want to read only static part of dynamic table, "
+                    "pass setting chyt.dynamic_table.enable_dynamic_store_read = 0", 
                     path.GetPath());
             }
 

@@ -688,6 +688,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         queryContext->Host,
         {path},
         /* skipUnsuitableNodes */ false,
+        queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
         queryContext->Logger);
 
     return std::make_shared<TStorageDistributor>(

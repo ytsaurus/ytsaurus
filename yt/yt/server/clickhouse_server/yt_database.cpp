@@ -194,6 +194,7 @@ private:
                 queryContext->Host,
                 {TRichYPath::Parse(name.data())},
                 /* skipUnsuitableNodes */ false,
+                queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
                 queryContext->Logger);
 
             return CreateStorageDistributor(context, std::move(tables));

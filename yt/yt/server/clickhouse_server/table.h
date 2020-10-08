@@ -46,9 +46,9 @@ std::vector<TTablePtr> FetchTables(
     THost* host,
     const std::vector<NYPath::TRichYPath>& richPaths,
     bool skipUnsuitableNodes,
+    bool enableDynamicStoreRead,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer
-

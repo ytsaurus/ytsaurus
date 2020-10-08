@@ -419,6 +419,9 @@ private:
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
+                if (!QueryContext_->Settings->DynamicTable->EnableDynamicStoreRead) {
+                    req->set_omit_dynamic_stores(true);
+                }
                 SetTransactionId(req, NullTransactionId);
                 SetSuppressAccessTracking(req, true);
                 SetSuppressExpirationTimeoutRenewal(req, true);

@@ -4,6 +4,8 @@
 #include "storage_distributor.h"
 #include "table.h"
 
+#include <yt/server/clickhouse_server/config.h>
+
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
@@ -140,6 +142,7 @@ public:
             queryContext->Host,
             std::move(tablePaths),
             /* skipUnsuitableNodes */ false,
+            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
         return CreateStorageDistributor(context, std::move(tables));
@@ -218,6 +221,7 @@ public:
             queryContext->Host,
             std::move(itemPaths),
             /* skipUnsuitableItems */ true,
+            queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
             Logger);
 
         std::sort(tables.begin(), tables.end(), [] (const TTablePtr& lhs, const TTablePtr& rhs) {

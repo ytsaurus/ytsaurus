@@ -44,6 +44,19 @@ DEFINE_REFCOUNTED_TYPE(TCompositeSettings);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicTableSettings
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableDynamicStoreRead;
+
+    TDynamicTableSettings();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicTableSettings);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! This class will be accessible either via settings or via default_settings.
 class TQuerySettings
     : public NYTree::TYsonSerializable
@@ -69,6 +82,8 @@ public:
     bool InferDynamicTableRangesFromPivotKeys;
 
     TCompositeSettingsPtr Composite;
+
+    TDynamicTableSettingsPtr DynamicTable;
 
     TQuerySettings();
 };
