@@ -593,8 +593,8 @@ TNode MakeProtoFormatFieldConfig(
 
     if (fieldDescriptor->type() == FieldDescriptor::TYPE_ENUM) {
         auto* enumeration = fieldDescriptor->enum_type();
-        (*enumerations)[enumeration->name()] = MakeEnumerationConfig(enumeration);
-        fieldConfig["enumeration_name"] = enumeration->name();
+        (*enumerations)[enumeration->full_name()] = MakeEnumerationConfig(enumeration);
+        fieldConfig["enumeration_name"] = enumeration->full_name();
     }
 
     if (fieldOptions.SerializationMode != EProtobufSerializationMode::Yt) {
