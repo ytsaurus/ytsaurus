@@ -301,7 +301,7 @@ TUnversionedValueToSkiffConverter CreateComplexValueConverter(
             // NB. value.Type might be EValueType::Any if user has used override_intermediate_table_schema
             input.Reset(value.Data.String, value.Length);
         } else if (value.Type == EValueType::Null) {
-            static const auto empty = AsStringBuf("#");
+            static const TStringBuf empty = "#";
             input.Reset(empty.Data(), empty.Size());
         } else {
             THROW_ERROR_EXCEPTION("Internal error; unexpected value type: expected %Qlv or %Qlv, actual %Qlv",

@@ -74,9 +74,9 @@ private:
     std::unique_ptr<NJson::IJsonConsumer> AnyWriter_;
 
 public:
-    static constexpr auto KeyValue = AsStringBuf("val");
-    static constexpr auto KeyIncomplete = AsStringBuf("inc");
-    static constexpr auto KeyBase64 = AsStringBuf("b64");
+    static constexpr TStringBuf KeyValue = "val";
+    static constexpr TStringBuf KeyIncomplete = "inc";
+    static constexpr TStringBuf KeyBase64 = "b64";
 
 private:
     void OnStringScalarImpl(TStringBuf value, bool incomplete = false, bool base64 = false);

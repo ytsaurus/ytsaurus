@@ -41,8 +41,8 @@ namespace {
 
 TString NormalizeHttpProxyUrl(TString url)
 {
-    const auto CanonicalPrefix = AsStringBuf("http://");
-    const auto CanonicalSuffix = AsStringBuf(".yt.yandex.net");
+    const TStringBuf CanonicalPrefix = "http://";
+    const TStringBuf CanonicalSuffix = ".yt.yandex.net";
 
     if (url.find('.') == TString::npos &&
         url.find(':') == TString::npos &&
@@ -271,7 +271,7 @@ void TConnection::OnProxyListUpdate()
             } else {
                 YT_LOG_DEBUG("Updating proxy list from RPC (ProxyRole: %v)",
                     Config_->ProxyRole);
-                
+
                 attributes->Set("rpc_proxy_addresses", Config_->ProxyAddresses);
 
                 if (!DiscoveryChannel_) {
