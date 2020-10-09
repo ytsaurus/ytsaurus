@@ -2684,7 +2684,7 @@ class TestQueryRegistry(ClickHouseTestBase):
         assert_no_error()
         assert_in_error(config_patch={"yt": {"memory_watchdog": {"memory_limit": 10 * 1024**3, "period": 50,
                                                                  "codicil_watermark": 8 * 1024**3}}},
-                        message="OOM", allocation_size=oom_allocation_size)
+                        message="because memory usage", allocation_size=oom_allocation_size)
         assert_no_error(config_patch={"yt": {"memory_watchdog": {"memory_limit": 10 * 1024**3, "period": 50,
                                                                  "window_codicil_watermark": 8 * 1024**3,
                                                                  "window_width": 200}}},

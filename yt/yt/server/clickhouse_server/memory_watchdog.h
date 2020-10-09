@@ -27,7 +27,9 @@ private:
     std::deque<std::pair<TInstant, size_t>> WindowRssValues_;
 
     void CheckMemoryUsage();
-    [[noreturn]] void KillSelf(TString reason, bool graceful);
+    void CheckRss(size_t rss);
+    void CheckMinimumWindowRss(size_t minimumWindowRss);
+    void DumpRefCountedTracker();
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryWatchdog)

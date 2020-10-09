@@ -127,7 +127,7 @@ TMemoryWatchdogConfig::TMemoryWatchdogConfig()
     RegisterParameter("window_codicil_watermark", WindowCodicilWatermark)
         .Default(0);
     RegisterParameter("window_width", WindowWidth)
-        .Default(TDuration::Hours(1));
+        .Default(TDuration::Minutes(15));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
