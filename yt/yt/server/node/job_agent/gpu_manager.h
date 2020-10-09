@@ -84,7 +84,15 @@ private:
     TAdaptiveLock SpinLock_;
     THashMap<int, TGpuInfo> HealthyGpuInfoMap_;
     std::vector<TGpuSlot> FreeSlots_;
-    bool Disabled_ = false;
+    bool Enabled_ = true;
+
+    // Error for problems with GPU discovery.
+    TError Error_;
+
+    // Alerts for concrete GPU devices.
+    std::vector<TError> Alerts_;
+
+    TInstant BannedDeadline_ = TInstant::Zero();
 
     NYPath::TYPath DriverLayerPath_;
     NHydra::TRevision DriverLayerRevision_ = 0;
@@ -96,6 +104,7 @@ private:
     void OnHealthCheck();
     void OnFetchDriverLayerInfo();
     bool IsDriverLayerMissing() const;
+    void PopulateAlerts(std::vector<TError>* alerts) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuManager)
