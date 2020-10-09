@@ -4710,6 +4710,7 @@ void TOperationControllerBase::DoUpdateMinNeededJobResources()
 
     for (const auto& task : Tasks) {
         if (task->GetPendingJobCount() == 0) {
+            UpdateTask(task);
             continue;
         }
 
