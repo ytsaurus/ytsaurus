@@ -214,7 +214,7 @@ private:
     ETransactionState State_ = ETransactionState::Active;
     const TPromise<void> AbortPromise_ = NewPromise<void>();
     std::vector<NApi::ITransactionPtr> AlienTransactions_;
-    
+
     THashSet<NObjectClient::TCellId> AdditionalParticipantCellIds_;
 
     TApiServiceProxy::TReqBatchModifyRowsPtr BatchModifyRowsRequest_;

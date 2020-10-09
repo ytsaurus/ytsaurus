@@ -49,7 +49,7 @@ private:
     NTableClient::IValueConsumer* const Consumer_;
     const bool AllowUnknownColumns_;
     const NTableClient::TNameTablePtr NameTable_;
-    
+
     NTableClient::TYsonToUnversionedValueConverter ColumnConsumer_;
     bool InsideValue_ = false;
 };

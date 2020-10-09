@@ -39,7 +39,7 @@ public:
         YT_VERIFY(ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK());
 
         auto batch = CreateBatchFromUnversionedRows(TSharedRange<TUnversionedRow>(rows, nullptr));
-        
+
         auto block = Encoder_->Encode(batch, nullptr);
 
         ReadyEvent_ = NewPromise<void>();

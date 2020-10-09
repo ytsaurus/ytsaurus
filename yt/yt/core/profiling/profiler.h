@@ -74,10 +74,10 @@ public:
         const NYPath::TYPath& path,
         const TTagIdList& tagIds,
         TDuration interval);
-    
+
     TCounterBase(const TCounterBase& other);
     TCounterBase& operator = (const TCounterBase& other);
-    
+
     TCpuInstant GetUpdateDeadline() const;
 
 protected:
@@ -121,7 +121,7 @@ public:
         const TTagIdList& tagIds,
         EAggregateMode mode,
         TDuration interval);
-    
+
     TShardedAggregateGaugeBase(const TShardedAggregateGaugeBase& other);
     TShardedAggregateGaugeBase& operator = (const TShardedAggregateGaugeBase& other);
 
@@ -169,7 +169,7 @@ protected:
 /*!
  *  Used to measure aggregates (min, max, avg) of a rapidly changing value.
  *  The values are aggregated over the time intervals specified in the constructor.
- * 
+ *
  *  Internally implemented as a sharded collection of per-core counters.
  *  Scales well in case of concurrent access.
  *  The stored value is somewhat racy and is not serializable.
@@ -185,7 +185,7 @@ public:
         const TTagIdList& tagIds = {},
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = DefaultInterval);
-    
+
     TShardedAggregateGauge(const TShardedAggregateGauge& other);
     TShardedAggregateGauge& operator = (const TShardedAggregateGauge& other);
 
@@ -201,10 +201,10 @@ public:
 /*!
  *  Internally implemented as a sharded collection of per-core counters plus
  *  a designated current atomic value.
- * 
+ *
  *  Slower than TShardedAggregateGauge and does not scale in case of concurrent access.
  *  The stored value is serializable.
- * 
+ *
  *  Each instance of TAtomicShardedAggregateGauge costs ~1Kb on heap.
  */
 class TAtomicShardedAggregateGauge
@@ -216,7 +216,7 @@ public:
         const TTagIdList& tagIds = {},
         EAggregateMode mode = EAggregateMode::Max,
         TDuration interval = DefaultInterval);
-    
+
     TAtomicShardedAggregateGauge(const TAtomicShardedAggregateGauge& other);
     TAtomicShardedAggregateGauge& operator = (const TAtomicShardedAggregateGauge& other);
 
@@ -235,14 +235,14 @@ private:
 //! A counter optimized for high-rate increments.
 /*!
  *  Typically used for handling non-negative increments (hence the name).
- *  
+ *
  *  Passing negative deltas is supported by not encouraged since in
  *  case of a jitter it is impossible to observe it by looking at profiling data.
  *
  *  Internally implemented as a sharded collection of per-core counters.
  *  Scales well in case of concurrent access.
  *  The stored value is somewhat racy and is not serializable.
- * 
+ *
  *  Each instance of TShardedMonotonicCounter costs ~1Kb on heap.
  */
 class TShardedMonotonicCounter
@@ -253,7 +253,7 @@ public:
         const NYPath::TYPath& path = {},
         const TTagIdList& tagIds = {},
         TDuration interval = DefaultInterval);
-    
+
     TShardedMonotonicCounter(const TShardedMonotonicCounter& other);
     TShardedMonotonicCounter& operator = (const TShardedMonotonicCounter& other);
 
@@ -284,7 +284,7 @@ private:
 //! A gauge storing just a single value.
 /*!
  *  Exports the value as-is, w/o aggregation.
- * 
+ *
  *  Does not scale in case of concurrent access.
  *  The stored value is serializable.
  *
@@ -298,7 +298,7 @@ public:
         const NYPath::TYPath& path = {},
         const TTagIdList& tagIds = {},
         TDuration interval = DefaultInterval);
-    
+
     TAtomicGauge(const TAtomicGauge& other);
     TAtomicGauge& operator = (const TAtomicGauge& other);
 

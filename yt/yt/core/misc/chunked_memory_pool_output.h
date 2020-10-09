@@ -27,7 +27,7 @@ private:
 private:
     TChunkedMemoryPool* const Pool_;
     const size_t ChunkSize_;
-    
+
     char* Begin_ = nullptr;
     char* Current_ = nullptr;
     char* End_ = nullptr;

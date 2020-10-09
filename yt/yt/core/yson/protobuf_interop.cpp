@@ -2239,7 +2239,7 @@ private:
                             TypeStack_.emplace_back(field->GetMessageType());
                             if (!IsYsonMapEntry()) {
                                 OnBeginMap();
-                            }                
+                            }
                         }
                         break;
                     }

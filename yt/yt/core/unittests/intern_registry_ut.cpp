@@ -62,7 +62,7 @@ TEST(TInternRegistry, Default)
     EXPECT_EQ(0, registry->GetSize());
 
     auto s1 = TInternedString();
- 
+
     auto s2 = registry->Intern(TString());
     EXPECT_EQ(0, registry->GetSize());
 

@@ -1366,7 +1366,7 @@ std::vector<TSharedRef> SerializeRowset(
         auto* entry = descriptor->add_name_table_entries();
         entry->set_name(TString(nameTable->GetName(id)));
     }
-    
+
     TWireProtocolWriter writer;
     writer.WriteUnversionedRowset(rows);
     return writer.Finish();
@@ -1382,7 +1382,7 @@ std::vector<TSharedRef> SerializeRowset(
     descriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
     descriptor->set_rowset_kind(TRowsetTraits<TRow>::Kind);
     ToProto(descriptor->mutable_schema(), schema);
-    
+
     // COMPAT(babenko)
     for (const auto& column : schema.Columns()) {
         auto* entry = descriptor->add_name_table_entries();
@@ -1399,7 +1399,7 @@ std::vector<TSharedRef> SerializeRowset(
         // COMPAT(babenko)
         entry->set_logical_type(ToProto<int>(*column.SimplifiedLogicalType()));
     }
-    
+
     TWireProtocolWriter writer;
     writer.WriteRowset(rows);
     return writer.Finish();
@@ -1471,15 +1471,15 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
         THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
             NApi::NRpcProxy::NProto::ERowsetFormat_Name(descriptor.rowset_format()));
     }
-   
+
     ValidateRowsetDescriptor(
         descriptor,
         NApi::NRpcProxy::CurrentWireFormatVersion,
         TRowsetTraits<TRow>::Kind);
-    
+
     struct TDeserializedRowsetTag { };
     TWireProtocolReader reader(data, New<TRowBuffer>(TDeserializedRowsetTag()));
-    
+
     auto schema = DeserializeRowsetSchema(descriptor);
     auto rows = ReadRows<TRow>(&reader, *schema);
     return NApi::CreateRowset(std::move(schema), std::move(rows));

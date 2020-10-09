@@ -188,7 +188,7 @@ private:
                     return channel;
                 }
             }
-            
+
             WeakChannelMap_.emplace(address, wrappedChannel);
             StrongChannelMap_.emplace(address, wrappedChannel);
             RegisterChannelForTtlChecks(address, wrappedChannel);

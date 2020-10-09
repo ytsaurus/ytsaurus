@@ -32,7 +32,7 @@ struct TFixedMessageHeader
 struct TSerializedMessageTag
 { };
 
-struct TAdjustedMemoryZoneMessageTag 
+struct TAdjustedMemoryZoneMessageTag
 { };
 
 namespace {
@@ -275,9 +275,9 @@ TSharedRefArray AdjustMessageMemoryZone(
         message.Size(),
         bytesToCopy,
         GetRefCountedTypeCookie<TAdjustedMemoryZoneMessageTag>());
-    
+
     NYTAlloc::TMemoryZoneGuard guard(memoryZone);
-    
+
     for (int index = 0; index < std::min(static_cast<int>(message.Size()), 2); ++index) {
         builder.Add(message[index]);
     }

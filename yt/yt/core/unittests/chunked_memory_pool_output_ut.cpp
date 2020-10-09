@@ -24,7 +24,7 @@ TEST(TChunkedMemoryPoolOutputTest, Basic)
     char* buf;
     auto len = output.Next(&buf);
     output.Undo(len);
-    
+
     auto chunks = output.FinishAndGetRefs();
     TString s;
     for (auto chunk : chunks) {

@@ -21,21 +21,21 @@ TEST(TSimpleLruCache, Common)
     EXPECT_EQ(cache.Get("b"), 2);
 
     cache.Insert("c", 3);
-    
+
     EXPECT_FALSE(cache.Find("a"));
     EXPECT_TRUE(cache.Find("b"));
     EXPECT_TRUE(cache.Find("c"));
     EXPECT_EQ(cache.Get("b"), 2);
     EXPECT_EQ(cache.Get("c"), 3);
-    
+
     cache.Insert("b", 4);
-    
+
     EXPECT_FALSE(cache.Find("a"));
     EXPECT_TRUE(cache.Find("b"));
     EXPECT_TRUE(cache.Find("c"));
     EXPECT_EQ(cache.Get("c"), 3);
     EXPECT_EQ(cache.Get("b"), 4);
-    
+
     cache.Insert("a", 5);
 
     EXPECT_TRUE(cache.Find("a"));

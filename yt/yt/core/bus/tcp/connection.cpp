@@ -395,7 +395,7 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
 void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
 {
     DialerSession_.Reset();
-    
+
     if (!socketOrError.IsOK()) {
         Abort(TError(
             NBus::EErrorCode::TransportError,
@@ -404,7 +404,7 @@ void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
             << socketOrError);
         return;
     }
-    
+
     {
         auto guard = Guard(Lock_);
 

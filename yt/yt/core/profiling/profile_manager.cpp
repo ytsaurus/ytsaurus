@@ -466,7 +466,7 @@ private:
     TPeriodicExecutorPtr DequeueExecutor_;
 
     const IMapNodePtr Root_;
-    
+
     TShardedMonotonicCounter EnqueuedCounter_{"/enqueued"};
     TShardedMonotonicCounter DequeuedCounter_{"/dequeued"};
     TShardedMonotonicCounter DroppedCounter_{"/dropped"};

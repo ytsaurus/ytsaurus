@@ -24,7 +24,7 @@ public:
     explicit TWireRowStreamEncoder(TNameTablePtr nameTable)
         : NameTable_(std::move(nameTable))
     { }
-    
+
     virtual TSharedRef Encode(
         const IUnversionedRowBatchPtr& batch,
         const NApi::NRpcProxy::NProto::TRowsetStatistics* statistics) override
@@ -40,7 +40,7 @@ public:
             entry->set_name(TString(NameTable_->GetName(id)));
         }
         NameTableSize_ += descriptor.name_table_entries_size();
-        
+
         TWireProtocolWriter writer;
         auto rows = batch->MaterializeRows();
         writer.WriteUnversionedRowset(rows);
@@ -90,10 +90,10 @@ public:
 
         auto oldNameTableSize = Descriptor_.name_table_entries_size();
         YT_VERIFY(oldNameTableSize <= NameTable_->GetSize());
-        
+
         Descriptor_.MergeFrom(descriptorDelta);
         auto newNameTableSize = Descriptor_.name_table_entries_size();
-        
+
         IdMapping_.resize(newNameTableSize);
         for (int id = oldNameTableSize; id < newNameTableSize; ++id) {
             const auto& name = Descriptor_.name_table_entries(id).name();

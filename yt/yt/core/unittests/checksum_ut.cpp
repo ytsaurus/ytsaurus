@@ -110,7 +110,7 @@ TEST(TChecksumTest, TestStreams)
         outputStream.Write(TStringBuf(test.Data));
     }
     auto outputChecksum = outputStream.GetChecksum();
-    
+
     auto memoryInputStream = TMemoryInput(blob.Begin(), blob.Size());
     auto inputStream = TChecksumInput(&memoryInputStream);
     char v;

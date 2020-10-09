@@ -37,7 +37,7 @@ std::tuple<TSharedRef, TMutableRef> SerializeRowStreamBlockEnvelope(
     i64 totalSize = 0;
     totalSize += sizeof (i32); // partCount
     totalSize += sizeof (i64) * 2; // partLength * 2
-    totalSize += descriptor.ByteSize(); // descriptor 
+    totalSize += descriptor.ByteSize(); // descriptor
     totalSize += payloadSize;
     if (statistics) {
         totalSize += sizeof (i32); // partCount
@@ -49,7 +49,7 @@ std::tuple<TSharedRef, TMutableRef> SerializeRowStreamBlockEnvelope(
     auto block = TSharedMutableRef::Allocate<TSerializedRowStreamBlockTag>(totalSize, false);
 
     char* current = block.Begin();
-    
+
     auto writeInt32 = [&] (i32 value) {
         *reinterpret_cast<i32*>(current) = value;
         current += sizeof (i32);
@@ -63,7 +63,7 @@ std::tuple<TSharedRef, TMutableRef> SerializeRowStreamBlockEnvelope(
     TMutableRef payloadRef;
     auto skipPayload = [&] {
         payloadRef = TMutableRef(current, current + payloadSize);
-        current += payloadSize;  
+        current += payloadSize;
     };
 
     auto writeProto = [&] (const auto& proto) {

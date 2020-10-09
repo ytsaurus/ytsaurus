@@ -178,7 +178,7 @@ public:
         }
 
         auto poolId = poolIt->second;
-        const auto& pool = IdToPool_[poolId]; 
+        const auto& pool = IdToPool_[poolId];
 
         pool->Weight = weight;
         auto [bucketIt, bucketInserted] = pool->TagToBucket.emplace(tag, nullptr);
@@ -230,7 +230,7 @@ public:
         TGuard<TAdaptiveLock> guard(SpinLock_);
 
         auto& pool = IdToPool_[bucket->PoolId];
-        
+
         auto it = pool->TagToBucket.find(bucket->Tag);
         if (it != pool->TagToBucket.end() && it->second.IsExpired()) {
             pool->TagToBucket.erase(it);
@@ -402,7 +402,7 @@ private:
         }
 
         const TString PoolName;
-        
+
         TShardedAggregateGauge BucketCounter;
         TAtomicShardedAggregateGauge SizeCounter;
         TShardedAggregateGauge WaitTimeCounter;

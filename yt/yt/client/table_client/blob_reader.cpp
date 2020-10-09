@@ -68,12 +68,12 @@ public:
     {
         if (!Batch_ || Index_ >= Batch_->GetRowCount()) {
             Index_ = 0;
-            
+
             NTableClient::TRowBatchReadOptions options{
                 .MaxRowsPerRead = 1
             };
             Batch_ = Reader_->Read(options);
-            
+
             if (!Batch_) {
                 return MakeFuture<TSharedRef>(TSharedRef());
             }

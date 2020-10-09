@@ -34,7 +34,7 @@ public:
 private:
     const NConcurrency::TPeriodicExecutorPtr Executor_;
     const NProfiling::TProfiler Profiler_{"/ref_counted_tracker"};
-    
+
     void OnProfiling()
     {
         auto statistics = TRefCountedTracker::Get()->GetStatistics().TotalStatistics;

@@ -128,7 +128,7 @@ void TAttachmentsInputStream::DoEnqueuePayload(
         auto promise = std::move(Promise_);
 
         ReadPosition_ += entry.CompressedSize;
-        
+
         if (!entry.Attachment) {
             YT_VERIFY(!Closed_);
             Closed_ = true;
@@ -418,7 +418,7 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
 
     std::vector<TPromise<void>> promises;
     promises.reserve(ConfirmationQueue_.size());
-    
+
     while (!ConfirmationQueue_.empty() &&
             ConfirmationQueue_.front().Position <= ReadPosition_ + WindowSize_)
     {
@@ -591,10 +591,10 @@ TRpcClientOutputStream::TRpcClientOutputStream(
     , FeedbackEnabled_(feedbackEnabled)
 {
     YT_VERIFY(Request_);
-    
+
     Underlying_ = Request_->GetRequestAttachmentsStream();
     YT_VERIFY(Underlying_);
-    
+
     FeedbackStream_ = Request_->GetResponseAttachmentsStream();
     YT_VERIFY(FeedbackStream_);
 
@@ -655,7 +655,7 @@ void TRpcClientOutputStream::AbortOnError(const TError& error)
 
     std::vector<TPromise<void>> promises;
     promises.reserve(ConfirmationQueue_.size());
-    
+
     while (!ConfirmationQueue_.empty()) {
         promises.push_back(std::move(ConfirmationQueue_.front()));
         ConfirmationQueue_.pop();
@@ -774,7 +774,7 @@ void HandleInputStreamingRequest(
 
     auto outputStream = context->GetResponseAttachmentsStream();
     YT_VERIFY(outputStream);
-    
+
     while (auto block = blockGenerator()) {
         WaitFor(outputStream->Write(block))
             .ThrowOnError();
@@ -782,7 +782,7 @@ void HandleInputStreamingRequest(
 
     WaitFor(outputStream->Close())
         .ThrowOnError();
-    
+
     context->Reply(TError());
 };
 
@@ -833,7 +833,7 @@ void HandleOutputStreamingRequest(
     } else {
         WaitFor(outputStream->Close())
             .ThrowOnError();
-        
+
         while (auto block = blockGenerator()) {
             blockHandler(std::move(block));
         }

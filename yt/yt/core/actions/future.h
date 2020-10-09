@@ -228,7 +228,7 @@ public:
      *  (passing the value as a parameter).
      *
      *  \returns a cookie that can later be passed to #Unsubscribe to remove the handler.
-     * 
+     *
      *  \note
      *  If the value is set before the call to #Subscribe, then
      *  #callback gets called synchronously. In this case the returned
