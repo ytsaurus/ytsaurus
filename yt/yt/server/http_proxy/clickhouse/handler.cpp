@@ -5,6 +5,7 @@
 
 #include <yt/server/http_proxy/bootstrap.h>
 #include <yt/server/http_proxy/coordinator.h>
+#include <yt/server/http_proxy/http_authenticator.h>
 
 #include <yt/ytlib/security_client/permission_cache.h>
 
@@ -299,7 +300,9 @@ private:
 
     std::optional<size_t> JobCookie_;
 
-    TString Token_;
+    // Legacy token is provided via basic auth header ("Authorization: Basic <Token>") or via cgi parameter "password".
+    // If empty, the authentication will be performed via OAuth or Cookie.
+    TString LegacyToken_;
     TString User_;
     TString InstanceId_;
     TString InstanceHost_;
@@ -334,35 +337,28 @@ private:
         RequestErrors_.emplace_back(error);
     }
 
-    void ParseTokenFromAuthorizationHeader(const TString& authorization)
+    void ParseTokenFromBasicAuthorizationHeader(const TString& authorization)
     {
-        YT_LOG_DEBUG("Parsing token from Authorization header");
-        // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
-        auto authorizationTypeAndCredentials = SplitString(authorization, " ", 2);
-        const auto& authorizationType = authorizationTypeAndCredentials[0];
-        if (authorizationType == "OAuth" && authorizationTypeAndCredentials.size() == 2) {
-            Token_ = authorizationTypeAndCredentials[1];
-        } else if (authorizationType == "Basic" && authorizationTypeAndCredentials.size() == 2) {
-            const auto& credentials = authorizationTypeAndCredentials[1];
-            auto fooAndToken = SplitString(Base64Decode(credentials), ":", 2);
-            if (fooAndToken.size() == 2) {
-                // First component (that should be username) is ignored.
-                Token_ = fooAndToken[1];
-            } else {
-                ReplyWithError(
-                    EStatusCode::Unauthorized,
-                    TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected"));
-                return;
-            }
+        static const TStringBuf basicHeaderPrefix = "Basic ";
+        if (!authorization.StartsWith(basicHeaderPrefix)) {
+            // OAuth authorization is handled in THttpAuthenticator.
+            return;
+        }
+
+        YT_LOG_DEBUG("Parsing token from Basic Authorization header");
+        // "authorization" format is "Basic <base64(username:oauth-token)>"
+        const auto& credentials = authorization.substr(basicHeaderPrefix.size());
+        auto fooAndToken = SplitString(Base64Decode(credentials), ":", 2);
+        if (fooAndToken.size() == 2) {
+            // First component (that should be username) is ignored.
+            LegacyToken_ = fooAndToken[1];
         } else {
             ReplyWithError(
                 EStatusCode::Unauthorized,
-                TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
-                    authorizationType,
-                    authorizationTypeAndCredentials.size()));
+                TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected"));
             return;
         }
-        YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
+        YT_LOG_DEBUG("Token parsed (AuthorizationType: Basic)");
     }
 
     bool TryProcessHeaders()
@@ -370,9 +366,9 @@ private:
         try {
             const auto* authorization = Request_->GetHeaders()->Find("Authorization");
             if (authorization && !authorization->empty()) {
-                ParseTokenFromAuthorizationHeader(*authorization);
+                ParseTokenFromBasicAuthorizationHeader(*authorization);
             } else if (CgiParameters_.Has("password")) {
-                Token_ = CgiParameters_.Get("password");
+                LegacyToken_ = CgiParameters_.Get("password");
                 CgiParameters_.EraseAll("password");
                 CgiParameters_.EraseAll("user");
             } else if (const auto* user = Request_->GetHeaders()->Find("X-Yt-User")) {
@@ -402,22 +398,22 @@ private:
             return true;
         }
 
-        if (Token_.Empty()) {
-            ReplyWithError(EStatusCode::Unauthorized,
-                TError(
-                    "Authorization should be perfomed either by setting `Authorization` header (`Basic` or `OAuth` schemes) "
-                    "or `password` CGI parameter"));
-            return false;
-        }
-
         try {
-            NAuth::TTokenCredentials credentials;
-            credentials.Token = Token_;
-
+            
             PROFILE_AGGREGATED_TIMING(Metrics_.AuthenticateTime) {
-                User_ = WaitFor(Bootstrap_->GetTokenAuthenticator()->Authenticate(credentials))
-                    .ValueOrThrow()
-                    .Login;
+                if (LegacyToken_.Empty()) {
+                    // Csrf token check is useless since GET requests can modify data. Disable it for convenience.
+                    User_ = Bootstrap_->GetHttpAuthenticator()->Authenticate(Request_, /* disableCsrfTokenCheck */ true)
+                        .ValueOrThrow()
+                        .Result.Login;
+                } else {
+                    NAuth::TTokenCredentials credentials;
+                    credentials.Token = LegacyToken_;
+
+                    User_ = WaitFor(Bootstrap_->GetTokenAuthenticator()->Authenticate(credentials))
+                        .ValueOrThrow()
+                        .Login;
+                }
             }
 
             YT_LOG_DEBUG("User authenticated (User: %v)", User_);
@@ -490,8 +486,6 @@ private:
                 << ex);
             return false;
         }
-
-        YT_LOG_DEBUG("Discovery is ready");
 
         return true;
     }
