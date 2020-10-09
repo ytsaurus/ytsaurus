@@ -399,12 +399,17 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
 
     // NB: Some categories can have no explicit limit.
     // Therefore we need bound memory limit by actually available memory.
+    auto getUsedMemory = [&] (EMemoryCategory category) {
+        return std::max<i64>(
+            0,
+            memoryUsageTracker->GetUsed(category) + memoryUsageTracker->GetTotalFree() - Config_->FreeMemoryWatermark);
+    };
     result.set_user_memory(std::min(
         memoryUsageTracker->GetLimit(EMemoryCategory::UserJobs),
-        memoryUsageTracker->GetUsed(EMemoryCategory::UserJobs) + memoryUsageTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
+        getUsedMemory(EMemoryCategory::UserJobs)));
     result.set_system_memory(std::min(
         memoryUsageTracker->GetLimit(EMemoryCategory::SystemJobs),
-        memoryUsageTracker->GetUsed(EMemoryCategory::SystemJobs) + memoryUsageTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
+        getUsedMemory(EMemoryCategory::SystemJobs)));
 
     const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
     result.set_cpu(nodeResourceManager->GetJobsCpuLimit());
