@@ -1,4 +1,4 @@
-import java.io.{File, FileInputStream, InputStreamReader}
+import java.io.{File, FileInputStream, FilenameFilter, InputStreamReader}
 import java.util.Properties
 
 import com.typesafe.sbt.packager.linux.LinuxPackageMapping
@@ -129,6 +129,10 @@ object SparkPackagePlugin extends AutoPlugin {
 
       if (rebuildSpark) {
         buildSpark(sparkHome.value.toString)
+      } else {
+        FileUtils.deleteFiles(sparkDist / "jars", new FilenameFilter {
+          override def accept(dir: File, name: String): Boolean = name.startsWith("spark-yt-")
+        })
       }
 
       sparkAdditionalJars.value.foreach { file =>
