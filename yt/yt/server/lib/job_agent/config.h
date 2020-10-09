@@ -84,6 +84,8 @@ public:
     TDuration HealthCheckTimeout;
     TDuration HealthCheckPeriod;
 
+    TDuration HealthCheckFailureBackoff;
+
     std::optional<TShellCommandConfigPtr> JobSetupCommand;
 
     std::optional<NYPath::TYPath> DriverLayerDirectoryPath;
@@ -110,6 +112,8 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("health_check_period", HealthCheckPeriod)
             .Default(TDuration::Seconds(10));
+        RegisterParameter("health_check_failure_backoff", HealthCheckFailureBackoff)
+            .Default(TDuration::Minutes(10));
 
         RegisterParameter("job_setup_command", JobSetupCommand)
             .Default();

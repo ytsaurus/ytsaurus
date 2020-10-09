@@ -139,11 +139,18 @@ TGpuManager::TGpuManager(
     if (!Config_->TestResource) {
         HealthCheckExecutor_->Start();
     }
+
+    Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(
+        BIND(&TGpuManager::PopulateAlerts, MakeStrong(this)));
 }
 
 void TGpuManager::OnHealthCheck()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
+
+    if (TInstant::Now() < BannedDeadline_) {
+        return;
+    }
 
     try {
         auto gpuInfos = GetGpuInfos(Config_->HealthCheckTimeout);
@@ -159,7 +166,7 @@ void TGpuManager::OnHealthCheck()
         std::vector<TError> newAlerts;
 
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             auto now = TInstant::Now();
 
@@ -192,20 +199,21 @@ void TGpuManager::OnHealthCheck()
             }
 
             FreeSlots_ = std::move(healthySlots);
+            
+            Enabled_ = true;
+            Error_ = TError();
+            Alerts_ = newAlerts;
         }
-
-        for (const auto& alert: newAlerts) {
-            Bootstrap_->GetMasterConnector()->RegisterAlert(alert);
-        }
-
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(ex, "Failed to get healthy GPU devices");
-        Bootstrap_->GetMasterConnector()->RegisterAlert(TError("All GPU devices are disabled")
-            << ex);
-        HealthCheckExecutor_->Stop();
+        BannedDeadline_ = TInstant::Now() + Config_->HealthCheckFailureBackoff;
 
-        TGuard<TAdaptiveLock> guard(SpinLock_);
-        Disabled_ = true;
+        {
+            auto guard = Guard(SpinLock_);
+            Enabled_ = false;
+            Error_ = TError("All GPU devices are disabled")
+                << ex;
+        }
     }
 }
 
@@ -243,7 +251,7 @@ int TGpuManager::GetTotalGpuCount() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
-    return Disabled_ || IsDriverLayerMissing() ? 0 : HealthyGpuInfoMap_.size();
+    return !Enabled_ || IsDriverLayerMissing() ? 0 : HealthyGpuInfoMap_.size();
 }
 
 int TGpuManager::GetFreeGpuCount() const
@@ -251,7 +259,7 @@ int TGpuManager::GetFreeGpuCount() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
-    return Disabled_ || IsDriverLayerMissing() ? 0 : FreeSlots_.size();
+    return !Enabled_ || IsDriverLayerMissing() ? 0 : FreeSlots_.size();
 }
 
 THashMap<int, TGpuInfo> TGpuManager::GetGpuInfoMap() const
@@ -419,6 +427,19 @@ void TGpuManager::VerifyToolkitDriverVersion(const TString& toolkitVersion)
             toolkitVersion,
             minVersionString,
             DriverVersionString_);
+    }
+}
+
+void TGpuManager::PopulateAlerts(std::vector<TError>* alerts) const
+{
+    auto guard = Guard(SpinLock_);
+
+    if (!Error_.IsOK()) {
+        alerts->push_back(Error_);
+    }
+
+    for (const auto& alert : Alerts_) {
+        alerts->push_back(alert);
     }
 }
 
