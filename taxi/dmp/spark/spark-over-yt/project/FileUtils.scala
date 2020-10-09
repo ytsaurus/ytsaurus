@@ -1,3 +1,5 @@
+import java.io.FilenameFilter
+
 import sbt._
 
 import scala.annotation.tailrec
@@ -29,6 +31,11 @@ object FileUtils {
         inner(List(dir))
       }
     }
+  }
+
+  def deleteFiles(dir: File, filter: FilenameFilter): Unit = {
+    println(dir.listFiles(filter).map(_.getPath).mkString(", "))
+    dir.listFiles(filter).foreach(IO.delete)
   }
 
   def copyDirectory(src: File, dst: File, ignore: Set[String]): Unit = {
