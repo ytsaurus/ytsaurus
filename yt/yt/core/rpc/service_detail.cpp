@@ -1124,7 +1124,7 @@ void TServiceBase::HandleAuthenticatedRequest(
 void TServiceBase::HandleRequestCancelation(TRequestId requestId)
 {
     SetActive();
-    
+
     auto context = FindRequest(requestId);
     if (!context) {
         YT_LOG_DEBUG("Received cancelation for an unknown request, ignored (RequestId: %v)",
@@ -1616,7 +1616,7 @@ void TServiceBase::Configure(TServiceConfigPtr config)
             descriptor.SetConcurrencyLimit(methodConfig->ConcurrencyLimit);
             descriptor.SetLogLevel(methodConfig->LogLevel);
             descriptor.SetLoggingSuppressionTimeout(methodConfig->LoggingSuppressionTimeout);
-            
+
             if (methodConfig->RequestBytesThrottler) {
                 runtimeInfo->RequestBytesThrottler->Reconfigure(
                     methodConfig->RequestBytesThrottler);

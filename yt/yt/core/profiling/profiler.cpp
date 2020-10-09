@@ -97,7 +97,7 @@ bool TCounterBase::CheckAndPromoteUpdateDeadline(TTscp tscp, bool forceEnqueue)
     if (!Deadline_.compare_exchange_strong(currentDeadline, newDeadline, std::memory_order_relaxed) && !forceEnqueue) {
         return false;
     }
-    
+
     return true;
 }
 
@@ -130,7 +130,7 @@ void TShardedAggregateGaugeBase::UpdateShards(TValue value, TTscp tscp)
     auto& shard = DynamicData_->Shards[tscp.ProcessorId];
 
     shard.Count += 1;
-    
+
     if (Mode_ == EAggregateMode::All || Mode_ == EAggregateMode::Avg) {
         shard.Sum += value;
     }
@@ -239,7 +239,7 @@ TValue TShardedAggregateGauge::GetCurrent() const
         }
     }
     return latestCurrent;
-}   
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -593,7 +593,7 @@ bool TProfiler::OnCounterUpdatedPrologue(T& counter, TTscp tscp) const
     if (!counter.CheckAndPromoteUpdateDeadline(tscp, ForceEnqueue_)) {
         return false;
     }
-    
+
     return true;
 }
 

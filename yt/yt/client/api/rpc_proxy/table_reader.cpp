@@ -83,7 +83,7 @@ public:
         if (!Finished_) {
             ReadyEvent_ = NewPromise<void>();
         }
-        
+
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
         i64 dataWeight = 0;
@@ -200,7 +200,7 @@ private:
                 NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
                 NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
                 auto payloadRef = DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
-                
+
                 ValidateRowsetDescriptor(
                     descriptor,
                     NApi::NRpcProxy::CurrentWireFormatVersion,

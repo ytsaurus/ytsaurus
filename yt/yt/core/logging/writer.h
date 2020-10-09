@@ -83,7 +83,7 @@ protected:
 
     const std::unique_ptr<ILogFormatter> LogFormatter_;
     const TString Name_;
-    
+
     TRateLimitCounter RateLimit_;
     THashMap<TStringBuf, TRateLimitCounter> CategoryToRateLimit_;
 };

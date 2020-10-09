@@ -18,7 +18,7 @@ TClientOptions TClientOptions::FromAuthenticationIdentity(const NRpc::TAuthentic
 {
     return FromUser(identity.User, identity.UserTag);
 }
-    
+
 TClientOptions TClientOptions::FromToken(const TString& token)
 {
     return {

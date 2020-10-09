@@ -117,7 +117,7 @@ std::tuple<org::apache::arrow::flatbuf::Type, flatbuffers::Offset<void>> Seriali
         //   Datetime
         //   Interval
         //   Timestamp
-        
+
         default:
             THROW_ERROR_EXCEPTION("Column %Qv has type %Qlv that is not currently supported by Arrow encoder",
                 schema.Name(),
@@ -171,7 +171,7 @@ struct TRecordBatchSerializationContext final
     {
         FieldNodes.emplace_back(length, nullCount);
     }
-    
+
     void AddBuffer(i64 size, TBodyWriter writer)
     {
         YT_LOG_DEBUG("Buffer registered (Offset: %v, Size: %v)",
@@ -267,7 +267,7 @@ void SerializeRleButNotDictionaryEncodedStringLikeColumn(
     YT_VERIFY(column->Values->BitWidth == 64);
     YT_VERIFY(column->Values->BaseValue == 0);
     YT_VERIFY(!column->Values->ZigZagEncoded);
-    
+
     YT_LOG_DEBUG("Adding RLE but not dictionary-encoded string-like column (ColumnId: %v, StartIndex: %v, ValueCount: %v)",
         column->Id,
         column->StartIndex,
@@ -298,7 +298,7 @@ void SerializeDictionaryColumn(
     YT_VERIFY(column->Values->BitWidth == 32);
     YT_VERIFY(column->Values->BaseValue == 0);
     YT_VERIFY(!column->Values->ZigZagEncoded);
-    
+
     YT_LOG_DEBUG("Adding dictionary column (ColumnId: %v, StartIndex: %v, ValueCount: %v, Rle: %v)",
         column->Id,
         column->StartIndex,
@@ -318,7 +318,7 @@ void SerializeDictionaryColumn(
                 relevantDictionaryIndexes,
                 dstRef);
         });
-    
+
     context->AddBuffer(
         sizeof (ui32) * column->ValueCount,
         [=] (TMutableRef dstRef) {
@@ -341,7 +341,7 @@ void SerializeRleDictionaryColumn(
     YT_VERIFY(column->Rle->ValueColumn->Values->BitWidth == 32);
     YT_VERIFY(column->Rle->ValueColumn->Values->BaseValue == 0);
     YT_VERIFY(!column->Rle->ValueColumn->Values->ZigZagEncoded);
-    
+
     YT_LOG_DEBUG("Adding dictionary column (ColumnId: %v, StartIndex: %v, ValueCount: %v, Rle: %v)",
         column->Id,
         column->StartIndex,
@@ -369,7 +369,7 @@ void SerializeRleDictionaryColumn(
                 column->StartIndex + column->ValueCount,
                 dstRef);
         });
-    
+
     context->AddBuffer(
         sizeof (ui32) * column->ValueCount,
         [=] (TMutableRef dstRef) {
@@ -430,7 +430,7 @@ void SerializeIntegerColumn(
                             }); \
                         break; \
                     }
-                
+
                 XX(  i8,   Int8)
                 XX( i16,  Int16)
                 XX( i32,  Int32)
@@ -457,7 +457,7 @@ void SerializeDoubleColumn(
     YT_VERIFY(column->Values->BitWidth == 64);
     YT_VERIFY(column->Values->BaseValue == 0);
     YT_VERIFY(!column->Values->ZigZagEncoded);
-    
+
     YT_LOG_DEBUG("Adding double column (ColumnId: %v, StartIndex: %v, ValueCount: %v)",
         column->Id,
         column->StartIndex,
@@ -489,7 +489,7 @@ void SerializeStringLikeColumn(
     YT_VERIFY(column->Strings);
     YT_VERIFY(column->Strings->AvgLength);
     YT_VERIFY(!column->Rle);
-    
+
     auto startIndex = column->StartIndex;
     auto endIndex = startIndex + column->ValueCount;
     auto stringData = column->Strings->Data;
@@ -547,7 +547,7 @@ void SerializeBooleanColumn(
         column->ValueCount);
 
     SerializeColumnPrologue(typedColumn, context);
-    
+
     context->AddBuffer(
         GetBitmapByteSize(column->ValueCount),
         [=] (TMutableRef dstRef) {
@@ -653,7 +653,7 @@ public:
     {
         return Schema_;
     }
-    
+
     const TNameTablePtr& GetNameTable()
     {
         return NameTable_;
@@ -735,7 +735,7 @@ public:
             if (message.FlatbufBuilder) {
                 auto metadataSize = message.FlatbufBuilder->GetSize();
                 auto* metadataPtr = message.FlatbufBuilder->GetBufferPointer();
-                
+
                 // Metadata size
                 *reinterpret_cast<ui32*>(current) = AlignUp<i64>(metadataSize, ArrowAlignment);
                 current += sizeof(ui32);
@@ -831,7 +831,7 @@ private:
         if (StreamEncoder_->IsFirstBatch()) {
             return true;
         }
-        
+
         YT_VERIFY(StreamEncoder_->ArrowDictionaryIds().size() == TypedColumns_.size());
 
         bool result = StreamEncoder_->IsFirstBatch();
@@ -854,17 +854,17 @@ private:
     void PrepareSchema()
     {
         flatbuffers::FlatBufferBuilder flatbufBuilder;
-        
+
         int arrowDictionaryIdCounter = 0;
         std::vector<flatbuffers::Offset<org::apache::arrow::flatbuf::Field>> fieldOffsets;
-        
+
         for (const auto& typedColumn : TypedColumns_) {
             const auto& columnSchema = GetColumnSchema(*typedColumn.Column);
-            
+
             auto nameOffset = SerializeString(&flatbufBuilder, columnSchema.Name());
-            
+
             auto [typeType, typeOffset] = SerializeColumnType(&flatbufBuilder, columnSchema);
-            
+
             flatbuffers::Offset<org::apache::arrow::flatbuf::DictionaryEncoding> dictionaryEncodingOffset;
             if (IsDictionaryEncodedColumn(*typedColumn.Column)) {
                 dictionaryEncodingOffset = org::apache::arrow::flatbuf::CreateDictionaryEncoding(
@@ -879,7 +879,7 @@ private:
                 typeType,
                 typeOffset,
                 dictionaryEncodingOffset);
-            
+
             fieldOffsets.push_back(fieldOffset);
         }
 
@@ -889,7 +889,7 @@ private:
             flatbufBuilder,
             org::apache::arrow::flatbuf::Endianness_Little,
             fieldsOffset);
-        
+
         auto messageOffset = org::apache::arrow::flatbuf::CreateMessage(
             flatbufBuilder,
             org::apache::arrow::flatbuf::MetadataVersion_V4,
@@ -1051,7 +1051,7 @@ TSharedRef TArrowRowStreamEncoder::Encode(
     return block;
 }
 
-} // namespace 
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

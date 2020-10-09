@@ -104,7 +104,7 @@ void TStreamLogWriterBase::Write(const TLogEvent& event)
     if (!stream) {
         return;
     }
-    
+
     try {
         auto* categoryRateLimit = GetCategoryRateLimitCounter(event.Category->Name);
         if (RateLimit_.IsIntervalPassed()) {

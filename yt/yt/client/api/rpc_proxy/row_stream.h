@@ -42,7 +42,7 @@ DEFINE_REFCOUNTED_TYPE(IRowStreamDecoder)
 //! A helper for formatting row stream blocks.
 /*!
  *  Serializes #descriptor and (if given) #statistics.
- * 
+ *
  *  \returns a tuple consisting of
  *  1) the whole row stream block
  *  2) the ref where payload (of size #payloadSize) must be placed

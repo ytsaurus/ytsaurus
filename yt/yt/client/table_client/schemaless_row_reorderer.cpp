@@ -77,7 +77,7 @@ TMutableUnversionedRow TSchemalessRowReorderer::ReorderKey(TUnversionedRow row)
             }
         }
     }
-    
+
     return result;
 }
 

@@ -611,7 +611,7 @@ void TClientResponse::HandleStreamingPayload(const TStreamingPayload& payload)
             ClientContext_->GetRequestId());
         return;
     }
-    
+
     stream->EnqueuePayload(payload);
 }
 

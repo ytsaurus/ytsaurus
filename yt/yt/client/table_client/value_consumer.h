@@ -61,7 +61,7 @@ protected:
 
 private:
     const TTypeConversionConfigPtr TypeConversionConfig_;
-    
+
     std::vector<EValueType> NameTableIdToType_;
 
     // This template method is private and only used in value_consumer.cpp with T = i64/ui64,

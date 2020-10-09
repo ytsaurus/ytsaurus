@@ -213,7 +213,7 @@ public:
     int LookupRequestRetryCount;
 
     // COMPAT(babenko): replace with 'true' once all clusters support ProbeBlockSet
-    bool EnableProbeBlockSet; 
+    bool EnableProbeBlockSet;
 
     TReplicationReaderConfig()
     {

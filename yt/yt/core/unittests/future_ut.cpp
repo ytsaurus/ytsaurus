@@ -36,13 +36,13 @@ TEST_F(TFutureTest, Unsubscribe)
 {
     auto p = NewPromise<int>();
     auto f = p.ToFuture();
-    
+
     bool f1 = false;
     auto c1 = f.AsVoid().Subscribe(BIND([&] (const TError&) { f1 = true; }));
-    
+
     bool f2 = false;
     auto c2 = f.Subscribe(BIND([&] (const TErrorOr<int>&) { f2 = true; }));
-    
+
     EXPECT_NE(c1, c2);
 
     f.Unsubscribe(c1);
@@ -58,14 +58,14 @@ TEST_F(TFutureTest, Unsubscribe)
 
     p.Set(1);
 
-    EXPECT_FALSE(f1); 
-    EXPECT_FALSE(f2); 
-    EXPECT_TRUE(f3); 
+    EXPECT_FALSE(f1);
+    EXPECT_FALSE(f2);
+    EXPECT_TRUE(f3);
     EXPECT_TRUE(f4);
 
     bool f5 = false;
     EXPECT_EQ(NullFutureCallbackCookie, f.Subscribe(BIND([&] (const TError&) { f5 = true; })));
-    EXPECT_TRUE(f5); 
+    EXPECT_TRUE(f5);
 
     bool f6 = false;
     EXPECT_EQ(NullFutureCallbackCookie, f.Subscribe(BIND([&] (const TErrorOr<int>&) { f6 = true; })));

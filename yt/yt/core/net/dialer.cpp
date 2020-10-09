@@ -139,7 +139,7 @@ public:
     ~TAsyncDialerSession()
     {
         TGuard<TAdaptiveLock> guard(SpinLock_);
-        
+
         Finished_ = true;
         CloseSocket();
     }
@@ -250,7 +250,7 @@ private:
                     YT_LOG_DEBUG("Failed to set socket keep alive option");
                 }
             }
-            
+
             if (ConnectSocket(Socket_, Address_) == 0) {
                 // Connection was established synchronously.
                 int socket = Socket_;
@@ -290,10 +290,10 @@ private:
         UnregisterPollable();
 
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
-        
+
         int socket = Socket_;
         YT_VERIFY(socket != INVALID_SOCKET);
-        
+
         if (int socketError = GetSocketError(socket); socketError == 0) {
             Socket_ = INVALID_SOCKET;
             guard.Release();

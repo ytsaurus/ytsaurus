@@ -51,7 +51,7 @@ public:
         YT_ASSERT(lease);
 
         TGuard<TAdaptiveLock> guard(lease->SpinLock);
-        
+
         if (!lease->IsValid) {
             return false;
         }
@@ -77,7 +77,7 @@ public:
         }
 
         TGuard<TAdaptiveLock> guard(lease->SpinLock);
-        
+
         if (!lease->IsValid) {
             return false;
         }
@@ -90,7 +90,7 @@ private:
     static void OnLeaseExpired(TLease lease, bool /*aborted*/)
     {
         TGuard<TAdaptiveLock> guard(lease->SpinLock);
-        
+
         if (!lease->IsValid) {
             return;
         }

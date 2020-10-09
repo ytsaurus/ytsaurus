@@ -841,7 +841,7 @@ private:
             ReopenRequested_ = false;
             ReloadWriters();
         }
-        
+
         auto* counter = GetWrittenEventsCounter(event);
         LoggingProfiler.Increment(*counter, 1);
 

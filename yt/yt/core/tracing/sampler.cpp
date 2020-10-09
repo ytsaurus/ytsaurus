@@ -63,7 +63,7 @@ bool TSampler::IsTraceSampled(const TString& user)
             return true;
         }
     }
-    
+
     return false;
 }
 
