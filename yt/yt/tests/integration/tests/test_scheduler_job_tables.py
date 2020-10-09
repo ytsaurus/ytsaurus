@@ -642,7 +642,8 @@ class TestCoreTable(YTEnvSetup):
                 "signal": signal,
                 "container": container,
                 "datetime": datetime,
-                "size": size
+                "size": size,
+                "cuda": False,
             }
             ret_dict["core_data"] = core_data
 
@@ -673,6 +674,7 @@ class TestCoreTable(YTEnvSetup):
                 "executable_name": "cuda_gpu_core_dump",
                 "process_id": 0,
                 "size": 1000000,
+                "cuda": True,
             }
             ret_dict["core_data"] = "a" * 1000000
 
@@ -1136,6 +1138,7 @@ class TestCoreTablePorto(YTEnvSetup):
         assert int(core_info["signal"]) == 6
         assert "container" in core_info
         assert "datetime" in core_info
+        assert not core_info["cuda"]
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
 class TestCoreTablePortoRootfs(TestCoreTablePorto):

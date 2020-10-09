@@ -7146,12 +7146,13 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
 
     for (const auto& coreInfo : schedulerResultExt.core_infos()) {
-        YT_LOG_DEBUG("Core file (JobId: %v, ProcessId: %v, ExecutableName: %v, Size: %v, Error: %v)",
+        YT_LOG_DEBUG("Core file (JobId: %v, ProcessId: %v, ExecutableName: %v, Size: %v, Error: %v, Cuda: %v)",
             joblet->JobId,
             coreInfo.process_id(),
             coreInfo.executable_name(),
             coreInfo.size(),
-            coreInfo.has_error() ? FromProto<TError>(coreInfo.error()) : TError());
+            coreInfo.has_error() ? FromProto<TError>(coreInfo.error()) : TError(),
+            coreInfo.cuda());
     }
 
     if (!schedulerResultExt.has_core_table_boundary_keys()) {

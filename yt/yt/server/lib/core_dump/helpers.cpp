@@ -52,7 +52,7 @@ void Serialize(const TCoreInfo& coreInfo, IYsonConsumer* consumer)
                 fluent
                     .Item("datetime").Value(coreInfo.datetime());
             })
-
+            .Item("cuda").Value(coreInfo.cuda())
         .EndMap();
 }
 

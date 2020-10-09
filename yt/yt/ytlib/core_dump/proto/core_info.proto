@@ -15,6 +15,7 @@ message TCoreInfo
     optional int32 signal = 7;
     optional string container = 8;
     optional string datetime = 9;
+    optional bool cuda = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

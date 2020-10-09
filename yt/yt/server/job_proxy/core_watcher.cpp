@@ -64,7 +64,7 @@ TGpuCoreReader::TGpuCoreReader(const TString& corePipePath)
         THROW_ERROR_EXCEPTION("Failed to open GPU core dump pipe")
             << TErrorAttribute("path", Path_)
             << TError::FromSystem();
-    }   
+    }
 }
 
 i64 TGpuCoreReader::GetBytesAvailable() const
@@ -217,7 +217,7 @@ void TCoreWatcher::DoWatchCores()
                         YT_LOG_DEBUG("GPU core reader created (CoreDumpPath: %v)",
                             gpuCoreDumpPath);
                     }
-                    
+
                     auto bytesAvailable = GpuCoreReader_->GetBytesAvailable();
                     if (bytesAvailable > 0) {
                         YT_LOG_INFO("GPU core dump streaming started (GpuCorePipeFileName: %v, BytesAvailable: %v)",
@@ -323,6 +323,7 @@ void TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int coreInd
     coreInfo.set_core_index(coreIndex);
     coreInfo.set_executable_name(coreName);
     coreInfo.set_process_id(0);
+    coreInfo.set_cuda(true);
 
     if (coreIndex == 0) {
         CoreAppearedPromise_.Set();
