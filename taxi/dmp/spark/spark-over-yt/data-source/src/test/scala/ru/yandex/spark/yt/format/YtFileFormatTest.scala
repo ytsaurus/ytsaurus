@@ -731,6 +731,13 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
     val res = spark.read.schemaHint("value" -> BinaryType).yt(tmpPath).as[Array[Byte]].collect()
     res should contain theSameElementsAs initial
   }
+
+  it should "write double" in {
+    val data = Seq(0.4, 0.5, 0.6)
+    data.toDF().coalesce(1).write.yt(tmpPath)
+
+    spark.read.yt(tmpPath).as[Double].collect() should contain theSameElementsAs data
+  }
 }
 
 object Counter {
