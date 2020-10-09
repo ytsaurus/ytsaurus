@@ -389,8 +389,8 @@ def start_clique(instance_count,
     if abort_existing is None:
         abort_existing = False
 
-    if skip_version_compatibility_validation is None:
-        skip_version_compatibility_validation = defaults.get("skip_version_compatibility_validation", False)
+    skip_version_compatibility_validation = \
+        skip_version_compatibility_validation or defaults.get("skip_version_compatibility_validation", False)
 
     prev_operation = _resolve_alias(alias, client=client)
     if alias is not None:
