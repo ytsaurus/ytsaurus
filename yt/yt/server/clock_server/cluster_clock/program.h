@@ -66,7 +66,7 @@ protected:
         NYTAlloc::InitializeLibunwindInterop();
         NYTAlloc::SetEnableEagerMemoryRelease(false);
         NYTAlloc::EnableStockpile();
-        NYTAlloc::MlockallCurrentProcess();
+        NYTAlloc::MlockFileMappings();
         NYTAlloc::ConfigureFromEnv();
 
         if (HandleSetsidOptions()) {

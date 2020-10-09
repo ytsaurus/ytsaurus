@@ -92,7 +92,7 @@ private:
         NYTAlloc::EnableYTProfiling();
         NYTAlloc::InitializeLibunwindInterop();
         NYTAlloc::EnableStockpile();
-        NYTAlloc::MlockallCurrentProcess();
+        NYTAlloc::MlockFileMappings();
         NYTAlloc::ConfigureFromEnv();
 
         if (HandleSetsidOptions()) {
