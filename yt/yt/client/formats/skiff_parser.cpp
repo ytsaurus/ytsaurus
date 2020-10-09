@@ -142,7 +142,7 @@ public:
             ysonTokenWriter.Finish();
         }
         auto value = TStringBuf(Buffer_.Data(), Buffer_.Size());
-        const auto entity = AsStringBuf("#");
+        const TStringBuf entity = "#";
         if (value == entity) {
             valueConsumer->OnValue(MakeUnversionedNullValue(ColumnId_));
         } else {

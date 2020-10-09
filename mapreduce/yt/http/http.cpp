@@ -955,7 +955,7 @@ TString THttpRequest::GetTracedHttpRequest() const
     TMemoryInput savedRequest(RequestStream_->GetTrace());
     TString line;
     while (savedRequest.ReadLine(line)) {
-        auto authPattern = AsStringBuf("Authorization: OAuth");
+        TStringBuf authPattern = "Authorization: OAuth";
         if (line.StartsWith(authPattern)) {
             for (size_t i = authPattern.size(); i < line.size(); ++i) {
                 if (!isspace(line[i])) {

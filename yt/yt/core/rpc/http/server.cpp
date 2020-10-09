@@ -294,7 +294,7 @@ private:
         static const TString AuthorizationHeaderName("Authorization");
         auto authorizationString = httpHeaders->Find(AuthorizationHeaderName);
         if (authorizationString) {
-            const auto Prefix = AsStringBuf("OAuth ");
+            const TStringBuf Prefix = "OAuth ";
             if (!authorizationString->StartsWith(Prefix)) {
                 return TError("Invalid \"Authorization\" header value");
             }

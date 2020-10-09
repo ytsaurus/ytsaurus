@@ -206,7 +206,7 @@ TEST(TYsonTokenWriterTest, ThroughZeroCopyOutputStreamWriter)
         TFixedGrowthStringOutput outStream(&out, bufferSize);
         TZeroCopyOutputStreamWriter writer(&outStream);
 
-        auto prefix = AsStringBuf("Now some YSON: ");
+        TStringBuf prefix = "Now some YSON: ";
         writer.Write(prefix.data(), prefix.size());
 
         TCheckedYsonTokenWriter tokenWriter(&writer);
@@ -235,7 +235,7 @@ TEST(TYsonTokenWriterTest, ThroughZeroCopyOutputStreamWriter)
 
         tokenWriter.Finish();
 
-        auto suffix = AsStringBuf(" -- no more YSON");
+        TStringBuf suffix = " -- no more YSON";
         writer.Write(suffix.data(), suffix.size());
         writer.UndoRemaining();
         outStream.Finish();

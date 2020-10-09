@@ -617,7 +617,7 @@ TEST(TYsonPullParserTest, TypedParsingBasicErrors)
 
 TEST(TYsonPullParserTest, TestTransferValueViaTokenWriterBasicCases)
 {
-    auto inputString = AsStringBuf("[ [ {foo=<attr=value;>bar; qux=[-1; 2u; %false; 3.14; lol; # ; ] ; }; ] ; 6; ]");
+    TStringBuf inputString = "[ [ {foo=<attr=value;>bar; qux=[-1; 2u; %false; 3.14; lol; # ; ] ; }; ] ; 6; ]";
 
     auto output = TString();
     {
@@ -800,7 +800,7 @@ TEST(TYsonPullParserTest, TestSkipValueBasicCases)
 
 TEST(TYsonPullParserCursorTest, TestTransferValueBasicCases)
 {
-    auto input = AsStringBuf("[ [ {foo=<attr=value>bar; qux=[-1; 2u; %false; 3.14; lol; # ]} ] ; 6 ]");
+    TStringBuf input = "[ [ {foo=<attr=value>bar; qux=[-1; 2u; %false; 3.14; lol; # ]} ] ; 6 ]";
     auto cursor = TStringBufCursor(input);
     EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
     cursor.Next();
@@ -843,7 +843,7 @@ TEST(TYsonPullParserCursorTest, TestTransferValueBasicCases)
 
 TEST(TYsonPullParserCursorTest, TestTransferAttributesBasicCases)
 {
-    auto input = AsStringBuf("[<attr=value>bar; qux; 2]");
+    TStringBuf input = "[<attr=value>bar; qux; 2]";
     auto cursor = TStringBufCursor(input);
     EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
     cursor.Next();
@@ -871,7 +871,7 @@ TEST(TYsonPullParserCursorTest, TestTransferAttributesBasicCases)
 
 TEST(TYsonPullParserCursorTest, TestTransferValueViaTokenWriterBasicCases)
 {
-    auto input = AsStringBuf("[ [ {foo=<attr=value;>bar; qux=[-1; 2u; %false; 3.14; lol; # ; ] ; }; ] ; 6; ]");
+    TStringBuf input = "[ [ {foo=<attr=value;>bar; qux=[-1; 2u; %false; 3.14; lol; # ; ] ; }; ] ; 6; ]";
     auto output1 = TString();
     {
         TStringOutput outputStream(output1);
@@ -927,7 +927,7 @@ TEST(TYsonPullParserCursorTest, TestTransferValueViaTokenWriterBasicCases)
 
 TEST(TYsonPullParserCursorTest, TestTransferAttributesViaTokenWriterBasicCases)
 {
-    auto input = AsStringBuf("[<attr=value;>bar; qux; 2;]");
+    TStringBuf input = "[<attr=value;>bar; qux; 2;]";
     auto cursor = TStringBufCursor(input);
     EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
     cursor.Next();
@@ -965,7 +965,7 @@ TEST(TYsonPullParserCursorTest, TestTransferAttributesViaTokenWriterBasicCases)
 TEST(TYsonPullParserCursorTest, TestSkipValueBasicCases)
 {
     {
-        auto input = AsStringBuf("[<a=b;c=d;>12; qux;]");
+        TStringBuf input = "[<a=b;c=d;>12; qux;]";
         auto cursor = TStringBufCursor(input);
         EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
         cursor.Next();
@@ -980,7 +980,7 @@ TEST(TYsonPullParserCursorTest, TestSkipValueBasicCases)
         EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndOfStream));
     }
     {
-        auto input = AsStringBuf("[<a=b;c=d;>12; 13; qux;]");
+        TStringBuf input = "[<a=b;c=d;>12; 13; qux;]";
         auto cursor = TStringBufCursor(input);
         EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::BeginList));
         cursor.Next();
@@ -999,7 +999,7 @@ TEST(TYsonPullParserCursorTest, TestSkipValueBasicCases)
 TEST(TYsonPullParserCursorTest, TestParseCompoundBasicCases)
 {
     {
-        auto input = AsStringBuf("[[1;2]; <x=1;y=2>%true; #]");
+        TStringBuf input = "[[1;2]; <x=1;y=2>%true; #]";
         auto cursor = TStringBufCursor(input);
         int timesCalled = 0;
         auto listConsumer = [&] (TYsonPullParserCursor* cursor) {
@@ -1091,7 +1091,7 @@ TEST(TYsonPullParserCursorTest, TestParseCompoundBasicCases)
     };
 
     {
-        auto input = AsStringBuf("{a=[1;2]; b=<x=1;y=2>%true; c=#}");
+        TStringBuf input = "{a=[1;2]; b=<x=1;y=2>%true; c=#}";
         auto cursor = TStringBufCursor(input);
         int timesCalled = 0;
         EXPECT_NO_THROW(cursor.ParseMap(makeKeyValueConsumer(timesCalled)));
@@ -1099,7 +1099,7 @@ TEST(TYsonPullParserCursorTest, TestParseCompoundBasicCases)
         EXPECT_EQ(cursor.GetCurrent(), TYsonItem::Simple(EYsonItemType::EndOfStream));
     }
     {
-        auto input = AsStringBuf("<a=[1;2]; b=<x=1;y=2>%true; c=#>[x; 3]");
+        TStringBuf input = "<a=[1;2]; b=<x=1;y=2>%true; c=#>[x; 3]";
         auto cursor = TStringBufCursor(input);
         int timesCalled = 0;
         EXPECT_NO_THROW(cursor.ParseAttributes(makeKeyValueConsumer(timesCalled)));
