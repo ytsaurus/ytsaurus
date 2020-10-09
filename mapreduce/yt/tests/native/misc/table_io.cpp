@@ -2,6 +2,7 @@
 
 #include <mapreduce/yt/tests/native/proto_lib/all_types.pb.h>
 #include <mapreduce/yt/tests/native/proto_lib/all_types_proto3.pb.h>
+#include <mapreduce/yt/tests/native/proto_lib/clashing_enums.pb.h>
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
 #include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
@@ -1880,6 +1881,33 @@ Y_UNIT_TEST_SUITE(TableIo) {
         for (size_t i = 0; i < actual.size(); ++i) {
             UNIT_ASSERT_EQUAL(expected[i], actual[i]);
         }
+    }
+
+    Y_UNIT_TEST(ProtoClashingEnums_YT_13714) {
+        TTestFixture fixture;
+
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto testTable = workingDir + "/table";
+
+        TClashingEnumMessage originalRow;
+        originalRow.SetEnum1(TClashingEnumMessage1::ClashingEnumValueOne);
+        originalRow.SetEnum2(TClashingEnumMessage2::ClashingEnumValueTwo);
+        originalRow.SetEnum3(ClashingEnumValueThree);
+        {
+            auto writer = client->CreateTableWriter<TClashingEnumMessage>(testTable);
+            writer->AddRow(originalRow);
+            writer->Finish();
+        }
+
+        TVector<TClashingEnumMessage> readValues;
+        auto reader = client->CreateTableReader<TClashingEnumMessage>(testTable);
+        for (const auto& cursor : *reader) {
+            readValues.push_back(cursor.GetRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(readValues.size(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(readValues[0].ShortUtf8DebugString(), originalRow.ShortUtf8DebugString());
     }
 }
 
