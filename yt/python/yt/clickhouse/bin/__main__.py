@@ -96,6 +96,7 @@ def add_clickhouse_start_clique_parser(add_parser):
     parser.add_argument("--abort-existing", action="store_true", help="Abort existing operation under same alias")
     parser.add_argument("--artifact-path", help="path for artifact directory; by default equals to "
                                                 "//sys/clickhouse/kolkhoz/<operation_alias>")
+    parser.add_argument("--skip-version-compatibility-validation", action="store_true", help="(For developer use only)")
     add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
     add_structured_argument(parser, "--memory-config", "Memory configuration")
