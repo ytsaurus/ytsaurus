@@ -12,7 +12,7 @@ object YtLogicalType {
 
   case object Int64 extends YtLogicalType("int64", 0x03, ColumnValueType.INT64)
   case object Uint64 extends YtLogicalType("uint64", 0x04, ColumnValueType.INT64)
-  case object Double extends YtLogicalType("double", 0x05, ColumnValueType.INT64)
+  case object Double extends YtLogicalType("double", 0x05, ColumnValueType.DOUBLE)
   case object Boolean extends YtLogicalType("boolean", 0x06, ColumnValueType.BOOLEAN)
 
   case object String extends YtLogicalType("string", 0x10, ColumnValueType.STRING)
