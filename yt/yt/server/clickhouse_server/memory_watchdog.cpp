@@ -58,28 +58,24 @@ void TMemoryWatchdog::CheckMemoryUsage()
         WindowRssValues_.pop_front();
     }
 
-    size_t maximumWindowRss = 0;
+    size_t minimumWindowRss = WindowRssValues_.empty() ? 0 : WindowRssValues_.front().second;
     for (const auto& [_, usage] : WindowRssValues_) {
-        if (maximumWindowRss < usage) {
-            maximumWindowRss = usage;
+        if (minimumWindowRss > usage) {
+            minimumWindowRss = usage;
         }
     }
 
-    // Check watermark and window watermark.
     YT_LOG_DEBUG(
         "Checking memory usage "
-        "(Rss: %v, MemoryLimit: %v, CodicilWatermark: %v, MaximumWindowRss: %v, WindowCodicilWatermark: %v)",
+        "(Rss: %v, MemoryLimit: %v, CodicilWatermark: %v, MinimumWindowRss: %v, WindowCodicilWatermark: %v)",
         rss,
         Config_->MemoryLimit,
         Config_->CodicilWatermark,
-        maximumWindowRss,
+        minimumWindowRss,
         Config_->WindowCodicilWatermark);
-    if (rss + Config_->CodicilWatermark > Config_->MemoryLimit) {
-        KillSelf("memory usage is too high", false);
-    }
-    if (maximumWindowRss + Config_->WindowCodicilWatermark > Config_->MemoryLimit) {
-        KillSelf("window memory usage is too high", true);
-    }
+
+    CheckRss(rss);
+    CheckMinimumWindowRss(minimumWindowRss);
 
     // ClickHouse periodically snapshots current RSS and then tracks its
     // allocations, changing presumed value of RSS accordingly. It does
@@ -89,26 +85,47 @@ void TMemoryWatchdog::CheckMemoryUsage()
     CurrentMetrics::set(CurrentMetrics::MemoryTracking, rss);
 }
 
-void TMemoryWatchdog::KillSelf(TString reason, bool graceful)
+void TMemoryWatchdog::CheckRss(size_t rss)
 {
-    if (graceful) {
-        YT_LOG_ERROR("Interrupting self because %v", reason);
-    } else {
-        YT_LOG_ERROR("Killing self because %v", reason);
+    if (rss + Config_->CodicilWatermark <= Config_->MemoryLimit) {
+        return;
     }
-    WriteToStderr("*** OOM by watchdog (");
-    WriteToStderr(reason);
-    WriteToStderr(") ***\n");
+
+    YT_LOG_ERROR(
+        "Killing self because memory usage is too high (Rss: %v, MemoryLimit: %v, CodicilWatermark: %v)",
+        rss,
+        Config_->MemoryLimit,
+        Config_->CodicilWatermark);
+    WriteToStderr("*** Killing self because memory usage is too high ***\n");
+
+    DumpRefCountedTracker();
+
+    NYT::NLogging::TLogManager::Get()->Shutdown();
+    ExitCallback_.Run();
+    _exit(MemoryLimitExceededExitCode);
+}
+
+void TMemoryWatchdog::CheckMinimumWindowRss(size_t minimumWindowRss)
+{
+    if (minimumWindowRss + Config_->WindowCodicilWatermark <= Config_->MemoryLimit) {
+        return;
+    }
+    YT_LOG_ERROR(
+        "Interrupting self because window minimum memory usage is too high (MinimumWindowRss: %v, MemoryLimit: %v, WindowCodicilWatermark: %v)",
+        minimumWindowRss,
+        Config_->MemoryLimit,
+        Config_->WindowCodicilWatermark);
+    WriteToStderr("*** Killing self because window memory usage is too high ***\n");
+    DumpRefCountedTracker();
+
+    InterruptCallback_.Run();
+    while (true);
+}
+
+void TMemoryWatchdog::DumpRefCountedTracker()
+{
     WriteToStderr("*** RefCountedTracker ***\n");
     WriteToStderr(TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
-    if (graceful) {
-        InterruptCallback_.Run();
-        while (true);
-    } else {
-        NYT::NLogging::TLogManager::Get()->Shutdown();
-        ExitCallback_.Run();
-        _exit(MemoryLimitExceededExitCode);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
