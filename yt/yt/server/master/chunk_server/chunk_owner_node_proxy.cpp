@@ -150,7 +150,7 @@ void BuildChunkSpec(
     const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
 
     chunkSpec->set_table_row_index(rowIndex);
-    if (tabletIndex.has_value()) {
+    if (tabletIndex) {
         chunkSpec->set_tablet_index(*tabletIndex);
     }
 
@@ -165,7 +165,8 @@ void BuildChunkSpec(
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
             return false;
         }
-        replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), replica.GetReplicaIndex(), replica.GetMediumIndex()));
+        replicas.push_back(replica);
+        nodeDirectoryBuilder->Add(replica);
         return true;
     };
 
@@ -183,11 +184,7 @@ void BuildChunkSpec(
         }
     }
 
-    for (auto replica : replicas) {
-        nodeDirectoryBuilder->Add(replica);
-        chunkSpec->add_replicas(ToProto<ui64>(replica));
-    }
-
+    ToProto(chunkSpec->mutable_replicas(), replicas);
     ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
     chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
 
