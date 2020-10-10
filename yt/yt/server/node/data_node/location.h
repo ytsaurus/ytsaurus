@@ -216,6 +216,13 @@ public:
     //! Returns |true| if location is sick.
     bool IsSick() const;
 
+    //! Returns |true| if location does not contain
+    //! files corresponding to given chunk id. 
+    bool TryLock(TChunkId chunkId, bool verbose = true);
+
+    //! Called when all the chunk files are destroyed.
+    void Unlock(TChunkId chunkId);
+
 protected:
     NClusterNode::TBootstrap* const Bootstrap_;
     NProfiling::TProfiler Profiler_;
@@ -263,6 +270,9 @@ private:
     TDiskHealthCheckerPtr HealthChecker_;
 
     TLocationPerformanceCounters PerformanceCounters_;
+
+    TAdaptiveLock LockedChunksLock_;
+    THashSet<TChunkId> LockedChunks_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
     NProfiling::TAtomicGauge& GetPendingIOSizeCounter(

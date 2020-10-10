@@ -556,6 +556,8 @@ void TLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
             }
         }
 
+        Unlock(chunkId);
+
         YT_LOG_DEBUG("Finished removing chunk files (ChunkId: %v)", chunkId);
     } catch (const std::exception& ex) {
         auto error = TError(
@@ -687,6 +689,32 @@ bool TLocation::IsSick() const
     return IOEngine_->IsSick();
 }
 
+bool TLocation::TryLock(TChunkId chunkId, bool verbose)
+{
+    auto guard = Guard(LockedChunksLock_);
+    if (LockedChunks_.emplace(chunkId).second) {
+        if (verbose) {
+            YT_LOG_DEBUG("Locked chunk (ChunkId: %v)",
+                chunkId);
+        }
+        return true;
+    } else {
+        return false;
+    }
+}
+
+void TLocation::Unlock(TChunkId chunkId)
+{
+    auto guard = Guard(LockedChunksLock_);
+    if (LockedChunks_.erase(chunkId)) {
+        YT_LOG_DEBUG("Unlocked chunk (ChunkId: %v)",
+            chunkId);
+    } else {
+        YT_LOG_WARNING("Attempted to unlock non-locked chunk (ChunkId: %v)",
+            chunkId);
+    }
+}
+
 void TLocation::OnHealthCheckFailed(const TError& error)
 {
     Disable(error);
@@ -733,8 +761,9 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
         // Note that these also include trash files but the latter are explicitly skipped.
         auto fileNames = NFS::EnumerateFiles(GetPath(), std::numeric_limits<int>::max());
         for (const auto& fileName : fileNames) {
-            if (ShouldSkipFileName(fileName))
+            if (ShouldSkipFileName(fileName)) {
                 continue;
+            }
 
             TChunkId chunkId;
             auto bareFileName = NFS::GetFileNameWithoutExtension(fileName);
@@ -744,6 +773,7 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
             }
 
             chunkIds.insert(chunkId);
+            TryLock(chunkId, /* verbose */ false);
         }
     }
 
@@ -1043,6 +1073,8 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
         YT_LOG_DEBUG("Finished moving chunk files to trash (ChunkId: %v)", chunkId);
 
         RegisterTrashChunk(chunkId);
+
+        Unlock(chunkId);
     } catch (const std::exception& ex) {
         auto error = TError(
             NChunkClient::EErrorCode::IOError,
