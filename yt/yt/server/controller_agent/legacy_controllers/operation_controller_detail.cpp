@@ -6866,6 +6866,21 @@ bool TOperationControllerBase::InputHasReadLimits() const
     return false;
 }
 
+bool TOperationControllerBase::InputHasDynamicStores() const
+{
+    for (const auto& table : InputTables_) {
+        if (table->Dynamic) {
+            for (const auto& chunk : table->Chunks) {
+                if (chunk->IsDynamicStore()) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
 bool TOperationControllerBase::IsLocalityEnabled() const
 {
     return Config->EnableLocality && TotalEstimatedInputDataWeight > Spec_->MinLocalityInputDataWeight;
