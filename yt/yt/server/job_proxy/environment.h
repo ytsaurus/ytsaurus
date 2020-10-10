@@ -38,8 +38,7 @@ struct IUserJobEnvironment
 {
     virtual TDuration GetBlockIOWatchdogPeriod() const = 0;
 
-    virtual TMemoryStatistics GetMemoryStatistics() const = 0;
-    virtual i64 GetMaxMemoryUsage() const = 0;
+    virtual std::optional<TMemoryStatistics> GetMemoryStatistics() const = 0;
 
     virtual void CleanProcesses() = 0;
 

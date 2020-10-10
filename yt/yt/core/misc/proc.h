@@ -142,6 +142,105 @@ auto HandleEintr(F f, Args&&... args) -> decltype(f(args...));
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! The following structures represents content of /proc/[PID]/smaps.
+//! Look into 'man 5 /proc' for the description.
+struct TMemoryMappingStatistics
+{
+    ui64 Size = 0;
+    ui64 KernelPageSize = 0;
+    ui64 MMUPageSize = 0;
+    ui64 Rss = 0;
+    ui64 Pss = 0;
+    ui64 SharedClean = 0;
+    ui64 SharedDirty = 0;
+    ui64 PrivateClean = 0;
+    ui64 PrivateDirty = 0;
+    ui64 Referenced = 0;
+    ui64 Anonymous = 0;
+    ui64 LazyFree = 0;
+    ui64 AnonHugePages = 0;
+    ui64 ShmemPmdMapped = 0;
+    ui64 SharedHugetlb = 0;
+    ui64 PrivateHugetlb = 0;
+    ui64 Swap = 0;
+    ui64 SwapPss = 0;
+    ui64 Locked = 0;
+
+    TMemoryMappingStatistics& operator+=(const TMemoryMappingStatistics& rhs);
+};
+
+TMemoryMappingStatistics operator+(TMemoryMappingStatistics lhs, const TMemoryMappingStatistics& rhs);
+
+DEFINE_BIT_ENUM(EMemoryMappingPermission,
+    ((None)           (0x0000))
+    ((Read)           (0x0001))
+    ((Write)          (0x0002))
+    ((Execute)        (0x0004))
+    ((Private)        (0x0008))
+    ((Shared)         (0x0010))
+);
+
+DEFINE_BIT_ENUM(EVMFlag,
+    ((None)            (0x000000000))
+    ((RD)              (0x000000001))
+    ((WR)              (0x000000002))
+    ((EX)              (0x000000004))
+    ((SH)              (0x000000008))
+    ((MR)              (0x000000010))
+    ((MW)              (0x000000020))
+    ((ME)              (0x000000040))
+    ((MS)              (0x000000080))
+    ((GD)              (0x000000100))
+    ((PF)              (0x000000200))
+    ((DW)              (0x000000400))
+    ((LO)              (0x000000800))
+    ((IO)              (0x000001000))
+    ((SR)              (0x000002000))
+    ((RR)              (0x000004000))
+    ((DC)              (0x000008000))
+    ((DE)              (0x000010000))
+    ((AC)              (0x000020000))
+    ((NR)              (0x000040000))
+    ((HT)              (0x000080000))
+    ((NL)              (0x000100000))
+    ((AR)              (0x000200000))
+    ((DD)              (0x000400000))
+    ((SD)              (0x000800000))
+    ((MM)              (0x001000000))
+    ((HG)              (0x002000000))
+    ((NH)              (0x004000000))
+    ((MG)              (0x008000000))
+);
+
+struct TMemoryMapping
+{
+    ui64 Start = 0;
+    ui64 End = 0;
+
+    EMemoryMappingPermission Permissions = EMemoryMappingPermission::None;
+
+    ui64 Offset = 0;
+
+    std::optional<ui16> DeviceId;
+
+    std::optional<ui64> INode;
+
+    std::optional<TString> Path;
+
+    TMemoryMappingStatistics Statistics;
+
+    EVMFlag VMFlags = EVMFlag::None;
+
+    ui64 ProtectionKey = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps);
+std::vector<TMemoryMapping> GetProcessMemoryMappings(int pid);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT
 
 #define PROC_INL_H_

@@ -323,6 +323,9 @@ public:
     //! For testing purposes only.
     bool DoNotSetUserId;
 
+    TDuration MemoryTrackerCachePeriod;
+    TDuration SMapsMemoryTrackerCachePeriod;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -380,6 +383,11 @@ public:
 
         RegisterParameter("do_not_set_user_id", DoNotSetUserId)
             .Default(false);
+
+        RegisterParameter("memory_tracker_cache_period", MemoryTrackerCachePeriod)
+            .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("smaps_memory_tracker_cache_period", SMapsMemoryTrackerCachePeriod)
+            .Default(TDuration::Seconds(5));
     }
 };
 

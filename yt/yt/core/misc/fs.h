@@ -170,6 +170,9 @@ void ChunkedCopy(
 TError AttachLsofOutput(TError error, const TString& path);
 TError AttachFindOutput(TError error, const TString& path);
 
+//! Returns id of device path belongs to.
+int GetDeviceId(const TString& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFS

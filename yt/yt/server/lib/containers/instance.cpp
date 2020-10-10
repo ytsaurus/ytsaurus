@@ -559,19 +559,21 @@ public:
 
     virtual std::vector<pid_t> GetPids() const override
     {
+        // NB(gritukan): Separator can be either "/" or "%" depending on isolation policy.
+        auto normalizePidCgroup = [](TString cgroup) {
+            SubstGlobal(cgroup, "/", "%", 0);
+            if (cgroup[0] == '%') {
+                cgroup = cgroup.substr(1);
+            }
+            return cgroup;
+        };
+
+        auto instanceCgroup = normalizePidCgroup(GetAbsoluteName());
+
         std::vector<pid_t> pids;
         for (auto pid : ListPids()) {
             auto cgroups = GetProcessCGroups(pid);
-            auto instanceCgroup = GetAbsoluteName();
-            auto processPidCgroup = cgroups["pids"];
-
-            // NB(gritukan): Separator can be either "/" or "%" depending on isolation policy.
-            SubstGlobal(instanceCgroup, "/", "%", 0);
-            if (instanceCgroup[0] == '%') {
-                instanceCgroup = instanceCgroup.substr(1);
-            }
-            SubstGlobal(processPidCgroup, "/", "%", 0);
-
+            auto processPidCgroup = normalizePidCgroup(cgroups["pids"]);
             if (instanceCgroup == processPidCgroup) {
                 pids.push_back(pid);
             }

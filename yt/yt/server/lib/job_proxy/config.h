@@ -113,6 +113,50 @@ DEFINE_REFCOUNTED_TYPE(TUserJobNetworkAddress)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTmpfsManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::vector<TString> TmpfsPaths;
+
+    TTmpfsManagerConfig()
+    {
+        RegisterParameter("tmpfs_paths", TmpfsPaths)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTmpfsManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMemoryTrackerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool IncludeMemoryMappedFiles;
+
+    bool UseSMapsMemoryTracker;
+
+    TDuration MemoryStatisticsCachePeriod;
+
+    TMemoryTrackerConfig()
+    {
+        RegisterParameter("include_memory_mapped_files", IncludeMemoryMappedFiles)
+            .Default(true);
+
+        RegisterParameter("use_smaps_memory_tracker", UseSMapsMemoryTracker)
+            .Default(false);
+
+        RegisterParameter("memory_statisitcs_cache_period", MemoryStatisticsCachePeriod)
+            .Default(TDuration::Zero());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxyConfig
     : public TServerConfig
 {
@@ -120,7 +164,10 @@ public:
     // Job-specific parameters.
     int SlotIndex = -1;
 
-    std::vector<TString> TmpfsPaths;
+    TTmpfsManagerConfigPtr TmpfsManager;
+
+    TMemoryTrackerConfigPtr MemoryTracker;
+
     std::vector<NExecAgent::TBindConfigPtr> Binds;
 
     std::vector<TString> GpuDevices;
@@ -174,12 +221,15 @@ public:
     {
         RegisterParameter("slot_index", SlotIndex);
 
-        RegisterParameter("tmpfs_paths", TmpfsPaths)
-            .Default();
+        RegisterParameter("tmpfs_manager", TmpfsManager)
+            .DefaultNew();
+
+        RegisterParameter("memory_tracker", MemoryTracker)
+            .DefaultNew();
 
         RegisterParameter("root_path", RootPath)
             .Default();
-        
+
         RegisterParameter("stderr_path", StderrPath)
             .Default();
 

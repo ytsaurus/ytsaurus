@@ -312,6 +312,80 @@ class TestSandboxTmpfs(YTEnvSetup):
 
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
 
+    @authors("gritukan")
+    def test_mmaped_file_memory_accounting(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        mapper = \
+"""
+#!/usr/bin/python
+
+import mmap, time
+
+f = open('tmpfs/f', 'r+b')
+mm = mmap.mmap(f.fileno(), 0)
+
+s = mm.read()
+
+time.sleep(5)
+"""
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
+        set("//tmp/mapper.py/@executable", True)
+
+        # String is in process' memory twice: one copy is a mmaped tmpfs file and one copy is a local variable s.
+        # Process' mmap of tmpfs should not be counted.
+        op = map(
+            command="fallocate -l 200M tmpfs/f; python3 mapper.py",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            file="//tmp/mapper.py",
+            spec={
+                "mapper": {
+                    "tmpfs_path": "tmpfs",
+                    "memory_limit": 430 * 1024 * 1024,
+                    "use_smaps_memory_tracker": True,
+                },
+                "max_failed_job_count": 1
+            })
+        op.track()
+        assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
+
+        # Smaps memory tracker is disabled. Job should fail.
+        with pytest.raises(YtError):
+            op = map(
+                command="fallocate -l 200M tmpfs/f; python3 mapper.py",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                file="//tmp/mapper.py",
+                spec={
+                    "mapper": {
+                        "tmpfs_path": "tmpfs",
+                        "memory_limit": 430 * 1024 * 1024,
+                        "use_smaps_memory_tracker": False,
+                    },
+                    "max_failed_job_count": 1
+                })
+
+        # String is in memory twice: one copy is mmaped non-tmpfs file and one copy is a local variable s.
+        # Both allocations should be counted.
+        with pytest.raises(YtError):
+            op = map(
+                command="fallocate -l 200M tmpfs/f; python3 mapper.py",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                file="//tmp/mapper.py",
+                spec={
+                    "mapper": {
+                        "tmpfs_path": "other_tmpfs",
+                        "memory_limit": 300 * 1024 * 1024,
+                        "use_smaps_memory_tracker": True,
+                    },
+                    "max_failed_job_count": 1
+                })
+
     @authors("psushin")
     def test_inner_files(self):
         create("table", "//tmp/t_input")
