@@ -487,7 +487,7 @@ private:
         auto canPrepareSingleChunk = CanPrepareSingleChunk(key);
         auto chunkId = GetOrCreateArtifactId(key, canPrepareSingleChunk);
 
-        auto location = FindNewChunkLocation();
+        auto location = FindNewChunkLocation(chunkId);
         if (!location) {
             auto error = TError("Cannot find a suitable location for artifact chunk");
             cookie.Cancel(error);
@@ -756,7 +756,7 @@ private:
     }
 
 
-    TCacheLocationPtr FindNewChunkLocation() const
+    TCacheLocationPtr FindNewChunkLocation(TChunkId chunkId) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -767,11 +767,7 @@ private:
             }
         }
 
-        if (candidates.empty()) {
-            return nullptr;
-        }
-
-        return *std::min_element(
+        std::sort(
             candidates.begin(),
             candidates.end(),
             [] (const TCacheLocationPtr& lhs, const TCacheLocationPtr& rhs) -> bool {
@@ -780,6 +776,14 @@ private:
                 }
                 return lhs->GetAvailableSpace() > rhs->GetAvailableSpace();
             });
+
+        for (const auto& location : candidates) {
+            if (location->TryLock(chunkId)) {
+                return location;
+            }
+        }
+
+        return nullptr;
     }
 
     static TChunkId GetOrCreateArtifactId(const TArtifactKey& key, bool canPrepareSingleChunk)
@@ -1214,7 +1218,12 @@ private:
         TUnbufferedFileOutput fileOutput(*tempDataFile);
         TErrorInterceptingOutput checkedOutput(location, &fileOutput);
 
-        producer(&checkedOutput);
+        try {
+            producer(&checkedOutput);
+        } catch (const std::exception& ex) {
+            location->Unlock(chunkId);
+            throw;
+        }
 
         location->DisableOnError(BIND([&] () {
             chunkSize = tempDataFile->GetLength();
