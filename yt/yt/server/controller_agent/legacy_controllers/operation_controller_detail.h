@@ -665,6 +665,7 @@ protected:
 
     bool InputHasVersionedTables() const;
     bool InputHasReadLimits() const;
+    bool InputHasDynamicStores() const;
 
     bool HasUserJobFiles() const;
 
