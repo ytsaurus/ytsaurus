@@ -133,6 +133,9 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
+    TString DefaultNetwork;
+    THashMap<TString, std::vector<NNet::TIP6Network>> Networks;
+
     TProxyConfig();
 };
 

@@ -799,6 +799,7 @@ void TContext::LogAndProfile()
             Response_->GetStatus(),
             Error_.GetNonTrivialCode(),
             Duration_,
+            Request_->GetRemoteAddress(),
             Request_->GetReadByteCount(),
             Response_->GetWriteByteCount());
 }
