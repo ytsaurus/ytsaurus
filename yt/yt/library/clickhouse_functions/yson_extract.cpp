@@ -27,6 +27,8 @@ template <typename Name, template<typename> typename Impl>
 class TFunctionYson : public IFunction
 {
 public:
+    using Block = typename IFunction::Block;
+
     TFunctionYson(const Context& context_) : context(context_)
     { }
 
@@ -78,6 +80,7 @@ class TYsonExtractRawImpl
 {
 public:
     using Element = typename Parser::Element;
+    using Block = typename IFunction::Block;
 
     static DataTypePtr getReturnType(const char *, const ColumnsWithTypeAndName &)
     {
