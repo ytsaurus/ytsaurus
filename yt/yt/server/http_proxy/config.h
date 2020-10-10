@@ -140,10 +140,6 @@ DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::INodePtr ConvertFromLegacyConfig(const NYTree::INodePtr& legacyConfig);
-
-////////////////////////////////////////////////////////////////////////////////
-
 // TDynamicConfig is part of proxy configuration stored in cypress.
 //
 // NOTE: config might me unavalable. Users must handle such cases
