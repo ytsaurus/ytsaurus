@@ -132,6 +132,8 @@ struct IOperationStrategyHost
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const = 0;
 
+    virtual TStrategyOperationSpecPtr GetStrategySpec() const = 0;
+
     virtual const NYson::TYsonString& GetSpecString() const = 0;
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
@@ -273,6 +275,9 @@ public:
 
     //! Returns operation authenticated user.
     TString GetAuthenticatedUser() const override;
+
+    //! Returns strategy operation spec.
+    TStrategyOperationSpecPtr GetStrategySpec() const override;
 
     //! Returns operation spec as a yson string.
     const NYson::TYsonString& GetSpecString() const override;

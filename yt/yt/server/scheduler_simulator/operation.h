@@ -35,6 +35,8 @@ public:
 
     virtual NScheduler::IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
+    virtual NScheduler::TStrategyOperationSpecPtr GetStrategySpec() const override;
+
     virtual const NYson::TYsonString& GetSpecString() const override;
 
     virtual NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;

@@ -195,6 +195,11 @@ TString TOperation::GetAuthenticatedUser() const
     return AuthenticatedUser_;
 }
 
+TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
+{
+    return Spec_;
+}
+
 const TYsonString& TOperation::GetSpecString() const
 {
     return SpecString_;

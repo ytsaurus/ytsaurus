@@ -328,6 +328,11 @@ public:
         return Controller_;
     }
 
+    virtual TStrategyOperationSpecPtr GetStrategySpec() const override
+    {
+        YT_ABORT();
+    }
+
     virtual const NYson::TYsonString& GetSpecString() const override
     {
         YT_ABORT();

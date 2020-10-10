@@ -172,7 +172,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        auto spec = ParseSpec(operation);
+        auto spec = operation->GetStrategySpec();
 
         YT_VERIFY(unknownTreeIds->empty());
 
@@ -1045,16 +1045,6 @@ private:
         bool Tentative;
     };
 
-    TStrategyOperationSpecPtr ParseSpec(const IOperationStrategyHost* operation) const
-    {
-        try {
-            return ConvertTo<TStrategyOperationSpecPtr>(operation->GetSpecString());
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing strategy spec of operation")
-                << ex;
-        }
-    }
-
     std::vector<TPoolTreeDescription> ParsePoolTrees(const TOperationSpecBasePtr& spec, EOperationType operationType) const
     {
         if (spec->PoolTrees) {
@@ -1164,7 +1154,7 @@ private:
             THROW_ERROR_EXCEPTION("Scheduler strategy does not have configured fair-share trees");
         }
 
-        auto spec = ParseSpec(operation);
+        auto spec = operation->GetStrategySpec();
         auto pools = GetOperationPools(runtimeParameters);
 
         if (pools.size() > 1 && !spec->SchedulingTagFilter.IsEmpty()) {
