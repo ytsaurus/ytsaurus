@@ -140,6 +140,11 @@ TProxyConfig::TProxyConfig()
 
     RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
         .Default(false);
+
+    RegisterParameter("default_network", DefaultNetwork)
+        .Default(NBus::DefaultNetworkName);
+    RegisterParameter("networks", Networks)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

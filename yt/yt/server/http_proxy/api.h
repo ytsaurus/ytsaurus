@@ -66,6 +66,7 @@ public:
         std::optional<NHttp::EStatusCode> httpStatusCode,
         TErrorCode apiErrorCode,
         TDuration duration,
+        const NNet::TNetworkAddress& clientAddress,
         i64 bytesIn,
         i64 bytesOut);
 
@@ -84,6 +85,11 @@ private:
 
     const NConcurrency::IPollerPtr Poller_;
 
+    NProfiling::TTagId DefaultNetworkTag_;
+    std::vector<std::pair<NNet::TIP6Network, NProfiling::TTagId>> Networks_;
+
+    NProfiling::TTagId GetNetworkTagForAddress(const NNet::TNetworkAddress& address) const;
+
     NConcurrency::TReaderWriterSpinLock BanCacheLock_;
     THashMap<TString, TInstant> BanCache_;
 
@@ -97,13 +103,13 @@ private:
 
         NProfiling::TAtomicShardedAggregateGauge ConcurrencySemaphore;
         NProfiling::TShardedMonotonicCounter RequestCount;
-        NProfiling::TShardedMonotonicCounter BytesIn;
-        NProfiling::TShardedMonotonicCounter BytesOut;
         NProfiling::TShardedAggregateGauge RequestDuration;
 
         TAdaptiveLock Lock;
         THashMap<NHttp::EStatusCode, NProfiling::TShardedMonotonicCounter> HttpCodes;
         THashMap<TErrorCode, NProfiling::TShardedMonotonicCounter> ApiErrors;
+        THashMap<NProfiling::TTagId, NProfiling::TShardedMonotonicCounter> BytesIn;
+        THashMap<NProfiling::TTagId, NProfiling::TShardedMonotonicCounter> BytesOut;
     };
 
     std::atomic<int> GlobalSemaphore_{0};

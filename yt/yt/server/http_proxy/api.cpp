@@ -42,7 +42,35 @@ TApi::TApi(TBootstrap* bootstrap)
     , HttpAuthenticator_(bootstrap->GetHttpAuthenticator())
     , Coordinator_(bootstrap->GetCoordinator())
     , Poller_(bootstrap->GetPoller())
-{ }
+{
+    DefaultNetworkTag_ = TProfileManager::Get()->RegisterTag("network", bootstrap->GetConfig()->DefaultNetwork);
+
+    for (const auto& network : bootstrap->GetConfig()->Networks) {
+        for (const auto& prefix : network.second) {
+            Networks_.emplace_back(prefix, TProfileManager::Get()->RegisterTag("network", network.first));
+        }
+    }
+
+    std::sort(Networks_.begin(), Networks_.end(), [] (auto&& lhs, auto&& rhs) {
+        return lhs.first.GetMaskSize() > rhs.first.GetMaskSize();
+    });
+}
+
+NProfiling::TTagId TApi::GetNetworkTagForAddress(const NNet::TNetworkAddress& address) const
+{
+    if (!address.IsIP6()) {
+        return DefaultNetworkTag_;
+    }
+
+    auto ip6Address = address.ToIP6Address();
+    for (const auto& network : Networks_) {
+        if (network.first.Contains(ip6Address)) {
+            return network.second;
+        }
+    }
+
+    return DefaultNetworkTag_;
+}
 
 const NDriver::IDriverPtr& TApi::GetDriverV3() const
 {
@@ -147,8 +175,6 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
 
     counters->ConcurrencySemaphore = { "/concurrency_semaphore", counters->Tags };
     counters->RequestCount = { "/request_count", counters->Tags };
-    counters->BytesIn = { "/bytes_in", counters->Tags };
-    counters->BytesOut = { "/bytes_out", counters->Tags };
     counters->RequestDuration = { "/request_duration", counters->Tags };
 
     TWriterGuard guard(CountersLock_);
@@ -186,15 +212,15 @@ void TApi::IncrementProfilingCounters(
     std::optional<EStatusCode> httpStatusCode,
     TErrorCode apiErrorCode,
     TDuration duration,
+    const NNet::TNetworkAddress& clientAddress,
     i64 bytesIn,
     i64 bytesOut)
 {
+    auto networkTag = GetNetworkTagForAddress(clientAddress);
+
     auto counters = GetProfilingCounters({user, command});
 
     HttpProxyProfiler.Increment(counters->RequestCount);
-    HttpProxyProfiler.Increment(counters->BytesIn, bytesIn);
-    HttpProxyProfiler.Increment(counters->BytesOut, bytesOut);
-
     HttpProxyProfiler.Update(counters->RequestDuration, duration.MilliSeconds());
 
     auto guard = Guard(counters->Lock);
@@ -217,6 +243,22 @@ void TApi::IncrementProfilingCounters(
 
         HttpProxyProfiler.Increment(it->second);
     }
+
+    auto incrementNetworkCounter = [&] (auto counterMap, auto name, auto value) {
+        auto it = counterMap.find(networkTag);
+        if (it == counterMap.end()) {
+            auto tags = counters->Tags;
+            tags.push_back(networkTag);
+
+            it = counterMap.emplace(
+                networkTag,
+                TShardedMonotonicCounter{name, tags}).first;
+        }
+        HttpProxyProfiler.Increment(it->second, value);
+    };
+
+    incrementNetworkCounter(counters->BytesIn, "/bytes_in", bytesIn);
+    incrementNetworkCounter(counters->BytesOut, "/bytes_out", bytesOut);
 }
 
 void TApi::HandleRequest(
