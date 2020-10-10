@@ -894,6 +894,12 @@ public:
     //! If true, RootFS in user job is writable.
     bool MakeRootFSWritable;
 
+    //! If true, job proxy looks through all the user job allocations
+    //! via reading /proc/$PID/smaps and checks, whether they belong to
+    //! file in tmpfs. This allows not to account memory for mapped files
+    //! from tmpfs twice.
+    bool UseSMapsMemoryTracker;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

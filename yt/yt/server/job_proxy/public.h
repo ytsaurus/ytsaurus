@@ -21,6 +21,10 @@ DECLARE_REFCOUNTED_STRUCT(IUserJobEnvironment)
 DECLARE_REFCOUNTED_CLASS(TGpuCoreReader)
 DECLARE_REFCOUNTED_CLASS(TCoreWatcher)
 
+DECLARE_REFCOUNTED_CLASS(TMemoryTracker)
+
+DECLARE_REFCOUNTED_CLASS(TTmpfsManager)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

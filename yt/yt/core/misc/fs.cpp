@@ -892,6 +892,15 @@ TError AttachFindOutput(TError error, const TString& path)
         << TErrorAttribute("find_output", findOutput);
 }
 
+int GetDeviceId(const TString& path)
+{
+#ifdef _linux_
+    return Stat(path).st_dev;
+#else
+    YT_UNIMPLEMENTED();
+#endif
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFS

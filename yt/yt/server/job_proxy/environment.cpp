@@ -48,65 +48,6 @@ static const NLogging::TLogger Logger("JobProxyEnvironment");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryTrackerBase
-{
-protected:
-    mutable i64 MaxMemoryUsage_ = 0;
-    mutable i64 PageFaultCount_ = 0;
-    TProcessBasePtr Process_;
-
-    virtual ~TMemoryTrackerBase() = default;
-
-    TMemoryStatistics GetMemoryStatistics(std::vector<int> pids) const
-    {
-        TMemoryStatistics memoryStatistics;
-        memoryStatistics.Rss = 0;
-        memoryStatistics.MappedFile = 0;
-        memoryStatistics.MajorPageFaults = 0;
-
-        if (!Process_) {
-            return memoryStatistics;
-        }
-
-        for (auto pid : pids) {
-            try {
-                auto memoryUsage = GetProcessMemoryUsage(pid);
-                // RSS from /proc/pid/statm includes all pages resident to current process,
-                // including memory-mapped files and shared memory.
-                // Since we want to account shared memory separately, let's subtract it here.
-
-                memoryStatistics.Rss += memoryUsage.Rss - memoryUsage.Shared;
-                memoryStatistics.MappedFile += memoryUsage.Shared;
-
-                YT_LOG_DEBUG("Memory statistics collected (Pid: %v, ProcessName: %v, Rss: %v, Shared: %v)",
-                    pid,
-                    GetProcessName(pid),
-                    memoryStatistics.Rss,
-                    memoryStatistics.MappedFile);
-
-            } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Failed to get memory usage (Pid: %v)", pid);
-            }
-        }
-
-        try {
-            PageFaultCount_ = GetProcessCumulativeMajorPageFaults(Process_->GetProcessId());
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to get page fault count (Pid: %v)", Process_->GetProcessId());
-        }
-
-        memoryStatistics.MajorPageFaults = PageFaultCount_;
-
-        if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage_) {
-            MaxMemoryUsage_ = memoryStatistics.Rss + memoryStatistics.MappedFile;
-        }
-
-        return memoryStatistics;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 #ifdef _linux_
 
 class TPortoResourceTracker
@@ -256,7 +197,6 @@ DEFINE_REFCOUNTED_TYPE(TPortoResourceTracker)
 
 class TPortoUserJobEnvironment
     : public IUserJobEnvironment
-    , private TMemoryTrackerBase
 {
 public:
     TPortoUserJobEnvironment(
@@ -302,22 +242,13 @@ public:
         Instance_->SetIOThrottle(operations);
     }
 
-    virtual TMemoryStatistics GetMemoryStatistics() const
+    virtual std::optional<TMemoryStatistics> GetMemoryStatistics() const
     {
         if (UsePortoMemoryTracking_) {
-            auto memoryStatistics = ResourceTracker_->GetMemoryStatistics();
-            if (memoryStatistics.Rss + memoryStatistics.MappedFile > MaxMemoryUsage_) {
-                MaxMemoryUsage_ = memoryStatistics.Rss + memoryStatistics.MappedFile;
-            }
-            return memoryStatistics;
+            return ResourceTracker_->GetMemoryStatistics();
         } else {
-            return TMemoryTrackerBase::GetMemoryStatistics(Instance_->GetPids());
+            return std::nullopt;
         }
-    }
-
-    virtual i64 GetMaxMemoryUsage() const override
-    {
-        return MaxMemoryUsage_;
     }
 
     virtual TProcessBasePtr CreateUserJobProcess(
@@ -431,6 +362,8 @@ private:
     const IInstancePtr Instance_;
     const TPortoResourceTrackerPtr ResourceTracker_;
     std::vector<TString> Envirnoment_;
+
+    TProcessBasePtr Process_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TPortoUserJobEnvironment)

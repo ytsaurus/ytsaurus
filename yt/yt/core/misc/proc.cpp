@@ -940,4 +940,227 @@ void ValidateSignalName(const TString& signalName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMemoryMappingStatistics& TMemoryMappingStatistics::operator+=(const TMemoryMappingStatistics& rhs)
+{
+    Size += rhs.Size;
+    KernelPageSize += rhs.KernelPageSize;
+    MMUPageSize += rhs.MMUPageSize;
+    Rss += rhs.Rss;
+    Pss += rhs.Pss;
+    SharedClean += rhs.SharedClean;
+    SharedDirty += rhs.SharedDirty;
+    PrivateClean += rhs.PrivateClean;
+    PrivateDirty += rhs.PrivateDirty;
+    Referenced += rhs.Referenced;
+    Anonymous += rhs.Anonymous;
+    LazyFree += rhs.LazyFree;
+    AnonHugePages += rhs.AnonHugePages;
+    ShmemPmdMapped += rhs.ShmemPmdMapped;
+    SharedHugetlb += rhs.SharedHugetlb;
+    PrivateHugetlb += rhs.PrivateHugetlb;
+    Swap += rhs.Swap;
+    SwapPss += rhs.SwapPss;
+    Locked += rhs.Locked;
+
+    return *this;
+}
+
+TMemoryMappingStatistics operator+(TMemoryMappingStatistics lhs, const TMemoryMappingStatistics& rhs)
+{
+    lhs += rhs;
+    return lhs;
+}
+
+std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
+{
+    auto parseMemoryAmount = [] (const TString& strValue, const TString& unit) {
+        auto value = FromString<ui64>(strValue);
+        if (unit == "kB") {
+            return value * 1_KB;
+        } else {
+            YT_VERIFY(false);
+        }
+    };
+
+    std::vector<TMemoryMapping> memoryMappings;
+    for (const auto& token : StringSplitter(rawSMaps).Split('\n')) {
+        auto line = token.Token();
+        if (line.empty()) {
+            continue;
+        }
+
+        std::vector<TString> words;
+        StringSplitter(line).SplitBySet(" \t").SkipEmpty().Collect(&words);
+
+        // Memory mapping description starts with boundary addresses which consists of lowercase
+        // letters and digits. Memory mapping properties descriptions starts with uppercase letter.
+        if (std::isupper(line[0])) {
+            auto property = words[0];
+            YT_VERIFY(property.back() == ':');
+            property.pop_back();
+
+            YT_VERIFY(!memoryMappings.empty());
+            auto& mapping = memoryMappings.back();
+            auto& statistics = mapping.Statistics;
+
+            if (property == "Size") {
+                YT_VERIFY(words.size() == 3);
+                statistics.Size = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "KernelPageSize") {
+                YT_VERIFY(words.size() == 3);
+                statistics.KernelPageSize = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "MMUPageSize") {
+                YT_VERIFY(words.size() == 3);
+                statistics.MMUPageSize = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Rss") {
+                YT_VERIFY(words.size() == 3);
+                statistics.Rss = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Pss") {
+                YT_VERIFY(words.size() == 3);
+                statistics.Pss = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Shared_Clean") {
+                YT_VERIFY(words.size() == 3);
+                statistics.SharedClean = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Shared_Dirty") {
+                YT_VERIFY(words.size() == 3);
+                statistics.SharedDirty = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Private_Clean") {
+                YT_VERIFY(words.size() == 3);
+                statistics.PrivateClean = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Private_Dirty") {
+                YT_VERIFY(words.size() == 3);
+                statistics.PrivateDirty = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Referenced") {
+                YT_VERIFY(words.size() == 3);
+                statistics.Referenced = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Anonymous") {
+                YT_VERIFY(words.size() == 3);
+                statistics.Anonymous = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "LazyFree") {
+                YT_VERIFY(words.size() == 3);
+                statistics.LazyFree = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "AnonHugePages") {
+                YT_VERIFY(words.size() == 3);
+                statistics.AnonHugePages = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "ShmemPmdMapped") {
+                YT_VERIFY(words.size() == 3);
+                statistics.ShmemPmdMapped = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Shared_Hugetlb") {
+                YT_VERIFY(words.size() == 3);
+                statistics.SharedHugetlb = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Private_Hugetlb") {
+                YT_VERIFY(words.size() == 3);
+                statistics.PrivateHugetlb = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Swap") {
+                YT_VERIFY(words.size() == 3);
+                statistics.Swap = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "SwapPss") {
+                YT_VERIFY(words.size() == 3);
+                statistics.SwapPss = parseMemoryAmount(words[1], words[2]);
+            } else if (property == "Locked") {
+                YT_VERIFY(words.size() == 3);
+                statistics.Locked = parseMemoryAmount(words[1], words[2]);                
+            } else if (property == "ProtectionKey") {
+                YT_VERIFY(words.size() == 2);
+                mapping.ProtectionKey = FromString<ui64>(words[1]);
+            } else if (property == "VmFlags") {
+                for (const auto& flag : words) {
+                    EVMFlag enumFlag;
+                    if (TEnumTraits<EVMFlag>::FindValueByLiteral(to_upper(flag), &enumFlag)) {
+                        mapping.VMFlags |= enumFlag;
+                    } else {
+                        // Unknown flag, do not crash.
+                    }
+                }
+            } else {
+                // Unknown property, do not crash.
+            }
+        } else {
+            YT_VERIFY(words.size() == 5 || words.size() == 6);
+            TMemoryMapping memoryMapping;
+            {
+                TStringBuf addressRange = words[0];
+                TStringBuf start;
+                TStringBuf end;
+                YT_VERIFY(addressRange.TrySplit('-', start, end));
+                YT_VERIFY(TryIntFromString<16>(start, memoryMapping.Start));
+                YT_VERIFY(TryIntFromString<16>(end, memoryMapping.End));
+            }
+            {
+                const auto& permissions = words[1];
+                YT_VERIFY(permissions.size() == 4);
+                if (permissions[0] == 'r') {
+                    memoryMapping.Permissions |= EMemoryMappingPermission::Read;
+                } else {
+                    YT_VERIFY(permissions[0] == '-');
+                }
+                if (permissions[1] == 'w') {
+                    memoryMapping.Permissions |= EMemoryMappingPermission::Write;
+                } else {
+                    YT_VERIFY(permissions[1] == '-');
+                }
+                if (permissions[2] == 'x') {
+                    memoryMapping.Permissions |= EMemoryMappingPermission::Execute;
+                } else {
+                    YT_VERIFY(permissions[2] == '-');
+                }
+                if (permissions[3] == 'p') {
+                    memoryMapping.Permissions |= EMemoryMappingPermission::Private;
+                } else {
+                    YT_VERIFY(permissions[3] == 's');
+                    memoryMapping.Permissions |= EMemoryMappingPermission::Shared;
+                }
+            }
+
+            YT_VERIFY(TryIntFromString<16>(words[2], memoryMapping.Offset));
+
+            {
+                TStringBuf device = words[3];
+                bool validDevice = (device.size() == 5 && device[2] == ':');
+                if (!validDevice) {
+                    // TODO(gritukan): This is for strange flap investigation.
+                    YT_LOG_ERROR("Failed to parse device in smaps (RawSmaps: %v, Device: %v)",
+                        rawSMaps,
+                        device);
+                    YT_VERIFY(!validDevice);
+                }
+                TStringBuf majorStr;
+                TStringBuf minorStr;
+                YT_VERIFY(device.TrySplit(':', majorStr, minorStr));
+                ui16 major;
+                ui16 minor;
+                YT_VERIFY(TryIntFromString<16>(majorStr, major));
+                YT_VERIFY(TryIntFromString<16>(minorStr, minor));
+                if (major != 0 || minor != 0) {
+                    memoryMapping.DeviceId = (major << 8) | minor;
+                }
+            }
+
+            if (words[4] != "0") {
+                // NB: Decimal number.
+                memoryMapping.INode = FromString<ui64>(words[4]);
+            }
+
+            if (words.size() == 6) {
+                memoryMapping.Path = words[5];
+            }
+
+            memoryMappings.push_back(memoryMapping);
+        }
+    }
+
+    return memoryMappings;
+}
+
+std::vector<TMemoryMapping> GetProcessMemoryMappings(int pid)
+{
+#ifdef _linux_
+    auto rawSMaps = TFileInput{Format("/proc/%v/smaps", pid)}.ReadAll();
+    return ParseMemoryMappings(rawSMaps);
+#else
+    return {};
+#endif
+}
+
+////////////////////////////////////////////////////////////////////////////////
 } // namespace NYT

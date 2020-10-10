@@ -118,6 +118,7 @@ public:
             Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetDataCenter()))
         , JobSpec_(std::move(jobSpec))
         , SchedulerJobSpecExt_(&JobSpec_.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext))
+        , UserJobSpec_(SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_user_job_spec() ? &SchedulerJobSpecExt_->user_job_spec() : nullptr)
         , AbortJobIfAccountLimitExceeded_(SchedulerJobSpecExt_->abort_job_if_account_limit_exceeded())
         , Logger(NLogging::TLogger(ExecAgentLogger)
             .AddTag("JobId: %v, OperationId: %v, JobType: %v",
@@ -166,28 +167,26 @@ public:
             diskRequest.set_disk_space(Config_->MinRequiredDiskSpace);
             diskRequest.set_medium_index(NChunkClient::DefaultSlotsMediumIndex);
 
-            if (SchedulerJobSpecExt_->has_user_job_spec()) {
-                const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
-
+            if (UserJobSpec_) {
                 // COMPAT(ignat).
-                if (userJobSpec.has_disk_space_limit()) {
-                    diskRequest.set_disk_space(userJobSpec.disk_space_limit());
+                if (UserJobSpec_->has_disk_space_limit()) {
+                    diskRequest.set_disk_space(UserJobSpec_->disk_space_limit());
                 }
 
-                if (userJobSpec.has_disk_request()) {
-                    diskRequest = userJobSpec.disk_request();
+                if (UserJobSpec_->has_disk_request()) {
+                    diskRequest = UserJobSpec_->disk_request();
                 }
 
-                if (userJobSpec.has_prepare_time_limit()) {
-                    auto prepareTimeLimit = FromProto<TDuration>(userJobSpec.prepare_time_limit());
+                if (UserJobSpec_->has_prepare_time_limit()) {
+                    auto prepareTimeLimit = FromProto<TDuration>(UserJobSpec_->prepare_time_limit());
                     TDelayedExecutor::Submit(
                         BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), prepareTimeLimit)
                             .Via(Invoker_),
                         prepareTimeLimit);
                 }
 
-                if (userJobSpec.has_network_project_id()) {
-                    NetworkProjectId_ = userJobSpec.network_project_id();
+                if (UserJobSpec_->has_network_project_id()) {
+                    NetworkProjectId_ = UserJobSpec_->network_project_id();
                 }
             }
 
@@ -201,11 +200,8 @@ public:
                     GpuStatistics_.emplace_back(std::move(statistics));
                 }
 
-                if (SchedulerJobSpecExt_->has_user_job_spec() && !Config_->JobController->GpuManager->TestResource) {
-                    const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
-                    if (userJobSpec.has_cuda_toolkit_version()) {
-                        Bootstrap_->GetGpuManager()->VerifyToolkitDriverVersion(userJobSpec.cuda_toolkit_version());
-                    }
+                if (UserJobSpec_ && UserJobSpec_->has_cuda_toolkit_version() && !Config_->JobController->GpuManager->TestResource) {
+                    Bootstrap_->GetGpuManager()->VerifyToolkitDriverVersion(UserJobSpec_->cuda_toolkit_version());
                 }
             }
 
@@ -744,6 +740,7 @@ private:
 
     TJobSpec JobSpec_;
     const TSchedulerJobSpecExt* const SchedulerJobSpecExt_;
+    const NScheduler::NProto::TUserJobSpec* const UserJobSpec_;
 
     const bool AbortJobIfAccountLimitExceeded_;
 
@@ -1362,7 +1359,23 @@ private:
 
         auto proxyConfig = Bootstrap_->BuildJobProxyConfig();
         proxyConfig->BusServer = Slot_->GetBusServerConfig();
-        proxyConfig->TmpfsPaths = TmpfsPaths_;
+
+        proxyConfig->TmpfsManager = New<TTmpfsManagerConfig>();
+        proxyConfig->TmpfsManager->TmpfsPaths = TmpfsPaths_;
+
+        proxyConfig->MemoryTracker = New<TMemoryTrackerConfig>();
+        if (UserJobSpec_) {
+            proxyConfig->MemoryTracker->IncludeMemoryMappedFiles = UserJobSpec_->include_memory_mapped_files();
+            proxyConfig->MemoryTracker->UseSMapsMemoryTracker = UserJobSpec_->use_smaps_memory_tracker();
+        } else {
+            proxyConfig->MemoryTracker->IncludeMemoryMappedFiles = true;
+            proxyConfig->MemoryTracker->UseSMapsMemoryTracker = false;
+        }
+
+        proxyConfig->MemoryTracker->MemoryStatisticsCachePeriod = proxyConfig->MemoryTracker->UseSMapsMemoryTracker
+            ? Config_->SMapsMemoryTrackerCachePeriod
+            : Config_->MemoryTrackerCachePeriod;
+
         proxyConfig->SlotIndex = Slot_->GetSlotIndex();
         if (RootVolume_) {
             proxyConfig->RootPath = RootVolume_->GetPath();
@@ -1388,9 +1401,8 @@ private:
             proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
         }
 
-        if (SchedulerJobSpecExt_->has_user_job_spec()) {
-            const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
-            proxyConfig->MakeRootFSWritable = userJobSpec.make_rootfs_writable();
+        if (UserJobSpec_) {
+            proxyConfig->MakeRootFSWritable = UserJobSpec_->make_rootfs_writable();
         } else {
             proxyConfig->MakeRootFSWritable = false;
         }
@@ -1445,9 +1457,8 @@ private:
 
         TUserSandboxOptions options;
 
-        if (SchedulerJobSpecExt_->has_user_job_spec()) {
-            const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
-            for (const auto& tmpfsVolumeProto : userJobSpec.tmpfs_volumes()) {
+        if (UserJobSpec_) {
+            for (const auto& tmpfsVolumeProto : UserJobSpec_->tmpfs_volumes()) {
                 TTmpfsVolume tmpfsVolume;
                 tmpfsVolume.Size = tmpfsVolumeProto.size();
                 tmpfsVolume.Path = tmpfsVolumeProto.path();
@@ -1455,21 +1466,21 @@ private:
             }
 
             // COMPAT(ignat).
-            if (userJobSpec.has_disk_space_limit()) {
-                options.DiskSpaceLimit = userJobSpec.disk_space_limit();
+            if (UserJobSpec_->has_disk_space_limit()) {
+                options.DiskSpaceLimit = UserJobSpec_->disk_space_limit();
             }
 
             // COMPAT(ignat).
-            if (userJobSpec.has_inode_limit()) {
-                options.InodeLimit = userJobSpec.inode_limit();
+            if (UserJobSpec_->has_inode_limit()) {
+                options.InodeLimit = UserJobSpec_->inode_limit();
             }
 
-            if (userJobSpec.has_disk_request()) {
-                if (userJobSpec.disk_request().has_disk_space()) {
-                    options.DiskSpaceLimit = userJobSpec.disk_request().disk_space();
+            if (UserJobSpec_->has_disk_request()) {
+                if (UserJobSpec_->disk_request().has_disk_space()) {
+                    options.DiskSpaceLimit = UserJobSpec_->disk_request().disk_space();
                 }
-                if (userJobSpec.disk_request().has_inode_count()) {
-                    options.InodeLimit = userJobSpec.disk_request().inode_count();
+                if (UserJobSpec_->disk_request().has_inode_count()) {
+                    options.InodeLimit = UserJobSpec_->disk_request().inode_count();
                 }
             }
         }
@@ -1485,15 +1496,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        if (SchedulerJobSpecExt_->has_user_job_spec()) {
-            const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
-            for (const auto& descriptor : userJobSpec.files()) {
+        if (UserJobSpec_) {
+            for (const auto& descriptor : UserJobSpec_->files()) {
                 bool copyFile;
                 // COMPAT(gritukan)
                 if (descriptor.has_copy_file()) {
                     copyFile = descriptor.copy_file();
                 } else {
-                    copyFile = userJobSpec.copy_files();
+                    copyFile = UserJobSpec_->copy_files();
                 }
 
                 Artifacts_.push_back(TArtifact{
@@ -1508,8 +1518,8 @@ private:
 
             bool needGpuLayers = NeedGpuLayers() || Config_->JobController->GpuManager->TestLayers;
 
-            if (needGpuLayers && userJobSpec.enable_gpu_layers()) {
-                if (userJobSpec.layers().empty()) {
+            if (needGpuLayers && UserJobSpec_->enable_gpu_layers()) {
+                if (UserJobSpec_->layers().empty()) {
                     THROW_ERROR_EXCEPTION(EErrorCode::GpuJobWithoutLayers,
                         "No layers specified for GPU job; at least a base layer is required to use GPU");
                 }
@@ -1519,7 +1529,7 @@ private:
                 }
             }
 
-            for (const auto& descriptor : userJobSpec.layers()) {
+            for (const auto& descriptor : UserJobSpec_->layers()) {
                 LayerArtifactKeys_.emplace_back(descriptor);
             }
         }

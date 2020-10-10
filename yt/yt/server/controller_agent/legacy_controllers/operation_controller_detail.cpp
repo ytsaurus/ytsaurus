@@ -8337,6 +8337,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_make_rootfs_writable(config->MakeRootFSWritable);
 
+    jobSpec->set_use_smaps_memory_tracker(config->UseSMapsMemoryTracker);
+
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
             jobSpec->add_environment(Format("%v=%v", key, value));

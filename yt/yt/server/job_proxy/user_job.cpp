@@ -6,6 +6,8 @@
 #include "stderr_writer.h"
 #include "user_job_synchronizer_service.h"
 #include "user_job_write_controller.h"
+#include "memory_tracker.h"
+#include "tmpfs_manager.h"
 #include "environment.h"
 #include "core_watcher.h"
 
@@ -173,7 +175,8 @@ public:
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
-        , MaximumTmpfsSizes_(Config_->TmpfsPaths.size())
+        , TmpfsManager_(New<TTmpfsManager>(Config_->TmpfsManager))
+        , MemoryTracker_(New<TMemoryTracker>(Config_->MemoryTracker, UserJobEnvironment_, TmpfsManager_))
     {
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, ExecutorPreparedPromise_, AuxQueue_->GetInvoker()));
 
@@ -459,10 +462,9 @@ private:
     std::atomic<bool> JobStarted_ = false;
     std::atomic<bool> InterruptionSignalSent_ = false;
 
-    i64 CumulativeMemoryUsageMBSec_ = 0;
+    const TTmpfsManagerPtr TmpfsManager_;
 
-    std::vector<std::atomic<i64>> MaximumTmpfsSizes_;
-
+    const TMemoryTrackerPtr MemoryTracker_;
     TDuration MemoryWatchdogPeriod_;
 
     std::vector<std::unique_ptr<IOutputStream>> TableOutputs_;
@@ -1122,40 +1124,16 @@ private:
                 YT_LOG_WARNING(ex, "Unable to get block io statistics for user job");
             }
 
-            try {
-                auto memoryStatistics = UserJobEnvironment_->GetMemoryStatistics();
-                statistics.AddSample("/user_job/current_memory", memoryStatistics);
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Unable to get memory statistics for user job");
-            }
-
-            try {
-                auto maxMemoryUsage = UserJobEnvironment_->GetMaxMemoryUsage();
-                statistics.AddSample("/user_job/max_memory", maxMemoryUsage);
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Unable to get max memory usage for user job");
-            }
-
-            statistics.AddSample("/user_job/cumulative_memory_mb_sec", CumulativeMemoryUsageMBSec_);
             statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
         }
 
-        auto tmpfsSizes = GetTmpfsSizes();
-        if (tmpfsSizes) {
-            YT_VERIFY(tmpfsSizes->size() == MaximumTmpfsSizes_.size());
-            for (int index = 0; index < MaximumTmpfsSizes_.size(); ++index) {
-                statistics.AddSample(Format("/user_job/tmpfs_volumes/%v/max_size", index), MaximumTmpfsSizes_[index]);
-                statistics.AddSample(Format("/user_job/tmpfs_volumes/%v/size", index), (*tmpfsSizes)[index]);
-            }
+        TmpfsManager_->DumpTmpfsStatistics(&statistics, "/user_job");
+        MemoryTracker_->DumpMemoryUsageStatistics(&statistics, "/user_job");
 
-            statistics.AddSample("/user_job/tmpfs_size", std::accumulate(tmpfsSizes->begin(), tmpfsSizes->end(), 0ll));
-            statistics.AddSample("/user_job/max_tmpfs_size", std::accumulate(MaximumTmpfsSizes_.begin(), MaximumTmpfsSizes_.end(), 0ll));
-        }
-
+        YT_VERIFY(UserJobSpec_.memory_limit() > 0);
         statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
         statistics.AddSample("/user_job/memory_reserve", UserJobSpec_.memory_reserve());
 
-        YT_VERIFY(UserJobSpec_.memory_limit() > 0);
         statistics.AddSample(
             "/user_job/memory_reserve_factor_x10000",
             static_cast<int>((1e4 * UserJobSpec_.memory_reserve()) / UserJobSpec_.memory_limit()));
@@ -1384,110 +1362,26 @@ private:
         }
     }
 
-    i64 GetMemoryUsageByUid(int uid, pid_t excludePid) const
-    {
-        auto pids = GetPidsByUid(uid);
-
-        i64 rss = 0;
-        // Warning: we can account here a ytserver process in executor mode memory consumption.
-        // But this is not a problem because it does not consume much.
-        for (int pid : pids) {
-            if (pid == excludePid) {
-                continue;
-            }
-            try {
-                auto memoryUsage = GetProcessMemoryUsage(pid);
-                YT_LOG_DEBUG("Pid: %v, ProcessName: %v, Rss: %v, Shared: %v",
-                    pid,
-                    GetProcessName(pid),
-                    memoryUsage.Rss,
-                    memoryUsage.Shared);
-                rss += memoryUsage.Rss;
-            } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Failed to get memory usage for pid %v", pid);
-            }
-        }
-        return rss;
-    }
-
-    std::optional<std::vector<i64>> GetTmpfsSizes() const
-    {
-        std::vector<i64> tmpfsSizes;
-        tmpfsSizes.reserve(Config_->TmpfsPaths.size());
-        for (const auto& tmpfsPath : Config_->TmpfsPaths) {
-            try {
-                auto diskSpaceStatistics = NFS::GetDiskSpaceStatistics(tmpfsPath);
-                tmpfsSizes.push_back(diskSpaceStatistics.TotalSpace - diskSpaceStatistics.AvailableSpace);
-            } catch (const std::exception& ex) {
-                auto error = TError(
-                    NJobProxy::EErrorCode::MemoryCheckFailed,
-                    "Failed to get tmpfs size") << ex;
-                JobErrorPromise_.TrySet(error);
-                CleanupUserProcesses();
-                return std::nullopt;
-            }
-        }
-        return tmpfsSizes;
-    }
-
     void CheckMemoryUsage()
     {
-        if (!UserId_) {
-            YT_LOG_DEBUG("Memory usage control is disabled");
-            return;
-        }
-
-        auto getMemoryUsage = [&] () {
-            try {
-                if (UserJobEnvironment_) {
-                    auto memoryStatistics = UserJobEnvironment_->GetMemoryStatistics();
-
-                    i64 rss = UserJobSpec_.include_memory_mapped_files() ? memoryStatistics.MappedFile : 0;
-                    rss += memoryStatistics.Rss;
-                    return rss;
-                } else {
-                    // Fallback for non-Porto environment.
-                    return GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
-                }
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Unable to get memory statistics to check memory limits");
-            }
-
-            return 0l;
-        };
-
-        auto rss = getMemoryUsage();
-        auto tmpfsSizes = GetTmpfsSizes();
-        if (!tmpfsSizes) {
-            return;
-        }
-        i64 memoryLimit = UserJobSpec_.memory_limit();
-        i64 currentMemoryUsage = rss + std::accumulate(tmpfsSizes->begin(), tmpfsSizes->end(), 0ll);
-
-        CumulativeMemoryUsageMBSec_ += (currentMemoryUsage / 1_MB) * MemoryWatchdogPeriod_.Seconds();
-
-        YT_LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
-            tmpfsSizes,
-            rss,
+        auto memoryUsage = MemoryTracker_->GetMemoryUsage();
+        auto memoryLimit = UserJobSpec_.memory_limit();
+        YT_LOG_DEBUG("Checking memory usage (MemoryUsage: %v, MemoryLimit: %v)",
+            memoryUsage,
             memoryLimit);
-        if (currentMemoryUsage > memoryLimit) {
+
+        if (memoryUsage > memoryLimit) {
             YT_LOG_DEBUG("Memory limit exceeded");
             auto error = TError(
                 NJobProxy::EErrorCode::MemoryLimitExceeded,
                 "Memory limit exceeded")
-                << TErrorAttribute("rss", rss)
-                << TErrorAttribute("tmpfs", *tmpfsSizes)
+                << TErrorAttribute("usage", memoryUsage)
                 << TErrorAttribute("limit", memoryLimit);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses();
         }
 
-        YT_VERIFY(tmpfsSizes->size() == MaximumTmpfsSizes_.size());
-        for (int index = 0; index < tmpfsSizes->size(); ++index) {
-            MaximumTmpfsSizes_[index] = std::max(MaximumTmpfsSizes_[index].load(), (*tmpfsSizes)[index]);
-        }
-
-        Host_->SetUserJobMemoryUsage(currentMemoryUsage);
+        Host_->SetUserJobMemoryUsage(memoryUsage);
     }
 
     void CheckBlockIOUsage()

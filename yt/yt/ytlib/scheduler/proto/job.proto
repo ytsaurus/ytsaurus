@@ -185,6 +185,8 @@ message TUserJobSpec
     // Cast Any values from input row stream to Composite
     // according to schemas from data source directory.
     optional bool cast_input_any_to_composite = 56 [default = false];
+
+    optional bool use_smaps_memory_tracker = 57 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -536,7 +536,7 @@ TJobResult TJobProxy::DoRun()
             }
 
             rootFS.Binds.emplace_back(TBind {GetPreparationPath(), GetSlotPath(), false});
-            for (const auto& tmpfsPath : Config_->TmpfsPaths) {
+            for (const auto& tmpfsPath : Config_->TmpfsManager->TmpfsPaths) {
                 rootFS.Binds.emplace_back(TBind {tmpfsPath, AdjustPath(tmpfsPath), false});
             }
 

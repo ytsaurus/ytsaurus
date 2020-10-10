@@ -711,6 +711,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(true);
     RegisterParameter("make_rootfs_writable", MakeRootFSWritable)
         .Default(false);
+    RegisterParameter("use_smaps_memory_tracker", UseSMapsMemoryTracker)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {
