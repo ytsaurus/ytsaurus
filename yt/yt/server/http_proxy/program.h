@@ -41,12 +41,6 @@ public:
         , TProgramConfigMixin(Opts_, false)
     {
         Opts_
-            .AddLongOption("legacy-config", "path to config in legacy format")
-            .StoreMappedResult(&LegacyConfigPath_, &CheckPathExistsArgMapper)
-            .RequiredArgument("FILE")
-            .Optional();
-
-        Opts_
             .AddLongOption(
                 "remote-cluster-proxy",
                 "if set, proxy would download cluster connection from //sys/@cluster_connection "
@@ -114,13 +108,6 @@ protected:
             config = New<NHttpProxy::TProxyConfig>();
             config->SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
             config->Load(configNode);
-        } else if (LegacyConfigPath_) {
-            TIFStream stream(LegacyConfigPath_);
-            auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
-            builder->BeginTree();
-            NJson::ParseJson(&stream, builder.get());
-            configNode = NHttpProxy::ConvertFromLegacyConfig(builder->EndTree());
-            config = NYTree::ConvertTo<NHttpProxy::TProxyConfigPtr>(configNode);
         } else {
             config = GetConfig();
             configNode = GetConfigNode();
@@ -138,7 +125,6 @@ protected:
     }
 
 private:
-    TString LegacyConfigPath_;
     TString RemoteClusterProxy_;
 };
 
