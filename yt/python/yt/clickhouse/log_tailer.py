@@ -9,6 +9,9 @@ from yt.wrapper.common import update_inplace
 
 from yt.packages.six.moves import xrange
 
+from yt.wrapper import YtClient
+import yt.wrapper.config
+
 import os.path
 
 
@@ -25,10 +28,9 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_vers
                                     attribute_patch=None):
     attribute_patch = attribute_patch or {}
 
-    # COMPAT(max42)
-    atomicity = "none" if _is_fresher_than(log_tailer_version, "19.8.34144") else "full"
+    non_batch_client = YtClient(config=yt.wrapper.config.get_config(client))
 
-    if "ssd_blobs" in get("//sys/media", client=client):
+    if "ssd_blobs" in non_batch_client.get("//sys/media"):
         medium = "ssd_blobs"
     else:
         medium = "default"
@@ -45,7 +47,7 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_vers
         "auto_compaction_period": 86400000,
         "dynamic_store_overflow_threshold": 0.5,
         "merge_rows_on_flush": True,
-        "atomicity": atomicity,
+        "atomicity": "none",
     }
 
     update_inplace(attributes, attribute_patch)
