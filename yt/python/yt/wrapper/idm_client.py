@@ -34,9 +34,10 @@ def _flatten_dict(dict_):
 
 
 def _get_object_id(path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
-                   pool_tree=None):
+                   pool_tree=None, network_project=None):
     no_pool = dict(path=path, account=account, group=group,
-                   tablet_cell_bundle=tablet_cell_bundle)
+                   tablet_cell_bundle=tablet_cell_bundle,
+                   network_project=network_project)
     exclusive = [dict(pool=pool, **no_pool), dict(pool_tree=pool_tree, **no_pool)]
     for exclusive_group in exclusive:
         keys = [key for key, value in iteritems(exclusive_group) if value is not None]
@@ -59,8 +60,9 @@ def _get_object_id(path=None, account=None, pool=None, group=None, tablet_cell_b
 
 def _with_object_id(func):
     def wrapper(client, path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
-                pool_tree=None, *args, **kwargs):
-        object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree)
+                pool_tree=None, network_project=None, *args, **kwargs):
+        object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree,
+                                   network_project)
         return func(client, *args, object_id=object_id, **kwargs)
     wrapper.__doc__ = func.__doc__
     return wrapper
@@ -68,9 +70,10 @@ def _with_object_id(func):
 
 def _with_optional_object_id(func):
     def wrapper(client, path=None, account=None, pool=None, group=None, tablet_cell_bundle=None,
-                pool_tree=None, *args, **kwargs):
-        if path or account or pool or group or tablet_cell_bundle or pool_tree:
-            object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree)
+                pool_tree=None, network_project=None, *args, **kwargs):
+        if path or account or pool or group or tablet_cell_bundle or pool_tree or network_project:
+            object_id = _get_object_id(path, account, pool, group, tablet_cell_bundle, pool_tree,
+                                       network_project)
         else:
             object_id = None
         return func(client, *args, object_id=object_id, **kwargs)
