@@ -86,13 +86,13 @@ public:
 
     void executeImpl(Block & block, const ColumnNumbers & arguments, size_t result, size_t inputRowCount) const override
     {
-        const IColumn* columnYsonOrNull = block.getByPosition(arguments[0]).column.get();
+        const IColumn* columnYsonOrNull = block[arguments[0]].column.get();
         const IColumn* columnYson = columnYsonOrNull;
         if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
             columnYson = &nullableColumnYson->getNestedColumn();
         }
 
-        const IColumn* columnFormatOrNull = block.getByPosition(arguments[1]).column.get();
+        const IColumn* columnFormatOrNull = block[arguments[1]].column.get();
         const IColumn* columnFormat = columnFormatOrNull;
         if (auto* nullableColumnFormat = checkAndGetColumn<ColumnNullable>(columnFormat)) {
             columnFormat = &nullableColumnFormat->getNestedColumn();
@@ -124,7 +124,7 @@ public:
             columnTo->insert(toField(ConvertToYsonString(ysonString, ysonFormat).GetData()));
         }
 
-        block.getByPosition(result).column = std::move(columnTo);
+        block[result].column = std::move(columnTo);
     }
 };
 
