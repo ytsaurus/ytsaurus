@@ -329,7 +329,7 @@ mm = mmap.mmap(f.fileno(), 0)
 
 s = mm.read()
 
-time.sleep(5)
+time.sleep(10)
 """
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
