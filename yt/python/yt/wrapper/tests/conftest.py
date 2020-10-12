@@ -8,7 +8,7 @@ from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
-from yt.wrapper.common import update, update_inplace, GB
+from yt.wrapper.common import update, update_inplace, GB, MB
 from yt.common import which, makedirp, format_error
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
@@ -224,6 +224,9 @@ class YtTestEnvironment(object):
         self.config["local_temp_directory"] = local_temp_directory
         self.config["enable_logging_for_params_changes"] = True
         self.config["allow_fallback_to_native_driver"] = False
+
+        if yatest_common.context.sanitize == "address":
+            self.config["user_job_spec_defaults"] = {"memory_limit": 1280 * MB}
 
         # Interrupt main in tests is unrelaible and can cause 'Test crashed' or other errors in case of flaps.
         self.config["ping_failed_mode"] = "pass"
