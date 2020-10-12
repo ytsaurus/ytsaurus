@@ -201,6 +201,11 @@ public:
     void Initialize()
     {
         MasterConnector_->AddCommonWatcher(
+            BIND(&TImpl::RequestConfig, Unretained(this)),
+            BIND(&TImpl::HandleConfig, Unretained(this)),
+            ESchedulerAlertType::UpdateConfig);
+
+        MasterConnector_->AddCommonWatcher(
             BIND(&TImpl::RequestPoolTrees, Unretained(this)),
             BIND(&TImpl::HandlePoolTrees, Unretained(this)),
             ESchedulerAlertType::UpdatePools);
@@ -210,11 +215,6 @@ public:
             BIND(&TImpl::RequestNodesAttributes, Unretained(this)),
             BIND(&TImpl::HandleNodesAttributes, Unretained(this)),
             Config_->NodesAttributesUpdatePeriod);
-
-        MasterConnector_->AddCommonWatcher(
-            BIND(&TImpl::RequestConfig, Unretained(this)),
-            BIND(&TImpl::HandleConfig, Unretained(this)),
-            ESchedulerAlertType::UpdateConfig);
 
         MasterConnector_->AddCommonWatcher(
             BIND(&TImpl::RequestOperationsEffectiveAcl, Unretained(this)),

@@ -1495,6 +1495,25 @@ class TestSchedulingStrategyAlgorithmConfigPerTree(YTEnvSetup):
 
         wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
 
+    @authors("eshcherbin")
+    def test_default_algorithm_in_strategy_config_from_cypress(self):
+        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
+        wait(lambda: get(scheduler_orchid_pool_tree_path("default") + "/algorithm") == "classic")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            set("//sys/scheduler/config/use_classic_scheduler", False)
+
+        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
+        wait(lambda: get(scheduler_orchid_pool_tree_path("default") + "/algorithm") == "vector")
+
+        # This is done to switch the default tree back to the classic algorithm for other tests to pass.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            set("//sys/scheduler/config/use_classic_scheduler", True)
+
+        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
+        wait(lambda: get(scheduler_orchid_pool_tree_path("default") + "/algorithm") == "classic")
+
+##################################################################
 
 @authors("renadeen")
 class BaseTestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
