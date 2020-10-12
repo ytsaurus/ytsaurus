@@ -135,6 +135,7 @@ public:
                 auto found = accessor.Lookup(key, true);
 
                 if (found) {
+                    YT_VERIFY(found->GetVersionedRow().GetKeyCount() > 0);
                     ++CacheHits_;
                     YT_LOG_TRACE("Row found (Key: %v, Row: %v)",
                         key,
@@ -484,6 +485,8 @@ private:
                 if (accessor) {
                     auto mergedRow = CacheRowMerger_->BuildMergedRow();
                     if (mergedRow) {
+                        YT_VERIFY(mergedRow.GetKeyCount() > 0);
+
                         auto cachedRow = CachedRowFromVersionedRow(
                             &TabletSnapshot_->RowCache->Allocator,
                             mergedRow);
@@ -532,7 +535,7 @@ private:
                 currentIt != LookupKeys_.End())
             {
                 auto sessionInfo = CreatePartitionSession(&currentIt, &startChunkKeyIndex, partitionSessionInfos.size());
-                
+
                 for (auto& readSession : sessionInfo.AsyncReadSessions) {
                     asyncReadSessions.push_back(std::move(readSession));
                 }
@@ -540,7 +543,7 @@ private:
 
                 partitionSessionInfos.push_back(std::move(sessionInfo));
             }
-            
+
             YT_LOG_DEBUG("Starting parallel lookups "
                 "(PartitionCount: %v, MaxPartitionCount: %v, ReadSessionId: %v, partitionSessionInfos: %v)",
                 partitionSessionInfos.size(),

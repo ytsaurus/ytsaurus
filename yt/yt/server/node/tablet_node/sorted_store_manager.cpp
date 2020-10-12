@@ -706,7 +706,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             currentTimestamp,
             majorTimestamp,
             tabletSnapshot->ColumnEvaluator,
-            /*lookup*/ false,
+            /*lookup*/ true, // Forbid null rows. All rows in cache must have a key.
             /*mergeRowsOnFlush*/ false);
 
         std::vector<TVersionedRow> rows;
@@ -752,9 +752,14 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                     auto foundRow = accessor.Lookup(row);
 
                     if (foundRow) {
+                        YT_VERIFY(foundRow->GetVersionedRow().GetKeyCount() > 0);
+
                         compactionRowMerger.AddPartialRow(foundRow->GetVersionedRow());
                         compactionRowMerger.AddPartialRow(row);
                         auto mergedRow = compactionRowMerger.BuildMergedRow();
+
+                        YT_VERIFY(mergedRow);
+                        YT_VERIFY(mergedRow.GetKeyCount() > 0);
 
                         auto cachedRow = CachedRowFromVersionedRow(
                             &rowCache->Allocator,
