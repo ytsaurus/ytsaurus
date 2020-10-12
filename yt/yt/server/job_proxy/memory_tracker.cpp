@@ -86,6 +86,7 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
 
         if (Config_->UseSMapsMemoryTracker && TmpfsManager_->HasTmpfsVolumes()) {          
             TMemoryMappingStatistics memoryMappingStatistics;
+            i64 skippedBecauseOfTmpfs = 0;
             for (auto pid : pids) {
                 TString smaps;
                 try {
@@ -95,8 +96,22 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
                     continue;
                 }
 
+                YT_LOG_DEBUG("Smaps read (Pid: %v, SMaps: %v)",
+                    pid,
+                    smaps);
+
                 for (const auto& segment : ParseMemoryMappings(smaps)) {
+                    YT_LOG_DEBUG("Memory segment parsed (Pid: %v, DeviceId: %v, "
+                        "PrivateClean: %v, PrivateDirty: %v, SharedClean: %v, SharedDirty: %v)",
+                        pid,
+                        segment.DeviceId,
+                        segment.Statistics.PrivateClean,
+                        segment.Statistics.PrivateDirty,
+                        segment.Statistics.SharedClean,
+                        segment.Statistics.SharedDirty);
+
                     if (segment.DeviceId && TmpfsManager_->IsTmpfsDevice(*segment.DeviceId)) {
+                        skippedBecauseOfTmpfs += segment.Statistics.SharedClean + segment.Statistics.SharedDirty;
                         continue;
                     }
                     memoryMappingStatistics += segment.Statistics;
@@ -105,6 +120,11 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
 
             memoryStatistics.Rss = memoryMappingStatistics.PrivateClean + memoryMappingStatistics.PrivateDirty;
             memoryStatistics.MappedFile = memoryMappingStatistics.SharedClean + memoryMappingStatistics.SharedDirty;
+
+            YT_LOG_DEBUG("Memory statisitcs collected (Rss: %v, Shared: %v, SkippedBecauseOfTmpfs: %v)",
+                memoryStatistics.Rss,
+                memoryStatistics.MappedFile,
+                skippedBecauseOfTmpfs);
         } else {
             for (auto pid : pids) {
                 try {

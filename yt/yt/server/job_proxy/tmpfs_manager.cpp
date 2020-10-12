@@ -19,6 +19,10 @@ TTmpfsManager::TTmpfsManager(TTmpfsManagerConfigPtr config)
     for (const auto& path : Config_->TmpfsPaths) {
         TmpfsDeviceIds.insert(GetDeviceId(path));
     }
+
+    YT_LOG_DEBUG("Tmpfs manager instantiated (TmpfsPaths: %v, TmpfsDeviceIds: %v)",
+        Config_->TmpfsPaths,
+        TmpfsDeviceIds);
 }
 
 void TTmpfsManager::DumpTmpfsStatistics(
