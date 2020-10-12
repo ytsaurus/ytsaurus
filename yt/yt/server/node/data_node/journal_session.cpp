@@ -159,16 +159,18 @@ void TJournalSession::OnFinished()
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    if (Changelog_) {
+    if (Chunk_ && Changelog_) {
         Chunk_->UpdateFlushedRowCount(Changelog_->GetRecordCount());
         Chunk_->UpdateDataSize(Changelog_->GetDataSize());
     }
+
+    if (Chunk_) {
+        Chunk_->SetActive(false);
+
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+        chunkStore->UpdateExistingChunk(Chunk_);
+    }
     
-    Chunk_->SetActive(false);
-
-    const auto& chunkStore = Bootstrap_->GetChunkStore();
-    chunkStore->UpdateExistingChunk(Chunk_);
-
     Finished_.Fire(TError());
 }
 
