@@ -372,6 +372,18 @@ TEST(TIntrusivePtrTest, Reset)
     EXPECT_THAT(object, HasRefCounts(1, 0, 0));
 }
 
+TEST(TIntrusivePtrTest, CompareWithNullptr)
+{
+    TIntricateObjectPtr pointer1;
+    EXPECT_TRUE(nullptr == pointer1);
+    EXPECT_FALSE(nullptr != pointer1);
+    TIntricateObject object;
+    TIntricateObjectPtr pointer2(&object);
+    EXPECT_TRUE(pointer2 != nullptr);
+    EXPECT_FALSE(pointer2 == nullptr);
+}
+
+
 template <class T>
 void TestIntrusivePtrBehavior()
 {

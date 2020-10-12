@@ -290,6 +290,30 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
     return lhs != rhs.Get();
 }
 
+template <class T>
+bool operator==(std::nullptr_t, const TIntrusivePtr<T>& rhs)
+{
+    return nullptr == rhs.Get();
+}
+
+template <class T>
+bool operator!=(std::nullptr_t, const TIntrusivePtr<T>& rhs)
+{
+    return nullptr != rhs.Get();
+}
+
+template <class T>
+bool operator==(const TIntrusivePtr<T>& lhs, std::nullptr_t)
+{
+    return nullptr == lhs.Get();
+}
+
+template <class T>
+bool operator!=(const TIntrusivePtr<T>& lhs, std::nullptr_t)
+{
+    return nullptr != lhs.Get();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NYT
