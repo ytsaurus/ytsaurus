@@ -47,7 +47,7 @@ T* AcquireHazardPointer(const TPtrLoader& ptrLoader, T* localPtr)
 
     void* checkPtr;
     do {
-        HazardPointer.store(TGetIdentityPtr<T>::Do(localPtr), std::memory_order_relaxed);
+        HazardPointer.store(TGetIdentityPtr<T>::Do(localPtr));
         checkPtr = localPtr;
         localPtr = ptrLoader();
     } while (localPtr != checkPtr);
@@ -57,7 +57,7 @@ T* AcquireHazardPointer(const TPtrLoader& ptrLoader, T* localPtr)
 
 inline void ReleaseHazardPointer()
 {
-    HazardPointer.store(nullptr, std::memory_order_relaxed);
+    HazardPointer.store(nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
