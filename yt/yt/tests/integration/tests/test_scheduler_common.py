@@ -2063,11 +2063,11 @@ class TestResourceMetering(YTEnvSetup):
                     parent_name="pixies",
                     wait_for_orchid=False)
 
-        root_key = ("42", "yggdrasil", "<Root>")
+        root_key = (42, "yggdrasil", "<Root>")
 
         desired_cpu_limits = {
-            ("1", "yggdrasil", "pixies"): 2,
-            ("2", "yggdrasil", "francis"): 1,
+            (1, "yggdrasil", "pixies"): 2,
+            (2, "yggdrasil", "francis"): 1,
         }
 
         def check_structured():

@@ -477,6 +477,10 @@ class TResourceMeteringConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    //! Enables new format for abc_id.
+    //! It enables writing abc_id as integer and disable writing could_id and folder_id.
+    bool EnableNewAbcFormat;
+
     //! Default ABC id for use in resource metering
     int DefaultAbcId;
 

@@ -1367,9 +1367,16 @@ public:
         NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
             .Item("schema").Value("yt.scheduler.pools.compute.v1")
             .Item("id").Value(Format("%v:%v:%v", key.TreeId, key.PoolId, (now - TInstant()).Seconds()))
-            .Item("abc_id").Value(ToString(key.AbcId))
-            .Item("cloud_id").Value(Config_->ResourceMetering->DefaultCloudId)
-            .Item("folder_id").Value(Config_->ResourceMetering->DefaultFolderId)
+            .DoIf(Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("abc_id").Value(key.AbcId);
+            })
+            .DoIf(!Config_->ResourceMetering->EnableNewAbcFormat, [&] (TFluentMap fluent) {
+                fluent
+                    .Item("abc_id").Value(ToString(key.AbcId))
+                    .Item("cloud_id").Value(Config_->ResourceMetering->DefaultCloudId)
+                    .Item("folder_id").Value(Config_->ResourceMetering->DefaultFolderId);
+            })
             .Item("usage").BeginMap()
                 .Item("quantity").Value((now - lastUpdateTime).MilliSeconds())
                 .Item("unit").Value("milliseconds")
