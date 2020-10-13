@@ -88,4 +88,12 @@ public class TransactionalOptions {
         }
         return builder;
     }
+
+    void writeArgumentsLogString(StringBuilder sb) {
+        if (transactionId != null) {
+            sb.append("TransactionId: ").append(transactionId).append("; ");
+        } else {
+            sb.append("TransactionId: <null>; ");
+        }
+    }
 }

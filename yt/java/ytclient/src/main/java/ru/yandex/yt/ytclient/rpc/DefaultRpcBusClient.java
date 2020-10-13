@@ -329,7 +329,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 request.header().setStartTime(RpcUtil.instantToMicros(started));
                 List<byte[]> message = request.serialize();
 
-                logger.debug("Starting request `{}` Session: {}", request, session);
+                logger.debug("Sending request `{}` Session: {}", request, session);
                 session.register(this);
 
                 BusDeliveryTracking level =

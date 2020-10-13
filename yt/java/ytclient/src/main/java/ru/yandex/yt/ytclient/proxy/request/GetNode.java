@@ -7,8 +7,9 @@ import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class GetNode extends GetLikeReq<GetNode> {
+public class GetNode extends GetLikeReq<GetNode> implements HighLevelRequest<TReqGetNode.Builder> {
     public GetNode(String path) {
         super(path);
     }
@@ -17,29 +18,29 @@ public class GetNode extends GetLikeReq<GetNode> {
         this(path.toString());
     }
 
-    public TReqGetNode.Builder writeTo(TReqGetNode.Builder builder) {
-        builder.setPath(path);
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqGetNode.Builder, ?> builder) {
+        builder.body().setPath(path);
         if (attributes != null) {
-            builder.setAttributes(attributes.writeTo(TAttributeKeys.newBuilder()));
+            builder.body().setAttributes(attributes.writeTo(TAttributeKeys.newBuilder()));
         }
         if (maxSize != null) {
-            builder.setMaxSize(maxSize);
+            builder.body().setMaxSize(maxSize);
         }
         if (transactionalOptions != null) {
-            builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
+            builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
         if (prerequisiteOptions != null) {
-            builder.setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
+            builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
         }
         if (masterReadOptions != null) {
-            builder.setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
+            builder.body().setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
         }
         if (suppressableAccessTrackingOptions != null) {
-            builder.setSuppressableAccessTrackingOptions(suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder()));
+            builder.body().setSuppressableAccessTrackingOptions(suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder()));
         }
         if (additionalData != null) {
-            builder.mergeFrom(additionalData);
+            builder.body().mergeFrom(additionalData);
         }
-        return builder;
     }
 }
