@@ -8,7 +8,12 @@ import java.util.Objects;
 import java.util.Optional;
 
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
+import ru.yandex.yt.rpc.TRequestHeader;
+import ru.yandex.yt.rpcproxy.TReqLookupRows;
+import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
+import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.RequestBase;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequest<R>> extends RequestBase<R> {
@@ -75,4 +80,63 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
     }
 
     public abstract void serializeRowsetTo(List<byte[]> attachments);
+
+    HighLevelRequest<TReqLookupRows.Builder> asLookupRowsWritable() {
+        //noinspection Convert2Diamond
+        return new HighLevelRequest<TReqLookupRows.Builder>() {
+            @Override
+            public String getArgumentsLogString() {
+                return AbstractLookupRowsRequest.this.getArgumentsLogString();
+            }
+
+            @Override
+            public void writeHeaderTo(TRequestHeader.Builder header) {
+                AbstractLookupRowsRequest.this.writeHeaderTo(header);
+            }
+
+            @Override
+            public void writeTo(RpcClientRequestBuilder<TReqLookupRows.Builder, ?> builder) {
+                builder.body().setPath(getPath());
+                builder.body().addAllColumns(getLookupColumns());
+                if (getKeepMissingRows().isPresent()) {
+                    builder.body().setKeepMissingRows(getKeepMissingRows().get());
+                }
+                if (getTimestamp().isPresent()) {
+                    builder.body().setTimestamp(getTimestamp().get().getValue());
+                }
+                builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(getSchema()));
+                serializeRowsetTo(builder.attachments());
+            }
+        };
+    }
+
+    HighLevelRequest<TReqVersionedLookupRows.Builder> asVersionedLookupRowsWritable() {
+        //noinspection Convert2Diamond
+        return new HighLevelRequest<TReqVersionedLookupRows.Builder>() {
+            @Override
+            public String getArgumentsLogString() {
+                return AbstractLookupRowsRequest.this.getArgumentsLogString();
+            }
+
+            @Override
+            public void writeHeaderTo(TRequestHeader.Builder header) {
+                AbstractLookupRowsRequest.this.writeHeaderTo(header);
+            }
+
+            @Override
+            public void writeTo(RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, ?> builder) {
+                builder.body().setPath(getPath());
+                builder.body().addAllColumns(getLookupColumns());
+                if (getKeepMissingRows().isPresent()) {
+                    builder.body().setKeepMissingRows(getKeepMissingRows().get());
+                }
+                if (getTimestamp().isPresent()) {
+                    builder.body().setTimestamp(getTimestamp().get().getValue());
+                }
+                builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(getSchema()));
+                serializeRowsetTo(builder.attachments());
+            }
+        };
+    }
+
 }

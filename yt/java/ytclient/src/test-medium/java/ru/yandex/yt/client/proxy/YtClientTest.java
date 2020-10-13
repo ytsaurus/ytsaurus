@@ -74,7 +74,8 @@ public class YtClientTest {
                 {new RpcCompression()},
                 {new RpcCompression(Compression.Zlib_4)},
                 {new RpcCompression(Compression.Lz4)},
-                {new RpcCompression(Compression.Lz4HighCompression, Compression.Zlib_9)}};
+                {new RpcCompression(Compression.Lz4HighCompression, Compression.Zlib_9)}
+        };
     }
 
     public static String getUsername() {
@@ -287,7 +288,6 @@ public class YtClientTest {
                 (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class);
 
         insertData(client, table, objects, serializer);
-
 
         // Достаем только ключи
         MappedLookupRowsRequest<MappedObject> request1 = new MappedLookupRowsRequest<>(table, serializer)

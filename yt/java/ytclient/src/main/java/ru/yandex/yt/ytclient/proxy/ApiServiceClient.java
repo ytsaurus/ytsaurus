@@ -50,20 +50,17 @@ import ru.yandex.yt.rpcproxy.TReqCopyNode;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
 import ru.yandex.yt.rpcproxy.TReqCreateObject;
 import ru.yandex.yt.rpcproxy.TReqDumpJobContext;
-import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGCCollect;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetJob;
-import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
 import ru.yandex.yt.rpcproxy.TReqGetTableMountInfo;
 import ru.yandex.yt.rpcproxy.TReqGetTablePivotKeys;
 import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
-import ru.yandex.yt.rpcproxy.TReqListNode;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
 import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
@@ -80,8 +77,6 @@ import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TReqResumeOperation;
-import ru.yandex.yt.rpcproxy.TReqSelectRows;
-import ru.yandex.yt.rpcproxy.TReqSetNode;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.rpcproxy.TReqSuspendOperation;
@@ -89,7 +84,6 @@ import ru.yandex.yt.rpcproxy.TReqTrimTable;
 import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
-import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TRspAbandonJob;
@@ -108,20 +102,17 @@ import ru.yandex.yt.rpcproxy.TRspCopyNode;
 import ru.yandex.yt.rpcproxy.TRspCreateNode;
 import ru.yandex.yt.rpcproxy.TRspCreateObject;
 import ru.yandex.yt.rpcproxy.TRspDumpJobContext;
-import ru.yandex.yt.rpcproxy.TRspExistsNode;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGCCollect;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetJob;
-import ru.yandex.yt.rpcproxy.TRspGetNode;
 import ru.yandex.yt.rpcproxy.TRspGetOperation;
 import ru.yandex.yt.rpcproxy.TRspGetTableMountInfo;
 import ru.yandex.yt.rpcproxy.TRspGetTablePivotKeys;
 import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TRspLinkNode;
-import ru.yandex.yt.rpcproxy.TRspListNode;
 import ru.yandex.yt.rpcproxy.TRspLockNode;
 import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspModifyRows;
@@ -139,7 +130,6 @@ import ru.yandex.yt.rpcproxy.TRspReshardTable;
 import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TRspResumeOperation;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
-import ru.yandex.yt.rpcproxy.TRspSetNode;
 import ru.yandex.yt.rpcproxy.TRspStartOperation;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspSuspendOperation;
@@ -167,6 +157,7 @@ import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
+import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockMode;
@@ -352,10 +343,9 @@ public class ApiServiceClient implements TransactionalClient {
     /* nodes */
     @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
-        RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-        return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getValue()));
+        return RpcUtil.apply(
+                sendRequest(req, service.getNode()),
+                response -> parseByteString(response.body().getValue()));
     }
 
     public CompletableFuture<YTreeNode> getNode(String path) {
@@ -368,10 +358,9 @@ public class ApiServiceClient implements TransactionalClient {
 
     @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
-        RpcClientRequestBuilder<TReqListNode.Builder, RpcClientResponse<TRspListNode>> builder = service.listNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-        return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getValue()));
+        return RpcUtil.apply(
+                sendRequest(req, service.listNode()),
+                response -> parseByteString(response.body().getValue()));
     }
 
     public CompletableFuture<YTreeNode> listNode(String path) {
@@ -384,10 +373,9 @@ public class ApiServiceClient implements TransactionalClient {
 
     @Override
     public CompletableFuture<Void> setNode(SetNode req) {
-        RpcClientRequestBuilder<TReqSetNode.Builder, RpcClientResponse<TRspSetNode>> builder = service.setNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return RpcUtil.apply(
+                sendRequest(req, service.setNode()),
+                response -> null);
     }
 
     public CompletableFuture<Void> setNode(String path, byte[] data) {
@@ -408,11 +396,8 @@ public class ApiServiceClient implements TransactionalClient {
 
     @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
-        RpcClientRequestBuilder<TReqExistsNode.Builder, RpcClientResponse<TRspExistsNode>> builder =
-                service.existsNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-        return RpcUtil.apply(invoke(builder),
+        return RpcUtil.apply(
+                sendRequest(req, service.existsNode()),
                 response -> response.body().getExists());
     }
 
@@ -643,23 +628,15 @@ public class ApiServiceClient implements TransactionalClient {
 
     private <T> CompletableFuture<T> lookupRowsImpl(AbstractLookupRowsRequest<?> request,
                                                     Function<RpcClientResponse<TRspLookupRows>, T> responseReader) {
+
         RpcClientRequestBuilder<TReqLookupRows.Builder, RpcClientResponse<TRspLookupRows>> builder =
                 service.lookupRows();
-        request.writeHeaderTo(builder.header());
-        builder.body().setPath(request.getPath());
-        builder.body().addAllColumns(request.getLookupColumns());
-        if (request.getKeepMissingRows().isPresent()) {
-            builder.body().setKeepMissingRows(request.getKeepMissingRows().get());
-        }
-        if (request.getTimestamp().isPresent()) {
-            builder.body().setTimestamp(request.getTimestamp().get().getValue());
-        }
-        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
-        request.serializeRowsetTo(builder.attachments());
-        return handleHeavyResponse(invoke(builder), response -> {
-            logger.trace("LookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
-            return responseReader.apply(response);
-        });
+        return handleHeavyResponse(
+                sendRequest(request.asLookupRowsWritable(), service.lookupRows()),
+                response -> {
+                    logger.trace("LookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
+                    return responseReader.apply(response);
+                });
     }
 
     @Deprecated
@@ -693,25 +670,16 @@ public class ApiServiceClient implements TransactionalClient {
         });
     }
 
-    private <T> CompletableFuture<T> versionedLookupRowsImpl(AbstractLookupRowsRequest<?> request,
-                                                             Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader) {
-        RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, RpcClientResponse<TRspVersionedLookupRows>> builder =
-                service.versionedLookupRows();
-        request.writeHeaderTo(builder.header());
-        builder.body().setPath(request.getPath());
-        builder.body().addAllColumns(request.getLookupColumns());
-        if (request.getKeepMissingRows().isPresent()) {
-            builder.body().setKeepMissingRows(request.getKeepMissingRows().get());
-        }
-        if (request.getTimestamp().isPresent()) {
-            builder.body().setTimestamp(request.getTimestamp().get().getValue());
-        }
-        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
-        request.serializeRowsetTo(builder.attachments());
-        return handleHeavyResponse(invoke(builder), response -> {
-            logger.trace("VersionedLookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
-            return responseReader.apply(response);
-        });
+    private <T> CompletableFuture<T> versionedLookupRowsImpl(
+            AbstractLookupRowsRequest<?> request,
+            Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader)
+    {
+        return handleHeavyResponse(
+                sendRequest(request.asVersionedLookupRowsWritable(), service.versionedLookupRows()),
+                response -> {
+                    logger.trace("VersionedLookupRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
+                    return responseReader.apply(response);
+                });
     }
 
     @Deprecated
@@ -755,38 +723,12 @@ public class ApiServiceClient implements TransactionalClient {
 
     private <T> CompletableFuture<T> selectRowsImpl(SelectRowsRequest request,
                                                     Function<RpcClientResponse<TRspSelectRows>, T> responseReader) {
-        RpcClientRequestBuilder<TReqSelectRows.Builder, RpcClientResponse<TRspSelectRows>> builder =
-                service.selectRows();
-        request.writeHeaderTo(builder.header());
-        builder.body().setQuery(request.getQuery());
-        if (request.getTimestamp().isPresent()) {
-            builder.body().setTimestamp(request.getTimestamp().get().getValue());
-        }
-        if (request.getInputRowsLimit().isPresent()) {
-            builder.body().setInputRowLimit(request.getInputRowsLimit().getAsLong());
-        }
-        if (request.getOutputRowsLimit().isPresent()) {
-            builder.body().setOutputRowLimit(request.getOutputRowsLimit().getAsLong());
-        }
-        if (request.getFailOnIncompleteResult().isPresent()) {
-            builder.body().setFailOnIncompleteResult(request.getFailOnIncompleteResult().get());
-        }
-        if (request.getMaxSubqueries().isPresent()) {
-            builder.body().setMaxSubqueries(request.getMaxSubqueries().getAsInt());
-        }
-        if (request.getAllowJoinWithoutIndex().isPresent()) {
-            builder.body().setAllowJoinWithoutIndex(request.getAllowJoinWithoutIndex().get());
-        }
-        if (request.getUdfRegistryPath().isPresent()) {
-            builder.body().setUdfRegistryPath(request.getUdfRegistryPath().get());
-        }
-        if (request.getExecutionPool().isPresent()) {
-            builder.body().setExecutionPool(request.getExecutionPool().get());
-        }
-        return handleHeavyResponse(invoke(builder), response -> {
-            logger.trace("SelectRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
-            return responseReader.apply(response);
-        });
+        return handleHeavyResponse(
+                sendRequest(request, service.selectRows()),
+                response -> {
+                    logger.trace("SelectRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
+                    return responseReader.apply(response);
+                });
     }
 
 
@@ -1652,6 +1594,17 @@ public class ApiServiceClient implements TransactionalClient {
     startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder, RpcStreamConsumer consumer)
     {
         return CompletableFuture.completedFuture(builder.startStream(rpcClient, consumer));
+    }
+
+    private <RequestMsgBuilder extends MessageLite.Builder, ResponseMsg,
+            RequestType extends HighLevelRequest<RequestMsgBuilder>>
+    CompletableFuture<ResponseMsg>
+    sendRequest(RequestType req, RpcClientRequestBuilder<RequestMsgBuilder, ResponseMsg> builder)
+    {
+        logger.debug("Starting request {}; {}", builder, req.getArgumentsLogString());
+        req.writeHeaderTo(builder.header());
+        req.writeTo(builder);
+        return invoke(builder);
     }
 
     @Override

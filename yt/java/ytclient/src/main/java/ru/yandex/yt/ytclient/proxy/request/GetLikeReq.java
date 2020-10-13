@@ -1,13 +1,18 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nullable;
+
+import ru.yandex.lang.NonNullApi;
+
+@NonNullApi
 public class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T> {
     protected final String path;
-    protected ColumnFilter attributes;
-    protected Integer maxSize;
-    protected TransactionalOptions transactionalOptions;
-    protected PrerequisiteOptions prerequisiteOptions;
-    protected MasterReadOptions masterReadOptions;
-    protected SuppressableAccessTrackingOptions suppressableAccessTrackingOptions;
+    @Nullable protected ColumnFilter attributes;
+    @Nullable protected Integer maxSize;
+    @Nullable protected TransactionalOptions transactionalOptions;
+    @Nullable protected PrerequisiteOptions prerequisiteOptions;
+    @Nullable protected MasterReadOptions masterReadOptions;
+    @Nullable protected SuppressableAccessTrackingOptions suppressableAccessTrackingOptions;
 
     public GetLikeReq(String path) {
         this.path = path;
@@ -17,33 +22,47 @@ public class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T> {
         return path;
     }
 
-    public T setAttributes(ColumnFilter cf) {
+    public T setAttributes(@Nullable ColumnFilter cf) {
         this.attributes = cf;
+        //noinspection unchecked
         return (T)this;
     }
 
     public T setMaxSize(int maxSize) {
         this.maxSize = maxSize;
+        //noinspection unchecked
         return (T)this;
     }
 
-    public T setTransactionalOptions(TransactionalOptions to) {
+    public T setTransactionalOptions(@Nullable TransactionalOptions to) {
         this.transactionalOptions = to;
+        //noinspection unchecked
         return (T)this;
     }
 
-    public T setPrerequisiteOptions(PrerequisiteOptions prerequisiteOptions) {
+    public T setPrerequisiteOptions(@Nullable PrerequisiteOptions prerequisiteOptions) {
         this.prerequisiteOptions = prerequisiteOptions;
+        //noinspection unchecked
         return (T)this;
     }
 
-    public T setMasterReadOptions(MasterReadOptions mo) {
+    public T setMasterReadOptions(@Nullable MasterReadOptions mo) {
         this.masterReadOptions = mo;
+        //noinspection unchecked
         return (T)this;
     }
 
-    public T setSuppressableAccessTrackingOptions(SuppressableAccessTrackingOptions s) {
+    public T setSuppressableAccessTrackingOptions(@Nullable SuppressableAccessTrackingOptions s) {
         this.suppressableAccessTrackingOptions = s;
+        //noinspection unchecked
         return (T)this;
+    }
+
+    @Override
+    protected void writeArgumentsLogString(StringBuilder sb) {
+         if (transactionalOptions != null) {
+            transactionalOptions.writeArgumentsLogString(sb);
+         }
+        super.writeArgumentsLogString(sb);
     }
 }

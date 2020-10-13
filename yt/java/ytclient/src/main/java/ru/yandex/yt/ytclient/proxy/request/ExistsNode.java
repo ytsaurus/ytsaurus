@@ -6,8 +6,9 @@ import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class ExistsNode extends GetLikeReq<ExistsNode> {
+public class ExistsNode extends GetLikeReq<ExistsNode> implements HighLevelRequest<TReqExistsNode.Builder> {
     public ExistsNode(String path) {
         super(path);
     }
@@ -16,24 +17,23 @@ public class ExistsNode extends GetLikeReq<ExistsNode> {
         this(path.toString());
     }
 
-    public TReqExistsNode.Builder writeTo(TReqExistsNode.Builder builder) {
-        builder.setPath(path);
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqExistsNode.Builder, ?> builder) {
+        builder.body().setPath(path);
         if (transactionalOptions != null) {
-            builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
+            builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
         if (prerequisiteOptions != null) {
-            builder.setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
+            builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
         }
         if (masterReadOptions != null) {
-            builder.setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
+            builder.body().setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
         }
         if (suppressableAccessTrackingOptions != null) {
-            builder.setSuppressableAccessTrackingOptions(suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder()));
+            builder.body().setSuppressableAccessTrackingOptions(suppressableAccessTrackingOptions.writeTo(TSuppressableAccessTrackingOptions.newBuilder()));
         }
         if (additionalData != null) {
-            builder.mergeFrom(additionalData);
+            builder.body().mergeFrom(additionalData);
         }
-
-        return builder;
     }
 }

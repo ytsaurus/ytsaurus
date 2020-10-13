@@ -4,19 +4,26 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 
-import ru.yandex.inside.yt.kosher.common.YtTimestamp;
-import ru.yandex.yt.ytclient.proxy.request.RequestBase;
+import javax.annotation.Nullable;
 
-public class SelectRowsRequest extends RequestBase<SelectRowsRequest> {
+import ru.yandex.inside.yt.kosher.common.YtTimestamp;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.yt.rpcproxy.TReqSelectRows;
+import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
+import ru.yandex.yt.ytclient.proxy.request.RequestBase;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
+
+@NonNullApi
+public class SelectRowsRequest extends RequestBase<SelectRowsRequest> implements HighLevelRequest<TReqSelectRows.Builder> {
     private final String query;
-    private YtTimestamp timestamp;
-    private Long inputRowsLimit;
-    private Long outputRowsLimit;
-    private Boolean failOnIncompleteResult;
-    private Integer maxSubqueries;
-    private Boolean allowJoinWithoutIndex;
-    private String udfRegistryPath;
-    private String executionPool;
+    @Nullable private YtTimestamp timestamp;
+    @Nullable private Long inputRowsLimit;
+    @Nullable private Long outputRowsLimit;
+    @Nullable private Boolean failOnIncompleteResult;
+    @Nullable private Integer maxSubqueries;
+    @Nullable private Boolean allowJoinWithoutIndex;
+    @Nullable private String udfRegistryPath;
+    @Nullable private String executionPool;
 
     private SelectRowsRequest(String query) {
         this.query = query;
@@ -30,7 +37,7 @@ public class SelectRowsRequest extends RequestBase<SelectRowsRequest> {
         return query;
     }
 
-    public SelectRowsRequest setTimestamp(YtTimestamp timestamp) {
+    public SelectRowsRequest setTimestamp(@Nullable YtTimestamp timestamp) {
         this.timestamp = timestamp;
         return this;
     }
@@ -66,7 +73,7 @@ public class SelectRowsRequest extends RequestBase<SelectRowsRequest> {
         return outputRowsLimit == null ? OptionalLong.empty() : OptionalLong.of(outputRowsLimit);
     }
 
-    public void setMaxSubqueries(Integer maxSubqueries) {
+    public void setMaxSubqueries(@Nullable Integer maxSubqueries) {
         this.maxSubqueries = maxSubqueries;
     }
 
@@ -92,12 +99,47 @@ public class SelectRowsRequest extends RequestBase<SelectRowsRequest> {
         return Optional.ofNullable(udfRegistryPath);
     }
 
-    public SelectRowsRequest setExecutionPool(String executionPool) {
+    public SelectRowsRequest setExecutionPool(@Nullable String executionPool) {
         this.executionPool = executionPool;
         return this;
     }
 
     public Optional<String> getExecutionPool() {
         return Optional.ofNullable(executionPool);
+    }
+
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqSelectRows.Builder, ?> builder) {
+        builder.body().setQuery(getQuery());
+        if (getTimestamp().isPresent()) {
+            builder.body().setTimestamp(getTimestamp().get().getValue());
+        }
+        if (getInputRowsLimit().isPresent()) {
+            builder.body().setInputRowLimit(getInputRowsLimit().getAsLong());
+        }
+        if (getOutputRowsLimit().isPresent()) {
+            builder.body().setOutputRowLimit(getOutputRowsLimit().getAsLong());
+        }
+        if (getFailOnIncompleteResult().isPresent()) {
+            builder.body().setFailOnIncompleteResult(getFailOnIncompleteResult().get());
+        }
+        if (getMaxSubqueries().isPresent()) {
+            builder.body().setMaxSubqueries(getMaxSubqueries().getAsInt());
+        }
+        if (getAllowJoinWithoutIndex().isPresent()) {
+            builder.body().setAllowJoinWithoutIndex(getAllowJoinWithoutIndex().get());
+        }
+        if (getUdfRegistryPath().isPresent()) {
+            builder.body().setUdfRegistryPath(getUdfRegistryPath().get());
+        }
+        if (getExecutionPool().isPresent()) {
+            builder.body().setExecutionPool(getExecutionPool().get());
+        }
+    }
+
+    @Override
+    protected void writeArgumentsLogString(StringBuilder sb) {
+        super.writeArgumentsLogString(sb);
+        sb.append("Query: ").append(query).append("; ");
     }
 }

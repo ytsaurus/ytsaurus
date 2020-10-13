@@ -13,8 +13,9 @@ import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqSetNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class SetNode extends MutateNode<SetNode> {
+public class SetNode extends MutateNode<SetNode> implements HighLevelRequest<TReqSetNode.Builder> {
     private final String path;
     private final byte[] value;
     private boolean force;
@@ -43,22 +44,22 @@ public class SetNode extends MutateNode<SetNode> {
         this.force = force;
     }
 
-    public TReqSetNode.Builder writeTo(TReqSetNode.Builder builder) {
-        builder.setPath(path)
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqSetNode.Builder, ?> builder) {
+        builder.body().setPath(path)
                 .setForce(force)
                 .setValue(ByteString.copyFrom(value));
         if (transactionalOptions != null) {
-            builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
+            builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
         if (prerequisiteOptions != null) {
-            builder.setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
+            builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
         }
         if (mutatingOptions != null) {
-            builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
+            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
         }
         if (additionalData != null) {
-            builder.mergeFrom(additionalData);
+            builder.body().mergeFrom(additionalData);
         }
-        return builder;
     }
 }

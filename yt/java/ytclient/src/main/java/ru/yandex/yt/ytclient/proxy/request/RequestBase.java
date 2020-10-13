@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import java.time.Duration;
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.Message;
@@ -20,11 +21,12 @@ public class RequestBase<T extends RequestBase<T>> {
 
     Message additionalData;
 
+    @SuppressWarnings("unused")
     Message getAdditionalData() {
         return additionalData;
     }
 
-    @SuppressWarnings("unchecked cast")
+    @SuppressWarnings({"unchecked cast", "unused"})
     T setAdditionalData(Message additionalData) {
         this.additionalData = additionalData;
         return (T) this;
@@ -111,5 +113,19 @@ public class RequestBase<T extends RequestBase<T>> {
             tracing.setTraceId(RpcUtil.toProto(traceId));
             header.setExtension(TRequestHeader.tracingExt, tracing.build());
         }
+    }
+
+    public final String getArgumentsLogString() {
+        StringBuilder sb = new StringBuilder();
+        writeArgumentsLogString(sb);
+
+        // trim last space
+        if (sb.length() > 0 && sb.charAt(sb.length() - 1) == ' ') {
+            sb.setLength(sb.length() - 1);
+        }
+        return sb.toString();
+    }
+
+    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
     }
 }
