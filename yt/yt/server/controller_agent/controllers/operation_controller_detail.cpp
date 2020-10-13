@@ -2384,7 +2384,8 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
         .Item("operation_id").Value(OperationId)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
-        .Item("job_type").Value(joblet->JobType);
+        .Item("job_type").Value(joblet->JobType)
+        .Item("tree_id").Value(joblet->TreeId);
 
     LogProgress();
 }
@@ -2995,7 +2996,8 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
         .Item("job_competition_id").Value(joblet->JobCompetitionId)
-        .Item("has_competitors").Value(joblet->HasCompetitors);
+        .Item("has_competitors").Value(joblet->HasCompetitors)
+        .Item("tree_id").Value(joblet->TreeId);
 }
 
 IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
