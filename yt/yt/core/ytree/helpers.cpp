@@ -3,6 +3,8 @@
 
 #include <yt/core/misc/error.h>
 
+#include <yt/core/misc/singleton.h>
+
 namespace NYT::NYTree {
 
 using namespace NYson;
@@ -133,8 +135,12 @@ public:
 
 const IAttributeDictionary& EmptyAttributes()
 {
-    static auto emptyAttributeDictionary = New<TEmptyAttributeDictionary>();
-    return *emptyAttributeDictionary;
+    struct TSingleton
+    {
+        IAttributeDictionaryPtr EmptyAttributes = New<TEmptyAttributeDictionary>();
+    };
+
+    return *LeakySingleton<TSingleton>()->EmptyAttributes;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
