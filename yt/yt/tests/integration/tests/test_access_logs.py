@@ -40,7 +40,7 @@ class TestAccessLog(YTEnvSetup):
         self.LOG_PATH = os.path.join(self.path_to_run, "logs/master-0-1.access.json.log")
         ts = str(generate_timestamp())
         create("table", "//tmp/access_log/{}".format(ts))
-        wait(lambda: self._is_node_in_logs(ts))
+        wait(lambda: self._is_node_in_logs(ts), iter=120, sleep_backoff=1.0)
         written_logs = [line_json for line_json in self._log_lines()]
 
         def _check_entry_is_in_log(log, line_json):
