@@ -11,7 +11,7 @@ namespace NYT::NScheduler {
 struct TSchedulerElementStateSnapshot
 {
     TJobResources ResourceDemand;
-    double GuaranteedResourcesRatio = 0.0;
+    TJobResources UnlimitedDemandFairShareResources;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

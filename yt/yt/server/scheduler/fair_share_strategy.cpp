@@ -899,9 +899,10 @@ public:
         // NB(eshcherbin):
         // First, we ignore all trees in which the new operation is not marked running.
         // Then for every candidate pool we model the case if the new operation is assigned to it:
-        // 1) We add the pool's current demand and the operation's demand to get the model demand.
-        // 2) We calculate reserveRatio, defined as (guaranteedResourcesRatio - modelDemandRatio).
-        // Finally, we choose the pool with the maximum reserveRatio.
+        // 1) We add the pool's current demand share and the operation's demand share to get the model demand share.
+        // 2) We calculate reserveShare, defined as (unlimitedDemandFairShare - modelDemandShare).
+        // Finally, we choose the pool with the maximum of MinComponent(reserveShare) over all trees.
+        // More precisely, we compute MinComponent ignoring the resource types which are absent in the tree (e.g. GPU).
         TString bestTree;
         auto bestReserveRatio = std::numeric_limits<double>::lowest();
         for (const auto& [treeId, poolName] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
@@ -913,38 +914,62 @@ public:
             }
 
             auto totalResourceLimits = snapshot->GetTotalResourceLimits();
-            TJobResources currentDemand;
-            double guaranteedResourcesRatio = 0;
+            TResourceVector currentDemandShare;
+            TResourceVector unlimitedDemandFairShare;
 
             // If pool is not present in the snapshot (e.g. due to poor timings or if it is an ephemeral pool),
             // then its demand and guaranteed resources ratio are considered to be zero.
             if (auto poolStateSnapshot = snapshot->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
-                currentDemand = poolStateSnapshot->ResourceDemand;
-                guaranteedResourcesRatio = poolStateSnapshot->GuaranteedResourcesRatio;
+                // TODO(eshcherbin): Do this the right way when the classic strategy is gone.
+                currentDemandShare = TResourceVector::FromJobResources(
+                    poolStateSnapshot->ResourceDemand,
+                    totalResourceLimits,
+                    /* zeroDivByZero */ 0.0,
+                    /* oneDivByZero */ 1.0);
+                unlimitedDemandFairShare = TResourceVector::FromJobResources(
+                    poolStateSnapshot->UnlimitedDemandFairShareResources,
+                    totalResourceLimits,
+                    /* zeroDivByZero */ 0.0,
+                    /* oneDivByZero */ 1.0);
             }
 
-            auto modelDemand = newDemand + currentDemand;
-            auto modelDemandRatio = GetMaxResourceRatio(modelDemand, totalResourceLimits);
-            auto reserveRatio = guaranteedResourcesRatio - modelDemandRatio;
+            auto newDemandShare = TResourceVector::FromJobResources(
+                newDemand,
+                totalResourceLimits,
+                /* zeroDivByZero */ 0.0,
+                /* oneDivByZero */ 1.0);
+            auto modelDemandShare = newDemandShare + currentDemandShare;
+            auto reserveShare = unlimitedDemandFairShare - modelDemandShare;
+
+            // TODO(eshcherbin): Do this the right way when the classic strategy is gone.
+            // Perhaps we need to add a configurable main resource for each tree and compare the shares of this resource.
+            auto currentReserveRatio = std::numeric_limits<double>::max();
+            #define XX(name, Name) \
+                if (totalResourceLimits.Get##Name() > 0) { \
+                    currentReserveRatio = std::min(currentReserveRatio, reserveShare[EJobResourceType::Name]); \
+                }
+            ITERATE_JOB_RESOURCES(XX)
+            #undef XX
 
             // TODO(eshcherbin): This is rather verbose. Consider removing when well tested in production.
             YT_LOG_DEBUG(
-                "Considering candidate single tree for operation (OperationId: %v, Tree: %v, "
-                "NewDemand: %v, CurrentDemand: %v, ModelDemand: %v, TotalResourceLimits: %v, "
-                "ModelDemandRatio: %v, GuaranteedResourcesRatio: %v, ReserveRatio: %v)",
+                "Considering candidate single tree for operation ("
+                "OperationId: %v, Tree: %v, TotalResourceLimits: %v, "
+                "NewDemandShare: %.6v, CurrentDemandShare: %.6v, ModelDemandShare: %.6v, "
+                "UnlimitedDemandFairShare: %.6v, ReserveShare: %.6v, CurrentReserveRatio: %v)",
                 operationId,
                 treeId,
-                FormatResources(newDemand),
-                FormatResources(currentDemand),
-                FormatResources(modelDemand),
                 FormatResources(totalResourceLimits),
-                modelDemandRatio,
-                guaranteedResourcesRatio,
-                reserveRatio);
+                newDemandShare,
+                currentDemandShare,
+                modelDemandShare,
+                unlimitedDemandFairShare,
+                reserveShare,
+                currentReserveRatio);
 
-            if (reserveRatio > bestReserveRatio) {
+            if (currentReserveRatio > bestReserveRatio) {
                 bestTree = treeId;
-                bestReserveRatio = reserveRatio;
+                bestReserveRatio = currentReserveRatio;
             }
         }
 
