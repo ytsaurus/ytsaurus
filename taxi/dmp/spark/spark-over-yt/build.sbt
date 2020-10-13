@@ -154,6 +154,7 @@ lazy val `client` = (project in file("client"))
 //    libraryDependencies ++= sttp
 //  )
 
+/*
 lazy val `test-job` = (project in file("test-job"))
   .settings(
     libraryDependencies += "ru.yandex" %% "spark-yt-data-source" % "1.0.0-SNAPSHOT" % Provided,
@@ -165,7 +166,7 @@ lazy val `test-job` = (project in file("test-job"))
     publishYtArtifacts += YtPublishFile(assembly.value, "//home/sashbel", None),
     publishYtArtifacts += YtPublishFile(sourceDirectory.value / "main" / "python" / "test_conf.py", "//home/sashbel", None)
   )
-
+*/
 // -----
 
 lazy val root = (project in file("."))

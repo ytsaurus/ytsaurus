@@ -1,7 +1,7 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.serialization
 
 import org.apache.spark.sql.types
-import org.apache.spark.sql.types.{DataType, NullType, StringType}
+import org.apache.spark.sql.types.{DataType, NullType, StringType, ArrayType}
 
 sealed abstract class IndexedDataType {
   def sparkDataType: DataType
@@ -28,7 +28,12 @@ object IndexedDataType {
 
   case class ArrayType(element: IndexedDataType, sparkDataType: DataType) extends IndexedDataType
 
-  case class MapType(valueType: IndexedDataType, sparkDataType: DataType) extends IndexedDataType
+  case class MapType(keyType: IndexedDataType, valueType: IndexedDataType, sparkDataType: DataType) extends IndexedDataType
+
+  case class TupleType(dataTypes: Seq[IndexedDataType], sparkDataType: types.StructType) extends IndexedDataType {
+    def apply(index: Int): IndexedDataType = dataTypes(index)
+    def length: Int = dataTypes.length
+  }
 
   case class AtomicType(sparkDataType: DataType) extends IndexedDataType
 
