@@ -16,7 +16,11 @@ object ConfigTypeConverter {
         }
         StructType(strFields.map { case (name, dt) => StructField(name, sparkType(dt)) })
       case name if name.startsWith("m#") =>
-        MapType(StringType, sparkType(name.drop(2)))
+        val (keyType, valueType) = decode[(String, String)](name.drop(2)) match {
+          case Right(value) => value
+          case Left(error) => throw new IllegalArgumentException(s"Unsupported type: $sType", error)
+        }
+        MapType(sparkType(keyType), sparkType(valueType))
       case _ =>
         import YtLogicalType._
         YtLogicalType.fromName(sType) match {
@@ -57,7 +61,7 @@ object ConfigTypeConverter {
       case BinaryType => YtLogicalType.Any.name
       case ArrayType(elementType, _) => "a#" + stringType(elementType)
       case StructType(fields) => "s#" + fields.map(f => f.name -> stringType(f.dataType)).asJson.noSpaces
-      case MapType(StringType, valueType, _) => "m#" + stringType(valueType)
+      case MapType(keyType, valueType, _) => "m#" + Seq(keyType, valueType).map(stringType).asJson.noSpaces
     }
   }
 }

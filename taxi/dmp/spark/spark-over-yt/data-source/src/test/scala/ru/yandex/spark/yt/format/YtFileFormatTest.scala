@@ -5,15 +5,17 @@ import java.nio.file.{Files, Paths}
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
+import org.apache.spark.sql.{AnalysisException, Encoders, Row, SaveMode}
 import org.apache.spark.sql.execution.InputAdapter
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.{AnalysisException, Encoders, Row, SaveMode}
 import org.mockito.scalatest.MockitoSugar
-import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
+import org.scalatest.prop.TableDrivenPropertyChecks
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonEncoder
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.common.utils.TypeUtils
 import ru.yandex.spark.yt.format.tmp._
 import ru.yandex.spark.yt.fs.conf.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
@@ -21,6 +23,7 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
+import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -53,6 +56,8 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
       .addValue("f7", ColumnValueType.ANY)
       .addValue("f8", ColumnValueType.ANY)
       .addValue("f9", ColumnValueType.ANY)
+      .addValue("f10", ColumnValueType.ANY)
+      .addValue("f11", ColumnValueType.ANY)
       .build()
     writeTableFromYson(Seq(
       """{
@@ -64,7 +69,9 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
         |f6=[{a=1;b=#};#];
         |f7=[{a="aa"};{a=#};#];
         |f8=[[1;#];#];
-        |f9=[0.1;#]
+        |f9=[0.1;#];
+        |f10=[[1;{a=%true}];[2;{b=%false}];[3;{c=#}];[4;#]];
+        |f11=[[{a=%true};1];[{b=%false};2];[{c=#};3];];
         |}""".stripMargin
     ), path, ytSchema)
   }
@@ -217,6 +224,305 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
     )
   }
 
+
+  it should "read dataset with map where value is a binary" in {
+    writeTableFromYson(Seq(
+      s"""{value = {
+        |a = ${Long.MinValue};
+        |b = ${Long.MaxValue};
+        |c = 0;
+        |d = 1234567890;
+        |e = ["a";"b"];
+        |f = {a = 1; b = 2; c = #};
+        |}
+        |}""".stripMargin,
+    ), tmpPath, anySchema)
+
+    val res = spark.read
+      .schemaHint("value" -> MapType(StringType, BinaryType))
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    val values = res.collect()
+      .map{case Row(m: Map[String, Array[Byte]]) => Row(m.mapValues(_.toList))}
+    values should contain theSameElementsAs Seq(
+      Row(Map(
+        "a" -> YsonEncoder.encode(Long.MinValue, LongType, false).toList,
+        "b" -> YsonEncoder.encode(Long.MaxValue, LongType, false).toList,
+        "c" -> YsonEncoder.encode(0L, LongType, false).toList,
+        "d" -> YsonEncoder.encode(1234567890L, LongType, false).toList,
+        "e" -> YsonEncoder.encode(List("a", "b"), ArrayType(StringType), false).toList,
+        "f" -> YsonEncoder.encode(Map("a"->1, "b" -> 2, "c" -> null), MapType(StringType, IntegerType), false).toList,
+      ))
+    )
+  }
+
+  it should "read dataset with list where value is a binary" in {
+    writeTableFromYson(Seq(
+      s"""{value = [${Long.MinValue};${Long.MaxValue};0;"aaa";[[1; 2]];[{b = %false};{a = %true}];1.123]}""".stripMargin,
+    ), tmpPath, anySchema)
+
+    val res = spark.read
+      .schemaHint("value" -> ArrayType(BinaryType))
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    val values = res.collect()
+      .map { case Row(l: mutable.WrappedArray[Array[Byte]]) => Row(l.map(_.toList)) }
+
+    values should contain theSameElementsAs Seq(
+      Row(List(
+        YsonEncoder.encode(Long.MinValue, LongType, false).toList,
+        YsonEncoder.encode(Long.MaxValue, LongType, false).toList,
+        YsonEncoder.encode(0L, LongType, false).toList,
+        YsonEncoder.encode("aaa", StringType, false).toList.drop(2),
+        YsonEncoder.encode(List(List(1, 2)), ArrayType(ArrayType(IntegerType)), false).toList,
+        YsonEncoder.encode(List(Map("b" -> false), Map("a" -> true)), ArrayType(MapType(StringType, BooleanType)), false).toList,
+        YsonEncoder.encode(1.123, DoubleType, false).toList,
+      ))
+    )
+  }
+
+  it should "read dataset with map where keys are long" in {
+    writeTableFromYson(Seq(
+      """{value = [[1; "2"]; [3; "4"]]}""",
+      """{value = [[5; "6"]; [7; "8"]]}"""
+    ), tmpPath, anySchema)
+
+    val res = spark.read
+      .schemaHint("value" -> MapType(LongType, StringType))
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Map(1 -> "2", 3 -> "4")),
+      Row(Map(5 -> "6", 7 -> "8"))
+    )
+  }
+
+  it should "read dataset with map where keys are double" in {
+    writeTableFromYson(Seq(
+      """{value = [[1.1; 2]; [3.3; 4]]}""",
+      """{value = [[5.5; 6]; [7.7; 8]]}"""
+    ), tmpPath, anySchema)
+
+    val res = spark.read
+      .schemaHint("value" -> MapType(DoubleType, LongType))
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Map(1.1 -> 2L, 3.3 -> 4L)),
+      Row(Map(5.5 -> 6L, 7.7 -> 8L))
+    )
+  }
+
+  it should "read dataset with map where keys are boolean" in {
+    writeTableFromYson(Seq(
+      """{value = [[%true; %true];  [%false; %false]]}""",
+      """{value = [[%true; %false]; [%false; %true]]}"""
+    ), tmpPath, anySchema)
+
+    val res = spark.read
+      .schemaHint("value" -> MapType(BooleanType, BooleanType))
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Map(true -> true, false -> false)),
+      Row(Map(true -> false, false -> true))
+    )
+  }
+
+  it should "read dataset with nested maps" in {
+    writeTableFromYson(Seq(
+      """{value = [
+        |[[[1;%true]];[[1;{a = [[1;%true]; [2;%false]]}]]];
+        |[[[2;%true]];[[2;{b = [[2;%false];[3;%true]]}]]];
+        |[[[3;%true]];[[3;{c = [[3;%true]; [4;%false]]}]]]
+        |]}""".stripMargin,
+    ), tmpPath, anySchema)
+
+    val t = MapType(MapType(LongType, BooleanType), MapType(LongType, MapType(StringType, MapType(LongType, BooleanType))))
+
+    val res = spark.read
+      .schemaHint("value" -> t)
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(
+        Map(
+          Map(1 -> true) -> Map(1 -> Map("a" -> Map(1 -> true, 2 -> false))),
+          Map(2 -> true) -> Map(2 -> Map("b" -> Map(2 -> false, 3 -> true))),
+          Map(3 -> true) -> Map(3 -> Map("c" -> Map(3 -> true, 4 -> false))))
+      ),
+    )
+  }
+
+  it should "throw an exception when reading a map with non-string keys and `#` is a key" in {
+    writeTableFromYson(Seq(
+      """{value = [[1;1];[#;2];[3;3]]}""",
+    ), tmpPath, anySchema)
+
+    a[SparkException] shouldBe thrownBy {
+      spark.read
+        .schemaHint("value" -> MapType(LongType, LongType))
+        .yt(tmpPath)
+        .collect()
+    }
+  }
+  // MapType(AtomicType(LongType),AtomicType(StringType),MapType(LongType,StringType,true))
+
+  it should "read dataset with tuples" in {
+    writeTableFromYson(Seq(
+      """{value = [1; "spark"; %true;]}""",
+      """{value = [2; "yql"; %false;]}""",
+      """{value = [3; "cpp"; #;]}""",
+    ), tmpPath, anySchema)
+
+    val res = spark.read
+      .schemaHint("value" -> TypeUtils.tuple(List(LongType, StringType, BooleanType)))
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Row(1, "spark", true)),
+      Row(Row(2, "yql", false)),
+      Row(Row(3, "cpp", null))
+    )
+  }
+
+  it should "throw an exception when reading a tuple from a yson list with incorrect field names in schema" in {
+    writeTableFromYson(Seq(
+      """{value = [1; "spark"; %true;]}""",
+      """{value = [2; "yql"; %false;]}""",
+      """{value = [3; "cpp"; #;]}""",
+    ), tmpPath, anySchema)
+
+    val schema = StructType(List(
+      StructField("_1", LongType),
+      StructField("qqq", StringType),
+      StructField("_2", BooleanType))
+    )
+
+    a[SparkException] shouldBe thrownBy {
+      spark.read
+        .schemaHint("value" -> schema)
+        .yt(tmpPath)
+        .collect()
+    }
+  }
+
+  it should "read dataset with maps of tuples" in {
+    writeTableFromYson(Seq(
+      """{value = [[1; ["spark"; %true;]]]}""",
+      """{value = [[2; ["yql"; %false;]]]}""",
+      """{value = [[3; ["cpp"; #;]]]}""",
+    ), tmpPath, anySchema)
+
+    val schema = MapType(LongType, TypeUtils.tuple(List(StringType, BooleanType)))
+
+    val res = spark.read
+      .schemaHint("value" -> schema)
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Map(1 -> Row("spark", true))),
+      Row(Map(2 -> Row("yql", false))),
+      Row(Map(3 -> Row("cpp", null)))
+    )
+  }
+
+  it should "read dataset with tuples of maps" in {
+    writeTableFromYson(Seq(
+      """{value = [1; [[1.1; %true;]]]}""",
+      """{value = [2; [[2.2; %false;]]]}""",
+      """{value = [3; [[3.3; #;]]]}""",
+    ), tmpPath, anySchema)
+
+    val schema = TypeUtils.tuple(List(LongType, MapType(DoubleType, BooleanType)))
+
+    val res = spark.read
+      .schemaHint("value" -> schema)
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Row(1, Map(1.1 -> true))),
+      Row(Row(2, Map(2.2 -> false))),
+      Row(Row(3, Map(3.3 -> null)))
+    )
+  }
+
+  it should "read dataset with tuples having corrupted values" in {
+    writeTableFromYson(Seq(
+      """{value = [1; "spark"]}""",
+      """{value = [#]}""",
+      """{value = [3; "cpp"; #;]}""",
+    ), tmpPath, anySchema)
+
+    val schema = TypeUtils.tuple(List(LongType, StringType, BooleanType))
+
+    val res = spark.read
+      .schemaHint("value" -> schema)
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Row(1, "spark", null)),
+      Row(Row(null, null, null)),
+      Row(Row(3, "cpp", null))
+    )
+  }
+
+  it should "read dataset with list of tuples" in {
+    writeTableFromYson(Seq(
+      """{value = [[1; "spark"];[2; "scala"]]}""",
+      """{value = [[#]]}""",
+      """{value = [[3; #];#]}""",
+    ), tmpPath, anySchema)
+
+    val schema = ArrayType(TypeUtils.tuple(List(LongType, StringType)))
+
+    val res = spark.read
+      .schemaHint("value" -> schema)
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Seq(Row(1, "spark"), Row(2, "scala"))),
+      Row(Seq(Row(null, null))),
+      Row(Seq(Row(3, null), null))
+    )
+  }
+
+  """
+    |ArrayType(StructType(Seq(StructField("_1", IntegerType), StructField("_2", StringType))))
+    |""".stripMargin
+
+  it should "read dataset with nested tuples" in {
+    writeTableFromYson(Seq(
+      """{value = [1; [2; [3; "spark"]]]}""",
+      """{value = [4; [5; [6; "yql"]]]}""",
+      """{value = [7; [8; [9; #]]]}""",
+    ), tmpPath, anySchema)
+
+    val schema = TypeUtils.tuple(List(LongType, TypeUtils.tuple(List(LongType, TypeUtils.tuple(List(LongType, StringType))))))
+
+    val res = spark.read
+      .schemaHint("value" -> schema)
+      .yt(tmpPath)
+
+    res.columns should contain theSameElementsAs Seq("value")
+    res.collect() should contain theSameElementsAs Seq(
+      Row(Row(1, Row(2, Row(3, "spark")))),
+      Row(Row(4, Row(5, Row(6, "yql")))),
+      Row(Row(7, Row(8, Row(9, null)))),
+    )
+  }
+
   it should "read dataset with complex types" in {
     writeComplexTable(tmpPath)
 
@@ -238,7 +544,9 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
         |f6=[{a=1;b=#};#];
         |f7=[{a="aa"};{a=#};#];
         |f8=[[1;#];#];
-        |f9=[0.1;#]
+        |f9=[0.1;#];
+        |f10=[[1;{a=%true}];[2;{b=%false}];[3;{c=#}];[4;#]];
+        |f11=[[{a=%true};1];[{b=%false};2];[{c=#};3];];
         |}}""".stripMargin
     ), tmpPath, anySchema)
     val res = spark.read
@@ -528,7 +836,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
   }
 
   it should "set custom cypress attributes" in {
-    val expirationTime = "2020-06-30T20:44:09.000000Z"
+    val expirationTime = "2025-06-30T20:44:09.000000Z"
     val myCustomAttribute = "elephant"
     Seq(1, 2, 3).toDF
       .coalesce(1)
@@ -759,12 +1067,24 @@ object YtFileFormatTest {
     Seq(Some(Map("a" -> Some(1L), "b" -> None)), None),
     Seq(Some(B(Some("aa"))), Some(B(None)), None),
     Seq(Some(Seq(Some(1L), None)), None),
-    Seq(Some(0.1), None)
-  )
+    Seq(Some(0.1), None),
+    Map(
+      1L -> Some(Map("a" -> Some(true))),
+      2L -> Some(Map("b" -> Some(false))),
+      3L -> Some(Map("c" -> None)),
+      4L -> None
+    ),
+    Map(
+      Some(Map("a" -> Some(true))) -> 1L,
+      Some(Map("b" -> Some(false))) -> 2L,
+      Some(Map("c" -> None)) -> 3L,
+    ))
 
   private val testRowSmall = TestSmall(
     testRow.f1,
     testRow.f4,
-    testRow.f7
+    testRow.f7,
+    testRow.f10,
+    testRow.f11
   )
 }

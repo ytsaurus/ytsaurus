@@ -5,6 +5,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.StructFieldMeta
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.spark.yt.common.utils.TypeUtils.isTuple
 import ru.yandex.spark.yt.fs.conf.{ConfigTypeConverter, YtLogicalType}
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
 
@@ -41,14 +42,18 @@ object SchemaConverter {
 
   def indexedDataType(dataType: DataType): IndexedDataType = {
     dataType match {
-      case s@StructType(fields) => IndexedDataType.StructType(
-        fields.zipWithIndex.map { case (f, i) =>
-          f.name -> StructFieldMeta(i, indexedDataType(f.dataType), isNull = true)
-        }.toMap,
-        s
-      )
+      case s@StructType(fields) if isTuple(s) =>
+          val tupleElementTypes = fields.map(element => indexedDataType(element.dataType))
+          IndexedDataType.TupleType(tupleElementTypes, s)
+      case s@StructType(fields) =>
+          IndexedDataType.StructType(
+            fields.zipWithIndex.map { case (f, i) =>
+              f.name -> StructFieldMeta(i, indexedDataType(f.dataType), isNull = true)
+            }.toMap,
+            s
+          )
       case a@ArrayType(elementType, _) => IndexedDataType.ArrayType(indexedDataType(elementType), a)
-      case m@MapType(StringType, valueType, _) => IndexedDataType.MapType(indexedDataType(valueType), m)
+      case m@MapType(keyType, valueType, _) => IndexedDataType.MapType(indexedDataType(keyType), indexedDataType(valueType), m)
       case other => IndexedDataType.AtomicType(other)
     }
   }

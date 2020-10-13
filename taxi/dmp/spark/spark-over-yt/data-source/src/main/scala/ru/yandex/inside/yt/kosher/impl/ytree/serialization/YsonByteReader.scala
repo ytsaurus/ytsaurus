@@ -1,8 +1,12 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.serialization
 
+import scala.collection.mutable.ArrayBuffer
+
 class YsonByteReader(bytes: Array[Byte]) {
   private var _position: Int = 0
   //  private val input = new CodedInputStream(new ByteArrayInputStream(bytes), 65536)
+
+  def position: Int = _position
 
   def isAtEnd: Boolean = _position >= bytes.length
 
@@ -90,6 +94,12 @@ class YsonByteReader(bytes: Array[Byte]) {
     }
   }
 
+  def readRawVarint64AsBytes: Array[Byte] = {
+    val pos = _position
+    readRawVarint64
+    bytes.slice(pos, _position)
+  }
+
 
   private def readRawVarint32: Int = {
     var pos = _position
@@ -141,7 +151,6 @@ class YsonByteReader(bytes: Array[Byte]) {
       }
     }
   }
-
 
   private def readRawVarint64SlowPath: Long = {
     var result = 0L
