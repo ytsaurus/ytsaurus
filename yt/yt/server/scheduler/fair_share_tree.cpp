@@ -1056,9 +1056,10 @@ private:
         virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
         {
             if (auto* element = RootElementSnapshot_->FindPool(poolId)) {
+                // TODO(eshcherbin): Use TResourceVector here when the classic strategy is gone.
                 return TSchedulerElementStateSnapshot{
                     element->ResourceDemand(),
-                    element->Attributes().GetUnlimitedDemandFairShareRatio()};
+                    element->GetTotalResourceLimits() * element->Attributes().GetUnlimitedDemandFairShare()};
             }
 
             return std::nullopt;
