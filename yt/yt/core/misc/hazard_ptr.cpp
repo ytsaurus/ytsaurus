@@ -265,6 +265,7 @@ void FlushDeleteList()
 
 THazardPtrFlushGuard::THazardPtrFlushGuard()
 {
+    HazardPointerManager.GetThreadState();
     NConcurrency::PushContextHandler(FlushDeleteList, nullptr);
 }
 
