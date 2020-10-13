@@ -7,7 +7,7 @@ import DebianPackagePlugin.autoImport._
 import ZipPlugin.autoImport._
 import PythonPlugin.autoImport._
 
-val clientVersion = "1.0.6"
+val clientVersion = "1.0.7-SNAPSHOT"
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .settings(
