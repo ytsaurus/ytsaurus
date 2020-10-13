@@ -434,6 +434,9 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
 
 TResourceMeteringConfig::TResourceMeteringConfig()
 {
+    RegisterParameter("enable_new_abc_format", EnableNewAbcFormat)
+        .Default(true);
+
     RegisterParameter("default_abc_id", DefaultAbcId)
         .Default(-1);
 
