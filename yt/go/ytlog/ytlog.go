@@ -9,6 +9,26 @@ import (
 	"a.yandex-team.ru/yt/go/ytlog/selfrotate"
 )
 
+// New returns synchronous stderr logger configured with YT defaults.
+func New() (*logzap.Logger, error) {
+	conf := zap.NewProductionConfig()
+	conf.Level.SetLevel(zap.DebugLevel)
+	conf.DisableStacktrace = true
+	conf.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	conf.OutputPaths = []string{"stderr"}
+
+	return logzap.New(conf)
+}
+
+// Must does the same as New but panics on error.
+func Must() *logzap.Logger {
+	l, err := New()
+	if err != nil {
+		panic(err)
+	}
+	return l
+}
+
 var defaultRotationOptions = selfrotate.Options{
 	MaxKeep:        0,
 	MaxSize:        0,
@@ -17,8 +37,8 @@ var defaultRotationOptions = selfrotate.Options{
 	RotateInterval: selfrotate.RotateHourly,
 }
 
-// New returns logger configured with YT defaults.
-func New(logPath string) (l *logzap.Logger, stop func(), err error) {
+// NewSelfrotate returns logger configured with YT defaults.
+func NewSelfrotate(logPath string) (l *logzap.Logger, stop func(), err error) {
 	options := defaultRotationOptions
 	options.Name = logPath
 
