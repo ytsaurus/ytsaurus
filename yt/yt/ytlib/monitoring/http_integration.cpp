@@ -164,7 +164,7 @@ public:
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp) override
     {
-        const auto orchidPrefix = AsStringBuf("/orchid");
+        const TStringBuf orchidPrefix = "/orchid";
 
         TString path{req->GetUrl().Path};
         if (!path.StartsWith(orchidPrefix)) {
