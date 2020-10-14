@@ -12,7 +12,8 @@ import ru.yandex.bolts.collection.impl.EmptyMap
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeEntityNodeImpl
 import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeConsumer, YTreeTextSerializer, YsonEncoder, YsonTags}
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeConsumer, YTreeTextSerializer, YsonTags}
 import ru.yandex.inside.yt.kosher.ytree.{YTreeBooleanNode, YTreeNode}
 import ru.yandex.misc.reflection.ClassX
 import ru.yandex.yt.ytclient.proxy.TableWriter

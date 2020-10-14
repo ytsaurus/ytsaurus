@@ -8,8 +8,8 @@ import org.apache.log4j.Logger
 import org.apache.spark.sql.types.{BinaryType, DataType, Decimal, StringType}
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarArray, ColumnarMap}
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.{ArrayType => IArrayType, AtomicType => IAtomicType}
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.{ArrayType => IArrayType, AtomicType => IAtomicType}
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 
 class ArrowColumnVector(dataType: IndexedDataType,
                         vector: ValueVector,

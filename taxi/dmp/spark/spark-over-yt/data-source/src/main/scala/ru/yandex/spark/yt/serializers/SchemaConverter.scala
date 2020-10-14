@@ -1,12 +1,14 @@
 package ru.yandex.spark.yt.serializers
 
+import io.circe.parser._
+import io.circe.syntax._
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.yson.YsonType
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.StructFieldMeta
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.TypeUtils.isTuple
-import ru.yandex.spark.yt.fs.conf.{ConfigTypeConverter, YtLogicalType}
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
 
 object SchemaConverter {
@@ -26,7 +28,7 @@ object SchemaConverter {
   def structField(fieldName: String,
                   stringDataType: String,
                   metadata: Metadata): StructField = {
-    StructField(fieldName, ConfigTypeConverter.sparkType(stringDataType), metadata = metadata)
+    StructField(fieldName, sparkType(stringDataType), metadata = metadata)
   }
 
   def structField(fieldName: String,
@@ -61,7 +63,7 @@ object SchemaConverter {
   def schemaHint(options: Map[String, String]): Option[StructType] = {
     val fields = options.collect { case (key, value) if key.contains("_hint") =>
       val name = key.dropRight("_hint".length)
-      val dataType = ConfigTypeConverter.sparkType(value)
+      val dataType = sparkType(value)
       StructField(name, dataType)
     }
 
@@ -74,7 +76,7 @@ object SchemaConverter {
 
   def serializeSchemaHint(schema: StructType): Map[String, String] = {
     schema.foldLeft(Seq.empty[(String, String)]) { case (result, f) =>
-      (s"${f.name}_hint", ConfigTypeConverter.stringType(f.dataType)) +: result
+      (s"${f.name}_hint", stringType(f.dataType)) +: result
     }.toMap
   }
 
@@ -84,12 +86,14 @@ object SchemaConverter {
     case IntegerType => YtLogicalType.Int32
     case LongType => YtLogicalType.Int64
     case StringType => YtLogicalType.String
+    case FloatType => YtLogicalType.Double
     case DoubleType => YtLogicalType.Double
     case BooleanType => YtLogicalType.Boolean
     case _: ArrayType => YtLogicalType.Any
     case _: StructType => YtLogicalType.Any
     case _: MapType => YtLogicalType.Any
-    case BinaryType => YtLogicalType.Any
+    case YsonType => YtLogicalType.Any
+    case BinaryType => YtLogicalType.String
   }
 
   def ytLogicalSchema(sparkSchema: StructType, sortColumns: Seq[String], hint: Map[String, YtLogicalType]): YTreeNode = {
@@ -99,7 +103,7 @@ object SchemaConverter {
       hint.getOrElse(field.name, ytLogicalType(field.dataType))
     }
 
-    val columns = sortColumns.map{ name =>
+    val columns = sortColumns.map { name =>
       val sparkField = sparkSchema(name)
       YTree.builder
         .beginMap
@@ -108,7 +112,7 @@ object SchemaConverter {
         .key("required").value(!sparkField.nullable)
         .key("sort_order").value(ColumnSortOrder.ASCENDING.getName)
         .buildMap
-    } ++ sparkSchema.flatMap{
+    } ++ sparkSchema.flatMap {
       case field if !sortColumns.contains(field.name) =>
         Some(
           YTree.builder
@@ -154,5 +158,36 @@ object SchemaConverter {
     }
 
     builder.build()
+  }
+
+  def sparkType(sType: String): DataType = {
+    sType match {
+      case name if name.startsWith("a#") =>
+        ArrayType(sparkType(name.drop(2)))
+      case name if name.startsWith("s#") =>
+        val strFields = decode[Seq[(String, String)]](name.drop(2)) match {
+          case Right(value) => value
+          case Left(error) => throw new IllegalArgumentException(s"Unsupported type: $sType", error)
+        }
+        StructType(strFields.map { case (name, dt) => StructField(name, sparkType(dt)) })
+      case name if name.startsWith("m#") =>
+        val (keyType, valueType) = decode[(String, String)](name.drop(2)) match {
+          case Right(value) => value
+          case Left(error) => throw new IllegalArgumentException(s"Unsupported type: $sType", error)
+        }
+        MapType(sparkType(keyType), sparkType(valueType))
+      case "binary" => BinaryType
+      case _ => YtLogicalType.fromName(sType).sparkType
+    }
+  }
+
+  def stringType(sparkType: DataType): String = {
+    sparkType match {
+      case BinaryType => "binary"
+      case ArrayType(elementType, _) => "a#" + stringType(elementType)
+      case StructType(fields) => "s#" + fields.map(f => f.name -> stringType(f.dataType)).asJson.noSpaces
+      case MapType(keyType, valueType, _) => "m#" + Seq(keyType, valueType).map(stringType).asJson.noSpaces
+      case _ => ytLogicalType(sparkType).name
+    }
   }
 }

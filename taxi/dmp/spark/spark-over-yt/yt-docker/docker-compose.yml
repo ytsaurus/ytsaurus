@@ -1,0 +1,23 @@
+version: '3'
+services:
+  ytbackend:
+    image: ${yt_image}:${yt_version}
+    ports:
+      - ${proxy_port}:80
+      - ${rpc_proxy_port}:${rpc_proxy_port}
+    command: --proxy-config "{address_resolver={enable_ipv4=%true;enable_ipv6=%false;};coordinator={public_fqdn=\"${docker_hostname}:${proxy_port}\"}}" --rpc-proxy-count ${rpc_proxy_count} --rpc-proxy-port ${rpc_proxy_port}
+    volumes:
+      - ${local_cypress}
+    container_name: ${yt_container_name}
+#    entrypoint: /bin/bash
+  ytfrontend:
+    image: ${thor_image}:${thor_version}
+    ports:
+      - ${interface_port}:80
+    environment:
+      - PROXY=${docker_hostname}:${proxy_port}
+      - APP_ENV=local
+      - PROXY_INTERNAL=${yt_container_name}
+    logging:
+      driver: none
+    container_name: ${thor_container_name}

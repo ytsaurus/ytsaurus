@@ -1,11 +1,12 @@
-package ru.yandex.inside.yt.kosher.impl.ytree.serialization
+package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData}
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.StructFieldMeta
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization._
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.misc.lang.number.UnsignedLong
 
 import scala.annotation.tailrec

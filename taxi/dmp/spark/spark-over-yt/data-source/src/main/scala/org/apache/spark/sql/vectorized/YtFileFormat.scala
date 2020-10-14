@@ -5,13 +5,14 @@ import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.{Job, TaskAttemptContext}
 import org.apache.log4j.Logger
 import org.apache.spark.TaskContext
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{AnalysisException, SparkSession}
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
 import org.apache.spark.sql.types.{AtomicType, StructType}
+import org.apache.spark.sql.v2.YtTable
 import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
 import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
@@ -110,6 +111,13 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                             job: Job,
                             options: Map[String, String],
                             dataSchema: StructType): OutputWriterFactory = {
+    dataSchema.foreach { field =>
+      if (!YtTable.supportsDataType(field.dataType)) {
+        throw new AnalysisException(
+          s"YT data source does not support ${field.dataType.simpleString} data type.")
+      }
+    }
+
     val ytClientConf = ytClientConfiguration(sparkSession)
     val writeConfiguration = SparkYtWriteConfiguration(sparkSession.sqlContext)
     YtTableSparkSettings.serialize(options, dataSchema, job.getConfiguration)

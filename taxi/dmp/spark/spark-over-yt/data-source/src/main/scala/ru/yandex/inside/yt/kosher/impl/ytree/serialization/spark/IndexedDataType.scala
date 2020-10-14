@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.impl.ytree.serialization
+package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
 import org.apache.spark.sql.types
 import org.apache.spark.sql.types.{DataType, NullType, StringType, ArrayType}

@@ -4,8 +4,9 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.yson.{YsonBinary, YsonType}
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonDecoder
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonDecoder
 import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
 
@@ -66,6 +67,7 @@ class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[In
   override def onBytes(bytes: Array[Byte]): Unit = {
     indexedSchema(_index) match {
       case BinaryType => addValue(bytes)
+      case YsonType => addValue(bytes)
       case StringType => addValue(UTF8String.fromBytes(bytes))
       case _ @ (ArrayType(_, _) | StructType(_) | MapType(_, _, _)) =>
         addValue(YsonDecoder.decode(bytes, indexedDataTypes(_index)))

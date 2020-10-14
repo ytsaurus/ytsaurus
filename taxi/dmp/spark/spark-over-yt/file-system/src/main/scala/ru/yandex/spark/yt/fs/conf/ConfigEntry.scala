@@ -1,12 +1,10 @@
 package ru.yandex.spark.yt.fs.conf
 
-import org.apache.spark.sql.types.StructType
+import io.circe._
+import io.circe.parser._
+import io.circe.syntax._
 
 import scala.concurrent.duration._
-
-import io.circe._
-import io.circe.syntax._
-import io.circe.parser._
 
 abstract class ConfigEntry[T](val name: String,
                               val default: Option[T] = None) {
@@ -59,21 +57,4 @@ class StringMapConfigEntry(name: String, default: Option[Map[String, String]] = 
   override def get(value: String): Map[String, String] = fromJson(value)
 
   override def set(value: Map[String, String]): String = toJson(value)
-}
-
-class YtLogicalTypeMapConfigEntry(name: String, default: Option[Map[String, YtLogicalType]] = None)
-  extends ConfigEntry[Map[String, YtLogicalType]](name, default) {
-  override def get(value: String): Map[String, YtLogicalType] = {
-    fromJsonTyped[Map[String, String]](value).mapValues(YtLogicalType.fromName)
-  }
-
-  override def set(value: Map[String, YtLogicalType]): String = {
-    toJsonTyped[Map[String, String]](value.mapValues(_.name))
-  }
-}
-
-class StructTypeConfigEntry(name: String) extends ConfigEntry[StructType](name, None) {
-  override def get(value: String): StructType = ConfigTypeConverter.sparkType(value).asInstanceOf[StructType]
-
-  override def set(value: StructType): String = ConfigTypeConverter.stringType(value)
 }
