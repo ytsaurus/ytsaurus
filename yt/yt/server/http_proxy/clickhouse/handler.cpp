@@ -104,6 +104,10 @@ public:
                 return false;
             }
 
+            if (!TryCheckMethod()) {
+                return false;
+            }
+
             if (!TryAuthenticate()) {
                 return false;
             }
@@ -300,9 +304,12 @@ private:
 
     std::optional<size_t> JobCookie_;
 
-    // Legacy token is provided via basic auth header ("Authorization: Basic <Token>") or via cgi parameter "password".
-    // If empty, the authentication will be performed via OAuth or Cookie.
-    TString LegacyToken_;
+    // For backward compatibility we allow GET requests when Auth is performed via token or cgi parameters.
+    bool AllowGetRequests_ = false;
+
+    // Token is provided via header "Authorization" or via cgi parameter "password".
+    // If empty, the authentication will be performed via Cookie.
+    TString Token_;
     TString User_;
     TString InstanceId_;
     TString InstanceHost_;
@@ -337,28 +344,36 @@ private:
         RequestErrors_.emplace_back(error);
     }
 
-    void ParseTokenFromBasicAuthorizationHeader(const TString& authorization)
+    bool ParseTokenFromAuthorizationHeader(const TString& authorization)
     {
-        static const TStringBuf basicHeaderPrefix = "Basic ";
-        if (!authorization.StartsWith(basicHeaderPrefix)) {
-            // OAuth authorization is handled in THttpAuthenticator.
-            return;
-        }
-
-        YT_LOG_DEBUG("Parsing token from Basic Authorization header");
-        // "authorization" format is "Basic <base64(username:oauth-token)>"
-        const auto& credentials = authorization.substr(basicHeaderPrefix.size());
-        auto fooAndToken = SplitString(Base64Decode(credentials), ":", 2);
-        if (fooAndToken.size() == 2) {
-            // First component (that should be username) is ignored.
-            LegacyToken_ = fooAndToken[1];
+        YT_LOG_DEBUG("Parsing token from Authorization header");
+        // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
+        auto authorizationTypeAndCredentials = SplitString(authorization, " ", 2);
+        const auto& authorizationType = authorizationTypeAndCredentials[0];
+        if (authorizationType == "OAuth" && authorizationTypeAndCredentials.size() == 2) {
+            Token_ = authorizationTypeAndCredentials[1];
+        } else if (authorizationType == "Basic" && authorizationTypeAndCredentials.size() == 2) {
+            const auto& credentials = authorizationTypeAndCredentials[1];
+            auto fooAndToken = SplitString(Base64Decode(credentials), ":", 2);
+            if (fooAndToken.size() == 2) {
+                // First component (that should be username) is ignored.
+                Token_ = fooAndToken[1];
+            } else {
+                ReplyWithError(
+                    EStatusCode::Unauthorized,
+                    TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected"));
+                return false;
+            }
         } else {
             ReplyWithError(
                 EStatusCode::Unauthorized,
-                TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected"));
-            return;
+                TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
+                    authorizationType,
+                    authorizationTypeAndCredentials.size()));
+            return false;
         }
-        YT_LOG_DEBUG("Token parsed (AuthorizationType: Basic)");
+        YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
+        return true;
     }
 
     bool TryProcessHeaders()
@@ -366,11 +381,19 @@ private:
         try {
             const auto* authorization = Request_->GetHeaders()->Find("Authorization");
             if (authorization && !authorization->empty()) {
-                ParseTokenFromBasicAuthorizationHeader(*authorization);
+                if (!ParseTokenFromAuthorizationHeader(*authorization)) {
+                    return false;
+                }
+                if (!Token_.empty()) {
+                    AllowGetRequests_ = true;
+                }
             } else if (CgiParameters_.Has("password")) {
-                LegacyToken_ = CgiParameters_.Get("password");
+                Token_ = CgiParameters_.Get("password");
                 CgiParameters_.EraseAll("password");
                 CgiParameters_.EraseAll("user");
+                if (!Token_.empty()) {
+                    AllowGetRequests_ = true;
+                }
             } else if (const auto* user = Request_->GetHeaders()->Find("X-Yt-User")) {
                 if (Config_->IgnoreMissingCredentials) {
                     User_ = *user;
@@ -386,6 +409,22 @@ private:
         }
     }
 
+    bool TryCheckMethod()
+    {
+        if (Request_->GetMethod() == EMethod::Post) {
+            return true;
+        }
+        if (AllowGetRequests_ && Request_->GetMethod() == EMethod::Get) {
+            return true;
+        }
+        Response_->SetStatus(EStatusCode::MethodNotAllowed);
+        Response_->GetHeaders()->Set("Allow", "POST");
+        ReplyWithError(
+            EStatusCode::MethodNotAllowed,
+            TError("Only POST method is allowed with your type of Authorization"));
+        return false;
+    }
+
     bool TryAuthenticate()
     {
         if (Config_->IgnoreMissingCredentials) {
@@ -399,23 +438,20 @@ private:
         }
 
         try {
-            
             PROFILE_AGGREGATED_TIMING(Metrics_.AuthenticateTime) {
-                if (LegacyToken_.Empty()) {
-                    // Csrf token check is useless since GET requests can modify data. Disable it for convenience.
-                    User_ = Bootstrap_->GetHttpAuthenticator()->Authenticate(Request_, /* disableCsrfTokenCheck */ true)
+                if (Token_.Empty()) {
+                    User_ = Bootstrap_->GetHttpAuthenticator()->Authenticate(Request_)
                         .ValueOrThrow()
                         .Result.Login;
                 } else {
                     NAuth::TTokenCredentials credentials;
-                    credentials.Token = LegacyToken_;
+                    credentials.Token = Token_;
 
                     User_ = WaitFor(Bootstrap_->GetTokenAuthenticator()->Authenticate(credentials))
                         .ValueOrThrow()
                         .Login;
                 }
             }
-
             YT_LOG_DEBUG("User authenticated (User: %v)", User_);
             return true;
         } catch (const std::exception& ex) {
