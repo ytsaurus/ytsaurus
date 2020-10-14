@@ -991,7 +991,7 @@ TQueryStatistics DoExecuteQuery(
         batchSize = std::min<size_t>(batchSize * 2, RowsetProcessingSize);
         return rows.empty()
             ? nullptr
-            : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), nullptr));
+            : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows)));
     };
 
     auto readerMock = New<NiceMock<TReaderMock>>();

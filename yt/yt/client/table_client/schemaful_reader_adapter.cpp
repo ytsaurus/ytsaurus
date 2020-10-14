@@ -85,7 +85,7 @@ public:
             return CreateEmptyUnversionedRowBatch();
         }
 
-        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(schemafulRows), this));
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(schemafulRows), MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override

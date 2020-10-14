@@ -105,7 +105,7 @@ public:
         }
         RowCount_ += rows.size();
         DataWeight_ += dataWeight;
-        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override

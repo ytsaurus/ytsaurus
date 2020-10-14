@@ -399,7 +399,7 @@ IUnversionedRowBatchPtr TSchemalessSortedMergingReader::Read(const TRowBatchRead
             SessionHeap_.clear();
             return rows.empty()
                 ? nullptr
-                : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+                : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
         }
 
         rows.push_back(row);
@@ -428,7 +428,7 @@ IUnversionedRowBatchPtr TSchemalessSortedMergingReader::Read(const TRowBatchRead
 
     DataWeight_ += dataWeight;
 
-    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
 }
 
 TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
@@ -586,7 +586,7 @@ IUnversionedRowBatchPtr TSchemalessJoiningReader::Read(const TRowBatchReadOption
                 SessionHeap_.pop_back();
 
                 if (!rows.empty()) {
-                    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+                    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
                 } else if (SessionHeap_.empty()) {
                     return nullptr;
                 } else {
@@ -643,7 +643,7 @@ IUnversionedRowBatchPtr TSchemalessJoiningReader::Read(const TRowBatchReadOption
 
     DataWeight_ += dataWeight;
 
-    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
 }
 
 TInterruptDescriptor TSchemalessJoiningReader::GetInterruptDescriptor(

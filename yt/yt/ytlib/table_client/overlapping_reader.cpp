@@ -197,7 +197,7 @@ IUnversionedRowBatchPtr TSchemafulOverlappingLookupReader::Read(const TRowBatchR
         return nullptr;
     }
 
-    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
 }
 
 bool TSchemafulOverlappingLookupReader::RefillSession(TSession* session)
@@ -704,7 +704,7 @@ public:
         if (!DoRead(&rows, options)) {
             return nullptr;
         }
-        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override
