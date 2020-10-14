@@ -221,7 +221,7 @@ struct TMemoryMapping
 
     ui64 Offset = 0;
 
-    std::optional<ui16> DeviceId;
+    std::optional<int> DeviceId;
 
     std::optional<ui64> INode;
 

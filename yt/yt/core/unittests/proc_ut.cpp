@@ -32,7 +32,7 @@ TEST(TProcTest, TestParseMemoryMappings)
         "Locked:               19 kB\n"
         "ProtectionKey:        20\n"
         "VmFlags: rd wr mg\n"
-        "7fbb7b251000-7fbb7b278000 r-xp 000000ff fc:01 406536                     /lib/x86_64-linux-gnu/ld-2.28.so\n"
+        "7fbb7b251000-7fbb7b278000 r-xp 000000ff 00:13d 406536                     /lib/x86_64-linux-gnu/ld-2.28.so\n"
         "Size:                156 kB\n"
         "KernelPageSize:        4 kB\n"
         "MMUPageSize:           4 kB\n"
@@ -76,7 +76,7 @@ TEST(TProcTest, TestParseMemoryMappings)
     EXPECT_EQ(smaps[1].End, 0x7fbb7b278000);
     EXPECT_EQ(smaps[1].Permissions, EMemoryMappingPermission::Read | EMemoryMappingPermission::Execute | EMemoryMappingPermission::Private);
     EXPECT_EQ(smaps[1].Offset, 0xff);
-    EXPECT_EQ(smaps[1].DeviceId, 0xfc01);
+    EXPECT_EQ(smaps[1].DeviceId, 1048637);
     EXPECT_EQ(*smaps[1].INode, 406536);
     EXPECT_EQ(*smaps[1].Path, "/lib/x86_64-linux-gnu/ld-2.28.so");
     EXPECT_EQ(smaps[1].Statistics.Size, 156_KB);
