@@ -170,6 +170,11 @@ bool TContext::TryParseUser()
     // NB: This function is the only thing protecting cluster from
     // unauthorized requests. Please write code without bugs.
 
+    if (DriverRequest_.CommandName == "discover_proxies") {
+        DriverRequest_.AuthenticatedUser = NSecurityClient::RootUserName;
+        return true;
+    }
+
     auto authResult = Api_->GetHttpAuthenticator()->Authenticate(Request_);
     if (!authResult.IsOK()) {
         YT_LOG_DEBUG(authResult, "Authentication error");
@@ -184,12 +189,6 @@ bool TContext::TryParseUser()
     }
 
     Auth_ = authResult.Value();
-
-    if (DriverRequest_.CommandName == "discover_proxies") {
-        // Optimize master cache hit rate.
-        DriverRequest_.AuthenticatedUser = NSecurityClient::RootUserName;
-        return true;
-    }
 
     if (DriverRequest_.CommandName == "ping_tx" || DriverRequest_.CommandName == "parse_ypath") {
         DriverRequest_.AuthenticatedUser = Auth_->Result.Login;
@@ -575,8 +574,11 @@ void TContext::LogStructuredRequest() {
         .Item("request_id").Value(Request_->GetRequestId())
         .Item("command").Value(Descriptor_->CommandName)
         .Item("user").Value(DriverRequest_.AuthenticatedUser)
-        .Item("authenticated_from").Value(Auth_->Result.Login)
-        .Item("token_hash").Value(Auth_->TokenHash)
+        .DoIf(Auth_.has_value(), [&] (auto fluent) {
+            fluent
+                .Item("authenticated_from").Value(Auth_->Result.Login)
+                .Item("token_hash").Value(Auth_->TokenHash);
+        })
         .Item("parameters").Value(Parameters_)
         .Item("correlation_id").Value(correlationId)
         .DoIf(traceContext, [&] (auto fluent) {
