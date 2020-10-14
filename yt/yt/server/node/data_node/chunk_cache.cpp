@@ -50,6 +50,8 @@
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/string.h>
 
+#include <util/generic/algorithm.h>
+
 #include <util/random/random.h>
 
 namespace NYT::NDataNode {
@@ -767,15 +769,9 @@ private:
             }
         }
 
-        std::sort(
-            candidates.begin(),
-            candidates.end(),
-            [] (const TCacheLocationPtr& lhs, const TCacheLocationPtr& rhs) -> bool {
-                if (lhs->GetSessionCount() < rhs->GetSessionCount()) {
-                    return true;
-                }
-                return lhs->GetAvailableSpace() > rhs->GetAvailableSpace();
-            });
+        SortBy(candidates, [] (const TCacheLocationPtr& location) {
+            return std::make_pair(location->GetSessionCount(), -location->GetAvailableSpace());
+        });
 
         for (const auto& location : candidates) {
             if (location->TryLock(chunkId)) {
