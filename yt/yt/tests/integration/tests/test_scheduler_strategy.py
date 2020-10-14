@@ -1468,10 +1468,18 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
         create_pool("subpool", parent_name="limiting_pool")
         wait(lambda: get(scheduler_orchid_pool_path("limiting_pool") + "/resource_limits/cpu") == 1.0)
 
+        # NB(eshcherbin): We set the pool in "scheduling_options_per_pool_tree" to also cover the problem from YT-13761.
         op = run_test_vanilla(
             "sleep 0.5",
             job_count=10,
-            spec={"pool": "subpool", "enable_limiting_ancestor_check": False},
+            spec={
+                "enable_limiting_ancestor_check": False,
+                "scheduling_options_per_pool_tree": {
+                    "default": {
+                        "pool": "subpool",
+                    },
+                },
+            },
             task_patch={"cpu_limit": 2.0})
 
         # Let the operation hang for some time. The limiting ancestor check should not be triggered.

@@ -306,7 +306,7 @@ public:
         auto clonedSpec = CloneYsonSerializable(spec);
         auto optionsIt = spec->SchedulingOptionsPerPoolTree.find(TreeId_);
         if (optionsIt != spec->SchedulingOptionsPerPoolTree.end()) {
-            ReconfigureYsonSerializable(clonedSpec, ConvertToNode(optionsIt->second));
+            clonedSpec = UpdateYsonSerializable(clonedSpec, ConvertToNode(optionsIt->second));
         }
 
         auto operationElement = New<TOperationElement>(
