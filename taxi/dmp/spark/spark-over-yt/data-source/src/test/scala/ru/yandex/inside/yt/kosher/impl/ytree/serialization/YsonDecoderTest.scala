@@ -15,14 +15,11 @@ import ru.yandex.spark.yt.serializers.SchemaConverter
 import scala.io.Source
 
 class YsonDecoderTest extends FlatSpec with Matchers with ScalaCheckPropertyChecks with ScalaCheckDrivenPropertyChecks {
-
-  behavior of "YsonDecoderTest"
-
   private def decoder(bytes: Array[Byte]): YsonDecoder = {
     new YsonDecoder(bytes, IndexedDataType.NoneType)
   }
 
-  it should "skip" in {
+  "YsonDecoderTest" should "skip" in {
     decoder(Array(1, 2, 3, 4, 5))
       .skip(1.toByte, allowEof = false, Seq(3.toByte))
       .readToken(allowEof = false) shouldEqual 4
