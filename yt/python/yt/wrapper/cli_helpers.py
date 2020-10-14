@@ -49,17 +49,11 @@ def write_silently(strings, force_use_text_stdout=False):
                 pass
 
 def print_to_stdout(string_or_bytes, eoln=True):
-    def unicode_escape_non_ascii(string):
-        def escape(char):
-            if ord(char) < 128:
-                return char
-            else:
-                return char.encode("unicode-escape").decode("ascii")
-        return "".join(imap(escape, string))
-
     if isinstance(string_or_bytes, binary_type):
-        string_or_bytes = string_or_bytes.decode("latin-1")
-    sys.stdout.write(unicode_escape_non_ascii(string_or_bytes))
+        get_binary_std_stream(sys.stdout).write(string_or_bytes)
+    else:
+        sys.stdout.write(string_or_bytes)
+
     if eoln:
         sys.stdout.write("\n")
 
