@@ -264,7 +264,7 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
         dataType match {
           case IndexedDataType.ScalaStringType => new String(s)
           case IndexedDataType.AtomicType(BinaryType) => s
-          case _ =>  UTF8String.fromBytes(s)
+          case _ => UTF8String.fromBytes(s)
         }
       case YsonTags.BINARY_INT =>
         dataType.sparkDataType match {
@@ -278,7 +278,9 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
           case IntegerType => readUInt64.toInt
           case DoubleType => UnsignedLong.valueOf(readUInt64).doubleValue()
           case BinaryType => first +: readInt64AsBytes
-          case NullType => null
+          case NullType =>
+            readUInt64
+            null
         }
       case YsonTags.BINARY_DOUBLE =>
         dataType.sparkDataType match {
