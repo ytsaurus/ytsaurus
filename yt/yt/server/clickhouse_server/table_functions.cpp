@@ -4,6 +4,7 @@
 #include "subquery.h"
 #include "query_context.h"
 #include "subquery_spec.h"
+#include "config.h"
 
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>
@@ -48,7 +49,7 @@ public:
         return "YT";
     }
 
-    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context, const std::string& /* tableName */) const override
+    void parseArguments(const ASTPtr & functionAst, const Context & context) override
     {
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
@@ -74,8 +75,18 @@ public:
         auto protoSpecString = Base64Decode(base64EncodedSpec);
         NProto::TSubquerySpec protoSpec;
         protoSpec.ParseFromString(protoSpecString);
-        auto subquerySpec = NYT::FromProto<TSubquerySpec>(protoSpec);
+        subquerySpec = NYT::FromProto<TSubquerySpec>(protoSpec);
+    }
 
+    ColumnsDescription getActualTableStructure(const Context & context) const override
+    {
+        auto* queryContext = GetQueryContext(context);
+        return DB::ColumnsDescription(ToNamesAndTypesList(*subquerySpec.ReadSchema, queryContext->Settings->Composite));
+    }
+
+    virtual StoragePtr executeImpl(const ASTPtr& /* functionAst */, const Context& context,
+                                   const std::string& /* tableName */, ColumnsDescription /* cached_columns */) const override
+    {
         return Execute(context, std::move(subquerySpec));
     }
 
@@ -86,6 +97,8 @@ private:
             GetQueryContext(context),
             std::move(subquerySpec));
     }
+
+    TSubquerySpec subquerySpec;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
