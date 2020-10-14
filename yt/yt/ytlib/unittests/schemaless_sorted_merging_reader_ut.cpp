@@ -125,7 +125,7 @@ public:
             rows.push_back(Rows_.back());
             ++RowIndex_;
         }
-        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual const TNameTablePtr& GetNameTable() const override

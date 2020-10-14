@@ -1131,7 +1131,7 @@ public:
         }
         ++BlockIndex_;
 
-        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override

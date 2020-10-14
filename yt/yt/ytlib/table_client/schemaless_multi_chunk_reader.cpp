@@ -731,7 +731,7 @@ public:
             return CreateEmptyUnversionedRowBatch();
         }
 
-        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(schemalessRows), this));
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(schemalessRows), MakeStrong(this)));
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(

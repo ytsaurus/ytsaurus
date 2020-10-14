@@ -104,7 +104,7 @@ public:
             ++CurrentRowIndex_;
         }
 
-        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(updatedRows), this));
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(updatedRows), MakeStrong(this)));
     }
 
     virtual TFuture<void> GetReadyEvent() const override

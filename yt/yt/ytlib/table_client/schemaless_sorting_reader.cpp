@@ -70,7 +70,7 @@ public:
 
         return CreateBatchFromUnversionedRows(TSharedRange<TUnversionedRow>(
             TRange<TUnversionedRow>(Rows_.data() + startRowCount, Rows_.data() + endRowCount),
-            this));
+            MakeStrong(this)));
     }
 
     virtual bool IsFetchingCompleted() const override

@@ -799,7 +799,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
     RowCount_ += rows.size();
     DataWeight_ += dataWeight;
 
-    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
 }
 
 TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescriptor(
@@ -1019,7 +1019,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
     }
 
     return success
-        ? CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this))
+        ? CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)))
         : nullptr;
 }
 
@@ -1440,7 +1440,7 @@ private:
 
         ReadEpilogue(&rows);
 
-        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     void InitializeBlockSequence()
@@ -1791,7 +1791,7 @@ public:
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
 
-        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), nullptr));
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual TDataStatistics GetDataStatistics() const override

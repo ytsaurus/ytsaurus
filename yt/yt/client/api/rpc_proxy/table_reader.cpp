@@ -127,7 +127,9 @@ public:
         DataWeight_ += dataWeight;
 
         ReadyEvent_.TrySetFrom(RowsWithStatisticsFuture_);
-        return rows.empty() ? nullptr : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+        return rows.empty()
+            ? nullptr
+            : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
