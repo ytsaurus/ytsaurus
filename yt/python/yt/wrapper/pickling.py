@@ -3,6 +3,8 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
+from yt.packages.six import PY3
+
 import yt
 
 FRAMEWORKS = {
@@ -15,13 +17,23 @@ def import_framework_module(framework):
     if framework not in FRAMEWORKS:
         raise yt.YtError("Cannot find pickling framework {0}. Available frameworks: {1}."
                          .format(framework, list(FRAMEWORKS)))
+    result_module = None
     modules = FRAMEWORKS[framework]
     for module in modules:
         try:
-            return import_module(module)
+            result_module = import_module(module)
         except ImportError:
             pass
-    raise RuntimeError("Failed to find module for framework '{}', tried modules {}".format(framework, modules))
+
+    if framework == "dill" and PY3:
+        # NB: python3.8 has changes DEFAULT_PROTOCTOL to 4.
+        # We set protocol implicitly for client<->server compatibility.
+        result_module.settings["protocol"] = 3
+
+    if result_module is None:
+        raise RuntimeError("Failed to find module for framework '{}', tried modules {}".format(framework, modules))
+
+    return result_module
 
 class Pickler(object):
     def __init__(self, framework):
