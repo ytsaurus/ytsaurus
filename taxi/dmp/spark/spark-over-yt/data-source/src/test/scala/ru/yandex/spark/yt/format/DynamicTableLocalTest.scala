@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.format
 import io.circe._
 import io.circe.generic.semiauto._
 import io.circe.syntax._
+import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Encoders
 import org.scalatest.{FlatSpec, Matchers}
@@ -37,9 +38,11 @@ class DynamicTableLocalTest extends FlatSpec with Matchers with LocalSpark with 
       prepareTestTable(s"$tmpPath/$i", testData, Nil)
     }
 
+    Logger.getRootLogger.setLevel(Level.OFF)
     a [SparkException] should be thrownBy {
       spark.read.yt((1 to tablesCount).map(i => s"$tmpPath/$i"):_*).show()
     }
+    Logger.getRootLogger.setLevel(Level.WARN)
   }
 
   def prepareTestTable(path: String, data: Seq[TestRow], pivotKeys: Seq[String]): Unit = {

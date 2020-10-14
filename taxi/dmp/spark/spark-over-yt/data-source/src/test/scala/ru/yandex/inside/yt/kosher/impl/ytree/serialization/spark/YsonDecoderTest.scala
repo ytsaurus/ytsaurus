@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.impl.ytree.serialization
+package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
 import java.io.ByteArrayInputStream
 
@@ -8,8 +8,9 @@ import org.apache.spark.sql.types.{StringType, _}
 import org.apache.spark.unsafe.types.UTF8String
 import org.scalatest.{FlatSpec, Matchers}
 import org.scalatestplus.scalacheck.{ScalaCheckDrivenPropertyChecks, ScalaCheckPropertyChecks}
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.StructFieldMeta
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonTags._
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.spark.yt.serializers.SchemaConverter
 
 import scala.io.Source

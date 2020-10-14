@@ -7,6 +7,9 @@ import org.apache.spark.sql.execution.datasources.FileFormat
 import org.apache.spark.sql.execution.datasources.v2.FileTable
 import org.apache.spark.sql.types.{ArrayType, AtomicType, DataType, MapType, StructType, UserDefinedType}
 import org.apache.spark.sql.util.CaseInsensitiveStringMap
+import org.apache.spark.sql.yson.YsonType
+
+import scala.annotation.tailrec
 import scala.collection.JavaConverters._
 
 case class YtTable(name: String,
@@ -26,20 +29,30 @@ case class YtTable(name: String,
   override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder =
     new YtWriteBuilder(paths, formatName, supportsDataType, info)
 
-  override def supportsDataType(dataType: DataType): Boolean = dataType match {
+  override def supportsDataType(dataType: DataType): Boolean = YtTable.supportsDataType(dataType)
+
+  override def formatName: String = "YT"
+}
+
+object YtTable {
+  @tailrec
+  def supportsDataType(dataType: DataType): Boolean = dataType match {
     case _: AtomicType => true
 
-    case st: StructType => st.forall { f => supportsDataType(f.dataType) }
+    case st: StructType => st.forall { f => supportsInnerDataType(f.dataType) }
 
-    case ArrayType(elementType, _) => supportsDataType(elementType)
+    case ArrayType(elementType, _) => supportsInnerDataType(elementType)
 
     case MapType(keyType, valueType, _) =>
-      supportsDataType(keyType) && supportsDataType(valueType)
+      supportsInnerDataType(keyType) && supportsInnerDataType(valueType)
 
     case udt: UserDefinedType[_] => supportsDataType(udt.sqlType)
 
     case _ => false
   }
 
-  override def formatName: String = "YT"
+  private def supportsInnerDataType(dataType: DataType): Boolean = dataType match {
+    case YsonType => false
+    case _ => supportsDataType(dataType)
+  }
 }

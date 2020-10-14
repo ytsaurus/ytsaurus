@@ -120,4 +120,36 @@ trait TestUtils {
     }
   }
 
+  def writeComplexTable(path: String)(implicit yt: YtClient): Unit = {
+    val ytSchema = new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addValue("f1", ColumnValueType.ANY)
+      .addValue("f2", ColumnValueType.ANY)
+      .addValue("f3", ColumnValueType.ANY)
+      .addValue("f4", ColumnValueType.ANY)
+      .addValue("f5", ColumnValueType.ANY)
+      .addValue("f6", ColumnValueType.ANY)
+      .addValue("f7", ColumnValueType.ANY)
+      .addValue("f8", ColumnValueType.ANY)
+      .addValue("f9", ColumnValueType.ANY)
+      .addValue("f10", ColumnValueType.ANY)
+      .addValue("f11", ColumnValueType.ANY)
+      .build()
+    writeTableFromYson(Seq(
+      """{
+        |f1={a={aa=1};b=#;c={cc=#}};
+        |f2={a={a="aa"};b=#;c={a=#}};
+        |f3={a=[0.1];b=#;c=[#]};
+        |f4={a=%true;b=#};
+        |f5={a={a=1;b=#};b={a="aa"};c=[%true;#];d=0.1};
+        |f6=[{a=1;b=#};#];
+        |f7=[{a="aa"};{a=#};#];
+        |f8=[[1;#];#];
+        |f9=[0.1;#];
+        |f10=[[1;{a=%true}];[2;{b=%false}];[3;{c=#}];[4;#]];
+        |f11=[[{a=%true};1];[{b=%false};2];[{c=#};3];];
+        |}""".stripMargin
+    ), path, ytSchema)
+  }
+
 }

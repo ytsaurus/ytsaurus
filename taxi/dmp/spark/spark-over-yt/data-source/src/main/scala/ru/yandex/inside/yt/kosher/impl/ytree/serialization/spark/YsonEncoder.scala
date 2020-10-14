@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.impl.ytree.serialization
+package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets
 import com.google.protobuf.CodedOutputStream
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.unsafe.types.UTF8String
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonTags
 import ru.yandex.misc.ExceptionUtils
 import ru.yandex.misc.lang.number.UnsignedLong
 import ru.yandex.spark.yt.serializers.YsonRowConverter

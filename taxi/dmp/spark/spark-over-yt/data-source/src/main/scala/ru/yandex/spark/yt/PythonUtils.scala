@@ -3,9 +3,9 @@ package ru.yandex.spark.yt
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql._
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonEncoder
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt.fs.GlobalTableSettings
-import ru.yandex.spark.yt.fs.conf.YtLogicalType
+import ru.yandex.spark.yt.serializers.YtLogicalType
 
 object PythonUtils {
   def setPathFilesCount(path: String, filesCount: Int): Unit = {

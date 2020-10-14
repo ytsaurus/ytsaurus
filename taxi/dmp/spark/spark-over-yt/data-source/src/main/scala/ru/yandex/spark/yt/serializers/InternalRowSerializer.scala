@@ -8,8 +8,8 @@ import org.apache.spark.metrics.yt.YtMetricsRegister.ytMetricsSource._
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonEncoder
-import ru.yandex.spark.yt.fs.conf.YtLogicalType
+import org.apache.spark.sql.yson.YsonType
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
 import ru.yandex.yt.ytclient.proxy.TableWriter
@@ -71,7 +71,7 @@ class InternalRowSerializer(schema: StructType, schemaHint: Map[String, YtLogica
         writeable.writeValueHeader(valueId(i, idMapping), ColumnValueType.NULL, false, 0)
       } else {
         schema(i).dataType match {
-          case BinaryType => writeBytes(writeable, idMapping, i, row.getBinary(i))
+          case BinaryType | YsonType => writeBytes(writeable, idMapping, i, row.getBinary(i))
           case StringType => writeBytes(writeable, idMapping, i, row.getUTF8String(i).getBytes)
           case t@(ArrayType(_, _) | StructType(_) | MapType(_, _, _)) =>
             val skipNulls = schema(i).metadata.contains("skipNulls") && schema(i).metadata.getBoolean("skipNulls")

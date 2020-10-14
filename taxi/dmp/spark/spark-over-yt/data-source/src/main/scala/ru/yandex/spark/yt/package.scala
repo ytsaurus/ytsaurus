@@ -4,9 +4,9 @@ import org.apache.spark.sql._
 import org.apache.spark.sql.types._
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
-import ru.yandex.spark.yt.fs.conf.{ConfigEntry, YtLogicalType}
+import ru.yandex.spark.yt.fs.conf.ConfigEntry
 import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
-import ru.yandex.spark.yt.serializers.SchemaConverter
+import ru.yandex.spark.yt.serializers.{SchemaConverter, YtLogicalType}
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.proxy.YtClient
 
