@@ -233,6 +233,11 @@ TDuration TSnapshotBuilder::GetTimeout() const
     return Config_->SnapshotTimeout;
 }
 
+TDuration TSnapshotBuilder::GetForkTimeout() const
+{
+    return Config_->SnapshotForkTimeout;
+}
+
 void TSnapshotBuilder::RunParent()
 {
     for (const auto& job : Jobs_) {

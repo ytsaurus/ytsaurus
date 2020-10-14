@@ -29,6 +29,10 @@ protected:
     //! Returns the timeout for running child process.
     virtual TDuration GetTimeout() const = 0;
 
+    //! Returns the timeout for running fork. If process
+    //! did not fork within this timeout, it crashes.
+    virtual TDuration GetForkTimeout() const = 0;
+
     //! Called from the child process after fork.
     virtual void RunChild() = 0;
 
@@ -47,6 +51,7 @@ private:
     TInstant StartTime_;
     NConcurrency::TActionQueuePtr WatchdogQueue_ = New<NConcurrency::TActionQueue>("ForkWD");
     NConcurrency::TPeriodicExecutorPtr WatchdogExecutor_;
+    std::atomic<bool> Forked_ = false;
 
     void DoRunParent();
     void DoRunChild();

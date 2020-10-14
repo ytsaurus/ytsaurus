@@ -63,6 +63,7 @@ private:
     void OnControllerSuspended(const TSnapshotJobPtr& job);
 
     virtual TDuration GetTimeout() const override;
+    virtual TDuration GetForkTimeout() const override;
     virtual void RunParent() override;
     virtual void RunChild() override;
 

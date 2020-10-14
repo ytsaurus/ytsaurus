@@ -504,6 +504,10 @@ public:
     //! Timeout for snapshot construction.
     TDuration SnapshotTimeout;
 
+    //! Maximum time allotted to fork during snapshot building.
+    //! If process did not fork within this timeout, it crashes.
+    TDuration SnapshotForkTimeout;
+
     //! Timeout to wait for controller suspension before constructing a snapshot.
     TDuration OperationControllerSuspendTimeout;
 

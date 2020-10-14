@@ -357,6 +357,11 @@ private:
         return Owner_->Config_->SnapshotBuildTimeout;
     }
 
+    virtual TDuration GetForkTimeout() const override
+    {
+        return Owner_->Config_->SnapshotForkTimeout;
+    }
+
     virtual void RunChild() override
     {
         CloseAllDescriptors({
