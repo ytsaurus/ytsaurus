@@ -353,6 +353,8 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(TDuration::Seconds(300));
     RegisterParameter("snapshot_timeout", SnapshotTimeout)
         .Default(TDuration::Seconds(60));
+    RegisterParameter("snapshot_fork_timeout", SnapshotForkTimeout)
+        .Default(TDuration::Minutes(2));
     RegisterParameter("operation_controller_suspend_timeout", OperationControllerSuspendTimeout)
         .Default(TDuration::Seconds(5));
     RegisterParameter("parallel_snapshot_builder_count", ParallelSnapshotBuilderCount)

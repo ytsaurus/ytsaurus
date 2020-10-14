@@ -275,6 +275,10 @@ public:
     //! Maximum time allotted to construct a snapshot.
     TDuration SnapshotBuildTimeout;
 
+    //! Maximum time allotted to fork during snapshot building.
+    //! If process did not fork within this timeout, it crashes.
+    TDuration SnapshotForkTimeout;
+
     //! Maximum time interval between consequent snapshots.
     TDuration SnapshotBuildPeriod;
 
@@ -395,6 +399,8 @@ public:
 
         RegisterParameter("snapshot_build_timeout", SnapshotBuildTimeout)
             .Default(TDuration::Minutes(5));
+        RegisterParameter("snapshot_fork_timeout", SnapshotForkTimeout)
+            .Default(TDuration::Minutes(2));
         RegisterParameter("snapshot_build_period", SnapshotBuildPeriod)
             .Default(TDuration::Minutes(60));
         RegisterParameter("snapshot_build_splay", SnapshotBuildSplay)

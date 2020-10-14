@@ -39,7 +39,20 @@ TFuture<void> TForkExecutor::Fork()
     try {
         YT_LOG_INFO("Going to fork");
 
+        TDelayedExecutor::Submit(
+            BIND([this, this_ = MakeWeak(this)] {
+                auto executor = this_.Lock();
+                if (!executor) {
+                    return;
+                }
+
+                YT_LOG_FATAL_UNLESS(Forked_, "Process did not fork within timeout; terminating (ForkTimeout: %v)",
+                    GetForkTimeout());
+            }),
+            GetForkTimeout());
+
         ChildPid_ = fork();
+        Forked_ = true;
         if (ChildPid_ < 0) {
             THROW_ERROR_EXCEPTION("fork failed")
                 << TError::FromSystem();
