@@ -313,6 +313,37 @@ class TestRuntimeParameters(YTEnvSetup):
         path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
         wait(lambda: get(path) == "other_pool")
 
+    @authors("eshcherbin")
+    def test_initial_resource_limits_per_tree(self):
+        self._create_custom_pool_tree_with_one_node("other")
+        op = run_sleeping_vanilla(
+            job_count=4,
+            task_patch={
+                "cpu_limit": 0.5,
+            },
+            spec={
+                "pool_trees": ["default", "other"],
+                "scheduling_options_per_pool_tree": {
+                    "default": {
+                        "resource_limits": {
+                            "cpu": 1.0,
+                        },
+                    },
+                    "other": {
+                        "resource_limits": {
+                            "cpu": 0.5,
+                        },
+                    },
+                },
+            })
+
+        wait(lambda: exists(scheduler_orchid_operation_path(op.id, tree="default")))
+        wait(lambda: exists(scheduler_orchid_operation_path(op.id, tree="other")))
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/resource_limits/cpu") == 1.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/resource_usage/cpu") == 1.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_limits/cpu") == 0.5)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_usage/cpu") == 0.5)
+
 
 class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
     NUM_MASTERS = 1
