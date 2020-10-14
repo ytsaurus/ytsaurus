@@ -184,7 +184,9 @@ func (j *Job) spawnPorto(
 	}
 
 	setProperty("command", strings.Join(j.Cmd.Args, " "))
-	setProperty("user", "root")
+	if j.OperationConfig.RunAsRoot {
+		setProperty("user", "root")
+	}
 	setProperty("net", "none")
 	setProperty("cwd", j.Cmd.Cwd)
 	setProperty("env", strings.Join(j.Cmd.Environ, ";"))

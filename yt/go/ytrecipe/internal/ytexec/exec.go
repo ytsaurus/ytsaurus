@@ -21,6 +21,7 @@ import (
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
+	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/blobcache"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/job"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/jobfs"
@@ -105,18 +106,28 @@ func New(c Config) (*Exec, error) {
 	return e, nil
 }
 
+const (
+	tmpOutputPath = ypath.Path("//tmp/ytexec_output")
+	tmpUploadPath = ypath.Path("//tmp/ytexec_cache")
+)
+
 func (e *Exec) createOutputDir(ctx context.Context) (ypath.Path, error) {
 	id := guid.New().String()
 	path := e.config.Operation.OutputDir().Child(id[:2]).Child(id)
 	ttl := e.config.Operation.OutputTTL
-
-	_, err := e.yc.CreateNode(ctx, path, yt.NodeMap, &yt.CreateNodeOptions{
+	opts := &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{
 			"expiration_time": yson.Time(time.Now().Add(ttl)),
 			"fs_config":       e.config.FS,
 		},
 		Recursive: true,
-	})
+	}
+
+	_, err := e.yc.CreateNode(ctx, path, yt.NodeMap, opts)
+	if yterrors.ContainsErrorCode(err, yterrors.CodeAuthorizationError) && e.config.Operation.EnableResearchFallback {
+		path := tmpOutputPath.Child(id[:2]).Child(id)
+		_, err = e.yc.CreateNode(ctx, path, yt.NodeMap, opts)
+	}
 
 	return path, err
 }
@@ -153,6 +164,12 @@ func (e *Exec) Run(ctx context.Context) error {
 
 	doStartOperation := func() error {
 		e.op, err = e.mr.Vanilla(s, map[string]mapreduce.Job{"testtool": j})
+
+		if yterrors.ContainsErrorCode(err, yterrors.CodeAuthorizationError) && e.config.Operation.EnableResearchFallback {
+			s.Pool = ""
+			e.op, err = e.mr.Vanilla(s, map[string]mapreduce.Job{"testtool": j})
+		}
+
 		return err
 	}
 
@@ -182,7 +199,17 @@ func (e *Exec) retry(op func() error) error {
 	bf := backoff.NewExponentialBackOff()
 	bf.MaxElapsedTime = time.Hour
 
-	return backoff.RetryNotify(op, bf, func(err error, duration time.Duration) {
+	doOp := func() error {
+		err := op()
+
+		if yterrors.ContainsErrorCode(err, yterrors.CodeAuthorizationError) {
+			return backoff.Permanent(err)
+		}
+
+		return err
+	}
+
+	return backoff.RetryNotify(doOp, bf, func(err error, duration time.Duration) {
 		e.l.Error("retrying error", log.Error(err), log.Duration("backoff", duration))
 	})
 }

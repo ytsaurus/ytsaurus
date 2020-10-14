@@ -11,11 +11,12 @@ import (
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/jobfs"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/tarstream"
 )
 
-func (e *Exec) basicUploadFile(ctx context.Context, path ypath.Path, do func(w io.Writer) error) error {
+func (e *Exec) basicUploadFile(ctx context.Context, path, tmpPath ypath.Path, do func(w io.Writer) error) error {
 	ok, err := e.yc.NodeExists(ctx, path, &yt.NodeExistsOptions{
 		MasterReadOptions: &yt.MasterReadOptions{ReadFrom: yt.ReadFromCache},
 	})
@@ -26,9 +27,6 @@ func (e *Exec) basicUploadFile(ctx context.Context, path ypath.Path, do func(w i
 	if ok {
 		return nil
 	}
-
-	tmpDir := e.config.Operation.TmpDir()
-	tmpPath := tmpDir.Child(guid.New().String())
 
 	_, err = e.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
 	if err != nil {
@@ -54,9 +52,46 @@ func (e *Exec) basicUploadFile(ctx context.Context, path ypath.Path, do func(w i
 }
 
 func (e *Exec) uploadFS(ctx context.Context, fs *jobfs.FS) error {
+	if e.cache != nil {
+		err := e.cache.Migrate(ctx)
+		if yterrors.ContainsErrorCode(err, yterrors.CodeAuthorizationError) && e.config.Operation.EnableResearchFallback {
+			err = nil
+		}
+
+		if err != nil {
+			return err
+		}
+	}
+
 	var eg errgroup.Group
 
 	uploadBlob := func(md5 jobfs.MD5, open func() (io.ReadCloser, error), commitPath func(path ypath.Path)) {
+		basicUploadFile := func(to ypath.Path) error {
+			filePath := to.Child(md5.String()[:2]).Child(md5.String())
+			tmpPath := to.Child(guid.New().String())
+
+			err := e.basicUploadFile(ctx, filePath, tmpPath, func(w io.Writer) error {
+				f, err := open()
+				if err != nil {
+					return err
+				}
+				defer f.Close()
+
+				_, err = io.Copy(w, f)
+				return err
+			})
+
+			if err != nil {
+				e.l.Debug("failed to upload blob",
+					log.String("md5", md5.String()),
+					log.Error(err))
+				return err
+			}
+
+			commitPath(filePath)
+			return nil
+		}
+
 		doUploadBlob := func() error {
 			if e.cache != nil {
 				path, err := e.cache.Upload(ctx, md5.String(), open)
@@ -70,32 +105,20 @@ func (e *Exec) uploadFS(ctx context.Context, fs *jobfs.FS) error {
 				commitPath(path)
 				return nil
 			} else {
-				filePath := e.config.Operation.CacheDir().Child(md5.String())
-				commitPath(filePath)
-
-				err := e.basicUploadFile(ctx, filePath, func(w io.Writer) error {
-					f, err := open()
-					if err != nil {
-						return err
-					}
-					defer f.Close()
-
-					_, err = io.Copy(w, f)
-					return err
-				})
-
-				if err != nil {
-					e.l.Debug("failed to upload blob",
-						log.String("md5", md5.String()),
-						log.Error(err))
-				}
-
-				return err
+				return basicUploadFile(e.config.Operation.CacheDir())
 			}
 		}
 
+		uploadWithFallback := func() error {
+			err := doUploadBlob()
+			if yterrors.ContainsErrorCode(err, yterrors.CodeAuthorizationError) && e.config.Operation.EnableResearchFallback {
+				return basicUploadFile(tmpUploadPath)
+			}
+			return err
+		}
+
 		eg.Go(func() error {
-			return e.retry(doUploadBlob)
+			return e.retry(uploadWithFallback)
 		})
 	}
 

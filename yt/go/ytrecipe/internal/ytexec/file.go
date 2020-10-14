@@ -3,7 +3,9 @@ package ytexec
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"text/template"
 	"time"
@@ -60,13 +62,16 @@ ytrecipe-tool download --proxy {{$cluster}} --path {{.CypressOutDir}} --output $
 `[1:]))
 
 func (e *Exec) writePrepare(job *job.Job, outDir ypath.Path) error {
+	operationURL := yt.WebUIOperationURL(e.config.Operation.Cluster, e.op.ID())
+	_, _ = fmt.Fprintf(os.Stderr, "Operation started %s\n", operationURL)
+
 	args := readmeArgs{
 		Cluster:       e.config.Operation.Cluster,
 		Files:         job.FS.Files,
 		OpID:          e.op.ID(),
 		CypressOutDir: outDir,
 		CypressURL:    yt.WebUITableURL(e.config.Operation.Cluster, outDir),
-		OpURL:         yt.WebUIOperationURL(e.config.Operation.Cluster, e.op.ID()),
+		OpURL:         operationURL,
 		// WorkDir:       job.Env.WorkPath,
 	}
 
