@@ -145,11 +145,17 @@ func EnsureTables(
 ) error {
 	for path, table := range tables {
 		var attrs struct {
-			Schema schema.Schema `yson:"schema"`
+			Schema      schema.Schema `yson:"schema"`
+			TabletState string        `yson:"expected_tablet_state"`
 		}
 
 	retry:
-		if err := yc.GetNode(ctx, path.Attrs(), &attrs, &yt.GetNodeOptions{Attributes: []string{"schema"}}); err != nil {
+		opts := &yt.GetNodeOptions{Attributes: []string{
+			"schema",
+			"expected_tablet_state",
+		}}
+
+		if err := yc.GetNode(ctx, path.Attrs(), &attrs, opts); err != nil {
 			if yterrors.ContainsErrorCode(err, yterrors.CodeResolveError) {
 				attrs := make(map[string]interface{})
 				for k, v := range table.Attributes {
@@ -167,6 +173,8 @@ func EnsureTables(
 				if err != nil {
 					return err
 				}
+			} else {
+				return err
 			}
 		} else {
 			if !attrs.Schema.Equal(table.Schema.WithUniqueKeys()) {
@@ -181,8 +189,10 @@ func EnsureTables(
 			}
 		}
 
-		if err := MountAndWait(ctx, yc, path); err != nil {
-			return err
+		if attrs.TabletState != yt.TabletMounted {
+			if err := MountAndWait(ctx, yc, path); err != nil {
+				return err
+			}
 		}
 	}
 

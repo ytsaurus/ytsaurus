@@ -71,6 +71,19 @@ type OperationConfig struct {
 
 	SpecPatch map[string]interface{} `json:"spec_patch" yson:"spec_patch"`
 	TaskPatch map[string]interface{} `json:"task_patch" yson:"task_patch"`
+
+	// EnableResearchFallback говорит ytexec обрабатывать ошибки отсутствия доступов
+	// и запускать тест на общедоступных ресурсах кластера.
+	//
+	// В случае отсутствия доступа к пулу, тест будет запущен в research.
+	//
+	// В случае отсутствия доступа к кипарису, данные будут храниться в //tmp.
+	EnableResearchFallback bool `json:"enable_research_fallback" yson:"enable_research_fallback"`
+
+	// RunAsRoot включает запуск команды от рута.
+	//
+	// По умолчанию команда выполняется от пользователя с uid != 0.
+	RunAsRoot bool `json:"run_as_root" yson:"run_as_root"`
 }
 
 const (

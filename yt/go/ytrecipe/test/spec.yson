@@ -1,0 +1,6 @@
+{
+    cluster=freud;
+    pool="yt-integration-tests";
+    cypress_root="//home/yt-integration-tests";
+    run_as_root = %true;
+}

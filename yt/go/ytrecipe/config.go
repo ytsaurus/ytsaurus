@@ -64,6 +64,7 @@ func (c *Config) FillConfig(e *ytexec.Config) error {
 	e.Operation.Timeout = time.Hour
 	e.Operation.SpecPatch = c.SpecPatch
 	e.Operation.TaskPatch = c.TaskPatch
+	e.Operation.RunAsRoot = true
 
 	for _, path := range c.UploadBinaries {
 		e.FS.UploadFile = append(e.FS.UploadFile, yatest.BuildPath(path))

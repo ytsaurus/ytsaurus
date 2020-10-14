@@ -279,6 +279,10 @@ func (f *Cache) Migrate(ctx context.Context) error {
 			Schema: CacheTableSchema,
 			Attributes: map[string]interface{}{
 				"in_memory_mode": "uncompressed",
+
+				//"max_data_ttl":      f.config.EntryTTL.Milliseconds(),
+				//"min_data_versions": 0,
+				//"min_data_ttl":      time.Hour.Milliseconds(),
 			},
 		},
 	}
