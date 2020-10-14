@@ -796,7 +796,7 @@ public:
         RegisterParameter("incremental_heartbeat_throttler_limit", IncrementalHeartbeatThrottlerLimit)
             .Default(1);
         RegisterParameter("incremental_heartbeat_throttler_period", IncrementalHeartbeatThrottlerPeriod)
-            .Default(TDuration::Minutes(1));
+            .Default(TDuration::Minutes(10));
         RegisterParameter("full_heartbeat_timeout", FullHeartbeatTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("job_heartbeat_timeout", JobHeartbeatTimeout)
