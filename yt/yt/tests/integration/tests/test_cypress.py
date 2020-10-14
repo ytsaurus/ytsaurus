@@ -6,6 +6,7 @@ from copy import deepcopy
 from cStringIO import StringIO
 from datetime import timedelta
 from dateutil.tz import tzlocal
+from flaky import flaky
 
 from yt_driver_bindings import Driver
 from yt.yson import to_yson_type, YsonEntity
@@ -1733,6 +1734,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(2)
 
     @authors("shakurov")
+    @flaky(max_runs=3)
     def test_expiration_timeout1(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
         time.sleep(1.5)
@@ -1740,6 +1742,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
+    @flaky(max_runs=3)
     def test_expiration_timeout2(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 2000})
         create("table", "//tmp/t2", attributes={"expiration_timeout": 2000})
@@ -1749,6 +1752,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t2", suppress_expiration_timeout_renewal=True))
 
     @authors("shakurov")
+    @flaky(max_runs=3)
     def test_expiration_timeout3(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 4000})
         for i in xrange(10):
@@ -1760,6 +1764,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t1")
 
     @authors("shakurov")
+    @flaky(max_runs=3)
     def test_expiration_timeout4(self):
         tx = start_transaction()
 
@@ -1777,7 +1782,8 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
-    def test_expiration_timeout4(self):
+    @flaky(max_runs=3)
+    def test_expiration_timeout5(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
         set("//tmp/t/@expiration_timeout", 3000)
 
@@ -1790,6 +1796,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t")
 
     @authors("shakurov")
+    @flaky(max_runs=3)
     def test_expiration_time_and_timeout1(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 2000, "expiration_time": str(get_current_time() + timedelta(milliseconds=500))})
         time.sleep(1.0)
@@ -1800,6 +1807,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("shakurov")
+    @flaky(max_runs=3)
     def test_expiration_time_and_timeout2(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 400, "expiration_time": str(get_current_time() + timedelta(milliseconds=1500))})
         remove("//tmp/t1/@expiration_timeout")
