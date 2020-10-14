@@ -42,6 +42,7 @@
     #include <grp.h>
     #include <utmp.h>
     #include <sys/prctl.h>
+    #include <sys/sysmacros.h>
     #include <sys/ttydefaults.h>
 #endif
 #ifdef _darwin_
@@ -1116,14 +1117,6 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
 
             {
                 TStringBuf device = words[3];
-                bool validDevice = (device.size() == 5 && device[2] == ':');
-                if (!validDevice) {
-                    // TODO(gritukan): This is for strange flap investigation.
-                    YT_LOG_ERROR("Failed to parse device in smaps (RawSmaps: %v, Device: %v)",
-                        rawSMaps,
-                        device);
-                    YT_VERIFY(!validDevice);
-                }
                 TStringBuf majorStr;
                 TStringBuf minorStr;
                 YT_VERIFY(device.TrySplit(':', majorStr, minorStr));
@@ -1132,7 +1125,9 @@ std::vector<TMemoryMapping> ParseMemoryMappings(const TString& rawSMaps)
                 YT_VERIFY(TryIntFromString<16>(majorStr, major));
                 YT_VERIFY(TryIntFromString<16>(minorStr, minor));
                 if (major != 0 || minor != 0) {
-                    memoryMapping.DeviceId = (major << 8) | minor;
+#ifdef _linux_
+                    memoryMapping.DeviceId = makedev(major, minor);
+#endif
                 }
             }
 
