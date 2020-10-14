@@ -168,7 +168,7 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("levysotsky")
     @flaky(max_runs=5)
     def test_set_timeout(self):
-        tx = start_transaction(timeout=2 * 1000)
+        tx = start_transaction(timeout=5 * 1000)
         set("//sys/transactions/{}/@timeout".format(tx), 10 * 1000)
         assert get("//sys/transactions/{}/@timeout".format(tx)) == 10 * 1000
 
@@ -185,19 +185,19 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("ignat")
     @flaky(max_runs=5)
     def test_ping(self):
-        tx = start_transaction(timeout=2000)
+        tx = start_transaction(timeout=3000)
 
         sleep(1)
         assert exists("//sys/transactions/" + tx)
         ping_transaction(tx)
 
-        sleep(1.5)
+        sleep(2)
         assert exists("//sys/transactions/" + tx)
 
     @authors("ignat", "panin")
     @flaky(max_runs=5)
     def test_expire_outer(self):
-        tx_outer = start_transaction(timeout=2000)
+        tx_outer = start_transaction(timeout=3000)
         tx_inner = start_transaction(tx = tx_outer)
 
         sleep(1)
@@ -205,7 +205,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_outer)
         ping_transaction(tx_inner)
 
-        sleep(1.5)
+        sleep(2)
         # check that outer tx expired (and therefore inner was aborted)
         assert not exists("//sys/transactions/" + tx_inner)
         assert not exists("//sys/transactions/" + tx_outer)
@@ -213,7 +213,7 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("ignat", "panin")
     @flaky(max_runs=5)
     def test_ping_ancestors(self):
-        tx_outer = start_transaction(timeout=2000)
+        tx_outer = start_transaction(timeout=3000)
         tx_inner = start_transaction(tx = tx_outer)
 
         sleep(1)
@@ -221,17 +221,14 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_outer)
         ping_transaction(tx_inner, ping_ancestor_txs=True)
 
-        sleep(1)
+        sleep(2)
         # check that all tx are still alive
         assert exists("//sys/transactions/" + tx_inner)
         assert exists("//sys/transactions/" + tx_outer)
 
     @authors("babenko")
     def test_tx_multicell_attrs(self):
-        tx = start_transaction()
-        get("//sys/@registered_master_cell_tags")
-        get("//sys/@cell_tag")
-
+        tx = start_transaction(timeout=60000)
         tx_cell_tag = str(get("#" + tx + "/@native_cell_tag"))
         cell_tags = [tx_cell_tag]
 
