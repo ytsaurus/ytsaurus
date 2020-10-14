@@ -531,7 +531,7 @@ public:
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
                 treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
                 treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool ? spec->Pool : specIt->second->Pool, user);
-                treeParams->ResourceLimits = spec->ResourceLimits ? spec->ResourceLimits : specIt->second->ResourceLimits;
+                treeParams->ResourceLimits = spec->ResourceLimits->IsNonTrivial() ? spec->ResourceLimits : specIt->second->ResourceLimits;
             } else {
                 treeParams->Weight = spec->Weight;
                 treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool, user);
