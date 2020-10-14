@@ -526,6 +526,13 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
             sessionId,
             result->GetId());
     }
+
+    if (!result->TryLock(sessionId.ChunkId)) {
+        YT_LOG_WARNING("Chunk was not locked in location (ChunkId: %v, LocationId: %v)",
+            sessionId,
+            result->GetId());
+    }
+
     return result;
 }
 
