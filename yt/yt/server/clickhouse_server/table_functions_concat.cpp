@@ -125,17 +125,40 @@ public:
         return GetName();
     }
 
-    StoragePtr executeImpl(
-        const ASTPtr& functionAst,
-        const Context& context,
-        const std::string& /* tableName */) const override
+    void parseArguments(const ASTPtr& functionAst, const Context& context) override
     {
-        auto* queryContext = GetQueryContext(context);
-
         auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
         auto& arguments = GetAllArguments(functionNode);
+        tablePaths.reserve(arguments.size());
+        for (auto& argument : arguments) {
+            tablePaths.push_back(TRichYPath::Parse(ToString(EvaluateIdentifierArgument(argument, context))));
+        }
+    }
 
-        auto tablePaths = EvaluateArguments(arguments, context);
+    ColumnsDescription getActualTableStructure(const Context& context) const override
+    {
+        auto table_tmp = Execute(context);
+        return table_tmp->getInMemoryMetadataPtr()->getColumns();
+    }
+
+    StoragePtr executeImpl(
+        const ASTPtr& /* functionAst */,
+        const Context& context,
+        const std::string& /* tableName */,
+        ColumnsDescription /* cached_columns */) const override
+    {
+        return Execute(context);
+    }
+
+    virtual const char* getStorageTypeName() const override
+    {
+        return "YT";
+    }
+
+private:
+    StoragePtr Execute(const Context& context) const
+    {
+        auto* queryContext = GetQueryContext(context);
 
         auto tables = FetchTables(
             queryContext->Client(),
@@ -148,23 +171,7 @@ public:
         return CreateStorageDistributor(context, std::move(tables));
     }
 
-    virtual const char* getStorageTypeName() const override
-    {
-        return "YT";
-    }
-
-private:
-    std::vector<TRichYPath> EvaluateArguments(
-        TArguments& arguments,
-        const Context& context) const
-    {
-        std::vector<TRichYPath> tableNames;
-        tableNames.reserve(arguments.size());
-        for (auto& argument : arguments) {
-            tableNames.push_back(TRichYPath::Parse(ToString(EvaluateIdentifierArgument(argument, context))));
-        }
-        return tableNames;
-    }
+    std::vector<TRichYPath> tablePaths;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,18 +187,56 @@ public:
     TListFilterAndConcatenateTables()
     { }
 
+    void parseArguments(const ASTPtr& functionAst, const Context& context)
+    {
+        auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
+        auto& arguments = GetAllArguments(functionNode);
+        directory = TRichYPath(TString(GetDirectoryRequiredArgument(arguments, context)));
+        parsePathArguments(arguments, context);
+    }
+
+    ColumnsDescription getActualTableStructure(const Context& context) const
+    {
+        auto table_tmp = Execute(context);
+        return table_tmp->getInMemoryMetadataPtr()->getColumns();
+    }
+
     StoragePtr executeImpl(
-        const ASTPtr& functionAst,
+        const ASTPtr& /* functionAst */,
         const Context& context,
-        const std::string& /* tableName */) const override
+        const std::string& /* tableName */,
+        ColumnsDescription /* cached_columns */) const override
+    {
+        return Execute(context);
+    }
+
+    virtual const char* getStorageTypeName() const override
+    {
+        return "YT";
+    }
+
+protected:
+    virtual void parsePathArguments(TArguments& arguments, const Context& context) = 0;
+    virtual bool IsPathAllowed(const TYPath& path) const = 0;
+
+private:
+    std::string GetDirectoryRequiredArgument(
+        TArguments& arguments,
+        const Context& context) const
+    {
+        if (arguments.empty()) {
+            throw Exception(
+                "Table function " + getName() + " expected at least one argument: directory path",
+                ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION);
+        }
+
+        return EvaluateIdentifierArgument(arguments[0], context);
+    }
+
+    StoragePtr Execute(const Context& context) const
     {
         auto* queryContext = GetQueryContext(context);
         const auto& Logger = queryContext->Logger;
-
-        auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
-        auto& arguments = GetAllArguments(functionNode);
-
-        auto directory = TRichYPath(TString(GetDirectoryRequiredArgument(arguments, context)));
 
         YT_LOG_INFO("Listing directory (Path: %v)", directory);
 
@@ -206,11 +251,12 @@ public:
             .ValueOrThrow();
         auto itemList = ConvertTo<IListNodePtr>(items);
 
+        
         std::vector<TRichYPath> itemPaths;
         for (const auto& child : itemList->GetChildren()) {
             const auto& attributes = child->Attributes();
             auto path = attributes.Get<TYPath>("path");
-            if (IsPathAllowed(path, arguments, context)) {
+            if (IsPathAllowed(path)) {
                 itemPaths.emplace_back(path, directory.Attributes());
             }
         }
@@ -231,30 +277,7 @@ public:
         return CreateStorageDistributor(context, std::move(tables));
     }
 
-    virtual const char* getStorageTypeName() const override
-    {
-        return "YT";
-    }
-
-protected:
-    virtual bool IsPathAllowed(
-        const TYPath& path,
-        TArguments& arguments,
-        const Context& context) const = 0;
-
-private:
-    std::string GetDirectoryRequiredArgument(
-        TArguments& arguments,
-        const Context& context) const
-    {
-        if (arguments.empty()) {
-            throw Exception(
-                "Table function " + getName() + " expected at least one argument: directory path",
-                ErrorCodes::TOO_FEW_ARGUMENTS_FOR_FUNCTION);
-        }
-
-        return EvaluateIdentifierArgument(arguments[0], context);
-    }
+    TRichYPath directory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,27 +301,36 @@ public:
     }
 
 private:
-    bool IsPathAllowed(
-        const TYPath& path,
-        TArguments& arguments,
-        const Context& context) const override
+    void parsePathArguments(TArguments& arguments, const Context& context) override
     {
-        if (arguments.size() == 1) {
-            return true;
-        } else if (arguments.size() == 2) {
-            auto from = TString(EvaluateArgument<std::string>(arguments[1], context));
-            return BaseName(path) >= from;
-        } else if (arguments.size() == 3) {
-            auto from = TString(EvaluateArgument<std::string>(arguments[1], context));
-            auto to = TString(EvaluateArgument<std::string>(arguments[2], context));
-            return BaseName(path) >= from && BaseName(path) <= to;
-        } else {
+        args_count = arguments.size();
+        if (args_count == 2) {
+            from = TString(EvaluateArgument<std::string>(arguments[1], context));
+        } else if (args_count == 3) {
+            from = TString(EvaluateArgument<std::string>(arguments[1], context));
+            to = TString(EvaluateArgument<std::string>(arguments[2], context));
+        } else if (3 < args_count){
             throw Exception(
                 "Too may arguments: "
                 "expected 1, 2 or 3, provided: " + std::to_string(arguments.size()),
                 ErrorCodes::TOO_MANY_ARGUMENTS_FOR_FUNCTION);
         }
     }
+
+    bool IsPathAllowed(const TYPath& path) const override
+    {
+        if (args_count == 1) {
+            return true;
+        } else if (args_count == 2) {
+            return BaseName(path) >= from;
+        } else /* if (args_count == 3) */ {
+            return BaseName(path) >= from && BaseName(path) <= to;
+        }
+    }
+
+    size_t args_count;
+    TString from;
+    TString to;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -324,19 +356,16 @@ public:
 private:
     mutable std::unique_ptr<OptimizedRegularExpression> Matcher_;
 
-    bool IsPathAllowed(
-        const TYPath& path,
-        TArguments& arguments,
-        const Context& context) const override
+    void parsePathArguments(TArguments& arguments, const Context& context) override
     {
         // 1) directory, 2) regexp
         ValidateNumberOfArguments(arguments, 2);
+        const auto regexp = EvaluateArgument<std::string>(arguments[1], context);
+        Matcher_ = std::make_unique<OptimizedRegularExpression>(std::move(regexp));
+    }
 
-        if (!Matcher_) {
-            const auto regexp = EvaluateArgument<std::string>(arguments[1], context);
-            Matcher_ = std::make_unique<OptimizedRegularExpression>(std::move(regexp));
-        }
-
+    bool IsPathAllowed(const TYPath& path) const override
+    {
         return Matcher_->match(BaseName(path));
     }
 };
@@ -364,19 +393,16 @@ public:
 private:
     mutable std::unique_ptr<Poco::Glob> Matcher_;
 
-    bool IsPathAllowed(
-        const TYPath& path,
-        TArguments& arguments,
-        const Context& context) const override
+    void parsePathArguments(TArguments& arguments, const Context& context) override
     {
         // 1) directory 2) pattern
         ValidateNumberOfArguments(arguments, 2);
+        auto pattern = EvaluateArgument<std::string>(arguments[1], context);
+        Matcher_ = std::make_unique<Poco::Glob>(pattern);
+    }
 
-        if (!Matcher_) {
-            auto pattern = EvaluateArgument<std::string>(arguments[1], context);
-            Matcher_ = std::make_unique<Poco::Glob>(pattern);
-        }
-
+    bool IsPathAllowed(const TYPath& path) const override
+    {
         return Matcher_->match(BaseName(path));
     }
 };
