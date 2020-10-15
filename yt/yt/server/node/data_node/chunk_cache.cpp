@@ -762,18 +762,30 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        std::vector<TCacheLocationPtr> candidates;
+        struct TCandidate
+        {
+            TCacheLocationPtr Location;
+            int SessionCount;
+            i64 AvailableSpace;
+        };
+        std::vector<TCandidate> candidates;
         for (const auto& location : Locations_) {
             if (location->IsEnabled()) {
-                candidates.push_back(location);
+                TCandidate candidate{
+                    .Location = location,
+                    .SessionCount = location->GetSessionCount(),
+                    .AvailableSpace = location->GetAvailableSpace()
+                };
+                candidates.push_back(candidate);
             }
         }
 
-        SortBy(candidates, [] (const TCacheLocationPtr& location) {
-            return std::make_pair(location->GetSessionCount(), -location->GetAvailableSpace());
+        SortBy(candidates, [] (const TCandidate& candidate) {
+            return std::make_pair(candidate.SessionCount, -candidate.AvailableSpace);
         });
 
-        for (const auto& location : candidates) {
+        for (const auto& candidate : candidates) {
+            const auto& location = candidate.Location;
             if (location->TryLock(chunkId)) {
                 return location;
             }
