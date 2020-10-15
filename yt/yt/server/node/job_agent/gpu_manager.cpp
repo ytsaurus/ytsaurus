@@ -163,22 +163,36 @@ void TGpuManager::OnHealthCheck()
         YT_LOG_DEBUG("Found healthy GPU devices (DeviceNumbers: %v)",
             deviceNumbers);
 
-        std::vector<TError> newAlerts;
-
         {
             auto guard = Guard(SpinLock_);
 
             auto now = TInstant::Now();
 
+            std::vector<int> deviceNumbersToAdd;
             std::vector<int> deviceNumbersToRemove;
-            for (const auto& [index, _] : HealthyGpuInfoMap_) {
-                if (deviceNumbers.find(index) == deviceNumbers.end()) {
-                    deviceNumbersToRemove.push_back(index);
+            for (const auto& [number, _] : HealthyGpuInfoMap_) {
+                if (deviceNumbers.find(number) == deviceNumbers.end()) {
+                    deviceNumbersToRemove.push_back(number);
+                    LostGpuDeviceNumbers_.insert(number);
+                }
+            }
+
+            for (int deviceNumber : deviceNumbers) {
+                if (LostGpuDeviceNumbers_.find(deviceNumber) != LostGpuDeviceNumbers_.end()) {
+                    deviceNumbersToAdd.push_back(deviceNumber);
                 }
             }
 
             for (int deviceNumber : deviceNumbersToRemove) {
                 HealthyGpuInfoMap_.erase(deviceNumber);
+            }
+            
+            std::vector<TGpuSlot> newFreeSlots;
+            for (int deviceNumber : deviceNumbersToAdd) {
+                if (AcquiredGpuDeviceNumbers_.find(deviceNumber) == AcquiredGpuDeviceNumbers_.end()) {
+                    newFreeSlots.emplace_back(deviceNumber);
+                }
+                LostGpuDeviceNumbers_.erase(deviceNumber);
             }
 
             for (auto& gpuInfo : gpuInfos) {
@@ -186,19 +200,21 @@ void TGpuManager::OnHealthCheck()
                 HealthyGpuInfoMap_[gpuInfo.Index] = gpuInfo;
             }
 
-            std::vector<TGpuSlot> healthySlots;
             for (auto& slot : FreeSlots_) {
                 if (HealthyGpuInfoMap_.find(slot.GetDeviceNumber()) == HealthyGpuInfoMap_.end()) {
                     YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
                         slot.GetDeviceName());
-                    newAlerts.push_back(TError("Found lost GPU device %v",
-                        slot.GetDeviceName()));
                 } else {
-                    healthySlots.emplace_back(std::move(slot));
+                    newFreeSlots.emplace_back(std::move(slot));
                 }
             }
 
-            FreeSlots_ = std::move(healthySlots);
+            FreeSlots_ = std::move(newFreeSlots);
+            
+            std::vector<TError> newAlerts;
+            for (auto number : LostGpuDeviceNumbers_) {
+                newAlerts.push_back(TError("GPU device %v is lost", number));
+            }
             
             Enabled_ = true;
             Error_ = TError();
@@ -277,26 +293,30 @@ const std::vector<TString>& TGpuManager::ListGpuDevices() const
     return GpuDevices_;
 }
 
+void TGpuManager::ReleaseGpuSlot(TGpuSlot* slot)
+{
+    YT_LOG_DEBUG("Released GPU slot (DeviceName: %v)",
+        slot->GetDeviceName());
+
+    auto guard = Guard(SpinLock_);
+
+    AcquiredGpuDeviceNumbers_.erase(slot->GetDeviceNumber());
+    if (HealthyGpuInfoMap_.find(slot->GetDeviceNumber()) == HealthyGpuInfoMap_.end()) {
+        LostGpuDeviceNumbers_.insert(slot->GetDeviceNumber());
+        YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
+            slot->GetDeviceName());
+    } else {
+        FreeSlots_.emplace_back(std::move(*slot));
+    }
+}
+
 TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
 {
     VERIFY_THREAD_AFFINITY_ANY();
     YT_VERIFY(!FreeSlots_.empty());
 
     auto deleter = [this, this_ = MakeStrong(this)] (TGpuSlot* slot) {
-        YT_LOG_DEBUG("Released GPU slot (DeviceName: %v)",
-            slot->GetDeviceName());
-
-        auto guard = Guard(this_->SpinLock_);
-        if (HealthyGpuInfoMap_.find(slot->GetDeviceNumber()) == HealthyGpuInfoMap_.end()) {
-            guard.Release();
-            YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
-                slot->GetDeviceName());
-            Bootstrap_->GetMasterConnector()->RegisterAlert(TError("Found lost GPU device %v",
-                slot->GetDeviceName()));
-        } else {
-            this_->FreeSlots_.emplace_back(std::move(*slot));
-        }
-
+        ReleaseGpuSlot(slot);
         delete slot;
     };
 
@@ -350,20 +370,7 @@ std::vector<TGpuManager::TGpuSlotPtr> TGpuManager::AcquireGpuSlots(int slotCount
         resultDeviceNumbers);
 
     auto deleter = [this, this_ = MakeStrong(this)] (TGpuSlot* slot) {
-        YT_LOG_DEBUG("Released GPU slot (DeviceName: %v)",
-            slot->GetDeviceName());
-
-        auto guard = Guard(this_->SpinLock_);
-        if (HealthyGpuInfoMap_.find(slot->GetDeviceNumber()) == HealthyGpuInfoMap_.end()) {
-            guard.Release();
-            YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
-                slot->GetDeviceName());
-            Bootstrap_->GetMasterConnector()->RegisterAlert(TError("Found lost GPU device %v",
-                slot->GetDeviceName()));
-        } else {
-            this_->FreeSlots_.emplace_back(std::move(*slot));
-        }
-
+        ReleaseGpuSlot(slot);
         delete slot;
     };
 

@@ -65,7 +65,7 @@ public:
 
     using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
     TGpuSlotPtr AcquireGpuSlot();
-    
+
     std::vector<TGpuSlotPtr> AcquireGpuSlots(int slotCount);
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands();
@@ -83,7 +83,11 @@ private:
 
     TAdaptiveLock SpinLock_;
     THashMap<int, TGpuInfo> HealthyGpuInfoMap_;
+    THashSet<int> LostGpuDeviceNumbers_;
+
+    THashSet<int> AcquiredGpuDeviceNumbers_;
     std::vector<TGpuSlot> FreeSlots_;
+
     bool Enabled_ = true;
 
     // Error for problems with GPU discovery.
@@ -100,6 +104,8 @@ private:
     TString DriverVersionString_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
+    void ReleaseGpuSlot(TGpuSlot* slot);
 
     void OnHealthCheck();
     void OnFetchDriverLayerInfo();
