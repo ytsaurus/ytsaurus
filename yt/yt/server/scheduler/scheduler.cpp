@@ -683,7 +683,7 @@ public:
             YT_VERIFY(IdToStartingOperation_.erase(operationId) == 1);
             THROW_ERROR(wrappedError);
         }
-        
+
         if (operation->Spec()->TestingOperationOptions->DelayBeforeStart) {
             TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayBeforeStart);
         }
@@ -703,8 +703,13 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
+        if (operation->GetState() == EOperationState::None) {
+            THROW_ERROR_EXCEPTION("Operation is not started yet");
+        }
+
         WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
             .ThrowOnError();
+
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -727,6 +732,10 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        if (operation->GetState() == EOperationState::None) {
+            THROW_ERROR_EXCEPTION("Operation is not started yet");
+        }
 
         WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
             .ThrowOnError();
@@ -754,6 +763,10 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto codicilGuard = operation->MakeCodicilGuard();
+
+        if (operation->GetState() == EOperationState::None) {
+            THROW_ERROR_EXCEPTION("Operation is not started yet");
+        }
 
         WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
             .ThrowOnError();
@@ -916,7 +929,7 @@ public:
         GetControlInvoker(EControlQueue::Operation)->Invoke(
             BIND(&TImpl::UnregisterOperationFromTreeForBannedTree, MakeStrong(this), operation, treeId));
     }
-    
+
     void UnregisterOperationFromTreeForBannedTree(const TOperationPtr& operation, const TString& treeId)
     {
         const auto& schedulingOptionsPerPoolTree = operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree;
@@ -2678,62 +2691,67 @@ private:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationState(operation, EOperationState::Starting);
+        {
+            TForbidContextSwitchGuard contextSwitchGuard;
 
-        bool aliasRegistered = false;
-        try {
-            if (operation->Alias()) {
-                RegisterOperationAlias(operation);
-                aliasRegistered = true;
-            }
+            ValidateOperationState(operation, EOperationState::Starting);
 
-            // NB(babenko): now we only validate this on start but not during revival
-            // NB(ignat): this validation must be just before operation registration below
-            // to avoid violation of pool limits. See YT-10802.
+            bool aliasRegistered = false;
+            try {
 
-            auto poolLimitViolations = Strategy_->GetPoolLimitViolations(operation.Get(), operation->GetRuntimeParameters());
-
-            std::vector<TString> erasedTreeIds;
-            for (const auto& [treeId, error] : poolLimitViolations) {
-                if (GetSchedulingOptionsPerPoolTree(operation.Get(), treeId)->Tentative) {
-                    YT_LOG_INFO(
-                        error,
-                        "Tree is erased for operation since pool limits are violated (OperationId: %v)",
-                        operation->GetId());
-                    erasedTreeIds.push_back(treeId);
-                    // No need to throw now.
-                    continue;
+                if (operation->Alias()) {
+                    RegisterOperationAlias(operation);
+                    aliasRegistered = true;
                 }
 
-                THROW_ERROR error;
-            }
-            operation->EraseTrees(erasedTreeIds);
-        } catch (const std::exception& ex) {
-            if (aliasRegistered) {
-                auto it = OperationAliases_.find(*operation->Alias());
-                YT_VERIFY(it != OperationAliases_.end());
-                YT_VERIFY(it->second.Operation == operation);
-                OperationAliases_.erase(it);
+                // NB(babenko): now we only validate this on start but not during revival
+                // NB(ignat): this validation must be just before operation registration below
+                // to avoid violation of pool limits. See YT-10802.
+
+                auto poolLimitViolations = Strategy_->GetPoolLimitViolations(operation.Get(), operation->GetRuntimeParameters());
+
+                std::vector<TString> erasedTreeIds;
+                for (const auto& [treeId, error] : poolLimitViolations) {
+                    if (GetSchedulingOptionsPerPoolTree(operation.Get(), treeId)->Tentative) {
+                        YT_LOG_INFO(
+                            error,
+                            "Tree is erased for operation since pool limits are violated (OperationId: %v)",
+                            operation->GetId());
+                        erasedTreeIds.push_back(treeId);
+                        // No need to throw now.
+                        continue;
+                    }
+
+                    THROW_ERROR error;
+                }
+                operation->EraseTrees(erasedTreeIds);
+            } catch (const std::exception& ex) {
+                if (aliasRegistered) {
+                    auto it = OperationAliases_.find(*operation->Alias());
+                    YT_VERIFY(it != OperationAliases_.end());
+                    YT_VERIFY(it->second.Operation == operation);
+                    OperationAliases_.erase(it);
+                }
+
+                YT_VERIFY(IdToStartingOperation_.erase(operation->GetId()) == 1);
+
+                auto wrappedError = TError("Operation has failed to start")
+                    << ex;
+                operation->SetStarted(wrappedError);
+                return;
             }
 
             YT_VERIFY(IdToStartingOperation_.erase(operation->GetId()) == 1);
 
-            auto wrappedError = TError("Operation has failed to start")
-                << ex;
-            operation->SetStarted(wrappedError);
-            return;
-        }
+            ValidateOperationState(operation, EOperationState::Starting);
 
-        YT_VERIFY(IdToStartingOperation_.erase(operation->GetId()) == 1);
+            RegisterOperation(operation, /* jobsReady */ true);
 
-        ValidateOperationState(operation, EOperationState::Starting);
-
-        RegisterOperation(operation, /* jobsReady */ true);
-
-        if (operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.empty()) {
-            operation->SetStarted(TError("No pool trees found for operation"));
-            UnregisterOperation(operation);
-            return;
+            if (operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.empty()) {
+                operation->SetStarted(TError("No pool trees found for operation"));
+                UnregisterOperation(operation);
+                return;
+            }
         }
 
         try {
@@ -2747,6 +2765,8 @@ private:
             UnregisterOperation(operation);
             return;
         }
+
+        ValidateOperationState(operation, EOperationState::Starting);
 
         operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
         AddOperationToTransientQueue(operation);
@@ -2861,6 +2881,8 @@ private:
         try {
             RegisterAssignedOperation(operation);
 
+            ValidateOperationState(operation, EOperationState::ReviveInitializing);
+
             const auto& controller = operation->GetController();
 
             {
@@ -2884,6 +2906,8 @@ private:
                 auto result = WaitFor(controller->Revive())
                     .ValueOrThrow();
 
+                ValidateOperationState(operation, EOperationState::Reviving);
+
                 operation->ControllerAttributes().PrepareAttributes = result.Attributes;
                 operation->SetRevivedFromSnapshot(result.RevivedFromSnapshot);
                 operation->RevivedJobs() = std::move(result.RevivedJobs);
@@ -2900,8 +2924,6 @@ private:
                 // NB(eshcherbin): RuntimeData is used to pass NeededResources to MaterializeOperation().
                 operation->GetControllerData()->SetNeededResources(result.NeededResources);
             }
-
-            ValidateOperationState(operation, EOperationState::Reviving);
 
             YT_LOG_INFO("Operation has been revived (OperationId: %v)",
                 operationId);
@@ -3200,6 +3222,8 @@ private:
                 .AsyncVia(operation->GetCancelableControlInvoker())
                 .Run())
                 .ValueOrThrow();
+
+            ValidateOperationState(operation, EOperationState::Completing);
 
             {
                 const auto& controller = operation->GetController();
@@ -3900,6 +3924,8 @@ private:
 
             WaitFor(Strategy_->ValidateOperationStart(operation.Get()))
                 .ThrowOnError();
+
+            ValidateOperationState(operation, EOperationState::Orphaned);
 
             operation->SetStateAndEnqueueEvent(EOperationState::WaitingForAgent);
             AddOperationToTransientQueue(operation);
