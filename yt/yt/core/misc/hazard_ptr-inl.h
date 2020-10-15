@@ -39,7 +39,11 @@ struct TGetIdentityPtr<T, true>
 template <class T, class TPtrLoader>
 T* AcquireHazardPointer(const TPtrLoader& ptrLoader, T* localPtr)
 {
-    YT_ASSERT(!HazardPointer.load(std::memory_order_relaxed));
+    YT_ASSERT(!HazardPointer.load());
+
+    if (Y_UNLIKELY(!HazardThreadState)) {
+        InitThreadState();
+    }
 
     if (!localPtr) {
         return nullptr;

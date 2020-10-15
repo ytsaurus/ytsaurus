@@ -6,7 +6,10 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THazardThreadState;
+
 extern thread_local std::atomic<void*> HazardPointer;
+extern thread_local THazardThreadState* HazardThreadState;
 
 using TDeleter = void (*)(void*);
 
@@ -14,6 +17,7 @@ template <class T, class TPtrLoader>
 T* AcquireHazardPointer(const TPtrLoader& ptrLoader, T* localPtr);
 void ReleaseHazardPointer();
 
+void InitThreadState();
 void ScheduleObjectDeletion(void* ptr, TDeleter deleter);
 bool ScanDeleteList();
 void FlushDeleteList();
