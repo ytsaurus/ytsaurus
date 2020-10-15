@@ -244,3 +244,45 @@ func TestExecTabletTx(t *testing.T) {
 	require.False(t, r.Next())
 	require.NoError(t, r.Err())
 }
+
+func TestReadTimestamp(t *testing.T) {
+	t.Parallel()
+
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	testTable := env.TmpPath().Child("table")
+	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(env.Ctx, env.YT, testTable))
+
+	rows := []interface{}{&testRow{"foo", "1"}}
+	keys := []interface{}{&testKey{"foo"}}
+
+	require.NoError(t, env.YT.InsertRows(env.Ctx, testTable, rows, nil))
+
+	ts, err := env.YT.GenerateTimestamp(env.Ctx, nil)
+	_ = ts
+	require.NoError(t, err)
+
+	require.NoError(t, env.YT.DeleteRows(env.Ctx, testTable, keys, nil))
+
+	checkReader := func(r yt.TableReader) {
+		require.True(t, r.Next())
+
+		var row testRow
+		require.NoError(t, r.Scan(&row))
+		require.Equal(t, &row, rows[0])
+
+		require.False(t, r.Next())
+	}
+
+	r, err := env.YT.LookupRows(env.Ctx, testTable, keys, &yt.LookupRowsOptions{Timestamp: &ts})
+	require.NoError(t, err)
+	defer r.Close()
+	checkReader(r)
+
+	r, err = env.YT.SelectRows(env.Ctx, fmt.Sprintf("* from [%s]", testTable), &yt.SelectRowsOptions{Timestamp: &ts})
+	require.NoError(t, err)
+	defer r.Close()
+	checkReader(r)
+}

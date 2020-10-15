@@ -726,6 +726,10 @@ func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 	}
 	w.MapKeyString("keep_missing_rows")
 	w.Any(o.KeepMissingRows)
+	if o.Timestamp != nil {
+		w.MapKeyString("timestamp")
+		w.Any(o.Timestamp)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 
@@ -781,6 +785,10 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 	if o.OutputRowLimit != nil {
 		w.MapKeyString("output_row_limit")
 		w.Any(o.OutputRowLimit)
+	}
+	if o.Timestamp != nil {
+		w.MapKeyString("timestamp")
+		w.Any(o.Timestamp)
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeTimeoutOptions(w, o.TimeoutOptions)
