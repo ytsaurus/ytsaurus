@@ -346,7 +346,7 @@ i64 TLocation::GetAvailableSpace() const
         return 0;
     }
 
-    i64 availableSpace;
+    i64 availableSpace = 0;
     try {
         auto statistics = NFS::GetDiskSpaceStatistics(GetPath());
         availableSpace = statistics.AvailableSpace + GetAdditionalSpace();
