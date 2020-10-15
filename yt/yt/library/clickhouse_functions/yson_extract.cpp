@@ -27,7 +27,6 @@ template <typename Name, template<typename> typename Impl>
 class TFunctionYson : public IFunction
 {
 public:
-    using Block = typename IFunction::Block;
 
     TFunctionYson(const Context& context_) : context(context_)
     { }
@@ -64,9 +63,9 @@ public:
         return Impl<TYsonParserAdapter>::getReturnType(Name::name, arguments);
     }
 
-    virtual void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result_pos, size_t input_rows_count) const override
+    virtual void executeImpl(ColumnsWithTypeAndName& columns, const ColumnNumbers& arguments, size_t result_pos, size_t input_rows_count) const override
     {
-        FunctionJSONHelpers::Executor<Name, Impl, TYsonParserAdapter>::run(block, arguments, result_pos, input_rows_count);
+        FunctionJSONHelpers::Executor<Name, Impl, TYsonParserAdapter>::run(columns, arguments, result_pos, input_rows_count);
     }
 
 private:
@@ -80,14 +79,13 @@ class TYsonExtractRawImpl
 {
 public:
     using Element = typename Parser::Element;
-    using Block = typename IFunction::Block;
 
     static DataTypePtr getReturnType(const char *, const ColumnsWithTypeAndName &)
     {
         return std::make_shared<DataTypeString>();
     }
 
-    static size_t getNumberOfIndexArguments(const Block &, const ColumnNumbers & arguments) { return arguments.size() - 1; }
+    static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName &, const ColumnNumbers & arguments) { return arguments.size() - 1; }
 
     static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
     {
