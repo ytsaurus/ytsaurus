@@ -111,21 +111,21 @@ public:
         return true;
     }
 
-    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) const override
+    void executeImpl(ColumnsWithTypeAndName& columns, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) const override
     {
-        const IColumn* columnYsonOrNull = block[arguments[0]].column.get();
+        const IColumn* columnYsonOrNull = columns[arguments[0]].column.get();
         const IColumn* columnYson = columnYsonOrNull;
         if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
             columnYson = &nullableColumnYson->getNestedColumn();
         }
 
-        const IColumn* columnPathOrNull = block[arguments[1]].column.get();
+        const IColumn* columnPathOrNull = columns[arguments[1]].column.get();
         const IColumn* columnPath = columnPathOrNull;
         if (auto* nullableColumnPath = checkAndGetColumn<ColumnNullable>(columnPath)) {
             columnPath = &nullableColumnPath->getNestedColumn();
         }
 
-        auto columnTo = block[result].type->createColumn();
+        auto columnTo = columns[result].type->createColumn();
         columnTo->reserve(inputRowCount);
 
         for (size_t i = 0; i < inputRowCount; ++i) {
@@ -185,7 +185,7 @@ public:
             }
         }
 
-        block[result].column = std::move(columnTo);
+        columns[result].column = std::move(columnTo);
     }
 
 protected:
@@ -352,15 +352,15 @@ public:
         return true;
     }
 
-    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) const override
+    void executeImpl(ColumnsWithTypeAndName& columns, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) const override
     {
-        const IColumn* columnYsonOrNull = block[arguments[0]].column.get();
+        const IColumn* columnYsonOrNull = columns[arguments[0]].column.get();
         const IColumn* columnYson = columnYsonOrNull;
         if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
             columnYson = &nullableColumnYson->getNestedColumn();
         }
 
-        const IColumn* columnPathOrNull = block[arguments[1]].column.get();
+        const IColumn* columnPathOrNull = columns[arguments[1]].column.get();
         const IColumn* columnPath = columnPathOrNull;
         if (auto* nullableColumnPath = checkAndGetColumn<ColumnNullable>(columnPath)) {
             columnPath = &nullableColumnPath->getNestedColumn();
@@ -369,14 +369,14 @@ public:
         const IColumn* columnFormatOrNull = nullptr;
         const IColumn* columnFormat = nullptr;
         if (arguments.size() == 3) {
-            columnFormatOrNull = block[arguments[2]].column.get();
+            columnFormatOrNull = columns[arguments[2]].column.get();
             columnFormat = columnFormatOrNull;
             if (auto* nullableColumnFormat = checkAndGetColumn<ColumnNullable>(columnFormat)) {
                 columnFormat = &nullableColumnFormat->getNestedColumn();
             }
         }
 
-        auto columnTo = block[result].type->createColumn();
+        auto columnTo = columns[result].type->createColumn();
         columnTo->reserve(inputRowCount);
 
         for (size_t i = 0; i < inputRowCount; ++i) {
@@ -412,7 +412,7 @@ public:
             }
         }
 
-        block[result].column = std::move(columnTo);
+        columns[result].column = std::move(columnTo);
     }
 };
 
@@ -474,21 +474,21 @@ public:
         return true;
     }
 
-    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) const override
+    void executeImpl(ColumnsWithTypeAndName& columns, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) const override
     {
-        const IColumn* columnYsonOrNull = block[arguments[0]].column.get();
+        const IColumn* columnYsonOrNull = columns[arguments[0]].column.get();
         const IColumn* columnYson = columnYsonOrNull;
         if (auto* nullableColumnYson = checkAndGetColumn<ColumnNullable>(columnYson)) {
             columnYson = &nullableColumnYson->getNestedColumn();
         }
 
-        const IColumn* columnPathOrNull = block[arguments[1]].column.get();
+        const IColumn* columnPathOrNull = columns[arguments[1]].column.get();
         const IColumn* columnPath = columnPathOrNull;
         if (auto* nullableColumnPath = checkAndGetColumn<ColumnNullable>(columnPath)) {
             columnPath = &nullableColumnPath->getNestedColumn();
         }
 
-        auto returnType = block[result].type;
+        auto returnType = columns[result].type;
 
         auto extractTree = JSONExtractTree<TYsonParserAdapter>::build(name, returnType);
 
@@ -519,7 +519,7 @@ public:
             }
         }
 
-        block[result].column = std::move(columnTo);
+        columns[result].column = std::move(columnTo);
     }
 };
 
