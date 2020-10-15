@@ -26,62 +26,62 @@ using NConcurrency::TReaderWriterSpinLock;
 
 thread_local std::atomic<void*> HazardPointer = {nullptr};
 
+struct TRetiredPtr
+{
+    void* Ptr;
+    TDeleter Deleter;
+};
+
+struct THazardThreadState
+{
+    TIntrusiveLinkedListNode<THazardThreadState> RegistryNode;
+
+    std::atomic<void*>* const HazardPointer;
+    TRingQueue<TRetiredPtr> DeleteList;
+    SmallVector<void*, 64> ProtectedPointers;
+    bool Scanning = false;
+
+    explicit THazardThreadState(std::atomic<void*>* hazardPointer)
+        : HazardPointer(hazardPointer)
+    { }
+};
+
+thread_local THazardThreadState* HazardThreadState = nullptr;
+
 class THazardPointerManager
 {
 public:
     THazardPointerManager();
     ~THazardPointerManager();
 
-    struct TRetiredPtr
+    struct THazardThreadStateToRegistryNode
     {
-        void* Ptr;
-        TDeleter Deleter;
-    };
-
-    struct TThreadState
-    {
-        TIntrusiveLinkedListNode<TThreadState> RegistryNode;
-
-        std::atomic<void*>* const HazardPointer;
-        TRingQueue<TRetiredPtr> DeleteList;
-        SmallVector<void*, 64> ProtectedPointers;
-        bool Scanning = false;
-
-        explicit TThreadState(std::atomic<void*>* hazardPointer)
-            : HazardPointer(hazardPointer)
-        { }
-    };
-
-    struct TThreadStateToRegistryNode
-    {
-        auto operator() (TThreadState* state) const
+        auto operator() (THazardThreadState* state) const
         {
             return &state->RegistryNode;
         }
     };
 
-    bool Scan(TThreadState* threadState);
+    bool Scan(THazardThreadState* threadState);
     void DestroyThread(void* ptr);
 
-    static inline TThreadState* GetThreadState();
+    static inline THazardThreadState* GetThreadState();
+
     size_t GetThreadCount() const
     {
         return ThreadCount_.load(std::memory_order_relaxed);
     }
 
 private:
-    TThreadState* AllocateThread();
+    THazardThreadState* AllocateThread();
 
     std::atomic<size_t> ThreadCount_ = {0};
-    static thread_local TThreadState* ThreadState_;
 
     TLockFreeStack<TRetiredPtr> DeleteQueue_;
     TReaderWriterSpinLock ThreadRegistryLock_;
-    TIntrusiveLinkedList<TThreadState, TThreadStateToRegistryNode> ThreadRegistry_;
+    TIntrusiveLinkedList<THazardThreadState, THazardThreadStateToRegistryNode> ThreadRegistry_;
     pthread_key_t ThreadDtorKey_;
 };
-
-thread_local THazardPointerManager::TThreadState* THazardPointerManager::ThreadState_;
 
 THazardPointerManager HazardPointerManager;
 
@@ -117,18 +117,18 @@ THazardPointerManager::~THazardPointerManager()
     });
 }
 
-THazardPointerManager::TThreadState* THazardPointerManager::GetThreadState()
+THazardThreadState* THazardPointerManager::GetThreadState()
 {
-    if (Y_UNLIKELY(!ThreadState_)) {
-        ThreadState_ = HazardPointerManager.AllocateThread();
+    if (Y_UNLIKELY(!HazardThreadState)) {
+        HazardThreadState = HazardPointerManager.AllocateThread();
     }
 
-    return ThreadState_;
+    return HazardThreadState;
 }
 
-THazardPointerManager::TThreadState* THazardPointerManager::AllocateThread()
+THazardThreadState* THazardPointerManager::AllocateThread()
 {
-    auto* threadState = new TThreadState(&HazardPointer);
+    auto* threadState = new THazardThreadState(&HazardPointer);
 
     // Need to pass some non-null value for DestroyThread to be called.
     pthread_setspecific(ThreadDtorKey_, threadState);
@@ -142,7 +142,7 @@ THazardPointerManager::TThreadState* THazardPointerManager::AllocateThread()
     return threadState;
 }
 
-bool THazardPointerManager::Scan(TThreadState* threadState)
+bool THazardPointerManager::Scan(THazardThreadState* threadState)
 {
     threadState->Scanning = true;
 
@@ -208,7 +208,7 @@ bool THazardPointerManager::Scan(TThreadState* threadState)
 
 void THazardPointerManager::DestroyThread(void* ptr)
 {
-    auto* threadState = static_cast<TThreadState*>(ptr);
+    auto* threadState = static_cast<THazardThreadState*>(ptr);
 
     {
         TWriterGuard guard(ThreadRegistryLock_);
@@ -258,6 +258,11 @@ bool ScanDeleteList()
     return hasNewPointers || threadState->DeleteList.size() > HazardPointerManager.GetThreadCount();
 }
 
+void InitThreadState()
+{
+    HazardPointerManager.GetThreadState();
+}
+
 void FlushDeleteList()
 {
     while (ScanDeleteList());
@@ -265,7 +270,6 @@ void FlushDeleteList()
 
 THazardPtrFlushGuard::THazardPtrFlushGuard()
 {
-    HazardPointerManager.GetThreadState();
     NConcurrency::PushContextHandler(FlushDeleteList, nullptr);
 }
 
