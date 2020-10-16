@@ -7,15 +7,46 @@ import (
 	"strings"
 )
 
+type PathRef struct {
+	Path string `yson:"path" json:"path"`
+	MD5  MD5    `yson:"md5" json:"md5"`
+}
+
+func (c *Config) UploadFilePaths() []string {
+	var p []string
+	p = append(p, c.UploadFile...)
+	for _, ref := range c.UploadHashedFile {
+		p = append(p, ref.Path)
+	}
+	return p
+}
+
+func (c *Config) UploadTarPaths() []string {
+	var p []string
+	p = append(p, c.UploadTarDir...)
+	for _, ref := range c.UploadHashedTarDir {
+		p = append(p, ref.Path)
+	}
+	return p
+}
+
 // Config описывает загрузку файлов на YT и сохранение результатов запуска.
 type Config struct {
 	// UploadFile задаёт список файлов, которые нужно загрузить на YT. Каждый файл заливается на YT
 	// отдельным запросом. Результат загрузки кешируется на основе md5-хеша файла.
 	UploadFile []string `json:"upload_file" yson:"upload_file"`
+
+	// UploadHashedFile работает так же как UploadFile, но позволяет клиенту явно указать ключ файла в кеше блобов.
+	UploadHashedFile []PathRef `json:"upload_hashed_file" yson:"upload_hashed_file"`
+
 	// UploadTarDir задаёт список директорий, которые будут загружены на YT вместе со всем содержимым,
 	// включая файлы и симлинки. Каждая директория из списка загружается отдельным tar-архивом и кешируется
 	// на основе md5-хеша этого архива.
 	UploadTarDir []string `json:"upload_tar" yson:"upload_tar"`
+
+	// UploadHashedTarDir работает так же как UploadTarDir, но позволяет клиенту явно указать ключ директории в кеше блобов.
+	UploadHashedTarDir []PathRef `json:"upload_hashed_tar" yson:"upload_hashed_tar"`
+
 	// UploadStructure задаёт список директорий, структура которых будет воссоздана на YT. Внутри джоба
 	// будут созданы все вложенные директории и симлинки.
 	//
@@ -68,16 +99,16 @@ func (c *Config) Validate() []error {
 		onError(`"coredump_dir" is empty`)
 	}
 
-	for _, file := range c.UploadFile {
-		for _, tarDir := range c.UploadTarDir {
+	for _, file := range c.UploadFilePaths() {
+		for _, tarDir := range c.UploadTarPaths() {
 			if isInside(file, tarDir) {
 				onError(fmt.Sprintf("file %q is located inside tar dir %q", file, tarDir))
 			}
 		}
 	}
 
-	for _, outerTarDir := range c.UploadTarDir {
-		for _, tarDir := range c.UploadTarDir {
+	for _, outerTarDir := range c.UploadTarPaths() {
+		for _, tarDir := range c.UploadTarPaths() {
 			if isInside(outerTarDir, tarDir) {
 				onError(fmt.Sprintf("tar dir %q is located inside tar dir %q", outerTarDir, tarDir))
 			}

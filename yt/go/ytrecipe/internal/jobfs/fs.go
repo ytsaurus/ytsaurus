@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/tarstream"
 )
 
@@ -23,6 +25,52 @@ const (
 )
 
 type MD5 [md5.Size]byte
+
+func (h MD5) MarshalYSON() ([]byte, error) {
+	return yson.Marshal(h.String())
+}
+
+func (h MD5) MarshalJSON() ([]byte, error) {
+	return json.Marshal(h.String())
+}
+
+func (h *MD5) UnmarshalYSON(b []byte) error {
+	var s string
+	if err := yson.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	hs, err := hex.DecodeString(s)
+	if err != nil {
+		return err
+	}
+
+	if len(hs) != len(h) {
+		return fmt.Errorf("invalid MD5 format: %q", b)
+	}
+
+	copy(h[:], hs)
+	return nil
+}
+
+func (h *MD5) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+
+	hs, err := hex.DecodeString(s)
+	if err != nil {
+		return err
+	}
+
+	if len(hs) != len(h) {
+		return fmt.Errorf("invalid MD5 format: %q", b)
+	}
+
+	copy(h[:], hs)
+	return nil
+}
 
 func (h MD5) String() string {
 	return hex.EncodeToString(h[:])
@@ -66,15 +114,32 @@ func New() *FS {
 	}
 }
 
-type counter struct {
-	w     io.Writer
-	total int64
+func dirSize(dir string) (int64, error) {
+	var totalSize int64
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.Mode().IsRegular() {
+			totalSize += info.Size()
+		}
+		return nil
+	})
+
+	return totalSize, err
 }
 
-func (c *counter) Write(p []byte) (int, error) {
-	n, err := c.w.Write(p)
-	c.total += int64(n)
-	return n, err
+func (fs *FS) AddHashedTarDir(ref PathRef) error {
+	size, err := dirSize(ref.Path)
+	if err != nil {
+		return err
+	}
+
+	fs.TotalSize += size
+	fs.TarDirs[ref.MD5] = &TarDir{LocalPath: ref.Path}
+	return nil
 }
 
 func (fs *FS) AddTarDir(dir string) error {
@@ -91,20 +156,26 @@ func (fs *FS) AddTarDir(dir string) error {
 	}
 
 	hw := md5.New()
-	counter := &counter{w: hw}
-
-	if err := tarstream.Send(dir, counter); err != nil {
+	if err := tarstream.Send(dir, hw); err != nil {
 		return err
 	}
 
-	fs.TotalSize += counter.total
-
 	var h MD5
 	copy(h[:], hw.Sum(nil))
-	fs.TarDirs[h] = &TarDir{
-		LocalPath: dir,
+	return fs.AddHashedTarDir(PathRef{Path: dir, MD5: h})
+}
+
+func (fs *FS) AddHashedFile(ref PathRef) error {
+	st, err := os.Stat(ref.Path)
+	if err != nil {
+		return err
 	}
 
+	fs.TotalSize += st.Size()
+	fs.Files[ref.MD5] = &File{
+		LocalPath:  ref.Path,
+		Executable: st.Mode()&0100 != 0,
+	}
 	return nil
 }
 
@@ -115,28 +186,15 @@ func (fs *FS) AddFile(path string) error {
 	}
 	defer f.Close()
 
-	st, err := f.Stat()
-	if err != nil {
-		return err
-	}
-
 	hw := md5.New()
 
-	var n int64
-	if n, err = io.Copy(hw, f); err != nil {
+	if _, err = io.Copy(hw, f); err != nil {
 		return err
 	}
-	fs.TotalSize += n
 
 	var h MD5
 	copy(h[:], hw.Sum(nil))
-
-	fs.Files[h] = &File{
-		LocalPath:  path,
-		Executable: st.Mode()&0100 != 0,
-	}
-
-	return nil
+	return fs.AddHashedFile(PathRef{Path: path, MD5: h})
 }
 
 // AddBuildRoot scans directory adding all directories and symlinks to FS.
@@ -189,6 +247,11 @@ func (fs *FS) Add(c Config) error {
 			return err
 		}
 	}
+	for _, path := range c.UploadHashedFile {
+		if err := fs.AddHashedFile(path); err != nil {
+			return err
+		}
+	}
 
 	for _, dir := range c.UploadStructure {
 		if err := fs.AddStructure(dir); err != nil {
@@ -198,6 +261,11 @@ func (fs *FS) Add(c Config) error {
 
 	for _, dir := range c.UploadTarDir {
 		if err := fs.AddTarDir(dir); err != nil {
+			return err
+		}
+	}
+	for _, dir := range c.UploadHashedTarDir {
+		if err := fs.AddHashedTarDir(dir); err != nil {
 			return err
 		}
 	}
