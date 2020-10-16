@@ -570,8 +570,7 @@ class UserJobSpecBuilder(object):
               local_files_to_remove=None, uploaded_files=None, group_by=None, client=None):
         require(self._spec_builder is None, lambda: YtError("The job spec builder is incomplete"))
 
-        spec = get_config(client)["user_job_spec_defaults"]
-        spec = update(spec, self._spec_patch)
+        spec = self._spec_patch
         self._spec_patch = {}
         spec = update(spec, self._deepcopy_spec())
 
@@ -614,6 +613,7 @@ class UserJobSpecBuilder(object):
         spec = self._prepare_tmpfs(spec, tmpfs_size, client)
         spec = self._prepare_memory_limit(spec, client)
         spec = update(spec, self._user_spec)
+        spec = update(get_config(client)["user_job_spec_defaults"], spec)
         return spec
 
 class TaskSpecBuilder(UserJobSpecBuilder):
