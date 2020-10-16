@@ -694,7 +694,7 @@ Y_UNIT_TEST_SUITE(JobCommands)
 
         CreateTableWithFooColumn(client, workingDir + "/input");
 
-        auto expectedStderr = AsStringBuf("EXPECTED-STDERR");
+        TStringBuf expectedStderr = "EXPECTED-STDERR";
 
         auto beforeStart = TInstant::Now();
         auto op = client->Map(
@@ -858,7 +858,7 @@ Y_UNIT_TEST_SUITE(JobCommands)
 
         CreateTableWithFooColumn(client, workingDir + "/input");
 
-        auto expectedStderr = AsStringBuf("PYSHCH");
+        TStringBuf expectedStderr = "PYSHCH";
         auto op = client->Map(
             TMapOperationSpec()
                 .AddInput<TNode>(workingDir + "/input")
