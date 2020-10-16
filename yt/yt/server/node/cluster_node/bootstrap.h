@@ -129,7 +129,6 @@ public:
     std::optional<TString> GetDefaultNetworkName();
     NExecAgent::EJobEnvironmentType GetEnvironmentType() const;
     bool IsSimpleEnvironment() const;
-    const std::vector<std::pair<TString, NNet::TIP6Address>>& GetResolvedNodeAddresses() const;
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
 
@@ -234,8 +233,6 @@ private:
 #endif
 
     TNodeResourceManagerPtr NodeResourceManager_;
-
-    std::vector<std::pair<TString, NNet::TIP6Address>> ResolvedNodeAddresses_;
 
     void DoInitialize();
     void DoRun();
