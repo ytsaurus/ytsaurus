@@ -296,9 +296,10 @@ public:
         auto* tablet = TabletMap_.Insert(id, std::move(tabletHolder));
         objectManager->RefObject(tablet);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet created (TableId: %v, TabletId: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet created (TableId: %v, TabletId: %v, Account: %v)",
             table->GetId(),
-            tablet->GetId());
+            tablet->GetId(),
+            table->GetAccount()->GetName());
 
         return tablet;
     }
