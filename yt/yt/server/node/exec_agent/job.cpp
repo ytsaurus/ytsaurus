@@ -132,6 +132,18 @@ public:
         TrafficMeter_->Start();
 
         AddJobEvent(JobState_, JobPhase_);
+
+        if (UserJobSpec_ && UserJobSpec_->has_network_project_id()) {
+            auto addresses = Bootstrap_->GetConfig()->Addresses;
+            ResolvedNodeAddresses_.reserve(addresses.size());
+            for (const auto& [addressName, address] : addresses) {
+                auto* resolver = TAddressResolver::Get();
+                auto resolvedAddress = WaitFor(resolver->Resolve(address))
+                    .ValueOrThrow();
+                YT_VERIFY(resolvedAddress.IsIP6());
+                ResolvedNodeAddresses_.emplace_back(addressName, resolvedAddress.ToIP6Address());
+            }
+        }
     }
 
     ~TJob()
@@ -811,6 +823,8 @@ private:
     TAdaptiveLock JobProbeLock_;
     IJobProbePtr JobProbe_;
 
+    std::vector<std::pair<TString, TIP6Address>> ResolvedNodeAddresses_;
+
     // Helpers.
 
     template <class... U>
@@ -1408,12 +1422,7 @@ private:
         }
 
         if (NetworkProjectId_) {
-            const auto& nodeAddresses = Bootstrap_->GetResolvedNodeAddresses();
-            if (nodeAddresses.empty()) {
-                THROW_ERROR_EXCEPTION("No resolved IPv6 node addresses found");
-            }
-            proxyConfig->NetworkAddresses.reserve(nodeAddresses.size());
-            for (const auto& [addressName, address] : nodeAddresses) {
+            for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
                 auto networkAddress = New<TUserJobNetworkAddress>();
                 networkAddress->Address = TMtnAddress{address}
                     .SetProjectId(*NetworkProjectId_)
@@ -1422,6 +1431,10 @@ private:
                 networkAddress->Name = addressName;
 
                 proxyConfig->NetworkAddresses.push_back(networkAddress);
+            }
+
+            if (proxyConfig->NetworkAddresses.empty()) {
+                THROW_ERROR_EXCEPTION("No IPv6 node addresses were resolved");
             }
 
             proxyConfig->HostName = Format("slot_%v.%v",

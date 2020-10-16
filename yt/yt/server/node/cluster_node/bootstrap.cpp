@@ -507,16 +507,6 @@ void TBootstrap::DoInitialize()
 
     auto localAddress = GetDefaultAddress(localRpcAddresses);
 
-    if (GetEnvironmentType() == EJobEnvironmentType::Porto) {
-        auto* resolver = TAddressResolver::Get();
-        ResolvedNodeAddresses_.reserve(Config_->Addresses.size());
-        for (const auto& [addressName, address] : Config_->Addresses) {
-            auto resolvedAddress = resolver->Resolve(address).Get().ValueOrThrow();
-            YT_VERIFY(resolvedAddress.IsIP6());
-            ResolvedNodeAddresses_.emplace_back(addressName, resolvedAddress.ToIP6Address());
-        }
-    }
-
     JobProxyConfigTemplate_ = New<NJobProxy::TJobProxyConfig>();
 
     // Singletons.
@@ -1253,11 +1243,6 @@ EJobEnvironmentType TBootstrap::GetEnvironmentType() const
 bool TBootstrap::IsSimpleEnvironment() const
 {
     return GetEnvironmentType() == EJobEnvironmentType::Simple;
-}
-
-const std::vector<std::pair<TString, TIP6Address>>& TBootstrap::GetResolvedNodeAddresses() const
-{
-    return ResolvedNodeAddresses_;
 }
 
 TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const
