@@ -11,8 +11,6 @@
 #include <yt/core/concurrency/notification_handle.h>
 #include <yt/core/concurrency/delayed_executor.h>
 
-#include <yt/core/logging/log_manager.h>
-
 #include <contrib/libs/c-ares/ares.h>
 
 #ifdef _linux_

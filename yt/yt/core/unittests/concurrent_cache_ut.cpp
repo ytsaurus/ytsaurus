@@ -8,9 +8,6 @@
 
 #include <yt/core/concurrency/thread_pool.h>
 
-#include <yt/core/logging/log_manager.h>
-
-
 namespace NYT {
 namespace {
 

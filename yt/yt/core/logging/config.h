@@ -178,6 +178,7 @@ public:
     static TLogManagerConfigPtr CreateYtServer(const TString& componentName);
     static TLogManagerConfigPtr CreateFromFile(const TString& file, const NYPath::TYPath& path = "");
     static TLogManagerConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
+    static TLogManagerConfigPtr TryCreateFromEnv();
 };
 
 DEFINE_REFCOUNTED_TYPE(TLogManagerConfig)

@@ -1,7 +1,6 @@
 #include "formatter.h"
 #include "private.h"
 #include "log.h"
-#include "log_manager.h"
 
 #include <yt/build/build.h>
 

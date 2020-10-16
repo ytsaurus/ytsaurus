@@ -1,6 +1,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <util/string/vector.h>
+
 namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,6 +123,67 @@ TLogManagerConfigPtr TLogManagerConfig::CreateFromNode(NYTree::INodePtr node, co
 {
     auto config = New<TLogManagerConfig>();
     config->Load(node, true, true, path);
+    return config;
+}
+
+TLogManagerConfigPtr TLogManagerConfig::TryCreateFromEnv()
+{
+    const auto* logLevelStr = getenv("YT_LOG_LEVEL");
+    if (!logLevelStr) {
+        return nullptr;
+    }
+
+    const char* logExcludeCategoriesStr = getenv("YT_LOG_EXCLUDE_CATEGORIES");
+    const char* logIncludeCategoriesStr = getenv("YT_LOG_INCLUDE_CATEGORIES");
+
+    const char* const stderrWriterName = "stderr";
+
+    auto rule = New<TRuleConfig>();
+    rule->Writers.push_back(stderrWriterName);
+    rule->MinLevel = ELogLevel::Fatal;
+
+    if (logLevelStr) {
+        TString logLevel = logLevelStr;
+        if (!logLevel.empty()) {
+            // This handles most typical casings like "DEBUG", "debug", "Debug".
+            logLevel.to_title();
+            rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
+        }
+    }
+
+    std::vector<TString> logExcludeCategories;
+    if (logExcludeCategoriesStr) {
+        logExcludeCategories = SplitString(logExcludeCategoriesStr, ",");
+    }
+
+    for (const auto& excludeCategory : logExcludeCategories) {
+        rule->ExcludeCategories.insert(excludeCategory);
+    }
+
+    std::vector<TString> logIncludeCategories;
+    if (logIncludeCategoriesStr) {
+        logIncludeCategories = SplitString(logIncludeCategoriesStr, ",");
+    }
+
+    if (!logIncludeCategories.empty()) {
+        rule->IncludeCategories.emplace();
+        for (const auto& includeCategory : logIncludeCategories) {
+            rule->IncludeCategories->insert(includeCategory);
+        }
+    }
+
+    auto config = New<TLogManagerConfig>();
+    config->Rules.push_back(std::move(rule));
+
+    config->MinDiskSpace = 0;
+    config->HighBacklogWatermark = std::numeric_limits<int>::max();
+    config->LowBacklogWatermark = 0;
+
+    auto stderrWriter = New<TWriterConfig>();
+    stderrWriter->Type = EWriterType::Stderr;
+
+    config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
+
     return config;
 }
 

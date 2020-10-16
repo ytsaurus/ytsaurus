@@ -37,7 +37,9 @@ public:
     static void StaticShutdown();
 
     void Configure(TLogManagerConfigPtr config);
+
     void ConfigureFromEnv();
+    bool IsConfiguredFromEnv();
 
     virtual void Shutdown() override;
 

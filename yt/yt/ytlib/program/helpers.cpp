@@ -34,8 +34,9 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     }
 
     NLogging::TLogManager::Get()->EnableReopenOnSighup();
-    NLogging::TLogManager::Get()->Configure(config->Logging);
-    NLogging::TLogManager::Get()->ConfigureFromEnv();
+    if (!NLogging::TLogManager::Get()->IsConfiguredFromEnv()) {
+        NLogging::TLogManager::Get()->Configure(config->Logging);
+    }
 
     NNet::TAddressResolver::Get()->Configure(config->AddressResolver);
     // By default, server component must have reasonable fqdn.

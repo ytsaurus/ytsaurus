@@ -36,8 +36,6 @@
 #include <util/system/sigset.h>
 #include <util/system/yield.h>
 
-#include <util/string/vector.h>
-
 #include <atomic>
 #include <mutex>
 
@@ -313,6 +311,7 @@ struct TConfigEvent
 {
     NProfiling::TCpuInstant Instant = 0;
     TLogManagerConfigPtr Config;
+    bool FromEnv;
     TPromise<void> Promise = NewPromise<void>();
 };
 
@@ -354,7 +353,19 @@ public:
         , LoggingThread_(New<TThread>(this))
         , SystemWriters_({New<TStderrLogWriter>()})
     {
-        DoUpdateConfig(TLogManagerConfig::CreateDefault());
+        try {
+            if (auto config = TLogManagerConfig::TryCreateFromEnv()) {
+                DoUpdateConfig(std::move(config), true);
+            }
+        } catch (const std::exception& ex) {
+            fprintf(stderr, "Error configuring logging from environment variables\n%s\n",
+                ex.what());
+        }
+
+        if (!IsConfiguredFromEnv()) {
+            DoUpdateConfig(TLogManagerConfig::CreateDefault(), false);
+        }
+
         SystemCategory_ = GetCategory(SystemLoggingCategoryName);
     }
 
@@ -374,7 +385,7 @@ public:
         Configure(TLogManagerConfig::CreateFromNode(node));
     }
 
-    void Configure(TLogManagerConfigPtr config)
+    void Configure(TLogManagerConfigPtr config, bool fromEnv = false)
     {
         if (LoggingThread_->IsShutdown()) {
             return;
@@ -382,9 +393,12 @@ public:
 
         EnsureStarted();
 
-        TConfigEvent event;
-        event.Instant = NProfiling::GetCpuInstant();
-        event.Config = std::move(config);
+        TConfigEvent event{
+            .Instant = NProfiling::GetCpuInstant(),
+            .Config = std::move(config),
+            .FromEnv = fromEnv
+        };
+
         auto future = event.Promise.ToFuture();
 
         PushEvent(std::move(event));
@@ -396,10 +410,14 @@ public:
 
     void ConfigureFromEnv()
     {
-        DoConfigureFromEnv(
-            getenv("YT_LOG_LEVEL"),
-            getenv("YT_LOG_EXCLUDE_CATEGORIES"),
-            getenv("YT_LOG_INCLUDE_CATEGORIES"));
+        if (auto config = TLogManagerConfig::TryCreateFromEnv()) {
+            Configure(std::move(config), true);
+        }
+    }
+
+    bool IsConfiguredFromEnv()
+    {
+        return ConfiguredFromEnv_.load();
     }
 
     void Shutdown()
@@ -705,7 +723,7 @@ private:
 
         FlushWriters();
 
-        DoUpdateConfig(event.Config);
+        DoUpdateConfig(event.Config, event.FromEnv);
 
         if (FlushExecutor_) {
             FlushExecutor_->Stop();
@@ -747,7 +765,7 @@ private:
         event.Promise.Set();
     }
 
-    void DoUpdateConfig(const TLogManagerConfigPtr& logConfig)
+    void DoUpdateConfig(const TLogManagerConfigPtr& logConfig, bool fromEnv)
     {
         {
             decltype(Writers_) writers;
@@ -833,6 +851,7 @@ private:
         }
 
         Version_++;
+        ConfiguredFromEnv_.store(fromEnv);
     }
 
     void WriteEvent(const TLogEvent& event)
@@ -1177,66 +1196,6 @@ private:
         position->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
     }
 
-    void DoConfigureFromEnv(
-        const char* logLevelStr,
-        const char* logExcludeCategoriesStr,
-        const char* logIncludeCategoriesStr)
-    {
-        if (!logLevelStr) {
-            return;
-        }
-
-        const char* const stderrWriterName = "stderr";
-
-        auto rule = New<TRuleConfig>();
-        rule->Writers.push_back(stderrWriterName);
-        rule->MinLevel = ELogLevel::Fatal;
-
-        if (logLevelStr) {
-            TString logLevel = logLevelStr;
-            if (!logLevel.empty()) {
-                // This handles most typical casings like "DEBUG", "debug", "Debug".
-                logLevel.to_title();
-                rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
-            }
-        }
-
-        std::vector<TString> logExcludeCategories;
-        if (logExcludeCategoriesStr) {
-            logExcludeCategories = SplitString(logExcludeCategoriesStr, ",");
-        }
-
-        for (const auto& excludeCategory : logExcludeCategories) {
-            rule->ExcludeCategories.insert(excludeCategory);
-        }
-
-        std::vector<TString> logIncludeCategories;
-        if (logIncludeCategoriesStr) {
-            logIncludeCategories = SplitString(logIncludeCategoriesStr, ",");
-        }
-
-        if (!logIncludeCategories.empty()) {
-            rule->IncludeCategories.emplace();
-            for (const auto& includeCategory : logIncludeCategories) {
-                rule->IncludeCategories->insert(includeCategory);
-            }
-        }
-
-        auto config = New<TLogManagerConfig>();
-        config->Rules.push_back(std::move(rule));
-
-        config->MinDiskSpace = 0;
-        config->HighBacklogWatermark = std::numeric_limits<int>::max();
-        config->LowBacklogWatermark = 0;
-
-        auto stderrWriter = New<TWriterConfig>();
-        stderrWriter->Type = EWriterType::Stderr;
-
-        config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
-
-        Configure(std::move(config));
-    }
-
 private:
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr EventQueue_;
@@ -1253,6 +1212,7 @@ private:
     std::atomic<int> Version_ = 0;
     std::atomic<bool> AbortOnAlert_ = 0;
     TLogManagerConfigPtr Config_;
+    std::atomic<bool> ConfiguredFromEnv_ = false;
     THashMap<TStringBuf, std::unique_ptr<TLoggingCategory>> NameToCategory_;
     const TLoggingCategory* SystemCategory_;
 
@@ -1346,6 +1306,11 @@ void TLogManager::Configure(TLogManagerConfigPtr config)
 void TLogManager::ConfigureFromEnv()
 {
     Impl_->ConfigureFromEnv();
+}
+
+bool TLogManager::IsConfiguredFromEnv()
+{
+    return Impl_->IsConfiguredFromEnv();
 }
 
 void TLogManager::Shutdown()
