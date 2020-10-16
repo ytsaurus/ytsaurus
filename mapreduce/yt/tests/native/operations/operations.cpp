@@ -965,7 +965,7 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
-        auto expectedStderr = AsStringBuf("PYSHCH");
+        TStringBuf expectedStderr = "PYSHCH";
         client->Map(
             TMapOperationSpec()
             .AddInput<TNode>(workingDir + "/input")
@@ -992,7 +992,7 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
-        auto expectedStderr = AsStringBuf("PYSHCH");
+        TStringBuf expectedStderr = "PYSHCH";
 
         // stderr table does not exist => should fail
         UNIT_ASSERT_EXCEPTION(
@@ -1032,7 +1032,7 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
-        auto expectedStderr = AsStringBuf("PYSHCH");
+        TStringBuf expectedStderr = "PYSHCH";
 
         // Output table does not exist => operation should fail.
         UNIT_ASSERT_EXCEPTION(
@@ -3215,7 +3215,7 @@ Y_UNIT_TEST_SUITE(Operations)
                     ("blah2", 2)));
 
         TNode unrecognizedSpec;
-        auto prefix = AsStringBuf("WARNING! Unrecognized spec for operation");
+        TStringBuf prefix = "WARNING! Unrecognized spec for operation";
         for (TStringBuf line : StringSplitter(stream.Str()).Split('\n')) {
             if (line.StartsWith(prefix)) {
                 unrecognizedSpec = NodeFromYsonString(line.After(':'));
