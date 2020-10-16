@@ -1186,7 +1186,7 @@ class TestPythonOperations(object):
     @authors("ignat")
     def test_operation_receives_spec_from_config(self):
         memory_limit = yt.config["memory_limit"]
-        yt.config["memory_limit"] = 123
+        yt.config["memory_limit"] = 123456789
         check_input_fully_consumed = yt.config["yamr_mode"]["check_input_fully_consumed"]
         yt.config["yamr_mode"]["check_input_fully_consumed"] = not check_input_fully_consumed
         use_yamr_descriptors = yt.config["yamr_mode"]["use_yamr_style_destination_fds"]
@@ -1198,7 +1198,7 @@ class TestPythonOperations(object):
         try:
             op = yt.run_map("sleep 1; cat", table, table, sync=False)
             spec = yt.get_attribute(get_operation_path(op.id), "spec")
-            assert spec["mapper"]["memory_limit"] == 123
+            assert spec["mapper"]["memory_limit"] == 123456789
             assert spec["mapper"]["check_input_fully_consumed"] != check_input_fully_consumed
             assert spec["mapper"]["use_yamr_descriptors"] != use_yamr_descriptors
             assert spec["job_io"]["table_writer"]["max_row_weight"] == 8 * 1024 * 1024
