@@ -2,7 +2,8 @@ package org.apache.spark.sql.v2
 
 import org.apache.hadoop.fs.FileStatus
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.types.{BinaryType, StructType}
+import org.apache.spark.sql.yson.YsonType
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.{YtClientProvider, YtPath}
 import ru.yandex.spark.yt.serializers.SchemaConverter
@@ -21,7 +22,15 @@ object YtUtils {
         case p => YtPath.basePath(p)
       }
       val schemaTree = YtWrapper.attribute(path, "schema")
-      SchemaConverter.sparkSchema(schemaTree, schemaHint)
+      val schema = SchemaConverter.sparkSchema(schemaTree, schemaHint)
+
+      // backward compatibility
+      if (sparkSession.conf.getOption("spark.yt.cluster.version").exists(_ < "3.0.1-1.1.1+yandex")) {
+        StructType(schema.map {
+          case f if f.dataType == YsonType => f.copy(dataType = BinaryType)
+          case f => f
+        })
+      } else schema
     }
   }
 
