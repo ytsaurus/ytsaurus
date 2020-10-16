@@ -1,7 +1,6 @@
 #include "writer.h"
 #include "private.h"
 #include "log.h"
-#include "log_manager.h"
 #include "random_access_gzip.h"
 
 #include <yt/core/misc/fs.h>
