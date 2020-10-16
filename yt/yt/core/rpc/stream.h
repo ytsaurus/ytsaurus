@@ -71,6 +71,7 @@ private:
     std::atomic<ssize_t> ReadPosition_ = {0};
     bool Closed_ = false;
 
+    void CompressAndEnqueuePayload(const TStreamingPayload& payload);
     void DoEnqueuePayload(
         const TStreamingPayload& payload,
         const std::vector<TSharedRef>& decompressedAttachments);
