@@ -19,6 +19,9 @@ public:
         IInvokerPtr invoker);
 
     TValue Get(const TKey& key);
+    std::optional<TValue> Find(const TKey& key);
+
+    void Set(const TKey& key, TValue value);
     void Clear();
 
     void SetExpirationTimeout(TDuration expirationTimeout);

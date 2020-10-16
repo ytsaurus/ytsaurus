@@ -37,6 +37,7 @@ TEST_SRCS(
     test_accounts.py
     test_aggregate_columns.py
     test_bulk_insert.py
+    test_object_service_cache.py
     test_chunk_cache.py
     test_chunk_server.py
     test_clock_server.py

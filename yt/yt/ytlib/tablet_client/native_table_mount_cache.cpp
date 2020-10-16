@@ -200,10 +200,10 @@ private:
                 connection->GetMasterChannelOrThrow(options.ReadFrom),
                 NRpc::TAuthenticationIdentity(NSecurityClient::TableMountInformerUserName));
 
-            auto primaryProxy = TObjectServiceProxy(channel);
+            auto primaryProxy = TObjectServiceProxy(channel, connection->GetStickyGroupSizeCache());
             auto batchReq = primaryProxy.ExecuteBatch();
-
             SetBalancingHeader(batchReq, connection->GetConfig(), options);
+
             {
                 auto req = TTableYPathProxy::Get(Key_.Path + "/@");
                 ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
@@ -261,7 +261,7 @@ private:
                 connection->GetMasterChannelOrThrow(options.ReadFrom, CellTag_),
                 NRpc::TAuthenticationIdentity(NSecurityClient::TableMountInformerUserName));
 
-            auto secondaryProxy = TObjectServiceProxy(channel);
+            auto secondaryProxy = TObjectServiceProxy(channel, connection->GetStickyGroupSizeCache());
             auto batchReq = secondaryProxy.ExecuteBatch();
             SetBalancingHeader(batchReq, connection->GetConfig(), options);
 

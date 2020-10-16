@@ -33,7 +33,7 @@ public:
         RegisterParameter("master_cache_expire_after_failed_update_time", MasterCacheExpireAfterFailedUpdateTime)
             .Default(TDuration::Seconds(15));
         RegisterParameter("master_cache_cache_sticky_group_size", MasterCacheStickyGroupSize)
-            .Default(1);
+            .Default(1.0);
     }
 
     // TODO(max42): eliminate this by proper inheritance.
@@ -57,11 +57,16 @@ class TObjectServiceCacheConfig
     , public TSlruCacheConfig
 {
 public:
+    double TopEntryByteRateThreshold;
+
     TObjectServiceCacheConfig()
     {
         RegisterPreprocessor([&] {
             Capacity = 1_GB;
         });
+
+        RegisterParameter("top_entry_byte_rate_threshold", TopEntryByteRateThreshold)
+            .Default(10_KB);
     }
 };
 
@@ -74,12 +79,16 @@ class TCachingObjectServiceConfig
 {
 public:
     double CacheTtlRatio;
+    i64 EntryByteRateLimit;
 
     TCachingObjectServiceConfig()
     {
         RegisterParameter("cache_ttl_ratio", CacheTtlRatio)
             .InRange(0, 1)
             .Default(0.5);
+        RegisterParameter("entry_byte_rate_limit", EntryByteRateLimit)
+            .GreaterThan(0)
+            .Default(10_MB);
     }
 };
 

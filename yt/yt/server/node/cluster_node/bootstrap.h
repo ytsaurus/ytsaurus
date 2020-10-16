@@ -28,6 +28,8 @@
 
 #include <yt/ytlib/monitoring/public.h>
 
+#include <yt/ytlib/object_client/public.h>
+
 #include <yt/core/bus/public.h>
 
 #include <yt/core/http/public.h>
@@ -156,7 +158,7 @@ private:
     NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
     NConcurrency::IFairShareThreadPoolPtr StorageLookupThreadPool_;
     NConcurrency::TActionQueuePtr MasterCacheQueue_;
-
+    
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
     NApi::NNative::IConnectionPtr MasterConnection_;
@@ -191,6 +193,7 @@ private:
     NDataNode::TMasterConnectorPtr MasterConnector_;
     ICoreDumperPtr CoreDumper_;
     TDynamicConfigManagerPtr DynamicConfigManager_;
+    NObjectClient::TObjectServiceCachePtr ObjectServiceCache_;
 
     NConcurrency::IThroughputThrottlerPtr TotalInThrottler_;
     NConcurrency::IThroughputThrottlerPtr TotalOutThrottler_;

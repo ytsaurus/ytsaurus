@@ -51,7 +51,7 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 
         auto it = Map_.find(key);
         if (it != Map_.end()) {
-            it->second = TEntry({now, now, std::move(result)});
+            it->second = {now, now, std::move(result)};
         } else {
             auto emplaceResult = Map_.emplace(key, TEntry({now, now, std::move(result)}));
             YT_VERIFY(emplaceResult.second);
@@ -60,6 +60,34 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 
         return it->second.Value;
     }
+}
+
+template <class TKey, class TValue>
+std::optional<TValue> TSyncExpiringCache<TKey, TValue>::Find(const TKey& key)
+{
+    auto now = NProfiling::GetCpuInstant();
+
+    NConcurrency::TReaderGuard guard(MapLock_);
+
+    auto it = Map_.find(key);
+    if (it != Map_.end()) {
+        auto& entry = it->second;
+        if (now <= entry.LastUpdateTime + ExpirationTimeout_.load()) {
+            entry.LastAccessTime = now;
+            return entry.Value;
+        }
+    }
+
+    return std::nullopt;
+}
+
+template <class TKey, class TValue>
+void TSyncExpiringCache<TKey, TValue>::Set(const TKey& key, TValue value)
+{
+    NConcurrency::TWriterGuard guard(MapLock_);
+
+    auto now = NProfiling::GetCpuInstant();
+    Map_[key] = {now, now, std::move(value)};
 }
 
 template <class TKey, class TValue>

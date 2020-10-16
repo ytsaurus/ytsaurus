@@ -6,6 +6,8 @@
 
 #include <yt/client/hydra/public.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -17,7 +19,7 @@ void SetCachingHeader(
     NHydra::TRevision refreshRevision = NHydra::NullRevision);
 
 void SetBalancingHeader(
-    const NRpc::IClientRequestPtr& request,
+    const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& request,
     const TConnectionConfigPtr& config,
     const TMasterReadOptions& options);
 

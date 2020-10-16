@@ -78,7 +78,7 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
         return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
     }
 
-    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom));
+    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom), connection->GetStickyGroupSizeCache());
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection->GetConfig(), GetMasterReadOptions());
     batchReq->SetUser(isPeriodicUpdate || Config_->AlwaysUseRefreshUser ? Config_->RefreshUser : key.User);

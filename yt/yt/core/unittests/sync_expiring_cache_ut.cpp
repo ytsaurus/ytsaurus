@@ -28,6 +28,29 @@ TEST(TSyncExpiringCacheTest, MultipleGet_RaceCondition)
     thread2.join();
 }
 
+TEST(TSyncExpiringCacheTest, FindSetClear)
+{
+    auto cache = New<TSyncExpiringCache<int, int>>(
+        BIND([] (int x) {
+            return x;
+        }),
+        TDuration::Seconds(1),
+        GetSyncInvoker());
+
+    auto value1 = cache->Find(1);
+    EXPECT_EQ(std::nullopt, value1);
+
+    cache->Set(1, 2);
+
+    auto value2 = cache->Find(1);
+    EXPECT_EQ(2, value2);
+
+    cache->Clear();
+
+    auto value3 = cache->Find(1);
+    EXPECT_EQ(std::nullopt, value3);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

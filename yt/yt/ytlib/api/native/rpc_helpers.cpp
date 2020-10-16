@@ -4,6 +4,7 @@
 namespace NYT::NApi::NNative {
 
 using namespace NRpc;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,16 +48,15 @@ void SetCachingHeader(
 }
 
 void SetBalancingHeader(
-    const IClientRequestPtr& request,
+    const TObjectServiceProxy::TReqExecuteBatchPtr& request,
     const TConnectionConfigPtr& config,
     const TMasterReadOptions& options)
 {
     if (!IsCachingEnabled(config, options)) {
         return;
     }
-    auto* balancingHeaderExt = request->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-    balancingHeaderExt->set_enable_stickiness(true);
-    balancingHeaderExt->set_sticky_group_size(std::max(config->CacheStickyGroupSizeOverride, options.CacheStickyGroupSize));
+
+    request->SetDefaultStickyGroupSize(std::max(config->CacheStickyGroupSizeOverride, options.CacheStickyGroupSize));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

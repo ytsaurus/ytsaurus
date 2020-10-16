@@ -185,7 +185,6 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
 
     auto batchRsp = WaitFor(batchReq->Invoke())
         .ValueOrThrow();
-
     auto cypressNodeRspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_operation");
 
     INodePtr cypressNode;
@@ -735,7 +734,7 @@ void TClient::DoListOperationsFromCypress(
     }
     auto filteringCypressAttributes = CreateCypressOperationAttributes(filteringAttributes);
 
-    TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
+    TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom), Connection_->GetStickyGroupSizeCache());
     auto requestOperations = [&] (int hashBegin, int hashEnd) {
         auto listBatchReq = proxy.ExecuteBatch();
         SetBalancingHeader(listBatchReq, options);
@@ -764,6 +763,7 @@ void TClient::DoListOperationsFromCypress(
     for (int hashBegin = 0, responseIndex = 0; hashBegin < HashCount; hashBegin += BatchSize, ++responseIndex) {
         YT_VERIFY(responseIndex < responses.size());
         const auto& batchRsp = responses[responseIndex];
+
         for (int hash = hashBegin; hash < hashBegin + BatchSize; ++hash) {
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(Format("list_operations_%02x", hash));
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
@@ -1213,7 +1213,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     }
 
     if (options.AccessFilter) {
-        TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
+        TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom), Connection_->GetStickyGroupSizeCache());
         options.AccessFilter->SubjectTransitiveClosure = GetSubjectClosure(
             options.AccessFilter->Subject,
             proxy,
