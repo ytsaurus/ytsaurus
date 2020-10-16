@@ -57,6 +57,7 @@
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -64,6 +65,8 @@
 #include <yt/core/rpc/caching_channel_factory.h>
 
 #include <yt/core/rpc/retrying_channel.h>
+
+#include <yt/core/misc/checksum.h>
 
 namespace NYT::NApi::NNative {
 
@@ -240,6 +243,11 @@ public:
     virtual const TPermissionCachePtr& GetPermissionCache() override
     {
         return PermissionCache_;
+    }
+
+    virtual const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() override
+    {
+        return StickyGroupSizeCache_;
     }
 
     virtual IInvokerPtr GetInvoker() override
@@ -480,6 +488,8 @@ private:
 
     const NRpc::IChannelFactoryPtr ChannelFactory_;
 
+    const TStickyGroupSizeCachePtr StickyGroupSizeCache_ = New<TStickyGroupSizeCache>();
+
     // NB: there're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
     NCellMasterClient::TCellDirectorySynchronizerPtr MasterCellDirectorySynchronizer_;
@@ -545,6 +555,51 @@ IConnectionPtr CreateConnection(
     auto connection = New<TConnection>(config, options);
     connection->Initialize();
     return connection;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStickyGroupSizeCache::TKey::operator size_t() const
+{
+    size_t result = 0;
+    HashCombine(result, Key);
+    for (const auto& part : Message) {
+        HashCombine(result, GetChecksum(part));
+    }
+    return result;
+}
+
+bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
+{
+    if (Key != other.Key || Message.Size() != other.Message.Size()) {
+        return false;
+    }
+    for (int i = 0; i < static_cast<int>(Message.Size()); ++i) {
+        if (!TRef::AreBitwiseEqual(Message[i], other.Message[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+TStickyGroupSizeCache::TStickyGroupSizeCache(TDuration expirationTimeout)
+    : AdvisedStickyGroupSize_(New<TSyncExpiringCache<TKey, std::optional<int>>>(
+        BIND([] (const TKey& /*key*/) {
+            return std::nullopt;
+        }),
+        expirationTimeout,
+        GetSyncInvoker()))
+{ }
+
+void TStickyGroupSizeCache::UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize)
+{
+    AdvisedStickyGroupSize_->Set(key, stickyGroupSize);
+}
+
+std::optional<int> TStickyGroupSizeCache::GetAdvisedStickyGroupSize(const TKey& key)
+{
+    auto result = AdvisedStickyGroupSize_->Find(key);
+    return result.value_or(std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

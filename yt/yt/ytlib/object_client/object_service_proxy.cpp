@@ -15,6 +15,7 @@ namespace NYT::NObjectClient {
 
 using namespace NYTree;
 using namespace NRpc;
+using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,11 +23,22 @@ static const auto& Logger = ObjectClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(IChannelPtr channel, int subbatchSize)
+TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel, TStickyGroupSizeCachePtr stickyGroupSizeCache)
+    : TProxyBase(std::move(channel), GetDescriptor()) 
+    , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
+{ }
+
+TStickyGroupSizeCache::TKey TObjectServiceProxy::TReqExecuteSubbatch::TInnerRequestDescriptor::GetKey() const
+{
+    return {Key, Message};
+}
+
+TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(IChannelPtr channel, int subbatchSize, TStickyGroupSizeCachePtr stickyGroupSizeCache)
     : TClientRequest(
         std::move(channel),
         TObjectServiceProxy::GetDescriptor(),
         TMethodDescriptor("Execute"))
+    , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , SubbatchSize_(subbatchSize)
 {
     SetHeavy(true);
@@ -34,6 +46,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(IChannelPtr channe
 
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(const TReqExecuteSubbatch& other)
     : TClientRequest(other)
+    , StickyGroupSizeCache_(other.StickyGroupSizeCache_)
     , OriginalRequestId_(other.OriginalRequestId_)
     , SuppressUpstreamSync_(other.SuppressUpstreamSync_)
     , SuppressTransactionCoordinatorSync_(other.SuppressTransactionCoordinatorSync_)
@@ -72,7 +85,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::DoInvoke()
         }
     }
 
-    auto batchRsp = New<TRspExecuteBatch>(CreateClientContext(), InnerRequestDescriptors_);
+    auto batchRsp = New<TRspExecuteBatch>(CreateClientContext(), InnerRequestDescriptors_, StickyGroupSizeCache_);
     auto promise = batchRsp->GetPromise();
     if (GetSize() == 0) {
         batchRsp->SetEmpty();
@@ -95,6 +108,12 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
     req.set_suppress_transaction_coordinator_sync(SuppressTransactionCoordinatorSync_);
     req.set_allow_backoff(true);
     req.set_supports_portals(true);
+
+    if (Header_.HasExtension(NRpc::NProto::TBalancingExt::balancing_ext)) {
+        auto currentStickyGroupSize = Header_.GetExtension(NRpc::NProto::TBalancingExt::balancing_ext).sticky_group_size();
+        req.set_current_sticky_group_size(currentStickyGroupSize);
+    }
+
     for (const auto& descriptor : InnerRequestDescriptors_) {
         req.add_part_counts(descriptor.Message.Size());
     }
@@ -130,8 +149,11 @@ size_t TObjectServiceProxy::TReqExecuteSubbatch::GetHash() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(IChannelPtr channel, int subbatchSize)
-    : TReqExecuteSubbatch(std::move(channel), subbatchSize)
+TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
+    IChannelPtr channel,
+    int subbatchSize,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache)
+    : TReqExecuteSubbatch(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
 { }
 
 TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
@@ -228,10 +250,16 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteBatch::PatchForRetry(const TShar
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
+    SetBalancingHeader();
     FullResponsePromise_ = NewPromise<TRspExecuteBatchPtr>();
     PushDownPrerequisites();
     InvokeNextBatch();
     return FullResponsePromise_;
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::SetDefaultStickyGroupSize(int defaultStickyGroupSize)
+{
+    DefaultStickyGroupSize_ = defaultStickyGroupSize;
 }
 
 TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
@@ -240,8 +268,10 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     : TReqExecuteBatchBase(other, std::move(innerRequestDescriptors))
 { }
 
-TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(IChannelPtr channel, int subbatchSize)
-    : TReqExecuteBatchBase(std::move(channel), subbatchSize)
+TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(IChannelPtr channel,
+    int subbatchSize,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache)
+    : TReqExecuteBatchBase(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
 { }
 
 TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatch::FormNextBatch()
@@ -293,6 +323,7 @@ TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::
         FullResponse_ = New<TRspExecuteBatch>(
             CreateClientContext(),
             InnerRequestDescriptors_,
+            StickyGroupSizeCache_,
             FullResponsePromise_);
     }
     return FullResponse_;
@@ -370,14 +401,53 @@ bool TObjectServiceProxy::TReqExecuteBatch::IsSubresponseReceived(int index) con
     return FullResponse_ ? FullResponse_->IsResponseReceived(index) : false;
 }
 
+void TObjectServiceProxy::TReqExecuteBatch::SetBalancingHeader()
+{
+    if (!DefaultStickyGroupSize_) {
+        return;
+    }
+
+    auto* balancingHeaderExt = Header_.MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+    balancingHeaderExt->set_enable_stickiness(true);
+
+    auto stickyGroupSize = *DefaultStickyGroupSize_;
+    auto advisedStickyGroupSize = GetAdvisedStickyGroupSize();
+    if (advisedStickyGroupSize) {
+        stickyGroupSize = std::max(stickyGroupSize, *advisedStickyGroupSize);
+    }
+    balancingHeaderExt->set_sticky_group_size(stickyGroupSize);
+}
+
+std::optional<int> TObjectServiceProxy::TReqExecuteBatch::GetAdvisedStickyGroupSize() const
+{
+    if (!StickyGroupSizeCache_) {
+        return std::nullopt;
+    }
+
+    std::optional<int> advisedStickyGroupSize;
+
+    for (const auto& descriptor : InnerRequestDescriptors_) {
+        auto key = descriptor.GetKey();
+        auto subrequestAdvisedStickyGroupSize = StickyGroupSizeCache_->GetAdvisedStickyGroupSize(key);
+        if (!advisedStickyGroupSize) {
+            advisedStickyGroupSize = subrequestAdvisedStickyGroupSize;
+        } else if (subrequestAdvisedStickyGroupSize) {
+            advisedStickyGroupSize = std::max(subrequestAdvisedStickyGroupSize, advisedStickyGroupSize);
+        }
+    }
+
+    return advisedStickyGroupSize;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
     IChannelPtr channel,
     TReqExecuteBatchWithRetriesConfigPtr config,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache,
     TCallback<bool(int, const TError&)> needRetry,
     int subbatchSize)
-    : TReqExecuteBatchBase(std::move(channel), subbatchSize)
+    : TReqExecuteBatchBase(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
     , Config_(std::move(config))
     , NeedRetry_(BIND(std::move(needRetry), std::cref(CurrentRetry_)))
 { }
@@ -385,8 +455,9 @@ TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
 TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
     IChannelPtr channel,
     TReqExecuteBatchWithRetriesConfigPtr config,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache,
     int subbatchSize)
-    : TReqExecuteBatchBase(std::move(channel), subbatchSize)
+    : TReqExecuteBatchBase(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
     , Config_(std::move(config))
     , NeedRetry_(BIND(&TObjectServiceProxy::TReqExecuteBatchWithRetries::IsRetryNeeded, Unretained(this)))
 { }
@@ -404,6 +475,7 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::Initialize()
     FullResponse_ = New<TRspExecuteBatch>(
         CreateClientContext(),
         InnerRequestDescriptors_,
+        StickyGroupSizeCache_,
         FullResponsePromise_);
 
     // First batch contains all requests so fill in all the indexes.
@@ -507,21 +579,14 @@ TDuration TObjectServiceProxy::TReqExecuteBatchWithRetries::GetCurrentDelay()
 TObjectServiceProxy::TRspExecuteBatch::TRspExecuteBatch(
     TClientContextPtr clientContext,
     const std::vector<TReqExecuteSubbatch::TInnerRequestDescriptor>& innerRequestDescriptors,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache,
     TPromise<TRspExecuteBatchPtr> promise)
     : TClientResponse(std::move(clientContext))
+    , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , InnerResponseDescriptors_(innerRequestDescriptors.size())
+    , InnerRequestDescriptors_(std::move(innerRequestDescriptors))
     , Promise_(promise ? std::move(promise) : NewPromise<TRspExecuteBatchPtr>())
-{
-    // Transform from TReqExecuteSubbatch::TInnerRequestDescriptor to TRspExecuteBatch::TInnerRequestDescriptor.
-    InnerRequestDescriptors_.reserve(innerRequestDescriptors.size());
-    std::transform(
-        innerRequestDescriptors.begin(),
-        innerRequestDescriptors.end(),
-        std::back_inserter(InnerRequestDescriptors_),
-        [] (const TReqExecuteSubbatch::TInnerRequestDescriptor& descriptor) {
-            return TInnerRequestDescriptor{descriptor.Key, descriptor.Tag};
-        });
-}
+{ }
 
 TPromise<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TRspExecuteBatch::GetPromise()
 {
@@ -564,6 +629,11 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
             auto i = subresponse.index();
             auto partCount = subresponse.part_count();
             auto revision = subresponse.revision();
+            if (subresponse.has_advised_sticky_group_size() && StickyGroupSizeCache_) {
+                auto advisedStickyGroupSize = subresponse.advised_sticky_group_size();
+                auto key = InnerRequestDescriptors_[i].GetKey();
+                StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
+            }
             InnerResponseDescriptors_[i].Meta = {{partIndex, partIndex + partCount}, revision};
             partIndex += partCount;
         }
@@ -577,6 +647,7 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
 
         YT_VERIFY(InnerResponseDescriptors_.size() >= body.part_counts_size());
         YT_VERIFY(body.revisions_size() == body.part_counts_size() || body.revisions_size() == 0);
+        YT_VERIFY(body.advised_sticky_group_size_size() == body.part_counts_size() || body.advised_sticky_group_size_size() == 0);
 
         auto revisions = body.revisions_size() == 0
             ? std::vector<ui64>(body.part_counts_size())
@@ -587,6 +658,12 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
             auto partCount = body.part_counts(i);
             InnerResponseDescriptors_[i].Meta = {{partIndex, partIndex + partCount}, revisions[i]};
             partIndex += partCount;
+
+            if (body.advised_sticky_group_size_size() > 0 && StickyGroupSizeCache_) {
+                auto advisedStickyGroupSize = body.advised_sticky_group_size(i);
+                auto key = InnerRequestDescriptors_[i].GetKey();
+                StickyGroupSizeCache_->UpdateAdvisedStickyGroupSize(key, advisedStickyGroupSize);
+            }
         }
 
         ResponseCount_ = body.part_counts_size();
@@ -743,14 +820,14 @@ NHydra::TRevision TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) 
 
 TObjectServiceProxy::TReqExecuteBatchPtr TObjectServiceProxy::ExecuteBatch(int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatch>(Channel_, subbatchSize);
+    auto batchReq = New<TReqExecuteBatch>(Channel_, subbatchSize, StickyGroupSizeCache_);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }
 
 TObjectServiceProxy::TReqExecuteBatchBasePtr TObjectServiceProxy::ExecuteBatchNoBackoffRetries(int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatchBase>(Channel_, subbatchSize);
+    auto batchReq = New<TReqExecuteBatchBase>(Channel_, subbatchSize, StickyGroupSizeCache_);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }
@@ -758,7 +835,7 @@ TObjectServiceProxy::TReqExecuteBatchBasePtr TObjectServiceProxy::ExecuteBatchNo
 TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
 TObjectServiceProxy::ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPtr config, int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), subbatchSize);
+    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), StickyGroupSizeCache_, subbatchSize);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }
@@ -769,7 +846,7 @@ TObjectServiceProxy::ExecuteBatchWithRetries(
     TCallback<bool(int, const TError&)> needRetry,
     int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), std::move(needRetry), subbatchSize);
+    auto batchReq = New<TReqExecuteBatchWithRetries>(Channel_, std::move(config), StickyGroupSizeCache_, std::move(needRetry), subbatchSize);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }

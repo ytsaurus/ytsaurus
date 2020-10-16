@@ -77,18 +77,19 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     {
         YT_LOG_INFO("Requesting chunk count");
 
+        auto connection = client->GetNativeConnection();
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache, userObject.ExternalCellTag);
-        TObjectServiceProxy proxy(channel);
+        TObjectServiceProxy proxy(channel, connection->GetStickyGroupSizeCache());
 
         auto masterReadOptions = TMasterReadOptions{
             .ReadFrom = EMasterChannelKind::Cache
         };
 
         auto batchReq = proxy.ExecuteBatch();
-        SetBalancingHeader(batchReq, client->GetNativeConnection()->GetConfig(), masterReadOptions);
+        SetBalancingHeader(batchReq, connection->GetConfig(), masterReadOptions);
 
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
-        SetCachingHeader(req, client->GetNativeConnection()->GetConfig(), masterReadOptions);
+        SetCachingHeader(req, connection->GetConfig(), masterReadOptions);
         SetSuppressAccessTracking(req, false);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",

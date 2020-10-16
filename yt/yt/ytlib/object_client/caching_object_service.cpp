@@ -39,8 +39,20 @@ using namespace NProfiling;
 
 struct TSubrequestResponse
 {
+    TSubrequestResponse() = default;
+
+    TSubrequestResponse(
+        TSharedRefArray message,
+        NHydra::TRevision revision,
+        double byteRate)
+        : Message(std::move(message))
+        , Revision(revision)
+        , ByteRate(byteRate)
+    { }
+
     TSharedRefArray Message;
     NHydra::TRevision Revision;
+    double ByteRate = 0.0; 
 };
 
 class TCachingObjectService
@@ -149,7 +161,8 @@ private:
                     attachments.begin() + attachmentIndex + partCount);
                 Promises_[subresponseIndex].Set({
                     TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{}),
-                    NHydra::NullRevision
+                    NHydra::NullRevision,
+                    1.0
                 });
                 attachmentIndex += partCount;
             }
@@ -238,7 +251,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
             asyncMasterResponseMessages.push_back(
                 cookie.GetValue().Apply(BIND([] (const TObjectServiceCacheEntryPtr& entry) -> TSubrequestResponse {
-                    return {entry->GetResponseMessage(), entry->GetRevision()};
+                    return {entry->GetResponseMessage(), entry->GetRevision(), entry->GetByteRate()};
                 })));
 
             if (cookie.IsActive()) {
@@ -319,7 +332,14 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             const auto& masterResponseMessages = masterResponseMessagesOrError.Value();
             
             auto& responseAttachments = response->Attachments();
-            for (const auto& subrequestResponse : masterResponseMessages) {
+            for (int subrequestIndex = 0; subrequestIndex < request->part_counts_size(); ++subrequestIndex) {
+                const auto& subrequestResponse = masterResponseMessages[subrequestIndex];
+                if (request->has_current_sticky_group_size()) {
+                    auto currentStickyGroupSize = request->current_sticky_group_size();
+                    auto totalSize = subrequestResponse.ByteRate * currentStickyGroupSize;
+                    auto advisedStickyGroupSize = 1 + static_cast<int>(totalSize / Config_->EntryByteRateLimit);
+                    response->add_advised_sticky_group_size(advisedStickyGroupSize);
+                }
                 const auto& masterResponseMessage = subrequestResponse.Message;
                 response->add_part_counts(masterResponseMessage.Size());
                 responseAttachments.insert(
@@ -328,7 +348,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     masterResponseMessage.End());
             }
 
-            for (const auto& [message, revision] : masterResponseMessages) {
+            for (const auto& [message, revision, rate] : masterResponseMessages) {
                 if (revision == NHydra::NullRevision) {
                     response->clear_revisions();
                     break;

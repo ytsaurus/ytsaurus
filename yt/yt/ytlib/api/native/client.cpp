@@ -345,7 +345,7 @@ void TClient::SetCachingHeader(
 }
 
 void TClient::SetBalancingHeader(
-    const IClientRequestPtr& request,
+    const TObjectServiceProxy::TReqExecuteBatchPtr& request,
     const TMasterReadOptions& options)
 {
     NApi::NNative::SetBalancingHeader(request, Connection_->GetConfig(), options);
@@ -357,7 +357,7 @@ std::unique_ptr<TProxy> TClient::CreateReadProxy(
     TCellTag cellTag)
 {
     auto channel = GetMasterChannelOrThrow(options.ReadFrom, cellTag);
-    return std::make_unique<TProxy>(channel);
+    return std::make_unique<TProxy>(channel, Connection_->GetStickyGroupSizeCache());
 }
 
 template std::unique_ptr<TObjectServiceProxy> TClient::CreateReadProxy<TObjectServiceProxy>(const TMasterReadOptions& options, TCellTag cellTag);

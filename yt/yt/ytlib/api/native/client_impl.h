@@ -26,6 +26,8 @@
 #include <yt/ytlib/tablet_client/master_tablet_service.h>
 
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
+#include <yt/ytlib/object_client/object_service_cache.h>
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -487,7 +489,7 @@ private:
         const NRpc::IClientRequestPtr& request,
         const TMasterReadOptions& options);
     void SetBalancingHeader(
-        const NRpc::IClientRequestPtr& request,
+        const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& request,
         const TMasterReadOptions& options);
 
     template <class TProxy>

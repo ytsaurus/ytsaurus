@@ -656,7 +656,7 @@ void TBootstrap::DoInitialize()
         CreateTimestampProviderChannel(timestampProviderConfig, MasterConnection_->GetChannelFactory()));
     RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
 
-    auto cache = New<TObjectServiceCache>(
+    ObjectServiceCache_ = New<TObjectServiceCache>(
         Config_->CachingObjectService,
         Logger,
         TProfiler("/cluster_node/master_cache"));
@@ -676,7 +676,7 @@ void TBootstrap::DoInitialize()
                     MasterConnection_->GetChannelFactory(),
                     EPeerKind::Follower),
                 masterConfig->RpcTimeout),
-            cache,
+            ObjectServiceCache_,
             masterConfig->CellId,
             Logger);
     };
@@ -780,6 +780,11 @@ void TBootstrap::DoRun()
         OrchidRoot_,
         "/dynamic_config_manager",
         CreateVirtualNode(DynamicConfigManager_->GetOrchidService()
+            ->Via(GetControlInvoker())));
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/object_service_cache",
+        CreateVirtualNode(ObjectServiceCache_->GetOrchidService()
             ->Via(GetControlInvoker())));
 
     SetBuildAttributes(OrchidRoot_, "node");

@@ -130,16 +130,17 @@ private:
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsSecondaryMaster()) {
+                auto connection = Bootstrap_->GetClusterConnection();
                 auto channel = MulticellManager_->FindMasterChannel(CellTag_, NHydra::EPeerKind::Follower);
-                NObjectClient::TObjectServiceProxy proxy(channel);
+                NObjectClient::TObjectServiceProxy proxy(channel, connection->GetStickyGroupSizeCache());
 
                 auto batchReq = proxy.ExecuteBatch();
                 batchReq->SetSuppressTransactionCoordinatorSync(true);
-                SetBalancingHeader(batchReq, Bootstrap_->GetClusterConnection()->GetConfig(), options);
+                SetBalancingHeader(batchReq, connection->GetConfig(), options);
 
                 auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();
                 req->set_populate_cluster_directory(true);
-                SetCachingHeader(req, Bootstrap_->GetClusterConnection()->GetConfig(), options);
+                SetCachingHeader(req, connection->GetConfig(), options);
                 batchReq->AddRequest(req);
 
                 auto batchRsp = WaitFor(batchReq->Invoke())

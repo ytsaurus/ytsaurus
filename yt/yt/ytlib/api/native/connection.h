@@ -18,6 +18,9 @@
 
 #include <yt/ytlib/hive/public.h>
 
+#include <yt/core/misc/ref.h>
+#include <yt/core/misc/sync_expiring_cache.h>
+
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +74,7 @@ struct IConnection
 
     virtual const NSecurityClient::TPermissionCachePtr& GetPermissionCache() = 0;
 
+    virtual const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() = 0;
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
@@ -84,6 +88,32 @@ struct IConnection
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStickyGroupSizeCache
+    : public TRefCounted
+{
+public:
+    struct TKey
+    {
+        std::optional<TString> Key;
+        TSharedRefArray Message;
+
+        operator size_t() const;
+        bool operator == (const TKey& other) const;
+    };
+
+    TStickyGroupSizeCache(TDuration expirationTimeout = TDuration::Seconds(30));
+
+    void UpdateAdvisedStickyGroupSize(const TKey& key, int stickyGroupSize);
+    std::optional<int> GetAdvisedStickyGroupSize(const TKey& key);
+
+private:
+    const TIntrusivePtr<TSyncExpiringCache<TKey, std::optional<int>>> AdvisedStickyGroupSize_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TStickyGroupSizeCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 

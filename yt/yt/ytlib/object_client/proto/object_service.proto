@@ -29,6 +29,9 @@ message TReqExecute
 
     // If |true|, the client supports TRspExecute.subresponses and TRspExecute.uncertain_subrequest_indexes.
     optional bool supports_portals = 5;
+
+    // Current sticky group size for batch
+    optional int32 current_sticky_group_size = 8;
 }
 
 message TRspExecute
@@ -52,6 +55,8 @@ message TRspExecute
         required int32 part_count = 2;
         // Hydra revision at the beginning of the subrequest execution.
         required uint64 revision = 3;
+        // Optimal sticky group size depending on request rate and response size.
+        optional int32 advised_sticky_group_size = 4;
     }
     // If non-empty, gives the detailed subresponse information in the new format.
     repeated TSubresponse subresponses = 3;
@@ -63,6 +68,9 @@ message TRspExecute
 
     // If true, next level cache is enabled.
     optional bool caching_enabled = 5 [default = false];
+
+    // Optimal sticky group size depending on request rate and response size.
+    repeated int32 advised_sticky_group_size = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

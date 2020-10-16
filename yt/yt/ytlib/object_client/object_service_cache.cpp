@@ -14,6 +14,8 @@
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/throttling_channel.h>
 
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/core/ytree/proto/ypath.pb.h>
 
 namespace NYT::NObjectClient {
@@ -24,6 +26,7 @@ using namespace NRpc::NProto;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYTree::NProto;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,14 +88,43 @@ TObjectServiceCacheEntry::TObjectServiceCacheEntry(
     bool success,
     NHydra::TRevision revision,
     TInstant timestamp,
-    TSharedRefArray responseMessage)
+    TSharedRefArray responseMessage,
+    double byteRate,
+    TInstant lastUpdateTime)
     : TAsyncCacheValueBase(key)
     , Success_(success)
     , ResponseMessage_(std::move(responseMessage))
     , TotalSpace_(GetByteSize(ResponseMessage_))
     , Timestamp_(timestamp)
     , Revision_(revision)
+    , ByteRate_(byteRate)
+    , LastUpdateTime_(lastUpdateTime)
 { }
+
+void TObjectServiceCacheEntry::IncrementRate()
+{
+    TGuard guard(Lock_);
+
+    auto now = TInstant::Now();
+    if (LastUpdateTime_.load() == TInstant::Zero()) {
+        ByteRate_ = TotalSpace_;
+    } else {
+        auto sinceLast = now - LastUpdateTime_;
+        auto w = Exp2(-2. * sinceLast.SecondsFloat());
+        ByteRate_ = w * ByteRate_ + TotalSpace_;
+    }
+    LastUpdateTime_ = now;
+}
+
+double TObjectServiceCacheEntry::GetByteRate() const
+{
+    return ByteRate_;
+}
+
+TInstant TObjectServiceCacheEntry::GetLastUpdateTime() const
+{
+    return LastUpdateTime_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,12 +137,13 @@ TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TTagIdList& t
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectServiceCache::TObjectServiceCache(
-    TObjectServiceCacheConfigPtr config,
+    const TObjectServiceCacheConfigPtr& config,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
-    : TAsyncSlruCacheBase(std::move(config))
+    : TAsyncSlruCacheBase(config)
     , Logger(logger)
     , Profiler_(profiler)
+    , TopEntryByteRateThreshold_(config->TopEntryByteRateThreshold)
 { }
 
 TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
@@ -121,6 +154,15 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     NHydra::TRevision refreshRevision)
 {
     auto entry = Find(key);
+    auto tryRemove = [&] () {
+        {
+            TWriterGuard guard(ExpiredEntriesLock_);
+            ExpiredEntries_.emplace(key, entry);
+        }
+
+        TryRemove(entry);
+    };
+
     bool cacheHit = false;
     if (entry) {
         if (refreshRevision && entry->GetRevision() != NHydra::NullRevision && entry->GetRevision() <= refreshRevision) {
@@ -130,7 +172,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
                 entry->GetRevision(),
                 entry->GetSuccess());
 
-            TryRemove(entry);
+            tryRemove();
         } else if (IsExpired(entry, successExpirationTime, failureExpirationTime)) {
             YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Revision: %llx, Success: %v)",
                 requestId,
@@ -138,7 +180,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
                 entry->GetRevision(),
                 entry->GetSuccess());
 
-            TryRemove(entry);
+            tryRemove();
         } else {
             cacheHit = true;
             YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Revision: %llx, Success: %v)",
@@ -146,6 +188,14 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
                 key,
                 entry->GetRevision(),
                 entry->GetSuccess());
+        }
+
+        TouchEntry(entry);
+    } else {
+        TReaderGuard guard(ExpiredEntriesLock_);
+
+        if (auto it = ExpiredEntries_.find(key); it != ExpiredEntries_.end()) {
+            TouchEntry(it->second);
         }
     }
 
@@ -175,14 +225,36 @@ void TObjectServiceCache::EndLookup(
         revision,
         success);
 
+    auto rate = 0.0;
+    auto lastUpdateTime = TInstant::Now();
+    {
+        TWriterGuard guard(ExpiredEntriesLock_);
+
+        if (auto it = ExpiredEntries_.find(key); it != ExpiredEntries_.end()) {
+            const auto& expiredEntry = it->second;
+            rate = expiredEntry->GetByteRate();
+            lastUpdateTime = expiredEntry->GetLastUpdateTime();
+            ExpiredEntries_.erase(it);
+        }
+    }
+
     auto entry = New<TObjectServiceCacheEntry>(
         key,
         success,
         revision,
         TInstant::Now(),
-        responseMessage);
+        responseMessage,
+        rate,
+        lastUpdateTime);
+    TouchEntry(entry);
 
     cookie.EndInsert(entry);
+}
+
+IYPathServicePtr TObjectServiceCache::GetOrchidService()
+{
+    auto producer = BIND(&TObjectServiceCache::DoBuildOrchid, MakeStrong(this));
+    return IYPathService::FromProducer(producer);
 }
 
 TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TString& user, const TString& method)
@@ -240,6 +312,15 @@ void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
         entry->GetRevision(),
         entry->GetSuccess(),
         entry->GetTotalSpace());
+
+    TReaderGuard guard(ExpiredEntriesLock_);
+
+    if (!ExpiredEntries_.contains(key)) {
+        TWriterGuard guard(TopEntriesLock_);
+        if (TopEntries_.erase(key) > 0) {
+            YT_LOG_DEBUG("Removed entry from top (Key: %v)", key);
+        }
+    }
 }
 
 i64 TObjectServiceCache::GetWeight(const TObjectServiceCacheEntryPtr& entry) const
@@ -257,6 +338,74 @@ bool TObjectServiceCache::IsExpired(
     return
         TInstant::Now() > entry->GetTimestamp() +
         (entry->GetSuccess() ? successExpirationTime : failureExpirationTime);
+}
+
+void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& key = entry->GetKey();
+
+    auto previous = entry->GetByteRate();
+    entry->IncrementRate();
+    auto current = entry->GetByteRate();
+
+    if (previous < TopEntryByteRateThreshold_ && current >= TopEntryByteRateThreshold_) {
+        TWriterGuard guard(TopEntriesLock_);
+
+        if (entry->GetByteRate() >= TopEntryByteRateThreshold_) {
+            if (TopEntries_.emplace(key, entry).second) {
+                YT_LOG_DEBUG("Added entry to top (Key: %v, ByteRate: %v -> %v)",
+                    key,
+                    previous,
+                    current);
+            }
+        }
+    }
+
+    if (previous >= TopEntryByteRateThreshold_ && current < TopEntryByteRateThreshold_) {
+        TWriterGuard guard(TopEntriesLock_);
+
+        if (entry->GetByteRate() < TopEntryByteRateThreshold_) {
+            if (TopEntries_.erase(key) > 0) {
+                YT_LOG_DEBUG("Removed entry from top (Key: %v, ByteRate: %v -> %v)",
+                    key,
+                    previous,
+                    current);
+            }
+        }
+    }
+}
+
+void TObjectServiceCache::DoBuildOrchid(IYsonConsumer* consumer)
+{
+    std::vector<std::pair<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr>> top;
+    {
+        TReaderGuard guard(TopEntriesLock_);
+        top = {TopEntries_.begin(), TopEntries_.end()};
+    }
+
+    std::sort(top.begin(), top.end(), [] (const auto& rhs, const auto& lhs) {
+        return rhs.second->GetByteRate() > lhs.second->GetByteRate();
+    });
+
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("top_requests")
+                .DoListFor(top, [&] (auto fluent, const auto& item) {
+                    const auto& [key, entry] = item;
+                    fluent
+                        .Item().BeginMap()
+                            .Item("cell_tag").Value(key.CellTag)
+                            .Item("user").Value(key.User)
+                            .Item("service").Value(key.Service)
+                            .Item("method").Value(key.Method)
+                            .Item("path").Value(key.Path)
+                            .Item("request_body_hash").Value(key.RequestBodyHash)
+                            .Item("byte_rate").Value(entry->GetByteRate())
+                        .EndMap();
+                })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

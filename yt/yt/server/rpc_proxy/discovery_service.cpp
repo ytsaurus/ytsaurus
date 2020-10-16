@@ -276,11 +276,12 @@ private:
             1
         };
 
+        auto connection = Bootstrap_->GetNativeConnection();
         auto channel = RootClient_->GetMasterChannelOrThrow(options.ReadFrom);
-        TObjectServiceProxy proxy(channel);
+        TObjectServiceProxy proxy(channel, connection->GetStickyGroupSizeCache());
 
         auto batchReq = proxy.ExecuteBatch();
-        SetBalancingHeader(batchReq, Bootstrap_->GetNativeConnection()->GetConfig(), options);
+        SetBalancingHeader(batchReq, connection->GetConfig(), options);
         batchReq->SetTimeout(Config_->ProxyUpdatePeriod);
 
         {
@@ -292,7 +293,7 @@ private:
                     BannedAttributeName,
                     BanMessageAttributeName,
                 });
-            SetCachingHeader(req, Bootstrap_->GetNativeConnection()->GetConfig(), options);
+            SetCachingHeader(req, connection->GetConfig(), options);
             batchReq->AddRequest(req, "get_ban");
         }
 
@@ -305,7 +306,7 @@ private:
                     BannedAttributeName,
                     ConfigAttributeName,
                 });
-            SetCachingHeader(req, Bootstrap_->GetNativeConnection()->GetConfig(), options);
+            SetCachingHeader(req, connection->GetConfig(), options);
             batchReq->AddRequest(req, "get_proxies");
         }
 

@@ -4,6 +4,9 @@
 
 #include <yt/ytlib/object_client/proto/object_service.pb.h>
 
+#include <yt/ytlib/api/native/public.h>
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/client/hydra/public.h>
@@ -60,6 +63,10 @@ public:
     DEFINE_RPC_PROXY(TObjectServiceProxy, ObjectService,
         .SetProtocolVersion(12));
 
+    TObjectServiceProxy(
+        NRpc::IChannelPtr channel,
+        NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
+
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
 
@@ -92,6 +99,8 @@ private:
             std::any Tag;
             TSharedRefArray Message;
             std::optional<size_t> Hash;
+
+            NApi::NNative::TStickyGroupSizeCache::TKey GetKey() const;
         };
 
         //! Returns the current number of individual requests in the batch.
@@ -100,12 +109,17 @@ private:
         virtual size_t GetHash() const override;
 
     protected:
+        const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
+
         std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
         NRpc::TRequestId OriginalRequestId_;
         bool SuppressUpstreamSync_ = false;
         bool SuppressTransactionCoordinatorSync_ = false;
 
-        explicit TReqExecuteSubbatch(NRpc::IChannelPtr channel, int subbatchSize);
+        TReqExecuteSubbatch(
+            NRpc::IChannelPtr channel,
+            int subbatchSize,
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
         explicit TReqExecuteSubbatch(const TReqExecuteSubbatch& other);
         TReqExecuteSubbatch(
             const TReqExecuteSubbatch& other,
@@ -124,6 +138,8 @@ private:
     };
 
     using TReqExecuteSubbatchPtr = TIntrusivePtr<TReqExecuteSubbatch>;
+
+    const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
 
 public:
     class TReqExecuteBatchBase
@@ -163,9 +179,14 @@ public:
         TFuture<TRspExecuteBatchPtr> Invoke();
 
     protected:
-        explicit TReqExecuteBatchBase(NRpc::IChannelPtr channel, int subbatchSize);
+        TReqExecuteBatchBase(
+            NRpc::IChannelPtr channel,
+            int subbatchSize,
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
         explicit TReqExecuteBatchBase(const TReqExecuteBatchBase& other);
-        TReqExecuteBatchBase(const TReqExecuteBatchBase& other, std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
+        TReqExecuteBatchBase(
+            const TReqExecuteBatchBase& other,
+            std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
 
         DECLARE_NEW_FRIEND();
 
@@ -189,14 +210,22 @@ public:
     public:
         //! Starts the asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
+        void SetDefaultStickyGroupSize(int defaultStickyGroupSize);
 
     protected:
-        explicit TReqExecuteBatch(NRpc::IChannelPtr channel, int subbatchSize);
-        TReqExecuteBatch(const TReqExecuteBatchBase& other, std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
+        TReqExecuteBatch(
+            NRpc::IChannelPtr channel,
+            int subbatchSize,
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
+        TReqExecuteBatch(
+            const TReqExecuteBatchBase& other,
+            std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
 
     private:
         TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> CurrentReqFuture_;
         bool IsFirstBatch_ = true;
+
+        std::optional<int> DefaultStickyGroupSize_;
 
         DECLARE_NEW_FRIEND();
 
@@ -212,8 +241,11 @@ public:
         int GetFirstUnreceivedSubresponseIndex() const;
         bool IsSubresponseUncertain(int index) const;
         bool IsSubresponseReceived(int index) const;
+        void SetBalancingHeader();
 
         TRspExecuteBatchPtr GetFullResponse();
+
+        std::optional<int> GetAdvisedStickyGroupSize() const;
     };
 
     class TReqExecuteBatchWithRetries
@@ -228,11 +260,13 @@ public:
         TReqExecuteBatchWithRetries(
             NRpc::IChannelPtr channel,
             TReqExecuteBatchWithRetriesConfigPtr config,
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
             TCallback<bool(int, const TError&)>,
             int subbatchSize = DefaultSubbatchSize);
         TReqExecuteBatchWithRetries(
             NRpc::IChannelPtr channel,
             TReqExecuteBatchWithRetriesConfigPtr config,
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
             int subbatchSize = DefaultSubbatchSize);
 
         DECLARE_NEW_FRIEND();
@@ -338,12 +372,6 @@ public:
         friend class TReqExecuteBatch;
         friend class TReqExecuteBatchWithRetries;
 
-        struct TInnerRequestDescriptor
-        {
-            std::optional<TString> Key;
-            std::any Tag;
-        };
-
         struct TResponseMeta
         {
             std::pair<int, int> PartRange;
@@ -362,15 +390,19 @@ public:
             std::vector<TSharedRef>::const_iterator End;
         };
 
-        std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
+        const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
+
         std::vector<TInnerResponseDescriptor> InnerResponseDescriptors_;
+        std::vector<TReqExecuteSubbatch::TInnerRequestDescriptor> InnerRequestDescriptors_;
+
         int ResponseCount_ = 0; // the number of items in InnerResponseDescriptors_ with non-null meta
         TPromise<TRspExecuteBatchPtr> Promise_ = NewPromise<TRspExecuteBatchPtr>();
         int FirstUnreceivedResponseIndex_ = 0;
 
-        explicit TRspExecuteBatch(
+        TRspExecuteBatch(
             NRpc::TClientContextPtr clientContext,
             const std::vector<TReqExecuteSubbatch::TInnerRequestDescriptor>& innerRequestDescriptors,
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
             TPromise<TRspExecuteBatchPtr> promise = {});
 
         DECLARE_NEW_FRIEND();
