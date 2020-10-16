@@ -90,8 +90,7 @@ lazy val `client` = (project in file("client"))
     ),
     sparkAdditionalPython := Seq(
       (sourceDirectory in `data-source`).value / "main" / "python"
-    ),
-    sparkReleaseGlobalConfig := false
+    )
   )
   .settings(
     debPackagePrefixPath := "/usr/lib/yandex",
@@ -99,7 +98,7 @@ lazy val `client` = (project in file("client"))
     debPackageVersion := {
       val debBuildNumber = Option(System.getProperty("build")).getOrElse("")
       val beta = if ((version in ThisBuild).value.contains("SNAPSHOT")) "~beta1" else ""
-      s"#$sparkVersion-${(version in ThisBuild).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
+      s"$sparkVersion-${(version in ThisBuild).value.takeWhile(_ != '-')}$beta+yandex$debBuildNumber"
     },
     version := debPackageVersion.value,
     packageSummary := "Spark over YT Client Debian Package",
