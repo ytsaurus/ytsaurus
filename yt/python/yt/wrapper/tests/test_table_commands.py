@@ -217,19 +217,24 @@ class TestTableCommands(object):
 
     @authors("asaitgalin", "babenko")
     def test_schemaful_parallel_write(self):
-        yt.create("table", "//tmp/table", recursive=True,
+        yt.create(
+            "table",
+            "//tmp/table",
+            recursive=True,
             attributes={
-                "schema":
-                    [
-                        {"name": "id", "type": "int64"},
-                        {"name": "value", "type": "double"},
-                    ]
+                "schema": [
+                    {"name": "id", "type": "int64"},
+                    {"name": "value", "type": "double"},
+                ],
+                "optimize_for": "scan",
             })
 
         data = [{"id": i, "value": 0.9 * i} for i in xrange(64)]
         with set_config_option("write_parallel/enable", True):
             with set_config_option("write_retries/chunk_size", 256):
                 yt.write_table("//tmp/table", data)
+
+        assert yt.get("//tmp/table/@optimize_for_statistics/scan/chunk_count") > 0
 
     @authors("levysotsky")
     def test_schemaful_parallel_write_typed_schema(self):
