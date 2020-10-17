@@ -13,18 +13,7 @@ TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
 {
     auto nameTable = New<TNameTable>();
     for (const auto& column : schema.Columns()) {
-        nameTable->DoRegisterName(column.Name());
-    }
-    return nameTable;
-}
-
-TNameTablePtr TNameTable::SafeFromSchema(const TTableSchema& schema)
-{
-    ValidateColumnUniqueness(schema);
-
-    auto nameTable = New<TNameTable>();
-    for (const auto& column : schema.Columns()) {
-        nameTable->DoRegisterName(column.Name());
+        nameTable->DoRegisterNameOrThrow(column.Name());
     }
     return nameTable;
 }
@@ -33,7 +22,7 @@ TNameTablePtr TNameTable::FromKeyColumns(const TKeyColumns& keyColumns)
 {
     auto nameTable = New<TNameTable>();
     for (const auto& name : keyColumns) {
-        nameTable->DoRegisterName(name);
+        nameTable->DoRegisterNameOrThrow(name);
     }
     return nameTable;
 }
@@ -117,11 +106,7 @@ int TNameTable::RegisterName(TStringBuf name)
 int TNameTable::RegisterNameOrThrow(TStringBuf name)
 {
     TGuard<TAdaptiveLock> guard(SpinLock_);
-    auto optionalId = NameToId_.find(name);
-    if (optionalId != NameToId_.end()) {
-        THROW_ERROR_EXCEPTION("Cannot register column %Qv: column already exists", name);
-    }
-    return DoRegisterName(name);
+    return DoRegisterNameOrThrow(name);
 }
 
 int TNameTable::GetIdOrRegisterName(TStringBuf name)
@@ -160,6 +145,15 @@ int TNameTable::DoRegisterName(TStringBuf name)
     YT_VERIFY(NameToId_.emplace(savedName, id).second);
     ByteSize_ += savedName.length();
     return id;
+}
+
+int TNameTable::DoRegisterNameOrThrow(TStringBuf name)
+{
+    auto optionalId = NameToId_.find(name);
+    if (optionalId != NameToId_.end()) {
+        THROW_ERROR_EXCEPTION("Cannot register column %Qv: column already exists", name);
+    }
+    return DoRegisterName(name);
 }
 
 const std::vector<TString>& TNameTable::GetNames() const

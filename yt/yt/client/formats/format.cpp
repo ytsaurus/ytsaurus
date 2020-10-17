@@ -269,8 +269,7 @@ IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
 
             return CreateWriterForWebJson(
                 std::move(webJsonFormatConfig),
-                // WebJson expects that columns are unique, SafeFromSchema checks this fact.
-                TNameTable::SafeFromSchema(*schema),
+                TNameTable::FromSchema(*schema),
                 {schema},
                 std::move(output));
         }

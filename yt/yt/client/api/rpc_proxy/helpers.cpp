@@ -1439,7 +1439,10 @@ TTableSchemaPtr DeserializeRowsetSchema(
             columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
         }
     }
-    return New<TTableSchema>(std::move(columns));
+    
+    auto schema = New<TTableSchema>(std::move(columns));
+    ValidateColumnUniqueness(*schema);
+    return schema;
 }
 
 namespace {

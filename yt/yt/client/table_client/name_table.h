@@ -14,7 +14,6 @@ class TNameTable
 {
 public:
     static TNameTablePtr FromSchema(const TTableSchema& schema);
-    static TNameTablePtr SafeFromSchema(const TTableSchema& schema);
     static TNameTablePtr FromKeyColumns(const TKeyColumns& keyColumns);
 
     TNameTable() = default;
@@ -47,7 +46,7 @@ private:
     i64 ByteSize_ = 0;
 
     int DoRegisterName(TStringBuf name);
-
+    int DoRegisterNameOrThrow(TStringBuf name);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNameTable)
