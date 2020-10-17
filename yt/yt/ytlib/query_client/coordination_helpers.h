@@ -558,7 +558,7 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
     std::vector<TSharedRange<TRowRange>> groupedSplits;
     std::vector<TRowRange> group;
 
-    auto holder = MakeIntrinsicHolder(ranges.GetHolder(), rowBuffer);
+    auto holder = MakeCompositeHolder(ranges.GetHolder(), rowBuffer);
 
     size_t currentShardCount = 0;
     size_t lastSampleCount = 0;
