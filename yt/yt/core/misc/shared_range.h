@@ -98,7 +98,7 @@ protected:
 
 //! Constructs a combined holder instance by taking ownership of a given list of holders.
 template <class... THolders>
-TIntrusivePtr<TRefCounted> MakeIntrinsicHolder(THolders&&... holders)
+TIntrusivePtr<TRefCounted> MakeCompositeHolder(THolders&&... holders)
 {
     struct THolder
         : public TRefCounted
@@ -154,7 +154,7 @@ TSharedRange<T> MakeSharedRange(const std::vector<T>& elements, THolders&&... ho
 template <class T, class... THolders>
 TSharedRange<T> MakeSharedRange(TRange<T> range, THolders&&... holders)
 {
-    return TSharedRange<T>(range, MakeIntrinsicHolder(std::forward<THolders>(holders)...));
+    return TSharedRange<T>(range, MakeCompositeHolder(std::forward<THolders>(holders)...));
 }
 
 template <class U, class T>
