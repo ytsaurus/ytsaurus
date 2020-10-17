@@ -632,8 +632,8 @@ void TWriterForWebJson<TValueWriter>::DoWrite(TRange<TUnversionedRow> rows)
         ResponseBuilder_->OnBeginMap();
 
         for (auto value : row) {
-            TStringBuf columnName;
-            if (!NameTableReader_.TryGetName(value.Id, columnName)) {
+            auto columnName = NameTableReader_.FindName(value.Id);
+            if (!columnName) {
                 continue;
             }
 

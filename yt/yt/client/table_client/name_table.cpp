@@ -169,23 +169,21 @@ TNameTableReader::TNameTableReader(TNameTablePtr nameTable)
     Fill();
 }
 
-bool TNameTableReader::TryGetName(int id, TStringBuf& name) const
+TStringBuf TNameTableReader::FindName(int id) const
 {
     if (id < 0) {
-        return false;
+        return {};
     }
 
     if (id >= IdToNameCache_.size()) {
         Fill();
 
         if (id >= IdToNameCache_.size()) {
-            return false;
+            return {};
         }
     }
 
-    name = IdToNameCache_[id];
-
-    return true;
+    return IdToNameCache_[id];
 }
 
 TStringBuf TNameTableReader::GetName(int id) const
