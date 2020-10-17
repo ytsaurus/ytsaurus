@@ -60,7 +60,7 @@ class TNameTableReader
 public:
     explicit TNameTableReader(TNameTablePtr nameTable);
 
-    bool TryGetName(int id, TStringBuf& name) const;
+    TStringBuf FindName(int id) const;
     TStringBuf GetName(int id) const;
     int GetSize() const;
 
