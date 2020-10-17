@@ -205,7 +205,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_outer)
         ping_transaction(tx_inner)
 
-        sleep(2)
+        sleep(2.5)
         # check that outer tx expired (and therefore inner was aborted)
         assert not exists("//sys/transactions/" + tx_inner)
         assert not exists("//sys/transactions/" + tx_outer)
