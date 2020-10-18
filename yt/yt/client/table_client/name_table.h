@@ -16,9 +16,6 @@ public:
     static TNameTablePtr FromSchema(const TTableSchema& schema);
     static TNameTablePtr FromKeyColumns(const TKeyColumns& keyColumns);
 
-    TNameTable() = default;
-    TNameTable(const TNameTable& other);
-
     int GetSize() const;
     i64 GetByteSize() const;
 
