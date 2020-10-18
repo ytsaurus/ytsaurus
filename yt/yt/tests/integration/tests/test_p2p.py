@@ -126,6 +126,9 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
                 "consecutive_distribution_delay": 200,
             },
             "net_out_throttling_limit": 1,
+            "total_out_throttler": {
+                "limit": 128,
+            },
             "block_cache": {
                 "compressed_data": {
                     "capacity": 256 * 1024 * 1024,
@@ -149,7 +152,7 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
         metric_ns2_delta = Metric.at_node(self.non_seeds[2], "data_node/block_cache/compressed_data/hit")
 
         def read_table():
-            for i in range(300):
+            for i in range(10):
                 self._access()
 
         readers = []
