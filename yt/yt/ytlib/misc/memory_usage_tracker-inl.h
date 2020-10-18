@@ -31,8 +31,8 @@ TMemoryUsageTracker<ECategory, TPoolTag>::TMemoryUsageTracker(
             {CategoryTagCache_.GetTag(category)});
     }
 
-    for (const auto& pair : limits) {
-        Categories_[pair.first].Limit = pair.second;
+    for (auto [category, limit] : limits) {
+        Categories_[category].Limit = limit;
     }
 
     PeriodicUpdater_ = New<NConcurrency::TPeriodicExecutor>(
@@ -164,12 +164,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::SetPoolWeight(const TPoolTag& poo
 
     auto* pool = GetOrRegisterPool(poolTag);
     TotalPoolWeight_ += newWeight - pool->Weight;
-
-    if (newWeight == 0) {
-        YT_VERIFY(Pools_.erase(poolTag) == 1);
-    } else {
-        pool->Weight = newWeight;
-    }
+    pool->Weight = newWeight;
 }
 
 template <class ECategory, class TPoolTag>
