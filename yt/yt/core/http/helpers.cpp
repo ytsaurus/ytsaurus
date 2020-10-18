@@ -176,7 +176,11 @@ static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
     "X-YT-Omit-Trailers",
     "X-YT-Request-Format-Options",
     "X-YT-Response-Format-Options",
-    "X-YT-Request-Id"
+    "X-YT-Request-Id",
+    "X-YT-Error",
+    "X-YT-Response-Code",
+    "X-YT-Response-Message",
+    "X-YT-Trace-Id",
 });
 
 bool MaybeHandleCors(const IRequestPtr& req, const IResponseWriterPtr& rsp, bool disableOriginCheck)
