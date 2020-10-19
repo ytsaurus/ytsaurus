@@ -1255,7 +1255,7 @@ def add_execute_parser(add_parser):
     parser.set_defaults(func=execute)
 
 def get_table_columnar_statistics(**kwargs):
-    print_to_stdout(yt.get_table_columnar_statistics(**kwargs), eoln=False)
+    print_to_stdout(dump_data(yt.get_table_columnar_statistics(**kwargs)), eoln=False)
 
 def add_get_table_columnar_statistics_parser(add_parser):
     parser = add_parser("get-table-columnar-statistics", help="get table columnar statistics")
