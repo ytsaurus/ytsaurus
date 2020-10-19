@@ -62,6 +62,22 @@ void TNonblockingBatch<T>::Drop()
         promise.Set(TBatch{});
     }
 }
+    
+template <class T>
+void TNonblockingBatch<T>::UpdateMaxBatchSize(int maxBatchSize)
+{
+    TGuard<TAdaptiveLock> guard(SpinLock_);
+    MaxBatchSize_ = maxBatchSize;
+}
+
+template <class T>
+void TNonblockingBatch<T>::UpdateBatchDuration(TDuration batchDuration)
+{
+    TGuard<TAdaptiveLock> guard(SpinLock_);
+    BatchDuration_ = batchDuration;
+}
+
+void UpdateBatchDuration(int batchDuration);
 
 template <class T>
 void TNonblockingBatch<T>::ResetTimer(TGuard<TAdaptiveLock>& guard)
