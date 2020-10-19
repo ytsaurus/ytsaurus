@@ -39,11 +39,14 @@ public:
     TFuture<TBatch> DequeueBatch();
     void Drop();
 
+    void UpdateMaxBatchSize(int maxBatchSize);
+    void UpdateBatchDuration(TDuration batchDuration);
+
 private:
     using ETimerState = ETNonblockingBatchTimerState;
 
-    const int MaxBatchSize_;
-    const TDuration BatchDuration_;
+    int MaxBatchSize_;
+    TDuration BatchDuration_;
 
     TAdaptiveLock SpinLock_;
     TBatch CurrentBatch_;
