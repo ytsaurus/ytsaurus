@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, patch_porto_env_only, wait, Restarter, CONTROLLER_AGENTS_SERVICE,
+    YTEnvSetup, unix_only, wait, Restarter, CONTROLLER_AGENTS_SERVICE,
 )
 from yt_commands import *
 from yt_helpers import *

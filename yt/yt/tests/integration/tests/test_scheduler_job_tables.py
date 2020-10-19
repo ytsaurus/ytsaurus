@@ -1,5 +1,5 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, \
-    patch_porto_env_only, skip_if_porto, is_asan_build, \
+    skip_if_porto, is_asan_build, \
     Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
@@ -1116,8 +1116,7 @@ class TestCoreTable(YTEnvSetup):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
-@patch_porto_env_only(TestCoreTable)
-class TestCoreTablePorto(YTEnvSetup):
+class TestCoreTablePorto(TestCoreTable):
     USE_PORTO = True
 
     @authors("dcherednik", "gritukan")

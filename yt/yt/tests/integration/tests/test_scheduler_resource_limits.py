@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, is_asan_build
+from yt_env_setup import YTEnvSetup, unix_only, is_asan_build
 from yt_commands import *
 
 from flaky import flaky

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto
+from yt_env_setup import YTEnvSetup, unix_only, wait, skip_if_porto
 from yt_commands import *
 
 

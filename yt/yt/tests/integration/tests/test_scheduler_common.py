@@ -1,7 +1,7 @@
 from __future__ import print_function
 import sys
 
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait,\
+from yt_env_setup import YTEnvSetup, unix_only, wait,\
     Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 from yt_commands import *
 from yt_helpers import *
@@ -1984,7 +1984,6 @@ class TestEventLog(YTEnvSetup):
 
 ##################################################################
 
-@patch_porto_env_only(YTEnvSetup)
 class TestJobStatisticsPorto(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_PORTO = True
