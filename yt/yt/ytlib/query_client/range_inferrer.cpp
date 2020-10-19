@@ -562,18 +562,19 @@ void EnrichKeyRange(
         yield();
 
         size_t evalIndex = computedColumns.size();
-        while (evalIndex > 0) {
-            auto columnIndex = computedColumns[evalIndex - 1].first;
-            auto& generator = computedColumns[evalIndex - 1].second;
+        while (evalIndex-- > 0) {
+            auto& [columnIndex, generator] = computedColumns[evalIndex];
             if (!generator || generator->Finished()) {
-                --evalIndex;
+                continue;
             } else {
                 YT_ASSERT(generator);
                 prefixRow[columnIndex] = generator->Next();
-                while (evalIndex < computedColumns.size()) {
-                    ++evalIndex;
-                    computedColumns[evalIndex - 1].second->Reset();
-                    auto columnIndex = computedColumns[evalIndex - 1].first;
+                while (++evalIndex < computedColumns.size()) {
+                    auto& [columnIndex, generator] = computedColumns[evalIndex];
+                    if (!generator) {
+                        continue;
+                    }
+                    generator->Reset();
                     prefixRow[columnIndex] = MakeUnversionedSentinelValue(EValueType::Null, columnIndex);
                 }
                 yield();
