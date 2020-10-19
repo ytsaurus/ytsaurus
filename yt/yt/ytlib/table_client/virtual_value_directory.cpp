@@ -18,7 +18,7 @@ void ToProto(NProto::TVirtualValueDirectory* protoDirectory, const TVirtualValue
     using NYT::ToProto;
 
     ToProto(protoDirectory->mutable_names(), directory->NameTable->GetNames());
-    for (auto& row : directory->Rows) {
+    for (auto row : directory->Rows) {
         protoDirectory->add_rows(SerializeToString(row));
     }
 

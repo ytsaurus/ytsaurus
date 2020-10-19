@@ -31,7 +31,7 @@ public:
     TStringBuf GetName(int id) const;
     TStringBuf GetNameOrThrow(int id) const;
 
-    const std::vector<TString>& GetNames() const;
+    std::vector<TString> GetNames() const;
 
 private:
     TAdaptiveLock SpinLock_;
@@ -39,7 +39,8 @@ private:
     bool EnableColumnNameValidation_ = false;
 
     std::vector<TString> IdToName_;
-    THashMap<TStringBuf, int> NameToId_; // String values are owned by IdToName_.
+    // String values are owned by IdToName_.
+    THashMap<TStringBuf, int> NameToId_;
     i64 ByteSize_ = 0;
 
     int DoRegisterName(TStringBuf name);
