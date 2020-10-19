@@ -50,4 +50,11 @@ class YtFileSystem extends YtFileSystemBase {
                       replication: Short, blockSize: Long, progress: Progressable): FSDataOutputStream = {
     create(f, permission, overwrite, bufferSize, replication, blockSize, progress, statistics)
   }
+
+  override def mkdirs(f: Path, permission: FsPermission): Boolean = {
+    implicit val ytClient: YtClient = yt
+    val path = ytPath(f)
+    YtWrapper.createDir(path, ignoreExisting = true)
+    true
+  }
 }
