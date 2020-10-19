@@ -1,7 +1,7 @@
 import yt_env_setup
 from yt_env_setup import (
     YTEnvSetup, unix_only,
-    Restarter, SCHEDULERS_SERVICE, patch_porto_env_only
+    Restarter, SCHEDULERS_SERVICE
 )
 from yt_commands import *
 
@@ -1158,8 +1158,7 @@ class TestJobStderr(YTEnvSetup):
 class TestJobStderrMulticell(TestJobStderr):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-@patch_porto_env_only(TestJobStderr)
-class TestJobStderrPorto(YTEnvSetup):
+class TestJobStderrPorto(TestJobStderr):
     USE_PORTO = True
 
 ##################################################################
@@ -1405,8 +1404,7 @@ class TestUserFiles(YTEnvSetup):
 class TestUserFilesMulticell(TestUserFiles):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-@patch_porto_env_only(TestUserFiles)
-class TestUserFilesPorto(YTEnvSetup):
+class TestUserFilesPorto(TestUserFiles):
     USE_PORTO = True
 
 ##################################################################

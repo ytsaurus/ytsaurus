@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, patch_porto_env_only, wait
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
 ##################################################################

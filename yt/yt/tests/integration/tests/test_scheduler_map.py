@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external, is_asan_build,
+    YTEnvSetup, unix_only, wait, skip_if_porto, parametrize_external, is_asan_build,
 )
 
 from yt_commands import *
@@ -1449,14 +1449,12 @@ done
 
 ##################################################################
 
-@patch_porto_env_only(TestSchedulerMapCommands)
-class TestSchedulerMapCommandsPorto(YTEnvSetup):
+class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
     USE_PORTO = True
 
 ##################################################################
 
-@patch_porto_env_only(TestSchedulerMapCommands)
-class TestSchedulerMapCommandsLegacy(YTEnvSetup):
+class TestSchedulerMapCommandsLegacy(TestSchedulerMapCommands):
     USE_LEGACY_CONTROLLERS = True
 
 ##################################################################
