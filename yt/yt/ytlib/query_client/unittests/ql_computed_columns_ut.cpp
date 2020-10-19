@@ -632,6 +632,43 @@ TEST_F(TComputedColumnTest, Modulo4)
     EXPECT_EQ(YsonToKey("1;2;" _MAX_), result[3].second);
 }
 
+TEST_F(TComputedColumnTest, Modulo5)
+{
+    TTableSchema tableSchema({
+        TColumnSchema("k", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(TString("n % 2")),
+        TColumnSchema("l", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending)
+            .SetExpression(TString("m + 1")),
+        TColumnSchema("m", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("n", EValueType::Uint64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("a", EValueType::Int64)
+    });
+
+    SetSchema(tableSchema);
+
+    auto query = TString("a from [//t] where m = 1");
+    auto result = Coordinate(query);
+
+    for (auto [a, b] : result) {
+        Cerr << Format("[%v %v]", a, b) << Endl;
+    }
+
+    EXPECT_EQ(3, result.size());
+
+    EXPECT_EQ(YsonToKey(_NULL_ ";2;1;"), result[0].first);
+    EXPECT_EQ(YsonToKey(_NULL_ ";2;1;" _MAX_), result[0].second);
+
+    EXPECT_EQ(YsonToKey("0u;2;1;"), result[1].first);
+    EXPECT_EQ(YsonToKey("0u;2;1;" _MAX_), result[1].second);
+
+    EXPECT_EQ(YsonToKey("1u;2;1;"), result[2].first);
+    EXPECT_EQ(YsonToKey("1u;2;1;" _MAX_), result[2].second);
+}
+
 TEST_F(TComputedColumnTest, Divide1)
 {
     TTableSchema tableSchema({
