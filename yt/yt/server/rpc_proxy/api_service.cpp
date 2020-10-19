@@ -2817,7 +2817,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         context->SetRequestInfo(
-            "TrasactionId: %v, Path: %v, ModificationCount: %v",
+            "TransactionId: %v, Path: %v, ModificationCount: %v",
             transactionId,
             request->path(),
             request->row_modification_types_size());
