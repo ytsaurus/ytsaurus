@@ -149,8 +149,9 @@ int TNameTable::DoRegisterNameOrThrow(TStringBuf name)
     return DoRegisterName(name);
 }
 
-const std::vector<TString>& TNameTable::GetNames() const
+std::vector<TString> TNameTable::GetNames() const
 {
+    TGuard<TAdaptiveLock> guard(SpinLock_);
     return IdToName_;
 }
 
