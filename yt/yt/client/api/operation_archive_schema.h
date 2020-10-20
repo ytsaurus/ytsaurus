@@ -110,6 +110,24 @@ struct TJobTableDescriptor
     const TIndex Index;
 };
 
+struct TOperationIdTableDescriptor
+{
+    TOperationIdTableDescriptor();
+
+    struct TIndex
+    {
+        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
+
+        const int JobIdHi;
+        const int JobIdLo;
+        const int OperationIdHi;
+        const int OperationIdLo;
+    };
+
+    const NTableClient::TNameTablePtr NameTable;
+    const TIndex Index;
+};
+
 struct TJobSpecTableDescriptor
 {
     TJobSpecTableDescriptor();

@@ -26,6 +26,7 @@ FORMAT_LIST = [
 
 OPERATION_JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
 OPERATION_JOB_SPEC_ARCHIVE_TABLE = "//sys/operations_archive/job_specs"
+OPERATION_IDS_ARCHIVE_TABLE = "//sys/operations_archive/operation_ids"
 
 
 def get_job_rows_for_operation(operation_id):
@@ -437,6 +438,16 @@ class TestGetJobInput(YTEnvSetup):
             updated.append(new_r)
         insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True, atomicity="none")
 
+        keys = []
+        for r in rows:
+            key = {}
+            for k in ["job_id_hi", "job_id_lo"]:
+                key[k] = r[k]
+            keys.append(key)
+        # We need to remove operation_id entries to ensure spec fetching
+        # from archive, not from the node.
+        delete_rows(OPERATION_IDS_ARCHIVE_TABLE, keys, atomicity="none")
+
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
         for job_id in job_ids:
@@ -674,7 +685,8 @@ class TestGetJobStderr(YTEnvSetup):
             op.track()
 
             def get_other_job_ids():
-                return __builtin__.set(ls(op.get_path() + "/jobs")) - __builtin__.set(job_ids)
+                all_job_ids = {job["id"] for job in list_jobs(op.id)["jobs"]}
+                return all_job_ids - __builtin__.set(job_ids)
 
             wait(lambda: len(get_other_job_ids()) == 1)
             other_job_id = list(get_other_job_ids())[0]
@@ -682,15 +694,12 @@ class TestGetJobStderr(YTEnvSetup):
             res = get_job_stderr(op.id, job_id, authenticated_user="u")
             assert res == "STDERR-OUTPUT\n"
 
-            # NB: Operation has fixed ACL and we use it while job presented in cypress.
-            # But archive contains old ACL.
             get_job_stderr(op.id, job_id, authenticated_user="other")
 
             clean_operations()
 
             wait(lambda: get_job_stderr(op.id, job_id, authenticated_user="u") == "STDERR-OUTPUT\n")
-            with pytest.raises(YtError):
-                get_job_stderr(op.id, job_id, authenticated_user="other")
+            get_job_stderr(op.id, job_id, authenticated_user="other")
 
             get_job_stderr(op.id, other_job_id, authenticated_user="other")
         finally:

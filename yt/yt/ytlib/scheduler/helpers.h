@@ -55,6 +55,7 @@ const NYPath::TYPath& GetOperationsArchiveJobSpecsPath();
 const NYPath::TYPath& GetOperationsArchiveJobStderrsPath();
 const NYPath::TYPath& GetOperationsArchiveJobProfilesPath();
 const NYPath::TYPath& GetOperationsArchiveJobFailContextsPath();
+const NYPath::TYPath& GetOperationsArchiveOperationIdsPath();
 
 bool IsOperationFinished(EOperationState state);
 bool IsOperationFinishing(EOperationState state);

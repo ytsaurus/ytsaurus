@@ -236,6 +236,12 @@ const TYPath& GetOperationsArchiveJobFailContextsPath()
     return path;
 }
 
+const NYPath::TYPath& GetOperationsArchiveOperationIdsPath()
+{
+    static TYPath path = "//sys/operations_archive/operation_ids";
+    return path;
+}
+
 bool IsOperationFinished(EOperationState state)
 {
     return

@@ -51,6 +51,9 @@ static constexpr int QueueIsTooLargeMultiplier = 2;
 struct TJobTag
 { };
 
+struct TOperationIdTag
+{ };
+
 struct TJobSpecTag
 { };
 
@@ -528,6 +531,59 @@ private:
 DECLARE_REFCOUNTED_TYPE(TJobHandler)
 DEFINE_REFCOUNTED_TYPE(TJobHandler)
 
+class TOperationIdHandler
+    : public THandlerBase
+{
+public:
+    TOperationIdHandler(
+        TSharedDataPtr data,
+        const TJobReporterConfigPtr& config,
+        NNative::IClientPtr client,
+        const IInvokerPtr& invoker)
+        : THandlerBase(
+            std::move(data),
+            config,
+            "operation_ids",
+            std::move(client),
+            invoker,
+            JobProfiler,
+            config->MaxInProgressOperationIdDataSize)
+    { }
+
+private:
+    const TOperationIdTableDescriptor Table_;
+
+    virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) override
+    {
+        std::vector<TUnversionedRow> rows;
+        auto rowBuffer = New<TRowBuffer>(TOperationIdTag());
+
+        size_t dataWeight = 0;
+        for (auto&& statistics : batch) {
+            TUnversionedRowBuilder builder;
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[0], Table_.Index.JobIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.JobId().Parts64[1], Table_.Index.JobIdLo));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
+            builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[1], Table_.Index.OperationIdLo));
+
+            if (!IsValueWeightViolated(builder.GetRow(), statistics.OperationId(), statistics.JobId(), Table_.NameTable)) {
+                rows.push_back(rowBuffer->Capture(builder.GetRow()));
+                dataWeight += GetDataWeight(rows.back());
+            }
+        }
+
+        transaction.WriteRows(
+            GetOperationsArchiveOperationIdsPath(),
+            Table_.NameTable,
+            MakeSharedRange(std::move(rows), std::move(rowBuffer)));
+
+        return dataWeight;
+    }
+};
+
+DECLARE_REFCOUNTED_TYPE(TOperationIdHandler)
+DEFINE_REFCOUNTED_TYPE(TOperationIdHandler)
+
 class TJobSpecHandler
     : public THandlerBase
 {
@@ -776,6 +832,12 @@ public:
                 reporterConfig,
                 Client_,
                 Reporter_->GetInvoker()))
+        , OperationIdHandler_(
+            New<TOperationIdHandler>(
+                Data_,
+                reporterConfig,
+                Client_,
+                Reporter_->GetInvoker()))
         , JobSpecHandler_(
             New<TJobSpecHandler>(
                 Data_,
@@ -817,6 +879,7 @@ public:
             JobProfileHandler_->Enqueue(statistics.ExtractProfile());
         }
         if (!statistics.IsEmpty()) {
+            OperationIdHandler_->Enqueue(statistics.ExtractIds());
             JobHandler_->Enqueue(std::move(statistics));
         }
     }
@@ -824,6 +887,7 @@ public:
     void SetEnabled(bool enable)
     {
         JobHandler_->SetEnabled(enable);
+        OperationIdHandler_->SetEnabled(enable);
     }
 
     void SetSpecEnabled(bool enable)
@@ -881,6 +945,7 @@ private:
     const TActionQueuePtr Reporter_ = New<TActionQueue>("JobReporter");
     const TSharedDataPtr Data_ = New<TSharedData>();
     const TJobHandlerPtr JobHandler_;
+    const THandlerBasePtr OperationIdHandler_;
     const THandlerBasePtr JobSpecHandler_;
     const THandlerBasePtr JobStderrHandler_;
     const THandlerBasePtr JobFailContextHandler_;

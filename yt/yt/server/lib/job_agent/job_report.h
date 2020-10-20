@@ -54,6 +54,7 @@ struct TJobReport
     TJobReport ExtractStderr() const;
     TJobReport ExtractFailContext() const;
     TJobReport ExtractProfile() const;
+    TJobReport ExtractIds() const;
 
     bool IsEmpty() const;
 

@@ -250,34 +250,6 @@ void TClient::ValidateTableReplicaPermission(
     InternalValidatePermission(tablePath, permission, options);
 }
 
-void TClient::ValidateOperationAccess(
-    TJobId jobId,
-    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
-    EPermissionSet permissions)
-{
-    const auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
-    TSerializableAccessControlList acl;
-    if (jobSpec.HasExtension(extensionId) && jobSpec.GetExtension(extensionId).has_acl()) {
-        TYsonString aclYson(jobSpec.GetExtension(extensionId).acl());
-        acl = ConvertTo<TSerializableAccessControlList>(aclYson);
-    } else {
-        // We check against an empty ACL to allow only "superusers" and "root" access.
-        YT_LOG_WARNING(
-            "Job spec has no sheduler_job_spec_ext or the extension has no ACL, "
-            "validating against empty ACL (JobId: %v)",
-            jobId);
-    }
-
-    NScheduler::ValidateOperationAccess(
-        /* user */ std::nullopt,
-        TOperationId(),
-        jobId,
-        permissions,
-        acl,
-        this,
-        Logger);
-}
-
 void TClient::DoTransferAccountResources(
     const TString& srcAccount,
     const TString& dstAccount,
