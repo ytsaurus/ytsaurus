@@ -3652,11 +3652,11 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
         create("table", "//tmp/t", attributes={"schema": schema}, force=True)
         write_table("//tmp/t", rows)
 
-        create_dynamic_table("//tmp/dyn_on", schema=schema, enable_dynamic_store_read=True)
+        create_dynamic_table("//tmp/dyn_on", schema=schema, enable_dynamic_store_read=True, dynamic_store_auto_flush_period=yson.YsonEntity())
         sync_mount_table("//tmp/dyn_on")
         insert_rows("//tmp/dyn_on", rows)
 
-        create_dynamic_table("//tmp/dyn_off", schema=schema, enable_dynamic_store_read=False)
+        create_dynamic_table("//tmp/dyn_off", schema=schema, enable_dynamic_store_read=False, dynamic_store_auto_flush_period=yson.YsonEntity())
         sync_mount_table("//tmp/dyn_off")
         insert_rows("//tmp/dyn_off", rows)
 
