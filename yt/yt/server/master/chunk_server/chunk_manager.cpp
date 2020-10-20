@@ -2365,12 +2365,13 @@ private:
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Chunk created "
-            "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, "
+            "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, MediumName: %v "
             "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
             sessionId,
             GetObjectId(chunkList),
             transaction->GetId(),
             account->GetName(),
+            mediumName,
             replicationFactor,
             readQuorum,
             writeQuorum,
