@@ -8,14 +8,17 @@ from yt_commands import *
 
 ##################################################################
 
+
 class TestFiles(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
 
     @authors("babenko", "ignat")
     def test_invalid_type(self):
-        with pytest.raises(YtError): read_file("//tmp")
-        with pytest.raises(YtError): write_file("//tmp", "")
+        with pytest.raises(YtError):
+            read_file("//tmp")
+        with pytest.raises(YtError):
+            write_file("//tmp", "")
 
     @authors("ignat")
     def test_simple(self):
@@ -51,7 +54,10 @@ class TestFiles(YTEnvSetup):
         length = 212
         assert read_file("//tmp/file", offset=offset) == content[offset:]
         assert read_file("//tmp/file", length=length) == content[:length]
-        assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
+        assert (
+            read_file("//tmp/file", offset=offset, length=length)
+            == content[offset : offset + length]
+        )
 
         with pytest.raises(YtError):
             assert read_file("//tmp/file", length=-1)
@@ -72,7 +78,10 @@ class TestFiles(YTEnvSetup):
 
         for offset in range(len(content)):
             for length in range(0, len(content) - offset):
-                assert read_file("//tmp/file", offset=offset, length=length) == content[offset:offset + length]
+                assert (
+                    read_file("//tmp/file", offset=offset, length=length)
+                    == content[offset : offset + length]
+                )
 
     @authors("babenko", "ignat")
     def test_copy(self):
@@ -127,12 +136,16 @@ class TestFiles(YTEnvSetup):
 
         get("//tmp/f/@replication_factor")
 
-        with pytest.raises(YtError): remove("//tmp/f/@replication_factor")
-        with pytest.raises(YtError): set("//tmp/f/@replication_factor", 0)
-        with pytest.raises(YtError): set("//tmp/f/@replication_factor", {})
+        with pytest.raises(YtError):
+            remove("//tmp/f/@replication_factor")
+        with pytest.raises(YtError):
+            set("//tmp/f/@replication_factor", 0)
+        with pytest.raises(YtError):
+            set("//tmp/f/@replication_factor", {})
 
         tx = start_transaction()
-        with pytest.raises(YtError): set("//tmp/f/@replication_factor", 2, tx=tx)
+        with pytest.raises(YtError):
+            set("//tmp/f/@replication_factor", 2, tx=tx)
 
     @authors("psushin", "ignat")
     def test_append(self):
@@ -228,17 +241,29 @@ class TestFiles(YTEnvSetup):
 
         write_file("<append=%true>//tmp/fcache", "abacaba", compute_md5=True)
 
-        assert get("//tmp/fcache/@md5") == "129296d4fd2ade2b2dbc402d4564bf81" == hashlib.md5("abacaba").hexdigest()
+        assert (
+            get("//tmp/fcache/@md5")
+            == "129296d4fd2ade2b2dbc402d4564bf81"
+            == hashlib.md5("abacaba").hexdigest()
+        )
         assert exists("//tmp/fcache/@md5")
 
         write_file("<append=%true>//tmp/fcache", "new", compute_md5=True)
-        assert get("//tmp/fcache/@md5") == "12ef1dfdbbb50c2dfd2b4119bac9dee5" == hashlib.md5("abacabanew").hexdigest()
+        assert (
+            get("//tmp/fcache/@md5")
+            == "12ef1dfdbbb50c2dfd2b4119bac9dee5"
+            == hashlib.md5("abacabanew").hexdigest()
+        )
 
         write_file("//tmp/fcache2", "abacaba")
         assert not exists("//tmp/fcache2/@md5")
 
         write_file("//tmp/fcache3", "test", compute_md5=True)
-        assert get("//tmp/fcache3/@md5") == "098f6bcd4621d373cade4e832627b4f6" == hashlib.md5("test").hexdigest()
+        assert (
+            get("//tmp/fcache3/@md5")
+            == "098f6bcd4621d373cade4e832627b4f6"
+            == hashlib.md5("test").hexdigest()
+        )
 
         write_file("//tmp/fcache3", "test2", compute_md5=True)
         assert get("//tmp/fcache3/@md5") == hashlib.md5("test2").hexdigest()
@@ -253,22 +278,32 @@ class TestFiles(YTEnvSetup):
             set("//tmp/fcache/@md5", "test")
 
         write_file("//tmp/fcache5", "", compute_md5=True)
-        assert get("//tmp/fcache5/@md5") == "d41d8cd98f00b204e9800998ecf8427e" == hashlib.md5("").hexdigest()
+        assert (
+            get("//tmp/fcache5/@md5")
+            == "d41d8cd98f00b204e9800998ecf8427e"
+            == hashlib.md5("").hexdigest()
+        )
+
 
 ##################################################################
+
 
 class TestFilesMulticell(TestFiles):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+
 class TestFilesPortal(TestFilesMulticell):
     ENABLE_TMP_PORTAL = True
+
 
 class TestFilesRpcProxy(TestFiles):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
+
 ##################################################################
+
 
 class TestFileErrorsRpcProxy(YTEnvSetup):
     NUM_MASTERS = 1
@@ -288,9 +323,9 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
                 raise ValueError()
 
             if self._position == len(self._data):
-               raise RuntimeError("surprise")
+                raise RuntimeError("surprise")
 
-            result = self._data[self._position:self._position + size]
+            result = self._data[self._position : self._position + size]
             self._position = min(self._position + size, len(self._data))
 
             return result
@@ -306,9 +341,13 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
                 "<append=true>//tmp/file",
                 None,
                 input_stream=self.FaultyStringStream("dabacaba"),
-                tx=tx)
+                tx=tx,
+            )
 
-        wait(lambda: get("//sys/transactions/{0}/@nested_transaction_ids".format(tx)) == [])
+        wait(
+            lambda: get("//sys/transactions/{0}/@nested_transaction_ids".format(tx))
+            == []
+        )
         assert read_file("//tmp/file") == "abacaba"
 
     @authors("kiselyovp")
@@ -321,9 +360,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
         set_node_banned(nodes[0], True)
 
         with pytest.raises(YtError):
-            write_file(
-                "<append=true>//tmp/file",
-                "dabacaba")
+            write_file("<append=true>//tmp/file", "dabacaba")
 
         set_node_banned(nodes[1], True)
         with pytest.raises(YtError):
@@ -333,7 +370,9 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
         set_node_banned(nodes[1], False)
         assert retry(lambda: read_file("//tmp/file")) == "abacaba"
 
+
 ##################################################################
+
 
 class TestBigFilesRpcProxy(YTEnvSetup):
     NUM_MASTERS = 1
@@ -347,7 +386,7 @@ class TestBigFilesRpcProxy(YTEnvSetup):
         alphabet_size = 25
         data = ""
         for i in xrange(alphabet_size):
-            data += chr(ord('a') + i) + data
+            data += chr(ord("a") + i) + data
 
         create("file", "//tmp/abacaba")
         write_file("//tmp/abacaba", data)
@@ -355,10 +394,10 @@ class TestBigFilesRpcProxy(YTEnvSetup):
         contents = read_file("//tmp/abacaba", verbose=False)
         assert contents == data
 
+
 class TestBigFilesWithCompressionRpcProxy(TestBigFilesRpcProxy):
     DELTA_RPC_DRIVER_CONFIG = {
         "request_codec": "lz4",
         "response_codec": "quick_lz",
-        "enable_legacy_rpc_codecs": False
+        "enable_legacy_rpc_codecs": False,
     }
-

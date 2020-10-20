@@ -10,6 +10,7 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
+
 class TestTabletTransactions(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -17,13 +18,17 @@ class TestTabletTransactions(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     def _create_table(self, path):
-        create("table", path,
+        create(
+            "table",
+            path,
             attributes={
                 "dynamic": True,
                 "schema": [
                     {"name": "key", "type": "int64", "sort_order": "ascending"},
-                    {"name": "value", "type": "string"}]
-            })
+                    {"name": "value", "type": "string"},
+                ],
+            },
+        )
 
     @authors("sandello")
     def test_sticky_tablet_transactions(self):
@@ -58,8 +63,9 @@ class TestTabletTransactions(YTEnvSetup):
         assert lookup_rows("//tmp/t", _keys(0, 1), tx=tx2) == []
 
         # cannot commit transaction twice
-        with pytest.raises(YtError): commit_transaction(tx1)
+        with pytest.raises(YtError):
+            commit_transaction(tx1)
 
         # cannot commit conflicting transaction
-        with pytest.raises(YtError): commit_transaction(tx2)
-
+        with pytest.raises(YtError):
+            commit_transaction(tx2)

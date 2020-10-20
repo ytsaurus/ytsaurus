@@ -1,4 +1,10 @@
-from yt_env_setup import YTEnvSetup, wait, is_asan_build, Restarter, CONTROLLER_AGENTS_SERVICE
+from yt_env_setup import (
+    YTEnvSetup,
+    wait,
+    is_asan_build,
+    Restarter,
+    CONTROLLER_AGENTS_SERVICE,
+)
 from yt_commands import *
 from yt_helpers import *
 
@@ -14,6 +20,7 @@ import __builtin__
 
 ##################################################################
 
+
 class TestControllerMemoryUsage(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
@@ -24,7 +31,9 @@ class TestControllerMemoryUsage(YTEnvSetup):
     }
 
     @authors("ignat")
-    @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+    @pytest.mark.skipif(
+        is_asan_build(), reason="Memory allocation is not reported under ASAN"
+    )
     def test_controller_memory_usage(self):
         # In this test we rely on the assignment order of memory tags.
         # Tags are given to operations sequentially during lifetime of controller agent.
@@ -38,13 +47,19 @@ class TestControllerMemoryUsage(YTEnvSetup):
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
 
-        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
+        controller_agent_orchid = (
+            "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
+                controller_agents[0]
+            )
+        )
 
         def check(tag_number, operation, usage_lower_bound, usage_upper_bound):
             state = operation.get_state()
             if state != "running":
                 return False
-            statistics = get(controller_agent_orchid + "/tagged_memory_statistics/" + tag_number)
+            statistics = get(
+                controller_agent_orchid + "/tagged_memory_statistics/" + tag_number
+            )
             if statistics["operation_id"] == YsonEntity():
                 return False
             assert statistics["operation_id"] == operation.id
@@ -52,7 +67,9 @@ class TestControllerMemoryUsage(YTEnvSetup):
             assert statistics["usage"] < usage_upper_bound
             return True
 
-        for entry in get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False):
+        for entry in get(
+            controller_agent_orchid + "/tagged_memory_statistics", verbose=False
+        ):
             assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
@@ -60,19 +77,19 @@ class TestControllerMemoryUsage(YTEnvSetup):
             track=False,
             in_="//tmp/t_in",
             out="<sorted_by=[a]>//tmp/t_out",
-            command="sleep 3600")
+            command="sleep 3600",
+        )
 
         small_usage_path = op_small.get_path() + "/controller_orchid/memory_usage"
         wait(lambda: exists(small_usage_path))
         usage = get(small_usage_path)
 
         print_debug("small_usage =", usage)
-        assert usage < 4 * 10**6
+        assert usage < 4 * 10 ** 6
 
-        wait(lambda: check("0", op_small, 0, 4 * 10**6))
+        wait(lambda: check("0", op_small, 0, 4 * 10 ** 6))
 
         op_small.abort()
-
 
         op_large = map(
             track=False,
@@ -83,28 +100,37 @@ class TestControllerMemoryUsage(YTEnvSetup):
                 "testing": {
                     "allocation_size": 20 * 1024 * 1024,
                 }
-            })
+            },
+        )
 
         large_usage_path = op_large.get_path() + "/controller_orchid/memory_usage"
         wait(lambda: exists(large_usage_path))
         usage = get(large_usage_path)
 
         print_debug("large_usage =", usage)
-        assert usage > 10 * 10**6
-        wait(lambda: get_operation(op_large.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"] > 10 * 10**6)
+        assert usage > 10 * 10 ** 6
+        wait(
+            lambda: get_operation(
+                op_large.id, attributes=["memory_usage"], include_runtime=True
+            )["memory_usage"]
+            > 10 * 10 ** 6
+        )
 
-        wait(lambda: check("1", op_large, 10 * 10**6, 30 * 10**6))
+        wait(lambda: check("1", op_large, 10 * 10 ** 6, 30 * 10 ** 6))
 
         op_large.abort()
 
         time.sleep(5)
 
-        for i, entry in enumerate(get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False)):
+        for i, entry in enumerate(
+            get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False)
+        ):
             if i <= 1:
                 assert entry["operation_id"] in (op_small.id, op_large.id)
             else:
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
+
 
 class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -127,12 +153,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 100,
-                    "cpu": 100
-                }
-            }
+            "job_controller": {"resource_limits": {"user_slots": 100, "cpu": 100}}
         }
     }
 
@@ -143,11 +164,15 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         cls.controller_agent_counter += 1
         if cls.controller_agent_counter > 2:
             cls.controller_agent_counter -= 2
-        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 50 * 1024 ** 2
+        config["controller_agent"]["total_controller_memory_limit"] = (
+            cls.controller_agent_counter * 50 * 1024 ** 2
+        )
 
     @authors("ignat")
     @flaky(max_runs=5)
-    @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+    @pytest.mark.skipif(
+        is_asan_build(), reason="Memory allocation is not reported under ASAN"
+    )
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         write_table("<append=%true>//tmp/t_in", [{"a": 0}])
@@ -165,23 +190,35 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
                         "allocation_size": 1024 ** 2,
                     }
                 },
-                track=False)
+                track=False,
+            )
             wait(lambda: op.get_state() == "running")
             ops.append(op)
 
         address_to_operation = defaultdict(list)
         for op in ops:
-            address_to_operation[get(op.get_path() + "/@controller_agent_address")].append(op.id)
+            address_to_operation[
+                get(op.get_path() + "/@controller_agent_address")
+            ].append(op.id)
 
-        operation_balance = sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
+        operation_balance = sorted(
+            __builtin__.map(lambda value: len(value), address_to_operation.values())
+        )
         balance_ratio = float(operation_balance[0]) / operation_balance[1]
         print_debug("BALANCE_RATIO", balance_ratio)
         if not (0.5 <= balance_ratio <= 0.8):
             for op in ops:
-                print_debug(op.id, get(op.get_path() + "/controller_orchid/memory_usage", verbose=False))
+                print_debug(
+                    op.id,
+                    get(
+                        op.get_path() + "/controller_orchid/memory_usage", verbose=False
+                    ),
+                )
         assert 0.5 <= balance_ratio <= 0.8
 
+
 ##################################################################
+
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_MASTERS = 1
@@ -189,10 +226,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "schedule_job_time_limit": 100,
-            "operations_update_period": 10
-        }
+        "scheduler": {"schedule_job_time_limit": 100, "operations_update_period": 10}
     }
 
     @authors("ignat")
@@ -210,7 +244,8 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
             in_="//tmp/input",
             out="//tmp/output",
             command="cat",
-            spec={"testing": testing_options})
+            spec={"testing": testing_options},
+        )
 
         def check():
             jobs = get(op.get_path() + "/@progress/jobs", default=None)
@@ -224,9 +259,12 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
             assert jobs["running"] == 0
             assert jobs["completed"]["total"] == 0
             return jobs["aborted"]["non_scheduled"]["scheduling_timeout"] > 0
+
         wait(check)
 
+
 ##################################################################
+
 
 class TestCustomControllerQueues(YTEnvSetup):
     NUM_MASTERS = 1
@@ -248,10 +286,12 @@ class TestCustomControllerQueues(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
 
-        map(command="sleep 10",
+        map(
+            command="sleep 10",
             in_="//tmp/in",
             out="//tmp/out",
-            spec={"data_size_per_job": 1, "locality_timeout": 0})
+            spec={"data_size_per_job": 1, "locality_timeout": 0},
+        )
 
     @authors("eshcherbin")
     def test_run_map_reduce(self):
@@ -265,7 +305,8 @@ class TestCustomControllerQueues(YTEnvSetup):
             reducer_command="cat",
             in_="//tmp/in",
             out="//tmp/out",
-            sort_by=["foo"])
+            sort_by=["foo"],
+        )
 
     @authors("eshcherbin")
     def test_run_merge_erase(self):
@@ -274,10 +315,7 @@ class TestCustomControllerQueues(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
 
-        merge(
-            in_="//tmp/in",
-            out="//tmp/out",
-            spec={"force_transform": True})
+        merge(in_="//tmp/in", out="//tmp/out", spec={"force_transform": True})
         erase("//tmp/in")
 
     @authors("eshcherbin")
@@ -288,12 +326,12 @@ class TestCustomControllerQueues(YTEnvSetup):
         write_table("//tmp/in", data, sorted_by=["foo"])
 
         reduce(
-            command="sleep 1; cat",
-            in_="//tmp/in",
-            out="//tmp/out",
-            reduce_by=["foo"])
+            command="sleep 1; cat", in_="//tmp/in", out="//tmp/out", reduce_by=["foo"]
+        )
+
 
 ##################################################################
+
 
 class TestGetJobSpecFailed(YTEnvSetup):
     NUM_MASTERS = 1
@@ -312,20 +350,22 @@ class TestGetJobSpecFailed(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={
-                "testing": {
-                    "fail_get_job_spec": True
-                },
+                "testing": {"fail_get_job_spec": True},
             },
-            track=False)
+            track=False,
+        )
 
         def check():
             jobs = get(op.get_path() + "/controller_orchid/progress/jobs", default=None)
             if jobs is None:
                 return False
             return jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
+
         wait(check)
 
+
 ##################################################################
+
 
 class TestControllerAgentTags(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -353,12 +393,18 @@ class TestControllerAgentTags(YTEnvSetup):
 
         def wait_for_tags_loaded():
             for agent in get("//sys/controller_agents/instances").keys():
-                tags_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(agent)
+                tags_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
+                    agent
+                )
                 wait(lambda: len(get(tags_path)) > 0)
 
         wait_for_tags_loaded()
         for agent in get("//sys/controller_agents/instances").keys():
-            agent_tags = get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(agent))
+            agent_tags = get(
+                "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
+                    agent
+                )
+            )
             assert len(agent_tags) == 1
             agent_tag = agent_tags[0]
             if agent_tag == "foo":
@@ -405,12 +451,27 @@ class TestControllerAgentTags(YTEnvSetup):
         foo_agent, baz_agent, boo_agent = foo_agent, bar_agent, default_agent
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             set("//sys/controller_agents/instances/{}/@tags".format(baz_agent), ["baz"])
-            set("//sys/controller_agents/instances/{}/@tags".format(default_agent), ["boo", "booo"])
+            set(
+                "//sys/controller_agents/instances/{}/@tags".format(default_agent),
+                ["boo", "booo"],
+            )
 
         wait_for_tags_loaded()
-        assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(foo_agent)) == ["foo"]
-        assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(baz_agent)) == ["baz"]
-        assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(boo_agent)) == ["boo", "booo"]
+        assert get(
+            "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
+                foo_agent
+            )
+        ) == ["foo"]
+        assert get(
+            "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
+                baz_agent
+            )
+        ) == ["baz"]
+        assert get(
+            "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
+                boo_agent
+            )
+        ) == ["boo", "booo"]
 
         check_assignment("foo", foo_agent)
         check_assignment("baz", baz_agent)

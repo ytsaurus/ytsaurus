@@ -5,6 +5,7 @@ from yt_commands import *
 
 ##################################################################
 
+
 class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -19,8 +20,9 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            spec={"mapper":{"custom_statistics_count_limit": 3}},
-            command='cat; echo "{ cpu={ k1=4; k3=7 }}; {k2=-7};{k2=1};" >&5')
+            spec={"mapper": {"custom_statistics_count_limit": 3}},
+            command='cat; echo "{ cpu={ k1=4; k3=7 }}; {k2=-7};{k2=1};" >&5',
+        )
 
         statistics = get(op.get_path() + "/@progress/job_statistics")
         assert get_statistics(statistics, "custom.cpu.k1.$.completed.map.max") == 4
@@ -38,9 +40,15 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             spec={"max_failed_job_count": 1},
-            command='cat; echo "{\\"name/with/slashes\\"={\\"@table_index\\"=42}}">&5')
+            command='cat; echo "{\\"name/with/slashes\\"={\\"@table_index\\"=42}}">&5',
+        )
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "custom.name/with/slashes.@table_index.$.completed.map.max") == 42
+        assert (
+            get_statistics(
+                statistics, "custom.name/with/slashes.@table_index.$.completed.map.max"
+            )
+            == 42
+        )
 
         # But the empty keys are not ok (as well as for any other map nodes).
         with pytest.raises(YtError):
@@ -48,7 +56,8 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 spec={"max_failed_job_count": 1},
-                command='cat; echo "{\\"\\"=42}">&5')
+                command='cat; echo "{\\"\\"=42}">&5',
+            )
 
     @authors("tramsmm", "acid")
     def test_name_is_too_long(self):
@@ -56,14 +65,15 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
-        long_name = 'a'*2048;
+        long_name = "a" * 2048
 
         with pytest.raises(YtError):
             op = map(
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 spec={"max_failed_job_count": 1},
-                command='cat; echo "{ ' + long_name + '=42};">&5')
+                command='cat; echo "{ ' + long_name + '=42};">&5',
+            )
 
     @authors("tramsmm")
     def test_too_many_custom_statistics(self):
@@ -77,10 +87,17 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             write_line += 'echo "{ name' + str(i) + '=42};">&5;'
 
         with pytest.raises(YtError):
-            map(in_="//tmp/t1",
+            map(
+                in_="//tmp/t1",
                 out="//tmp/t2",
-                spec={"max_failed_job_count": 1, "mapper":{"custom_statistics_count_limit": custom_statistics_count_limit}},
-                command="cat; " + write_line)
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "custom_statistics_count_limit": custom_statistics_count_limit
+                    },
+                },
+                command="cat; " + write_line,
+            )
 
     @authors("tramsmm")
     def test_multiple_job_statistics(self):
@@ -90,7 +107,12 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         op = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "data.input.unmerged_data_weight.$.completed.map.count") == 2
+        assert (
+            get_statistics(
+                statistics, "data.input.unmerged_data_weight.$.completed.map.count"
+            )
+            == 2
+        )
 
     @authors("babenko")
     def test_job_statistics_progress(self):
@@ -104,7 +126,8 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat > /dev/null ; BREAKPOINT ;"),
-            spec={"max_failed_job_count": 1, "job_count": 2})
+            spec={"max_failed_job_count": 1, "job_count": 2},
+        )
 
         jobs = wait_breakpoint()
         release_breakpoint(job_id=jobs[0])

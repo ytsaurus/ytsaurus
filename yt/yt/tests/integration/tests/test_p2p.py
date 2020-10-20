@@ -6,6 +6,7 @@ from yt_helpers import *
 
 from flaky import flaky
 
+
 def clear_everything_after_test(func):
     def wrapped(*args, **kwargs):
         func(*args, **kwargs)
@@ -15,7 +16,9 @@ def clear_everything_after_test(func):
         nodes = list(get("//sys/cluster_nodes"))
         for node in nodes:
             set("//sys/cluster_nodes/{0}/@user_tags".format(node), [])
+
     return wrapped
+
 
 class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     NUM_MASTERS = 1
@@ -25,8 +28,8 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "data_node": {
             "peer_block_distributor": {
-                "iteration_period": 100, # 0.1 sec
-                "window_length": 1000, # 1 sec,
+                "iteration_period": 100,  # 0.1 sec
+                "window_length": 1000,  # 1 sec,
                 # In tests we are always trying to distribute something.
                 "out_traffic_activation_threshold": -1,
                 "node_tag_filter": "!tag42",
@@ -38,13 +41,13 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
                 "compressed_data": {
                     "capacity": 256 * 1024 * 1024,
                 }
-            }
+            },
         }
     }
 
     DELTA_DRIVER_CONFIG = {
         "node_directory_synchronizer": {
-            "sync_period": 50 # To force NodeDirectorySynchronizer in tests
+            "sync_period": 50  # To force NodeDirectorySynchronizer in tests
         }
     }
 
@@ -111,17 +114,18 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
 
         wait(lambda: metric_delta.update().get(verbose=True) == 0)
 
+
 class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSynthetic):
     DELTA_NODE_CONFIG = {
         "data_node": {
             "peer_block_distributor": {
-                "iteration_period": 100, # 0.1 sec
-                "window_length": 1000, # 1 sec,
+                "iteration_period": 100,  # 0.1 sec
+                "window_length": 1000,  # 1 sec,
                 # In tests we are always trying to distribute something.
                 "out_traffic_activation_threshold": -1,
                 "node_tag_filter": "!tag42",
                 "min_request_count": 3,
-                "max_distribution_count": 12, # As in production
+                "max_distribution_count": 12,  # As in production
                 "destination_node_count": 2,
                 "consecutive_distribution_delay": 200,
             },
@@ -133,12 +137,12 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
                 "compressed_data": {
                     "capacity": 256 * 1024 * 1024,
                 }
-            }
+            },
         }
     }
     DELTA_DRIVER_CONFIG = {
         "node_directory_synchronizer": {
-            "sync_period": 50 # To force NodeDirectorySynchronizer in tests
+            "sync_period": 50  # To force NodeDirectorySynchronizer in tests
         }
     }
 
@@ -146,10 +150,18 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
     @authors("max42", "prime")
     @clear_everything_after_test
     def test_wow_such_flappy_test_so_many_failures(self):
-        metric_s_delta = Metric.at_node(self.seed, "data_node/block_cache/compressed_data/hit")
-        metric_ns0_delta = Metric.at_node(self.non_seeds[0], "data_node/block_cache/compressed_data/hit")
-        metric_ns1_delta = Metric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit")
-        metric_ns2_delta = Metric.at_node(self.non_seeds[2], "data_node/block_cache/compressed_data/hit")
+        metric_s_delta = Metric.at_node(
+            self.seed, "data_node/block_cache/compressed_data/hit"
+        )
+        metric_ns0_delta = Metric.at_node(
+            self.non_seeds[0], "data_node/block_cache/compressed_data/hit"
+        )
+        metric_ns1_delta = Metric.at_node(
+            self.non_seeds[1], "data_node/block_cache/compressed_data/hit"
+        )
+        metric_ns2_delta = Metric.at_node(
+            self.non_seeds[2], "data_node/block_cache/compressed_data/hit"
+        )
 
         def read_table():
             for i in range(10):

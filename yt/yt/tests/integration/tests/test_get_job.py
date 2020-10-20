@@ -17,12 +17,14 @@ def _delete_job_from_archive(op_id, job_id):
     job_id_hi, job_id_lo = uuid_to_parts(job_id)
     delete_rows(
         OPERATION_JOB_ARCHIVE_TABLE,
-        [{
-            "operation_id_hi": op_id_hi,
-            "operation_id_lo": op_id_lo,
-            "job_id_hi": job_id_hi,
-            "job_id_lo": job_id_lo,
-        }],
+        [
+            {
+                "operation_id_hi": op_id_hi,
+                "operation_id_lo": op_id_lo,
+                "job_id_hi": job_id_hi,
+                "job_id_lo": job_id_lo,
+            }
+        ],
         atomicity="none",
     )
 
@@ -30,24 +32,33 @@ def _delete_job_from_archive(op_id, job_id):
 def _update_job_in_archive(op_id, job_id, attributes):
     op_id_hi, op_id_lo = uuid_to_parts(op_id)
     job_id_hi, job_id_lo = uuid_to_parts(job_id)
-    attributes.update({
-        "operation_id_hi": op_id_hi,
-        "operation_id_lo": op_id_lo,
-        "job_id_hi": job_id_hi,
-        "job_id_lo": job_id_lo,
-    })
-    insert_rows(OPERATION_JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none")
+    attributes.update(
+        {
+            "operation_id_hi": op_id_hi,
+            "operation_id_lo": op_id_lo,
+            "job_id_hi": job_id_hi,
+            "job_id_lo": job_id_lo,
+        }
+    )
+    insert_rows(
+        OPERATION_JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none"
+    )
 
 
 def _get_job_from_archive(op_id, job_id):
     op_id_hi, op_id_lo = uuid_to_parts(op_id)
     job_id_hi, job_id_lo = uuid_to_parts(job_id)
-    rows = lookup_rows(OPERATION_JOB_ARCHIVE_TABLE, [{
-        "operation_id_hi": op_id_hi,
-        "operation_id_lo": op_id_lo,
-        "job_id_hi": job_id_hi,
-        "job_id_lo": job_id_lo,
-    }])
+    rows = lookup_rows(
+        OPERATION_JOB_ARCHIVE_TABLE,
+        [
+            {
+                "operation_id_hi": op_id_hi,
+                "operation_id_lo": op_id_lo,
+                "job_id_hi": job_id_hi,
+                "job_id_lo": job_id_lo,
+            }
+        ],
+    )
     return rows[0] if rows else None
 
 
@@ -83,9 +94,17 @@ class _TestGetJobBase(YTEnvSetup):
             override_tablet_cell_bundle="default",
         )
 
-    def _check_get_job(self, op_id, job_id, before_start_time, state=None,
-                       has_spec=True, is_stale=False,
-                       archive_state=None, controller_agent_state=None):
+    def _check_get_job(
+        self,
+        op_id,
+        job_id,
+        before_start_time,
+        state=None,
+        has_spec=True,
+        is_stale=False,
+        archive_state=None,
+        controller_agent_state=None,
+    ):
         """None arguments mean do not check corresponding field in job"""
 
         job_info = retry(lambda: get_job(op_id, job_id))
@@ -106,13 +125,18 @@ class _TestGetJobBase(YTEnvSetup):
         attributes = ["job_id", "state", "start_time"]
         job_info = retry(lambda: get_job(op_id, job_id, attributes=attributes))
         assert __builtin__.set(attributes).issubset(__builtin__.set(job_info.keys()))
-        attribute_difference = __builtin__.set(job_info.keys()) - __builtin__.set(attributes)
-        assert attribute_difference.issubset(__builtin__.set(["archive_state", "controller_agent_state", "is_stale"]))
+        attribute_difference = __builtin__.set(job_info.keys()) - __builtin__.set(
+            attributes
+        )
+        assert attribute_difference.issubset(
+            __builtin__.set(["archive_state", "controller_agent_state", "is_stale"])
+        )
         assert job_info.get("is_stale") == is_stale
 
         def check_has_spec():
             job_info = retry(lambda: get_job(op_id, job_id))
             assert job_info.get("has_spec") == has_spec
+
         if has_spec is not None:
             wait_assert(check_has_spec)
 
@@ -129,34 +153,43 @@ class _TestGetJobCommon(_TestGetJobBase):
             label="get_job",
             in_="//tmp/t1",
             out="//tmp/t2",
-            command=with_breakpoint("""
+            command=with_breakpoint(
+                """
                 echo SOME-STDERR >&2 ;
                 cat ;
                 if [[ "$YT_JOB_INDEX" == "0" ]]; then
                     BREAKPOINT
                     exit 1
                 fi
-            """),
+            """
+            ),
         )
-        job_id, = wait_breakpoint()
+        (job_id,) = wait_breakpoint()
 
-        self._check_get_job(op.id, job_id, before_start_time, state="running", has_spec=None)
+        self._check_get_job(
+            op.id, job_id, before_start_time, state="running", has_spec=None
+        )
 
         def correct_stderr_size():
             job_info = retry(lambda: get_job(op.id, job_id))
             return job_info.get("stderr_size", 0) == len("SOME-STDERR\n")
+
         wait(correct_stderr_size)
 
         release_breakpoint()
         op.track()
 
-        self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=True)
+        self._check_get_job(
+            op.id, job_id, before_start_time, state="failed", has_spec=True
+        )
 
         _delete_job_from_archive(op.id, job_id)
 
         # Controller agent must be able to respond as it stores
         # zombie operation orchids.
-        self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=None)
+        self._check_get_job(
+            op.id, job_id, before_start_time, state="failed", has_spec=None
+        )
 
 
 class TestGetJob(_TestGetJobCommon):
@@ -168,14 +201,19 @@ class TestGetJob(_TestGetJobCommon):
                 "tasks": {
                     "master": {
                         "job_count": 1,
-                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="master"),
+                        "command": with_breakpoint(
+                            "BREAKPOINT", breakpoint_name="master"
+                        ),
                     },
                     "slave": {
                         "job_count": 2,
-                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="slave"),
+                        "command": with_breakpoint(
+                            "BREAKPOINT", breakpoint_name="slave"
+                        ),
                     },
                 },
-            })
+            },
+        )
 
         master_job_ids = wait_breakpoint(breakpoint_name="master", job_count=1)
         slave_job_ids = wait_breakpoint(breakpoint_name="slave", job_count=2)
@@ -208,7 +246,7 @@ class TestGetJob(_TestGetJobCommon):
             out="//tmp/t2",
             command=with_breakpoint("echo SOME-STDERR >&2; cat; BREAKPOINT"),
         )
-        job_id, = wait_breakpoint()
+        (job_id,) = wait_breakpoint()
 
         wait(lambda: _get_job_from_archive(op.id, job_id) is not None)
         job_from_archive = _get_job_from_archive(op.id, job_id)
@@ -222,11 +260,20 @@ class TestGetJob(_TestGetJobCommon):
         del job_from_archive["operation_id_hash"]
         _update_job_in_archive(op.id, job_id, job_from_archive)
 
-        self._check_get_job(op.id, job_id, before_start_time, archive_state="running", has_spec=None)
+        self._check_get_job(
+            op.id, job_id, before_start_time, archive_state="running", has_spec=None
+        )
 
         _delete_job_from_archive(op.id, job_id)
 
-        self._check_get_job(op.id, job_id, before_start_time, state="aborted", controller_agent_state="aborted", has_spec=None)
+        self._check_get_job(
+            op.id,
+            job_id,
+            before_start_time,
+            state="aborted",
+            controller_agent_state="aborted",
+            has_spec=None,
+        )
         job_info = retry(lambda: get_job(op.id, job_id))
         assert "archive_state" not in job_info
 
@@ -261,7 +308,7 @@ class TestGetJobIsStale(_TestGetJobBase):
             out="//tmp/t2",
             command=with_breakpoint("echo SOME-STDERR >&2; cat; BREAKPOINT"),
         )
-        job_id, = wait_breakpoint()
+        (job_id,) = wait_breakpoint()
 
         abort_job(job_id)
         release_breakpoint()
@@ -269,11 +316,14 @@ class TestGetJobIsStale(_TestGetJobBase):
 
         # We emulate the situation when aborted (in CA's opinion) job
         # still reports "running" to archive.
-        _update_job_in_archive(op.id, job_id, {"state": "running", "transient_state": "running"})
+        _update_job_in_archive(
+            op.id, job_id, {"state": "running", "transient_state": "running"}
+        )
 
         def is_job_removed_from_controller_agent():
             job_info = retry(lambda: get_job(op.id, job_id))
             return job_info.get("controller_agent_state") is None
+
         wait(is_job_removed_from_controller_agent)
 
         job_info = retry(lambda: get_job(op.id, job_id))
@@ -281,7 +331,9 @@ class TestGetJobIsStale(_TestGetJobBase):
         assert job_info.get("archive_state") == "running"
         assert job_info.get("is_stale") == True
 
+
 ##################################################################
+
 
 class TestGetJobRpcProxy(TestGetJob):
     USE_DYNAMIC_TABLES = True

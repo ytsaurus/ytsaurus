@@ -8,13 +8,13 @@ import __builtin__
 
 ##################################################################
 
+
 class TestRacks(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 20
 
-    JOURNAL_DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
+    JOURNAL_DATA = [{"data": "payload" + str(i)} for i in xrange(0, 10)]
     FILE_DATA = "payload"
-
 
     def _get_replica_nodes(self, chunk_id):
         return list(str(x) for x in get("#{0}/@stored_replicas".format(chunk_id)))
@@ -23,6 +23,7 @@ class TestRacks(YTEnvSetup):
         def check():
             stat = get("#{0}/@replication_status/default".format(chunk_id))
             return not stat["unsafely_placed"] and not stat["overreplicated"]
+
         wait(lambda: check())
 
     def _set_rack(self, node, rack):
@@ -70,7 +71,6 @@ class TestRacks(YTEnvSetup):
             rack_to_counter[rack] += 1
         return max(rack_to_counter.itervalues())
 
-
     @authors("babenko", "ignat")
     def test_create(self):
         create_rack("r")
@@ -79,12 +79,14 @@ class TestRacks(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_empty_name_fail(self):
-        with pytest.raises(YtError): create_rack("")
+        with pytest.raises(YtError):
+            create_rack("")
 
     @authors("babenko", "ignat")
     def test_duplicate_name_fail(self):
         create_rack("r")
-        with pytest.raises(YtError): create_rack("r")
+        with pytest.raises(YtError):
+            create_rack("r")
 
     @authors("babenko", "ignat")
     def test_rename_success(self):
@@ -100,7 +102,8 @@ class TestRacks(YTEnvSetup):
     def test_rename_fail(self):
         create_rack("r1")
         create_rack("r2")
-        with pytest.raises(YtError): set("//sys/racks/r1/@name", "r2")
+        with pytest.raises(YtError):
+            set("//sys/racks/r1/@name", "r2")
 
     @authors("babenko", "ignat")
     def test_assign_success1(self):
@@ -118,7 +121,7 @@ class TestRacks(YTEnvSetup):
         for node in nodes:
             assert self._get_rack(node) == "r"
         assert_items_equal(get("//sys/racks/r/@nodes"), nodes)
-        
+
     @authors("babenko", "ignat")
     def test_remove(self):
         create_rack("r")
@@ -132,13 +135,16 @@ class TestRacks(YTEnvSetup):
     @authors("babenko")
     def test_assign_fail(self):
         n = get_nodes()[0]
-        with pytest.raises(YtError): self._set_rack(n, "r")
+        with pytest.raises(YtError):
+            self._set_rack(n, "r")
 
     @authors("babenko", "ignat")
     def test_write_regular(self):
         self._init_n_racks(2)
         create("file", "//tmp/file")
-        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
+        write_file(
+            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3}
+        )
 
     @authors("babenko", "ignat")
     def test_write_erasure(self):
@@ -163,20 +169,30 @@ class TestRacks(YTEnvSetup):
             self._set_rack(nodes[i], "r2")
 
         create("file", "//tmp/file")
-        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
+        write_file(
+            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3}
+        )
 
         chunk_id = get_singular_chunk_id("//tmp/file")
 
         self._set_rack(nodes[0], "r2")
-        wait(lambda: get("#" + chunk_id + "/@replication_status/default/unsafely_placed"))
+        wait(
+            lambda: get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
+        )
 
         self._reset_all_racks()
-        wait(lambda: not get("#" + chunk_id + "/@replication_status/default/unsafely_placed"))
+        wait(
+            lambda: not get(
+                "#" + chunk_id + "/@replication_status/default/unsafely_placed"
+            )
+        )
 
     @authors("babenko")
     def test_regular_move_to_safe_place(self):
         create("file", "//tmp/file")
-        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
+        write_file(
+            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3}
+        )
 
         chunk_id = get_singular_chunk_id("//tmp/file")
         assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
@@ -217,26 +233,26 @@ class TestRacks(YTEnvSetup):
 
         assert len(replicas_plus_nodes) == TestRacks.NUM_NODES
         map = {
-            replicas_plus_nodes[ 0] : "r1",
-            replicas_plus_nodes[ 1] : "r1",
-            replicas_plus_nodes[ 2] : "r1",
-            replicas_plus_nodes[ 3] : "r1",
-            replicas_plus_nodes[ 4] : "r1",
-            replicas_plus_nodes[ 5] : "r2",
-            replicas_plus_nodes[ 6] : "r2",
-            replicas_plus_nodes[ 7] : "r2",
-            replicas_plus_nodes[ 8] : "r3",
-            replicas_plus_nodes[ 9] : "r3",
-            replicas_plus_nodes[10] : "r3",
-            replicas_plus_nodes[11] : "r4",
-            replicas_plus_nodes[12] : "r4",
-            replicas_plus_nodes[13] : "r4",
-            replicas_plus_nodes[14] : "r5",
-            replicas_plus_nodes[15] : "r5",
-            replicas_plus_nodes[16] : "r5",
-            replicas_plus_nodes[17] : "r6",
-            replicas_plus_nodes[18] : "r6",
-            replicas_plus_nodes[19] : "r6",
+            replicas_plus_nodes[0]: "r1",
+            replicas_plus_nodes[1]: "r1",
+            replicas_plus_nodes[2]: "r1",
+            replicas_plus_nodes[3]: "r1",
+            replicas_plus_nodes[4]: "r1",
+            replicas_plus_nodes[5]: "r2",
+            replicas_plus_nodes[6]: "r2",
+            replicas_plus_nodes[7]: "r2",
+            replicas_plus_nodes[8]: "r3",
+            replicas_plus_nodes[9]: "r3",
+            replicas_plus_nodes[10]: "r3",
+            replicas_plus_nodes[11]: "r4",
+            replicas_plus_nodes[12]: "r4",
+            replicas_plus_nodes[13]: "r4",
+            replicas_plus_nodes[14]: "r5",
+            replicas_plus_nodes[15]: "r5",
+            replicas_plus_nodes[16]: "r5",
+            replicas_plus_nodes[17]: "r6",
+            replicas_plus_nodes[18]: "r6",
+            replicas_plus_nodes[19]: "r6",
         }
         self._set_rack_map(map)
 
@@ -258,7 +274,9 @@ class TestRacks(YTEnvSetup):
             self._set_rack(nodes[i], rack)
 
         create("file", "//tmp/file")
-        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
+        write_file(
+            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3}
+        )
 
         chunk_id = get_singular_chunk_id("//tmp/file")
 
@@ -318,7 +336,8 @@ class TestRacks(YTEnvSetup):
     def test_rack_count_limit(self):
         for i in xrange(255):
             create_rack("r" + str(i))
-        with pytest.raises(YtError): create_rack("too_many")
+        with pytest.raises(YtError):
+            create_rack("too_many")
 
     @authors("shakurov")
     def test_max_replication_factor(self):
@@ -326,24 +345,36 @@ class TestRacks(YTEnvSetup):
         self._init_n_racks(6)
 
         create("file", "//tmp/file", attributes={"replication_factor": 10})
-        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 10})
+        write_file(
+            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 10}
+        )
 
         chunk_id = get_singular_chunk_id("//tmp/file")
 
         replication_status = get("#{0}/@replication_status/default".format(chunk_id))
-        assert replication_status["underreplicated"] or replication_status["unsafely_placed"]
+        assert (
+            replication_status["underreplicated"]
+            or replication_status["unsafely_placed"]
+        )
 
         set("//sys/media/default/@config/max_replication_factor", 6)
 
         def chunk_is_ok():
-            replication_status = get("#{0}/@replication_status/default".format(chunk_id))
-            return not replication_status["underreplicated"] and not replication_status["unsafely_placed"]
+            replication_status = get(
+                "#{0}/@replication_status/default".format(chunk_id)
+            )
+            return (
+                not replication_status["underreplicated"]
+                and not replication_status["unsafely_placed"]
+            )
 
         wait(lambda: chunk_is_ok)
 
         set("//sys/media/default/@config/max_regular_replicas_per_rack", 64)
 
+
 ##################################################################
+
 
 class TestRacksMulticell(TestRacks):
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -11,35 +11,47 @@ def with_name(skiff_type, name=None):
 
 
 def skiff_simple(wire_type, name=None):
-    return with_name({
-        "wire_type": wire_type,
-    }, name)
+    return with_name(
+        {
+            "wire_type": wire_type,
+        },
+        name,
+    )
 
 
 def skiff_optional(inner, name=None):
-    return with_name({
-        "wire_type": "variant8",
-        "children": [
-            {
-                "wire_type": "nothing",
-            },
-            inner
-        ]
-    }, name)
+    return with_name(
+        {
+            "wire_type": "variant8",
+            "children": [
+                {
+                    "wire_type": "nothing",
+                },
+                inner,
+            ],
+        },
+        name,
+    )
 
 
 def skiff_tuple(children, name=None):
-    return with_name({
-        "wire_type": "tuple",
-        "children": children,
-    }, name)
+    return with_name(
+        {
+            "wire_type": "tuple",
+            "children": children,
+        },
+        name,
+    )
 
 
 def skiff_repeated_variant8(children, name=None):
-    return with_name({
-        "wire_type": "repeated_variant8",
-        "children": children,
-    }, name)
+    return with_name(
+        {
+            "wire_type": "repeated_variant8",
+            "children": children,
+        },
+        name,
+    )
 
 
 class TestSkiffFormat(YTEnvSetup):
@@ -50,24 +62,27 @@ class TestSkiffFormat(YTEnvSetup):
     @authors("ermolovd")
     def test_id_map(self):
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [
-            {
-                "int64_column": -42,
-                "uint64_column": yson.YsonUint64(25),
-                "double_column": 3.14,
-                "boolean_column": True,
-                "string32_column": "foo",
-                "yson32_column": [110, "xxx", {"foo": "bar"}],
-            },
-            {
-                "int64_column": -15,
-                "uint64_column": yson.YsonUint64(25),
-                "double_column": 2.7,
-                "boolean_column": False,
-                "string32_column": "qux",
-                "yson32_column": None,
-            },
-        ])
+        write_table(
+            "//tmp/t_in",
+            [
+                {
+                    "int64_column": -42,
+                    "uint64_column": yson.YsonUint64(25),
+                    "double_column": 3.14,
+                    "boolean_column": True,
+                    "string32_column": "foo",
+                    "yson32_column": [110, "xxx", {"foo": "bar"}],
+                },
+                {
+                    "int64_column": -15,
+                    "uint64_column": yson.YsonUint64(25),
+                    "double_column": 2.7,
+                    "boolean_column": False,
+                    "string32_column": "qux",
+                    "yson32_column": None,
+                },
+            ],
+        )
 
         create("table", "//tmp/t_out")
 
@@ -100,18 +115,16 @@ class TestSkiffFormat(YTEnvSetup):
                         "wire_type": "yson32",
                         "name": "yson32_column",
                     },
-                ]
+                ],
             }
         ]
 
-        map(in_="//tmp/t_in",
+        map(
+            in_="//tmp/t_in",
             out="//tmp/t_out",
             command="cat",
-            spec={
-                "mapper":{
-                    "format": format
-                }
-            })
+            spec={"mapper": {"format": format}},
+        )
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
@@ -144,18 +157,20 @@ class TestSkiffFormat(YTEnvSetup):
                         "wire_type": "yson32",
                         "name": "yson32_column",
                     },
-                ]
+                ],
             }
         ]
 
-        map(in_="//tmp/t_in",
+        map(
+            in_="//tmp/t_in",
             out="//tmp/t_out",
             command="cat",
             spec={
                 "mapper": {
                     "format": format,
                 }
-            })
+            },
+        )
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
@@ -168,18 +183,20 @@ class TestSkiffFormat(YTEnvSetup):
                         "wire_type": "yson32",
                         "name": "$other_columns",
                     },
-                ]
+                ],
             }
         ]
 
-        map(in_="//tmp/t_in",
+        map(
+            in_="//tmp/t_in",
             out="//tmp/t_out",
             command="cat",
             spec={
                 "mapper": {
                     "format": format,
                 }
-            })
+            },
+        )
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
@@ -200,65 +217,94 @@ class TestSkiffFormat(YTEnvSetup):
             },
             {
                 "name": "struct",
-                "type_v3": struct_type([
-                    ("key", "string"),
-                    ("points", list_type(
-                        struct_type([
-                            ("x", "int64"),
-                            ("y", "int64"),
-                        ])
-                    ))
-                ]),
+                "type_v3": struct_type(
+                    [
+                        ("key", "string"),
+                        (
+                            "points",
+                            list_type(
+                                struct_type(
+                                    [
+                                        ("x", "int64"),
+                                        ("y", "int64"),
+                                    ]
+                                )
+                            ),
+                        ),
+                    ]
+                ),
             },
         ]
         create("table", "//tmp/t_in", attributes={"schema": schema})
-        write_table("//tmp/t_in", [
-            {
-                "list_of_strings": ["foo", "bar", "baz"],
-                "optional_list_of_strings": None,
-                "optional_optional_boolean": [False],
-                "struct": {"key": "qux", "points": [{"x": 1, "y": 4}, {"x": 5, "y": 4}]},
-            },
-            {
-                "list_of_strings": ["a", "bc"],
-                "optional_list_of_strings": ["defg", "hi"],
-                "optional_optional_boolean": [None],
-                "struct": {"key": "lol", "points": []},
-            }
-        ])
+        write_table(
+            "//tmp/t_in",
+            [
+                {
+                    "list_of_strings": ["foo", "bar", "baz"],
+                    "optional_list_of_strings": None,
+                    "optional_optional_boolean": [False],
+                    "struct": {
+                        "key": "qux",
+                        "points": [{"x": 1, "y": 4}, {"x": 5, "y": 4}],
+                    },
+                },
+                {
+                    "list_of_strings": ["a", "bc"],
+                    "optional_list_of_strings": ["defg", "hi"],
+                    "optional_optional_boolean": [None],
+                    "struct": {"key": "lol", "points": []},
+                },
+            ],
+        )
 
         create("table", "//tmp/t_out", attributes={"schema": schema})
 
         format = yson.YsonString("skiff")
         format.attributes["table_skiff_schemas"] = [
-            skiff_tuple([
-                skiff_repeated_variant8([skiff_simple("string32")], name="list_of_strings"),
-                skiff_optional(
-                    skiff_repeated_variant8([skiff_simple("string32")]),
-                    name="optional_list_of_strings"
-                ),
-                skiff_optional(skiff_optional(skiff_simple("boolean")), name="optional_optional_boolean"),
-                skiff_tuple(
-                    [
-                        skiff_simple("string32", name="key"),
-                        skiff_repeated_variant8([skiff_tuple([
-                            skiff_simple("int64", name="x"),
-                            skiff_simple("int64", name="y"),
-                        ])], name="points")
-                    ],
-                    name="struct",
-                )
-            ])
+            skiff_tuple(
+                [
+                    skiff_repeated_variant8(
+                        [skiff_simple("string32")], name="list_of_strings"
+                    ),
+                    skiff_optional(
+                        skiff_repeated_variant8([skiff_simple("string32")]),
+                        name="optional_list_of_strings",
+                    ),
+                    skiff_optional(
+                        skiff_optional(skiff_simple("boolean")),
+                        name="optional_optional_boolean",
+                    ),
+                    skiff_tuple(
+                        [
+                            skiff_simple("string32", name="key"),
+                            skiff_repeated_variant8(
+                                [
+                                    skiff_tuple(
+                                        [
+                                            skiff_simple("int64", name="x"),
+                                            skiff_simple("int64", name="y"),
+                                        ]
+                                    )
+                                ],
+                                name="points",
+                            ),
+                        ],
+                        name="struct",
+                    ),
+                ]
+            )
         ]
 
-        map(in_="//tmp/t_in",
+        map(
+            in_="//tmp/t_in",
             out="//tmp/t_out",
             command="tee /dev/stderr",
             spec={
                 "mapper": {
                     "format": format,
                 }
-            })
+            },
+        )
 
         assert read_table("//tmp/t_in") == read_table("//tmp/t_out")
 
@@ -279,53 +325,80 @@ class TestSkiffFormat(YTEnvSetup):
             },
             {
                 "name": "struct",
-                "type_v3": struct_type([
-                    ("key", "string"),
-                    ("points", list_type(
-                        struct_type([
-                            ("x", "int64"),
-                            ("y", "int64"),
-                        ])
-                    ))
-                ]),
+                "type_v3": struct_type(
+                    [
+                        ("key", "string"),
+                        (
+                            "points",
+                            list_type(
+                                struct_type(
+                                    [
+                                        ("x", "int64"),
+                                        ("y", "int64"),
+                                    ]
+                                )
+                            ),
+                        ),
+                    ]
+                ),
             },
         ]
         create("table", "//tmp/table1", attributes={"schema": schema})
-        write_table("//tmp/table1", [
-            {
-                "list_of_strings": ["foo", "bar", "baz"],
-                "optional_list_of_strings": None,
-                "optional_optional_boolean": [False],
-                "struct": {"key": "qux", "points": [{"x": 1, "y": 4}, {"x": 5, "y": 4}]},
-            },
-            {
-                "list_of_strings": ["a", "bc"],
-                "optional_list_of_strings": ["defg", "hi"],
-                "optional_optional_boolean": [None],
-                "struct": {"key": "lol", "points": []},
-            }
-        ])
+        write_table(
+            "//tmp/table1",
+            [
+                {
+                    "list_of_strings": ["foo", "bar", "baz"],
+                    "optional_list_of_strings": None,
+                    "optional_optional_boolean": [False],
+                    "struct": {
+                        "key": "qux",
+                        "points": [{"x": 1, "y": 4}, {"x": 5, "y": 4}],
+                    },
+                },
+                {
+                    "list_of_strings": ["a", "bc"],
+                    "optional_list_of_strings": ["defg", "hi"],
+                    "optional_optional_boolean": [None],
+                    "struct": {"key": "lol", "points": []},
+                },
+            ],
+        )
 
         format = yson.YsonString("skiff")
         format.attributes["table_skiff_schemas"] = [
-            skiff_tuple([
-                skiff_repeated_variant8([skiff_simple("string32")], name="list_of_strings"),
-                skiff_optional(
-                    skiff_repeated_variant8([skiff_simple("string32")]),
-                    name="optional_list_of_strings"
-                ),
-                skiff_optional(skiff_optional(skiff_simple("boolean")), name="optional_optional_boolean"),
-                skiff_tuple(
-                    [
-                        skiff_simple("string32", name="key"),
-                        skiff_repeated_variant8([skiff_tuple([
-                            skiff_simple("int64", name="x"),
-                            skiff_simple("int64", name="y"),
-                        ])], name="points")
-                    ],
-                    name="struct",
-                )
-            ])
+            skiff_tuple(
+                [
+                    skiff_repeated_variant8(
+                        [skiff_simple("string32")], name="list_of_strings"
+                    ),
+                    skiff_optional(
+                        skiff_repeated_variant8([skiff_simple("string32")]),
+                        name="optional_list_of_strings",
+                    ),
+                    skiff_optional(
+                        skiff_optional(skiff_simple("boolean")),
+                        name="optional_optional_boolean",
+                    ),
+                    skiff_tuple(
+                        [
+                            skiff_simple("string32", name="key"),
+                            skiff_repeated_variant8(
+                                [
+                                    skiff_tuple(
+                                        [
+                                            skiff_simple("int64", name="x"),
+                                            skiff_simple("int64", name="y"),
+                                        ]
+                                    )
+                                ],
+                                name="points",
+                            ),
+                        ],
+                        name="struct",
+                    ),
+                ]
+            )
         ]
         skiff_dump = read_table("//tmp/table1", output_format=format)
 
@@ -341,18 +414,18 @@ class TestSkiffFormat(YTEnvSetup):
     @authors("ermolovd")
     def test_read_empty_columns(self):
         create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [
-            {"foo_column": 1},
-            {"foo_column": 2},
-            {"foo_column": 3},
-        ])
+        write_table(
+            "//tmp/t_in",
+            [
+                {"foo_column": 1},
+                {"foo_column": 2},
+                {"foo_column": 3},
+            ],
+        )
 
         format = yson.YsonString("skiff")
         format.attributes["table_skiff_schemas"] = [
-            {
-                "wire_type": "tuple",
-                "children": []
-            }
+            {"wire_type": "tuple", "children": []}
         ]
 
         read_data = read_table("//tmp/t_in{}", output_format=format)
@@ -374,17 +447,22 @@ class TestSkiffFormat(YTEnvSetup):
         create("table", "//tmp/t_out_reducer", attributes={"schema": schema})
         create("table", "//tmp/t_out_mapper", attributes={"schema": schema})
 
-        write_table("//tmp/t_in", [
-            {"key": "foo", "value": [1, 2, 3]},
-            {"key": "bar", "value": []},
-        ])
+        write_table(
+            "//tmp/t_in",
+            [
+                {"key": "foo", "value": [1, 2, 3]},
+                {"key": "bar", "value": []},
+            ],
+        )
 
         format = yson.YsonString("skiff")
         format.attributes["table_skiff_schemas"] = [
-            skiff_tuple([
-                skiff_simple("string32", name="key"),
-                skiff_repeated_variant8([skiff_simple("int64")], name="value"),
-            ])
+            skiff_tuple(
+                [
+                    skiff_simple("string32", name="key"),
+                    skiff_repeated_variant8([skiff_simple("int64")], name="value"),
+                ]
+            )
         ]
 
         mapper_output_format = yson.YsonString("skiff")
@@ -404,13 +482,16 @@ class TestSkiffFormat(YTEnvSetup):
             in_="//tmp/t_in",
             out=["//tmp/t_out_mapper", "//tmp/t_out_reducer"],
             sort_by=["key"],
-
             mapper_command=(
                 "cat && echo -en '"
                 "\\x00\\x00"  # table index
-                "\\x03\\x00\\x00\\x00""baz"  # baz string
-                "\\x00""\\x42\\x00\\x00\\x00\\x00\\x00\\x00\\x00"  # list item
-                "\\xFF""' >&4"),
+                "\\x03\\x00\\x00\\x00"
+                "baz"  # baz string
+                "\\x00"
+                "\\x42\\x00\\x00\\x00\\x00\\x00\\x00\\x00"  # list item
+                "\\xFF"
+                "' >&4"
+            ),
             reducer_command="cat",
             spec={
                 "mapper_output_table_count": 1,
@@ -421,10 +502,13 @@ class TestSkiffFormat(YTEnvSetup):
                 "reducer": {
                     "input_format": reducer_input_format,
                     "output_format": format,
-                }
-            }
+                },
+            },
         )
-        assert [{"key": "bar", "value": []}, {"key": "foo", "value": [1 ,2 ,3]}] == list(sorted(read_table("//tmp/t_out_reducer"), key=lambda x: x["key"]))
+        assert [
+            {"key": "bar", "value": []},
+            {"key": "foo", "value": [1, 2, 3]},
+        ] == list(sorted(read_table("//tmp/t_out_reducer"), key=lambda x: x["key"]))
         assert [{"key": "baz", "value": [0x42]}] == read_table("//tmp/t_out_mapper")
 
     @authors("levysotsky")
@@ -450,7 +534,7 @@ class TestSkiffFormat(YTEnvSetup):
         row_count = 2
         first_rows = [
             {
-                "key1": 2*i,
+                "key1": 2 * i,
                 "key3": i,
             }
             for i in xrange(row_count)
@@ -459,7 +543,7 @@ class TestSkiffFormat(YTEnvSetup):
         write_table("//tmp/in1", first_rows)
         second_rows = [
             {
-                "key1": 2*i + 1,
+                "key1": 2 * i + 1,
                 "key2": i,
             }
             for i in xrange(row_count)
@@ -502,16 +586,20 @@ while True:
         write_file("//tmp/reducer.py", reducer)
         input_format = yson.YsonString("skiff")
         input_format.attributes["table_skiff_schemas"] = [
-            skiff_tuple([
-                skiff_simple("int64", name="key1"),
-                skiff_simple("nothing", name="key2"),
-                skiff_simple("int64", name="key3"),
-            ]),
-            skiff_tuple([
-                skiff_simple("int64", name="key1"),
-                skiff_simple("int64", name="key2"),
-                skiff_simple("nothing", name="key3"),
-            ]),
+            skiff_tuple(
+                [
+                    skiff_simple("int64", name="key1"),
+                    skiff_simple("nothing", name="key2"),
+                    skiff_simple("int64", name="key3"),
+                ]
+            ),
+            skiff_tuple(
+                [
+                    skiff_simple("int64", name="key1"),
+                    skiff_simple("int64", name="key2"),
+                    skiff_simple("nothing", name="key3"),
+                ]
+            ),
         ]
         map_reduce(
             in_=["//tmp/in1", "//tmp/in2"],
@@ -544,12 +632,14 @@ while True:
 
     @authors("ermolovd")
     def test_read_write_empty_tuple(self):
-        schema = [
-            {"name": "column", "type_v3": struct_type([])}
-        ]
-        create("table", "//tmp/table", attributes={
-            "schema": schema,
-        })
+        schema = [{"name": "column", "type_v3": struct_type([])}]
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "schema": schema,
+            },
+        )
 
         format = yson.YsonString("skiff")
         format.attributes["table_skiff_schemas"] = [
@@ -581,10 +671,7 @@ while True:
             {
                 "wire_type": "tuple",
                 "children": [
-                    {
-                        "wire_type": "int64",
-                        "name": "column"
-                    },
+                    {"wire_type": "int64", "name": "column"},
                     {
                         "wire_type": "variant8",
                         "children": [
@@ -597,23 +684,32 @@ while True:
                                     {
                                         "wire_type": "int64",
                                     }
-                                ]
-                            }
+                                ],
+                            },
                         ],
                         "name": "missing_column",
-                    }
+                    },
                 ],
             }
         ]
 
-
-        write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": None}])
+        write_table(
+            "//tmp/table", [{"column": 1}, {"column": 2, "missing_column": None}]
+        )
         read_data = read_table("//tmp/table", is_raw=True, output_format=format)
         assert read_data == (
-            "\x00\x00" "\x01\x00\x00\x00""\x00\x00\x00\x00" "\x00"
-            "\x00\x00" "\x02\x00\x00\x00""\x00\x00\x00\x00" "\x00"
+            "\x00\x00"
+            "\x01\x00\x00\x00"
+            "\x00\x00\x00\x00"
+            "\x00"
+            "\x00\x00"
+            "\x02\x00\x00\x00"
+            "\x00\x00\x00\x00"
+            "\x00"
         )
 
-        write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": "GG"}])
+        write_table(
+            "//tmp/table", [{"column": 1}, {"column": 2, "missing_column": "GG"}]
+        )
         with raises_yt_error("Cannot represent nonnull value of column"):
             read_data = read_table("//tmp/table", is_raw=True, output_format=format)

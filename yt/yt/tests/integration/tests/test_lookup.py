@@ -3,7 +3,7 @@ import __builtin__
 
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt_env_setup import wait 
+from yt_env_setup import wait
 from yt_commands import *
 from yt.yson import YsonEntity
 
@@ -12,6 +12,7 @@ import random
 from yt.environment.helpers import assert_items_equal
 
 ################################################################################
+
 
 class TestLookup(TestSortedDynamicTablesBase):
     @authors("savrus")
@@ -64,10 +65,14 @@ class TestLookup(TestSortedDynamicTablesBase):
     def test_lookup_versioned_YT_6800(self, optimize_for):
         sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t",
-            min_data_versions=0, min_data_ttl=0,
-            max_data_versions=1000, max_data_ttl=1000000,
-            optimize_for=optimize_for)
+        self._create_simple_table(
+            "//tmp/t",
+            min_data_versions=0,
+            min_data_ttl=0,
+            max_data_versions=1000,
+            max_data_ttl=1000000,
+            optimize_for=optimize_for,
+        )
         sync_mount_table("//tmp/t")
 
         for prefix in ["a", "b", "c"]:
@@ -98,11 +103,17 @@ class TestLookup(TestSortedDynamicTablesBase):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value1", "type": "string"},
-            {"name": "value2", "type": "string"}]
-        create("table", "//tmp/t", attributes={
-            "dynamic": True,
-            "optimize_for": optimize_for,
-            "schema": schema})
+            {"name": "value2", "type": "string"},
+        ]
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": optimize_for,
+                "schema": schema,
+            },
+        )
 
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 0, "value1": "0"}], update=True)
@@ -110,8 +121,14 @@ class TestLookup(TestSortedDynamicTablesBase):
         full_row = lookup_rows("//tmp/t", keys, versioned=True)[0]
 
         def _check(row):
-            assert row.attributes["write_timestamps"] == full_row.attributes["write_timestamps"]
-            assert row.attributes["delete_timestamps"] == full_row.attributes["delete_timestamps"]
+            assert (
+                row.attributes["write_timestamps"]
+                == full_row.attributes["write_timestamps"]
+            )
+            assert (
+                row.attributes["delete_timestamps"]
+                == full_row.attributes["delete_timestamps"]
+            )
             assert len(row) == 0
 
         actual = lookup_rows("//tmp/t", keys, column_names=["value2"], versioned=True)
@@ -128,15 +145,22 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         schema1 = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value1", "type": "string"}]
+            {"name": "value1", "type": "string"},
+        ]
         schema2 = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value1", "type": "string"},
-            {"name": "value2", "type": "string"}]
-        create("table", "//tmp/t", attributes={
-            "dynamic": True,
-            "optimize_for": optimize_for,
-            "schema": schema1})
+            {"name": "value2", "type": "string"},
+        ]
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": optimize_for,
+                "schema": schema1,
+            },
+        )
 
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 0, "value1": "0"}], update=True)
@@ -146,8 +170,14 @@ class TestLookup(TestSortedDynamicTablesBase):
         alter_table("//tmp/t", schema=schema2)
         sync_mount_table("//tmp/t")
         row = lookup_rows("//tmp/t", keys, column_names=["value2"], versioned=True)[0]
-        assert row.attributes["write_timestamps"] == full_row.attributes["write_timestamps"]
-        assert row.attributes["delete_timestamps"] == full_row.attributes["delete_timestamps"]
+        assert (
+            row.attributes["write_timestamps"]
+            == full_row.attributes["write_timestamps"]
+        )
+        assert (
+            row.attributes["delete_timestamps"]
+            == full_row.attributes["delete_timestamps"]
+        )
         assert len(row) == 0
 
     @authors("savrus")
@@ -158,11 +188,17 @@ class TestLookup(TestSortedDynamicTablesBase):
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "value1", "type": "string"},
             {"name": "value2", "type": "string"},
-            {"name": "value3", "type": "string"}]
-        create("table", "//tmp/t", attributes={
-            "dynamic": True,
-            "optimize_for": optimize_for,
-            "schema": schema})
+            {"name": "value3", "type": "string"},
+        ]
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": optimize_for,
+                "schema": schema,
+            },
+        )
 
         sync_mount_table("//tmp/t")
         for i in xrange(10):
@@ -174,24 +210,45 @@ class TestLookup(TestSortedDynamicTablesBase):
             "min_data_ttl": 0,
             "max_data_ttl": 1000 * 60 * 10,
             "min_data_versions": 1,
-            "max_data_versions": 1}
+            "max_data_versions": 1,
+        }
 
-        full_row = lookup_rows("//tmp/t", keys, versioned=True, retention_config=retention_config)[0]
+        full_row = lookup_rows(
+            "//tmp/t", keys, versioned=True, retention_config=retention_config
+        )[0]
         assert len(full_row.attributes["write_timestamps"]) == 2
         assert len(full_row.attributes["delete_timestamps"]) == 0
         assert len(full_row) == 3
 
         def _check(row):
-            assert row.attributes["write_timestamps"] == full_row.attributes["write_timestamps"]
-            assert row.attributes["delete_timestamps"] == full_row.attributes["delete_timestamps"]
+            assert (
+                row.attributes["write_timestamps"]
+                == full_row.attributes["write_timestamps"]
+            )
+            assert (
+                row.attributes["delete_timestamps"]
+                == full_row.attributes["delete_timestamps"]
+            )
             assert len(row) == 0
 
-        actual = lookup_rows("//tmp/t", keys, column_names=["value3"], versioned=True, retention_config=retention_config)
+        actual = lookup_rows(
+            "//tmp/t",
+            keys,
+            column_names=["value3"],
+            versioned=True,
+            retention_config=retention_config,
+        )
         _check(actual[0])
 
         sync_flush_table("//tmp/t")
 
-        actual = lookup_rows("//tmp/t", keys, column_names=["value3"], versioned=True, retention_config=retention_config)
+        actual = lookup_rows(
+            "//tmp/t",
+            keys,
+            column_names=["value3"],
+            versioned=True,
+            retention_config=retention_config,
+        )
         _check(actual[0])
 
     @authors("ifsmirnov")
@@ -212,8 +269,8 @@ class TestLookup(TestSortedDynamicTablesBase):
             {"name": "v3", "type": "int64"},
         ]
 
-        delete_probability = 20 # percent
-        value_probability = 70 # percent
+        delete_probability = 20  # percent
+        value_probability = 70  # percent
         read_iters = 50
         lookup_iters = 50
 
@@ -232,7 +289,9 @@ class TestLookup(TestSortedDynamicTablesBase):
             return {"k1": random.randint(1, 10), "k2": random.randint(1, 10)}
 
         sync_create_cells(1)
-        self._create_simple_table("//tmp/expected", schema=schema, optimize_for="lookup")
+        self._create_simple_table(
+            "//tmp/expected", schema=schema, optimize_for="lookup"
+        )
         sync_mount_table("//tmp/expected")
 
         for i in range(read_iters):
@@ -255,8 +314,12 @@ class TestLookup(TestSortedDynamicTablesBase):
             keys = [random_key() for i in range(5)]
             ts = random.choice(timestamps)
             for versioned in True, False:
-                expected = lookup_rows("//tmp/expected", keys, versioned=versioned, timestamp=ts)
-                actual = lookup_rows("//tmp/actual", keys, versioned=versioned, timestamp=ts)
+                expected = lookup_rows(
+                    "//tmp/expected", keys, versioned=versioned, timestamp=ts
+                )
+                actual = lookup_rows(
+                    "//tmp/actual", keys, versioned=versioned, timestamp=ts
+                )
                 assert expected == actual
 
     @authors("ifsmirnov")
@@ -269,25 +332,43 @@ class TestLookup(TestSortedDynamicTablesBase):
         timestamps = [generate_timestamp()]
 
         insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
-        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]]
+        timestamps += [
+            lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes[
+                "write_timestamps"
+            ][0]
+        ]
         timestamps += [generate_timestamp()]
 
         delete_rows("//tmp/t", [{"key": 1}])
-        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["delete_timestamps"][0]]
+        timestamps += [
+            lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes[
+                "delete_timestamps"
+            ][0]
+        ]
         timestamps += [generate_timestamp()]
 
         insert_rows("//tmp/t", [{"key": 1, "value": "b"}])
-        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]]
+        timestamps += [
+            lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes[
+                "write_timestamps"
+            ][0]
+        ]
         timestamps += [generate_timestamp()]
 
         delete_rows("//tmp/t", [{"key": 1}])
-        timestamps += [lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["delete_timestamps"][0]]
+        timestamps += [
+            lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes[
+                "delete_timestamps"
+            ][0]
+        ]
         timestamps += [generate_timestamp()]
 
         assert timestamps == sorted(timestamps)
 
         # Check one lookup explicitly.
-        result = lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=timestamps[6])[0]
+        result = lookup_rows(
+            "//tmp/t", [{"key": 1}], versioned=True, timestamp=timestamps[6]
+        )[0]
         assert result.attributes["write_timestamps"] == [timestamps[5], timestamps[1]]
         assert result.attributes["delete_timestamps"] == [timestamps[3]]
         value = result["value"]
@@ -300,7 +381,8 @@ class TestLookup(TestSortedDynamicTablesBase):
         # Check all lookups against chunk stores.
         actual = [
             lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts)
-            for ts in timestamps]
+            for ts in timestamps
+        ]
 
         set("//tmp/t/@enable_store_rotation", True)
         remount_table("//tmp/t")
@@ -308,7 +390,8 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         expected = [
             lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts)
-            for ts in timestamps]
+            for ts in timestamps
+        ]
 
         assert expected == actual
 
@@ -321,14 +404,23 @@ class TestLookup(TestSortedDynamicTablesBase):
             {"name": "v2", "type": "int64"},
         ]
 
-        create("table", "//tmp/t", attributes={
-            "schema": make_schema(schema, strict=True, unique_keys=True),
-            "optimize_for": optimize_for})
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": make_schema(schema, strict=True, unique_keys=True),
+                "optimize_for": optimize_for,
+            },
+        )
 
         timestamps = [generate_timestamp()]
         write_table("//tmp/t", [{"key": 0}])
         timestamps += [generate_timestamp()]
-        write_table("<append=true>//tmp/t", [{"key": 1, "v1": 1}, {"key": 2, "v2": 2}], append=True)
+        write_table(
+            "<append=true>//tmp/t",
+            [{"key": 1, "v1": 1}, {"key": 2, "v2": 2}],
+            append=True,
+        )
         timestamps += [generate_timestamp()]
         write_table("<append=true>//tmp/t", [{"key": 3, "v1": 3, "v2": 4}], append=True)
         timestamps += [generate_timestamp()]
@@ -362,20 +454,28 @@ class TestLookup(TestSortedDynamicTablesBase):
         expected = {}
         keys = [{"key": i} for i in range(4)]
 
-        actual = lookup_rows("//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0))
+        actual = lookup_rows(
+            "//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0)
+        )
         check(expected, actual)
 
         expected[0] = {}
-        actual = lookup_rows("//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0))
+        actual = lookup_rows(
+            "//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0)
+        )
         check(expected, actual)
 
         expected[1] = {"v1": 1}
         expected[2] = {"v2": 2}
-        actual = lookup_rows("//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0))
+        actual = lookup_rows(
+            "//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0)
+        )
         check(expected, actual)
 
         expected[3] = {"v1": 3, "v2": 4}
-        actual = lookup_rows("//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0))
+        actual = lookup_rows(
+            "//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0)
+        )
         check(expected, actual)
 
     @authors("ifsmirnov")
@@ -406,9 +506,14 @@ class TestLookup(TestSortedDynamicTablesBase):
             {"name": "value", "type": "string"},
         ]
 
-        create("table", "//tmp/t", attributes={
-            "schema": make_schema(schema, strict=True, unique_keys=True),
-            "optimize_for": optimize_for})
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "schema": make_schema(schema, strict=True, unique_keys=True),
+                "optimize_for": optimize_for,
+            },
+        )
 
         ts0 = generate_timestamp()
         write_table("//tmp/t", [{"key": 1, "value": "a"}])
@@ -418,7 +523,10 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         assert lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts0) == []
-        assert len(lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts1)) == 1
+        assert (
+            len(lookup_rows("//tmp/t", [{"key": 1}], versioned=True, timestamp=ts1))
+            == 1
+        )
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -438,7 +546,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(0, 1000)])
         assert_items_equal(actual, rows)
 
         rows = [{"key": i, "value": str(i)} for i in xrange(1, 1000, 2)]
@@ -448,11 +556,13 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000)]
-        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(0, 1000)])
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(0, 1000)])
         assert_items_equal(actual, rows)
 
         for tablet in xrange(10):
-            path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(tablet)
+            path = "//tmp/t/@tablets/{0}/performance_counters/static_chunk_row_lookup_count".format(
+                tablet
+            )
             wait(lambda: get(path) > 0)
             assert get(path) == 200
 
@@ -522,7 +632,9 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         for iter in range(3):
-            rows = [{"key": i, "value": str(i)} for i in range(iter * 3, (iter + 1) * 3)]
+            rows = [
+                {"key": i, "value": str(i)} for i in range(iter * 3, (iter + 1) * 3)
+            ]
             insert_rows("//tmp/t", rows)
             sync_flush_table("//tmp/t")
 
@@ -536,7 +648,11 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         rows = [{"key": i, "value": str(i)} for i in [0, 3, 6]]
         assert lookup_rows("//tmp/t", keys) == rows
 
-        schema = self.schema[:1] + [{"name": "key2", "type": "int64", "sort_order": "ascending"}] + self.schema[1:]
+        schema = (
+            self.schema[:1]
+            + [{"name": "key2", "type": "int64", "sort_order": "ascending"}]
+            + self.schema[1:]
+        )
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
@@ -555,14 +671,19 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         self._set_nodes_state()
         sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
+        self._create_simple_table(
+            "//tmp/t", replication_factor=replication_factor, schema=self.schema
+        )
         set("//tmp/t/@enable_data_node_lookup", True)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
 
         sync_mount_table("//tmp/t")
 
         for iter in range(3):
-            rows = [{"key": i, "value": str(i + iter)} for i in range(iter * 2, (iter + 1) * 2 + 1)]
+            rows = [
+                {"key": i, "value": str(i + iter)}
+                for i in range(iter * 2, (iter + 1) * 2 + 1)
+            ]
             insert_rows("//tmp/t", rows)
             sync_flush_table("//tmp/t")
 
@@ -574,15 +695,25 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
-        schema = self.schema[:1] +\
-                 [{"name": "key2", "type": "int64", "sort_order": "ascending"}] +\
-                 self.schema[1:] +\
-                 [{"name": "value2", "type": "boolean"}]
+        schema = (
+            self.schema[:1]
+            + [{"name": "key2", "type": "int64", "sort_order": "ascending"}]
+            + self.schema[1:]
+            + [{"name": "value2", "type": "boolean"}]
+        )
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", schema=schema)
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "key2": YsonEntity(), "value": str(values[i]), "value2": YsonEntity()} for i in range(7)]
+        rows = [
+            {
+                "key": i,
+                "key2": YsonEntity(),
+                "value": str(values[i]),
+                "value2": YsonEntity(),
+            }
+            for i in range(7)
+        ]
         assert lookup_rows("//tmp/t", keys) == rows
 
         rows = [{"key2": YsonEntity(), "value": str(values[i])} for i in range(7)]
@@ -592,8 +723,12 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", keys, column_names=["key", "value2"]) == rows
 
         rows = [{"key": i, "value": str(values[i])} for i in range(7)]
-        assert lookup_rows("//tmp/t", keys + [{"key": 10}], column_names=["key", "value"], keep_missing_rows=True) ==\
-               rows + [None]
+        assert lookup_rows(
+            "//tmp/t",
+            keys + [{"key": 10}],
+            column_names=["key", "value"],
+            keep_missing_rows=True,
+        ) == rows + [None]
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
@@ -601,38 +736,64 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         self._set_nodes_state()
         sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
+        self._create_simple_table(
+            "//tmp/t", replication_factor=replication_factor, schema=self.schema
+        )
         set("//tmp/t/@enable_data_node_lookup", True)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
 
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": 1, "value": "one"}])
-        write_ts_1 = lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]
+        write_ts_1 = lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes[
+            "write_timestamps"
+        ][0]
 
         insert_rows("//tmp/t", [{"key": 2, "value": "two"}])
-        write_ts_2 = lookup_rows("//tmp/t", [{"key": 2}], versioned=True)[0].attributes["write_timestamps"][0]
+        write_ts_2 = lookup_rows("//tmp/t", [{"key": 2}], versioned=True)[0].attributes[
+            "write_timestamps"
+        ][0]
 
-        assert(write_ts_2 > write_ts_1)
+        assert write_ts_2 > write_ts_1
 
         sync_flush_table("//tmp/t")
 
-        assert write_ts_1 == lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]
-        assert write_ts_2 == lookup_rows("//tmp/t", [{"key": 2}], versioned=True)[0].attributes["write_timestamps"][0]
-        assert lookup_rows("//tmp/t", [{"key": 1}], timestamp=write_ts_1) == [{"key": 1, "value": "one"}]
+        assert (
+            write_ts_1
+            == lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes[
+                "write_timestamps"
+            ][0]
+        )
+        assert (
+            write_ts_2
+            == lookup_rows("//tmp/t", [{"key": 2}], versioned=True)[0].attributes[
+                "write_timestamps"
+            ][0]
+        )
+        assert lookup_rows("//tmp/t", [{"key": 1}], timestamp=write_ts_1) == [
+            {"key": 1, "value": "one"}
+        ]
 
         insert_rows("//tmp/t", [{"key": 1, "value": "oneone"}])
         sync_flush_table("//tmp/t")
-        assert write_ts_1 < lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]
+        assert (
+            write_ts_1
+            < lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes[
+                "write_timestamps"
+            ][0]
+        )
 
-        assert lookup_rows("//tmp/t", [{"key": 1}], timestamp=write_ts_1) == [{"key": 1, "value": "one"}]
-
+        assert lookup_rows("//tmp/t", [{"key": 1}], timestamp=write_ts_1) == [
+            {"key": 1, "value": "one"}
+        ]
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
     @pytest.mark.parametrize("enable_peer_probing", [True, False])
     @pytest.mark.parametrize("enable_rejects_if_throttling", [True, False])
-    def test_data_node_lookup_stress(self, replication_factor, enable_peer_probing, enable_rejects_if_throttling):
+    def test_data_node_lookup_stress(
+        self, replication_factor, enable_peer_probing, enable_rejects_if_throttling
+    ):
         self._set_nodes_state()
         sync_create_cells(1)
 
@@ -640,7 +801,10 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_data_node_lookup", True)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         set("//tmp/t/@enable_peer_probing_in_data_node_lookup", enable_peer_probing)
-        set("//tmp/t/@enable_rejects_in_data_node_lookup_if_throttling", enable_rejects_if_throttling)
+        set(
+            "//tmp/t/@enable_rejects_in_data_node_lookup_if_throttling",
+            enable_rejects_if_throttling,
+        )
         sync_mount_table("//tmp/t")
 
         seq_keys = range(50)
@@ -655,7 +819,10 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
             for i in range(10):
                 current_value[keys_subset[i]] = str(values_subset[i])
 
-            rows = [{"key": keys_subset[i], "value": str(values_subset[i])} for i in range(10)]
+            rows = [
+                {"key": keys_subset[i], "value": str(values_subset[i])}
+                for i in range(10)
+            ]
             insert_rows("//tmp/t", rows)
             sync_flush_table("//tmp/t")
 
@@ -690,7 +857,9 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         self._set_nodes_state()
         sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", replication_factor=1, lookup_cache_rows_per_tablet=5)
+        self._create_simple_table(
+            "//tmp/t", replication_factor=1, lookup_cache_rows_per_tablet=5
+        )
         self._create_partitions(partition_count=5)
         set("//tmp/t/@enable_data_node_lookup", True)
         set("//tmp/t/@max_parallel_partition_lookups", parallel_lookups)
@@ -699,7 +868,10 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
 
         reference = {}
         for i in range(0, 10):
-            rows = [{"key": j, "value": str(random.randint(0, 100))} for j in range(i, i + 2)]
+            rows = [
+                {"key": j, "value": str(random.randint(0, 100))}
+                for j in range(i, i + 2)
+            ]
             for row in rows:
                 reference[row["key"]] = row["value"]
             insert_rows("//tmp/t", rows)
@@ -719,15 +891,23 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
 
         for use_lookup_cache in [False, True, True]:
             assert lookup_rows("//tmp/t", [], use_lookup_cache=use_lookup_cache) == []
-            assert lookup_rows("//tmp/t", random_keys, use_lookup_cache=use_lookup_cache) == random_rows
+            assert (
+                lookup_rows("//tmp/t", random_keys, use_lookup_cache=use_lookup_cache)
+                == random_rows
+            )
         for use_lookup_cache in [False, True, True]:
-            assert lookup_rows("//tmp/t", all_keys, use_lookup_cache=use_lookup_cache) == all_rows
+            assert (
+                lookup_rows("//tmp/t", all_keys, use_lookup_cache=use_lookup_cache)
+                == all_rows
+            )
 
 
 ################################################################################
 
+
 class TestLookupMulticell(TestLookup):
     NUM_SECONDARY_MASTER_CELLS = 2
+
 
 class TestLookupRpcProxy(TestLookup):
     DRIVER_BACKEND = "rpc"

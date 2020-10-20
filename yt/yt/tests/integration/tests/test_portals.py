@@ -12,17 +12,21 @@ from dateutil.tz import tzlocal
 
 ##################################################################
 
+
 def _purge_resolve_cache(path):
     tx = start_transaction()
     lock(path, tx=tx)
     abort_transaction(tx)
     assert not get(path + "/@resolve_cached")
 
+
 def _maybe_purge_resolve_cache(flag, path):
     if flag:
         _purge_resolve_cache(path)
 
+
 ##################################################################
+
 
 class TestPortals(YTEnvSetup):
     NUM_MASTERS = 3
@@ -31,7 +35,6 @@ class TestPortals(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
     NUM_SCHEDULERS = 1
-
 
     @authors("babenko")
     def test_cannot_create_portal_exit(self):
@@ -62,7 +65,9 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_create_portal(self):
-        entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        entrance_id = create(
+            "portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1}
+        )
         assert get("//tmp/p&/@type") == "portal_entrance"
         acl = get("//tmp/@effective_acl")
         assert get("//tmp/p&/@path") == "//tmp/p"
@@ -71,7 +76,10 @@ class TestPortals(YTEnvSetup):
 
         exit_id = get("//tmp/p&/@exit_node_id")
         assert get("#{}/@type".format(exit_id), driver=get_driver(1)) == "portal_exit"
-        assert get("#{}/@entrance_node_id".format(exit_id), driver=get_driver(1)) == entrance_id
+        assert (
+            get("#{}/@entrance_node_id".format(exit_id), driver=get_driver(1))
+            == entrance_id
+        )
         assert not get("#{}/@inherit_acl".format(exit_id), driver=get_driver(1))
         assert get("#{}/@acl".format(exit_id), driver=get_driver(1)) == acl
         assert get("#{}/@path".format(exit_id), driver=get_driver(1)) == "//tmp/p"
@@ -111,7 +119,9 @@ class TestPortals(YTEnvSetup):
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_remove_portal(self, purge_resolve_cache):
-        entrance_id = create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        entrance_id = create(
+            "portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1}
+        )
         exit_id = get("//tmp/p&/@exit_node_id")
         table_id = create("table", "//tmp/p/t")
         shard_id = get("//tmp/p/t/@shard_id")
@@ -122,10 +132,12 @@ class TestPortals(YTEnvSetup):
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         remove("//tmp/p")
 
-        wait(lambda: not exists("#{}".format(exit_id)) and \
-                     not exists("#{}".format(entrance_id), driver=get_driver(1)) and \
-                     not exists("#{}".format(table_id), driver=get_driver(1)) and \
-                     not exists("#{}".format(shard_id)))
+        wait(
+            lambda: not exists("#{}".format(exit_id))
+            and not exists("#{}".format(entrance_id), driver=get_driver(1))
+            and not exists("#{}".format(table_id), driver=get_driver(1))
+            and not exists("#{}".format(shard_id))
+        )
 
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
@@ -147,13 +159,19 @@ class TestPortals(YTEnvSetup):
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         assert get("//tmp/p/map/key") == "value"
 
-    @pytest.mark.parametrize("with_outer_tx,external_cell_tag,purge_resolve_cache",
-                             [(with_outer_tx, external_cell_tag, purge_resolve_cache)
-                             for with_outer_tx in [False, True]
-                             for external_cell_tag in [1, 2]
-                             for purge_resolve_cache in [False, True]])
+    @pytest.mark.parametrize(
+        "with_outer_tx,external_cell_tag,purge_resolve_cache",
+        [
+            (with_outer_tx, external_cell_tag, purge_resolve_cache)
+            for with_outer_tx in [False, True]
+            for external_cell_tag in [1, 2]
+            for purge_resolve_cache in [False, True]
+        ],
+    )
     @authors("babenko")
-    def test_read_write_table_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
+    def test_read_write_table_in_portal(
+        self, with_outer_tx, external_cell_tag, purge_resolve_cache
+    ):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("map_node", "//tmp/p/m")
 
@@ -164,7 +182,12 @@ class TestPortals(YTEnvSetup):
         else:
             tx = "0-0-0-0"
 
-        create("table", "//tmp/p/m/t", attributes={"external": True, "external_cell_tag": external_cell_tag}, tx=tx)
+        create(
+            "table",
+            "//tmp/p/m/t",
+            attributes={"external": True, "external_cell_tag": external_cell_tag},
+            tx=tx,
+        )
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         write_table("//tmp/p/m/t", PAYLOAD, tx=tx)
         assert get("//tmp/p/m/t/@row_count", tx=tx) == len(PAYLOAD)
@@ -180,24 +203,35 @@ class TestPortals(YTEnvSetup):
         chunk_id = get_singular_chunk_id("//tmp/p/m/t")
         assert get("#{}/@owning_nodes".format(chunk_id)) == ["//tmp/p/m/t"]
 
-    @pytest.mark.parametrize("with_outer_tx,external_cell_tag,purge_resolve_cache",
-                             [(with_outer_tx, external_cell_tag, purge_resolve_cache)
-                             for with_outer_tx in [False, True]
-                             for external_cell_tag in [1, 2]
-                             for purge_resolve_cache in [False, True]])
+    @pytest.mark.parametrize(
+        "with_outer_tx,external_cell_tag,purge_resolve_cache",
+        [
+            (with_outer_tx, external_cell_tag, purge_resolve_cache)
+            for with_outer_tx in [False, True]
+            for external_cell_tag in [1, 2]
+            for purge_resolve_cache in [False, True]
+        ],
+    )
     @authors("babenko")
-    def test_read_write_file_in_portal(self, with_outer_tx, external_cell_tag, purge_resolve_cache):
+    def test_read_write_file_in_portal(
+        self, with_outer_tx, external_cell_tag, purge_resolve_cache
+    ):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
         create("map_node", "//tmp/p/m")
 
-        PAYLOAD = "a" *  100
+        PAYLOAD = "a" * 100
 
         if with_outer_tx:
             tx = start_transaction()
         else:
             tx = "0-0-0-0"
 
-        create("file", "//tmp/p/m/f", attributes={"external": True, "external_cell_tag": external_cell_tag}, tx=tx)
+        create(
+            "file",
+            "//tmp/p/m/f",
+            attributes={"external": True, "external_cell_tag": external_cell_tag},
+            tx=tx,
+        )
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         write_file("//tmp/p/m/f", PAYLOAD, tx=tx)
         assert get("//tmp/p/m/f/@uncompressed_data_size", tx=tx) == len(PAYLOAD)
@@ -218,29 +252,55 @@ class TestPortals(YTEnvSetup):
         create_account("a")
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
-        create("table", "//tmp/p1/t", attributes={"account": "a", "external": True, "external_cell_tag": 1})
-        create("table", "//tmp/p2/t", attributes={"account": "a", "external": True, "external_cell_tag": 2})
+        create(
+            "table",
+            "//tmp/p1/t",
+            attributes={"account": "a", "external": True, "external_cell_tag": 1},
+        )
+        create(
+            "table",
+            "//tmp/p2/t",
+            attributes={"account": "a", "external": True, "external_cell_tag": 2},
+        )
         remove("//sys/accounts/a")
         assert get("//sys/accounts/a/@life_stage") == "removal_pre_committed"
-        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "removal_started")
-        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "removal_started")
+        wait(
+            lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1))
+            == "removal_started"
+        )
+        wait(
+            lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(2))
+            == "removal_started"
+        )
         remove("//tmp/p1/t")
-        wait(lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1)) == "removal_pre_committed")
-        assert get("//sys/accounts/a/@life_stage", driver=get_driver(2)) == "removal_started"
+        wait(
+            lambda: get("//sys/accounts/a/@life_stage", driver=get_driver(1))
+            == "removal_pre_committed"
+        )
+        assert (
+            get("//sys/accounts/a/@life_stage", driver=get_driver(2))
+            == "removal_started"
+        )
         remove("//tmp/p2/t")
         wait(lambda: not exists("//sys/accounts/a"))
 
     @authors("babenko")
     def test_expiration_time(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("table", "//tmp/p/t", attributes={"expiration_time": str(get_current_time())})
+        create(
+            "table",
+            "//tmp/p/t",
+            attributes={"expiration_time": str(get_current_time())},
+        )
         wait(lambda: not exists("//tmp/p/t"))
 
     @authors("babenko")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_remove_table_in_portal(self, purge_resolve_cache):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        table_id = create("table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": 2})
+        table_id = create(
+            "table", "//tmp/p/t", attributes={"external": True, "external_cell_tag": 2}
+        )
         wait(lambda: exists("#{}".format(table_id), driver=get_driver(2)))
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
         remove("//tmp/p/t")
@@ -408,7 +468,15 @@ class TestPortals(YTEnvSetup):
 
         wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 1)
 
-        create("table", "//tmp/p1/m/t", attributes={"external_cell_tag": 3, "optimize_for": "scan", "account": "tmp"})
+        create(
+            "table",
+            "//tmp/p1/m/t",
+            attributes={
+                "external_cell_tag": 3,
+                "optimize_for": "scan",
+                "account": "tmp",
+            },
+        )
         assert get("//tmp/p1/m/t/@account") == "tmp"
         TABLE_PAYLOAD = [{"key": "value"}]
         write_table("//tmp/p1/m/t", TABLE_PAYLOAD)
@@ -429,7 +497,9 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p2/m/l", tx=tx) == [123, 345, 3.14, "test"]
 
         assert get("//tmp/p2/m/f/@type", tx=tx) == "file"
-        assert get("//tmp/p2/m/f/@resource_usage", tx=tx) == get("//tmp/p1/m/f/@resource_usage")
+        assert get("//tmp/p2/m/f/@resource_usage", tx=tx) == get(
+            "//tmp/p1/m/f/@resource_usage"
+        )
         assert get("//tmp/p2/m/f/@uncompressed_data_size", tx=tx) == len(FILE_PAYLOAD)
         assert read_file("//tmp/p2/m/f", tx=tx) == FILE_PAYLOAD
         assert read_table("//tmp/p2/m/t", tx=tx) == TABLE_PAYLOAD
@@ -441,14 +511,18 @@ class TestPortals(YTEnvSetup):
 
         create_account("b")
         set("//tmp/p2/m/f/@account", "b")
-        wait(lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 1 and \
-                     get("//sys/accounts/b/@resource_usage/chunk_count") == 1)
+        wait(
+            lambda: get("//sys/accounts/a/@resource_usage/chunk_count") == 1
+            and get("//sys/accounts/b/@resource_usage/chunk_count") == 1
+        )
 
         chunk_ids = get("//tmp/p2/m/f/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        assert_items_equal(get("#{}/@owning_nodes".format(chunk_id)), ["//tmp/p1/m/f", "//tmp/p2/m/f"])
+        assert_items_equal(
+            get("#{}/@owning_nodes".format(chunk_id)), ["//tmp/p1/m/f", "//tmp/p2/m/f"]
+        )
 
         remove("//tmp/p1/m/f")
         remove("//tmp/p2/m/f")
@@ -466,7 +540,9 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
 
-        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 3, "account": "a"})
+        create(
+            "file", "//tmp/p1/f", attributes={"external_cell_tag": 3, "account": "a"}
+        )
         FILE_PAYLOAD = "PAYLOAD"
         write_file("//tmp/p1/f", FILE_PAYLOAD)
 
@@ -503,13 +579,19 @@ class TestPortals(YTEnvSetup):
 
         set("//tmp/p1/@opaque", True)
         assert get("//tmp/p1/@opaque")
-        with pytest.raises(YtError): set("//tmp/p1&/@opaque", False)
+        with pytest.raises(YtError):
+            set("//tmp/p1&/@opaque", False)
 
     @authors("shakurov")
     def test_cross_cell_move_opaque_with_user_attribute(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
 
-        create("table", "//tmp/d1/d2/d3/t", recursive=True, attributes={"external_cell_tag": 3})
+        create(
+            "table",
+            "//tmp/d1/d2/d3/t",
+            recursive=True,
+            attributes={"external_cell_tag": 3},
+        )
         set("//tmp/d1/d2/d3/t/@opaque", True)
         set("//tmp/d1/d2/d3/t/@some_user_attr", "some_value")
         set("//tmp/d1/d2/d3/@opaque", True)
@@ -533,7 +615,9 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
 
-        create("file", "//tmp/p1/f", attributes={"external_cell_tag": 3, "account": "a"})
+        create(
+            "file", "//tmp/p1/f", attributes={"external_cell_tag": 3, "account": "a"}
+        )
 
         remove("//sys/accounts/a")
         wait(lambda: get("//sys/accounts/a/@life_stage") == "removal_pre_committed")
@@ -554,10 +638,17 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2})
 
-        create("table", "//tmp/p1/t", attributes={"external_cell_tag": 3, "tablet_cell_bundle": "b"})
+        create(
+            "table",
+            "//tmp/p1/t",
+            attributes={"external_cell_tag": 3, "tablet_cell_bundle": "b"},
+        )
 
         remove("//sys/tablet_cell_bundles/b")
-        wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") == "removal_pre_committed")
+        wait(
+            lambda: get("//sys/tablet_cell_bundles/b/@life_stage")
+            == "removal_pre_committed"
+        )
 
         with pytest.raises(YtError):
             copy("//tmp/p1/t", "//tmp/p2/t")
@@ -585,7 +676,9 @@ class TestPortals(YTEnvSetup):
     def test_create_portal_in_tx_commit(self):
         tx = start_transaction()
 
-        entrance_id = create("portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 1})
+        entrance_id = create(
+            "portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 1}
+        )
         exit_id = get("//tmp/p&/@exit_node_id", tx=tx)
 
         assert ls("//tmp/p", tx=tx) == []
@@ -610,7 +703,9 @@ class TestPortals(YTEnvSetup):
     def test_create_portal_in_tx_abort(self):
         tx = start_transaction()
 
-        entrance_id = create("portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 1})
+        entrance_id = create(
+            "portal_entrance", "//tmp/p", tx=tx, attributes={"exit_cell_tag": 1}
+        )
         exit_id = get("//tmp/p&/@exit_node_id", tx=tx)
 
         assert ls("//tmp/p", tx=tx) == []
@@ -628,7 +723,11 @@ class TestPortals(YTEnvSetup):
 
         assert ls("//tmp") == []
         wait(lambda: not exists("//sys/portal_entrances/{}".format(entrance_id)))
-        wait(lambda: not exists("//sys/portal_exits/{}".format(exit_id), driver=get_driver(1)))
+        wait(
+            lambda: not exists(
+                "//sys/portal_exits/{}".format(exit_id), driver=get_driver(1)
+            )
+        )
 
     @authors("babenko")
     def test_mutation_id1(self):
@@ -656,26 +755,67 @@ class TestPortals(YTEnvSetup):
         create_account("b")
         create_user("u")
 
-        create("map_node", "//tmp/m", attributes={"attr": "value", "acl": [make_ace("allow", "u", "write")]})
+        create(
+            "map_node",
+            "//tmp/m",
+            attributes={"attr": "value", "acl": [make_ace("allow", "u", "write")]},
+        )
 
         TABLE_PAYLOAD = [{"key": "value"}]
-        create("table", "//tmp/m/t", attributes={"external": True, "external_cell_tag": 3, "account": "a", "attr": "t"})
+        create(
+            "table",
+            "//tmp/m/t",
+            attributes={
+                "external": True,
+                "external_cell_tag": 3,
+                "account": "a",
+                "attr": "t",
+            },
+        )
         write_table("//tmp/m/t", TABLE_PAYLOAD)
 
         FILE_PAYLOAD = "PAYLOAD"
-        create("file", "//tmp/m/f", attributes={"external": True, "external_cell_tag": 3, "account": "b", "attr": "f"})
+        create(
+            "file",
+            "//tmp/m/f",
+            attributes={
+                "external": True,
+                "external_cell_tag": 3,
+                "account": "b",
+                "attr": "f",
+            },
+        )
         write_file("//tmp/m/f", FILE_PAYLOAD)
 
         create("document", "//tmp/m/d", attributes={"value": {"hello": "world"}})
         ct = get("//tmp/m/d/@creation_time")
         mt = get("//tmp/m/d/@modification_time")
 
-        create("map_node", "//tmp/m/m", attributes={"account": "a", "compression_codec": "brotli_8"})
+        create(
+            "map_node",
+            "//tmp/m/m",
+            attributes={"account": "a", "compression_codec": "brotli_8"},
+        )
 
-        create("table", "//tmp/m/et", attributes={"external_cell_tag": 3, "expiration_time": "2100-01-01T00:00:00.000000Z"})
+        create(
+            "table",
+            "//tmp/m/et",
+            attributes={
+                "external_cell_tag": 3,
+                "expiration_time": "2100-01-01T00:00:00.000000Z",
+            },
+        )
 
-        create("map_node", "//tmp/m/acl1", attributes={"inherit_acl": True,  "acl": [make_ace("deny", "u", "read")]})
-        create("map_node", "//tmp/m/acl2", attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "read")]})
+        create(
+            "map_node",
+            "//tmp/m/acl1",
+            attributes={"inherit_acl": True, "acl": [make_ace("deny", "u", "read")]},
+        )
+        create(
+            "map_node",
+            "//tmp/m/acl2",
+            attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "read")]},
+        )
 
         root_acl = get("//tmp/m/@effective_acl")
         acl1 = get("//tmp/m/acl1/@acl")
@@ -720,7 +860,14 @@ class TestPortals(YTEnvSetup):
 
         shard_id = get("//tmp/m/@shard_id")
         assert get("//tmp/m/t/@shard_id") == shard_id
-        assert get("//sys/cypress_shards/{}/@account_statistics/tmp/node_count".format(shard_id)) == 6
+        assert (
+            get(
+                "//sys/cypress_shards/{}/@account_statistics/tmp/node_count".format(
+                    shard_id
+                )
+            )
+            == 6
+        )
 
         remove("//tmp/m")
         wait(lambda: "m" not in ls("//tmp"))
@@ -731,11 +878,15 @@ class TestPortals(YTEnvSetup):
         create("map_node", "//tmp/m1")
 
         TABLE_PAYLOAD = [{"key": "value"}]
-        create("table", "//tmp/m1/t", attributes={"external": True, "external_cell_tag": 3})
+        create(
+            "table", "//tmp/m1/t", attributes={"external": True, "external_cell_tag": 3}
+        )
         write_table("//tmp/m1/t", TABLE_PAYLOAD)
 
         FILE_PAYLOAD = "PAYLOAD"
-        create("file", "//tmp/m1/f", attributes={"external": True, "external_cell_tag": 3})
+        create(
+            "file", "//tmp/m1/f", attributes={"external": True, "external_cell_tag": 3}
+        )
         write_file("//tmp/m1/f", FILE_PAYLOAD)
 
         externalize("//tmp/m1", 1)
@@ -749,7 +900,7 @@ class TestPortals(YTEnvSetup):
 
         copy("//tmp/m1", "//tmp/m2")
         assert get("//tmp/m2/@type") == "map_node"
-        assert_items_equal(ls("//tmp"), ["m1", "m2"]) 
+        assert_items_equal(ls("//tmp"), ["m1", "m2"])
         assert get("//tmp/m1/@key") == "m1"
         assert get("//tmp/m2/@key") == "m2"
 
@@ -775,23 +926,60 @@ class TestPortals(YTEnvSetup):
         shard_id = get("//tmp/m/@shard_id")
 
         TABLE_PAYLOAD = [{"key": "value"}]
-        create("table", "//tmp/m/t", attributes={"external": True, "external_cell_tag": 3, "account": "a", "attr": "t"})
+        create(
+            "table",
+            "//tmp/m/t",
+            attributes={
+                "external": True,
+                "external_cell_tag": 3,
+                "account": "a",
+                "attr": "t",
+            },
+        )
         write_table("//tmp/m/t", TABLE_PAYLOAD)
 
         FILE_PAYLOAD = "PAYLOAD"
-        create("file", "//tmp/m/f", attributes={"external": True, "external_cell_tag": 3, "account": "b", "attr": "f"})
+        create(
+            "file",
+            "//tmp/m/f",
+            attributes={
+                "external": True,
+                "external_cell_tag": 3,
+                "account": "b",
+                "attr": "f",
+            },
+        )
         write_file("//tmp/m/f", FILE_PAYLOAD)
 
         create("document", "//tmp/m/d", attributes={"value": {"hello": "world"}})
         ct = get("//tmp/m/d/@creation_time")
         mt = get("//tmp/m/d/@modification_time")
 
-        create("map_node", "//tmp/m/m", attributes={"account": "a", "compression_codec": "brotli_8"})
+        create(
+            "map_node",
+            "//tmp/m/m",
+            attributes={"account": "a", "compression_codec": "brotli_8"},
+        )
 
-        create("table", "//tmp/m/et", attributes={"external_cell_tag": 3, "expiration_time": "2100-01-01T00:00:00.000000Z"})
+        create(
+            "table",
+            "//tmp/m/et",
+            attributes={
+                "external_cell_tag": 3,
+                "expiration_time": "2100-01-01T00:00:00.000000Z",
+            },
+        )
 
-        create("map_node", "//tmp/m/acl1", attributes={"inherit_acl": True,  "acl": [make_ace("deny", "u", "read")]})
-        create("map_node", "//tmp/m/acl2", attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "read")]})
+        create(
+            "map_node",
+            "//tmp/m/acl1",
+            attributes={"inherit_acl": True, "acl": [make_ace("deny", "u", "read")]},
+        )
+        create(
+            "map_node",
+            "//tmp/m/acl2",
+            attributes={"inherit_acl": False, "acl": [make_ace("deny", "u", "read")]},
+        )
 
         root_acl = get("//tmp/m/@effective_acl")
         acl1 = get("//tmp/m/acl1/@acl")
@@ -843,28 +1031,30 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
 
         sync_create_cells(1)
-        create("table", "//tmp/p/target", attributes={
-            "dynamic": True,
-            "schema": [
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}
-            ],
-            "external": False
-        })
+        create(
+            "table",
+            "//tmp/p/target",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+                "external": False,
+            },
+        )
         sync_mount_table("//tmp/p/target")
 
-        create("table", "//tmp/p/source", attributes={
-            "external": True,
-            "external_cell_tag": 2
-        })
+        create(
+            "table",
+            "//tmp/p/source",
+            attributes={"external": True, "external_cell_tag": 2},
+        )
 
         PAYLOAD = [{"key": 1, "value": "blablabla"}]
         write_table("//tmp/p/source", PAYLOAD)
 
-        map(
-            in_="//tmp/p/source",
-            out="<append=%true>//tmp/p/target",
-            command="cat")
+        map(in_="//tmp/p/source", out="<append=%true>//tmp/p/target", command="cat")
 
         assert select_rows("* from [//tmp/p/target]") == PAYLOAD
 
@@ -921,7 +1111,11 @@ class TestPortals(YTEnvSetup):
 
         for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
             table_path = "//tmp/m1" + table_directory + "/table"
-            create("table", table_path, attributes={"external": True, "external_cell_tag": 1})
+            create(
+                "table",
+                table_path,
+                attributes={"external": True, "external_cell_tag": 1},
+            )
             write_table(table_path, [{"key": table_directory}])
 
         externalize("//tmp/m1", 2)
@@ -932,7 +1126,11 @@ class TestPortals(YTEnvSetup):
 
     @authors("gritukan")
     def test_granular_internalize(self):
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1, "opaque": True})
+        create(
+            "portal_entrance",
+            "//tmp/p1",
+            attributes={"exit_cell_tag": 1, "opaque": True},
+        )
         create("map_node", "//tmp/p1/m21", attributes={"opaque": True})
         create("map_node", "//tmp/p1/m22", attributes={"opaque": True})
         create("map_node", "//tmp/p1/m21/m31", attributes={"opaque": True})
@@ -942,7 +1140,11 @@ class TestPortals(YTEnvSetup):
 
         for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
             table_path = "//tmp/p1" + table_directory + "/table"
-            create("table", table_path, attributes={"external": True, "external_cell_tag": 2})
+            create(
+                "table",
+                table_path,
+                attributes={"external": True, "external_cell_tag": 2},
+            )
             write_table(table_path, [{"key": table_directory}])
 
         internalize("//tmp/p1")
@@ -953,8 +1155,16 @@ class TestPortals(YTEnvSetup):
 
     @authors("gritukan")
     def test_granular_cross_cell_copy(self):
-        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1, "opaque": True})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2, "opaque": True})
+        create(
+            "portal_entrance",
+            "//tmp/p1",
+            attributes={"exit_cell_tag": 1, "opaque": True},
+        )
+        create(
+            "portal_entrance",
+            "//tmp/p2",
+            attributes={"exit_cell_tag": 2, "opaque": True},
+        )
 
         create("map_node", "//tmp/p1/m1", attributes={"opaque": True})
         create("map_node", "//tmp/p1/m1/m21", attributes={"opaque": True})
@@ -1032,15 +1242,19 @@ class TestPortals(YTEnvSetup):
         write_table("//tmp/d/p1/t", {"a": "b"})
 
         expected_usage = {
-            "node_count": 5, # two tables + one map node + portal entrance and exit
+            "node_count": 5,  # two tables + one map node + portal entrance and exit
             "disk_space": 2 * table_usage["disk_space"],
-            "disk_space_per_medium": {"default": 2 * table_usage["disk_space_per_medium"]["default"]},
+            "disk_space_per_medium": {
+                "default": 2 * table_usage["disk_space_per_medium"]["default"]
+            },
             "chunk_count": 2 * table_usage["chunk_count"],
         }
         total_usage = get("//tmp/d/@recursive_resource_usage")
         assert cluster_resources_equal(total_usage, expected_usage)
 
+
 ##################################################################
+
 
 class TestResolveCache(YTEnvSetup):
     NUM_MASTERS = 1

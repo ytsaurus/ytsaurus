@@ -10,6 +10,7 @@ import shutil
 
 ##################################################################
 
+
 class TestDiskUsagePorto(YTEnvSetup):
     USE_PORTO = True
 
@@ -19,30 +20,18 @@ class TestDiskUsagePorto(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "slot_manager": {
-                "locations": [
-                    {
-                        "disk_quota": 1024 * 1024,
-                        "disk_usage_watermark": 0
-                    }
-                ],
+                "locations": [{"disk_quota": 1024 * 1024, "disk_usage_watermark": 0}],
                 "disk_resources_update_period": 100,
             },
             "job_controller": {
                 "waiting_jobs_timeout": 1000,
-                "resource_limits": {
-                    "user_slots": 3,
-                    "cpu": 3.0
-                }
+                "resource_limits": {"user_slots": 3, "cpu": 3.0},
             },
             "min_required_disk_space": 0,
         }
     }
 
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1
-        }
-    }
+    DELTA_MASTER_CONFIG = {"cypress_manager": {"default_table_replication_factor": 1}}
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -53,14 +42,17 @@ class TestDiskUsagePorto(YTEnvSetup):
     @classmethod
     def modify_node_config(cls, config):
         os.makedirs(cls.default_disk_path)
-        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
+        config["exec_agent"]["slot_manager"]["locations"][0][
+            "path"
+        ] = cls.default_disk_path
 
     @classmethod
     def teardown_class(cls):
         super(TestDiskUsagePorto, cls).teardown_class()
         if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
-
+            shutil.rmtree(
+                os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name)
+            )
 
     def _init_tables(self):
         tables = ["//tmp/t1", "//tmp/t2", "//tmp/t3"]
@@ -86,7 +78,10 @@ class TestDiskUsagePorto(YTEnvSetup):
             "in_": tables[0],
             "out": tables[2],
             "command": "true",
-            "spec": {"mapper": {"disk_space_limit": 1024 * 1024 / 2}, "max_failed_job_count": 1}
+            "spec": {
+                "mapper": {"disk_space_limit": 1024 * 1024 / 2},
+                "max_failed_job_count": 1,
+            },
         }
 
         op = map(track=False, **check_op)
@@ -104,11 +99,13 @@ class TestDiskUsagePorto(YTEnvSetup):
     def test_lack_space_node(self):
         tables = self._init_tables()
         options = {
-            "command": " ; ".join([
-                "dd if=/dev/zero of=zeros.txt count=1500",
-                events_on_fs().notify_event_cmd("file_written"),
-                events_on_fs().wait_event_cmd("finish_job"),
-            ])
+            "command": " ; ".join(
+                [
+                    "dd if=/dev/zero of=zeros.txt count=1500",
+                    events_on_fs().notify_event_cmd("file_written"),
+                    events_on_fs().wait_event_cmd("finish_job"),
+                ]
+            )
         }
 
         self.run_test(tables, options)
@@ -117,12 +114,17 @@ class TestDiskUsagePorto(YTEnvSetup):
     def test_lack_space_node_with_quota(self):
         tables = self._init_tables()
         options = {
-            "command": " ; ".join([
-                "true",
-                events_on_fs().notify_event_cmd("file_written"),
-                events_on_fs().wait_event_cmd("finish_job"),
-            ]),
-            "spec": {"mapper": {"disk_space_limit": 1024 * 1024 * 2 / 3}, "max_failed_job_count": 1}
+            "command": " ; ".join(
+                [
+                    "true",
+                    events_on_fs().notify_event_cmd("file_written"),
+                    events_on_fs().wait_event_cmd("finish_job"),
+                ]
+            ),
+            "spec": {
+                "mapper": {"disk_space_limit": 1024 * 1024 * 2 / 3},
+                "max_failed_job_count": 1,
+            },
         }
 
         self.run_test(tables, options)
@@ -133,8 +135,16 @@ class TestDiskUsagePorto(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}])
 
-        op = map(track=False, command="cat", in_="//tmp/t1", out="//tmp/t2",
-                 spec={"mapper": {"disk_space_limit": 2 * 1024 * 1024}, "max_failed_job_count": 1})
+        op = map(
+            track=False,
+            command="cat",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "mapper": {"disk_space_limit": 2 * 1024 * 1024},
+                "max_failed_job_count": 1,
+            },
+        )
         op.ensure_running()
 
         time.sleep(1.0)
@@ -150,13 +160,29 @@ class TestDiskUsagePorto(YTEnvSetup):
         create("table", "//tmp/t3")
         write_table("//tmp/t1", [{"foo": "bar"}])
 
-        op1 = map(track=False, command="sleep 1000", in_="//tmp/t1", out="//tmp/t2",
-                  spec={"mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3}, "max_failed_job_count": 1})
+        op1 = map(
+            track=False,
+            command="sleep 1000",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3},
+                "max_failed_job_count": 1,
+            },
+        )
         op1.ensure_running()
         wait(lambda: op1.get_job_count("running") == 1)
 
-        op2 = map(track=False, command="sleep 1000", in_="//tmp/t1", out="//tmp/t3",
-                  spec={"mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3}, "max_failed_job_count": 1})
+        op2 = map(
+            track=False,
+            command="sleep 1000",
+            in_="//tmp/t1",
+            out="//tmp/t3",
+            spec={
+                "mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3},
+                "max_failed_job_count": 1,
+            },
+        )
         op2.ensure_running()
         for type in ("running", "aborted", "failed"):
             assert op2.get_job_count(type) == 0
@@ -166,7 +192,9 @@ class TestDiskUsagePorto(YTEnvSetup):
         wait(lambda: op2.get_job_count("running") == 1)
         op2.abort()
 
+
 ##################################################################
+
 
 class TestDiskMediumsPorto(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -180,20 +208,13 @@ class TestDiskMediumsPorto(YTEnvSetup):
             },
             "job_controller": {
                 "waiting_jobs_timeout": 1000,
-                "resource_limits": {
-                    "user_slots": 3,
-                    "cpu": 3.0
-                }
+                "resource_limits": {"user_slots": 3, "cpu": 3.0},
             },
             "min_required_disk_space": 0,
         }
     }
 
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1
-        }
-    }
+    DELTA_MASTER_CONFIG = {"cypress_manager": {"default_table_replication_factor": 1}}
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -221,14 +242,16 @@ class TestDiskMediumsPorto(YTEnvSetup):
                 "disk_quota": 2 * 1024 * 1024,
                 "disk_usage_watermark": 0,
                 "medium_name": "ssd",
-            }
+            },
         ]
 
     @classmethod
     def teardown_class(cls):
         super(TestDiskMediumsPorto, cls).teardown_class()
         if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
+            shutil.rmtree(
+                os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name)
+            )
 
     @classmethod
     def on_masters_started(cls):
@@ -248,11 +271,11 @@ class TestDiskMediumsPorto(YTEnvSetup):
                 "mapper": {
                     "disk_request": {
                         "disk_space": 2 * 1024 * 1024,
-                        "medium_name": "ssd"
+                        "medium_name": "ssd",
                     },
                 },
                 "max_failed_job_count": 1,
-            }
+            },
         )
 
         assert read_table("//tmp/out") == [{"foo": "bar"}]
@@ -275,12 +298,12 @@ class TestDiskMediumsPorto(YTEnvSetup):
                 "mapper": {
                     "disk_request": {
                         "disk_space": 3 * 1024 * 1024,
-                        "medium_name": "ssd"
+                        "medium_name": "ssd",
                     },
                 },
                 "max_failed_job_count": 1,
             },
-            track=False
+            track=False,
         )
 
         wait(lambda: exists(op.get_path() + "/controller_orchid/progress/jobs"))
@@ -303,7 +326,7 @@ class TestDiskMediumsPorto(YTEnvSetup):
                     "mapper": {
                         "disk_request": {
                             "disk_space": 1024 * 1024,
-                            "medium_name": "unknown"
+                            "medium_name": "unknown",
                         },
                     },
                     "max_failed_job_count": 1,
@@ -332,12 +355,12 @@ class TestDiskMediumsPorto(YTEnvSetup):
                     "mapper": {
                         "disk_request": {
                             "disk_space": 1 * 1024 * 1024,
-                            "medium_name": "ssd"
+                            "medium_name": "ssd",
                         },
                     },
                     "max_failed_job_count": 1,
                 },
-                track=False
+                track=False,
             )
 
         op1 = start_op(1)
@@ -375,12 +398,12 @@ class TestDiskMediumsPorto(YTEnvSetup):
                     "mapper": {
                         "disk_request": {
                             "disk_space": disk_space_gb * 1024 * 1024,
-                            "medium_name": medium_type
+                            "medium_name": medium_type,
                         },
                     },
                     "max_failed_job_count": 1,
                 },
-                track=False
+                track=False,
             )
 
         op1 = start_op(1, "ssd", 1)
@@ -407,6 +430,7 @@ class TestDiskMediumsPorto(YTEnvSetup):
         for type in ("running", "aborted", "failed"):
             assert op3.get_job_count(type) == 0
 
+
 class TestDiskMediumRenamePorto(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
@@ -419,20 +443,13 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
             },
             "job_controller": {
                 "waiting_jobs_timeout": 1000,
-                "resource_limits": {
-                    "user_slots": 3,
-                    "cpu": 3.0
-                }
+                "resource_limits": {"user_slots": 3, "cpu": 3.0},
             },
             "min_required_disk_space": 0,
         }
     }
 
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1
-        }
-    }
+    DELTA_MASTER_CONFIG = {"cypress_manager": {"default_table_replication_factor": 1}}
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -473,14 +490,16 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
                 "disk_quota": 2 * 1024 * 1024,
                 "disk_usage_watermark": 0,
                 "medium_name": "ssd",
-            }
+            },
         ]
 
     @classmethod
     def teardown_class(cls):
         super(TestDiskMediumRenamePorto, cls).teardown_class()
         if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
+            shutil.rmtree(
+                os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name)
+            )
 
     @classmethod
     def on_masters_started(cls):
@@ -508,12 +527,12 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
                     "mapper": {
                         "disk_request": {
                             "disk_space": 1024 * 1024,
-                            "medium_name": medium_type
+                            "medium_name": medium_type,
                         },
                     },
                     "max_failed_job_count": 1,
                 },
-                track=track
+                track=track,
             )
 
         op = start_op(1, "ssd", track=False)
@@ -521,12 +540,22 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
 
         set("//sys/media/ssd/@name", "ssd_renamed")
 
-        wait(lambda: "ssd_renamed" in ls("//sys/scheduler/orchid/scheduler/cluster/medium_directory"))
+        wait(
+            lambda: "ssd_renamed"
+            in ls("//sys/scheduler/orchid/scheduler/cluster/medium_directory")
+        )
 
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
         controller_agent = controller_agents[0]
-        wait(lambda: "ssd_renamed" in ls("//sys/controller_agents/instances/{}/orchid/controller_agent/medium_directory".format(controller_agent)))
+        wait(
+            lambda: "ssd_renamed"
+            in ls(
+                "//sys/controller_agents/instances/{}/orchid/controller_agent/medium_directory".format(
+                    controller_agent
+                )
+            )
+        )
 
         with pytest.raises(YtError):
             start_op(2, "ssd", track=True)
@@ -547,21 +576,12 @@ class TestDefaultDiskMediumPorto(YTEnvSetup):
             "slot_manager": {
                 "disk_resources_update_period": 100,
             },
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 1,
-                    "cpu": 1.0
-                }
-            },
+            "job_controller": {"resource_limits": {"user_slots": 1, "cpu": 1.0}},
             "min_required_disk_space": 0,
         }
     }
 
-    DELTA_MASTER_CONFIG = {
-        "cypress_manager": {
-            "default_table_replication_factor": 1
-        }
-    }
+    DELTA_MASTER_CONFIG = {"cypress_manager": {"default_table_replication_factor": 1}}
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -605,7 +625,9 @@ class TestDefaultDiskMediumPorto(YTEnvSetup):
     def teardown_class(cls):
         super(TestDefaultDiskMediumPorto, cls).teardown_class()
         if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
+            shutil.rmtree(
+                os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name)
+            )
 
     @classmethod
     def on_masters_started(cls):
@@ -627,12 +649,12 @@ class TestDefaultDiskMediumPorto(YTEnvSetup):
                     "mapper": {
                         "disk_request": {
                             "disk_space": 1024 * 1024,
-                            "medium_name": medium_type
+                            "medium_name": medium_type,
                         },
                     },
                     "max_failed_job_count": 1,
                 },
-                track=track
+                track=track,
             )
 
         start_op("ssd", track=True)

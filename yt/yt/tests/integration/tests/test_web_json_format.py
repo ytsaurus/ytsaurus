@@ -11,7 +11,9 @@ import collections
 import copy
 import json
 
-Column = collections.namedtuple("Column", ["name", "type", "values", "expected", "complex"])
+Column = collections.namedtuple(
+    "Column", ["name", "type", "values", "expected", "complex"]
+)
 
 COLUMN_LIST = [
     Column(
@@ -22,17 +24,11 @@ COLUMN_LIST = [
             "abcd",
         ],
         [
-            {
-                "$incomplete": True,
-                "$type": "string",
-                "$value": "abcdefg"
-            },
-            {
-                "$type": "string",
-                "$value": "abcd"
-            },
+            {"$incomplete": True, "$type": "string", "$value": "abcdefg"},
+            {"$type": "string", "$value": "abcd"},
         ],
-        False),
+        False,
+    ),
     Column(
         "yson32_column",
         optional_type("yson"),
@@ -41,18 +37,15 @@ COLUMN_LIST = [
             "just a string",
         ],
         [
-            {
-                "$incomplete": True,
-                "$type": "any",
-                "$value": ""
-            },
+            {"$incomplete": True, "$type": "any", "$value": ""},
             {
                 "$incomplete": True,
                 "$type": "string",
                 "$value": "just a ",
             },
         ],
-        False),
+        False,
+    ),
     Column(
         "int64_column",
         optional_type("int64"),
@@ -61,16 +54,11 @@ COLUMN_LIST = [
             -42,
         ],
         [
-            {
-                "$type": "int64",
-                "$value": "-42"
-            },
-            {
-                "$type": "int64",
-                "$value": "-42"
-            },
+            {"$type": "int64", "$value": "-42"},
+            {"$type": "int64", "$value": "-42"},
         ],
-        False),
+        False,
+    ),
     Column(
         "uint64_column",
         optional_type("uint64"),
@@ -79,16 +67,11 @@ COLUMN_LIST = [
             yson.YsonUint64(25),
         ],
         [
-            {
-                "$type": "uint64",
-                "$value": "25"
-            },
-            {
-                "$type": "uint64",
-                "$value": "25"
-            },
+            {"$type": "uint64", "$value": "25"},
+            {"$type": "uint64", "$value": "25"},
         ],
-        False),
+        False,
+    ),
     Column(
         "double_column",
         optional_type("double"),
@@ -97,16 +80,11 @@ COLUMN_LIST = [
             3.14,
         ],
         [
-            {
-                "$type": "double",
-                "$value": "3.14"
-            },
-            {
-                "$type": "double",
-                "$value": "3.14"
-            },
+            {"$type": "double", "$value": "3.14"},
+            {"$type": "double", "$value": "3.14"},
         ],
-        False),
+        False,
+    ),
     Column(
         "boolean_column",
         optional_type("bool"),
@@ -115,16 +93,11 @@ COLUMN_LIST = [
             True,
         ],
         [
-            {
-                "$type": "boolean",
-                "$value": "true"
-            },
-            {
-                "$type": "boolean",
-                "$value": "true"
-            },
+            {"$type": "boolean", "$value": "true"},
+            {"$type": "boolean", "$value": "true"},
         ],
-        False),
+        False,
+    ),
     Column(
         "non_utf_string_column",
         optional_type("string"),
@@ -133,16 +106,11 @@ COLUMN_LIST = [
             b"ab\xFAcd",
         ],
         [
-            {
-                "$type": "string",
-                "$value": u"\xFF\xFE\xFD\xFC"
-            },
-            {
-                "$type": "string",
-                "$value": u"ab\xFAcd"
-            },
+            {"$type": "string", "$value": u"\xFF\xFE\xFD\xFC"},
+            {"$type": "string", "$value": u"ab\xFAcd"},
         ],
-        False),
+        False,
+    ),
     Column(
         "optional_list_int64_column",
         optional_type(list_type("int64")),
@@ -151,14 +119,11 @@ COLUMN_LIST = [
             yson.YsonEntity(),
         ],
         [
-            {
-                "$incomplete": True,
-                "$type": "any",
-                "$value": ""
-            },
+            {"$incomplete": True, "$type": "any", "$value": ""},
             yson.YsonEntity(),
         ],
-        True),
+        True,
+    ),
     Column(
         "variant_tuple_column",
         variant_tuple_type(["string", list_type("int8")]),
@@ -167,43 +132,36 @@ COLUMN_LIST = [
             [1, [7, 8]],
         ],
         [
-            {
-                "$incomplete": True,
-                "$type": "any",
-                "$value": ""
-            },
-            {
-                "$incomplete": True,
-                "$type": "any",
-                "$value": ""
-            },
+            {"$incomplete": True, "$type": "any", "$value": ""},
+            {"$incomplete": True, "$type": "any", "$value": ""},
         ],
-        True),
+        True,
+    ),
     Column(
         "struct_column",
-        struct_type([
-            ("a", "bool"),
-            ("b", "uint64"),
-            ("c", "string"),
-            ("d", optional_type("null")),
-        ]),
+        struct_type(
+            [
+                ("a", "bool"),
+                ("b", "uint64"),
+                ("c", "string"),
+                ("d", optional_type("null")),
+            ]
+        ),
         [
             {"a": False, "b": yson.YsonUint64(1), "c": "flame", "d": yson.YsonEntity()},
-            {"a": True, "b": yson.YsonUint64(12), "c": "quite long string", "d": [yson.YsonEntity()]},
+            {
+                "a": True,
+                "b": yson.YsonUint64(12),
+                "c": "quite long string",
+                "d": [yson.YsonEntity()],
+            },
         ],
         [
-            {
-                "$incomplete": True,
-                "$type": "any",
-                "$value": ""
-            },
-            {
-                "$incomplete": True,
-                "$type": "any",
-                "$value": ""
-            },
+            {"$incomplete": True, "$type": "any", "$value": ""},
+            {"$incomplete": True, "$type": "any", "$value": ""},
         ],
-        True),
+        True,
+    ),
     Column(
         "list_optional_int64_column",
         list_type(optional_type("int64")),
@@ -223,7 +181,8 @@ COLUMN_LIST = [
                 "$incomplete": True,
             },
         ],
-        True),
+        True,
+    ),
 ]
 
 DYNAMIC_ORDERED_TABLE_SYSTEM_COLUMN_NAMES = [
@@ -239,58 +198,49 @@ STRING_WEIGHT_LIMIT = 5
 # Later they will be matched with actual rows using yql_type_registry.
 def get_output_yql_rows():
     optional_list_int64_type = ["OptionalType", ["ListType", ["DataType", "Int64"]]]
-    variant_tuple_type = ["VariantType", ["TupleType", [
-        ["DataType", "String"],
-        ["ListType", ["DataType", "Int8"]],
-    ]]]
-    struct_type = ["StructType", [
-        ["a", ["DataType", "Boolean"]],
-        ["b", ["DataType", "Uint64"]],
-        ["c", ["DataType", "String"]],
-        ["d", ["OptionalType", ["NullType"]]],
-    ]]
+    variant_tuple_type = [
+        "VariantType",
+        [
+            "TupleType",
+            [
+                ["DataType", "String"],
+                ["ListType", ["DataType", "Int8"]],
+            ],
+        ],
+    ]
+    struct_type = [
+        "StructType",
+        [
+            ["a", ["DataType", "Boolean"]],
+            ["b", ["DataType", "Uint64"]],
+            ["c", ["DataType", "String"]],
+            ["d", ["OptionalType", ["NullType"]]],
+        ],
+    ]
 
     return [
         {
             "string32_column": [
                 ["abcdefghij"],
-                ["OptionalType", ["DataType", "String"]]
+                ["OptionalType", ["DataType", "String"]],
             ],
             "yson32_column": [
                 [{"val": "", "inc": True}],
-                ["OptionalType", ["DataType", "Yson"]]
+                ["OptionalType", ["DataType", "Yson"]],
             ],
-            "int64_column": [
-                ["-42"],
-                ["OptionalType", ["DataType", "Int64"]]
-            ],
-            "uint64_column": [
-                ["25"],
-                ["OptionalType", ["DataType", "Uint64"]]
-            ],
-            "double_column": [
-                ["3.14"],
-                ["OptionalType", ["DataType", "Double"]]
-            ],
-            "boolean_column": [
-                [True],
-                ["OptionalType", ["DataType", "Boolean"]]
-            ],
+            "int64_column": [["-42"], ["OptionalType", ["DataType", "Int64"]]],
+            "uint64_column": [["25"], ["OptionalType", ["DataType", "Uint64"]]],
+            "double_column": [["3.14"], ["OptionalType", ["DataType", "Double"]]],
+            "boolean_column": [[True], ["OptionalType", ["DataType", "Boolean"]]],
             "optional_list_int64_column": [
                 [{"val": ["11", "12", "13"], "inc": True}],
-                optional_list_int64_type
+                optional_list_int64_type,
             ],
-            "variant_tuple_column": [
-                ["0", "bar"],
-                variant_tuple_type
-            ],
-            "struct_column": [
-                [False, "1", "flame", yson.YsonEntity()],
-                struct_type
-            ],
+            "variant_tuple_column": [["0", "bar"], variant_tuple_type],
+            "struct_column": [[False, "1", "flame", yson.YsonEntity()], struct_type],
             "non_utf_string_column": [
                 [{"val": base64.b64encode(b"\xFF\xFE\xFD\xFC"), "b64": True}],
-                ["OptionalType", ["DataType", "String"]]
+                ["OptionalType", ["DataType", "String"]],
             ],
             "list_optional_int64_column": [
                 {"val": [["21"], ["22"]], "inc": True},
@@ -298,48 +248,24 @@ def get_output_yql_rows():
             ],
         },
         {
-            "string32_column": [
-                ["abcd"],
-                ["OptionalType", ["DataType", "String"]]
-            ],
+            "string32_column": [["abcd"], ["OptionalType", ["DataType", "String"]]],
             "yson32_column": [
                 [{"val": {"$type": "string", "$value": "just a string"}}],
-                ["OptionalType", ["DataType", "Yson"]]
+                ["OptionalType", ["DataType", "Yson"]],
             ],
-            "int64_column": [
-                ["-42"],
-                ["OptionalType", ["DataType", "Int64"]]
-            ],
-            "uint64_column": [
-                ["25"],
-                ["OptionalType", ["DataType", "Uint64"]]
-            ],
-            "double_column": [
-                ["3.14"],
-                ["OptionalType", ["DataType", "Double"]]
-            ],
-            "boolean_column": [
-                [True],
-                ["OptionalType", ["DataType", "Boolean"]]
-            ],
-            "optional_list_int64_column": [
-                yson.YsonEntity(),
-                optional_list_int64_type
-            ],
-            "variant_tuple_column": [
-                [
-                    "1",
-                    {"val": ["7", "8"]}
-                ],
-                variant_tuple_type
-            ],
+            "int64_column": [["-42"], ["OptionalType", ["DataType", "Int64"]]],
+            "uint64_column": [["25"], ["OptionalType", ["DataType", "Uint64"]]],
+            "double_column": [["3.14"], ["OptionalType", ["DataType", "Double"]]],
+            "boolean_column": [[True], ["OptionalType", ["DataType", "Boolean"]]],
+            "optional_list_int64_column": [yson.YsonEntity(), optional_list_int64_type],
+            "variant_tuple_column": [["1", {"val": ["7", "8"]}], variant_tuple_type],
             "struct_column": [
                 [True, "12", {"val": "quite", "inc": True}, [yson.YsonEntity()]],
-                struct_type
+                struct_type,
             ],
             "non_utf_string_column": [
                 [{"val": base64.b64encode(b"ab\xFAcd"), "b64": True}],
-                ["OptionalType", ["DataType", "String"]]
+                ["OptionalType", ["DataType", "String"]],
             ],
             "list_optional_int64_column": [
                 {"val": [["100"], yson.YsonEntity()], "inc": True},
@@ -348,13 +274,16 @@ def get_output_yql_rows():
         },
     ]
 
+
 TABLE_PATH = "//tmp/table"
+
 
 def get_column_names(dynamic=False, ordered=False):
     result = [c["name"] for c in get_schema(dynamic)]
     if dynamic and ordered:
         result += DYNAMIC_ORDERED_TABLE_SYSTEM_COLUMN_NAMES
     return result
+
 
 def get_rows(dynamic=False):
     res = [{}, {}]
@@ -364,6 +293,7 @@ def get_rows(dynamic=False):
         for i in xrange(2):
             res[i][column.name] = column.values[i]
     return res
+
 
 def get_expected_output(dynamic=False, ordered=False):
     rows = [{}, {}]
@@ -385,7 +315,7 @@ def get_expected_output(dynamic=False, ordered=False):
         "rows": rows,
         "incomplete_columns": "false",
         "all_column_names": get_expected_all_column_names(dynamic, ordered),
-        "incomplete_all_column_names": "false"
+        "incomplete_all_column_names": "false",
     }
 
 
@@ -405,12 +335,16 @@ def get_schema(dynamic=False, key_column_names=(), **kwargs):
         schema.append(column_schema)
     return make_schema(schema, **kwargs)
 
+
 def get_expected_all_column_names(dynamic=False, ordered=False):
     result = get_column_names(dynamic, ordered)
     result.sort()
     return result
 
-def get_web_json_format(field_weight_limit, column_limit, value_format=None, string_weight_limit=None):
+
+def get_web_json_format(
+    field_weight_limit, column_limit, value_format=None, string_weight_limit=None
+):
     format_ = yson.YsonString("web_json")
     format_.attributes["field_weight_limit"] = field_weight_limit
     format_.attributes["max_selected_column_count"] = column_limit
@@ -420,13 +354,16 @@ def get_web_json_format(field_weight_limit, column_limit, value_format=None, str
         format_.attributes["string_weight_limit"] = string_weight_limit
     return format_
 
+
 def get_dynamic_table_select_query(column_names, table_path):
     def wrap_system_column(column_name):
         if column_name.startswith("$"):
             column_name = "[" + column_name + "]"
         return column_name
+
     columns_selector = ", ".join(__builtin__.map(wrap_system_column, column_names))
     return "{} FROM [{}]".format(columns_selector, table_path)
+
 
 def _assert_yql_row_match(actual_row, expected_row, type_registry):
     assert __builtin__.set(actual_row.keys()) == __builtin__.set(expected_row.keys())
@@ -495,7 +432,12 @@ class TestWebJsonFormat(YTEnvSetup):
     @authors("bidzilya")
     def test_select_rows_from_sorted_dynamic_table(self):
         sync_create_cells(1)
-        schema = get_schema(dynamic=True, key_column_names=["string32_column"], unique_keys=True, strict=True)
+        schema = get_schema(
+            dynamic=True,
+            key_column_names=["string32_column"],
+            unique_keys=True,
+            strict=True,
+        )
         create("table", TABLE_PATH, attributes={"schema": schema, "dynamic": True})
         sync_mount_table(TABLE_PATH)
 
@@ -518,7 +460,12 @@ class TestWebJsonFormat(YTEnvSetup):
     @authors("ignat")
     def test_select_rows_from_sorted_dynamic_table_with_duplicate_columns(self):
         sync_create_cells(1)
-        schema = get_schema(dynamic=True, key_column_names=["string32_column"], unique_keys=True, strict=True)
+        schema = get_schema(
+            dynamic=True,
+            key_column_names=["string32_column"],
+            unique_keys=True,
+            strict=True,
+        )
         create("table", TABLE_PATH, attributes={"schema": schema, "dynamic": True})
         sync_mount_table(TABLE_PATH)
 
@@ -562,9 +509,11 @@ class TestWebJsonFormat(YTEnvSetup):
             }
             expected_output["rows"][i]["$$row_index"] = {
                 "$type": "int64",
-                "$value": "0"
+                "$value": "0",
             }
-        output["rows"].sort(key=lambda column: (column["$$tablet_index"], column["$$row_index"]))
+        output["rows"].sort(
+            key=lambda column: (column["$$tablet_index"], column["$$row_index"])
+        )
         assert output == expected_output
 
         sync_unmount_table(TABLE_PATH)

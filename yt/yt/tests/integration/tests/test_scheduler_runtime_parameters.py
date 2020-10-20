@@ -1,4 +1,10 @@
-from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
+from yt_env_setup import (
+    YTEnvSetup,
+    wait,
+    Restarter,
+    SCHEDULERS_SERVICE,
+    CONTROLLER_AGENTS_SERVICE,
+)
 from yt.test_helpers import are_almost_equal
 from yt_commands import *
 
@@ -21,11 +27,7 @@ class TestRuntimeParameters(YTEnvSetup):
         }
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "snapshot_period": 1000
-        }
-    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"snapshot_period": 1000}}
 
     def _create_custom_pool_tree_with_one_node(self, pool_tree):
         tag = pool_tree
@@ -44,33 +46,42 @@ class TestRuntimeParameters(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"weight": 5, "annotations": {"foo": "abc"}},
-            track=False)
+            track=False,
+        )
         wait(lambda: op.get_state() == "running", iter=10)
 
-        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default".format(op.id)
+        progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default".format(
+            op.id
+        )
         assert get(progress_path + "/weight") == 5.0
 
         annotations_path = op.get_path() + "/@runtime_parameters/annotations"
         assert get(annotations_path) == {"foo": "abc"}
 
-        update_op_parameters(op.id, parameters={
-            "scheduling_options_per_pool_tree": {
-                "default": {
-                    "weight": 3.0,
-                    "resource_limits": {
-                        "user_slots": 0
-                    }
-                }
+        update_op_parameters(
+            op.id,
+            parameters={
+                "scheduling_options_per_pool_tree": {
+                    "default": {"weight": 3.0, "resource_limits": {"user_slots": 0}}
+                },
+                "annotations": {
+                    "foo": "bar",
+                },
             },
-            "annotations": {
-                "foo": "bar",
-            },
-        })
+        )
 
-        default_tree_parameters_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default"
+        default_tree_parameters_path = (
+            op.get_path()
+            + "/@runtime_parameters/scheduling_options_per_pool_tree/default"
+        )
 
-        wait(lambda: are_almost_equal(get(default_tree_parameters_path + "/weight"), 3.0))
-        wait(lambda: get(default_tree_parameters_path + "/resource_limits/user_slots") == 0)
+        wait(
+            lambda: are_almost_equal(get(default_tree_parameters_path + "/weight"), 3.0)
+        )
+        wait(
+            lambda: get(default_tree_parameters_path + "/resource_limits/user_slots")
+            == 0
+        )
 
         wait(lambda: are_almost_equal(get(progress_path + "/weight"), 3.0))
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
@@ -98,7 +109,9 @@ class TestRuntimeParameters(YTEnvSetup):
 
         update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(
+            op.id
+        )
         wait(lambda: get(path) == "changed_pool")
 
     @authors("renadeen", "ignat")
@@ -109,13 +122,33 @@ class TestRuntimeParameters(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
         wait(lambda: op.get_state() == "running", iter=10)
 
-        wait(lambda: get(scheduler_orchid_pool_path("initial_pool") + "/running_operation_count") == 1)
-        wait(lambda: get(scheduler_orchid_pool_path("changed_pool") + "/running_operation_count") == 0)
+        wait(
+            lambda: get(
+                scheduler_orchid_pool_path("initial_pool") + "/running_operation_count"
+            )
+            == 1
+        )
+        wait(
+            lambda: get(
+                scheduler_orchid_pool_path("changed_pool") + "/running_operation_count"
+            )
+            == 0
+        )
 
         update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
-        wait(lambda: get(scheduler_orchid_pool_path("initial_pool") + "/running_operation_count") == 0)
-        wait(lambda: get(scheduler_orchid_pool_path("changed_pool") + "/running_operation_count") == 1)
+        wait(
+            lambda: get(
+                scheduler_orchid_pool_path("initial_pool") + "/running_operation_count"
+            )
+            == 0
+        )
+        wait(
+            lambda: get(
+                scheduler_orchid_pool_path("changed_pool") + "/running_operation_count"
+            )
+            == 1
+        )
 
     @authors("renadeen")
     def test_change_pool_of_multitree_operation(self):
@@ -129,15 +162,23 @@ class TestRuntimeParameters(YTEnvSetup):
                 "pool_trees": ["default", "custom"],
                 "scheduling_options_per_pool_tree": {
                     "default": {"pool": "default_pool"},
-                    "custom": {"pool": "custom_pool1"}
-                }
-            })
+                    "custom": {"pool": "custom_pool1"},
+                },
+            }
+        )
 
         wait(lambda: op.get_state() == "running", iter=10)
 
-        update_op_parameters(op.id, parameters={"scheduling_options_per_pool_tree": {"custom": {"pool": "custom_pool2"}}})
+        update_op_parameters(
+            op.id,
+            parameters={
+                "scheduling_options_per_pool_tree": {"custom": {"pool": "custom_pool2"}}
+            },
+        )
 
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/custom/pool".format(op.id)
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/custom/pool".format(
+            op.id
+        )
         wait(lambda: get(path) == "custom_pool2")
 
     @authors("renadeen")
@@ -151,7 +192,9 @@ class TestRuntimeParameters(YTEnvSetup):
         with pytest.raises(YtError):
             update_op_parameters(op.id, parameters={"pool": "full_pool"})
 
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(
+            op.id
+        )
         assert get(path) == "initial_pool"
 
     @authors("renadeen")
@@ -231,19 +274,24 @@ class TestRuntimeParameters(YTEnvSetup):
                 "pool_trees": ["default", "other"],
                 "scheduling_options_per_pool_tree": {
                     "default": {"pool": "pool1"},
-                    "custom": {"pool": "pool1"}
+                    "custom": {"pool": "pool1"},
                 },
-                "schedule_in_single_tree": True
-            })
+                "schedule_in_single_tree": True,
+            }
+        )
 
         op.wait_for_state("running")
 
         erased_tree = get(op.get_path() + "/@runtime_parameters/erased_trees")[0]
         chosen_tree = "default" if erased_tree == "other" else "other"
-        parameters = {"scheduling_options_per_pool_tree": {chosen_tree: {"pool": "pool2"}}}
+        parameters = {
+            "scheduling_options_per_pool_tree": {chosen_tree: {"pool": "pool2"}}
+        }
         update_op_parameters(op.id, parameters=parameters)
 
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(
+            op.id
+        )
         wait(lambda: get(path) == "pool2")
 
     @authors("eshcherbin")
@@ -251,10 +299,12 @@ class TestRuntimeParameters(YTEnvSetup):
         create_pool("initial_pool")
         create_pool("changed_pool")
 
-        op = run_sleeping_vanilla(spec={
-            "pool": "initial_pool",
-            "testing": {"delay_inside_materialize": 10000}
-        })
+        op = run_sleeping_vanilla(
+            spec={
+                "pool": "initial_pool",
+                "testing": {"delay_inside_materialize": 10000},
+            }
+        )
 
         wait(lambda: op.get_state() == "materializing", iter=10)
 
@@ -268,10 +318,12 @@ class TestRuntimeParameters(YTEnvSetup):
         create_pool("initial_pool")
         create_pool("changed_pool")
 
-        op = run_sleeping_vanilla(spec={
-            "pool": "initial_pool",
-            "testing": {"delay_inside_register_jobs_from_revived_operation": 10000}
-        })
+        op = run_sleeping_vanilla(
+            spec={
+                "pool": "initial_pool",
+                "testing": {"delay_inside_register_jobs_from_revived_operation": 10000},
+            }
+        )
 
         op.wait_for_fresh_snapshot()
 
@@ -296,21 +348,31 @@ class TestRuntimeParameters(YTEnvSetup):
             spec={
                 "pool_trees": ["default", "other"],
                 "pool": "my_pool",
-            })
+            }
+        )
 
         op.wait_for_state("running")
 
-        scheduling_options_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree"
+        scheduling_options_path = (
+            op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree"
+        )
         wait(lambda: sorted(ls(scheduling_options_path)) == ["default", "other"])
 
         remove("//sys/pool_trees/other")
         wait(lambda: sorted(ls(scheduling_options_path)) == ["default"])
-        wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees") == ["other"])
+        wait(
+            lambda: get(op.get_path() + "/@runtime_parameters/erased_trees")
+            == ["other"]
+        )
 
-        parameters = {"scheduling_options_per_pool_tree": {"default": {"pool": "other_pool"}}}
+        parameters = {
+            "scheduling_options_per_pool_tree": {"default": {"pool": "other_pool"}}
+        }
         update_op_parameters(op.id, parameters=parameters)
 
-        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(
+            op.id
+        )
         wait(lambda: get(path) == "other_pool")
 
     @authors("eshcherbin")
@@ -335,14 +397,39 @@ class TestRuntimeParameters(YTEnvSetup):
                         },
                     },
                 },
-            })
+            },
+        )
 
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, tree="default")))
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, tree="other")))
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/resource_limits/cpu") == 1.0)
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/resource_usage/cpu") == 1.0)
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_limits/cpu") == 0.5)
-        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_usage/cpu") == 0.5)
+        wait(
+            lambda: get(
+                scheduler_orchid_operation_path(op.id, tree="default")
+                + "/resource_limits/cpu"
+            )
+            == 1.0
+        )
+        wait(
+            lambda: get(
+                scheduler_orchid_operation_path(op.id, tree="default")
+                + "/resource_usage/cpu"
+            )
+            == 1.0
+        )
+        wait(
+            lambda: get(
+                scheduler_orchid_operation_path(op.id, tree="other")
+                + "/resource_limits/cpu"
+            )
+            == 0.5
+        )
+        wait(
+            lambda: get(
+                scheduler_orchid_operation_path(op.id, tree="other")
+                + "/resource_usage/cpu"
+            )
+            == 0.5
+        )
 
 
 class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
@@ -354,7 +441,7 @@ class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
         "scheduler": {
             "fair_share_update_period": 100,
             "operations_update_period": 10,
-            "pool_change_is_allowed": True
+            "pool_change_is_allowed": True,
         }
     }
 
@@ -381,7 +468,10 @@ class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
         time.sleep(0.1)
 
         scheduled = op.get_job_count("running") + op.get_job_count("completed")
-        wait(lambda: op.get_job_count("running") + op.get_job_count("completed") > scheduled + 10)
+        wait(
+            lambda: op.get_job_count("running") + op.get_job_count("completed")
+            > scheduled + 10
+        )
 
 
 class TestOperationDetailedLogs(YTEnvSetup):
@@ -402,7 +492,9 @@ class TestOperationDetailedLogs(YTEnvSetup):
     }
 
     def get_scheduled_job_log_entries(self):
-        scheduler_debug_logs_filename = self.Env.configs["scheduler"][0]["logging"]["writers"]["debug"]["file_name"]
+        scheduler_debug_logs_filename = self.Env.configs["scheduler"][0]["logging"][
+            "writers"
+        ]["debug"]["file_name"]
 
         if scheduler_debug_logs_filename.endswith(".gz"):
             logfile = gzip.open(scheduler_debug_logs_filename, "r")
@@ -425,13 +517,16 @@ class TestOperationDetailedLogs(YTEnvSetup):
 
         # Enable detailed logging and check that expected the expected log entries are produced.
 
-        update_op_parameters(op.id, parameters={
-            "scheduling_options_per_pool_tree": {
-                "default": {
-                    "enable_detailed_logs": True,
+        update_op_parameters(
+            op.id,
+            parameters={
+                "scheduling_options_per_pool_tree": {
+                    "default": {
+                        "enable_detailed_logs": True,
+                    }
                 }
-            }
-        })
+            },
+        )
 
         set("//sys/pool_trees/default/fake_pool/@resource_limits/user_slots", 3)
         wait(lambda: len(op.get_running_jobs()) == 3)
@@ -443,13 +538,16 @@ class TestOperationDetailedLogs(YTEnvSetup):
             assert "TreeId: default" in log_entry
 
         # Disable detailed logging and check that no new log entries are produced.
-        update_op_parameters(op.id, parameters={
-            "scheduling_options_per_pool_tree": {
-                "default": {
-                    "enable_detailed_logs": False,
+        update_op_parameters(
+            op.id,
+            parameters={
+                "scheduling_options_per_pool_tree": {
+                    "default": {
+                        "enable_detailed_logs": False,
+                    }
                 }
-            }
-        })
+            },
+        )
 
         assert len(op.get_running_jobs()) == 3
         set("//sys/pool_trees/default/fake_pool/@resource_limits/user_slots", 4)

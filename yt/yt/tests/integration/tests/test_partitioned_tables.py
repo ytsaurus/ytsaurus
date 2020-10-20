@@ -11,7 +11,7 @@ SCHEMA = [
     {"name": "foo", "type": "int64", "sort_order": "ascending"},
     {"name": "bar", "type": "string", "sort_order": "ascending"},
     {"name": "baz", "type": "int64", "sort_order": "ascending"},
-    {"name": "qux", "type": "boolean"}
+    {"name": "qux", "type": "boolean"},
 ]
 SCHEMA_NON_STRICT = yt.yson.to_yson_type(SCHEMA, attributes={"strict": False})
 
@@ -24,22 +24,23 @@ PARTITIONS = [
 
 PARTITION_SCHEMA_BASE = [
     {"name": "baz", "type": "int64", "sort_order": "ascending"},
-    {"name": "qux", "type": "boolean"}
+    {"name": "qux", "type": "boolean"},
 ]
 PARTITION_SCHEMA_EXTRA_COL = [
     {"name": "baz", "type": "int64", "sort_order": "ascending"},
     {"name": "qux", "type": "boolean"},
-    {"name": "quux", "type": "string"}
+    {"name": "quux", "type": "string"},
 ]
 PARTITION_SCHEMA_EXTRA_SORT_COL1 = [
     {"name": "baz", "type": "int64", "sort_order": "ascending"},
-    {"name": "qux", "type": "boolean", "sort_order": "ascending"}
+    {"name": "qux", "type": "boolean", "sort_order": "ascending"},
 ]
 PARTITION_SCHEMA_EXTRA_SORT_COL2 = [
     {"name": "baz", "type": "int64", "sort_order": "ascending"},
     {"name": "quux", "type": "boolean", "sort_order": "ascending"},
-    {"name": "qux", "type": "boolean"}
+    {"name": "qux", "type": "boolean"},
 ]
+
 
 def validate_misconfigured_partitions(error, assertions):
     """
@@ -74,6 +75,7 @@ def validate_misconfigured_partitions(error, assertions):
         else:
             assert assertion is None
 
+
 class TestPartitionedTables(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -96,28 +98,37 @@ class TestPartitionedTables(YTEnvSetup):
     @pytest.mark.parametrize("assume_partitioned_table", [False, True])
     def test_simple(self, assume_partitioned_table):
         node_type = "partitioned_table" if not assume_partitioned_table else "map_node"
-        create(node_type, "//tmp/pt", attributes={
-            "schema": SCHEMA,
-            "partitioned_by": PARTITIONED_BY,
-            "partitions": PARTITIONS,
-        })
+        create(
+            node_type,
+            "//tmp/pt",
+            attributes={
+                "schema": SCHEMA,
+                "partitioned_by": PARTITIONED_BY,
+                "partitions": PARTITIONS,
+            },
+        )
 
         for i in xrange(4):
-            create("table", "//tmp/t" + str(i), attributes={"schema": PARTITION_SCHEMA_BASE})
+            create(
+                "table",
+                "//tmp/t" + str(i),
+                attributes={"schema": PARTITION_SCHEMA_BASE},
+            )
 
         write_table("//tmp/t0", [{"baz": 5}])
         write_table("//tmp/t1", [{"baz": 4}])
         write_table("//tmp/t2", [{"baz": 1}])
         write_table("//tmp/t3", [{"baz": 10}])
 
-        assert read_table("//tmp/pt",
-                          table_reader={"assume_partitioned_table": assume_partitioned_table}) == [
+        assert read_table(
+            "//tmp/pt",
+            table_reader={"assume_partitioned_table": assume_partitioned_table},
+        ) == [
             {"foo": 10, "bar": "abc", "baz": 5, "qux": None},
             {"foo": 10, "bar": "def", "baz": 4, "qux": None},
             {"foo": 20, "bar": "abc", "baz": 1, "qux": None},
             {"foo": 20, "bar": "abc", "baz": 10, "qux": None},
         ]
-
 
     @authors("max42")
     def test_partitioned_table_validation(self):
@@ -126,7 +137,11 @@ class TestPartitionedTables(YTEnvSetup):
         create("partitioned_table", "//tmp/pt")
 
         for i in xrange(4):
-            create("table", "//tmp/t" + str(i), attributes={"schema": PARTITION_SCHEMA_BASE})
+            create(
+                "table",
+                "//tmp/t" + str(i),
+                attributes={"schema": PARTITION_SCHEMA_BASE},
+            )
 
         # Attributes partitioned_by and schema not set.
         with raises_yt_error(ResolveErrorCode):
@@ -183,11 +198,15 @@ class TestPartitionedTables(YTEnvSetup):
 
     @authors("max42")
     def test_partitions(self):
-        create("partitioned_table", "//tmp/pt", attributes={
-            "schema": SCHEMA,
-            "partitioned_by": PARTITIONED_BY,
-            "partitions": PARTITIONS[:1],
-        })
+        create(
+            "partitioned_table",
+            "//tmp/pt",
+            attributes={
+                "schema": SCHEMA,
+                "partitioned_by": PARTITIONED_BY,
+                "partitions": PARTITIONS[:1],
+            },
+        )
 
         # Partitions missing.
         with raises_yt_error(ResolveErrorCode):
@@ -205,14 +224,22 @@ class TestPartitionedTables(YTEnvSetup):
 
     @authors("max42")
     def test_sort_order_validation(self):
-        create("partitioned_table", "//tmp/pt", attributes={
-            "schema": SCHEMA,
-            "partitioned_by": PARTITIONED_BY,
-            "partitions": PARTITIONS,
-        })
+        create(
+            "partitioned_table",
+            "//tmp/pt",
+            attributes={
+                "schema": SCHEMA,
+                "partitioned_by": PARTITIONED_BY,
+                "partitions": PARTITIONS,
+            },
+        )
 
         for i in xrange(4):
-            create("table", "//tmp/t" + str(i), attributes={"schema": PARTITION_SCHEMA_BASE})
+            create(
+                "table",
+                "//tmp/t" + str(i),
+                attributes={"schema": PARTITION_SCHEMA_BASE},
+            )
 
         # Empty partitions.
         assert read_table("//tmp/pt") == []
@@ -231,7 +258,9 @@ class TestPartitionedTables(YTEnvSetup):
         ]
 
         # Incorrect sort order.
-        set("//tmp/pt/@partitions", PARTITIONS[:1] + PARTITIONS[2:0:-1] + PARTITIONS[3:])
+        set(
+            "//tmp/pt/@partitions", PARTITIONS[:1] + PARTITIONS[2:0:-1] + PARTITIONS[3:]
+        )
 
         with raises_yt_error(SortOrderViolation):
             read_table("//tmp/pt")
@@ -243,17 +272,26 @@ class TestPartitionedTables(YTEnvSetup):
         with raises_yt_error(SortOrderViolation):
             read_table("//tmp/pt")
 
-
     @authors("max42")
     def test_partition_schemas(self):
-        create("partitioned_table", "//tmp/pt", attributes={
-            "schema": SCHEMA_NON_STRICT,
-            "partitioned_by": PARTITIONED_BY,
-            "partitions": PARTITIONS,
-        })
+        create(
+            "partitioned_table",
+            "//tmp/pt",
+            attributes={
+                "schema": SCHEMA_NON_STRICT,
+                "partitioned_by": PARTITIONED_BY,
+                "partitions": PARTITIONS,
+            },
+        )
 
-        for i, schema in enumerate([PARTITION_SCHEMA_BASE, PARTITION_SCHEMA_EXTRA_COL, PARTITION_SCHEMA_EXTRA_SORT_COL1,
-                                    PARTITION_SCHEMA_EXTRA_SORT_COL2]):
+        for i, schema in enumerate(
+            [
+                PARTITION_SCHEMA_BASE,
+                PARTITION_SCHEMA_EXTRA_COL,
+                PARTITION_SCHEMA_EXTRA_SORT_COL1,
+                PARTITION_SCHEMA_EXTRA_SORT_COL2,
+            ]
+        ):
             create("table", "//tmp/t" + str(i), attributes={"schema": schema})
 
         assert read_table("//tmp/pt") == []
@@ -263,21 +301,32 @@ class TestPartitionedTables(YTEnvSetup):
 
         with raises_yt_error() as err:
             read_table("//tmp/pt")
-        validate_misconfigured_partitions(err[0], {
-            1: IncompatibleSchemas,
-            3: IncompatibleSchemas,
-        })
+        validate_misconfigured_partitions(
+            err[0],
+            {
+                1: IncompatibleSchemas,
+                3: IncompatibleSchemas,
+            },
+        )
 
     @authors("max42")
     def test_partition_keys(self):
-        create("partitioned_table", "//tmp/pt", attributes={
-            "schema": SCHEMA,
-            "partitioned_by": PARTITIONED_BY,
-            "partitions": PARTITIONS,
-        })
+        create(
+            "partitioned_table",
+            "//tmp/pt",
+            attributes={
+                "schema": SCHEMA,
+                "partitioned_by": PARTITIONED_BY,
+                "partitions": PARTITIONS,
+            },
+        )
 
         for i in xrange(4):
-            create("table", "//tmp/t" + str(i), attributes={"schema": PARTITION_SCHEMA_BASE})
+            create(
+                "table",
+                "//tmp/t" + str(i),
+                attributes={"schema": PARTITION_SCHEMA_BASE},
+            )
 
         set("//tmp/pt/@partitions/0/key", [10, "abc", 3.14])
         set("//tmp/pt/@partitions/1/key", [20])
@@ -286,22 +335,33 @@ class TestPartitionedTables(YTEnvSetup):
         set("//tmp/pt/@partitions/3/key", [30, None])
         with raises_yt_error() as err:
             read_table("//tmp/pt")
-        validate_misconfigured_partitions(err[0], {
-            0: SchemaViolation,
-            1: SchemaViolation,
-            2: SchemaViolation,
-        })
+        validate_misconfigured_partitions(
+            err[0],
+            {
+                0: SchemaViolation,
+                1: SchemaViolation,
+                2: SchemaViolation,
+            },
+        )
 
     @authors("max42")
     def test_column_selectors(self):
-        create("partitioned_table", "//tmp/pt", attributes={
-            "schema": SCHEMA,
-            "partitioned_by": PARTITIONED_BY,
-            "partitions": PARTITIONS,
-        })
+        create(
+            "partitioned_table",
+            "//tmp/pt",
+            attributes={
+                "schema": SCHEMA,
+                "partitioned_by": PARTITIONED_BY,
+                "partitions": PARTITIONS,
+            },
+        )
 
         for i in xrange(4):
-            create("table", "//tmp/t" + str(i), attributes={"schema": PARTITION_SCHEMA_BASE})
+            create(
+                "table",
+                "//tmp/t" + str(i),
+                attributes={"schema": PARTITION_SCHEMA_BASE},
+            )
 
         write_table("//tmp/t0", [{"baz": 5}])
         write_table("//tmp/t1", [{"baz": 4, "qux": True}])
@@ -324,14 +384,22 @@ class TestPartitionedTables(YTEnvSetup):
 
     @authors("max42")
     def test_ranges(self):
-        create("partitioned_table", "//tmp/pt", attributes={
-            "schema": SCHEMA,
-            "partitioned_by": PARTITIONED_BY,
-            "partitions": PARTITIONS,
-        })
+        create(
+            "partitioned_table",
+            "//tmp/pt",
+            attributes={
+                "schema": SCHEMA,
+                "partitioned_by": PARTITIONED_BY,
+                "partitions": PARTITIONS,
+            },
+        )
 
         for i in xrange(4):
-            create("table", "//tmp/t" + str(i), attributes={"schema": PARTITION_SCHEMA_BASE})
+            create(
+                "table",
+                "//tmp/t" + str(i),
+                attributes={"schema": PARTITION_SCHEMA_BASE},
+            )
 
         with raises_yt_error("Partitioned tables do not support range selectors"):
             read_table("//tmp/pt[#0]")

@@ -7,6 +7,7 @@ import pytest
 
 ##################################################################
 
+
 class TestSecurityTags(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -19,9 +20,7 @@ class TestSecurityTags(YTEnvSetup):
 
     @authors("babenko")
     def test_set_security_tags_upon_create(self):
-        create("table", "//tmp/t", attributes={
-                "security_tags": ["tag1", "tag2"]
-            })
+        create("table", "//tmp/t", attributes={"security_tags": ["tag1", "tag2"]})
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2"])
 
     @authors("babenko")
@@ -94,45 +93,43 @@ class TestSecurityTags(YTEnvSetup):
 
         tx = start_transaction()
         assert_items_equal(get("//tmp/t/@security_tags", tx=tx), ["tag1", "tag2"])
-        write_table("<security_tags=[tag2;tag3];append=%true>//tmp/t", [{"c": "d"}], tx=tx)
-        assert_items_equal(get("//tmp/t/@security_tags", tx=tx), ["tag1", "tag2", "tag3"])
+        write_table(
+            "<security_tags=[tag2;tag3];append=%true>//tmp/t", [{"c": "d"}], tx=tx
+        )
+        assert_items_equal(
+            get("//tmp/t/@security_tags", tx=tx), ["tag1", "tag2", "tag3"]
+        )
         commit_transaction(tx)
 
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2", "tag3"])
 
     @authors("babenko")
     def test_operation(self):
-        create("table", "//tmp/t_in1", attributes={
-                "security_tags": ["tag1"]
-            })
-        create("table", "//tmp/t_in2", attributes={
-                "security_tags": ["tag2"]
-            })
+        create("table", "//tmp/t_in1", attributes={"security_tags": ["tag1"]})
+        create("table", "//tmp/t_in2", attributes={"security_tags": ["tag2"]})
 
-        create("table", "//tmp/t_out1", attributes={
-                "security_tags": ["xxx"]
-            })
-        create("table", "//tmp/t_out2", attributes={
-                "security_tags": ["xxx"]
-            })
-        create("table", "//tmp/t_out3", attributes={
-                "security_tags": ["tag3"]
-            })
+        create("table", "//tmp/t_out1", attributes={"security_tags": ["xxx"]})
+        create("table", "//tmp/t_out2", attributes={"security_tags": ["xxx"]})
+        create("table", "//tmp/t_out3", attributes={"security_tags": ["tag3"]})
 
-        create("file", "//tmp/f", attributes={
-                "security_tags": ["tag4"]
-            })
+        create("file", "//tmp/f", attributes={"security_tags": ["tag4"]})
 
-        map(command="cat",
+        map(
+            command="cat",
             in_=["//tmp/t_in1", "//tmp/t_in2"],
-            out=["//tmp/t_out1", "<security_tags=[tag5]>//tmp/t_out2", "<append=%true;security_tags=[tag6]>//tmp/t_out3"],
+            out=[
+                "//tmp/t_out1",
+                "<security_tags=[tag5]>//tmp/t_out2",
+                "<append=%true;security_tags=[tag6]>//tmp/t_out3",
+            ],
             spec={
-                "mapper": {
-                    "file_paths": ["//tmp/f"]
-                },
-                "additional_security_tags": ["tag0"]
-            })
-        assert_items_equal(get("//tmp/t_out1/@security_tags"), ["tag0", "tag1", "tag2", "tag4"])
+                "mapper": {"file_paths": ["//tmp/f"]},
+                "additional_security_tags": ["tag0"],
+            },
+        )
+        assert_items_equal(
+            get("//tmp/t_out1/@security_tags"), ["tag0", "tag1", "tag2", "tag4"]
+        )
         assert_items_equal(get("//tmp/t_out2/@security_tags"), ["tag5"])
         assert_items_equal(get("//tmp/t_out3/@security_tags"), ["tag3", "tag6"])
 
@@ -206,14 +203,10 @@ class TestSecurityTags(YTEnvSetup):
 
     @authors("babenko")
     def test_concatenate(self):
-        create("table", "//tmp/t1", attributes={
-                "security_tags": ["tag1", "tag2"]
-            })
+        create("table", "//tmp/t1", attributes={"security_tags": ["tag1", "tag2"]})
         write_table("<append=%true>//tmp/t1", [{"key": "x"}])
 
-        create("table", "//tmp/t2", attributes={
-                "security_tags": ["tag3"]
-            })
+        create("table", "//tmp/t2", attributes={"security_tags": ["tag3"]})
         write_table("<append=%true>//tmp/t2", [{"key": "y"}])
 
         create("table", "//tmp/union")
@@ -224,35 +217,27 @@ class TestSecurityTags(YTEnvSetup):
 
     @authors("babenko")
     def test_concatenate_append(self):
-        create("table", "//tmp/t1", attributes={
-                "security_tags": ["tag1", "tag2"]
-            })
+        create("table", "//tmp/t1", attributes={"security_tags": ["tag1", "tag2"]})
         write_table("<append=%true>//tmp/t1", [{"key": "x"}])
 
-        create("table", "//tmp/t2", attributes={
-                "security_tags": ["tag3"]
-            })
+        create("table", "//tmp/t2", attributes={"security_tags": ["tag3"]})
         write_table("<append=%true>//tmp/t2", [{"key": "y"}])
 
-        create("table", "//tmp/union", attributes={
-                "security_tags": ["tag4"]
-            })
+        create("table", "//tmp/union", attributes={"security_tags": ["tag4"]})
         write_table("<append=%true>//tmp/union", [{"key": "z"}])
 
         concatenate(["//tmp/t1", "//tmp/t2"], "<append=%true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "z"}, {"key": "x"}, {"key": "y"}]
-        assert_items_equal(get("//tmp/union/@security_tags"), ["tag1", "tag2", "tag3", "tag4"])
+        assert_items_equal(
+            get("//tmp/union/@security_tags"), ["tag1", "tag2", "tag3", "tag4"]
+        )
 
     @authors("babenko")
     def test_concatenate_override(self):
-        create("table", "//tmp/t1", attributes={
-                "security_tags": ["tag1", "tag2"]
-            })
+        create("table", "//tmp/t1", attributes={"security_tags": ["tag1", "tag2"]})
         write_table("<append=%true>//tmp/t1", [{"key": "x"}])
 
-        create("table", "//tmp/t2", attributes={
-                "security_tags": ["tag3"]
-            })
+        create("table", "//tmp/t2", attributes={"security_tags": ["tag3"]})
         write_table("<append=%true>//tmp/t2", [{"key": "y"}])
 
         create("table", "//tmp/union")
@@ -282,12 +267,14 @@ class TestSecurityTags(YTEnvSetup):
     def test_tag_naming_on_write(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
-            write_table("<security_tags=[\"\"]>//tmp/t", [])
+            write_table('<security_tags=[""]>//tmp/t', [])
         with pytest.raises(YtError):
-            write_table("<security_tags=[\"" + "a" * 129 + "\"]>//tmp/t", [])
-        write_table("<security_tags=[\"" + "a" * 128 + "\"]>//tmp/t", [])
+            write_table('<security_tags=["' + "a" * 129 + '"]>//tmp/t', [])
+        write_table('<security_tags=["' + "a" * 128 + '"]>//tmp/t', [])
+
 
 ##################################################################
+
 
 class TestSecurityTagsMulticell(TestSecurityTags):
     NUM_SECONDARY_MASTER_CELLS = 1

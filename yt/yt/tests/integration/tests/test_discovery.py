@@ -3,6 +3,7 @@ from yt_commands import *
 
 ##################################################################
 
+
 class TestDiscovery(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SECONDARY_MASTER_CELLS = 1
@@ -10,7 +11,9 @@ class TestDiscovery(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_orchid(self):
         master = ls("//sys/primary_masters")[0]
-        assert exists("//sys/primary_masters/{0}/orchid/discovery_server".format(master))
+        assert exists(
+            "//sys/primary_masters/{0}/orchid/discovery_server".format(master)
+        )
 
         assert exists("//sys/discovery/primary_master_cell".format(master))
         cell = ls("//sys/secondary_masters")[0]

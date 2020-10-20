@@ -1,5 +1,8 @@
 from yt_env_setup import (
-    YTEnvSetup, wait, Restarter, CONTROLLER_AGENTS_SERVICE,
+    YTEnvSetup,
+    wait,
+    Restarter,
+    CONTROLLER_AGENTS_SERVICE,
 )
 from yt_commands import *
 from yt_helpers import *
@@ -13,13 +16,26 @@ import time
 
 ##################################################################
 
+
 def get_cypress_metrics(operation_id, key, aggr="sum"):
-    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
-    return sum(filter(lambda x: x is not None,
-                      [get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
-                       for job_state in ("completed", "failed", "aborted")]))
+    statistics = get(
+        get_operation_cypress_path(operation_id) + "/@progress/job_statistics"
+    )
+    return sum(
+        filter(
+            lambda x: x is not None,
+            [
+                get_statistics(
+                    statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr)
+                )
+                for job_state in ("completed", "failed", "aborted")
+            ],
+        )
+    )
+
 
 ##################################################################
+
 
 class TestPoolMetrics(YTEnvSetup):
     NUM_MASTERS = 1
@@ -64,7 +80,7 @@ class TestPoolMetrics(YTEnvSetup):
                     "profiling_name": "my_custom_metric_max",
                     "aggregate_type": "max",
                 },
-            ]
+            ],
         }
     }
 
@@ -93,36 +109,40 @@ class TestPoolMetrics(YTEnvSetup):
         # create directory backed by block device and accessible to job
         os.makedirs(self.default_disk_path)
         os.chmod(self.default_disk_path, 0777)
-        
+
         # our command does the following
         # - writes (and syncs) something to disk
         # - works for some time (to ensure that it sends several heartbeats
         # - writes something to stderr because we want to find our jobs in //sys/operations later
-        map_cmd = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{{value=$i}};')"; dd if=/dev/urandom of={}/foo$i bs=1M count=1 oflag=direct; sync; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr""".format(self.default_disk_path)
+        map_cmd = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{{value=$i}};')"; dd if=/dev/urandom of={}/foo$i bs=1M count=1 oflag=direct; sync; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr""".format(
+            self.default_disk_path
+        )
 
         metric_name = "user_job_bytes_written"
         statistics_name = "user_job.block_io.bytes_written"
 
         usual_metric_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/" + metric_name,
-            grouped_by_tags=["pool"])
+            "scheduler/pools/metrics/" + metric_name, grouped_by_tags=["pool"]
+        )
         custom_metric_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_metric",
-            grouped_by_tags=["pool"])
+            "scheduler/pools/metrics/my_metric", grouped_by_tags=["pool"]
+        )
         custom_metric_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_metric_completed",
-            grouped_by_tags=["pool"])
+            "scheduler/pools/metrics/my_metric_completed", grouped_by_tags=["pool"]
+        )
         custom_metric_failed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/my_metric_failed",
-            grouped_by_tags=["pool"])
+            "scheduler/pools/metrics/my_metric_failed", grouped_by_tags=["pool"]
+        )
         custom_metric_max_last = Metric.at_scheduler(
             "scheduler/pools/metrics/my_custom_metric_max",
             with_tags={"pool": "child2"},
-            aggr_method="last")
+            aggr_method="last",
+        )
         custom_metric_sum_last = Metric.at_scheduler(
             "scheduler/pools/metrics/my_custom_metric_sum",
             with_tags={"pool": "child2"},
-            aggr_method="last")
+            aggr_method="last",
+        )
 
         op11 = map(
             in_="//t_input",
@@ -144,16 +164,32 @@ class TestPoolMetrics(YTEnvSetup):
             spec={"job_count": 2, "pool": "child2"},
         )
 
-        for metric_delta in (usual_metric_delta, custom_metric_delta, custom_metric_completed_delta):
+        for metric_delta in (
+            usual_metric_delta,
+            custom_metric_delta,
+            custom_metric_completed_delta,
+        ):
             wait(lambda: metric_delta.update().get("parent", verbose=True) > 0)
 
             op11_writes = get_cypress_metrics(op11.id, statistics_name)
             op12_writes = get_cypress_metrics(op12.id, statistics_name)
             op2_writes = get_cypress_metrics(op2.id, statistics_name)
 
-            wait(lambda: metric_delta.update().get("child1", verbose=True) == op11_writes + op12_writes > 0)
-            wait(lambda: metric_delta.update().get("child2", verbose=True) == op2_writes > 0)
-            wait(lambda: metric_delta.update().get("parent", verbose=True) == op11_writes + op12_writes + op2_writes > 0)
+            wait(
+                lambda: metric_delta.update().get("child1", verbose=True)
+                == op11_writes + op12_writes
+                > 0
+            )
+            wait(
+                lambda: metric_delta.update().get("child2", verbose=True)
+                == op2_writes
+                > 0
+            )
+            wait(
+                lambda: metric_delta.update().get("parent", verbose=True)
+                == op11_writes + op12_writes + op2_writes
+                > 0
+            )
 
         assert custom_metric_failed_delta.update().get("child2", verbose=True) == 0
 
@@ -174,18 +210,19 @@ class TestPoolMetrics(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", [{"key": i} for i in xrange(2)])
 
         total_time_completed_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_completed",
-            grouped_by_tags=["pool"])
+            "scheduler/pools/metrics/total_time_completed", grouped_by_tags=["pool"]
+        )
         total_time_aborted_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time_aborted",
-            grouped_by_tags=["pool"])
+            "scheduler/pools/metrics/total_time_aborted", grouped_by_tags=["pool"]
+        )
 
         op = map(
             command=with_breakpoint("cat; BREAKPOINT"),
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={"data_size_per_job": 1, "pool": "child"},
-            track=False)
+            track=False,
+        )
 
         jobs = wait_breakpoint(job_count=2)
         assert len(jobs) == 2
@@ -204,7 +241,9 @@ class TestPoolMetrics(YTEnvSetup):
             for p in ("parent", "child"):
                 if metric_delta[p] == 0:
                     return False
-            return metric_delta.get("parent", verbose=True) == metric_delta.get("child", verbose=True)
+            return metric_delta.get("parent", verbose=True) == metric_delta.get(
+                "child", verbose=True
+            )
 
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
         wait(lambda: check_metrics(total_time_completed_delta))
@@ -218,7 +257,6 @@ class TestPoolMetrics(YTEnvSetup):
         for i in xrange(3):
             create_pool("child" + str(i + 1), parent_name="parent")
 
-
         create("table", "//tmp/t_input")
         for i in xrange(3):
             create("table", "//tmp/t_output_" + str(i + 1))
@@ -226,21 +264,42 @@ class TestPoolMetrics(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         total_time_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time",
-            grouped_by_tags=["pool"])
+            "scheduler/pools/metrics/total_time", grouped_by_tags=["pool"]
+        )
         total_time_operation_completed_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_completed",
-            grouped_by_tags=["pool"])
+            grouped_by_tags=["pool"],
+        )
         total_time_operation_failed_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_failed",
-            grouped_by_tags=["pool"])
+            grouped_by_tags=["pool"],
+        )
         total_time_operation_aborted_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_aborted",
-            grouped_by_tags=["pool"])
+            grouped_by_tags=["pool"],
+        )
 
-        op1 = map(command=("sleep 5; cat"), in_="//tmp/t_input", out="//tmp/t_output_1", spec={"pool": "child1"}, track=False)
-        op2 = map(command=("sleep 5; cat; exit 1"), in_="//tmp/t_input", out="//tmp/t_output_2", spec={"pool": "child2", "max_failed_job_count": 1}, track=False)
-        op3 = map(command=("sleep 100; cat"), in_="//tmp/t_input", out="//tmp/t_output_3", spec={"pool": "child3"}, track=False)
+        op1 = map(
+            command=("sleep 5; cat"),
+            in_="//tmp/t_input",
+            out="//tmp/t_output_1",
+            spec={"pool": "child1"},
+            track=False,
+        )
+        op2 = map(
+            command=("sleep 5; cat; exit 1"),
+            in_="//tmp/t_input",
+            out="//tmp/t_output_2",
+            spec={"pool": "child2", "max_failed_job_count": 1},
+            track=False,
+        )
+        op3 = map(
+            command=("sleep 100; cat"),
+            in_="//tmp/t_input",
+            out="//tmp/t_output_3",
+            spec={"pool": "child3"},
+            track=False,
+        )
 
         # Wait until at least some metrics are reported for op3
         wait(lambda: total_time_delta.update().get("child3", verbose=True) > 0)
@@ -254,7 +313,9 @@ class TestPoolMetrics(YTEnvSetup):
             for p in ("parent", child):
                 if metric_delta[p] == 0:
                     return False
-            return metric_delta.get("parent", verbose=True) == metric_delta.get(child, verbose=True)
+            return metric_delta.get("parent", verbose=True) == metric_delta.get(
+                child, verbose=True
+            )
 
         # TODO(eshcherbin): This is used for flap diagnostics. Remove when the test is fixed.
         time.sleep(2)
@@ -265,11 +326,13 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: check_metrics(total_time_operation_completed_delta, "child1"))
         wait(lambda: check_metrics(total_time_operation_failed_delta, "child2"))
         wait(lambda: check_metrics(total_time_operation_aborted_delta, "child3"))
-        wait(lambda: total_time_delta.update().get("parent", verbose=True)
-             == total_time_operation_completed_delta.update().get("parent", verbose=True)
-             + total_time_operation_failed_delta.update().get("parent", verbose=True)
-             + total_time_operation_aborted_delta.update().get("parent", verbose=True)
-             > 0)
+        wait(
+            lambda: total_time_delta.update().get("parent", verbose=True)
+            == total_time_operation_completed_delta.update().get("parent", verbose=True)
+            + total_time_operation_failed_delta.update().get("parent", verbose=True)
+            + total_time_operation_aborted_delta.update().get("parent", verbose=True)
+            > 0
+        )
 
     # Temporarily flaky due to YT-12207.
     @flaky(max_runs=3)
@@ -284,26 +347,36 @@ class TestPoolMetrics(YTEnvSetup):
 
         total_time_completed_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_completed",
-            with_tags={"pool": "unique_pool"})
+            with_tags={"pool": "unique_pool"},
+        )
         total_time_aborted_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_aborted",
-            with_tags={"pool": "unique_pool"})
+            with_tags={"pool": "unique_pool"},
+        )
         total_time_operation_completed_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_completed",
-            with_tags={"pool": "unique_pool"})
+            with_tags={"pool": "unique_pool"},
+        )
         total_time_operation_failed_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_failed",
-            with_tags={"pool": "unique_pool"})
+            with_tags={"pool": "unique_pool"},
+        )
         total_time_operation_aborted_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_aborted",
-            with_tags={"pool": "unique_pool"})
+            with_tags={"pool": "unique_pool"},
+        )
 
         op = map(
             command=with_breakpoint("cat; BREAKPOINT; sleep 3"),
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            spec={"data_size_per_job": 1, "pool": "unique_pool", "max_speculative_job_count_per_task": 0},
-            track=False)
+            spec={
+                "data_size_per_job": 1,
+                "pool": "unique_pool",
+                "max_speculative_job_count_per_task": 0,
+            },
+            track=False,
+        )
 
         jobs = wait_breakpoint(job_count=2)
         assert len(jobs) == 2
@@ -327,10 +400,12 @@ class TestPoolMetrics(YTEnvSetup):
 
         op.track()
 
-        wait(lambda: total_time_operation_completed_delta.update().get(verbose=True)
-             == total_time_completed_delta.update().get(verbose=True)
-             + total_time_aborted_delta.update().get(verbose=True)
-             > 0)
+        wait(
+            lambda: total_time_operation_completed_delta.update().get(verbose=True)
+            == total_time_completed_delta.update().get(verbose=True)
+            + total_time_aborted_delta.update().get(verbose=True)
+            > 0
+        )
         assert total_time_operation_failed_delta.update().get(verbose=True) == 0
         assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
 
@@ -343,41 +418,49 @@ class TestPoolMetrics(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
-        write_table("<append=%true>//tmp/t_input",
-                    [{"sleep": 2, "exit": 0},
-                     {"sleep": 5, "exit": 1}],
-                    output_format="json")
+        write_table(
+            "<append=%true>//tmp/t_input",
+            [{"sleep": 2, "exit": 0}, {"sleep": 5, "exit": 1}],
+            output_format="json",
+        )
 
         map_cmd = """python -c 'import sys; import time; import json; row=json.loads(raw_input()); time.sleep(row["sleep"]); sys.exit(row["exit"])'"""
 
         total_time_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time",
-            with_tags={"pool": "unique_pool"})
+            "scheduler/pools/metrics/total_time", with_tags={"pool": "unique_pool"}
+        )
         total_time_operation_completed_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_completed",
-            with_tags={"pool": "unique_pool"})
+            with_tags={"pool": "unique_pool"},
+        )
         total_time_operation_failed_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_failed",
-            with_tags={"pool": "unique_pool"})
+            with_tags={"pool": "unique_pool"},
+        )
         total_time_operation_aborted_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_aborted",
-            with_tags={"pool": "unique_pool"})
+            with_tags={"pool": "unique_pool"},
+        )
 
         op = map(
             command=map_cmd,
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            spec={"data_size_per_job": 1,
-                  "max_failed_job_count": 1,
-                  "pool": "unique_pool",
-                  "mapper": {"input_format": "json",
-                             "check_input_fully_consumed": True}},
-            track=False)
+            spec={
+                "data_size_per_job": 1,
+                "max_failed_job_count": 1,
+                "pool": "unique_pool",
+                "mapper": {"input_format": "json", "check_input_fully_consumed": True},
+            },
+            track=False,
+        )
         op.track(raise_on_failed=False)
 
-        wait(lambda: total_time_delta.update().get(verbose=True)
-             == total_time_operation_failed_delta.update().get(verbose=True)
-             > 0)
+        wait(
+            lambda: total_time_delta.update().get(verbose=True)
+            == total_time_operation_failed_delta.update().get(verbose=True)
+            > 0
+        )
         assert total_time_operation_completed_delta.update().get(verbose=True) == 0
         assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
 
@@ -401,23 +484,33 @@ class TestPoolMetrics(YTEnvSetup):
         total_time_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time",
             with_tags={"pool": "<Root>"},
-            grouped_by_tags=["tree"])
+            grouped_by_tags=["tree"],
+        )
         total_time_operation_completed_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/total_time_operation_completed",
             with_tags={"pool": "<Root>"},
-            grouped_by_tags=["tree"])
+            grouped_by_tags=["tree"],
+        )
 
-        map(command="cat",
+        map(
+            command="cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"data_size_per_job": 1, "pool_trees": ["default", "other"]})
+            spec={"data_size_per_job": 1, "pool_trees": ["default", "other"]},
+        )
 
-        wait(lambda: total_time_delta.update().get("default", verbose=True)
-             == total_time_operation_completed_delta.update().get("default", verbose=True)
-             > 0)
-        wait(lambda: total_time_delta.update().get("other", verbose=True)
-             == total_time_operation_completed_delta.update().get("other", verbose=True)
-             > 0)
+        wait(
+            lambda: total_time_delta.update().get("default", verbose=True)
+            == total_time_operation_completed_delta.update().get(
+                "default", verbose=True
+            )
+            > 0
+        )
+        wait(
+            lambda: total_time_delta.update().get("other", verbose=True)
+            == total_time_operation_completed_delta.update().get("other", verbose=True)
+            > 0
+        )
 
     @authors("eshcherbin")
     def test_revive(self):
@@ -431,18 +524,22 @@ class TestPoolMetrics(YTEnvSetup):
         after_breakpoint = """for i in $(seq 11 15) ; do python -c "import os; os.write(5, '{value=$i};')" ; sleep 0.5 ; done ; cat ; sleep 5 ; echo done > /dev/stderr ; """
 
         total_time_delta = Metric.at_scheduler(
-            "scheduler/pools/metrics/total_time",
-            with_tags={"pool": "unique_pool"})
+            "scheduler/pools/metrics/total_time", with_tags={"pool": "unique_pool"}
+        )
         custom_metric_delta = Metric.at_scheduler(
             "scheduler/pools/metrics/my_custom_metric_sum",
-            with_tags={"pool": "unique_pool"})
+            with_tags={"pool": "unique_pool"},
+        )
 
         op = map(
-            command=with_breakpoint(before_breakpoint + "BREAKPOINT ; " + after_breakpoint),
+            command=with_breakpoint(
+                before_breakpoint + "BREAKPOINT ; " + after_breakpoint
+            ),
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={"pool": "unique_pool"},
-            track=False)
+            track=False,
+        )
 
         jobs = wait_breakpoint()
         assert len(jobs) == 1
@@ -456,14 +553,23 @@ class TestPoolMetrics(YTEnvSetup):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
+        wait(
+            lambda: get(
+                "//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)
+            )
+            == "running"
+        )
         wait(lambda: op.get_state() == "running")
 
         release_breakpoint()
 
         op.track()
 
-        wait(lambda: total_time_delta.update().get(verbose=True) > total_time_before_restart)
+        wait(
+            lambda: total_time_delta.update().get(verbose=True)
+            > total_time_before_restart
+        )
         wait(lambda: custom_metric_delta.update().get(verbose=True) == 120)
+
 
 ##################################################################

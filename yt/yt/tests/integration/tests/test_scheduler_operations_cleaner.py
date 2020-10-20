@@ -75,10 +75,10 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 "max_operation_count_enqueued_for_archival": 5,
                 "max_operation_count_per_user": 3,
                 "fetch_batch_size": 1,
-                "max_removal_sleep_delay": 100
+                "max_removal_sleep_delay": 100,
             },
             "static_orchid_cache_update_period": 100,
-            "alerts_update_period": 100
+            "alerts_update_period": 100,
         }
     }
 
@@ -94,7 +94,9 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     def _lookup_ordered_by_id_row(self, op_id):
         id_hi, id_lo = uuid_to_parts(op_id)
-        rows = lookup_rows("//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}])
+        rows = lookup_rows(
+            "//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}]
+        )
         assert len(rows) == 1
         return rows[0]
 
@@ -110,7 +112,9 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_basic_sanity(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
 
         ops = _run_maps_parallel(7, "cat")
 
@@ -127,7 +131,12 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert "finish_time" in row
             assert "start_time" in row
             assert "alerts" in row
-            assert row["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
+            assert (
+                row["runtime_parameters"]["scheduling_options_per_pool_tree"][
+                    "default"
+                ]["pool"]
+                == "root"
+            )
 
     @authors("asaitgalin")
     def test_operations_archive_is_not_initialized(self):
@@ -139,7 +148,9 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         # Earliest operations should be removed
         wait(lambda: len(self._get_removed_operations(ops)) == 7)
-        assert __builtin__.set(self._get_removed_operations(ops)) == __builtin__.set(ops[:7])
+        assert __builtin__.set(self._get_removed_operations(ops)) == __builtin__.set(
+            ops[:7]
+        )
 
         def scheduler_alert_set():
             for alert in get("//sys/scheduler/@alerts"):
@@ -149,12 +160,18 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(scheduler_alert_set)
 
-    def _test_start_stop_impl(self, command, lookup_timeout=None, max_failed_job_count=1):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+    def _test_start_stop_impl(
+        self, command, lookup_timeout=None, max_failed_job_count=1
+    ):
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
 
         config = {"enable": False}
         if lookup_timeout is not None:
-            config["finished_operations_archive_lookup_timeout"] = int(lookup_timeout.total_seconds() * 1000)
+            config["finished_operations_archive_lookup_timeout"] = int(
+                lookup_timeout.total_seconds() * 1000
+            )
         set("//sys/scheduler/config", {"operations_cleaner": config})
         wait(lambda: not get(CLEANER_ORCHID + "/enable"))
         wait(lambda: not get(CLEANER_ORCHID + "/enable_archivation"))
@@ -173,7 +190,9 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_revive(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
 
         _run_maps_parallel(7, "cat")
 
@@ -186,7 +205,9 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_max_operation_count_per_user(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
         ops = _run_maps_parallel(5, "false", expect_fail=True)
         wait(lambda: len(self._get_removed_operations(ops)) == 2)
 
@@ -209,7 +230,8 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             include_archive=True,
             from_time=self.list_op_format(before_start_time),
             to_time=self.list_op_format(datetime.utcnow()),
-            with_failed_jobs=True)
+            with_failed_jobs=True,
+        )
         assert res["failed_jobs_count"] == len(ops)
         assert list(reversed(ops)) == [op["id"] for op in res["operations"]]
 
@@ -229,6 +251,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             include_archive=True,
             from_time=self.list_op_format(before_start_time),
             to_time=self.list_op_format(datetime.utcnow()),
-            with_failed_jobs=True)
+            with_failed_jobs=True,
+        )
         assert res["failed_jobs_count"] == 3
         assert len(res["operations"]) == 3

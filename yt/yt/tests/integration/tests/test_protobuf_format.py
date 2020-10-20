@@ -126,7 +126,7 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         data = protobuf_format.write_lenval_protobuf(SCHEMALESS_TABLE_ROWS, format)
         assert_rowsets_equal(
             protobuf_format.parse_lenval_protobuf(data, format),
-            PROTOBUF_SCHEMALESS_TABLE_ROWS
+            PROTOBUF_SCHEMALESS_TABLE_ROWS,
         )
         write_table("//tmp/t", value=data, is_raw=True, input_format=format)
         read_rows = read_table("//tmp/t")
@@ -137,16 +137,20 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         random.seed(42)
         enum_names = ENUMERATIONS["MyEnum"].keys()
         for _ in xrange(count):
-            rows.append({
-                "int64_column": random.randrange(1 << 63),
-                "uint64_column": yson.YsonUint64(random.randrange(1 << 64)),
-                "double_column": random.random(),
-                "bool_column": random.randrange(2) == 0,
-                "string_column": make_random_string(20),
-                "any_column": ["a", {"v": 4}],
-                "enum_string_column": random.choice(enum_names),
-                "enum_int_column": ENUMERATIONS["MyEnum"][random.choice(enum_names)],
-            })
+            rows.append(
+                {
+                    "int64_column": random.randrange(1 << 63),
+                    "uint64_column": yson.YsonUint64(random.randrange(1 << 64)),
+                    "double_column": random.random(),
+                    "bool_column": random.randrange(2) == 0,
+                    "string_column": make_random_string(20),
+                    "any_column": ["a", {"v": 4}],
+                    "enum_string_column": random.choice(enum_names),
+                    "enum_int_column": ENUMERATIONS["MyEnum"][
+                        random.choice(enum_names)
+                    ],
+                }
+            )
         return rows
 
     @authors("levysotsky")
@@ -171,7 +175,9 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         row_count = 50000
         rows = self._generate_random_rows(row_count)
         data = protobuf_format.write_lenval_protobuf(rows, format)
-        write_table("//tmp/t", value=data, is_raw=True, input_format=format, verbose=False)
+        write_table(
+            "//tmp/t", value=data, is_raw=True, input_format=format, verbose=False
+        )
         read_rows = read_table("//tmp/t", verbose=False)
         assert_rowsets_equal(read_rows, rows)
 
@@ -351,22 +357,38 @@ SCHEMA = [
     },
     {
         "name": "struct",
-        "type_v3": struct_type([
-            ("key", "string"),
-            ("points", list_type(
-                struct_type([
-                    ("x", "int64"),
-                    ("y", "int64"),
-                ])
-            )),
-            ("enum_string", "string"),
-            ("enum_int", "int32"),
-            ("extra_field", optional_type("string")),
-            ("optional_list_of_structs", optional_type(list_type(struct_type([
-                ("a", "string"),
-                ("b", "bool"),
-            ])))),
-        ]),
+        "type_v3": struct_type(
+            [
+                ("key", "string"),
+                (
+                    "points",
+                    list_type(
+                        struct_type(
+                            [
+                                ("x", "int64"),
+                                ("y", "int64"),
+                            ]
+                        )
+                    ),
+                ),
+                ("enum_string", "string"),
+                ("enum_int", "int32"),
+                ("extra_field", optional_type("string")),
+                (
+                    "optional_list_of_structs",
+                    optional_type(
+                        list_type(
+                            struct_type(
+                                [
+                                    ("a", "string"),
+                                    ("b", "bool"),
+                                ]
+                            )
+                        )
+                    ),
+                ),
+            ]
+        ),
     },
     {
         "name": "utf8",
@@ -378,25 +400,46 @@ SCHEMA = [
     },
     {
         "name": "variant",
-        "type_v3": optional_type(variant_struct_type([
-            ("f1", "int8"),
-            ("f2", "int8"),
-            ("f3", struct_type([
-                ("var", optional_type(variant_struct_type([
-                    ("g1", "string"),
-                    ("g2", "string"),
-                ]))),
-                ("list_of_ints", optional_type(list_type("int64"))),
-            ])),
-        ])),
+        "type_v3": optional_type(
+            variant_struct_type(
+                [
+                    ("f1", "int8"),
+                    ("f2", "int8"),
+                    (
+                        "f3",
+                        struct_type(
+                            [
+                                (
+                                    "var",
+                                    optional_type(
+                                        variant_struct_type(
+                                            [
+                                                ("g1", "string"),
+                                                ("g2", "string"),
+                                            ]
+                                        )
+                                    ),
+                                ),
+                                ("list_of_ints", optional_type(list_type("int64"))),
+                            ]
+                        ),
+                    ),
+                ]
+            )
+        ),
     },
     {
         "name": "dict",
-        "type_v3": dict_type("int64", struct_type([
-            ("f1", "int8"),
-            ("f2", "string"),
-        ])),
-    }
+        "type_v3": dict_type(
+            "int64",
+            struct_type(
+                [
+                    ("f1", "int8"),
+                    ("f2", "string"),
+                ]
+            ),
+        ),
+    },
 ]
 
 SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
@@ -537,7 +580,7 @@ SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
                                     "field_number": 2,
                                     "proto_type": "string",
                                 },
-                            ]
+                            ],
                         },
                         {
                             "name": "list_of_ints",
@@ -575,14 +618,16 @@ SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
                             "field_number": 17,
                             "proto_type": "string",
                         },
-                    ]
+                    ],
                 },
             ],
         },
     ],
 }
 
-HELLO_WORLD = b"\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!"
+HELLO_WORLD = (
+    b"\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!"
+)
 GOODBYE_WORLD = b"\xd0\x9f\xd0\xbe\xd0\xba\xd0\xb0, \xd0\xbc\xd0\xb8\xd1\x80!"
 
 SCHEMAFUL_TABLE_ROWS = [
@@ -597,7 +642,10 @@ SCHEMAFUL_TABLE_ROWS = [
             "enum_int": -42,
             "enum_string": "Green",
             "extra_field": "baz",
-            "optional_list_of_structs": [{"a": "AAA", "b": False}, {"a": "---", "b": True}],
+            "optional_list_of_structs": [
+                {"a": "AAA", "b": False},
+                {"a": "---", "b": True},
+            ],
         },
         "utf8": HELLO_WORLD,
         "packed_repeated_int8": [0, 12, 127],
@@ -635,11 +683,17 @@ PROTOBUF_SCHEMAFUL_TABLE_ROWS = [
             "points": [{"x": 1, "y": 4}, {"x": 5, "y": 4}],
             "enum_int": -42,
             "enum_string": "Green",
-            "optional_list_of_structs": [{"a": "AAA", "b": False}, {"a": "---", "b": True}],
+            "optional_list_of_structs": [
+                {"a": "AAA", "b": False},
+                {"a": "---", "b": True},
+            ],
         },
         "utf8": HELLO_WORLD,
         "packed_repeated_int8": [0, 12, 127],
-        "dict": [{"key": 12, "value": {"f1": -9, "f2": "-9"}}, {"key": 13, "value": {"f1": -127, "f2": "-127"}}],
+        "dict": [
+            {"key": 12, "value": {"f1": -9, "f2": "-9"}},
+            {"key": 13, "value": {"f1": -127, "f2": "-127"}},
+        ],
     },
     {
         "int16": -32768,
@@ -668,7 +722,10 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
             "enum_int": -42,
             "enum_string": "Green",
             "extra_field": yson.YsonEntity(),
-            "optional_list_of_structs": [{"a": "AAA", "b": False}, {"a": "---", "b": True}],
+            "optional_list_of_structs": [
+                {"a": "AAA", "b": False},
+                {"a": "---", "b": True},
+            ],
         },
         "utf8": HELLO_WORLD,
         "packed_repeated_int8": [0, 12, 127],
@@ -709,6 +766,7 @@ def make_random_list(max_len, generator, optional=False):
         return yson.YsonEntity()
     return [generator() for _ in xrange(length)]
 
+
 def make_random_variant_struct(fields):
     name, generator = random.choice(fields)
     return [name, generator()]
@@ -735,55 +793,95 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
         create("table", "//tmp/t", attributes={"schema": SCHEMA})
         table_config = SCHEMAFUL_TABLE_PROTOBUF_CONFIG
         format = create_protobuf_format([table_config], ENUMERATIONS)
-        data = protobuf_format.write_lenval_protobuf(PROTOBUF_SCHEMAFUL_TABLE_ROWS, format)
+        data = protobuf_format.write_lenval_protobuf(
+            PROTOBUF_SCHEMAFUL_TABLE_ROWS, format
+        )
         assert_rowsets_equal(
             protobuf_format.parse_lenval_protobuf(data, format),
-            PROTOBUF_SCHEMAFUL_TABLE_ROWS
+            PROTOBUF_SCHEMAFUL_TABLE_ROWS,
         )
         write_table("//tmp/t", value=data, is_raw=True, input_format=format)
-        assert_rowsets_equal(read_table("//tmp/t"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD)
+        assert_rowsets_equal(
+            read_table("//tmp/t"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD
+        )
 
     def _generate_random_rows(self, count):
         rows = []
         random.seed(42)
         enum_names = ENUMERATIONS["MyEnum"].keys()
         for _ in xrange(count):
-            rows.append({
-                "int16": random.randrange(1 << 15),
-                "list_of_strings": make_random_list(5, lambda: make_random_string(random.randrange(10))),
-                "optional_boolean": make_random_bool(),
-                "list_of_optional_any": [yson.YsonEntity(), {"x": random.randrange(1 << 64)}, []],
-                "struct": {
-                    "key": make_random_string(10),
-                    "points": make_random_list(5, lambda: {"x": random.randrange(100), "y": random.randrange(100)}),
-                    "enum_int": ENUMERATIONS["MyEnum"][random.choice(enum_names)],
-                    "enum_string": random.choice(enum_names),
-                    "extra_field": make_random_string(7),
-                    "optional_list_of_structs":
-                        make_random_list(5, lambda: {"a": make_random_string(3), "b": make_random_bool()}, optional=True),
-                },
-                "utf8": make_random_string(10),
-                "packed_repeated_int8": make_random_list(5, lambda: random.randrange(-128, 128)),
-                "optional_list_of_int64": make_random_list(5, lambda: random.randrange(1 << 63), optional=True),
-                "variant": make_random_variant_struct([
-                    ("f1", lambda: random.randrange(-128, 128)),
-                    ("f2", lambda: random.randrange(-128, 128)),
-                    ("f3", lambda: {
-                        "var": make_random_variant_struct([
-                            ("g1", lambda: make_random_string(7)),
-                            ("g2", lambda: make_random_string(7)),
-                        ]),
-                        "list_of_ints": make_random_list(5, lambda: random.randrange(1 << 63)),
-                    }),
-                ]),
-                "dict": make_random_list(5, lambda: [
-                    random.randrange(1 << 63),
-                    {
-                        "f1": random.randrange(-128, 128),
-                        "f2": make_random_string(3),
+            rows.append(
+                {
+                    "int16": random.randrange(1 << 15),
+                    "list_of_strings": make_random_list(
+                        5, lambda: make_random_string(random.randrange(10))
+                    ),
+                    "optional_boolean": make_random_bool(),
+                    "list_of_optional_any": [
+                        yson.YsonEntity(),
+                        {"x": random.randrange(1 << 64)},
+                        [],
+                    ],
+                    "struct": {
+                        "key": make_random_string(10),
+                        "points": make_random_list(
+                            5,
+                            lambda: {
+                                "x": random.randrange(100),
+                                "y": random.randrange(100),
+                            },
+                        ),
+                        "enum_int": ENUMERATIONS["MyEnum"][random.choice(enum_names)],
+                        "enum_string": random.choice(enum_names),
+                        "extra_field": make_random_string(7),
+                        "optional_list_of_structs": make_random_list(
+                            5,
+                            lambda: {
+                                "a": make_random_string(3),
+                                "b": make_random_bool(),
+                            },
+                            optional=True,
+                        ),
                     },
-                ]),
-            })
+                    "utf8": make_random_string(10),
+                    "packed_repeated_int8": make_random_list(
+                        5, lambda: random.randrange(-128, 128)
+                    ),
+                    "optional_list_of_int64": make_random_list(
+                        5, lambda: random.randrange(1 << 63), optional=True
+                    ),
+                    "variant": make_random_variant_struct(
+                        [
+                            ("f1", lambda: random.randrange(-128, 128)),
+                            ("f2", lambda: random.randrange(-128, 128)),
+                            (
+                                "f3",
+                                lambda: {
+                                    "var": make_random_variant_struct(
+                                        [
+                                            ("g1", lambda: make_random_string(7)),
+                                            ("g2", lambda: make_random_string(7)),
+                                        ]
+                                    ),
+                                    "list_of_ints": make_random_list(
+                                        5, lambda: random.randrange(1 << 63)
+                                    ),
+                                },
+                            ),
+                        ]
+                    ),
+                    "dict": make_random_list(
+                        5,
+                        lambda: [
+                            random.randrange(1 << 63),
+                            {
+                                "f1": random.randrange(-128, 128),
+                                "f2": make_random_string(3),
+                            },
+                        ],
+                    ),
+                }
+            )
         return rows
 
     @authors("levysotsky")
@@ -800,7 +898,9 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             row["dict"] = [{"key": key, "value": value} for key, value in row["dict"]]
 
         data = protobuf_format.write_lenval_protobuf(rows, format)
-        write_table("//tmp/t", value=data, is_raw=True, input_format=format, verbose=False)
+        write_table(
+            "//tmp/t", value=data, is_raw=True, input_format=format, verbose=False
+        )
         read_rows = read_table("//tmp/t", verbose=False)
 
         def empty_to_entity(d, key):
@@ -844,7 +944,9 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             if row["variant"][0] == "f3":
                 remove_empty(row["variant"][1], "list_of_ints")
             if "dict" in row:
-                row["dict"] = [{"key": key, "value": value} for key, value in row["dict"]]
+                row["dict"] = [
+                    {"key": key, "value": value} for key, value in row["dict"]
+                ]
             remove_empty(row, "dict")
         assert_rowsets_equal(parsed_rows, expected_rows)
 
@@ -876,5 +978,9 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             },
         )
 
-        assert_rowsets_equal(read_table("//tmp/t_out1"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD)
-        assert_rowsets_equal(read_table("//tmp/t_out2"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD)
+        assert_rowsets_equal(
+            read_table("//tmp/t_out1"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD
+        )
+        assert_rowsets_equal(
+            read_table("//tmp/t_out2"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD
+        )

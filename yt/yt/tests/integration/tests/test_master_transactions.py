@@ -14,6 +14,7 @@ import calendar
 
 ##################################################################
 
+
 class TestMasterTransactions(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
@@ -28,8 +29,9 @@ class TestMasterTransactions(YTEnvSetup):
 
         assert not exists("//sys/transactions/" + tx)
 
-        #cannot commit committed transaction
-        with pytest.raises(YtError): commit_transaction(tx)
+        # cannot commit committed transaction
+        with pytest.raises(YtError):
+            commit_transaction(tx)
 
     @authors("babenko")
     def test_simple2(self):
@@ -41,18 +43,19 @@ class TestMasterTransactions(YTEnvSetup):
 
         assert not exists("//sys/transactions/" + tx)
 
-        #cannot commit aborted transaction
-        with pytest.raises(YtError): commit_transaction(tx)
+        # cannot commit aborted transaction
+        with pytest.raises(YtError):
+            commit_transaction(tx)
 
     @authors("panin", "ignat")
     def test_changes_inside_tx(self):
         set("//tmp/value", "42")
 
         tx = start_transaction()
-        set("//tmp/value", "100", tx = tx)
+        set("//tmp/value", "100", tx=tx)
 
         # check that changes are not seen outside of transaction
-        assert get("//tmp/value", tx = tx) == "100"
+        assert get("//tmp/value", tx=tx) == "100"
         assert get("//tmp/value") == "42"
 
         commit_transaction(tx)
@@ -60,10 +63,10 @@ class TestMasterTransactions(YTEnvSetup):
         assert get("//tmp/value") == "100"
 
         tx = start_transaction()
-        set("//tmp/value", "100500", tx = tx)
+        set("//tmp/value", "100500", tx=tx)
         abort_transaction(tx)
 
-        #changes after abort are not applied
+        # changes after abort are not applied
         assert get("//tmp/value") == "100"
 
         remove("//tmp/value")
@@ -74,10 +77,10 @@ class TestMasterTransactions(YTEnvSetup):
 
         tx_outer = start_transaction()
 
-        tx1 = start_transaction(tx = tx_outer)
+        tx1 = start_transaction(tx=tx_outer)
         set("//tmp/t1", 1, tx=tx1)
 
-        start_transaction(tx = tx_outer)
+        start_transaction(tx=tx_outer)
 
         assert get("//tmp/t1", tx=tx_outer) == 0
 
@@ -94,10 +97,10 @@ class TestMasterTransactions(YTEnvSetup):
         tx_outer = start_transaction()
         set("//tmp/t", 1, tx=tx_outer)
 
-        tx1 = start_transaction(tx = tx_outer)
+        tx1 = start_transaction(tx=tx_outer)
         set("//tmp/t1", 1, tx=tx1)
 
-        tx2 = start_transaction(tx = tx_outer)
+        tx2 = start_transaction(tx=tx_outer)
         set("//tmp/t2", 1, tx=tx2)
 
         commit_transaction(tx_outer)
@@ -121,10 +124,10 @@ class TestMasterTransactions(YTEnvSetup):
         tx_outer = start_transaction()
         set("//tmp/t", 1, tx=tx_outer)
 
-        tx1 = start_transaction(tx = tx_outer)
+        tx1 = start_transaction(tx=tx_outer)
         set("//tmp/t1", 1, tx=tx1)
 
-        tx2 = start_transaction(tx = tx_outer)
+        tx2 = start_transaction(tx=tx_outer)
         set("//tmp/t2", 1, tx=tx2)
 
         abort_transaction(tx_outer)
@@ -155,7 +158,10 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("ignat")
     @flaky(max_runs=5)
     def test_deadline(self):
-        tx = start_transaction(timeout=10000, deadline=datetime_to_string(datetime.utcnow() + timedelta(seconds=2)))
+        tx = start_transaction(
+            timeout=10000,
+            deadline=datetime_to_string(datetime.utcnow() + timedelta(seconds=2)),
+        )
 
         # check that transaction is still alive after 1 seconds
         sleep(1.0)
@@ -198,7 +204,7 @@ class TestMasterTransactions(YTEnvSetup):
     @flaky(max_runs=5)
     def test_expire_outer(self):
         tx_outer = start_transaction(timeout=3000)
-        tx_inner = start_transaction(tx = tx_outer)
+        tx_inner = start_transaction(tx=tx_outer)
 
         sleep(1)
         assert exists("//sys/transactions/" + tx_inner)
@@ -214,7 +220,7 @@ class TestMasterTransactions(YTEnvSetup):
     @flaky(max_runs=5)
     def test_ping_ancestors(self):
         tx_outer = start_transaction(timeout=3000)
-        tx_inner = start_transaction(tx = tx_outer)
+        tx_inner = start_transaction(tx=tx_outer)
 
         sleep(1)
         assert exists("//sys/transactions/" + tx_inner)
@@ -241,14 +247,15 @@ class TestMasterTransactions(YTEnvSetup):
             set("//tmp/p/@some_attr", "some_value")
 
             portal_exit_id = get("//tmp/p/@id")
-            table_id = create("table", "//tmp/p/t", tx=tx) # replicate tx to cell 3
-            if '3' not in cell_tags:
-                cell_tags.append('3')
+            table_id = create("table", "//tmp/p/t", tx=tx)  # replicate tx to cell 3
+            if "3" not in cell_tags:
+                cell_tags.append("3")
 
         def check(r):
             assert_items_equal(r.keys(), cell_tags)
             for (k, v) in r.iteritems():
                 assert v == []
+
         check(get("#" + tx + "/@staged_object_ids"))
         check(get("#" + tx + "/@imported_object_ids"))
         check(get("#" + tx + "/@exported_objects"))
@@ -258,17 +265,17 @@ class TestMasterTransactions(YTEnvSetup):
         if sharded_tx:
             branched_node_ids = get("#" + tx + "/@branched_node_ids")
             assert len(branched_node_ids) == 2
-            assert_items_equal(branched_node_ids['3'], [table_id, portal_exit_id])
+            assert_items_equal(branched_node_ids["3"], [table_id, portal_exit_id])
             assert branched_node_ids[tx_cell_tag] == []
 
             locked_node_ids = get("#" + tx + "/@locked_node_ids")
             assert len(locked_node_ids) == 2
-            assert_items_equal(locked_node_ids['3'], [table_id, portal_exit_id])
+            assert_items_equal(locked_node_ids["3"], [table_id, portal_exit_id])
             assert locked_node_ids[tx_cell_tag] == []
 
             staged_node_ids = get("#" + tx + "/@staged_node_ids")
             assert len(staged_node_ids) == 2
-            assert_items_equal(staged_node_ids['3'], [table_id])
+            assert_items_equal(staged_node_ids["3"], [table_id])
             assert staged_node_ids[tx_cell_tag] == []
 
             assert len(get("#" + tx + "/@lock_ids/3")) == 2
@@ -276,8 +283,8 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("babenko")
     def test_transaction_maps(self):
         tx1 = start_transaction()
-        tx2 = start_transaction(tx = tx1)
-        tx3 = start_transaction(tx = tx1)
+        tx2 = start_transaction(tx=tx1)
+        tx3 = start_transaction(tx=tx1)
 
         txs = get_transactions()
         assert tx1 in txs
@@ -300,7 +307,7 @@ class TestMasterTransactions(YTEnvSetup):
 
         abort_transaction(tx1)
         txs = get_transactions()
-        assert not(tx1 in txs)
+        assert not (tx1 in txs)
         assert not (tx2 in txs)
         assert not (tx3 in txs)
         topmost_txs = get_topmost_transactions()
@@ -346,7 +353,9 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("babenko")
     def test_revision4(self):
         if self.is_multicell():
-            pytest.skip("@current_commit_revision not supported with sharded transactions")
+            pytest.skip(
+                "@current_commit_revision not supported with sharded transactions"
+            )
             return
 
         r1 = get("//sys/@current_commit_revision")
@@ -398,7 +407,7 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("babenko")
     def test_owner(self):
         create_user("u")
-        tx = start_transaction(authenticated_user = "u")
+        tx = start_transaction(authenticated_user="u")
         assert get("#{0}/@owner".format(tx)) == "u"
 
     @authors("ignat")
@@ -409,8 +418,12 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_a)
         assert exists("//sys/transactions/" + tx_b)
 
-        assert get("//sys/transactions/{}/@prerequisite_transaction_ids".format(tx_b)) == [tx_a]
-        assert get("//sys/transactions/{}/@dependent_transaction_ids".format(tx_a)) == [tx_b]
+        assert get(
+            "//sys/transactions/{}/@prerequisite_transaction_ids".format(tx_b)
+        ) == [tx_a]
+        assert get("//sys/transactions/{}/@dependent_transaction_ids".format(tx_a)) == [
+            tx_b
+        ]
 
         ping_transaction(tx_a)
         ping_transaction(tx_b)
@@ -479,7 +492,8 @@ class TestMasterTransactions(YTEnvSetup):
         lock("//tmp", tx=tx)
 
         another_tx = start_transaction()
-        with pytest.raises(YtError): lock("//tmp", tx=another_tx)
+        with pytest.raises(YtError):
+            lock("//tmp", tx=another_tx)
 
     @authors("babenko")
     def test_transaction_depth(self):
@@ -499,11 +513,14 @@ class TestMasterTransactions(YTEnvSetup):
                 tx = start_transaction()
             else:
                 tx = start_transaction(tx=tx)
-        with pytest.raises(YtError): start_transaction(tx=tx)
+        with pytest.raises(YtError):
+            start_transaction(tx=tx)
+
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_ROLES = {"2": ["chunk_host"]}
+
 
 class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
     NUM_SECONDARY_MASTER_CELLS = 5
@@ -514,7 +531,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         "2": ["chunk_host"],
         "3": ["cypress_node_host"],
         "4": ["transaction_coordinator"],
-        "5": ["transaction_coordinator"]
+        "5": ["transaction_coordinator"],
     }
 
     @authors("shakurov")
@@ -559,7 +576,10 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
     @authors("shakurov")
     def test_eager_tx_replication(self):
-        set("//sys/@config/transaction_manager/enable_lazy_transaction_replication", False)
+        set(
+            "//sys/@config/transaction_manager/enable_lazy_transaction_replication",
+            False,
+        )
         multicell_sleep()
 
         tx = start_transaction()
@@ -592,7 +612,12 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
             get(portal_path + "/@id", tx=tx1, prerequisite_transaction_ids=[tx2, tx3])
         else:
             assert replication_mode == "w"
-            create("table", portal_path + "/t", tx=tx1, prerequisite_transaction_ids=[tx2, tx3])
+            create(
+                "table",
+                portal_path + "/t",
+                tx=tx1,
+                prerequisite_transaction_ids=[tx2, tx3],
+            )
 
     @authors("shakurov")
     def test_cannot_start_tx_with_conflicting_parent_and_prerequisite(self):
@@ -618,11 +643,13 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
             with pytest.raises(YtError):
                 start_transaction(prerequisite_transaction_ids=[tx1, tx2])
 
+
 class TestMasterTransactionsShardedTxNoBoomerangs(TestMasterTransactionsShardedTx):
     def setup_method(self, method):
         super(TestMasterTransactionsShardedTxNoBoomerangs, self).setup_method(method)
         set("//sys/@config/object_service/enable_mutation_boomerangs", False)
         set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
+
 
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):
     DRIVER_BACKEND = "rpc"
