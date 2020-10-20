@@ -1700,6 +1700,7 @@ public:
             const char* resourceType,
             TAccount* overdraftedAccount,
             const auto& usage,
+            const auto& increase,
             const auto& limit,
             const TMedium* medium = nullptr)
         {
@@ -1721,6 +1722,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AccountLimitExceeded, errorMessage)
                 << TErrorAttribute("usage", usage)
+                << TErrorAttribute("increase", increase)
                 << TErrorAttribute("limit", limit);
         };
 
@@ -1739,7 +1741,7 @@ public:
                     const auto& chunkManager = Bootstrap_->GetChunkManager();
                     const auto* medium = chunkManager->GetMediumByIndex(index);
 
-                    throwOverdraftError("disk space", account, usageSpace, limitsSpace, medium);
+                    throwOverdraftError("disk space", account, usageSpace, deltaSpace, limitsSpace, medium);
                 }
             }
             // Branched nodes are usually "paid for" by the originating node's
@@ -1748,21 +1750,21 @@ public:
             // effectively ignores non-trunk nodes, which constitute the majority of
             // problematic nodes.
             if (delta.NodeCount > 0 && committedUsage.NodeCount + delta.NodeCount > limits.NodeCount) {
-                throwOverdraftError("Cypress node count", account, committedUsage.NodeCount, limits.NodeCount);
+                throwOverdraftError("Cypress node count", account, committedUsage.NodeCount, delta.NodeCount, limits.NodeCount);
             }
             if (delta.ChunkCount > 0 && usage.ChunkCount + delta.ChunkCount > limits.ChunkCount) {
-                throwOverdraftError("chunk count", account, usage.ChunkCount, limits.ChunkCount);
+                throwOverdraftError("chunk count", account, usage.ChunkCount, delta.ChunkCount, limits.ChunkCount);
             }
             if (delta.TabletCount > 0 && usage.TabletCount + delta.TabletCount > limits.TabletCount) {
-                throwOverdraftError("tablet count", account, usage.TabletCount, limits.TabletCount);
+                throwOverdraftError("tablet count", account, usage.TabletCount, delta.TabletCount, limits.TabletCount);
             }
             if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
-                throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, limits.TabletStaticMemory);
+                throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, delta.TabletStaticMemory, limits.TabletStaticMemory);
             }
             if (dynamicConfig->EnableMasterMemoryUsageValidation && delta.MasterMemory > 0 &&
                 usage.MasterMemory + delta.MasterMemory > limits.MasterMemory)
             {
-                throwOverdraftError("master memory", account, usage.MasterMemory, limits.MasterMemory);
+                throwOverdraftError("master memory", account, usage.MasterMemory, delta.MasterMemory, limits.MasterMemory);
             }
         }
 
