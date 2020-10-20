@@ -164,20 +164,7 @@ protected:
 
     i64 GetSortedOperationInputSliceDataWeight() const
     {
-        auto dataWeightPerJob = GetDataWeightPerJob();
-
-        i64 sliceDataSize = Clamp<i64>(
-            Options_->SliceDataWeightMultiplier * dataWeightPerJob / std::max<int>(1, MergePrimaryInputTableCount_),
-            1,
-            Options_->MaxSliceDataWeight);
-
-        if (sliceDataSize < Options_->MinSliceDataWeight) {
-            sliceDataSize = dataWeightPerJob;
-        }
-
-        sliceDataSize = std::max<i64>(sliceDataSize, DivCeil<i64>(GetDataWeightPerJob(), GetMaxDataSlicesPerJob()));
-
-        return std::max<i64>(sliceDataSize, 1);
+        return TJobSizeConstraintsBase::GetInputSliceDataWeight();
     }
 
 private:
