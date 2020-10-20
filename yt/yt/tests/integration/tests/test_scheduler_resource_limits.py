@@ -73,9 +73,7 @@ while True:
 
         create("table", "//tmp/t_out")
 
-        command = (
-            "cat > /dev/null; mkdir ./tmpxxx; echo 1 > ./tmpxxx/f1; chmod 700 ./tmpxxx;"
-        )
+        command = "cat > /dev/null; mkdir ./tmpxxx; echo 1 > ./tmpxxx/f1; chmod 700 ./tmpxxx;"
         map(in_="//tmp/t_in", out="//tmp/t_out", command=command)
 
 
@@ -145,18 +143,13 @@ time.sleep(5.0)
         event_log = read_table("//sys/scheduler/event_log")
         last_memory_reserve = None
         for event in event_log:
-            if (
-                event["event_type"] == "job_completed"
-                and event["operation_id"] == op.id
-            ):
+            if event["event_type"] == "job_completed" and event["operation_id"] == op.id:
                 print_debug(
                     event["job_id"],
                     event["statistics"]["user_job"]["memory_reserve"]["sum"],
                     event["statistics"]["user_job"]["max_memory"]["sum"],
                 )
-                last_memory_reserve = int(
-                    event["statistics"]["user_job"]["memory_reserve"]["sum"]
-                )
+                last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert not last_memory_reserve is None
         assert 1e8 <= last_memory_reserve <= 2e8
 
@@ -283,15 +276,9 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         assert len(nodes) == 1
         node = nodes[0]
         self.Env.set_nodes_cpu_limit(4)
-        wait(
-            lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node)))
-            == 3
-        )
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
         self.Env.set_nodes_cpu_limit(3)
-        wait(
-            lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node)))
-            == 2
-        )
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 2)
 
     @authors("gritukan")
     def test_update_memory_limits(self):
@@ -303,27 +290,16 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         precision = 10 ** 8
         self.Env.set_nodes_memory_limit(15 * 10 ** 8)
         wait(
-            lambda: abs(
-                get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))
-                - 25 * 10 ** 7
-            )
+            lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10 ** 7)
             <= precision
         )
         self.Env.set_nodes_memory_limit(2 * 10 ** 9)
         wait(
-            lambda: abs(
-                get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))
-                - 5 * 10 ** 8
-            )
+            lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 5 * 10 ** 8)
             <= precision
         )
         self.Env.set_nodes_memory_limit(10 ** 9 - 1)
-        wait(
-            lambda: int(
-                get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))
-            )
-            == 0
-        )
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))) == 0)
 
     @authors("gritukan")
     def test_dynamic_resource_limits_config(self):
@@ -336,16 +312,10 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         self.Env.set_nodes_memory_limit(15 * 10 ** 8)
         self.Env.set_nodes_cpu_limit(4)
         wait(
-            lambda: abs(
-                get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))
-                - 25 * 10 ** 7
-            )
+            lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10 ** 7)
             <= precision
         )
-        wait(
-            lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node)))
-            == 3
-        )
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
 
         update_nodes_dynamic_config(
             {
@@ -366,16 +336,8 @@ class TestUpdateInstanceLimits(YTEnvSetup):
             }
         )
 
-        wait(
-            lambda: int(
-                get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))
-            )
-            == 12345678
-        )
-        wait(
-            lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node)))
-            == 2
-        )
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))) == 12345678)
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 2)
 
         update_nodes_dynamic_config(
             {
@@ -399,16 +361,10 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         )
 
         wait(
-            lambda: abs(
-                get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))
-                - 25 * 10 ** 7
-            )
+            lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10 ** 7)
             <= precision
         )
-        wait(
-            lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node)))
-            == 3
-        )
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
 
 
 ###############################################################################################
@@ -468,16 +424,8 @@ class TestSchedulerGpu(YTEnvSetup):
     @authors("ignat")
     def test_min_share_resources(self):
         create_pool("gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
-        wait(
-            lambda: get(
-                scheduler_orchid_pool_path("gpu_pool") + "/min_share_resources/gpu"
-            )
-            == 1
-        )
-        wait(
-            lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_ratio")
-            == 0.25
-        )
+        wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_resources/gpu") == 1)
+        wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_ratio") == 0.25)
 
     @authors("ignat")
     def test_packing(self):
@@ -487,16 +435,9 @@ class TestSchedulerGpu(YTEnvSetup):
                 return False
             assert jobs.values()[0]["address"] == gpu_node
             job_info = get(
-                "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(
-                    gpu_node, jobs.keys()[0]
-                )
+                "//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(gpu_node, jobs.keys()[0])
             )
-            job_gpu_indexes = sorted(
-                [
-                    device["device_number"]
-                    for device in job_info["exec_attributes"]["gpu_devices"]
-                ]
-            )
+            job_gpu_indexes = sorted([device["device_number"] for device in job_info["exec_attributes"]["gpu_devices"]])
             if job_gpu_indexes != sorted(gpu_indexes):
                 return False
             return True
@@ -527,10 +468,7 @@ class TestSchedulerGpu(YTEnvSetup):
             track=False,
         )
 
-        wait(
-            lambda: get("//sys/cluster_nodes/{}/@resource_usage/gpu".format(gpu_node))
-            == 1
-        )
+        wait(lambda: get("//sys/cluster_nodes/{}/@resource_usage/gpu".format(gpu_node)) == 1)
 
         wait(lambda: check_gpus(op1, [0]))
 
@@ -547,10 +485,7 @@ class TestSchedulerGpu(YTEnvSetup):
             track=False,
         )
 
-        wait(
-            lambda: get("//sys/cluster_nodes/{}/@resource_usage/gpu".format(gpu_node))
-            == 3
-        )
+        wait(lambda: get("//sys/cluster_nodes/{}/@resource_usage/gpu".format(gpu_node)) == 3)
 
         wait(lambda: check_gpus(op2, [2, 3]))
 
@@ -660,11 +595,7 @@ class TestPorts(YTEnvSetup):
                 server_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
                 server_socket.bind(("::1", 20001))
             except Exception as err:
-                pytest.skip(
-                    "Caught following exception while trying to bind to port 20001: {}".format(
-                        err
-                    )
-                )
+                pytest.skip("Caught following exception while trying to bind to port 20001: {}".format(err))
                 return
 
             # We run test several times to make sure that ports did not stuck inside node.

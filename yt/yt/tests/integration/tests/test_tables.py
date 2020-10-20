@@ -17,9 +17,7 @@ class TestTables(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_MASTER_CONFIG = {
-        "chunk_manager": {"allow_multiple_erasure_parts_per_node": True}
-    }
+    DELTA_MASTER_CONFIG = {"chunk_manager": {"allow_multiple_erasure_parts_per_node": True}}
 
     def _wait_until_unlocked(self, path):
         wait(lambda: get(path + "/@lock_count") == 0)
@@ -185,9 +183,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/table")
         write_table("//tmp/table", [{"a": 2}, {"a": 1}, {"a": 0}])
         with pytest.raises(YtError):
-            write_table(
-                "<append=true>//tmp/table", [{"a": 2}, {"a": 3}], sorted_by=["a"]
-            )
+            write_table("<append=true>//tmp/table", [{"a": 2}, {"a": 3}], sorted_by=["a"])
         self._wait_until_unlocked("//tmp/table")
 
     @authors("ignat", "monster")
@@ -207,9 +203,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/table")
         write_table("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}], sorted_by=["a"])
         with pytest.raises(YtError):
-            write_table(
-                "<append=true>//tmp/table", [{"b": 0}, {"b": 1}], sorted_by=["b"]
-            )
+            write_table("<append=true>//tmp/table", [{"b": 0}, {"b": 1}], sorted_by=["b"])
         self._wait_until_unlocked("//tmp/table")
 
     @authors("monster")
@@ -217,9 +211,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/table")
         tx1 = start_transaction()
         tx2 = start_transaction()
-        write_table(
-            "<append=true>//tmp/table", [{"a": 0}, {"a": 1}], sorted_by=["a"], tx=tx1
-        )
+        write_table("<append=true>//tmp/table", [{"a": 0}, {"a": 1}], sorted_by=["a"], tx=tx1)
         with pytest.raises(YtError):
             write_table(
                 "<append=true>//tmp/table",
@@ -274,9 +266,7 @@ class TestTables(YTEnvSetup):
 
         # check max_row_weight limit
         with pytest.raises(YtError):
-            write_table(
-                "//tmp/table", {"a": "long_string"}, table_writer={"max_row_weight": 2}
-            )
+            write_table("//tmp/table", {"a": "long_string"}, table_writer={"max_row_weight": 2})
         self._wait_until_unlocked("//tmp/table")
 
         # check max_key_weight limit
@@ -354,9 +344,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(6)]
 
         # data is overwritten, schema is reset
-        write_table(
-            "<schema=[{name=key; type=any}]>//tmp/table", [{"key": 4}, {"key": 5}]
-        )
+        write_table("<schema=[{name=key; type=any}]>//tmp/table", [{"key": 4}, {"key": 5}])
         assert get("//tmp/table/@row_count") == 2
 
     @authors("prime")
@@ -426,9 +414,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/table")
 
         write_table(
-            "<optimize_for={}; schema=<strict=%true>[]>//tmp/table".format(
-                optimize_for
-            ),
+            "<optimize_for={}; schema=<strict=%true>[]>//tmp/table".format(optimize_for),
             [{}, {}],
         )
         assert read_table("//tmp/table") == [{}, {}]
@@ -481,10 +467,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table[#2:]") == [{"c": 2}, {"d": 3}]
 
         # multiple ranges
-        assert (
-            read_table("//tmp/table[:,:]")
-            == [{"a": 0}, {"b": 1}, {"c": 2}, {"d": 3}] * 2
-        )
+        assert read_table("//tmp/table[:,:]") == [{"a": 0}, {"b": 1}, {"c": 2}, {"d": 3}] * 2
         assert read_table("//tmp/table[#1:#2,#3:#4]") == [{"b": 1}, {"d": 3}]
         assert read_table("//tmp/table[#0]") == [{"a": 0}]
         assert read_table("//tmp/table[#1]") == [{"b": 1}]
@@ -517,9 +500,7 @@ class TestTables(YTEnvSetup):
             {"g": 6},
             {"h": 7},
         ]
-        assert read_table(
-            "<lower_limit={chunk_index=1};upper_limit={chunk_index=2}>//tmp/table"
-        ) == [{"b": 1}]
+        assert read_table("<lower_limit={chunk_index=1};upper_limit={chunk_index=2}>//tmp/table") == [{"b": 1}]
         assert read_table("<ranges=[{exact={chunk_index=1}}]>//tmp/table") == [{"b": 1}]
 
         rows = read_table("//tmp/table", unordered=True)
@@ -621,9 +602,7 @@ class TestTables(YTEnvSetup):
     def test_range_and_row_index(self):
         create("table", "//tmp/table")
 
-        write_table(
-            "//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}, {"a": 3}, {"a": 4}, {"a": 5}]
-        )
+        write_table("//tmp/table", [{"a": 0}, {"a": 1}, {"a": 2}, {"a": 3}, {"a": 4}, {"a": 5}])
 
         v1 = to_yson_type(None, attributes={"range_index": 0})
         v2 = to_yson_type(None, attributes={"row_index": 0})
@@ -636,16 +615,12 @@ class TestTables(YTEnvSetup):
         v9 = {"a": 3}
 
         control_attributes = {"enable_range_index": True, "enable_row_index": True}
-        result = read_table(
-            "//tmp/table[#0:#3, #2:#4]", control_attributes=control_attributes
-        )
+        result = read_table("//tmp/table[#0:#3, #2:#4]", control_attributes=control_attributes)
         assert result == [v1, v2, v3, v4, v5, v6, v7, v8, v9]
 
         # Test row_index without range index.
         control_attributes = {"enable_row_index": True}
-        result = read_table(
-            "//tmp/table[#0:#3, #2:#4]", control_attributes=control_attributes
-        )
+        result = read_table("//tmp/table[#0:#3, #2:#4]", control_attributes=control_attributes)
         assert result == [v2, v3, v4, v5, v7, v8, v9]
 
     @authors("monster")
@@ -840,10 +815,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/t") == [{"a": "b"}]
 
         copy("//tmp/t", "//tmp/t2")
-        wait(
-            lambda: sorted(get("#%s/@owning_nodes" % chunk_id))
-            == sorted(["//tmp/t", "//tmp/t2"])
-        )
+        wait(lambda: sorted(get("#%s/@owning_nodes" % chunk_id)) == sorted(["//tmp/t", "//tmp/t2"]))
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
         assert get("//tmp/t2/@resource_usage") == get("//tmp/t/@resource_usage")
@@ -1172,10 +1144,7 @@ class TestTables(YTEnvSetup):
         write_table(table, {"foo": "bar"})
 
         optimize_for_info = get(table + "/@optimize_for_statistics")
-        assert (
-            "lookup" in optimize_for_info
-            and optimize_for_info["lookup"]["chunk_count"] == 1
-        )
+        assert "lookup" in optimize_for_info and optimize_for_info["lookup"]["chunk_count"] == 1
 
         set(table + "/@optimize_for", "scan")
 
@@ -1207,9 +1176,7 @@ class TestTables(YTEnvSetup):
         format = yson.loads("<skip_null_values=%true; format=text>yson")
         assert '{"x"=0;};\n{"y"=1;};\n' == read_table("//tmp/t", output_format=format)
         del format.attributes["skip_null_values"]
-        assert '{"y"=#;"x"=0;};\n{"y"=1;"x"=#;};\n' == read_table(
-            "//tmp/t", output_format=format
-        )
+        assert '{"y"=#;"x"=0;};\n{"y"=1;"x"=#;};\n' == read_table("//tmp/t", output_format=format)
 
     @authors("ignat")
     def test_boolean(self):
@@ -1221,20 +1188,14 @@ class TestTables(YTEnvSetup):
             input_format=format,
             is_raw=True,
         )
-        assert '{"x"=%false;};\n{"x"=%true;};\n{"x"="false";};\n' == read_table(
-            "//tmp/t", output_format=format
-        )
+        assert '{"x"=%false;};\n{"x"=%true;};\n{"x"="false";};\n' == read_table("//tmp/t", output_format=format)
 
     @authors("babenko", "ignat", "lukyan")
     def test_uint64(self):
         create("table", "//tmp/t")
         format = yson.loads("<format=text>yson")
-        write_table(
-            "//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True
-        )
-        assert '{"x"=1u;};\n{"x"=4u;};\n{"x"=9u;};\n' == read_table(
-            "//tmp/t", output_format=format
-        )
+        write_table("//tmp/t", "{x=1u};{x=4u};{x=9u};", input_format=format, is_raw=True)
+        assert '{"x"=1u;};\n{"x"=4u;};\n{"x"=9u;};\n' == read_table("//tmp/t", output_format=format)
 
     @authors("babenko")
     def test_concatenate(self):
@@ -1404,9 +1365,7 @@ class TestTables(YTEnvSetup):
         yson_with_type_conversion = loads("<enable_type_conversion=%true>yson")
 
         with pytest.raises(YtError):
-            write_table(
-                "//tmp/t", row, is_raw=True, input_format=yson_without_type_conversion
-            )
+            write_table("//tmp/t", row, is_raw=True, input_format=yson_without_type_conversion)
         self._wait_until_unlocked("//tmp/t")
 
         write_table("//tmp/t", row, is_raw=True, input_format=yson_with_type_conversion)
@@ -1462,12 +1421,8 @@ class TestTables(YTEnvSetup):
             read_blob_table("//tmp/ttt[:#1]", start_part_index=1, part_size=6)
 
         assert "hello " == read_blob_table("//tmp/ttt[:#1]", part_size=6)
-        assert "world!" == read_blob_table(
-            "//tmp/ttt[#1:#2]", part_size=6, start_part_index=1
-        )
-        assert "rld!" == read_blob_table(
-            "//tmp/ttt[#1:#2]", part_size=6, start_part_index=1, offset=2
-        )
+        assert "world!" == read_blob_table("//tmp/ttt[#1:#2]", part_size=6, start_part_index=1)
+        assert "rld!" == read_blob_table("//tmp/ttt[#1:#2]", part_size=6, start_part_index=1, offset=2)
         assert "hello world!" == read_blob_table("//tmp/ttt[:#2]", part_size=6)
         assert "AAA" == read_blob_table("//tmp/ttt[#2]", part_size=3)
 
@@ -1503,19 +1458,8 @@ class TestTables(YTEnvSetup):
     def test_table_chunk_format_statistics(self, optimize_for):
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
         write_table("//tmp/t", [{"a": "b"}])
-        chunk_format = (
-            "schemaless_horizontal"
-            if optimize_for == "lookup"
-            else "unversioned_columnar"
-        )
-        assert (
-            get(
-                "//tmp/t/@table_chunk_format_statistics/{0}/chunk_count".format(
-                    chunk_format
-                )
-            )
-            == 1
-        )
+        chunk_format = "schemaless_horizontal" if optimize_for == "lookup" else "unversioned_columnar"
+        assert get("//tmp/t/@table_chunk_format_statistics/{0}/chunk_count".format(chunk_format)) == 1
         chunk = get_singular_chunk_id("//tmp/t")
         assert get("#{0}/@table_chunk_format".format(chunk)) == chunk_format
 
@@ -1675,9 +1619,7 @@ class TestTables(YTEnvSetup):
         )
 
         assert get("//tmp/t1/@boundary_keys") == {}
-        write_table(
-            "//tmp/t1", [{"a": 1, "b": "x"}, {"a": 2, "b": "x"}, {"a": 3, "b": "x"}]
-        )
+        write_table("//tmp/t1", [{"a": 1, "b": "x"}, {"a": 2, "b": "x"}, {"a": 3, "b": "x"}])
         assert get("//tmp/t1/@boundary_keys/min_key") == [1]
         assert get("//tmp/t1/@boundary_keys/max_key") == [3]
 
@@ -1703,9 +1645,7 @@ class TestTables(YTEnvSetup):
             },
         )
 
-        write_table(
-            "<chunk_key_column_count=2>//tmp/t1", [make_row(1, 2, 3), make_row(4, 5, 6)]
-        )
+        write_table("<chunk_key_column_count=2>//tmp/t1", [make_row(1, 2, 3), make_row(4, 5, 6)])
         assert read_table("//tmp/t1") == [make_row(1, 2, 3), make_row(4, 5, 6)]
 
         with raises_yt_error(SchemaViolation):
@@ -1718,9 +1658,7 @@ class TestTables(YTEnvSetup):
             write_table("<chunk_key_column_count=-1>//tmp/t1", [make_row(31, 41, 59)])
 
         with pytest.raises(YtError):
-            write_table(
-                "<chunk_key_column_count=abacaba>//tmp/t1", [make_row(3, 14, 15)]
-            )
+            write_table("<chunk_key_column_count=abacaba>//tmp/t1", [make_row(3, 14, 15)])
 
         with raises_yt_error(SortOrderViolation):
             write_table(
@@ -1743,9 +1681,7 @@ class TestTables(YTEnvSetup):
             },
         )
 
-        write_table(
-            "<chunk_key_column_count=2>//tmp/t3", [make_row(3, 3, 3), make_row(4, 4, 4)]
-        )
+        write_table("<chunk_key_column_count=2>//tmp/t3", [make_row(3, 3, 3), make_row(4, 4, 4)])
         write_table(
             "<chunk_key_column_count=2;append=true>//tmp/t3",
             [make_row(1, 1, 1), make_row(2, 2, 2)],
@@ -1823,12 +1759,8 @@ class TestTables(YTEnvSetup):
                 make_rows([1, 2, 2, 3]),
             )
 
-        write_table(
-            "<chunk_key_column_count=1;append=true>//tmp/t2", make_rows([1, 2, 2, 3])
-        )
-        write_table(
-            "<chunk_key_column_count=1;append=true>//tmp/t2", make_rows([3, 4, 4, 5])
-        )
+        write_table("<chunk_key_column_count=1;append=true>//tmp/t2", make_rows([1, 2, 2, 3]))
+        write_table("<chunk_key_column_count=1;append=true>//tmp/t2", make_rows([3, 4, 4, 5]))
 
         assert read_table("//tmp/t2") == make_rows([1, 2, 2, 3, 3, 4, 4, 5])
 
@@ -2182,97 +2114,38 @@ class TestTables(YTEnvSetup):
         ]
 
         def _check(expected):
-            assert (
-                read_table("<ranges=[{lower_limit={key=[0]}}]>//tmp/t") == expected[0]
-            )
-            assert (
-                read_table("<ranges=[{upper_limit={key=[0]}}]>//tmp/t") == expected[1]
-            )
+            assert read_table("<ranges=[{lower_limit={key=[0]}}]>//tmp/t") == expected[0]
+            assert read_table("<ranges=[{upper_limit={key=[0]}}]>//tmp/t") == expected[1]
 
-            assert (
-                read_table("<ranges=[{lower_limit={key=[0; 0]}}]>//tmp/t")
-                == expected[2]
-            )
-            assert (
-                read_table("<ranges=[{upper_limit={key=[0; 0]}}]>//tmp/t")
-                == expected[3]
-            )
+            assert read_table("<ranges=[{lower_limit={key=[0; 0]}}]>//tmp/t") == expected[2]
+            assert read_table("<ranges=[{upper_limit={key=[0; 0]}}]>//tmp/t") == expected[3]
 
             # 3 key columns
-            assert (
-                read_table("<ranges=[{lower_limit={key=[0; 0; <type=min>#]}}]>//tmp/t")
-                == expected[4]
-            )
-            assert (
-                read_table("<ranges=[{lower_limit={key=[0; 0; <type=null>#]}}]>//tmp/t")
-                == expected[5]
-            )
-            assert (
-                read_table("<ranges=[{lower_limit={key=[0; 0; <type=max>#]}}]>//tmp/t")
-                == expected[6]
-            )
+            assert read_table("<ranges=[{lower_limit={key=[0; 0; <type=min>#]}}]>//tmp/t") == expected[4]
+            assert read_table("<ranges=[{lower_limit={key=[0; 0; <type=null>#]}}]>//tmp/t") == expected[5]
+            assert read_table("<ranges=[{lower_limit={key=[0; 0; <type=max>#]}}]>//tmp/t") == expected[6]
 
-            assert (
-                read_table("<ranges=[{upper_limit={key=[0; 0; <type=min>#]}}]>//tmp/t")
-                == expected[7]
-            )
-            assert (
-                read_table("<ranges=[{upper_limit={key=[0; 0; <type=null>#]}}]>//tmp/t")
-                == expected[8]
-            )
-            assert (
-                read_table("<ranges=[{upper_limit={key=[0; 0; <type=max>#]}}]>//tmp/t")
-                == expected[9]
-            )
+            assert read_table("<ranges=[{upper_limit={key=[0; 0; <type=min>#]}}]>//tmp/t") == expected[7]
+            assert read_table("<ranges=[{upper_limit={key=[0; 0; <type=null>#]}}]>//tmp/t") == expected[8]
+            assert read_table("<ranges=[{upper_limit={key=[0; 0; <type=max>#]}}]>//tmp/t") == expected[9]
 
             # 2 key columns
-            assert (
-                read_table("<ranges=[{lower_limit={key=[0; <type=min>#]}}]>//tmp/t")
-                == expected[10]
-            )
-            assert (
-                read_table("<ranges=[{lower_limit={key=[0; <type=null>#]}}]>//tmp/t")
-                == expected[11]
-            )
-            assert (
-                read_table("<ranges=[{lower_limit={key=[0; <type=max>#]}}]>//tmp/t")
-                == expected[12]
-            )
+            assert read_table("<ranges=[{lower_limit={key=[0; <type=min>#]}}]>//tmp/t") == expected[10]
+            assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#]}}]>//tmp/t") == expected[11]
+            assert read_table("<ranges=[{lower_limit={key=[0; <type=max>#]}}]>//tmp/t") == expected[12]
 
-            assert (
-                read_table("<ranges=[{upper_limit={key=[0; <type=min>#]}}]>//tmp/t")
-                == expected[13]
-            )
-            assert (
-                read_table("<ranges=[{upper_limit={key=[0; <type=null>#]}}]>//tmp/t")
-                == expected[14]
-            )
-            assert (
-                read_table("<ranges=[{upper_limit={key=[0; <type=max>#]}}]>//tmp/t")
-                == expected[15]
-            )
+            assert read_table("<ranges=[{upper_limit={key=[0; <type=min>#]}}]>//tmp/t") == expected[13]
+            assert read_table("<ranges=[{upper_limit={key=[0; <type=null>#]}}]>//tmp/t") == expected[14]
+            assert read_table("<ranges=[{upper_limit={key=[0; <type=max>#]}}]>//tmp/t") == expected[15]
 
             # 1 key column
-            assert (
-                read_table("<ranges=[{lower_limit={key=[<type=min>#]}}]>//tmp/t") == row
-            )
-            assert (
-                read_table("<ranges=[{lower_limit={key=[<type=null>#]}}]>//tmp/t")
-                == row
-            )
-            assert (
-                read_table("<ranges=[{lower_limit={key=[<type=max>#]}}]>//tmp/t") == []
-            )
+            assert read_table("<ranges=[{lower_limit={key=[<type=min>#]}}]>//tmp/t") == row
+            assert read_table("<ranges=[{lower_limit={key=[<type=null>#]}}]>//tmp/t") == row
+            assert read_table("<ranges=[{lower_limit={key=[<type=max>#]}}]>//tmp/t") == []
 
-            assert (
-                read_table("<ranges=[{upper_limit={key=[<type=min>#]}}]>//tmp/t") == []
-            )
-            assert (
-                read_table("<ranges=[{upper_limit={key=[<type=null>#]}}]>//tmp/t") == []
-            )
-            assert (
-                read_table("<ranges=[{upper_limit={key=[<type=max>#]}}]>//tmp/t") == row
-            )
+            assert read_table("<ranges=[{upper_limit={key=[<type=min>#]}}]>//tmp/t") == []
+            assert read_table("<ranges=[{upper_limit={key=[<type=null>#]}}]>//tmp/t") == []
+            assert read_table("<ranges=[{upper_limit={key=[<type=max>#]}}]>//tmp/t") == row
 
         _check(expected_before_action)
 
@@ -2312,9 +2185,7 @@ class TestTables(YTEnvSetup):
         def random_str():
             return hex(r.randint(0, 16 ** 50 - 1))[2:]
 
-        schema = [
-            {"name": "col{:2d}".format(i), "type": "string"} for i in xrange(col_count)
-        ]
+        schema = [{"name": "col{:2d}".format(i), "type": "string"} for i in xrange(col_count)]
         for reordering_config in (
             {"enable_block_reordering": False},
             {"enable_block_reordering": True},
@@ -2324,9 +2195,7 @@ class TestTables(YTEnvSetup):
                 for erasure_codec in ("lrc_12_2_2", "none"):
                     print_debug(
                         "Checking combination of reodering_config = {}, optimize_for = {}, "
-                        "erasure_codec = {}".format(
-                            reordering_config, optimize_for, erasure_codec
-                        )
+                        "erasure_codec = {}".format(reordering_config, optimize_for, erasure_codec)
                     )
                     create(
                         "table",
@@ -2338,10 +2207,7 @@ class TestTables(YTEnvSetup):
                         },
                         verbose=False,
                     )
-                    content = [
-                        {schema[i]["name"]: random_str() for i in xrange(col_count)}
-                        for j in xrange(row_count)
-                    ]
+                    content = [{schema[i]["name"]: random_str() for i in xrange(col_count)} for j in xrange(row_count)]
                     write_table(
                         "//tmp/t",
                         content,

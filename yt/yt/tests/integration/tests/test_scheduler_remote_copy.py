@@ -159,9 +159,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         )
 
         # We check that yson representation of types are compatible with each other
-        write_table(
-            "//tmp/output", read_table("//tmp/input", driver=self.remote_driver)
-        )
+        write_table("//tmp/output", read_table("//tmp/input", driver=self.remote_driver))
 
         with pytest.raises(YtError):
             remote_copy(
@@ -180,9 +178,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                 "schema_inference_mode": "from_input",
             },
         )
-        assert normalize_schema_v3(input_schema) == normalize_schema_v3(
-            get("//tmp/output/@schema")
-        )
+        assert normalize_schema_v3(input_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
 
     @authors("ignat")
     def test_cluster_connection_config(self):
@@ -318,9 +314,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
-        chunk_replicas = get(
-            "#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver
-        )
+        chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
         node = list(str(r) for r in chunk_replicas if r.attributes["index"] == 0)[0]
 
         set(
@@ -332,11 +326,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         set_banned_flag(True, [node], driver=self.remote_driver)
 
-        wait(
-            lambda: not get(
-                "#{}/@available".format(chunk_id), driver=self.remote_driver
-            )
-        )
+        wait(lambda: not get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
         create("table", "//tmp/t2")
         op = remote_copy(
@@ -445,9 +435,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         create("table", "//tmp/t2")
 
         with pytest.raises(YtError):
-            remote_copy(
-                in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "unexisting"}
-            )
+            remote_copy(in_="//tmp/t1", out="//tmp/t2", spec={"cluster_name": "unexisting"})
 
         with pytest.raises(YtError):
             remote_copy(
@@ -605,10 +593,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
             spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
         )
 
-        assert (
-            get(op.get_path() + "/@progress/legacy_controller")
-            == self.USE_LEGACY_CONTROLLERS
-        )
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
     @authors("gritukan")
     @pytest.mark.timeout(300)
@@ -649,17 +634,11 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
             assert read_table("//tmp/t2") == [{"a": "b"}]
 
         def set_banned_flag_for_part_nodes(part_indicies, banned_flag):
-            chunk_replicas = get(
-                "#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver
-            )
+            chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
 
             nodes_to_ban = []
             for part_index in part_indicies:
-                nodes = list(
-                    str(r)
-                    for r in chunk_replicas
-                    if r.attributes["index"] == part_index
-                )
+                nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
                 nodes_to_ban += nodes
 
             set_banned_flag(banned_flag, nodes_to_ban, driver=self.remote_driver)
@@ -667,11 +646,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         def unban_all_nodes():
             nodes = list(get("//sys/cluster_nodes", driver=self.remote_driver).keys())
             set_banned_flag(False, nodes, driver=self.remote_driver)
-            wait(
-                lambda: get(
-                    "#{}/@available".format(chunk_id), driver=self.remote_driver
-                )
-            )
+            wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
         op = run_operation()
         # Some 3 parts are unavailable.
@@ -717,9 +692,7 @@ class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        config["addresses"].append(
-            ["custom_network", dict(config["addresses"])["default"]]
-        )
+        config["addresses"].append(["custom_network", dict(config["addresses"])["default"]])
 
     @authors("ignat")
     def test_default_network(self):

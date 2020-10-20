@@ -12,9 +12,7 @@ import __builtin__
 
 
 def get_operation_job_types(opid):
-    return get_operation(opid)["progress"]["job_statistics"]["time"]["total"]["$"][
-        "completed"
-    ].keys()
+    return get_operation(opid)["progress"]["job_statistics"]["time"]["total"]["$"]["completed"].keys()
 
 
 def check_operation_tasks(op, expected):
@@ -113,9 +111,7 @@ def sort_3_phase(in_, out, sort_by):
         "partition",
         "sorted_merge",
     }
-    assert check_operation_tasks(
-        op, ["partition(0)", "intermediate_sort", "sorted_merge"]
-    )
+    assert check_operation_tasks(op, ["partition(0)", "intermediate_sort", "sorted_merge"])
     return op
 
 
@@ -143,9 +139,7 @@ def sort_3_phase_depth_2(in_, out, sort_by):
         "partition",
         "sorted_merge",
     }
-    assert check_operation_tasks(
-        op, ["partition(0)", "partition(1)", "intermediate_sort", "sorted_merge"]
-    )
+    assert check_operation_tasks(op, ["partition(0)", "partition(1)", "intermediate_sort", "sorted_merge"])
     return op
 
 
@@ -582,9 +576,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         create("table", "//tmp/t_in")
         for i in xrange(0, 10):
-            write_table(
-                "<append=true>//tmp/t_in", [v3, v5, v1, v2, v4]
-            )  # some random order
+            write_table("<append=true>//tmp/t_in", [v3, v5, v1, v2, v4])  # some random order
 
         create("table", "//tmp/t_out")
 
@@ -625,9 +617,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 "partition_count": 5,
                 "partition_job_count": 2,
                 "data_weight_per_sort_job": 1,
-                "partition_job_io": {
-                    "table_writer": {"desired_chunk_size": 1, "block_size": 1024}
-                },
+                "partition_job_io": {"table_writer": {"desired_chunk_size": 1, "block_size": 1024}},
             },
         )
 
@@ -651,9 +641,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 "partition_count": 2,
                 "partition_job_count": 10,
                 "data_weight_per_sort_job": 1,
-                "partition_job_io": {
-                    "table_writer": {"desired_chunk_size": 1, "block_size": 1024}
-                },
+                "partition_job_io": {"table_writer": {"desired_chunk_size": 1, "block_size": 1024}},
             },
         )
 
@@ -668,9 +656,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         shuffle(shuffled_rows)
 
         for i in range(10):
-            write_table(
-                "<append=%true>//tmp/t_in", shuffled_rows[50 * i : 50 * (i + 1)]
-            )
+            write_table("<append=%true>//tmp/t_in", shuffled_rows[50 * i : 50 * (i + 1)])
 
         create("table", "//tmp/t_out")
 
@@ -700,9 +686,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         create("table", "//tmp/t_in")
         for i in xrange(0, 10):
-            write_table(
-                "<append=true>//tmp/t_in", [v3, v5, v1, v2, v4]
-            )  # some random order
+            write_table("<append=true>//tmp/t_in", [v3, v5, v1, v2, v4])  # some random order
 
         create("table", "//tmp/t_out")
 
@@ -991,9 +975,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert read_table("//tmp/output") == [
-            {"key": i, "value": "foo"} for i in xrange(1, 11)
-        ]
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(1, 11)]
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
@@ -1046,9 +1028,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             sort_by="index",
             spec={"schema_inference_mode": "from_output"},
         )
-        assert normalize_schema_v3(output_schema) == normalize_schema_v3(
-            get("//tmp/output/@schema")
-        )
+        assert normalize_schema_v3(output_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
         sort(
             in_="//tmp/input",
             out="//tmp/output",
@@ -1057,9 +1037,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
         input_sorted_schema = deepcopy(input_schema)
         input_sorted_schema[0]["sort_order"] = "ascending"
-        assert normalize_schema_v3(input_sorted_schema) == normalize_schema_v3(
-            get("//tmp/output/@schema")
-        )
+        assert normalize_schema_v3(input_sorted_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
 
     @authors("savrus")
     def test_unique_keys_validation(self):
@@ -1093,9 +1071,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema/@strict")
         assert get("//tmp/output/@schema/@unique_keys")
-        assert read_table("//tmp/output") == [
-            {"key": i, "value": "foo"} for i in xrange(1, 11)
-        ]
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(1, 11)]
 
         write_table(
             "<sorted_by=[key]>//tmp/input",
@@ -1113,9 +1089,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         erase("//tmp/input")
 
         for i in xrange(2):
-            write_table(
-                "<append=%true; sorted_by=[key]>//tmp/input", {"key": 1, "value": "foo"}
-            )
+            write_table("<append=%true; sorted_by=[key]>//tmp/input", {"key": 1, "value": "foo"})
 
         with pytest.raises(YtError):
             sort(
@@ -1253,9 +1227,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         # Referenced column is not present.
         create("table", "//tmp/input1", attributes={"schema": schema})
-        write_table(
-            "//tmp/input1", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}]
-        )
+        write_table("//tmp/input1", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}])
 
         with pytest.raises(YtError):
             sort(
@@ -1268,9 +1240,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         # Expression is different.
         schema[0]["expression"] = "key * 3"
         create("table", "//tmp/input2", attributes={"schema": schema})
-        write_table(
-            "//tmp/input2", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}]
-        )
+        write_table("//tmp/input2", [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}])
 
         with pytest.raises(YtError):
             sort(
@@ -1294,9 +1264,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         write_table("//tmp/t_in", [{"value": "A" * 1024} for i in xrange(10)])
 
-        sort(
-            in_="//tmp/t_in", out="//tmp/t_out", sort_by="value", spec={"job_count": 1}
-        )
+        sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="value", spec={"job_count": 1})
 
         chunk_id = get_singular_chunk_id("//tmp/t_out")
         assert get("#" + chunk_id + "/@compressed_data_size") > 1024 * 10
@@ -1325,9 +1293,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         sort(in_="//tmp/t{k1,v1}", out="//tmp/t_out", sort_by="k1")
 
-        assert_items_equal(
-            read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "v1")} for r in rows]
-        )
+        assert_items_equal(read_table("//tmp/t_out"), [{k: r[k] for k in ("k1", "v1")} for r in rows])
 
         schema = make_schema(
             [
@@ -1391,9 +1357,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t_out",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         rows = [{"key": i, "value": str(i)} for i in xrange(2)]
         write_table("//tmp/t", rows)
@@ -1404,9 +1368,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     @authors("savrus")
     def test_query_filtering(self):
-        create(
-            "table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]}
-        )
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
@@ -1430,9 +1392,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
         assert_items_equal(read_table("//tmp/t2"), sorted(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
-        assert sorted(
-            [get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]
-        ) == [1, 7, 42]
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
 
     @authors("gritukan")
     def test_pivot_keys_incorrect_options(self):
@@ -1473,18 +1433,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
         op.track()
         assert_items_equal(read_table("//tmp/t2"), sorted(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
-        assert sorted(
-            [get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]
-        ) == [1, 23, 24, 25, 27]
-        assert check_operation_tasks(
-            op, {"partition(0)", "partition(1)", "partition(2)", "final_sort"}
-        )
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 23, 24, 25, 27]
+        assert check_operation_tasks(op, {"partition(0)", "partition(1)", "partition(2)", "final_sort"})
 
     @authors("gritukan")
     def test_non_existent_sort_by_column(self):
-        create(
-            "table", "//tmp/in", attributes={"schema": [{"name": "x", "type": "int64"}]}
-        )
+        create("table", "//tmp/in", attributes={"schema": [{"name": "x", "type": "int64"}]})
         create("table", "//tmp/out")
         write_table("//tmp/in", [{"x": 1}])
 
@@ -1543,9 +1497,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_data_flow_graph(self):
-        partition_vertex = (
-            "partition" if self.USE_LEGACY_CONTROLLERS else "partition(0)"
-        )
+        partition_vertex = "partition" if self.USE_LEGACY_CONTROLLERS else "partition(0)"
 
         create("table", "//tmp/in")
         create("table", "//tmp/in2")
@@ -1564,99 +1516,45 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         op = simple_sort_1_phase("//tmp/in", "//tmp/out", "x")
         data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
-        data_weight = data_flow_graph["edges"]["source"]["simple_sort"]["statistics"][
-            "data_weight"
-        ]
+        data_weight = data_flow_graph["edges"]["source"]["simple_sort"]["statistics"]["data_weight"]
         assert data_weight > 0
         assert count_edges(data_flow_graph) == 2
-        assert (
-            data_flow_graph["edges"]["simple_sort"]["sink"]["statistics"]["data_weight"]
-            == data_weight
-        )
+        assert data_flow_graph["edges"]["simple_sort"]["sink"]["statistics"]["data_weight"] == data_weight
 
         op = simple_sort_2_phase("//tmp/in", "//tmp/out", "x")
         data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
-        data_weight = data_flow_graph["edges"]["source"]["simple_sort"]["statistics"][
-            "data_weight"
-        ]
+        data_weight = data_flow_graph["edges"]["source"]["simple_sort"]["statistics"]["data_weight"]
         assert data_weight > 0
         assert count_edges(data_flow_graph) == 3
-        assert (
-            data_flow_graph["edges"]["simple_sort"]["sorted_merge"]["statistics"][
-                "data_weight"
-            ]
-            == data_weight
-        )
-        assert (
-            data_flow_graph["edges"]["sorted_merge"]["sink"]["statistics"][
-                "data_weight"
-            ]
-            == data_weight
-        )
+        assert data_flow_graph["edges"]["simple_sort"]["sorted_merge"]["statistics"]["data_weight"] == data_weight
+        assert data_flow_graph["edges"]["sorted_merge"]["sink"]["statistics"]["data_weight"] == data_weight
 
         op = sort_2_phase("//tmp/in", "//tmp/out", "x")
         data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
-        data_weight = data_flow_graph["edges"]["source"][partition_vertex][
-            "statistics"
-        ]["data_weight"]
+        data_weight = data_flow_graph["edges"]["source"][partition_vertex]["statistics"]["data_weight"]
         assert data_weight > 0
         assert count_edges(data_flow_graph) == 3
-        assert (
-            data_flow_graph["edges"][partition_vertex]["final_sort"]["statistics"][
-                "data_weight"
-            ]
-            == data_weight
-        )
-        assert (
-            data_flow_graph["edges"]["final_sort"]["sink"]["statistics"]["data_weight"]
-            == data_weight
-        )
+        assert data_flow_graph["edges"][partition_vertex]["final_sort"]["statistics"]["data_weight"] == data_weight
+        assert data_flow_graph["edges"]["final_sort"]["sink"]["statistics"]["data_weight"] == data_weight
 
         op = sort_3_phase("//tmp/in", "//tmp/out", "x")
         data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
-        data_weight = data_flow_graph["edges"]["source"][partition_vertex][
-            "statistics"
-        ]["data_weight"]
+        data_weight = data_flow_graph["edges"]["source"][partition_vertex]["statistics"]["data_weight"]
         assert data_weight > 0
         assert count_edges(data_flow_graph) == 4
         assert (
-            data_flow_graph["edges"][partition_vertex]["intermediate_sort"][
-                "statistics"
-            ]["data_weight"]
-            == data_weight
+            data_flow_graph["edges"][partition_vertex]["intermediate_sort"]["statistics"]["data_weight"] == data_weight
         )
-        assert (
-            data_flow_graph["edges"]["intermediate_sort"]["sorted_merge"]["statistics"][
-                "data_weight"
-            ]
-            == data_weight
-        )
-        assert (
-            data_flow_graph["edges"]["sorted_merge"]["sink"]["statistics"][
-                "data_weight"
-            ]
-            == data_weight
-        )
+        assert data_flow_graph["edges"]["intermediate_sort"]["sorted_merge"]["statistics"]["data_weight"] == data_weight
+        assert data_flow_graph["edges"]["sorted_merge"]["sink"]["statistics"]["data_weight"] == data_weight
 
         op = sort_maniac("//tmp/in2", "//tmp/out", "x")
         data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
-        data_weight = data_flow_graph["edges"]["source"][partition_vertex][
-            "statistics"
-        ]["data_weight"]
+        data_weight = data_flow_graph["edges"]["source"][partition_vertex]["statistics"]["data_weight"]
         assert data_weight > 0
         assert count_edges(data_flow_graph) == 3
-        assert (
-            data_flow_graph["edges"][partition_vertex]["unordered_merge"]["statistics"][
-                "data_weight"
-            ]
-            == data_weight
-        )
-        assert (
-            data_flow_graph["edges"]["unordered_merge"]["sink"]["statistics"][
-                "data_weight"
-            ]
-            == data_weight
-        )
+        assert data_flow_graph["edges"][partition_vertex]["unordered_merge"]["statistics"]["data_weight"] == data_weight
+        assert data_flow_graph["edges"]["unordered_merge"]["sink"]["statistics"]["data_weight"] == data_weight
 
     @authors("max42")
     def test_proper_key_comparison(self):
@@ -1728,9 +1626,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert out_data == expected_data
 
     @authors("ermolovd")
-    @pytest.mark.parametrize(
-        "sort_func", [simple_sort_1_phase, simple_sort_2_phase, sort_2_phase]
-    )
+    @pytest.mark.parametrize("sort_func", [simple_sort_1_phase, simple_sort_2_phase, sort_2_phase])
     def test_sort_key_complex_type_list(self, sort_func):
         self.run_test_complex_sort(
             sort_func,
@@ -1792,10 +1688,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/t_out")
         op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key")
 
-        assert (
-            get(op.get_path() + "/@progress/legacy_controller")
-            == self.USE_LEGACY_CONTROLLERS
-        )
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
     @authors("gritukan")
     def test_simple_sort_with_many_data_slices(self):
@@ -1844,9 +1737,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             data_flow = get(op.get_path() + "/@progress/data_flow")
             directions = {}
             for direction in data_flow:
-                directions[
-                    (direction["source_name"], direction["target_name"])
-                ] = direction
+                directions[(direction["source_name"], direction["target_name"])] = direction
             return directions
 
         for mode in ["3-phase", "2-phase"]:
@@ -1872,9 +1763,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 )
                 op.track()
 
-                expected_vertices = ["input"] + [
-                    "partition({})".format(x) for x in range(partition_tree_depth)
-                ]
+                expected_vertices = ["input"] + ["partition({})".format(x) for x in range(partition_tree_depth)]
 
                 if mode == "2-phase":
                     expected_vertices += ["final_sort", "output"]
@@ -1887,18 +1776,10 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     from_, to = expected_vertices[i], expected_vertices[i + 1]
                     job_row_count = 0 if from_ == "input" else 100
                     teleport_row_count = 100 if from_ == "input" else 0
-                    assert (
-                        directions[(from_, to)]["job_data_statistics"]["row_count"]
-                        == job_row_count
-                    )
-                    assert (
-                        directions[(from_, to)]["teleport_data_statistics"]["row_count"]
-                        == teleport_row_count
-                    )
+                    assert directions[(from_, to)]["job_data_statistics"]["row_count"] == job_row_count
+                    assert directions[(from_, to)]["teleport_data_statistics"]["row_count"] == teleport_row_count
 
-                assert read_table("//tmp/t_out", verbose=False) == [
-                    {"x": x, "y": "A" * (10 ** 4)} for x in range(100)
-                ]
+                assert read_table("//tmp/t_out", verbose=False) == [{"x": x, "y": "A" * (10 ** 4)} for x in range(100)]
                 if mode == "2-phase":
                     assert get("//tmp/t_out/@chunk_count") == partition_count
 
@@ -1930,87 +1811,22 @@ class TestSchedulerSortCommands(YTEnvSetup):
             row_count = 10 * (partition_count - 2)
 
             directions = get_directions(op)
-            assert (
-                directions[("input", "partition(0)")]["job_data_statistics"][
-                    "row_count"
-                ]
-                == 0
-            )
-            assert (
-                directions[("input", "partition(0)")]["teleport_data_statistics"][
-                    "row_count"
-                ]
-                == row_count
-            )
-            assert (
-                directions[("partition(0)", "partition(1)")]["job_data_statistics"][
-                    "row_count"
-                ]
-                == row_count
-            )
-            assert (
-                directions[("partition(0)", "partition(1)")][
-                    "teleport_data_statistics"
-                ]["row_count"]
-                == 0
-            )
-            assert (
-                directions[("partition(1)", "partition(2)")]["job_data_statistics"][
-                    "row_count"
-                ]
-                == row_count
-            )
-            assert (
-                directions[("partition(1)", "partition(2)")][
-                    "teleport_data_statistics"
-                ]["row_count"]
-                == 0
-            )
-            unordered_merge_rows = directions[("partition(2)", "unordered_merge")][
-                "job_data_statistics"
-            ]["row_count"]
+            assert directions[("input", "partition(0)")]["job_data_statistics"]["row_count"] == 0
+            assert directions[("input", "partition(0)")]["teleport_data_statistics"]["row_count"] == row_count
+            assert directions[("partition(0)", "partition(1)")]["job_data_statistics"]["row_count"] == row_count
+            assert directions[("partition(0)", "partition(1)")]["teleport_data_statistics"]["row_count"] == 0
+            assert directions[("partition(1)", "partition(2)")]["job_data_statistics"]["row_count"] == row_count
+            assert directions[("partition(1)", "partition(2)")]["teleport_data_statistics"]["row_count"] == 0
+            unordered_merge_rows = directions[("partition(2)", "unordered_merge")]["job_data_statistics"]["row_count"]
             assert unordered_merge_rows > 0
-            assert (
-                directions[("partition(2)", "unordered_merge")][
-                    "teleport_data_statistics"
-                ]["row_count"]
-                == 0
-            )
+            assert directions[("partition(2)", "unordered_merge")]["teleport_data_statistics"]["row_count"] == 0
             final_sort_rows = row_count - unordered_merge_rows
-            assert (
-                directions[("partition(2)", "final_sort")]["job_data_statistics"][
-                    "row_count"
-                ]
-                == final_sort_rows
-            )
-            assert (
-                directions[("partition(2)", "final_sort")]["teleport_data_statistics"][
-                    "row_count"
-                ]
-                == 0
-            )
-            assert (
-                directions[("unordered_merge", "output")]["job_data_statistics"][
-                    "row_count"
-                ]
-                == unordered_merge_rows
-            )
-            assert (
-                directions[("unordered_merge", "output")]["teleport_data_statistics"][
-                    "row_count"
-                ]
-                == 0
-            )
-            assert (
-                directions[("final_sort", "output")]["job_data_statistics"]["row_count"]
-                == final_sort_rows
-            )
-            assert (
-                directions[("final_sort", "output")]["teleport_data_statistics"][
-                    "row_count"
-                ]
-                == 0
-            )
+            assert directions[("partition(2)", "final_sort")]["job_data_statistics"]["row_count"] == final_sort_rows
+            assert directions[("partition(2)", "final_sort")]["teleport_data_statistics"]["row_count"] == 0
+            assert directions[("unordered_merge", "output")]["job_data_statistics"]["row_count"] == unordered_merge_rows
+            assert directions[("unordered_merge", "output")]["teleport_data_statistics"]["row_count"] == 0
+            assert directions[("final_sort", "output")]["job_data_statistics"]["row_count"] == final_sort_rows
+            assert directions[("final_sort", "output")]["teleport_data_statistics"]["row_count"] == 0
 
             expected = []
             for i in range(partition_count - 2):

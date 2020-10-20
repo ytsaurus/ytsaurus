@@ -173,9 +173,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         assert get(op.get_path() + "/@brief_progress/jobs")["total"] == 1
         assert read_table("//tmp/t_out") == [{"x": "0"}]
 
-    def run_vanilla_with_one_regular_and_one_speculative_job(
-        self, spec=None, command="BREAKPOINT", mode="always"
-    ):
+    def run_vanilla_with_one_regular_and_one_speculative_job(self, spec=None, command="BREAKPOINT", mode="always"):
         spec = spec if spec else {}
         spec["testing"] = {"testing_speculative_launch_mode": mode}
         op = run_test_vanilla(with_breakpoint(command), spec=spec, job_count=1)
@@ -216,9 +214,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {"scheduler_connector": {"heartbeat_period": 100}}
-    }
+    DELTA_NODE_CONFIG = {"exec_agent": {"scheduler_connector": {"heartbeat_period": 100}}}
 
     ROW_COUNT_TO_FILL_PIPE = 1000000
 
@@ -232,9 +228,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
 
     @authors("renadeen")
     def test_speculative_with_automerge(self):
-        op = self.run_op_with_residual_speculative_job(
-            spec={"auto_merge": {"mode": "relaxed"}}
-        )
+        op = self.run_op_with_residual_speculative_job(spec={"auto_merge": {"mode": "relaxed"}})
         regular, speculative = get_sorted_jobs(op)
 
         release_breakpoint(job_id=speculative["id"])
@@ -297,9 +291,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-    def run_op_with_residual_speculative_job(
-        self, command="BREAKPOINT; cat", spec=None
-    ):
+    def run_op_with_residual_speculative_job(self, command="BREAKPOINT; cat", spec=None):
         spec = {} if spec is None else spec
         spec["job_io"] = {"buffer_row_count": 1}
         create_test_tables(row_count=self.ROW_COUNT_TO_FILL_PIPE)
@@ -424,9 +416,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
     def test_list_speculative_jobs_with_get_job(self):
         def assert_get_and_list_jobs(op_id, job_id):
             job = get_job(op_id, job_id)
-            jobs = list_jobs(op_id, job_competition_id=job["job_competition_id"])[
-                "jobs"
-            ]
+            jobs = list_jobs(op_id, job_competition_id=job["job_competition_id"])["jobs"]
             assert len(jobs) == 2
             assert jobs[0]["job_competition_id"] == job["job_competition_id"]
             assert jobs[1]["job_competition_id"] == job["job_competition_id"]
@@ -463,15 +453,11 @@ class TestListSpeculativeJobs(YTEnvSetup):
                 return result
 
             grouped = group_jobs_by_competition()
-            with_competitors = list_jobs(
-                op_id, data_source=data_source, with_competitors=True
-            )["jobs"]
+            with_competitors = list_jobs(op_id, data_source=data_source, with_competitors=True)["jobs"]
             assert len(with_competitors) == 2
             first, second = with_competitors
             assert first["job_competition_id"] == second["job_competition_id"]
-            assert sorted([first["id"], second["id"]]) == sorted(
-                grouped[first["job_competition_id"]]
-            )
+            assert sorted([first["id"], second["id"]]) == sorted(grouped[first["job_competition_id"]])
 
         spec = {
             "testing": {"testing_speculative_launch_mode": "once"},

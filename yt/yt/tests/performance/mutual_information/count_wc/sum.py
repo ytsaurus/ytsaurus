@@ -7,6 +7,4 @@ if __name__ == "__main__":
     for line in sys.stdin:
         count = 1 if line.find(" ") == -1 else 2
         number[count] += 1
-    print "\t%d %d" %(number[1], number[2])
-
-
+    print "\t%d %d" % (number[1], number[2])

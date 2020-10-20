@@ -183,16 +183,16 @@ class TestExplainQuery(YTEnvSetup):
         create_dynamic_table("//tmp/t", schema=test_schema)
         sync_mount_table("//tmp/t")
 
-        response = explain_query(
-            "* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)"
-        )
+        response = explain_query("* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)")
 
         expected_ranges = [
             ["[0#1, 1#1]", "[0#1, 1#9, 0#<Max>]"],
             ["[0#2, 1#1]", "[0#2, 1#9, 0#<Max>]"],
             ["[0#10, 1#1]", "[0#10, 1#9, 0#<Max>]"],
         ]
-        expected_key_trie = "(key0, {  })\n0#1:\n  (key1, { [0#1:0#9] })\n0#2:\n  (key1, { [0#1:0#9] })\n0#10:\n  (key1, { [0#1:0#9] })"
+        expected_key_trie = (
+            "(key0, {  })\n0#1:\n  (key1, { [0#1:0#9] })\n0#2:\n  (key1, { [0#1:0#9] })\n0#10:\n  (key1, { [0#1:0#9] })"
+        )
 
         assert response["query"]["ranges"] == expected_ranges
         assert response["query"]["key_trie"] == expected_key_trie

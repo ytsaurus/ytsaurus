@@ -102,20 +102,10 @@ def check_hierarchical_accounts():
     remove_account("b2", sync_deletion=False)
 
     # XXX(kiselyovp) this might be flaky
-    wait(
-        lambda: get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default")
-        > 0
-    )
-    wait(
-        lambda: get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default")
-        > 0
-    )
-    b11_disk_usage = get(
-        "//sys/accounts/b11/@resource_usage/disk_space_per_medium/default"
-    )
-    b21_disk_usage = get(
-        "//sys/accounts/b21/@resource_usage/disk_space_per_medium/default"
-    )
+    wait(lambda: get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") > 0)
+    wait(lambda: get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default") > 0)
+    b11_disk_usage = get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default")
+    b21_disk_usage = get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default")
 
     yield
 
@@ -146,24 +136,15 @@ def check_hierarchical_accounts():
     assert ls("//sys/account_tree/b1/b11") == []
     assert ls("//sys/account_tree/b2/b21") == []
 
-    assert (
-        get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default")
-        == b21_disk_usage
-    )
-    assert (
-        get("//sys/accounts/b2/@recursive_resource_usage/disk_space_per_medium/default")
-        == b21_disk_usage
-    )
+    assert get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default") == b21_disk_usage
+    assert get("//sys/accounts/b2/@recursive_resource_usage/disk_space_per_medium/default") == b21_disk_usage
 
     set("//tmp/b21_table/@account", "b11")
     wait(lambda: not exists("//sys/account_tree/b2"), iter=120, sleep_backoff=0.5)
     assert not exists("//sys/accounts/b2")
     assert exists("//sys/accounts/b11")
 
-    assert (
-        get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default")
-        == b11_disk_usage + b21_disk_usage
-    )
+    assert get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") == b11_disk_usage + b21_disk_usage
 
 
 def check_master_memory():
@@ -177,9 +158,7 @@ def check_master_memory():
     }
     create_account("a", attributes={"resource_limits": resource_limits})
 
-    create(
-        "map_node", "//tmp/dir1", attributes={"account": "a", "sdkjnfkdjs": "lsdkfj"}
-    )
+    create("map_node", "//tmp/dir1", attributes={"account": "a", "sdkjnfkdjs": "lsdkfj"})
     create("table", "//tmp/dir1/t", attributes={"account": "a", "aksdj": "sdkjf"})
     write_table("//tmp/dir1/t", {"adssaa": "kfjhsdkb"})
     copy("//tmp/dir1", "//tmp/dir2", preserve_account=True)
@@ -204,10 +183,7 @@ def check_master_memory():
 
     yield
 
-    wait(
-        lambda: get("//sys/accounts/a/@resource_usage/master_memory")
-        == master_memory_usage
-    )
+    wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory") == master_memory_usage)
 
 
 def check_dynamic_tables():
@@ -300,9 +276,7 @@ class TestMasterSnapshots(YTEnvSetup):
     @authors("gritukan")
     def test_master_snapshots_free_space_profiling(self):
         primary_master = ls("//sys/primary_masters")[0]
-        profiling = get(
-            "//sys/primary_masters/{0}/orchid/profiling".format(primary_master)
-        )
+        profiling = get("//sys/primary_masters/{0}/orchid/profiling".format(primary_master))
         assert "free_space" in profiling["snapshots"]
         assert "available_space" in profiling["snapshots"]
         assert "free_space" in profiling["changelogs"]

@@ -47,9 +47,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_compaction_and_partitioning", True)
         remount_table("//tmp/t")
         address = get_tablet_leader_address(tablet_id)
-        wait(
-            lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1
-        )
+        wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1)
 
     @authors("savrus")
     def test_partition_balancer(self):
@@ -69,9 +67,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in xrange(16)])
         sync_flush_table("//tmp/t")
-        wait(
-            lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1
-        )
+        wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1)
 
     @authors("ifsmirnov")
     def test_partitioning_with_alter(self):
@@ -99,11 +95,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         # Create [1;1] chunk.
         sync_unmount_table("//tmp/t")
-        schema = (
-            schema[:1]
-            + [{"name": "k2", "type": "int64", "sort_order": "ascending"}]
-            + schema[1:]
-        )
+        schema = schema[:1] + [{"name": "k2", "type": "int64", "sort_order": "ascending"}] + schema[1:]
         alter_table("//tmp/t", schema=schema)
         sync_reshard_table("//tmp/t", [[], [1, 1]])
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
@@ -128,18 +120,14 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         ]
 
         assert list(lookup_rows("//tmp/t", [{"k1": 1}, {"k1": 1, "k2": 1}])) == expected
-        assert (
-            list(select_rows("* from [//tmp/t] order by k1,k2 limit 100")) == expected
-        )
+        assert list(select_rows("* from [//tmp/t] order by k1,k2 limit 100")) == expected
 
     @authors("akozhikhov")
     def test_overlapping_store_count(self):
         # Create 3 chunks [{2}, {3}], [{4}, {5}] and [{6}, {7}].
         # Then create two chunks in eden [{3}, {4}] and [{5}, {6}], which don't overlap.
         sync_create_cells(1)
-        self._create_simple_table(
-            "//tmp/t", attributes={"enable_lsm_verbose_logging": True}
-        )
+        self._create_simple_table("//tmp/t", attributes={"enable_lsm_verbose_logging": True})
 
         sync_mount_table("//tmp/t")
 
@@ -147,14 +135,8 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             sync_mount_table("//tmp/t")
             tablet_id = get("//tmp/t/@tablets/0/tablet_id")
             address = get_tablet_leader_address(tablet_id)
-            wait(
-                lambda: stores
-                == len(self._find_tablet_orchid(address, tablet_id)["eden"]["stores"])
-            )
-            wait(
-                lambda: overlaps
-                == get("//tmp/t/@tablet_statistics/overlapping_store_count")
-            )
+            wait(lambda: stores == len(self._find_tablet_orchid(address, tablet_id)["eden"]["stores"]))
+            wait(lambda: overlaps == get("//tmp/t/@tablet_statistics/overlapping_store_count"))
             sync_unmount_table("//tmp/t")
 
         _check(stores=1, overlaps=1)
@@ -220,9 +202,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         def _check(expected_partitions):
             sync_mount_table("//tmp/t")
             wait(lambda: get("//tmp/t/@tablet_statistics/partition_count") > 0)
-            assert (
-                get("//tmp/t/@tablet_statistics/partition_count") == expected_partitions
-            )
+            assert get("//tmp/t/@tablet_statistics/partition_count") == expected_partitions
             sync_unmount_table("//tmp/t")
 
         set("//tmp/t/@enable_compaction_and_partitioning", False)
@@ -234,9 +214,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     def test_partitioning_with_chunk_views(self):
         # Creating two chunks [{0}, {1}, {2}] and [{2}, {3}] and check whether they become partitioned.
         sync_create_cells(1)
-        self._create_simple_table(
-            "//tmp/t", attributes={"enable_lsm_verbose_logging": True}
-        )
+        self._create_simple_table("//tmp/t", attributes={"enable_lsm_verbose_logging": True})
 
         self._create_partitions(partition_count=2, do_overlap=True)
 
@@ -268,10 +246,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             assert len(partition["stores"]) == 1
             store_values = dict(partition["stores"].values()[0].iteritems())
             assert store_values["min_key"] == expected[partition_idx]["min_key"]
-            assert (
-                store_values["upper_bound_key"]
-                == expected[partition_idx]["upper_bound_key"]
-            )
+            assert store_values["upper_bound_key"] == expected[partition_idx]["upper_bound_key"]
 
     @authors("ifsmirnov")
     def test_mount_chunk_view_YT_12532(self):

@@ -380,9 +380,7 @@ class TestConcatenate(YTEnvSetup):
             set("//tmp/in/@erasure_codec", "reed_solomon_6_3")
 
         for x in [1, 3, 2]:
-            write_table(
-                "<chunk_key_column_count=1;append=true>//tmp/in", make_rows([x])
-            )
+            write_table("<chunk_key_column_count=1;append=true>//tmp/in", make_rows([x]))
         assert get("//tmp/in/@chunk_count") == 3
 
         assert read_table("//tmp/in") == make_rows([1, 3, 2])
@@ -390,11 +388,7 @@ class TestConcatenate(YTEnvSetup):
         create(
             "table",
             "//tmp/out",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])},
         )
 
         concatenate(["//tmp/in"], "//tmp/out")
@@ -407,11 +401,7 @@ class TestConcatenate(YTEnvSetup):
         create(
             "table",
             "//tmp/in",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}])},
         )
 
         write_table(
@@ -471,11 +461,7 @@ class TestConcatenate(YTEnvSetup):
         create(
             "table",
             "//tmp/out1",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])},
         )
 
         create(
@@ -567,22 +553,14 @@ class TestConcatenate(YTEnvSetup):
         create(
             "table",
             "//tmp/in2",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])},
         )
         write_table("//tmp/in2", [{"a": 1}, {"a": 3}])
 
         create(
             "table",
             "//tmp/in3",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])},
         )
         write_table("//tmp/in3", [{"a": 2}, {"a": 4}])
 
@@ -601,27 +579,19 @@ class TestConcatenate(YTEnvSetup):
             "//tmp/in1",
             attributes={"schema": make_schema([{"name": "a", "type": "int64"}])},
         )
-        write_table(
-            "<chunk_key_column_count=1;append=true>//tmp/in1", make_rows([1, 2])
-        )
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in1", make_rows([1, 2]))
 
         create(
             "table",
             "//tmp/in2",
             attributes={"schema": make_schema([{"name": "a", "type": "int64"}])},
         )
-        write_table(
-            "<chunk_key_column_count=1;append=true>//tmp/in2", make_rows([5, 6])
-        )
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in2", make_rows([5, 6]))
 
         create(
             "table",
             "//tmp/out1",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])},
         )
         write_table("//tmp/out1", make_rows([3, 4]))
 
@@ -644,9 +614,7 @@ class TestConcatenate(YTEnvSetup):
             },
         )
 
-        write_table(
-            "<chunk_key_column_count=1;append=true>//tmp/in3", make_rows([2, 2])
-        )
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in3", make_rows([2, 2]))
 
         concatenate(["//tmp/in3", "//tmp/in3"], "<append=true>//tmp/in3")
         assert read_table("//tmp/in3") == make_rows([2, 2, 2, 2, 2, 2])

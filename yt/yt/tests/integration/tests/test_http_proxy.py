@@ -116,9 +116,7 @@ class TestHttpProxy(HttpProxyTestBase):
 
     @authors("prime")
     def test_discover_versions(self):
-        rsp = requests.get(
-            self._get_proxy_address() + "/internal/discover_versions"
-        ).json()
+        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions").json()
         service = requests.get(self._get_proxy_address() + "/service").json()
 
         assert len(rsp["primary_masters"]) == 1
@@ -153,9 +151,7 @@ class TestHttpProxy(HttpProxyTestBase):
     @authors("prime")
     def test_dynamic_config(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(
-            monitoring_port
-        )
+        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
 
         set("//sys/proxies/@config", {"tracing": {"user_sample_rate": {"prime": 1.0}}})
 
@@ -271,17 +267,12 @@ class TestHttpProxyFraming(HttpProxyTestBase):
 
     def setup(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(
-            monitoring_port
-        )
+        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
         set(
             "//sys/proxies/@config",
             {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}},
         )
-        wait(
-            lambda: requests.get(config_url).json()["framing"]["keep_alive_period"]
-            == self.KEEP_ALIVE_PERIOD
-        )
+        wait(lambda: requests.get(config_url).json()["framing"]["keep_alive_period"] == self.KEEP_ALIVE_PERIOD)
 
     def _execute_command(self, http_method, command_name, params):
         headers = {
@@ -299,16 +290,9 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         rsp.raise_for_status()
         assert "X-YT-Framing" in rsp.headers
         unframed_content = self._unframe_content(rsp.content)
-        keep_alive_frame_count = sum(
-            name == "keep_alive" for name, frame in unframed_content
-        )
-        assert (
-            keep_alive_frame_count
-            >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 3
-        )
-        assert datetime.now() - start > timedelta(
-            milliseconds=self.DELAY_BEFORE_COMMAND
-        )
+        keep_alive_frame_count = sum(name == "keep_alive" for name, frame in unframed_content)
+        assert keep_alive_frame_count >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 3
+        assert datetime.now() - start > timedelta(milliseconds=self.DELAY_BEFORE_COMMAND)
         actual_response = b""
         for name, frame in unframed_content:
             if name == "data":
@@ -318,9 +302,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
     @authors("levysotsky")
     def test_get(self):
         create("table", self.SUSPENDING_TABLE)
-        write_table(
-            self.SUSPENDING_TABLE, [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}]
-        )
+        write_table(self.SUSPENDING_TABLE, [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
         attribute_value = {"x": 1, "y": "qux"}
         set(self.SUSPENDING_TABLE + "/@foobar", attribute_value)
         params = {
@@ -386,12 +368,8 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
 
         def predicate():
             monitoring = self._get_hydra_monitoring(master)
-            return (
-                building_snapshot is None
-                or monitoring.get("building_snapshot", None) == building_snapshot
-            ) and (
-                last_snapshot_id is None
-                or monitoring.get("last_snapshot_id", None) == last_snapshot_id
+            return (building_snapshot is None or monitoring.get("building_snapshot", None) == building_snapshot) and (
+                last_snapshot_id is None or monitoring.get("last_snapshot_id", None) == last_snapshot_id
             )
 
         wait(predicate)

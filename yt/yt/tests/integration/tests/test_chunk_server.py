@@ -27,9 +27,7 @@ class TestChunkServer(YTEnvSetup):
         tx = start_transaction()
         write_table("//tmp/t", {"a": "b"}, tx=tx)
         chunk_id = get_singular_chunk_id("//tmp/t", tx=tx)
-        assert get("#" + chunk_id + "/@owning_nodes") == [
-            to_yson_type("//tmp/t", attributes={"transaction_id": tx})
-        ]
+        assert get("#" + chunk_id + "/@owning_nodes") == [to_yson_type("//tmp/t", attributes={"transaction_id": tx})]
 
     @authors("babenko", "shakurov")
     def test_replication(self):
@@ -47,18 +45,14 @@ class TestChunkServer(YTEnvSetup):
 
         chunk_id = get_singular_chunk_id(path)
 
-        nodes_to_decommission = self._decommission_chunk_replicas(
-            chunk_id, replica_count, node_to_decommission_count
-        )
+        nodes_to_decommission = self._decommission_chunk_replicas(chunk_id, replica_count, node_to_decommission_count)
 
         wait(
             lambda: not self._nodes_have_chunk(nodes_to_decommission, chunk_id)
             and len(get("#%s/@stored_replicas" % chunk_id)) == replica_count
         )
 
-    def _decommission_chunk_replicas(
-        self, chunk_id, replica_count, node_to_decommission_count
-    ):
+    def _decommission_chunk_replicas(self, chunk_id, replica_count, node_to_decommission_count):
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == replica_count)
 
         nodes_to_decommission = get("#%s/@stored_replicas" % chunk_id)
@@ -77,11 +71,7 @@ class TestChunkServer(YTEnvSetup):
 
         for node in nodes:
             if not (
-                id_to_hash(id)
-                in [
-                    id_to_hash(id_)
-                    for id_ in ls("//sys/cluster_nodes/%s/orchid/stored_chunks" % node)
-                ]
+                id_to_hash(id) in [id_to_hash(id_) for id_ in ls("//sys/cluster_nodes/%s/orchid/stored_chunks" % node)]
             ):
                 return False
         return True
@@ -91,39 +81,18 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) > 0)
         node = get("#{0}/@stored_replicas".format(chunk_id))[0]
 
-        wait(
-            lambda: get(
-                "//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)
-            )
-            == 0
-        )
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
 
         set(
-            "//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(
-                node
-            ),
+            "//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(node),
             0,
         )
 
         remove(path)
-        wait(
-            lambda: get(
-                "//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)
-            )
-            > 0
-        )
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) > 0)
 
-        remove(
-            "//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(
-                node
-            )
-        )
-        wait(
-            lambda: get(
-                "//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)
-            )
-            == 0
-        )
+        remove("//sys/cluster_nodes/{0}/@resource_limits_overrides/removal_slots".format(node))
+        wait(lambda: get("//sys/cluster_nodes/{0}/@destroyed_chunk_replica_count".format(node)) == 0)
 
     @authors("babenko")
     def test_decommission_regular(self):
@@ -214,9 +183,7 @@ class TestChunkServer(YTEnvSetup):
     def test_disable_replicator_when_explicitly_requested_so(self):
         assert get("//sys/@chunk_replicator_enabled")
 
-        set(
-            "//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True
-        )
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
@@ -228,9 +195,7 @@ class TestChunkServer(YTEnvSetup):
         for c in chunks:
             assert len(c.attributes) == 0
 
-        chunks_json = execute_command(
-            "list", {"path": "//sys/chunks", "output_format": "json"}
-        )
+        chunks_json = execute_command("list", {"path": "//sys/chunks", "output_format": "json"})
         for c in json.loads(chunks_json):
             assert isinstance(c, basestring)
 
@@ -240,31 +205,20 @@ class TestChunkServer(YTEnvSetup):
         write_table("//tmp/t", {"a": "b"})
 
         master = ls("//sys/primary_masters")[0]
-        master_orchid_path = "//sys/primary_masters/{0}/orchid/chunk_manager/requisition_registry".format(
-            master
-        )
+        master_orchid_path = "//sys/primary_masters/{0}/orchid/chunk_manager/requisition_registry".format(master)
 
         known_requisition_indexes = frozenset(ls(master_orchid_path))
         set("//tmp/t/@replication_factor", 4)
         sleep(0.3)
-        new_requisition_indexes = (
-            frozenset(ls(master_orchid_path)) - known_requisition_indexes
-        )
+        new_requisition_indexes = frozenset(ls(master_orchid_path)) - known_requisition_indexes
         assert len(new_requisition_indexes) == 1
         new_requisition_index = next(iter(new_requisition_indexes))
 
-        new_requisition = get(
-            "{0}/{1}".format(master_orchid_path, new_requisition_index)
-        )
-        assert (
-            new_requisition["ref_counter"] == 2
-        )  # one for 'local', one for 'aggregated' requisition
+        new_requisition = get("{0}/{1}".format(master_orchid_path, new_requisition_index))
+        assert new_requisition["ref_counter"] == 2  # one for 'local', one for 'aggregated' requisition
         assert new_requisition["vital"]
         assert len(new_requisition["entries"]) == 1
-        assert (
-            new_requisition["entries"][0]["replication_policy"]["replication_factor"]
-            == 4
-        )
+        assert new_requisition["entries"][0]["replication_policy"]["replication_factor"] == 4
 
     @authors("shakurov")
     def test_node_chunk_replica_count(self):
@@ -277,14 +231,7 @@ class TestChunkServer(YTEnvSetup):
         def check_replica_count():
             nodes = get("#{0}/@stored_replicas".format(chunk_id))
             for node in nodes:
-                if (
-                    get(
-                        "//sys/cluster_nodes/{0}/@chunk_replica_count/default".format(
-                            node
-                        )
-                    )
-                    == 0
-                ):
+                if get("//sys/cluster_nodes/{0}/@chunk_replica_count/default".format(node)) == 0:
                     return False
             return True
 
@@ -366,9 +313,7 @@ class TestChunkServerMulticell(TestChunkServer):
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
 
-        assert_items_equal(
-            get("#" + chunk_id + "/@owning_nodes"), ["//tmp/t0", "//tmp/t1", "//tmp/t2"]
-        )
+        assert_items_equal(get("#" + chunk_id + "/@owning_nodes"), ["//tmp/t0", "//tmp/t1", "//tmp/t2"])
 
     @authors("babenko")
     def test_chunk_requisition_registry_orchid(self):
@@ -381,9 +326,7 @@ class TestChunkServerMulticell(TestChunkServer):
 class TestMultipleErasurePartsPerNode(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
-    DELTA_MASTER_CONFIG = {
-        "chunk_manager": {"allow_multiple_erasure_parts_per_node": True}
-    }
+    DELTA_MASTER_CONFIG = {"chunk_manager": {"allow_multiple_erasure_parts_per_node": True}}
 
     @authors("babenko")
     def test_allow_multiple_erasure_parts_per_node(self):

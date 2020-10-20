@@ -61,11 +61,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             command="cat",
             join_by="key",
             spec={
-                "reducer": {
-                    "format": yson.loads(
-                        "<line_prefix=tskv;enable_table_index=true>dsv"
-                    )
-                },
+                "reducer": {"format": yson.loads("<line_prefix=tskv;enable_table_index=true>dsv")},
                 "data_size_per_job": 1,
             },
         )
@@ -165,9 +161,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     @authors("klyachin")
     def test_join_reduce_primary_attribute_compatibility(self):
         create("table", "//tmp/in1")
-        write_table(
-            "//tmp/in1", [{"key": i, "value": i + 1} for i in range(8)], sorted_by="key"
-        )
+        write_table("//tmp/in1", [{"key": i, "value": i + 1} for i in range(8)], sorted_by="key")
 
         create("table", "//tmp/in2")
         write_table(
@@ -361,16 +355,12 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/in1",
-            attributes={
-                "schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/in2",
-            attributes={
-                "schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -409,9 +399,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
         # expected error: Duplicate key column name "a"
         with pytest.raises(YtError):
-            join_reduce(
-                in_="//tmp/in", out="//tmp/out", command="cat", join_by=["a", "b", "a"]
-            )
+            join_reduce(in_="//tmp/in", out="//tmp/out", command="cat", join_by=["a", "b", "a"])
 
     @authors("klyachin")
     def test_join_reduce_unsorted_input(self):
@@ -420,9 +408,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/in2",
-            attributes={
-                "schema": [{"name": "foo", "type": "any", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "foo", "type": "any", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -442,9 +428,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/in2",
-            attributes={
-                "schema": [{"name": "baz", "type": "any", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "baz", "type": "any", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -461,9 +445,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     def test_join_reduce_non_prefix(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
-        write_table(
-            "//tmp/in", {"key": "1", "subkey": "2"}, sorted_by=["key", "subkey"]
-        )
+        write_table("//tmp/in", {"key": "1", "subkey": "2"}, sorted_by=["key", "subkey"])
 
         # expected error: Input table is sorted by columns that are not compatible with the requested columns"
         with pytest.raises(YtError):
@@ -492,9 +474,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             attributes={"schema": schema, "optimize_for": optimize_for},
         )
         create("table", "//tmp/out")
-        write_table(
-            "//tmp/in1", [{"key": "1", "subkey": "2"}, {"key": "3"}, {"key": "5"}]
-        )
+        write_table("//tmp/in1", [{"key": "1", "subkey": "2"}, {"key": "3"}, {"key": "5"}])
         write_table(
             "//tmp/in2",
             [{"key": "1", "subkey": "3"}, {"key": "3", "subkey": "3"}, {"key": "4"}],
@@ -553,9 +533,7 @@ echo {v = 2} >&7
         create(
             "table",
             "//tmp/in2",
-            attributes={
-                "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -657,10 +635,7 @@ echo {v = 2} >&7
         )
         write_table(
             "<append=true>//tmp/in1",
-            [
-                {"key": "%05d" % (10000 + num / 2), "val1": num}
-                for num in xrange(count, 2 * count)
-            ],
+            [{"key": "%05d" % (10000 + num / 2), "val1": num} for num in xrange(count, 2 * count)],
             sorted_by=["key"],
             table_writer={"block_size": 1024},
         )
@@ -673,10 +648,7 @@ echo {v = 2} >&7
         )
         write_table(
             "<append=true>//tmp/in2",
-            [
-                {"key": "%05d" % (10000 + num / 2), "val2": num}
-                for num in xrange(count, 2 * count)
-            ],
+            [{"key": "%05d" % (10000 + num / 2), "val2": num} for num in xrange(count, 2 * count)],
             sorted_by=["key"],
             table_writer={"block_size": 1024},
         )
@@ -690,11 +662,7 @@ echo {v = 2} >&7
             command="""awk '{print $0"\tji="ENVIRON["YT_JOB_INDEX"]"\tsi="ENVIRON["YT_START_ROW_INDEX"]}' """,
             join_by=["key"],
             spec={
-                "reducer": {
-                    "format": yson.loads(
-                        "<enable_table_index=true;table_index_column=ti>dsv"
-                    )
-                },
+                "reducer": {"format": yson.loads("<enable_table_index=true;table_index_column=ti>dsv")},
                 "data_size_per_job": 500,
             },
         )
@@ -708,9 +676,7 @@ echo {v = 2} >&7
         create("table", "//tmp/out")
 
         data1 = [{"key": "a"}] * 8000 + [{"key": "b"}] * 2000
-        write_table(
-            "//tmp/in1", data1, sorted_by=["key"], table_writer={"block_size": 1024}
-        )
+        write_table("//tmp/in1", data1, sorted_by=["key"], table_writer={"block_size": 1024})
 
         data2 = [{"key": "a"}, {"key": "b"}]
         write_table("//tmp/in2", data2, sorted_by=["key"])
@@ -740,9 +706,7 @@ echo {v = 2} >&7
             ]
         )
 
-        histogram = get(
-            op.get_path() + "/@progress/tasks/0/input_data_weight_histogram"
-        )
+        histogram = get(op.get_path() + "/@progress/tasks/0/input_data_weight_histogram")
         assert sum(histogram["count"]) == 2
 
     # Check compatibility with deprecated <primary=true> attribute
@@ -833,10 +797,7 @@ echo {v = 2} >&7
         create("table", "//tmp/in1")
         write_table(
             "<append=true>//tmp/in1",
-            [
-                {"key": "%05d" % num, "subkey": "", "value": num}
-                for num in xrange(count)
-            ],
+            [{"key": "%05d" % num, "subkey": "", "value": num} for num in xrange(count)],
             sorted_by=["key", "subkey"],
             table_writer={"block_size": 1024},
         )
@@ -844,10 +805,7 @@ echo {v = 2} >&7
         create("table", "//tmp/in2")
         write_table(
             "<append=true>//tmp/in2",
-            [
-                {"key": "%05d" % num, "subkey": "", "value": num}
-                for num in xrange(count)
-            ],
+            [{"key": "%05d" % num, "subkey": "", "value": num} for num in xrange(count)],
             sorted_by=["key", "subkey"],
             table_writer={"block_size": 1024},
         )
@@ -1011,9 +969,7 @@ echo {v = 2} >&7
 
         write_table("//tmp/t1", [{"key1": "7", "primary_value": 42}])
 
-        rows = [
-            {"key1": str(i), "key2": str(i * i), "foreign_value": i} for i in range(10)
-        ]
+        rows = [{"key1": str(i), "key2": str(i * i), "foreign_value": i} for i in range(10)]
         sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t2", rows)
         sync_unmount_table("//tmp/t2")
@@ -1058,9 +1014,7 @@ echo {v = 2} >&7
             label="interrupt_job",
             in_=["<foreign=true>//tmp/input2", "//tmp/input1"],
             out="<sorted_by=[key]>//tmp/output",
-            command=with_breakpoint(
-                """read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"; BREAKPOINT ; cat """
-            ),
+            command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}"; echo "$REPLY"; BREAKPOINT ; cat """),
             join_by=["key"],
             spec={
                 "reducer": {"format": "dsv"},
@@ -1096,9 +1050,7 @@ echo {v = 2} >&7
         assert (
             get(
                 op.get_path()
-                + "/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(
-                    op.id
-                )
+                + "/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id)
             )
             == len(result) - 2
         )
@@ -1127,10 +1079,7 @@ echo {v = 2} >&7
         for j in range(20):
             write_table(
                 "//tmp/in_2",
-                [
-                    {"key": "(%08d)" % ((j * 10 + i) / 2), "value": "(t_2)"}
-                    for i in range(10)
-                ],
+                [{"key": "(%08d)" % ((j * 10 + i) / 2), "value": "(t_2)"} for i in range(10)],
                 sorted_by=["key"],
                 table_writer={
                     "block_size": 1024,

@@ -46,9 +46,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     }
 
     DELTA_DRIVER_CONFIG = {
-        "node_directory_synchronizer": {
-            "sync_period": 50  # To force NodeDirectorySynchronizer in tests
-        }
+        "node_directory_synchronizer": {"sync_period": 50}  # To force NodeDirectorySynchronizer in tests
     }
 
     def setup(self):
@@ -141,27 +139,17 @@ class TestBlockPeerDistributorManyRequestsProduction(TestBlockPeerDistributorSyn
         }
     }
     DELTA_DRIVER_CONFIG = {
-        "node_directory_synchronizer": {
-            "sync_period": 50  # To force NodeDirectorySynchronizer in tests
-        }
+        "node_directory_synchronizer": {"sync_period": 50}  # To force NodeDirectorySynchronizer in tests
     }
 
     # Test relies on timing of rpc calls and periods of node directory synchronizer and distribution iteration.
     @authors("max42", "prime")
     @clear_everything_after_test
     def test_wow_such_flappy_test_so_many_failures(self):
-        metric_s_delta = Metric.at_node(
-            self.seed, "data_node/block_cache/compressed_data/hit"
-        )
-        metric_ns0_delta = Metric.at_node(
-            self.non_seeds[0], "data_node/block_cache/compressed_data/hit"
-        )
-        metric_ns1_delta = Metric.at_node(
-            self.non_seeds[1], "data_node/block_cache/compressed_data/hit"
-        )
-        metric_ns2_delta = Metric.at_node(
-            self.non_seeds[2], "data_node/block_cache/compressed_data/hit"
-        )
+        metric_s_delta = Metric.at_node(self.seed, "data_node/block_cache/compressed_data/hit")
+        metric_ns0_delta = Metric.at_node(self.non_seeds[0], "data_node/block_cache/compressed_data/hit")
+        metric_ns1_delta = Metric.at_node(self.non_seeds[1], "data_node/block_cache/compressed_data/hit")
+        metric_ns2_delta = Metric.at_node(self.non_seeds[2], "data_node/block_cache/compressed_data/hit")
 
         def read_table():
             for i in range(10):

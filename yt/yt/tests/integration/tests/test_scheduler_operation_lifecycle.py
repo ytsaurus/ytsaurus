@@ -58,20 +58,14 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     @authors("ignat")
     def test_connection_time(self):
         connection_time_attr = parse_yt_time(get("//sys/scheduler/@connection_time"))
-        connection_time_orchid = parse_yt_time(
-            get("//sys/scheduler/orchid/scheduler/service/last_connection_time")
-        )
+        connection_time_orchid = parse_yt_time(get("//sys/scheduler/orchid/scheduler/service/last_connection_time"))
         assert connection_time_orchid - connection_time_attr < timedelta(seconds=2)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        new_connection_time_attr = parse_yt_time(
-            get("//sys/scheduler/@connection_time")
-        )
-        new_connection_time_orchid = parse_yt_time(
-            get("//sys/scheduler/orchid/scheduler/service/last_connection_time")
-        )
+        new_connection_time_attr = parse_yt_time(get("//sys/scheduler/@connection_time"))
+        new_connection_time_orchid = parse_yt_time(get("//sys/scheduler/orchid/scheduler/service/last_connection_time"))
 
         assert new_connection_time_attr > connection_time_attr
         assert new_connection_time_orchid > connection_time_orchid
@@ -111,12 +105,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         self._create_table("//tmp/t_out1")
         self._create_table("//tmp/t_out2")
 
-        op1 = map(
-            track=False, in_="//tmp/t_in", out="//tmp/t_out1", command="sleep 1000"
-        )
-        op2 = map(
-            track=False, in_="//tmp/t_in", out="//tmp/t_out2", command="sleep 1000"
-        )
+        op1 = map(track=False, in_="//tmp/t_in", out="//tmp/t_out1", command="sleep 1000")
+        op2 = map(track=False, in_="//tmp/t_in", out="//tmp/t_out2", command="sleep 1000")
         op1.ensure_running()
         op2.ensure_running()
 
@@ -380,9 +370,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for op in ops:
             op.track()
 
-        finish_times = [
-            get(op.get_path() + "/@finish_time".format(op.id)) for op in ops
-        ]
+        finish_times = [get(op.get_path() + "/@finish_time".format(op.id)) for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur < next
 
@@ -434,9 +422,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for op in ops:
             op.track()
 
-        finish_times = [
-            get(op.get_path() + "/@finish_time".format(op.id)) for op in ops
-        ]
+        finish_times = [get(op.get_path() + "/@finish_time".format(op.id)) for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur > next
 
@@ -477,22 +463,14 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.abort(abort_message="Test abort")
 
         assert op.get_state() == "aborted"
-        assert (
-            get(op.get_path() + "/@result/error/inner_errors/0/message") == "Test abort"
-        )
+        assert get(op.get_path() + "/@result/error/inner_errors/0/message") == "Test abort"
 
     @authors("ignat")
     def test_operation_pool_attributes(self):
         self._prepare_tables()
 
         op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
-        assert (
-            get(
-                op.get_path()
-                + "/@runtime_parameters/scheduling_options_per_pool_tree/default/pool"
-            )
-            == "root"
-        )
+        assert get(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default/pool") == "root"
 
     @authors("babenko", "gritukan")
     def test_operation_events_attribute(self):
@@ -741,20 +719,9 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         create_pool("unique_pool")
         pool_path = "//sys/pools/unique_pool"
         set(pool_path + "/@max_operation_count", 50)
-        wait(
-            lambda: get(
-                scheduler_orchid_pool_path("unique_pool") + "/max_operation_count"
-            )
-            == 50
-        )
+        wait(lambda: get(scheduler_orchid_pool_path("unique_pool") + "/max_operation_count") == 50)
         set(pool_path + "/@max_running_operation_count", 8)
-        wait(
-            lambda: get(
-                scheduler_orchid_pool_path("unique_pool")
-                + "/max_running_operation_count"
-            )
-            == 8
-        )
+        wait(lambda: get(scheduler_orchid_pool_path("unique_pool") + "/max_running_operation_count") == 8)
 
         metric_prefix = "scheduler/pools/"
         fair_share_ratio_max = Metric.at_scheduler(
@@ -858,9 +825,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: fair_share_ratio_max.update().get(verbose=True) == 100000)
         wait(lambda: usage_ratio_max.update().get(verbose=True) == 100000)
         wait(lambda: demand_ratio_max.update().get(verbose=True) == 100000)
-        wait(
-            lambda: unlimited_demand_fair_share_max.update().get(verbose=True) == 100000
-        )
+        wait(lambda: unlimited_demand_fair_share_max.update().get(verbose=True) == 100000)
         wait(lambda: cpu_usage_max.update().get(verbose=True) == 1)
         wait(lambda: user_slots_usage_max.update().get(verbose=True) == 1)
         wait(lambda: cpu_demand_max.update().get(verbose=True) == 1)
@@ -969,10 +934,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: fair_share_ratio_last.update().get("0", verbose=True) in range_)
         wait(lambda: usage_ratio_last.update().get("0", verbose=True) == 100000)
         wait(lambda: demand_ratio_last.update().get("0", verbose=True) == 100000)
-        wait(
-            lambda: unlimited_demand_fair_share_last.update().get("0", verbose=True)
-            in range_
-        )
+        wait(lambda: unlimited_demand_fair_share_last.update().get("0", verbose=True) in range_)
         wait(lambda: cpu_usage_last.update().get("0", verbose=True) == 1)
         wait(lambda: user_slots_usage_last.update().get("0", verbose=True) == 1)
         wait(lambda: cpu_demand_last.update().get("0", verbose=True) == 1)
@@ -981,10 +943,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: fair_share_ratio_last.update().get("1", verbose=True) in range_)
         wait(lambda: usage_ratio_last.update().get("1", verbose=True) == 0)
         wait(lambda: demand_ratio_last.update().get("1", verbose=True) == 100000)
-        wait(
-            lambda: unlimited_demand_fair_share_last.update().get("1", verbose=True)
-            in range_
-        )
+        wait(lambda: unlimited_demand_fair_share_last.update().get("1", verbose=True) in range_)
         wait(lambda: cpu_usage_last.update().get("1", verbose=True) == 0)
         wait(lambda: user_slots_usage_last.update().get("1", verbose=True) == 0)
         wait(lambda: cpu_demand_last.update().get("1", verbose=True) == 1)
@@ -995,10 +954,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: fair_share_ratio_last.update().get("1", verbose=True) == 100000)
         wait(lambda: usage_ratio_last.update().get("1", verbose=True) == 100000)
         wait(lambda: demand_ratio_last.update().get("1", verbose=True) == 100000)
-        wait(
-            lambda: unlimited_demand_fair_share_last.update().get("1", verbose=True)
-            == 100000
-        )
+        wait(lambda: unlimited_demand_fair_share_last.update().get("1", verbose=True) == 100000)
 
     @authors("ignat", "eshcherbin")
     def test_operations_by_user_profiling(self):
@@ -1011,9 +967,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             self._create_table("//tmp/t_out_" + str(i + 1))
 
         create_pool("some_pool")
-        create_pool(
-            "other_pool", attributes={"allowed_profiling_tags": ["hello", "world"]}
-        )
+        create_pool("other_pool", attributes={"allowed_profiling_tags": ["hello", "world"]})
 
         metric_prefix = "scheduler/operations_by_user/"
         fair_share_ratio_last = Metric.at_scheduler(
@@ -1099,34 +1053,24 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         range_3 = (33332, 33333, 33334)
 
         def get_operation_by_user_last_metric_value(metric, pool, user):
-            since_time = int(
-                (time.time() - 2) * 1000000
-            )  # Filter out outdated samples.
+            since_time = int((time.time() - 2) * 1000000)  # Filter out outdated samples.
             result = sum(
                 value
                 for tags, value in metric.data.iteritems()
-                if tags[0] == pool
-                and tags[1] == user
-                and metric.state[tags]["last_sample_time"] > since_time
+                if tags[0] == pool and tags[1] == user and metric.state[tags]["last_sample_time"] > since_time
             )
             metric_name = metric.path.split(metric_prefix)[-1]
             print_debug(
-                "Last value of metric '{}' for pool '{}' and user '{}' is {}".format(
-                    metric_name, pool, user, result
-                )
+                "Last value of metric '{}' for pool '{}' and user '{}' is {}".format(metric_name, pool, user, result)
             )
             return result
 
         def get_operation_by_custom_tag_last_metric_value(metric, pool, custom_tag):
-            since_time = int(
-                (time.time() - 2) * 1000000
-            )  # Filter out outdated samples.
+            since_time = int((time.time() - 2) * 1000000)  # Filter out outdated samples.
             result = sum(
                 value
                 for tags, value in metric.data.iteritems()
-                if tags[0] == pool
-                and tags[2] == custom_tag
-                and metric.state[tags]["last_sample_time"] > since_time
+                if tags[0] == pool and tags[2] == custom_tag and metric.state[tags]["last_sample_time"] > since_time
             )
             metric_name = metric.path.split(metric_prefix)[-1]
             print_debug(
@@ -1137,88 +1081,44 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             return result
 
         for func, value in ((get_operation_by_user_last_metric_value, "ignat"),):
-            wait(
-                lambda: func(fair_share_ratio_last.update(), "some_pool", value)
-                in range_1
-            )
+            wait(lambda: func(fair_share_ratio_last.update(), "some_pool", value) in range_1)
             wait(lambda: func(usage_ratio_last.update(), "some_pool", value) == 100000)
             wait(lambda: func(demand_ratio_last.update(), "some_pool", value) == 100000)
-            wait(
-                lambda: func(
-                    unlimited_demand_fair_share_last.update(), "some_pool", value
-                )
-                in range_1
-            )
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "some_pool", value) in range_1)
             wait(lambda: func(cpu_usage_last.update(), "some_pool", value) == 1)
             wait(lambda: func(user_slots_usage_last.update(), "some_pool", value) == 1)
             wait(lambda: func(cpu_demand_last.update(), "some_pool", value) == 1)
             wait(lambda: func(user_slots_demand_last.update(), "some_pool", value) == 1)
 
         for func, value in ((get_operation_by_custom_tag_last_metric_value, "hello"),):
-            wait(
-                lambda: func(fair_share_ratio_last.update(), "other_pool", value)
-                in range_3
-            )
+            wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_3)
             wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 0)
-            wait(
-                lambda: func(demand_ratio_last.update(), "other_pool", value) == 200000
-            )
-            wait(
-                lambda: func(
-                    unlimited_demand_fair_share_last.update(), "other_pool", value
-                )
-                in range_3
-            )
+            wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 200000)
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "other_pool", value) in range_3)
             wait(lambda: func(cpu_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(user_slots_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(cpu_demand_last.update(), "other_pool", value) == 2)
-            wait(
-                lambda: func(user_slots_demand_last.update(), "other_pool", value) == 2
-            )
+            wait(lambda: func(user_slots_demand_last.update(), "other_pool", value) == 2)
 
         for func, value in ((get_operation_by_custom_tag_last_metric_value, "world"),):
-            wait(
-                lambda: func(fair_share_ratio_last.update(), "other_pool", value)
-                in range_2
-            )
+            wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_2)
             wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 0)
-            wait(
-                lambda: func(demand_ratio_last.update(), "other_pool", value) == 100000
-            )
-            wait(
-                lambda: func(
-                    unlimited_demand_fair_share_last.update(), "other_pool", value
-                )
-                in range_2
-            )
+            wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 100000)
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "other_pool", value) in range_2)
             wait(lambda: func(cpu_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(user_slots_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(cpu_demand_last.update(), "other_pool", value) == 1)
-            wait(
-                lambda: func(user_slots_demand_last.update(), "other_pool", value) == 1
-            )
+            wait(lambda: func(user_slots_demand_last.update(), "other_pool", value) == 1)
 
         for func, value in ((get_operation_by_user_last_metric_value, "egor"),):
-            wait(
-                lambda: func(fair_share_ratio_last.update(), "other_pool", value)
-                in range_1
-            )
+            wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_1)
             wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 0)
-            wait(
-                lambda: func(demand_ratio_last.update(), "other_pool", value) == 300000
-            )
-            wait(
-                lambda: func(
-                    unlimited_demand_fair_share_last.update(), "other_pool", value
-                )
-                in range_1
-            )
+            wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 300000)
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "other_pool", value) in range_1)
             wait(lambda: func(cpu_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(user_slots_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(cpu_demand_last.update(), "other_pool", value) == 3)
-            wait(
-                lambda: func(user_slots_demand_last.update(), "other_pool", value) == 3
-            )
+            wait(lambda: func(user_slots_demand_last.update(), "other_pool", value) == 3)
 
         op4.abort(wait_until_finished=True)
         op3.abort(wait_until_finished=True)
@@ -1228,20 +1128,10 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             (get_operation_by_user_last_metric_value, "egor"),
             (get_operation_by_custom_tag_last_metric_value, "world"),
         ):
-            wait(
-                lambda: func(fair_share_ratio_last.update(), "other_pool", value)
-                == 100000
-            )
+            wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) == 100000)
             wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 100000)
-            wait(
-                lambda: func(demand_ratio_last.update(), "other_pool", value) == 100000
-            )
-            wait(
-                lambda: func(
-                    unlimited_demand_fair_share_last.update(), "other_pool", value
-                )
-                in range_1
-            )
+            wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 100000)
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "other_pool", value) in range_1)
 
     @authors("ignat", "eshcherbin")
     def test_job_count_profiling(self):
@@ -1322,15 +1212,9 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         }
     }
 
-    def _get_cypress_metrics(
-        self, operation_id, key, job_state="completed", aggr="sum"
-    ):
-        statistics = get(
-            get_operation_cypress_path(operation_id) + "/@progress/job_statistics"
-        )
-        return get_statistics(
-            statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr)
-        )
+    def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
+        statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
+        return get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
 
     @authors("eshcherbin")
     def test_operation_completed(self):
@@ -1447,12 +1331,7 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
             assert len(error.get("inner_errors", [])) <= 2
             if error.get("attributes", {}).get("inner_errors_truncated", False):
                 return True
-            return any(
-                [
-                    find_truncated_errors(inner_error)
-                    for inner_error in error.get("inner_errors", [])
-                ]
-            )
+            return any([find_truncated_errors(inner_error) for inner_error in error.get("inner_errors", [])])
 
         job_error = get_job(job_id=running_job, operation_id=op.id)["error"]
         assert find_truncated_errors(job_error)
@@ -1527,15 +1406,11 @@ class TestSafeAssertionsMode(YTEnvSetup):
         print_debug("=== error ===")
         print_debug(err)
 
-        assert err.contains_code(
-            212
-        )  # NScheduler::EErrorCode::OperationControllerCrashed
+        assert err.contains_code(212)  # NScheduler::EErrorCode::OperationControllerCrashed
 
         # Core path is either attribute of an error itself, or of the only inner error when it is
         # wrapped with 'Operation has failed to prepare' error.
-        core_path = err.attributes.get("core_path") or err.inner_errors[0].get(
-            "attributes", {}
-        ).get("core_path")
+        core_path = err.attributes.get("core_path") or err.inner_errors[0].get("attributes", {}).get("core_path")
         assert core_path != YsonEntity()
 
         # Wait until core is finished. This may take a really long time under debug :(
@@ -1590,11 +1465,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
             track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={
-                "testing": {
-                    "controller_failure": "exception_thrown_in_on_job_completed"
-                }
-            },
+            spec={"testing": {"controller_failure": "exception_thrown_in_on_job_completed"}},
             command="cat",
         )
         with pytest.raises(YtError):
@@ -1638,27 +1509,19 @@ class TestAsyncControllerActions(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_slow_initialization(self):
-        op = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_initialize": 500}}
-        )
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 500}})
         op.track()
 
     @authors("eshcherbin")
     def test_slow_initialization_two_operations(self):
-        op1 = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_initialize": 600}}
-        )
-        op2 = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_initialize": 500}}
-        )
+        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 600}})
+        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 500}})
         op1.track()
         op2.track()
 
     @authors("eshcherbin")
     def test_slow_initialization_revive(self):
-        op = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_initialize": 1500}}
-        )
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 1500}})
         op.wait_for_state("initializing")
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -1668,45 +1531,31 @@ class TestAsyncControllerActions(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_slow_preparation(self):
-        op = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_prepare": 500}}
-        )
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
         op.track()
 
     @authors("eshcherbin")
     def test_slow_preparation_two_operations(self):
-        op1 = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_prepare": 600}}
-        )
-        op2 = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_prepare": 500}}
-        )
+        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 600}})
+        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
         op1.track()
         op2.track()
 
     @authors("eshcherbin")
     def test_slow_materialization(self):
-        op = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_materialize": 500}}
-        )
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 500}})
         op.track()
 
     @authors("eshcherbin")
     def test_slow_materialization_two_operations(self):
-        op1 = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_materialize": 600}}
-        )
-        op2 = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_materialize": 500}}
-        )
+        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 600}})
+        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 500}})
         op1.track()
         op2.track()
 
     @authors("eshcherbin")
     def test_slow_materialization_revive(self):
-        op = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_materialize": 1500}}
-        )
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 1500}})
         op.wait_for_state("materializing")
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -1717,9 +1566,7 @@ class TestAsyncControllerActions(YTEnvSetup):
     @authors("eshcherbin")
     def test_slow_revival_from_scratch(self):
         # Use "delay_inside_prepare" here because revival from scratch is basically preparation.
-        op = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_prepare": 500}}
-        )
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
@@ -1747,12 +1594,8 @@ class TestAsyncControllerActions(YTEnvSetup):
     @authors("eshcherbin")
     def test_slow_revival_from_scratch_two_operations(self):
         # Use "delay_inside_prepare" here because revival from scratch is basically preparation.
-        op1 = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_prepare": 500}}
-        )
-        op2 = run_test_vanilla(
-            "sleep 1", spec={"testing": {"delay_inside_prepare": 500}}
-        )
+        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
+        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass

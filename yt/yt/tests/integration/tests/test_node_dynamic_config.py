@@ -20,9 +20,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
     }
 
     def get_dynamic_config(self, node):
-        return get(
-            "//sys/cluster_nodes/{}/orchid/dynamic_config_manager/config".format(node)
-        )
+        return get("//sys/cluster_nodes/{}/orchid/dynamic_config_manager/config".format(node))
 
     def get_dynamic_config_annotation(self, node):
         dynamic_config = self.get_dynamic_config(node)
@@ -32,11 +30,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
         return dynamic_config.get("config_annotation", "")
 
     def get_dynamic_config_last_update_time(self, node):
-        return get(
-            "//sys/cluster_nodes/{}/orchid/dynamic_config_manager/last_config_update_time".format(
-                node
-            )
-        )
+        return get("//sys/cluster_nodes/{}/orchid/dynamic_config_manager/last_config_update_time".format(node))
 
     @authors("gritukan")
     def test_simple(self):
@@ -146,10 +140,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         def check_alert():
             alerts = get("//sys/cluster_nodes/{0}/@alerts".format(nodes[0]))
-            return (
-                len(alerts) == 1
-                and alerts[0]["code"] == UnrecognizedDynamicConfigOption
-            )
+            return len(alerts) == 1 and alerts[0]["code"] == UnrecognizedDynamicConfigOption
 
         wait(check_alert)
         wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0)
@@ -229,10 +220,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         def check_alert():
             alerts = get("//sys/cluster_nodes/{0}/@alerts".format(nodes[2]))
-            return (
-                len(alerts) == 1
-                and alerts[0]["code"] == DuplicateMatchingDynamicConfigs
-            )
+            return len(alerts) == 1 and alerts[0]["code"] == DuplicateMatchingDynamicConfigs
 
         wait(check_alert)
         wait(lambda: self.get_dynamic_config_annotation(nodes[2]) == "foo")
@@ -292,12 +280,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "configA")
         wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "configB")
 
-        node_a_config_last_update_time = self.get_dynamic_config_last_update_time(
-            nodes[0]
-        )
-        node_b_config_last_update_time = self.get_dynamic_config_last_update_time(
-            nodes[1]
-        )
+        node_a_config_last_update_time = self.get_dynamic_config_last_update_time(nodes[0])
+        node_b_config_last_update_time = self.get_dynamic_config_last_update_time(nodes[1])
 
         config = {
             "nodeA": {
@@ -312,14 +296,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "configA")
         wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "configB2")
 
-        assert (
-            self.get_dynamic_config_last_update_time(nodes[0])
-            == node_a_config_last_update_time
-        )
-        assert (
-            self.get_dynamic_config_last_update_time(nodes[1])
-            > node_b_config_last_update_time
-        )
+        assert self.get_dynamic_config_last_update_time(nodes[0]) == node_a_config_last_update_time
+        assert self.get_dynamic_config_last_update_time(nodes[1]) > node_b_config_last_update_time
 
     @authors("gritukan")
     def test_no_config_node(self):
@@ -372,9 +350,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
     @authors("gritukan")
     def test_dynamic_tablet_slot_count(self):
-        set(
-            "//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 100
-        )
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 100)
         set(
             "//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer",
             True,

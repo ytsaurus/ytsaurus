@@ -200,16 +200,13 @@ def resources_equal(lhs, rhs):
     rhs = defaultdict(int, rhs)
 
     return all(
-        lhs[resource] == rhs[resource]
-        for resource in {resource for resource in lhs} | {resource for resource in rhs}
+        lhs[resource] == rhs[resource] for resource in {resource for resource in lhs} | {resource for resource in rhs}
     )
 
 
 ##################################################################
 
-CONVERTER_BINARY = arcadia_interop.search_binary_path(
-    "convert_operations_to_binary_format"
-)
+CONVERTER_BINARY = arcadia_interop.search_binary_path("convert_operations_to_binary_format")
 SIMULATOR_BINARY = arcadia_interop.search_binary_path("scheduler_simulator")
 
 ONE_GB = 1024 * 1024 * 1024
@@ -355,9 +352,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             job_completed = False
 
             for row in event_log:
-                check_info_flushed.processed_rows.extend(
-                    list(process_event_log_row(row))
-                )
+                check_info_flushed.processed_rows.extend(list(process_event_log_row(row)))
 
                 if "operation_id" in row and row["operation_id"] == op.id:
                     if is_operation_event(row):
@@ -389,9 +384,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             )
 
         self._set_scheduler_simulator_config_params(simulator_files_path)
-        with open(
-            simulator_files_path["scheduler_simulator_config_yson_file"], "w"
-        ) as fout:
+        with open(simulator_files_path["scheduler_simulator_config_yson_file"], "w") as fout:
             fout.write(yson.dumps(self.scheduler_simulator_config))
 
         with open(simulator_files_path["node_groups_yson_file"], "w") as fout:
@@ -453,62 +446,34 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
     def _get_simulator_files_path(self, simulator_data_dir):
         files = dict()
-        files["simulator_input_yson_file"] = os.path.join(
-            simulator_data_dir, "simulator_input.yson"
-        )
-        files["simulator_input_bin_file"] = os.path.join(
-            simulator_data_dir, "simulator_input.bin"
-        )
+        files["simulator_input_yson_file"] = os.path.join(simulator_data_dir, "simulator_input.yson")
+        files["simulator_input_bin_file"] = os.path.join(simulator_data_dir, "simulator_input.bin")
         files["scheduler_simulator_config_yson_file"] = os.path.join(
             simulator_data_dir, "self.scheduler_simulator_config.yson"
         )
-        files["node_groups_yson_file"] = os.path.join(
-            simulator_data_dir, "node_groups.yson"
-        )
-        files["scheduler_config_yson_file"] = os.path.join(
-            simulator_data_dir, "scheduler_config.yson"
-        )
-        files["pools_test_yson_file"] = os.path.join(
-            simulator_data_dir, "pools_test.yson"
-        )
-        files["operations_stats_file"] = os.path.join(
-            simulator_data_dir, "operations_stats_test.csv"
-        )
-        files["scheduler_event_log_file"] = os.path.join(
-            simulator_data_dir, "scheduler_event_log_test.txt"
-        )
-        files["simulator_debug_logs"] = os.path.join(
-            simulator_data_dir, "simulator_debug_logs.txt"
-        )
+        files["node_groups_yson_file"] = os.path.join(simulator_data_dir, "node_groups.yson")
+        files["scheduler_config_yson_file"] = os.path.join(simulator_data_dir, "scheduler_config.yson")
+        files["pools_test_yson_file"] = os.path.join(simulator_data_dir, "pools_test.yson")
+        files["operations_stats_file"] = os.path.join(simulator_data_dir, "operations_stats_test.csv")
+        files["scheduler_event_log_file"] = os.path.join(simulator_data_dir, "scheduler_event_log_test.txt")
+        files["simulator_debug_logs"] = os.path.join(simulator_data_dir, "simulator_debug_logs.txt")
         return files
 
     def _set_scheduler_simulator_config_params(self, simulator_files_path):
         # global default_scheduler_simulator_config
         self.scheduler_simulator_config = deepcopy(default_scheduler_simulator_config)
-        self.scheduler_simulator_config["pools_file"] = simulator_files_path[
-            "pools_test_yson_file"
+        self.scheduler_simulator_config["pools_file"] = simulator_files_path["pools_test_yson_file"]
+        self.scheduler_simulator_config["operations_stats_file"] = simulator_files_path["operations_stats_file"]
+        self.scheduler_simulator_config["event_log_file"] = simulator_files_path["scheduler_event_log_file"]
+        self.scheduler_simulator_config["node_groups_file"] = simulator_files_path["node_groups_yson_file"]
+        self.scheduler_simulator_config["scheduler_config_file"] = simulator_files_path["scheduler_config_yson_file"]
+        self.scheduler_simulator_config["logging"]["writers"]["debug"]["file_name"] = simulator_files_path[
+            "simulator_debug_logs"
         ]
-        self.scheduler_simulator_config["operations_stats_file"] = simulator_files_path[
-            "operations_stats_file"
-        ]
-        self.scheduler_simulator_config["event_log_file"] = simulator_files_path[
-            "scheduler_event_log_file"
-        ]
-        self.scheduler_simulator_config["node_groups_file"] = simulator_files_path[
-            "node_groups_yson_file"
-        ]
-        self.scheduler_simulator_config["scheduler_config_file"] = simulator_files_path[
-            "scheduler_config_yson_file"
-        ]
-        self.scheduler_simulator_config["logging"]["writers"]["debug"][
-            "file_name"
-        ] = simulator_files_path["simulator_debug_logs"]
 
     def _parse_fair_share_info(self, item, operation_id):
         usage_pools = extract_metric_distribution(item, "usage_ratio", "pools")
-        usage_operations = extract_metric_distribution(
-            item, "usage_ratio", "operations"
-        )
+        usage_operations = extract_metric_distribution(item, "usage_ratio", "operations")
         if (
             usage_pools is not None
             and "test_pool" in usage_pools["pools"]
@@ -516,10 +481,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             and operation_id in usage_operations["operations"]
         ):
             self.pool_and_operation_info_count += 1
-            if (
-                usage_pools["pools"]["test_pool"]
-                != usage_operations["operations"][operation_id]
-            ):
+            if usage_pools["pools"]["test_pool"] != usage_operations["operations"][operation_id]:
                 self.fair_share_info_error_count += 1
         self.operations_resource_usage = resource_usage_sum(
             operation["resource_usage"] for operation in item["operations"].itervalues()
@@ -546,9 +508,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             assert node_group["count"] == node_group_count
 
         self.nodes_info_count += 1
-        nodes_resource_usage = resource_usage_sum(
-            node_info["resource_usage"] for node_info in nodes.itervalues()
-        )
+        nodes_resource_usage = resource_usage_sum(node_info["resource_usage"] for node_info in nodes.itervalues())
         if not resources_equal(nodes_resource_usage, self.operations_resource_usage):
             self.nodes_info_error_count += 1
 
@@ -562,9 +522,9 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 @authors("mrkastep")
 class TestSchedulerSimulatorWithRemoteEventLog(TestSchedulerSimulator):
     def _set_scheduler_simulator_config_params(self, simulator_files_path):
-        super(
-            TestSchedulerSimulatorWithRemoteEventLog, self
-        )._set_scheduler_simulator_config_params(simulator_files_path)
+        super(TestSchedulerSimulatorWithRemoteEventLog, self)._set_scheduler_simulator_config_params(
+            simulator_files_path
+        )
 
         connection = self._get_cluster_connection()
         create("table", "//tmp/event_log")
@@ -588,9 +548,7 @@ class TestSchedulerSimulatorWithRemoteEventLog(TestSchedulerSimulator):
 @authors("mrkastep")
 class TestSchedulerSimulatorWithVectorHDRF(TestSchedulerSimulator):
     def _set_scheduler_simulator_config_params(self, simulator_files_path):
-        super(
-            TestSchedulerSimulatorWithVectorHDRF, self
-        )._set_scheduler_simulator_config_params(simulator_files_path)
+        super(TestSchedulerSimulatorWithVectorHDRF, self)._set_scheduler_simulator_config_params(simulator_files_path)
 
         self.scheduler_simulator_config["use_classic_scheduler"] = False
 

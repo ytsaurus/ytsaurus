@@ -93,12 +93,8 @@ class TestSecurityTags(YTEnvSetup):
 
         tx = start_transaction()
         assert_items_equal(get("//tmp/t/@security_tags", tx=tx), ["tag1", "tag2"])
-        write_table(
-            "<security_tags=[tag2;tag3];append=%true>//tmp/t", [{"c": "d"}], tx=tx
-        )
-        assert_items_equal(
-            get("//tmp/t/@security_tags", tx=tx), ["tag1", "tag2", "tag3"]
-        )
+        write_table("<security_tags=[tag2;tag3];append=%true>//tmp/t", [{"c": "d"}], tx=tx)
+        assert_items_equal(get("//tmp/t/@security_tags", tx=tx), ["tag1", "tag2", "tag3"])
         commit_transaction(tx)
 
         assert_items_equal(get("//tmp/t/@security_tags"), ["tag1", "tag2", "tag3"])
@@ -127,9 +123,7 @@ class TestSecurityTags(YTEnvSetup):
                 "additional_security_tags": ["tag0"],
             },
         )
-        assert_items_equal(
-            get("//tmp/t_out1/@security_tags"), ["tag0", "tag1", "tag2", "tag4"]
-        )
+        assert_items_equal(get("//tmp/t_out1/@security_tags"), ["tag0", "tag1", "tag2", "tag4"])
         assert_items_equal(get("//tmp/t_out2/@security_tags"), ["tag5"])
         assert_items_equal(get("//tmp/t_out3/@security_tags"), ["tag3", "tag6"])
 
@@ -228,9 +222,7 @@ class TestSecurityTags(YTEnvSetup):
 
         concatenate(["//tmp/t1", "//tmp/t2"], "<append=%true>//tmp/union")
         assert read_table("//tmp/union") == [{"key": "z"}, {"key": "x"}, {"key": "y"}]
-        assert_items_equal(
-            get("//tmp/union/@security_tags"), ["tag1", "tag2", "tag3", "tag4"]
-        )
+        assert_items_equal(get("//tmp/union/@security_tags"), ["tag1", "tag2", "tag3", "tag4"])
 
     @authors("babenko")
     def test_concatenate_override(self):

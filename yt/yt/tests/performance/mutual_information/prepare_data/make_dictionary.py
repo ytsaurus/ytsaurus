@@ -13,7 +13,6 @@ if __name__ == "__main__":
     dict.generate(int(sys.argv[1]), int(sys.argv[2]))
     dict.save(sys.stdout)
 
-    #print >>sys.stderr, dict.words[:5]
-    #for _ in xrange(1000):
+    # print >>sys.stderr, dict.words[:5]
+    # for _ in xrange(1000):
     #    print dict.get_random_word()
-

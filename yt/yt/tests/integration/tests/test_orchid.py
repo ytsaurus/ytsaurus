@@ -48,18 +48,13 @@ class TestOrchid(YTEnvSetup):
             peers = get("//sys/tablet_cells/" + cell + "/@peers")
             for peer in peers:
                 address = peer["address"]
-                peer_cells = ls(
-                    "//sys/cluster_nodes/" + address + "/orchid/tablet_cells"
-                )
+                peer_cells = ls("//sys/cluster_nodes/" + address + "/orchid/tablet_cells")
                 assert cell in peer_cells
 
     @authors("ifsmirnov")
     def test_master_reign(self):
         peer = ls("//sys/primary_masters")[0]
-        assert (
-            type(get("//sys/primary_masters/{}/orchid/reign".format(peer)))
-            == yson.YsonInt64
-        )
+        assert type(get("//sys/primary_masters/{}/orchid/reign".format(peer))) == yson.YsonInt64
 
 
 ##################################################################
@@ -71,6 +66,4 @@ class TestOrchidMulticell(TestOrchid):
     @authors("babenko")
     def test_at_secondary_masters(self):
         for tag in range(1, self.NUM_SECONDARY_MASTER_CELLS + 1):
-            self._check_orchid(
-                "//sys/secondary_masters/" + str(tag), self.NUM_MASTERS, "master"
-            )
+            self._check_orchid("//sys/secondary_masters/" + str(tag), self.NUM_MASTERS, "master")

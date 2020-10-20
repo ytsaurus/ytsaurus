@@ -109,9 +109,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
             out="//tmp/t2",
             command=r'cat; echo "{v1=\"$V1\"};{v2=\"$TMPDIR\"}"',
             spec={
-                "mapper": {
-                    "environment": {"V1": "Some data", "TMPDIR": "$(SandboxPath)/mytmp"}
-                },
+                "mapper": {"environment": {"V1": "Some data", "TMPDIR": "$(SandboxPath)/mytmp"}},
                 "title": "MyTitle",
             },
         )
@@ -141,9 +139,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         map(in_="//tmp/t1", out="//tmp/t2", command=command)
 
         new_data = read_table("//tmp/t2", verbose=False)
-        assert sorted(row.items() for row in new_data) == [
-            [("index", i)] for i in xrange(count)
-        ]
+        assert sorted(row.items() for row in new_data) == [[("index", i)] for i in xrange(count)]
 
     @authors("ignat")
     def test_two_outputs_at_the_same_time(self):
@@ -169,9 +165,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         )
 
         assert read_table("//tmp/t_output2") == [{"value": 42}]
-        assert sorted([row.items() for row in read_table("//tmp/t_output1")]) == [
-            [("index", i)] for i in xrange(count)
-        ]
+        assert sorted([row.items() for row in read_table("//tmp/t_output1")]) == [[("index", i)] for i in xrange(count)]
 
     @authors("ignat")
     def test_write_two_outputs_consistently(self):
@@ -216,10 +210,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@row_count") == 1
 
-        row_count = get(
-            op.get_path()
-            + "/@progress/job_statistics/data/input/row_count/$/completed/map/sum"
-        )
+        row_count = get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/map/sum")
         assert row_count == 1
 
     @authors("psushin")
@@ -235,15 +226,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
             out=["//tmp/t2", "//tmp/t3"],
         )
         assert get("//tmp/t2/@row_count") == 5
-        row_count = get(
-            op.get_path()
-            + "/@progress/job_statistics/data/output/0/row_count/$/completed/map/sum"
-        )
+        row_count = get(op.get_path() + "/@progress/job_statistics/data/output/0/row_count/$/completed/map/sum")
         assert row_count == 5
-        row_count = get(
-            op.get_path()
-            + "/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum"
-        )
+        row_count = get(op.get_path() + "/@progress/job_statistics/data/output/1/row_count/$/completed/map/sum")
         assert row_count == 1
 
     @authors("renadeen")
@@ -259,14 +244,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         )  # so much to see non-zero decode CPU usage in release mode
 
         op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
-        decode_time = get(
-            op.get_path()
-            + "/@progress/job_statistics/codec/cpu/decode/lzma_9/$/completed/map/sum"
-        )
-        encode_time = get(
-            op.get_path()
-            + "/@progress/job_statistics/codec/cpu/encode/0/lzma_1/$/completed/map/sum"
-        )
+        decode_time = get(op.get_path() + "/@progress/job_statistics/codec/cpu/decode/lzma_9/$/completed/map/sum")
+        encode_time = get(op.get_path() + "/@progress/job_statistics/codec/cpu/encode/0/lzma_1/$/completed/map/sum")
         assert decode_time > 0
         assert encode_time > 0
 
@@ -352,9 +331,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 command=command,
                 spec={"job_count": job_count},
             )
-            assert read_table(table_name) == [
-                {"hello": "world"} for _ in range(expected_num_records)
-            ]
+            assert read_table(table_name) == [{"hello": "world"} for _ in range(expected_num_records)]
 
         check("//tmp/t2", 3, 3)
         check("//tmp/t3", 10, 5)  # number of jobs cannot be more than number of rows.
@@ -414,13 +391,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
         write_table("//tmp/t_in", {"a": "b"})
 
         if yamr_mode:
-            mapper = (
-                "cat  > /dev/null; echo {v = 0} >&3; echo {v = 1} >&4; echo {v = 2} >&5"
-            )
+            mapper = "cat  > /dev/null; echo {v = 0} >&3; echo {v = 1} >&4; echo {v = 2} >&5"
         else:
-            mapper = (
-                "cat  > /dev/null; echo {v = 0} >&1; echo {v = 1} >&4; echo {v = 2} >&7"
-            )
+            mapper = "cat  > /dev/null; echo {v = 0} >&1; echo {v = 1} >&4; echo {v = 2} >&7"
 
         create("file", "//tmp/mapper.sh")
         write_file("//tmp/mapper.sh", mapper)
@@ -621,9 +594,7 @@ print row + table_index
 
     @authors("ogorod")
     def test_check_input_fully_consumed_statistics_simple(self):
-        self.check_input_fully_consumed_statistics_base(
-            "python3 -c 'print(input())'", expected_output=[{"foo": "bar"}]
-        )
+        self.check_input_fully_consumed_statistics_base("python3 -c 'print(input())'", expected_output=[{"foo": "bar"}])
 
     @authors("acid", "ogorod")
     def test_check_input_fully_consumed_statistics_all_consumed(self):
@@ -631,9 +602,7 @@ print row + table_index
 
     @authors("tramsmm", "ogorod")
     def test_check_input_fully_consumed_statistics_throw_on_failure(self):
-        self.check_input_fully_consumed_statistics_base(
-            "exit 0", throw_on_failure=True, expected_output=[]
-        )
+        self.check_input_fully_consumed_statistics_base("exit 0", throw_on_failure=True, expected_output=[])
 
     @authors("max42")
     def test_live_preview(self):
@@ -667,12 +636,8 @@ print row + table_index
         operation_path = op.get_path()
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         assert exists(operation_path + "/output_0", tx=async_transaction_id)
-        assert effective_acl == get(
-            operation_path + "/output_0/@acl", tx=async_transaction_id
-        )
-        assert schema == normalize_schema(
-            get(operation_path + "/output_0/@schema", tx=async_transaction_id)
-        )
+        assert effective_acl == get(operation_path + "/output_0/@acl", tx=async_transaction_id)
+        assert schema == normalize_schema(get(operation_path + "/output_0/@schema", tx=async_transaction_id))
 
         for job_id in jobs[:2]:
             release_breakpoint(job_id=job_id)
@@ -680,12 +645,8 @@ print row + table_index
         wait(lambda: op.get_job_count("completed") >= 2)
 
         def check():
-            live_preview_data = read_table(
-                operation_path + "/output_0", tx=async_transaction_id
-            )
-            return len(live_preview_data) == 2 and all(
-                record in data for record in live_preview_data
-            )
+            live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
+            return len(live_preview_data) == 2 and all(record in data for record in live_preview_data)
 
         wait(check)
 
@@ -707,9 +668,7 @@ print row + table_index
 
         op = map(
             track=False,
-            command=with_breakpoint(
-                'echo "{a=$YT_JOB_INDEX}" >&1; echo "{b=$YT_JOB_INDEX}" >&4; BREAKPOINT'
-            ),
+            command=with_breakpoint('echo "{a=$YT_JOB_INDEX}" >&1; echo "{b=$YT_JOB_INDEX}" >&4; BREAKPOINT'),
             in_="//tmp/t_in",
             out=["//tmp/t_out1", "//tmp/t_out2"],
             spec={"data_size_per_job": 1},
@@ -724,12 +683,10 @@ print row + table_index
         wait(lambda: exists(operation_path + "/controller_orchid"))
 
         live_preview_data1 = read_table(
-            operation_path
-            + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0"
+            operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0"
         )
         live_preview_data2 = read_table(
-            operation_path
-            + "/controller_orchid/data_flow_graph/vertices/map/live_previews/1"
+            operation_path + "/controller_orchid/data_flow_graph/vertices/map/live_previews/1"
         )
         live_preview_data1 = [d["a"] for d in live_preview_data1]
         live_preview_data2 = [d["b"] for d in live_preview_data2]
@@ -751,11 +708,7 @@ print row + table_index
 
         command = "cat"
         sampling_rate = 0.5
-        spec = {
-            "job_io": {
-                "table_reader": {"sampling_seed": 42, "sampling_rate": sampling_rate}
-            }
-        }
+        spec = {"job_io": {"table_reader": {"sampling_seed": 42, "sampling_rate": sampling_rate}}}
 
         map(in_="//tmp/t1", out="//tmp/t2", command=command, spec=spec)
         map(in_="//tmp/t1", out="//tmp/t3", command=command, spec=spec)
@@ -763,9 +716,7 @@ print row + table_index
         new_data_t2 = read_table("//tmp/t2", verbose=False)
         new_data_t3 = read_table("//tmp/t3", verbose=False)
 
-        assert sorted(row.items() for row in new_data_t2) == sorted(
-            row.items() for row in new_data_t3
-        )
+        assert sorted(row.items() for row in new_data_t2) == sorted(row.items() for row in new_data_t3)
 
         actual_rate = len(new_data_t2) * 1.0 / len(original_data)
         variation = sampling_rate * (1 - sampling_rate)
@@ -813,11 +764,7 @@ print row + table_index
         wait_breakpoint(job_count=5)
 
         for n in get("//sys/cluster_nodes"):
-            scheduler_jobs = get(
-                "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(
-                    n
-                )
-            )
+            scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
             for job_id, values in scheduler_jobs.items():
                 assert "start_time" in values
                 assert "operation_id" in values
@@ -825,9 +772,7 @@ print row + table_index
                 assert "job_type" in values
                 assert "duration" in values
 
-            slot_manager = get(
-                "//sys/cluster_nodes/{0}/orchid/job_controller/slot_manager".format(n)
-            )
+            slot_manager = get("//sys/cluster_nodes/{0}/orchid/job_controller/slot_manager".format(n))
             assert "free_slot_count" in slot_manager
             assert "slot_count" in slot_manager
 
@@ -899,9 +844,7 @@ print row + table_index
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
         assert normalize_schema(get("//tmp/output/@schema")) == schema
-        assert_items_equal(
-            read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)]
-        )
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
         map(
             in_="//tmp/input",
@@ -1123,15 +1066,9 @@ print row + table_index
             command="cat",
         )
 
-        assert read_table("//tmp/output_table_1") == [
-            {"first_column_1": 1001, "third_column_1": 3001}
-        ]
-        assert read_table("//tmp/output_table_2") == [
-            {"first_column_2": 1002, "second_column_2": 2002}
-        ]
-        assert read_table("//tmp/output_table_3") == [
-            {"first_column_2": 1002, "second_column_2": 2002}
-        ]
+        assert read_table("//tmp/output_table_1") == [{"first_column_1": 1001, "third_column_1": 3001}]
+        assert read_table("//tmp/output_table_2") == [{"first_column_2": 1002, "second_column_2": 2002}]
+        assert read_table("//tmp/output_table_3") == [{"first_column_2": 1002, "second_column_2": 2002}]
 
     @authors("lukyan")
     @pytest.mark.parametrize("mode", ["unordered", "ordered"])
@@ -1199,10 +1136,7 @@ print row + table_index
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
-            [
-                {"key": "%08d" % i, "value": "(t_1)", "data": "a" * (2 * 1024 * 1024)}
-                for i in range(3)
-            ],
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (2 * 1024 * 1024)} for i in range(3)],
             table_writer={"block_size": 1024, "desired_chunk_size": 1024},
         )
 
@@ -1219,9 +1153,7 @@ print row + table_index
             label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
-            command=with_breakpoint(
-                """read; echo "${REPLY/(???)/(job)}"; echo "$REPLY" ; BREAKPOINT ; cat"""
-            ),
+            command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}"; echo "$REPLY" ; BREAKPOINT ; cat"""),
             spec={
                 "mapper": {"format": "dsv"},
                 "max_failed_job_count": 1,
@@ -1253,12 +1185,7 @@ print row + table_index
                 row_index += 1
         assert 0 < job_indexes[1] < 99999
         assert (
-            get(
-                op.get_path()
-                + "/@progress/job_statistics/data/input/row_count/$/completed/{}/sum".format(
-                    job_type
-                )
-            )
+            get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/{}/sum".format(job_type))
             == len(result) - 2
         )
 
@@ -1294,10 +1221,7 @@ print row + table_index
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
-            [
-                {"key": "%08d" % i, "value": "(t_1)", "data": "a" * (2 * 1024 * 1024)}
-                for i in range(3)
-            ],
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (2 * 1024 * 1024)} for i in range(3)],
             table_writer={"block_size": 1024, "desired_chunk_size": 1024},
         )
 
@@ -1352,22 +1276,16 @@ print row + table_index
         create(
             "table",
             "//tmp/t_input",
-            attributes={
-                "schema": [{"name": "key", "sort_order": "ascending", "type": "int64"}]
-            },
+            attributes={"schema": [{"name": "key", "sort_order": "ascending", "type": "int64"}]},
         )
         create("table", "//tmp/t_output")
         original_data = [{"key": i} for i in xrange(1000)]
         for i in xrange(10):
-            write_table(
-                "<append=true>//tmp/t_input", original_data[100 * i : 100 * (i + 1)]
-            )
+            write_table("<append=true>//tmp/t_input", original_data[100 * i : 100 * (i + 1)])
 
         op = map(
             in_="//tmp/t_input",
-            out="<sorted_by=[key]>//tmp/t_output"
-            if with_output_schema
-            else "//tmp/t_output",
+            out="<sorted_by=[key]>//tmp/t_output" if with_output_schema else "//tmp/t_output",
             command="cat; sleep $(($RANDOM % 5)); echo stderr 1>&2",
             ordered=True,
             spec={"job_count": 5},
@@ -1403,10 +1321,7 @@ print row + table_index
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
-            [
-                {"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)}
-                for i in range(20)
-            ],
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
         )
 
         input_ = "//tmp/in_1"
@@ -1462,19 +1377,14 @@ done
         create("table", "//tmp/in_1")
         write_table(
             "//tmp/in_1",
-            [
-                {"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)}
-                for i in range(20)
-            ],
+            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
         )
 
         input_ = "//tmp/in_1"
         output = "//tmp/output"
         create("table", output)
 
-        op = map(
-            in_=[input_] * 10, out=output, command="sleep 5; echo '{a=1}'", track=False
-        )
+        op = map(in_=[input_] * 10, out=output, command="sleep 5; echo '{a=1}'", track=False)
         time.sleep(2.0)
         assert len(get(op.get_path() + "/controller_orchid/job_splitter")) == 0
         op.track()
@@ -1484,9 +1394,7 @@ done
         create(
             "table",
             "//tmp/t",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         write_table("//tmp/t", [{"key": 1}])
 
@@ -1503,9 +1411,7 @@ done
             data_flow = get(op.get_path() + "/@progress/data_flow")
             directions = {}
             for direction in data_flow:
-                directions[
-                    (direction["source_name"], direction["target_name"])
-                ] = direction
+                directions[(direction["source_name"], direction["target_name"])] = direction
             return directions
 
         op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command="cat")
@@ -1514,14 +1420,9 @@ done
         directions = get_directions(op)
         assert len(directions) == 2
         assert directions[("input", "map")]["job_data_statistics"]["data_weight"] == 0
-        assert (
-            directions[("input", "map")]["teleport_data_statistics"]["data_weight"] == 2
-        )
+        assert directions[("input", "map")]["teleport_data_statistics"]["data_weight"] == 2
         assert directions[("map", "output")]["job_data_statistics"]["data_weight"] == 2
-        assert (
-            directions[("map", "output")]["teleport_data_statistics"]["data_weight"]
-            == 0
-        )
+        assert directions[("map", "output")]["teleport_data_statistics"]["data_weight"] == 0
 
         op = map(
             track=False,
@@ -1536,26 +1437,11 @@ done
         directions = get_directions(op)
         assert len(directions) == 3
         assert directions[("input", "map")]["job_data_statistics"]["data_weight"] == 0
-        assert (
-            directions[("input", "map")]["teleport_data_statistics"]["data_weight"] == 2
-        )
-        assert (
-            directions[("map", "auto_merge")]["job_data_statistics"]["data_weight"] == 2
-        )
-        assert (
-            directions[("map", "auto_merge")]["teleport_data_statistics"]["data_weight"]
-            == 0
-        )
-        assert (
-            directions[("auto_merge", "output")]["job_data_statistics"]["data_weight"]
-            == 2
-        )
-        assert (
-            directions[("auto_merge", "output")]["teleport_data_statistics"][
-                "data_weight"
-            ]
-            == 0
-        )
+        assert directions[("input", "map")]["teleport_data_statistics"]["data_weight"] == 2
+        assert directions[("map", "auto_merge")]["job_data_statistics"]["data_weight"] == 2
+        assert directions[("map", "auto_merge")]["teleport_data_statistics"]["data_weight"] == 0
+        assert directions[("auto_merge", "output")]["job_data_statistics"]["data_weight"] == 2
+        assert directions[("auto_merge", "output")]["teleport_data_statistics"]["data_weight"] == 0
 
     @authors("gritukan")
     def test_data_flow_graph(self):
@@ -1611,10 +1497,7 @@ done
         create("table", "//tmp/t2")
         op = map(in_="//tmp/t1", out="//tmp/t2", command="cat")
 
-        assert (
-            get(op.get_path() + "/@progress/legacy_controller")
-            == self.USE_LEGACY_CONTROLLERS
-        )
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
     @authors("gritukan")
     def test_end_of_stream(self):
@@ -1723,9 +1606,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {"map_operation_options": {"data_size_per_job": 1}}
-    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"map_operation_options": {"data_size_per_job": 1}}}
 
     @authors("max42")
     @pytest.mark.skipif("True", reason="YT-8228")
@@ -1747,12 +1628,8 @@ class TestJobSizeAdjuster(YTEnvSetup):
         expected = [{"lines": str(2 ** i)} for i in xrange(5)]
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
-        estimated = get(
-            op.get_path() + "/@progress/tasks/0/estimated_input_data_weight_histogram"
-        )
-        histogram = get(
-            op.get_path() + "/@progress/tasks/0/input_data_weight_histogram"
-        )
+        estimated = get(op.get_path() + "/@progress/tasks/0/estimated_input_data_weight_histogram")
+        histogram = get(op.get_path() + "/@progress/tasks/0/input_data_weight_histogram")
         assert estimated == histogram
         assert histogram["max"] / histogram["min"] == 16
         assert histogram["count"][0] == 1
@@ -1961,9 +1838,7 @@ print "key\\tsubkey\\tvalue"
             },
         )
 
-        assert read_table("//tmp/t_out") == [
-            {"key": "key", "subkey": "subkey", "value": "value"}
-        ]
+        assert read_table("//tmp/t_out") == [{"key": "key", "subkey": "subkey", "value": "value"}]
 
     @authors("ignat")
     def test_yamr_input_format(self):
@@ -2066,9 +1941,7 @@ print '{hello=world}'
         create(
             "table",
             "//tmp/t_in",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/t_out")
         in_content = [{"key": 0}, {"key": 1}, {"key": 2}]

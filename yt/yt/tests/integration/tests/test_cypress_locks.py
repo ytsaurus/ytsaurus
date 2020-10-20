@@ -57,9 +57,7 @@ class TestCypressLocks(YTEnvSetup):
         create("map_node", "//tmp/node", driver=driver)
 
         tx = start_transaction(driver=driver)
-        rsp = lock(
-            "//tmp/node", mode="snapshot", tx=tx, full_response=True, driver=driver
-        )
+        rsp = lock("//tmp/node", mode="snapshot", tx=tx, full_response=True, driver=driver)
         assert rsp.keys() == ["lock_id", "node_id", "revision"]
         assert rsp["lock_id"] == get("//tmp/node/@locks/0/id")
 
@@ -93,19 +91,11 @@ class TestCypressLocks(YTEnvSetup):
         abort_transaction(tx)
 
     def _get_tx_lock_ids(self, tx):
-        return [
-            lock_id
-            for cell_tag, lock_ids in get("#{0}/@lock_ids".format(tx)).items()
-            for lock_id in lock_ids
-        ]
+        return [lock_id for cell_tag, lock_ids in get("#{0}/@lock_ids".format(tx)).items() for lock_id in lock_ids]
 
     def _get_tx_locked_node_ids(self, tx):
         cell_tag_to_locked_node_ids = get("#{0}/@locked_node_ids".format(tx))
-        return [
-            lock_id
-            for cell_tag, lock_ids in cell_tag_to_locked_node_ids.items()
-            for lock_id in lock_ids
-        ]
+        return [lock_id for cell_tag, lock_ids in cell_tag_to_locked_node_ids.items() for lock_id in lock_ids]
 
     def _assert_locked(self, path, tx, mode, child_key=None, attribute_key=None):
         self._assert_locked_impl(path, tx, True)
@@ -172,9 +162,7 @@ class TestCypressLocks(YTEnvSetup):
         other_tx = start_transaction()
 
         acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=other_tx)["lock_id"]
-        pending_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx2, waitable=True)[
-            "lock_id"
-        ]
+        pending_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx2, waitable=True)["lock_id"]
         assert get("#" + acquired_lock_id + "/@state") == "acquired"
         assert get("#" + pending_lock_id + "/@state") == "pending"
 
@@ -209,9 +197,7 @@ class TestCypressLocks(YTEnvSetup):
         commit_transaction(tx1)  # mustn't crash
 
     @authors("shakurov")
-    @pytest.mark.parametrize(
-        "mode", ["snapshot", "exclusive", "shared_child", "shared_attribute"]
-    )
+    @pytest.mark.parametrize("mode", ["snapshot", "exclusive", "shared_child", "shared_attribute"])
     def test_unlock_explicit(self, mode):
         create("map_node", "//tmp/m1")
 
@@ -980,12 +966,8 @@ class TestCypressLocks(YTEnvSetup):
         tx2 = start_transaction()
         tx3 = start_transaction()
         lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")["lock_id"]
-        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="a", waitable=True)[
-            "lock_id"
-        ]
-        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="b", waitable=True)[
-            "lock_id"
-        ]
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="a", waitable=True)["lock_id"]
+        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="b", waitable=True)["lock_id"]
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
         assert get("#" + lock_id3 + "/@state") == "acquired"
@@ -999,12 +981,8 @@ class TestCypressLocks(YTEnvSetup):
         tx4 = start_transaction()
         lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")["lock_id"]
         lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="b")["lock_id"]
-        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="a", waitable=True)[
-            "lock_id"
-        ]
-        lock_id4 = lock("//tmp/t", tx=tx4, mode="shared", child_key="b", waitable=True)[
-            "lock_id"
-        ]
+        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="a", waitable=True)["lock_id"]
+        lock_id4 = lock("//tmp/t", tx=tx4, mode="shared", child_key="b", waitable=True)["lock_id"]
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "acquired"
         assert get("#" + lock_id3 + "/@state") == "pending"
@@ -1456,13 +1434,8 @@ class TestCypressLocks(YTEnvSetup):
         tx1 = start_transaction()
         lock_id1 = lock("//tmp/a", tx=tx1)["lock_id"]
 
-        assert (
-            parse_yt_time(get("#{}/@creation_time".format(lock_id1)))
-            < get_current_time()
-        )
-        assert get("#{}/@creation_time".format(lock_id1)) == get(
-            "#{}/@acquisition_time".format(lock_id1)
-        )
+        assert parse_yt_time(get("#{}/@creation_time".format(lock_id1))) < get_current_time()
+        assert get("#{}/@creation_time".format(lock_id1)) == get("#{}/@acquisition_time".format(lock_id1))
 
         tx2 = start_transaction()
         lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)["lock_id"]
@@ -1471,13 +1444,10 @@ class TestCypressLocks(YTEnvSetup):
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("//tmp/a/@lock_mode", tx=tx1) == "exclusive"
         assert get("#" + lock_id2 + "/@state") == "pending"
-        assert (
-            parse_yt_time(get("#{}/@creation_time".format(lock_id2)))
-            < get_current_time()
+        assert parse_yt_time(get("#{}/@creation_time".format(lock_id2))) < get_current_time()
+        assert parse_yt_time(get("#{}/@creation_time".format(lock_id1))) < parse_yt_time(
+            get("#{}/@creation_time".format(lock_id2))
         )
-        assert parse_yt_time(
-            get("#{}/@creation_time".format(lock_id1))
-        ) < parse_yt_time(get("#{}/@creation_time".format(lock_id2)))
 
         abort_transaction(tx1)
 
@@ -1485,10 +1455,7 @@ class TestCypressLocks(YTEnvSetup):
         assert get("#" + lock_id2 + "/@state") == "acquired"
         assert get("//tmp/a/@lock_mode", tx=tx2) == "exclusive"
         assert exists("#{}/@acquisition_time".format(lock_id2))
-        assert (
-            parse_yt_time(get("#{}/@acquisition_time".format(lock_id2)))
-            < get_current_time()
-        )
+        assert parse_yt_time(get("#{}/@acquisition_time".format(lock_id2))) < get_current_time()
 
 
 ##################################################################

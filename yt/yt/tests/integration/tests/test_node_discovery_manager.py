@@ -45,9 +45,7 @@ class Base:
         ]
 
         def check():
-            metrics_before = [
-                metric.update().get(verbose=True) or 0 for metric in metrics
-            ]
+            metrics_before = [metric.update().get(verbose=True) or 0 for metric in metrics]
             while True:
                 time.sleep(0.5)
                 try:
@@ -56,9 +54,7 @@ class Base:
                 except:
                     continue
                 time.sleep(0.5)
-                metrics_after = [
-                    metric.update().get(verbose=True) or 0 for metric in metrics
-                ]
+                metrics_after = [metric.update().get(verbose=True) or 0 for metric in metrics]
 
                 ok = True
                 for node_id in xrange(len(metrics)):
@@ -227,9 +223,7 @@ class TestTimestampProvider(Base, YTEnvSetup):
         "cell_id": "1-1-1-1",
     }
 
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {"timestamp_provider": TIMESTAMP_PROVIDER_CONFIG}
-    }
+    DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": TIMESTAMP_PROVIDER_CONFIG}}
 
     DELTA_DRIVER_CONFIG = {"timestamp_provider": TIMESTAMP_PROVIDER_CONFIG}
 

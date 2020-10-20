@@ -13,4 +13,3 @@ if __name__ == "__main__":
     proc.communicate()
 
     print "table=%s" % output_table
-

@@ -69,15 +69,9 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 break
             if op.get_state() == "failed":
                 op.track()  # this should raise an exception
-            current_chunk_count = get(
-                "//sys/accounts/acc/@resource_usage/chunk_count", verbose=False
-            )
+            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count", verbose=False)
             peak_chunk_count = max(peak_chunk_count, current_chunk_count)
-            print_debug(
-                "Peak chunk count = {}, current chunk count = {}".format(
-                    peak_chunk_count, current_chunk_count
-                )
-            )
+            print_debug("Peak chunk count = {}, current chunk count = {}".format(peak_chunk_count, current_chunk_count))
             sleep(2)
             if with_revive:
                 i += 1
@@ -97,9 +91,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create(
             "table",
             "//tmp/t_in",
-            attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/t_out")
 
@@ -149,9 +141,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             op.track()
             assert (
                 get("//tmp/t_out/@chunk_count")
-                == (row_count - 1)
-                // min(chunk_count_per_merge_job, max_intermediate_chunk_count)
-                + 1
+                == (row_count - 1) // min(chunk_count_per_merge_job, max_intermediate_chunk_count) + 1
             )
             assert get("//tmp/t_out/@row_count") == row_count
 
@@ -164,9 +154,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create(
             "table",
             "//tmp/t_in",
-            attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/t_out")
 
@@ -381,28 +369,11 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
         assert len(directions) == 3
         assert directions[("input", "map")]["job_data_statistics"]["chunk_count"] == 0
-        assert (
-            directions[("input", "map")]["teleport_data_statistics"]["chunk_count"]
-            == 10
-        )
-        assert (
-            directions[("map", "auto_merge")]["job_data_statistics"]["chunk_count"]
-            == 10
-        )
-        assert (
-            directions[("map", "auto_merge")]["teleport_data_statistics"]["chunk_count"]
-            == 0
-        )
-        assert (
-            directions[("auto_merge", "output")]["job_data_statistics"]["chunk_count"]
-            == 1
-        )
-        assert (
-            directions[("auto_merge", "output")]["teleport_data_statistics"][
-                "chunk_count"
-            ]
-            == 5
-        )
+        assert directions[("input", "map")]["teleport_data_statistics"]["chunk_count"] == 10
+        assert directions[("map", "auto_merge")]["job_data_statistics"]["chunk_count"] == 10
+        assert directions[("map", "auto_merge")]["teleport_data_statistics"]["chunk_count"] == 0
+        assert directions[("auto_merge", "output")]["job_data_statistics"]["chunk_count"] == 1
+        assert directions[("auto_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 5
 
     @authors("max42")
     @pytest.mark.timeout(60)
@@ -581,9 +552,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 op.track()  # this should raise an exception
             for i in range(2):
                 for vertex in live_preview_appeared:
-                    path = op.get_path() + "/orchid/data_flow_graph/vertices/{0}/live_previews/{1}".format(
-                        vertex, i
-                    )
+                    path = op.get_path() + "/orchid/data_flow_graph/vertices/{0}/live_previews/{1}".format(vertex, i)
                     try:
                         if not exists(path, verbose=False):
                             continue
@@ -593,20 +562,14 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                             table_reader={"unavailable_chunk_strategy": "skip"},
                         )
                         if len(data) > 0 and not live_preview_appeared[vertex][i]:
-                            print_debug(
-                                "Live preview of type {0} and index {1} appeared".format(
-                                    vertex, i
-                                )
-                            )
+                            print_debug("Live preview of type {0} and index {1} appeared".format(vertex, i))
                         live_preview_appeared[vertex][i] = True
                     except YtError:
                         pass
             time.sleep(0.5)
             print_debug("{0} jobs completed".format(op.get_job_count("completed")))
 
-            if all(live_preview_appeared["map"]) and all(
-                live_preview_appeared["auto_merge"]
-            ):
+            if all(live_preview_appeared["map"]) and all(live_preview_appeared["auto_merge"]):
                 break
 
         op.track()

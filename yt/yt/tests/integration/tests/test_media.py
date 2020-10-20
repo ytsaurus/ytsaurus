@@ -20,12 +20,8 @@ class TestMedia(YTEnvSetup):
     def setup_class(cls):
         super(TestMedia, cls).setup_class()
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
-        set_account_disk_space_limit(
-            "tmp", disk_space_limit, TestMedia.NON_DEFAULT_MEDIUM
-        )
-        set_account_disk_space_limit(
-            "tmp", disk_space_limit, TestMedia.NON_DEFAULT_TRANSIENT_MEDIUM
-        )
+        set_account_disk_space_limit("tmp", disk_space_limit, TestMedia.NON_DEFAULT_MEDIUM)
+        set_account_disk_space_limit("tmp", disk_space_limit, TestMedia.NON_DEFAULT_TRANSIENT_MEDIUM)
 
     @classmethod
     def modify_node_config(cls, config):
@@ -85,12 +81,8 @@ class TestMedia(YTEnvSetup):
                 del d[k]
 
     def _check_account_and_table_usage_equal(self, tbl):
-        account_usage = self._remove_zeros(
-            get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium")
-        )
-        table_usage = self._remove_zeros(
-            get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl))
-        )
+        account_usage = self._remove_zeros(get("//sys/accounts/tmp/@resource_usage/disk_space_per_medium"))
+        table_usage = self._remove_zeros(get("//tmp/{0}/@resource_usage/disk_space_per_medium".format(tbl)))
         return account_usage == table_usage
 
     def _check_chunk_ok(self, ok, chunk_id, media):
@@ -122,15 +114,10 @@ class TestMedia(YTEnvSetup):
         return True
 
     def _get_chunk_replica_nodes(self, chunk_id):
-        return __builtin__.set(
-            str(r) for r in get("#{0}/@stored_replicas".format(chunk_id))
-        )
+        return __builtin__.set(str(r) for r in get("#{0}/@stored_replicas".format(chunk_id)))
 
     def _get_chunk_replica_media(self, chunk_id):
-        return __builtin__.set(
-            r.attributes["medium"]
-            for r in get("#{0}/@stored_replicas".format(chunk_id))
-        )
+        return __builtin__.set(r.attributes["medium"] for r in get("#{0}/@stored_replicas".format(chunk_id)))
 
     def _ban_nodes(self, nodes):
         banned = False
@@ -299,15 +286,11 @@ class TestMedia(YTEnvSetup):
         create("table", "//tmp/t5")
         write_table("//tmp/t5", {"a": "b"})
 
-        empty_tbl_media = {
-            "default": {"replication_factor": 0, "data_parts_only": False}
-        }
+        empty_tbl_media = {"default": {"replication_factor": 0, "data_parts_only": False}}
         with pytest.raises(YtError):
             set("//tmp/t5/@media", empty_tbl_media)
 
-        parity_loss_tbl_media = {
-            "default": {"replication_factor": 3, "data_parts_only": True}
-        }
+        parity_loss_tbl_media = {"default": {"replication_factor": 3, "data_parts_only": True}}
         with pytest.raises(YtError):
             set("//tmp/t5/@media", parity_loss_tbl_media)
 
@@ -385,19 +368,11 @@ class TestMedia(YTEnvSetup):
 
         assert get("//tmp/t8/@replication_factor") == TestMedia.NUM_NODES
         assert get("//tmp/t8/@media/default/replication_factor") == TestMedia.NUM_NODES
-        assert (
-            get(
-                "//tmp/t8/@media/{}/replication_factor".format(
-                    TestMedia.NON_DEFAULT_MEDIUM
-                )
-            )
-            == TestMedia.NUM_NODES
-        )
+        assert get("//tmp/t8/@media/{}/replication_factor".format(TestMedia.NON_DEFAULT_MEDIUM)) == TestMedia.NUM_NODES
 
         wait(
             lambda: self._count_chunks_on_medium("t8", "default") == TestMedia.NUM_NODES
-            and self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM)
-            == TestMedia.NUM_NODES
+            and self._count_chunks_on_medium("t8", TestMedia.NON_DEFAULT_MEDIUM) == TestMedia.NUM_NODES
         )
 
     @authors("shakurov")
@@ -429,9 +404,7 @@ class TestMedia(YTEnvSetup):
 
     @authors("babenko")
     def test_journal_medium(self):
-        create(
-            "journal", "//tmp/j", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM}
-        )
+        create("journal", "//tmp/j", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/j/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
         data = [{"data": "payload" + str(i)} for i in xrange(0, 10)]
         write_journal("//tmp/j", data)
@@ -442,9 +415,7 @@ class TestMedia(YTEnvSetup):
 
     @authors("babenko")
     def test_file_medium(self):
-        create(
-            "file", "//tmp/f", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM}
-        )
+        create("file", "//tmp/f", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/f/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
         write_file("//tmp/f", "payload")
         chunk_id = get_singular_chunk_id("//tmp/f")
@@ -453,9 +424,7 @@ class TestMedia(YTEnvSetup):
 
     @authors("babenko")
     def test_table_medium(self):
-        create(
-            "table", "//tmp/t", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM}
-        )
+        create("table", "//tmp/t", attributes={"primary_medium": self.NON_DEFAULT_MEDIUM})
         assert exists("//tmp/t/@media/{0}".format(self.NON_DEFAULT_MEDIUM))
         write_table("//tmp/t", [{"key": "value"}])
         chunk_id = get_singular_chunk_id("//tmp/t")
@@ -476,8 +445,7 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: self._check_chunk_ok(True, chunk_id, {"default"})
-            and len(get("#{0}/@stored_replicas".format(chunk_id)))
-            == codec_replica_count
+            and len(get("#{0}/@stored_replicas".format(chunk_id))) == codec_replica_count
             and self._get_chunk_replica_media(chunk_id) == {"default"}
         )
 
@@ -508,8 +476,7 @@ class TestMedia(YTEnvSetup):
 
         wait(
             lambda: self._check_chunk_ok(True, chunk_id, relevant_media)
-            and len(get("#{0}/@stored_replicas".format(chunk_id)))
-            == len(relevant_media) * codec_replica_count
+            and len(get("#{0}/@stored_replicas".format(chunk_id))) == len(relevant_media) * codec_replica_count
             and self._get_chunk_replica_media(chunk_id) == relevant_media
         )
 
@@ -562,9 +529,7 @@ class TestMedia(YTEnvSetup):
             and len(get("#{0}/@stored_replicas".format(chunk2))) == 2
         )
 
-        set(
-            "//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True
-        )
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
         chunk1_nodes = get("#{0}/@stored_replicas".format(chunk1))

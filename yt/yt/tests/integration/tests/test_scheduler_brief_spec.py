@@ -11,37 +11,23 @@ def check_attributes(op, options):
     if "pool" in options:
         assert get(spec_path + "/pool") == get(brief_spec_path + "/pool")
     if "reducer" in options:
-        assert get(spec_path + "/reducer/command") == get(
-            brief_spec_path + "/reducer/command"
-        )
+        assert get(spec_path + "/reducer/command") == get(brief_spec_path + "/reducer/command")
     if "mapper" in options:
-        assert get(spec_path + "/mapper/command") == get(
-            brief_spec_path + "/mapper/command"
-        )
+        assert get(spec_path + "/mapper/command") == get(brief_spec_path + "/mapper/command")
     if "table_path" in options:
         assert get(spec_path + "/table_path") == get(brief_spec_path + "/table_path")
 
     if "input_table_path" in options:
-        assert get(brief_spec_path + "/input_table_paths/@count") == len(
-            list(get(spec_path + "/input_table_paths"))
-        )
-        assert get(spec_path + "/input_table_paths/0") == get(
-            brief_spec_path + "/input_table_paths/0"
-        )
+        assert get(brief_spec_path + "/input_table_paths/@count") == len(list(get(spec_path + "/input_table_paths")))
+        assert get(spec_path + "/input_table_paths/0") == get(brief_spec_path + "/input_table_paths/0")
 
     if "output_table_path" in options:
-        assert get(brief_spec_path + "/output_table_paths/@count") == len(
-            list(get(spec_path + "/output_table_paths"))
-        )
-        assert get(spec_path + "/output_table_paths/0") == get(
-            brief_spec_path + "/output_table_paths/0"
-        )
+        assert get(brief_spec_path + "/output_table_paths/@count") == len(list(get(spec_path + "/output_table_paths")))
+        assert get(spec_path + "/output_table_paths/0") == get(brief_spec_path + "/output_table_paths/0")
 
     if "output_table_path_1" in options:
         assert get(brief_spec_path + "/output_table_paths/@count") == 1
-        assert get(spec_path + "/output_table_path") == get(
-            brief_spec_path + "/output_table_paths/0"
-        )
+        assert get(spec_path + "/output_table_path") == get(brief_spec_path + "/output_table_paths/0")
 
 
 class TestSchedulerBriefSpec(YTEnvSetup):
@@ -125,9 +111,7 @@ class TestSchedulerBriefSpec(YTEnvSetup):
             reducer_command="cat",
         )
 
-        check_attributes(
-            op, ["mapper", "reducer", "input_table_path", "output_table_path"]
-        )
+        check_attributes(op, ["mapper", "reducer", "input_table_path", "output_table_path"])
 
     @authors("klyachin")
     def test_merge(self):

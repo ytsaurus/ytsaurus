@@ -8,4 +8,3 @@ if __name__ == "__main__":
         words = key.split()
         second = "" if len(words) == 1 else words[1]
         sys.stdout.write("%s\t%s\t%s\n" % (words[0], second, value))
-

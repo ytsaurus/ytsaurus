@@ -142,9 +142,7 @@ class TestRacks(YTEnvSetup):
     def test_write_regular(self):
         self._init_n_racks(2)
         create("file", "//tmp/file")
-        write_file(
-            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3}
-        )
+        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
     @authors("babenko", "ignat")
     def test_write_erasure(self):
@@ -169,30 +167,20 @@ class TestRacks(YTEnvSetup):
             self._set_rack(nodes[i], "r2")
 
         create("file", "//tmp/file")
-        write_file(
-            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3}
-        )
+        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
         chunk_id = get_singular_chunk_id("//tmp/file")
 
         self._set_rack(nodes[0], "r2")
-        wait(
-            lambda: get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
-        )
+        wait(lambda: get("#" + chunk_id + "/@replication_status/default/unsafely_placed"))
 
         self._reset_all_racks()
-        wait(
-            lambda: not get(
-                "#" + chunk_id + "/@replication_status/default/unsafely_placed"
-            )
-        )
+        wait(lambda: not get("#" + chunk_id + "/@replication_status/default/unsafely_placed"))
 
     @authors("babenko")
     def test_regular_move_to_safe_place(self):
         create("file", "//tmp/file")
-        write_file(
-            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3}
-        )
+        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
         chunk_id = get_singular_chunk_id("//tmp/file")
         assert not get("#" + chunk_id + "/@replication_status/default/unsafely_placed")
@@ -274,9 +262,7 @@ class TestRacks(YTEnvSetup):
             self._set_rack(nodes[i], rack)
 
         create("file", "//tmp/file")
-        write_file(
-            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3}
-        )
+        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
         chunk_id = get_singular_chunk_id("//tmp/file")
 
@@ -345,28 +331,18 @@ class TestRacks(YTEnvSetup):
         self._init_n_racks(6)
 
         create("file", "//tmp/file", attributes={"replication_factor": 10})
-        write_file(
-            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 10}
-        )
+        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 10})
 
         chunk_id = get_singular_chunk_id("//tmp/file")
 
         replication_status = get("#{0}/@replication_status/default".format(chunk_id))
-        assert (
-            replication_status["underreplicated"]
-            or replication_status["unsafely_placed"]
-        )
+        assert replication_status["underreplicated"] or replication_status["unsafely_placed"]
 
         set("//sys/media/default/@config/max_replication_factor", 6)
 
         def chunk_is_ok():
-            replication_status = get(
-                "#{0}/@replication_status/default".format(chunk_id)
-            )
-            return (
-                not replication_status["underreplicated"]
-                and not replication_status["unsafely_placed"]
-            )
+            replication_status = get("#{0}/@replication_status/default".format(chunk_id))
+            return not replication_status["underreplicated"] and not replication_status["unsafely_placed"]
 
         wait(lambda: chunk_is_ok)
 

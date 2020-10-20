@@ -119,9 +119,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
     def _get_callback(self, command):
         callbacks = {
             "mount": lambda x: mount_table(x, cell_id=self._cell_id),
-            "frozen_mount": lambda x: mount_table(
-                x, cell_id=self._cell_id, freeze=True
-            ),
+            "frozen_mount": lambda x: mount_table(x, cell_id=self._cell_id, freeze=True),
             "unmount": lambda x: unmount_table(x),
             "freeze": lambda x: freeze_table(x),
             "unfreeze": lambda x: unfreeze_table(x),
@@ -159,21 +157,14 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
                     self._get_callback(second_command)("//tmp/t")
         else:
             self._get_callback(first_command)("//tmp/t")
-            wait(
-                lambda: get("//tmp/t/@tablet_state")
-                in ["mounted", "unmounted", "frozen"]
-            )
+            wait(lambda: get("//tmp/t/@tablet_state") in ["mounted", "unmounted", "frozen"])
             self._get_callback(second_command)("//tmp/t")
             wait(lambda: get("//tmp/t/@tablet_state") == expected)
         wait(lambda: get("//tmp/t/@tablet_state") != "transient")
 
     @authors("savrus", "levysotsky")
-    @pytest.mark.parametrize(
-        "second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"]
-    )
-    @pytest.mark.parametrize(
-        "first_command", ["mount", "unmount", "freeze", "unfreeze"]
-    )
+    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize("first_command", ["mount", "unmount", "freeze", "unfreeze"])
     def test_state_transition_conflict_mounted(self, first_command, second_command):
         self._create_cell()
         self._create_sorted_table("//tmp/t")
@@ -181,12 +172,8 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         self._do_test_transition("mounted", first_command, second_command)
 
     @authors("savrus", "levysotsky")
-    @pytest.mark.parametrize(
-        "second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"]
-    )
-    @pytest.mark.parametrize(
-        "first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"]
-    )
+    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize("first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"])
     def test_state_transition_conflict_frozen(self, first_command, second_command):
         self._create_cell()
         self._create_sorted_table("//tmp/t")
@@ -194,9 +181,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         self._do_test_transition("frozen", first_command, second_command)
 
     @authors("savrus")
-    @pytest.mark.parametrize(
-        "second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"]
-    )
+    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
     @pytest.mark.parametrize("first_command", ["mount", "frozen_mount", "unmount"])
     def test_state_transition_conflict_unmounted(self, first_command, second_command):
         self._create_cell()
@@ -212,9 +197,7 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
 
         callbacks = [
             lambda: freeze_table("//tmp/t", first_tablet_index=0, last_tablet_index=0),
-            lambda: mount_table(
-                "//tmp/t", first_tablet_index=1, last_tablet_index=1, freeze=True
-            ),
+            lambda: mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, freeze=True),
         ]
 
         for callback in reversed(callbacks) if inverse else callbacks:

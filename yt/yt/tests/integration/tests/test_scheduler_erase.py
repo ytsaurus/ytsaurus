@@ -184,18 +184,13 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
         assert get("//tmp/table/@schema/@strict")
         assert get("//tmp/table/@schema_mode") == "strong"
-        assert read_table("//tmp/table") == [
-            {"key": i, "value": "foo"} for i in xrange(5)
-        ]
+        assert read_table("//tmp/table") == [{"key": i, "value": "foo"} for i in xrange(5)]
 
     @authors("gritukan")
     def test_legacy_controller_flag(self):
         self._prepare_table()
         op = erase(self.table)
-        assert (
-            get(op.get_path() + "/@progress/legacy_controller")
-            == self.USE_LEGACY_CONTROLLERS
-        )
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
 
 ##################################################################

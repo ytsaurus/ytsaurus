@@ -116,9 +116,7 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     @authors("babenko")
     def test_columnar_lookup_denied(self):
         self._prepare_columnar()
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}]
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
         with pytest.raises(YtError):
             lookup_rows("//tmp/t", [{"key": 1}], authenticated_user="u1")
         with pytest.raises(YtError):
@@ -141,28 +139,30 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     @authors("babenko")
     def test_columnar_lookup_allowed(self):
         self._prepare_columnar()
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}]
+        insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
+        assert (
+            lookup_rows(
+                "//tmp/t",
+                [{"key": 1}],
+                column_names=["key", "value3"],
+                authenticated_user="u1",
+            )
+            == [{"key": 1, "value3": "c"}]
         )
-        assert lookup_rows(
-            "//tmp/t",
-            [{"key": 1}],
-            column_names=["key", "value3"],
-            authenticated_user="u1",
-        ) == [{"key": 1, "value3": "c"}]
-        assert lookup_rows(
-            "//tmp/t",
-            [{"key": 1}],
-            column_names=["key", "value1"],
-            authenticated_user="u2",
-        ) == [{"key": 1, "value1": "a"}]
+        assert (
+            lookup_rows(
+                "//tmp/t",
+                [{"key": 1}],
+                column_names=["key", "value1"],
+                authenticated_user="u2",
+            )
+            == [{"key": 1, "value1": "a"}]
+        )
 
     @authors("babenko")
     def test_columnar_select_denied(self):
         self._prepare_columnar()
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}]
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
         with pytest.raises(YtError):
             select_rows("* from [//tmp/t]", authenticated_user="u1")
         with pytest.raises(YtError):
@@ -173,15 +173,13 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     @authors("babenko")
     def test_columnar_select_allowed(self):
         self._prepare_columnar()
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}]
-        )
-        assert select_rows(
-            "key, value3 from [//tmp/t] where key = 1", authenticated_user="u1"
-        ) == [{"key": 1, "value3": "c"}]
-        assert select_rows(
-            "key, value1 from [//tmp/t] where key = 1", authenticated_user="u2"
-        ) == [{"key": 1, "value1": "a"}]
+        insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
+        assert select_rows("key, value3 from [//tmp/t] where key = 1", authenticated_user="u1") == [
+            {"key": 1, "value3": "c"}
+        ]
+        assert select_rows("key, value1 from [//tmp/t] where key = 1", authenticated_user="u2") == [
+            {"key": 1, "value1": "a"}
+        ]
 
     @authors("babenko")
     def test_insert_allowed(self):
@@ -195,9 +193,7 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     def test_insert_denied(self):
         self._prepare_denied("write")
         with pytest.raises(YtError):
-            insert_rows(
-                "//tmp/t", [{"key": 1, "value": "test"}], authenticated_user="u"
-            )
+            insert_rows("//tmp/t", [{"key": 1, "value": "test"}], authenticated_user="u")
 
     @authors("babenko")
     def test_delete_allowed(self):

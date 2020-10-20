@@ -53,10 +53,7 @@ class TestQuery(YTEnvSetup):
         sync_mount_table(path)
 
         for i in xrange(chunks):
-            data = [
-                {"a": (i * stripe + j), "b": (i * stripe + j) * 10}
-                for j in xrange(1, 1 + stripe)
-            ]
+            data = [{"a": (i * stripe + j), "b": (i * stripe + j) * 10} for j in xrange(1, 1 + stripe)]
             insert_rows(path, data)
 
     def _create_table(self, path, schema, data, optimize_for="lookup"):
@@ -180,9 +177,7 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"k": k, "x": x, "s": s} for (k, x), s in grouped.items()]
 
-        actual = select_rows(
-            "k, x, sum(b) as s from [//tmp/t] group by a as k, v % 2 as x"
-        )
+        actual = select_rows("k, x, sum(b) as s from [//tmp/t] group by a as k, v % 2 as x")
         assert_items_equal(actual, expected)
 
     @authors("lukyan")
@@ -239,9 +234,7 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"k": k, "x": x, "s": s} for (k, x), s in grouped.items()]
 
-        actual = select_rows(
-            "k, x, sum(b) as s from [//tmp/t] join [//tmp/j] using a group by a as k, v % 2 as x"
-        )
+        actual = select_rows("k, x, sum(b) as s from [//tmp/t] join [//tmp/j] using a group by a as k, v % 2 as x")
         assert_items_equal(actual, expected)
 
     @authors("lukyan")
@@ -342,9 +335,7 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/t", data)
 
         expected = [{"k": 0, "m": "98"}, {"k": 1, "m": "99"}]
-        actual = select_rows(
-            "k, max(b) as m from [//tmp/t] group by a % 2 as k order by k limit 2"
-        )
+        actual = select_rows("k, max(b) as m from [//tmp/t] group by a % 2 as k order by k limit 2")
         assert expected == actual
 
     @authors("lukyan")
@@ -392,9 +383,7 @@ class TestQuery(YTEnvSetup):
 
         expected = sorted(filtered, cmp=lambda x, y: x["v"] - y["v"])[20:30]
 
-        actual = select_rows(
-            "k, v from [//tmp/t] where u > 500 order by v offset 20 limit 10"
-        )
+        actual = select_rows("k, v from [//tmp/t] where u > 500 order by v offset 20 limit 10")
         assert expected == actual
 
     @authors("lukyan")
@@ -459,18 +448,12 @@ class TestQuery(YTEnvSetup):
 
         insert_rows(tt, [{"a": i} for i in xrange(100)])
 
-        expected = [
-            dict(row.items() + [("a", row["b"] * 10 + row["c"])]) for row in data
-        ]
+        expected = [dict(row.items() + [("a", row["b"] * 10 + row["c"])]) for row in data]
 
-        actual = select_rows(
-            "a, b, c, v from [//tmp/t] join [//tmp/j] on (a / 10, a % 10) = (b, c)"
-        )
+        actual = select_rows("a, b, c, v from [//tmp/t] join [//tmp/j] on (a / 10, a % 10) = (b, c)")
         assert_items_equal(actual, expected)
 
-        actual = select_rows(
-            "a, b, c, v from [//tmp/t] join [//tmp/j] on (a / 10, a % 10) = (b, c) where a = 36"
-        )
+        actual = select_rows("a, b, c, v from [//tmp/t] join [//tmp/j] on (a / 10, a % 10) = (b, c) where a = 36")
         assert_items_equal(actual, [expected[36]])
 
     @authors("lukyan")
@@ -562,9 +545,7 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"a": 2, "b": 1, "c": 53, "d": 2, "e": 1}]
 
-        actual = select_rows(
-            "* from [//tmp/jl] join [//tmp/jr] using c where (a, b) IN ((2, 1))"
-        )
+        actual = select_rows("* from [//tmp/jl] join [//tmp/jr] using c where (a, b) IN ((2, 1))")
         assert expected == actual
 
         expected = [{"l.a": 2, "l.b": 1, "l.c": 53, "r.c": 53, "r.d": 2, "r.e": 1}]
@@ -660,9 +641,7 @@ class TestQuery(YTEnvSetup):
 
         expected = [{"l.a": 1, "r.a": 1, "r.b": 2, "l.c": 3, "r.d": 4}]
 
-        actual = select_rows(
-            "* from [//tmp/jl] l left join [//tmp/jr] r on (l.a, 2) = (r.a, r.b) where l.a = 1"
-        )
+        actual = select_rows("* from [//tmp/jl] l left join [//tmp/jr] r on (l.a, 2) = (r.a, r.b) where l.a = 1")
         assert sorted(expected) == sorted(actual)
 
     @authors("lukyan")
@@ -754,9 +733,7 @@ class TestQuery(YTEnvSetup):
         )
 
         assert (
-            select_rows(
-                'a, b, c, d from [//tmp/t] where c="hello"', output_format=format
-            )
+            select_rows('a, b, c, d from [//tmp/t] where c="hello"', output_format=format)
             == '{"a"=10;"b"=%false;"c"="hello";"d"=32u;};\n'
         )
 
@@ -782,10 +759,7 @@ class TestQuery(YTEnvSetup):
         stripe = 10
 
         for i in xrange(0, 10):
-            data = [
-                {"key": (i * stripe + j), "value": (i * stripe + j) * 10}
-                for j in xrange(1, 1 + stripe)
-            ]
+            data = [{"key": (i * stripe + j), "value": (i * stripe + j) * 10} for j in xrange(1, 1 + stripe)]
             insert_rows("//tmp/t", data)
 
         sync_unmount_table("//tmp/t")
@@ -863,13 +837,9 @@ class TestQuery(YTEnvSetup):
         sync_mount_table("//tmp/t")
 
         def expected(key_range):
-            return [
-                {"hash": i / 2, "key1": i, "key2": i, "value": i * 2} for i in key_range
-            ]
+            return [{"hash": i / 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
 
-        insert_rows(
-            "//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0, 1000)]
-        )
+        insert_rows("//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0, 1000)])
 
         actual = select_rows("* from [//tmp/t] where key2 = 42")
         assert_items_equal(actual, expected([42]))
@@ -880,11 +850,7 @@ class TestQuery(YTEnvSetup):
         actual = sorted(select_rows("* from [//tmp/t] where key2 in (10, 20, 30)"))
         assert_items_equal(actual, expected([10, 20, 30]))
 
-        actual = sorted(
-            select_rows(
-                "* from [//tmp/t] where key2 in (10, 20, 30) and key1 in (30, 40)"
-            )
-        )
+        actual = sorted(select_rows("* from [//tmp/t] where key2 in (10, 20, 30) and key1 in (30, 40)"))
         assert_items_equal(actual, expected([30]))
 
     @authors("savrus")
@@ -915,13 +881,9 @@ class TestQuery(YTEnvSetup):
         sync_mount_table("//tmp/t")
 
         def expected(key_range):
-            return [
-                {"hash": i % 2, "key1": i, "key2": i, "value": i * 2} for i in key_range
-            ]
+            return [{"hash": i % 2, "key1": i, "key2": i, "value": i * 2} for i in key_range]
 
-        insert_rows(
-            "//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0, 1000)]
-        )
+        insert_rows("//tmp/t", [{"key1": i, "key2": i, "value": i * 2} for i in xrange(0, 1000)])
 
         actual = select_rows("* from [//tmp/t] where key2 = 42")
         assert_items_equal(actual, expected([42]))
@@ -932,11 +894,7 @@ class TestQuery(YTEnvSetup):
         actual = sorted(select_rows("* from [//tmp/t] where key1 in (10, 20, 30)"))
         assert_items_equal(actual, expected([10, 20, 30]))
 
-        actual = sorted(
-            select_rows(
-                "* from [//tmp/t] where key1 in (10, 20, 30) and key2 in (30, 40)"
-            )
-        )
+        actual = sorted(select_rows("* from [//tmp/t] where key1 in (10, 20, 30) and key2 in (30, 40)"))
         assert_items_equal(actual, expected([30]))
 
     @authors("lbrown")
@@ -993,9 +951,7 @@ class TestQuery(YTEnvSetup):
         sync_create_cells(1)
         self._sample_data(path="//tmp/u")
         expected = [{"s": 2 * i} for i in xrange(1, 10)]
-        actual = select_rows(
-            "abs_udf(-2 * a) as s from [//tmp/u]", udf_registry_path=registry_path
-        )
+        actual = select_rows("abs_udf(-2 * a) as s from [//tmp/u]", udf_registry_path=registry_path)
         assert_items_equal(actual, expected)
 
     @authors("lukyan")
@@ -1175,9 +1131,7 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/card", data)
         insert_rows("//tmp/card", data)
 
-        actual = select_rows(
-            "cardinality(a) as b from [//tmp/card] group by a % 2 as k with totals"
-        )
+        actual = select_rows("cardinality(a) as b from [//tmp/card] group by a % 2 as k with totals")
         assert actual[0]["b"] > 0.95 * 10000
         assert actual[0]["b"] < 1.05 * 10000
         assert actual[1]["b"] > 0.95 * 10000
@@ -1269,9 +1223,7 @@ class TestQuery(YTEnvSetup):
         # Comparison that respects NaN == NaN and YsonEntity == nothing.
         def _compare(lhs, rhs):
             if isinstance(lhs, list) or isinstance(lhs, tuple):
-                return len(lhs) == len(rhs) and all(
-                    _compare(x, y) for x, y in zip(lhs, rhs)
-                )
+                return len(lhs) == len(rhs) and all(_compare(x, y) for x, y in zip(lhs, rhs))
             elif isinstance(lhs, dict):
                 for key in __builtin__.set(lhs.keys()).union(rhs.keys()):
                     lhs_value = lhs.get(key)
@@ -1293,14 +1245,9 @@ class TestQuery(YTEnvSetup):
         assert _compare(select_rows("* from [//tmp/t] where is_null(b)"), data[2:])
         with pytest.raises(YtError):
             select_rows("* from [//tmp/t] where b > 0")
-        assert _compare(
-            select_rows("* from [//tmp/t] where if(is_nan(b), false, b > 0)"), data[1:2]
-        )
+        assert _compare(select_rows("* from [//tmp/t] where if(is_nan(b), false, b > 0)"), data[1:2])
 
-        assert all(
-            _isnan(x.values()[0])
-            for x in select_rows("if(true, {}, 1) from [//tmp/t]".format(str_nan))
-        )
+        assert all(_isnan(x.values()[0]) for x in select_rows("if(true, {}, 1) from [//tmp/t]".format(str_nan)))
         with pytest.raises(YtError):
             select_rows("* from [//tmp/t] where b = {}".format(str_nan))
         with pytest.raises(YtError):
@@ -1312,17 +1259,9 @@ class TestQuery(YTEnvSetup):
         with pytest.raises(YtError):
             select_rows("if(true, {}, 0) > 1 from [//tmp/t]".format(str_nan))
 
-        assert (
-            select_rows("is_nan({}) from [//tmp/t]".format(str_nan))[0].values()[0]
-            == True
-        )
-        assert (
-            select_rows("is_nan({}) from [//tmp/t]".format("123"))[0].values()[0]
-            == False
-        )
-        assert (
-            select_rows("is_nan({}) from [//tmp/t]".format("#"))[0].values()[0] == False
-        )
+        assert select_rows("is_nan({}) from [//tmp/t]".format(str_nan))[0].values()[0] == True
+        assert select_rows("is_nan({}) from [//tmp/t]".format("123"))[0].values()[0] == False
+        assert select_rows("is_nan({}) from [//tmp/t]".format("#"))[0].values()[0] == False
 
     @authors("lukyan")
     def test_bad_limits(self):
@@ -1352,9 +1291,7 @@ class TestQuery(YTEnvSetup):
         data = [{"a": i, "b": i, "c": i, "x": str(i)} for i in xrange(0, 100)]
         insert_rows("//tmp/t", data)
 
-        select_rows(
-            "x from [//tmp/t] where (a = 18 and b = 10 and c >= 70) or (a = 18 and b >= 10) or (a >= 18)"
-        )
+        select_rows("x from [//tmp/t] where (a = 18 and b = 10 and c >= 70) or (a = 18 and b >= 10) or (a >= 18)")
 
     @authors("lukyan")
     def test_multi_between(self):
@@ -1443,9 +1380,7 @@ class TestQuery(YTEnvSetup):
         insert_rows("//tmp/t", data)
 
         expected = [{"a": 7, "b_str": '{"x"=7;}'}]
-        actual = select_rows(
-            r"a, any_to_yson_string(b) as b_str from [//tmp/t] where a = 7"
-        )
+        actual = select_rows(r"a, any_to_yson_string(b) as b_str from [//tmp/t] where a = 7")
         assert expected == actual
 
         length = 100000
@@ -1454,9 +1389,7 @@ class TestQuery(YTEnvSetup):
         long_yson_rows = [{"a": 13, "b": {"x": long_binary_string}}]
         expected = [{"a": 13, "b_str": '{"x"="' + escaped_string + '";}'}]
         insert_rows("//tmp/t", long_yson_rows)
-        actual = select_rows(
-            r"a, any_to_yson_string(b) as b_str from [//tmp/t] where a = 13"
-        )
+        actual = select_rows(r"a, any_to_yson_string(b) as b_str from [//tmp/t] where a = 13")
         assert expected == actual
 
 

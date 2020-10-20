@@ -11,9 +11,7 @@ import collections
 import copy
 import json
 
-Column = collections.namedtuple(
-    "Column", ["name", "type", "values", "expected", "complex"]
-)
+Column = collections.namedtuple("Column", ["name", "type", "values", "expected", "complex"])
 
 COLUMN_LIST = [
     Column(
@@ -342,9 +340,7 @@ def get_expected_all_column_names(dynamic=False, ordered=False):
     return result
 
 
-def get_web_json_format(
-    field_weight_limit, column_limit, value_format=None, string_weight_limit=None
-):
+def get_web_json_format(field_weight_limit, column_limit, value_format=None, string_weight_limit=None):
     format_ = yson.YsonString("web_json")
     format_.attributes["field_weight_limit"] = field_weight_limit
     format_.attributes["max_selected_column_count"] = column_limit
@@ -511,9 +507,7 @@ class TestWebJsonFormat(YTEnvSetup):
                 "$type": "int64",
                 "$value": "0",
             }
-        output["rows"].sort(
-            key=lambda column: (column["$$tablet_index"], column["$$row_index"])
-        )
+        output["rows"].sort(key=lambda column: (column["$$tablet_index"], column["$$row_index"]))
         assert output == expected_output
 
         sync_unmount_table(TABLE_PATH)

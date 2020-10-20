@@ -66,17 +66,13 @@ class TestMasterCellAddition(YTEnvSetup):
     def _enable_last_cell(cls):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
-        with Restarter(
-            cls.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]
-        ):
+        with Restarter(cls.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]):
             for cell_id in cls.CELL_IDS:
                 build_snapshot(cell_id=cell_id, set_read_only=True)
 
             with Restarter(cls.Env, MASTERS_SERVICE):
                 for i in xrange(len(cls.PATCHED_CONFIGS)):
-                    cls.PATCHED_CONFIGS[i]["secondary_masters"].append(
-                        cls.STASHED_CELL_CONFIGS[i]
-                    )
+                    cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
 
                 cls.Env.rewrite_master_configs()
 
@@ -136,50 +132,35 @@ class TestMasterCellAddition(YTEnvSetup):
 
         assert_true_for_secondary_cells(
             self.Env,
-            lambda driver: get(
-                "//sys/accounts/acc_sync_create/@life_stage", driver=driver
-            )
-            == "creation_committed",
+            lambda driver: get("//sys/accounts/acc_sync_create/@life_stage", driver=driver) == "creation_committed",
         )
         assert get("//sys/accounts/acc_sync_create/@life_stage") == "creation_committed"
 
-        wait(
-            lambda: get("//sys/accounts/acc_async_create/@life_stage")
-            == "creation_committed"
-        )
+        wait(lambda: get("//sys/accounts/acc_async_create/@life_stage") == "creation_committed")
         assert_true_for_secondary_cells(
             self.Env,
-            lambda driver: get(
-                "//sys/accounts/acc_async_create/@life_stage", driver=driver
-            )
-            == "creation_committed",
+            lambda driver: get("//sys/accounts/acc_async_create/@life_stage", driver=driver) == "creation_committed",
         )
 
         assert get("//sys/accounts/acc_async_remove/@life_stage") == "removal_started"
         wait(
             lambda: self._do_for_cell(
                 1,
-                lambda driver: get(
-                    "//sys/accounts/acc_async_remove/@life_stage", driver=driver
-                ),
+                lambda driver: get("//sys/accounts/acc_async_remove/@life_stage", driver=driver),
             )
             == "removal_started"
         )
         wait(
             lambda: self._do_for_cell(
                 2,
-                lambda driver: get(
-                    "//sys/accounts/acc_async_remove/@life_stage", driver=driver
-                ),
+                lambda driver: get("//sys/accounts/acc_async_remove/@life_stage", driver=driver),
             )
             == "removal_pre_committed"
         )
         wait(
             lambda: self._do_for_cell(
                 3,
-                lambda driver: get(
-                    "//sys/accounts/acc_async_remove/@life_stage", driver=driver
-                ),
+                lambda driver: get("//sys/accounts/acc_async_remove/@life_stage", driver=driver),
             )
             == "removal_pre_committed"
         )

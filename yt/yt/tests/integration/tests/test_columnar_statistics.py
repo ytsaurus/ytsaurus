@@ -42,9 +42,7 @@ class TestColumnarStatistics(YTEnvSetup):
         )
         statistics = get_table_columnar_statistics(path, fetcher_mode=fetcher_mode)[0]
         assert statistics["legacy_chunks_data_weight"] == expected_legacy_data_weight
-        assert statistics["column_data_weights"] == dict(
-            zip(columns.split(","), expected_data_weights)
-        )
+        assert statistics["column_data_weights"] == dict(zip(columns.split(","), expected_data_weights))
         if expected_timestamp_weight is not None:
             assert statistics["timestamp_total_weight"] == expected_timestamp_weight
 
@@ -62,12 +60,8 @@ class TestColumnarStatistics(YTEnvSetup):
             paths[index] = "{0}{{{1}}}[{2}:{3}]".format(
                 paths[index],
                 all_columns[index],
-                "#" + str(lower_row_indices[index])
-                if lower_row_indices[index] is not None
-                else "",
-                "#" + str(upper_row_indices[index])
-                if upper_row_indices[index] is not None
-                else "",
+                "#" + str(lower_row_indices[index]) if lower_row_indices[index] is not None else "",
+                "#" + str(upper_row_indices[index]) if upper_row_indices[index] is not None else "",
             )
         yson_paths = "["
         for path in paths:
@@ -121,12 +115,7 @@ class TestColumnarStatistics(YTEnvSetup):
             if column_weights:
                 write_table(
                     "//tmp/t",
-                    [
-                        {
-                            "x{}".format(i): "a" * column_weights[i]
-                            for i in range(len(column_weights))
-                        }
-                    ],
+                    [{"x{}".format(i): "a" * column_weights[i] for i in range(len(column_weights))}],
                 )
 
         make_table([255, 12, 45, 1, 0])
@@ -154,14 +143,10 @@ class TestColumnarStatistics(YTEnvSetup):
         )
 
         make_table([510, 12, 13, 1, 0])
-        self._expect_statistics(
-            0, 1, "x0,x1,x2,x3,x4", [510, 12, 14, 2, 0], fetcher_mode="from_master"
-        )
+        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4", [510, 12, 14, 2, 0], fetcher_mode="from_master")
 
         make_table([256, 12, 13, 1, 0])
-        self._expect_statistics(
-            0, 1, "x0,x1,x2,x3,x4", [256, 12, 14, 2, 0], fetcher_mode="from_master"
-        )
+        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4", [256, 12, 14, 2, 0], fetcher_mode="from_master")
 
         make_table([1])
         self._expect_statistics(0, 1, "", [], fetcher_mode="from_master")
@@ -171,9 +156,7 @@ class TestColumnarStatistics(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/max_heavy_columns", 1)
         make_table([255, 42])
-        self._expect_statistics(
-            0, 1, "x0,x1,zzz", [255, 255, 255], fetcher_mode="from_master"
-        )
+        self._expect_statistics(0, 1, "x0,x1,zzz", [255, 255, 255], fetcher_mode="from_master")
 
         set("//sys/@config/chunk_manager/max_heavy_columns", 0)
         make_table([256, 42])
@@ -185,9 +168,7 @@ class TestColumnarStatistics(YTEnvSetup):
             fetcher_mode="from_master",
             expected_legacy_data_weight=299,
         )
-        self._expect_statistics(
-            0, 1, "x0,x1,zzz", [256, 42, 0], fetcher_mode="fallback"
-        )
+        self._expect_statistics(0, 1, "x0,x1,zzz", [256, 42, 0], fetcher_mode="fallback")
 
     @authors("dakovalkov")
     def test_get_table_columnar_statistics_multi(self):
@@ -343,9 +324,7 @@ class TestColumnarStatistics(YTEnvSetup):
         create("table", "//tmp/t")
         s = "x" * 100
         for i in range(5):
-            write_table(
-                "<append=%true>//tmp/t", [{"a": s, "b": s, "c": s, "d": s, "e": s}]
-            )
+            write_table("<append=%true>//tmp/t", [{"a": s, "b": s, "c": s, "d": s, "e": s}])
         with pytest.raises(YtError):
             op = vanilla(
                 spec={
@@ -395,37 +374,27 @@ class TestColumnarStatistics(YTEnvSetup):
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        self._expect_statistics(
-            None, None, "key,value", [80, 10080], expected_timestamp_weight=(8 * 10)
-        )
+        self._expect_statistics(None, None, "key,value", [80, 10080], expected_timestamp_weight=(8 * 10))
 
         rows = [{"key": i, "value": str(i // 2) * 1000} for i in range(10)]
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        self._expect_statistics(
-            None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 20)
-        )
+        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 20))
 
         sync_compact_table("//tmp/t")
 
-        self._expect_statistics(
-            None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 20)
-        )
+        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 20))
 
         rows = [{"key": i} for i in range(10)]
         delete_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        self._expect_statistics(
-            None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 30)
-        )
+        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 30))
 
         sync_compact_table("//tmp/t")
 
-        self._expect_statistics(
-            None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30)
-        )
+        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
 
     @authors("max42")
     def test_fetch_cancelation(self):
@@ -443,10 +412,8 @@ class TestColumnarStatistics(YTEnvSetup):
 
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
-        controller_agent_orchid = (
-            "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
-                controller_agents[0]
-            )
+        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
+            controller_agents[0]
         )
 
         op = map(

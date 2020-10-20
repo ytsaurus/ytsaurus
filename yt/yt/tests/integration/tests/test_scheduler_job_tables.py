@@ -20,12 +20,8 @@ import threading
 from multiprocessing import Queue
 
 TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
-YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.search_binary_path(
-    "cuda_core_dump_simulator"
-)
-YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.search_binary_path(
-    "libcuda_core_dump_injection.so"
-)
+YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.search_binary_path("cuda_core_dump_simulator")
+YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.search_binary_path("libcuda_core_dump_injection.so")
 
 ##################################################################
 
@@ -58,9 +54,7 @@ def get_stderr_dict_from_table(table_path):
 
 
 def compare_stderr_table_and_files(stderr_table_path, operation_id):
-    assert get_stderr_dict_from_table("//tmp/t_stderr") == get_stderr_dict_from_cypress(
-        operation_id
-    )
+    assert get_stderr_dict_from_table("//tmp/t_stderr") == get_stderr_dict_from_cypress(operation_id)
 
 
 def expect_to_find_in_stderr_table(stderr_table_path, content):
@@ -139,9 +133,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table(
-            """<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)]
-        )
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
 
         op = map(
             in_="//tmp/t_input",
@@ -159,9 +151,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table(
-            """<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)]
-        )
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
 
         op = reduce(
             in_="//tmp/t_input",
@@ -298,9 +288,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table(
-            """<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)]
-        )
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
 
         with pytest.raises(YtError):
             map(
@@ -323,9 +311,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table(
-            """<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)]
-        )
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
 
         with pytest.raises(YtError):
             map(
@@ -343,9 +329,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table(
-            """<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)]
-        )
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(3)])
 
         with pytest.raises(YtError):
             # We set max_part_size to 10MB and max_row_weight to 5MB and write 20MB of stderr.
@@ -367,9 +351,7 @@ class TestStderrTable(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         create("table", "//tmp/t_stderr")
-        write_table(
-            """<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(1)]
-        )
+        write_table("""<sorted_by=["key"]>//tmp/t_input""", [{"key": i} for i in xrange(1)])
 
         map(
             in_="//tmp/t_input",
@@ -403,9 +385,7 @@ class TestStderrTable(YTEnvSetup):
         for item in stderr_rows:
             assert item["job_id"] == stderr_rows[0]["job_id"]
 
-        assert str("".join(item["data"] for item in stderr_rows)) == str(
-            "x " * (30 * 1024 * 1024)
-        )
+        assert str("".join(item["data"] for item in stderr_rows)) == str("x " * (30 * 1024 * 1024))
 
     @authors("max42", "ermolovd")
     def test_scheduler_revive(self):
@@ -416,12 +396,8 @@ class TestStderrTable(YTEnvSetup):
         # NOTE all values are of same size so our chunks are also of the same size so our
         # scheduler can split them evenly
         write_table("//tmp/t_input", [{"key": "complete_before_scheduler_dies  "}])
-        write_table(
-            "<append=%true>//tmp/t_input", [{"key": "complete_after_scheduler_restart"}]
-        )
-        write_table(
-            "<append=%true>//tmp/t_input", [{"key": "complete_while_scheduler_dead   "}]
-        )
+        write_table("<append=%true>//tmp/t_input", [{"key": "complete_after_scheduler_restart"}])
+        write_table("<append=%true>//tmp/t_input", [{"key": "complete_while_scheduler_dead   "}])
 
         op = map(
             track=False,
@@ -441,9 +417,7 @@ class TestStderrTable(YTEnvSetup):
                 "cat input"
             ).format(
                 wait_scheduler_dead=events_on_fs().wait_event_cmd("scheduler_dead"),
-                wait_scheduler_restart=events_on_fs().wait_event_cmd(
-                    "scheduler_restart"
-                ),
+                wait_scheduler_restart=events_on_fs().wait_event_cmd("scheduler_restart"),
             ),
             format="dsv",
             in_="//tmp/t_input",
@@ -603,9 +577,7 @@ class TestCoreTable(YTEnvSetup):
                         "fail_job_on_core_dump": fail_job_on_core_dump,
                     }
                 },
-                "core_table_path": self.CORE_TABLE
-                if core_table_path is None
-                else core_table_path,
+                "core_table_path": self.CORE_TABLE if core_table_path is None else core_table_path,
                 "enable_cuda_gpu_core_dump": enable_cuda_gpu_core_dump,
                 "max_failed_job_count": max_failed_job_count,
             },
@@ -627,9 +599,7 @@ class TestCoreTable(YTEnvSetup):
                     node, job_id
                 )
             )
-            sandbox_path = "{0}/runtime_data/node/0/slots/{1}".format(
-                self.path_to_run, slot_index
-            )
+            sandbox_path = "{0}/runtime_data/node/0/slots/{1}".format(self.path_to_run, slot_index)
             core_pipe = "{0}/cores/core_{1}.pipe".format(sandbox_path, pid)
             core_info = "{0}/cores/core_{1}.info".format(sandbox_path, pid)
             size = 0
@@ -689,9 +659,7 @@ class TestCoreTable(YTEnvSetup):
                     node, job_id
                 )
             )
-            sandbox_path = "{0}/runtime_data/node/0/slots/{1}".format(
-                self.path_to_run, slot_index
-            )
+            sandbox_path = "{0}/runtime_data/node/0/slots/{1}".format(self.path_to_run, slot_index)
             core_pipe = "{0}/cores/yt_gpu_core_dump_pipe".format(sandbox_path)
 
             core_producer_env = os.environ.copy()
@@ -704,10 +672,7 @@ class TestCoreTable(YTEnvSetup):
             # Check whether core watcher for non-empty pipe.
             time.sleep(8)
 
-            assert (
-                subprocess.call([YT_CUDA_CORE_DUMP_SIMULATOR], env=core_producer_env)
-                == 0
-            )
+            assert subprocess.call([YT_CUDA_CORE_DUMP_SIMULATOR], env=core_producer_env) == 0
 
             ret_dict["core_info"] = {
                 "executable_name": "cuda_gpu_core_dump",
@@ -717,17 +682,13 @@ class TestCoreTable(YTEnvSetup):
             }
             ret_dict["core_data"] = "a" * 1000000
 
-        thread = threading.Thread(
-            target=produce_gpu_core, args=(self, job_id, ret_dict)
-        )
+        thread = threading.Thread(target=produce_gpu_core, args=(self, job_id, ret_dict))
         thread.start()
         return thread
 
     def _get_core_infos(self, op):
         jobs = get(op.get_path() + "/jobs", attributes=["core_infos"])
-        return {
-            job_id: value.attributes["core_infos"] for job_id, value in jobs.iteritems()
-        }
+        return {job_id: value.attributes["core_infos"] for job_id, value in jobs.iteritems()}
 
     def _decompress_sparse_core_dump(self, core_dump):
         PAGE_SIZE = 65536
@@ -748,9 +709,7 @@ class TestCoreTable(YTEnvSetup):
 
         return result
 
-    def _get_core_table_content(
-        self, decompress_sparse_core_dump=True, assert_rows_number_geq=0
-    ):
+    def _get_core_table_content(self, decompress_sparse_core_dump=True, assert_rows_number_geq=0):
         rows = read_table(self.CORE_TABLE, verbose=False)
         assert len(rows) >= assert_rows_number_geq
         content = {}
@@ -768,9 +727,7 @@ class TestCoreTable(YTEnvSetup):
         if decompress_sparse_core_dump:
             for job_id in content.keys():
                 for core_id in range(len(content[job_id])):
-                    content[job_id][core_id] = self._decompress_sparse_core_dump(
-                        content[job_id][core_id]
-                    )
+                    content[job_id][core_id] = self._decompress_sparse_core_dump(content[job_id][core_id])
         return content
 
     @authors("max42", "gritukan")
@@ -804,18 +761,14 @@ class TestCoreTable(YTEnvSetup):
         op, job_ids = self._start_operation(1)
 
         ret_dict = {}
-        t = self._send_core(
-            job_ids[0], "user_process", 42, ["abcdefgh" * 10 ** 6], ret_dict
-        )
+        t = self._send_core(job_ids[0], "user_process", 42, ["abcdefgh" * 10 ** 6], ret_dict)
         t.join()
 
         release_breakpoint()
         op.track()
 
         assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
-        assert self._get_core_table_content(assert_rows_number_geq=2) == {
-            job_ids[0]: [ret_dict["core_data"]]
-        }
+        assert self._get_core_table_content(assert_rows_number_geq=2) == {job_ids[0]: [ret_dict["core_data"]]}
 
     @authors("max42", "gritukan")
     @skip_if_porto
@@ -826,9 +779,7 @@ class TestCoreTable(YTEnvSetup):
 
         q1 = Queue()
         ret_dict1 = {}
-        t1 = self._send_core(
-            job_ids[0], "user_process", 42, queue_iterator(q1), ret_dict1
-        )
+        t1 = self._send_core(job_ids[0], "user_process", 42, queue_iterator(q1), ret_dict1)
         q1.put("abc")
         while not q1.empty():
             time.sleep(0.1)
@@ -838,9 +789,7 @@ class TestCoreTable(YTEnvSetup):
         # Check that second core writer blocks on writing to the named pipe by
         # providing a core that is sufficiently larger than pipe buffer size.
         ret_dict2 = {}
-        t2 = self._send_core(
-            job_ids[0], "user_process2", 43, ["qwert" * (2 * 10 ** 4)], ret_dict2
-        )
+        t2 = self._send_core(job_ids[0], "user_process2", 43, ["qwert" * (2 * 10 ** 4)], ret_dict2)
 
         q1.put("def")
         while not q1.empty():
@@ -854,20 +803,14 @@ class TestCoreTable(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        assert self._get_core_infos(op) == {
-            job_ids[0]: [ret_dict1["core_info"], ret_dict2["core_info"]]
-        }
-        assert self._get_core_table_content() == {
-            job_ids[0]: [ret_dict1["core_data"], ret_dict2["core_data"]]
-        }
+        assert self._get_core_infos(op) == {job_ids[0]: [ret_dict1["core_info"], ret_dict2["core_info"]]}
+        assert self._get_core_table_content() == {job_ids[0]: [ret_dict1["core_data"], ret_dict2["core_data"]]}
 
     @authors("gritukan", "max42")
     @pytest.mark.parametrize("fail_job_on_core_dump", [False, True])
     @skip_if_porto
     def test_fail_job_on_core_dump(self, fail_job_on_core_dump):
-        op, job_ids = self._start_operation(
-            1, max_failed_job_count=1, fail_job_on_core_dump=fail_job_on_core_dump
-        )
+        op, job_ids = self._start_operation(1, max_failed_job_count=1, fail_job_on_core_dump=fail_job_on_core_dump)
 
         ret_dict = {}
         t = self._send_core(job_ids[0], "user_process", 42, ["core_data"], ret_dict)
@@ -891,9 +834,7 @@ class TestCoreTable(YTEnvSetup):
 
         q = Queue()
         ret_dict1 = {}
-        t = self._send_core(
-            job_ids[0], "user_process", 42, queue_iterator(q), ret_dict1
-        )
+        t = self._send_core(job_ids[0], "user_process", 42, queue_iterator(q), ret_dict1)
         q.put("abc")
         while not q.empty():
             time.sleep(0.1)
@@ -917,9 +858,7 @@ class TestCoreTable(YTEnvSetup):
 
         q = Queue()
         ret_dict2 = {}
-        t = self._send_core(
-            job_ids[0], "user_process", 43, queue_iterator(q), ret_dict2
-        )
+        t = self._send_core(job_ids[0], "user_process", 43, queue_iterator(q), ret_dict2)
         q.put("123")
         while not q.empty():
             time.sleep(0.1)
@@ -1016,9 +955,7 @@ class TestCoreTable(YTEnvSetup):
 
         q = Queue()
         ret_dict = {}
-        t = self._send_core(
-            job_ids[0], "user_process", 42, queue_iterator(q), ret_dict, open_pipe=False
-        )
+        t = self._send_core(job_ids[0], "user_process", 42, queue_iterator(q), ret_dict, open_pipe=False)
         time.sleep(10)
         t.join()
 
@@ -1035,9 +972,7 @@ class TestCoreTable(YTEnvSetup):
     @authors("max42", "gritukan")
     @skip_if_porto
     def test_core_when_user_job_was_killed(self):
-        pytest.skip(
-            "This test is broken because sudo wrapper hides coredump status. Should be ported to Porto."
-        )
+        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
 
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
@@ -1058,9 +993,7 @@ class TestCoreTable(YTEnvSetup):
     @authors("max42", "gritukan")
     @skip_if_porto
     def test_core_timeout_when_user_job_was_killed(self):
-        pytest.skip(
-            "This test is broken because sudo wrapper hides coredump status. Should be ported to Porto."
-        )
+        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
 
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
@@ -1152,9 +1085,7 @@ class TestCoreTable(YTEnvSetup):
 
         assert get(self.CORE_TABLE + "/@sparse") == True
         assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
-        sparse_core_dump = self._get_core_table_content(
-            decompress_sparse_core_dump=False
-        )[job_ids[0]][0]
+        sparse_core_dump = self._get_core_table_content(decompress_sparse_core_dump=False)[job_ids[0]][0]
         assert len(sparse_core_dump) == 65537
         assert len(ret_dict["core_data"]) == 10 ** 6
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}

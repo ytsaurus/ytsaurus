@@ -63,9 +63,7 @@ class CheckPermissionBase(YTEnvSetup):
         create(
             "map_node",
             "//tmp/m",
-            attributes={
-                "acl": [make_ace("allow", "guest", "remove", "descendants_only")]
-            },
+            attributes={"acl": [make_ace("allow", "guest", "remove", "descendants_only")]},
         )
         create("map_node", "//tmp/m/s")
         create("map_node", "//tmp/m/s/r")
@@ -89,11 +87,7 @@ class CheckPermissionBase(YTEnvSetup):
         create(
             "map_node",
             "//tmp/m",
-            attributes={
-                "acl": [
-                    make_ace("allow", "guest", "remove", "immediate_descendants_only")
-                ]
-            },
+            attributes={"acl": [make_ace("allow", "guest", "remove", "immediate_descendants_only")]},
         )
         create("map_node", "//tmp/m/s")
         create("map_node", "//tmp/m/s/r")
@@ -201,33 +195,25 @@ class CheckPermissionBase(YTEnvSetup):
             ],
         )
 
-        response1 = check_permission(
-            "u1", "read", "//tmp/dir/t", columns=["a", "b", "c"]
-        )
+        response1 = check_permission("u1", "read", "//tmp/dir/t", columns=["a", "b", "c"])
         assert response1["action"] == "allow"
         assert response1["columns"][0]["action"] == "deny"
         assert response1["columns"][1]["action"] == "deny"
         assert response1["columns"][2]["action"] == "allow"
 
-        response2 = check_permission(
-            "u2", "read", "//tmp/dir/t", columns=["a", "b", "c"]
-        )
+        response2 = check_permission("u2", "read", "//tmp/dir/t", columns=["a", "b", "c"])
         assert response2["action"] == "allow"
         assert response2["columns"][0]["action"] == "deny"
         assert response2["columns"][1]["action"] == "allow"
         assert response2["columns"][2]["action"] == "allow"
 
-        response3 = check_permission(
-            "u3", "read", "//tmp/dir/t", columns=["a", "b", "c"]
-        )
+        response3 = check_permission("u3", "read", "//tmp/dir/t", columns=["a", "b", "c"])
         assert response3["action"] == "allow"
         assert response3["columns"][0]["action"] == "deny"
         assert response3["columns"][1]["action"] == "deny"
         assert response3["columns"][2]["action"] == "allow"
 
-        response4 = check_permission(
-            "u4", "read", "//tmp/dir/t", columns=["a", "b", "c"]
-        )
+        response4 = check_permission("u4", "read", "//tmp/dir/t", columns=["a", "b", "c"])
         assert response4["action"] == "deny"
 
     @authors("babenko")
@@ -261,9 +247,7 @@ class CheckPermissionBase(YTEnvSetup):
             authenticated_user="u",
         )
         assert rows == [{"c": "c"}]
-        assert_items_equal(
-            response_parameters["omitted_inaccessible_columns"], ["a", "b"]
-        )
+        assert_items_equal(response_parameters["omitted_inaccessible_columns"], ["a", "b"])
 
 
 class TestCypressAcls(CheckPermissionBase):
@@ -411,9 +395,7 @@ class TestCypressAcls(CheckPermissionBase):
         create_user("u")
 
         with pytest.raises(YtError):
-            create(
-                "table", "//tmp/t", authenticated_user="u", attributes={"account": "a"}
-            )
+            create("table", "//tmp/t", authenticated_user="u", attributes={"account": "a"})
 
         create("table", "//tmp/t", authenticated_user="u")
         assert get("//tmp/t/@account") == "tmp"
@@ -524,9 +506,7 @@ class TestCypressAcls(CheckPermissionBase):
         create_user("u")
 
         # Deny writing.
-        create(
-            "map_node", "//tmp/a", attributes={"acl": [make_ace("deny", "u", "write")]}
-        )
+        create("map_node", "//tmp/a", attributes={"acl": [make_ace("deny", "u", "write")]})
         create(
             "map_node",
             "//tmp/a/b",
@@ -539,9 +519,7 @@ class TestCypressAcls(CheckPermissionBase):
         create("table", "//tmp/a/b", force=True, authenticated_user="u")
 
         # Allow write but deny remove.
-        create(
-            "map_node", "//tmp/c", attributes={"acl": [make_ace("allow", "u", "write")]}
-        )
+        create("map_node", "//tmp/c", attributes={"acl": [make_ace("allow", "u", "write")]})
         create(
             "map_node",
             "//tmp/c/d",
@@ -892,9 +870,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/s/@acl/end", make_ace("allow", "u", ["read", "write", "remove"]))
         set("//tmp/s/x/@acl", [make_ace("deny", "u", ["write", "remove"])])
         copy("//tmp/s/x", "//tmp/s/y", authenticated_user="u")
-        assert get("//tmp/s/y", authenticated_user="u") == get(
-            "//tmp/s/x", authenticated_user="u"
-        )
+        assert get("//tmp/s/y", authenticated_user="u") == get("//tmp/s/x", authenticated_user="u")
 
     @authors("sandello", "babenko")
     def test_copy_and_move_require_read_on_source(self):
@@ -1113,12 +1089,7 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x/@inherit_acl", False)
         create("map_node", "//tmp/x/y")
         set("//tmp/x/y/@attr", "value")
-        assert (
-            "attr"
-            not in ls("//tmp/x", attributes=["attr"], authenticated_user="u")[
-                0
-            ].attributes
-        )
+        assert "attr" not in ls("//tmp/x", attributes=["attr"], authenticated_user="u")[0].attributes
 
     @authors("savrus")
     def test_safe_mode(self):
@@ -1282,9 +1253,7 @@ class TestCypressAcls(CheckPermissionBase):
     def test_read_table_with_omitted_columns(self, optimize_for, strict):
         create_user("u")
 
-        schema = YsonList(
-            [{"name": "public", "type": "string"}, {"name": "secret", "type": "string"}]
-        )
+        schema = YsonList([{"name": "public", "type": "string"}, {"name": "secret", "type": "string"}])
         schema.attributes["strict"] = strict
 
         create(
@@ -1317,10 +1286,7 @@ class TestCypressAcls(CheckPermissionBase):
                 authenticated_user="u",
             )
             assert rows == [expected_row]
-            assert (
-                response_parameters["omitted_inaccessible_columns"]
-                == expected_omitted_columns
-            )
+            assert response_parameters["omitted_inaccessible_columns"] == expected_omitted_columns
 
         do("//tmp/t{public}", {"public": "a"}, [])
         do("//tmp/t", public_row, ["secret"])
@@ -1412,9 +1378,9 @@ class TestCypressAcls(CheckPermissionBase):
             alerts = op.get_alerts()
             if expect_alert:
                 assert len(alerts) == 1
-                assert alerts["omitted_inaccesible_columns_in_input_tables"][
-                    "attributes"
-                ]["input_tables"] == [{"path": "//tmp/t_in", "columns": ["secret"]}]
+                assert alerts["omitted_inaccesible_columns_in_input_tables"]["attributes"]["input_tables"] == [
+                    {"path": "//tmp/t_in", "columns": ["secret"]}
+                ]
             else:
                 assert len(alerts) == 0
             assert read_table("//tmp/t_out") == [expected_row]

@@ -353,9 +353,7 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("babenko")
     def test_revision4(self):
         if self.is_multicell():
-            pytest.skip(
-                "@current_commit_revision not supported with sharded transactions"
-            )
+            pytest.skip("@current_commit_revision not supported with sharded transactions")
             return
 
         r1 = get("//sys/@current_commit_revision")
@@ -418,12 +416,8 @@ class TestMasterTransactions(YTEnvSetup):
         assert exists("//sys/transactions/" + tx_a)
         assert exists("//sys/transactions/" + tx_b)
 
-        assert get(
-            "//sys/transactions/{}/@prerequisite_transaction_ids".format(tx_b)
-        ) == [tx_a]
-        assert get("//sys/transactions/{}/@dependent_transaction_ids".format(tx_a)) == [
-            tx_b
-        ]
+        assert get("//sys/transactions/{}/@prerequisite_transaction_ids".format(tx_b)) == [tx_a]
+        assert get("//sys/transactions/{}/@dependent_transaction_ids".format(tx_a)) == [tx_b]
 
         ping_transaction(tx_a)
         ping_transaction(tx_b)

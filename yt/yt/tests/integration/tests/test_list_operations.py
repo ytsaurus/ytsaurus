@@ -59,14 +59,7 @@ class ListOperationsSetup(YTEnvSetup):
         before_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
 
         output_path = self._create_output_path()
-        op = start_op(
-            op_type,
-            in_=self._input_path,
-            out=output_path,
-            track=False,
-            authenticated_user=user,
-            **kwargs
-        )
+        op = start_op(op_type, in_=self._input_path, out=output_path, track=False, authenticated_user=user, **kwargs)
 
         op.after_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
 
@@ -85,18 +78,14 @@ class ListOperationsSetup(YTEnvSetup):
         return op
 
     def _create_operations(self):
-        self.before_all_operations = datetime.utcnow().strftime(
-            YT_DATETIME_FORMAT_STRING
-        )
+        self.before_all_operations = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
         self.op1 = self._create_operation(
             "map",
             command="exit 0",
             user="user1",
             annotations={"key": ["annotation1", "annotation2"]},
         )
-        self.op2 = self._create_operation(
-            "map", command="exit 0", user="user2", owners=["group1", "user3"]
-        )
+        self.op2 = self._create_operation("map", command="exit 0", user="user2", owners=["group1", "user3"])
         self.op3 = self._create_operation(
             "map_reduce",
             mapper_command="exit 1",
@@ -173,9 +162,7 @@ class ListOperationsSetup(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         set("//sys/cluster_nodes/" + nodes[0] + "/@user_tags/end", "other")
 
-        create_pool_tree(
-            "other", attributes={"nodes_filter": "tag"}, ignore_existing=True
-        )
+        create_pool_tree("other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
         create_pool("some_pool", pool_tree="other", ignore_existing=True)
         create_pool("pool_no_running", pool_tree="other", ignore_existing=True)
         set("//sys/pool_trees/other/pool_no_running/@max_running_operation_count", 0)
@@ -1106,9 +1093,7 @@ class TestListOperationsArchiveHacks(ListOperationsSetup):
     def test_archive_fetching(self):
         clear_progress("//sys/operations_archive/ordered_by_id")
         wait(
-            lambda: select_rows(
-                "brief_progress FROM [//sys/operations_archive/ordered_by_id]"
-            )[0]["brief_progress"]
+            lambda: select_rows("brief_progress FROM [//sys/operations_archive/ordered_by_id]")[0]["brief_progress"]
             == {"ivan": "ivanov"}
         )
         res = list_operations(include_archive=False)

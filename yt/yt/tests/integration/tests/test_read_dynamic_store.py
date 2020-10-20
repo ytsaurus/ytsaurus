@@ -38,12 +38,9 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             return (
                 statistics["tablet_count"] == get(table + "/@tablet_count")
                 and statistics["chunk_count"] == get(table + "/@chunk_count")
-                and statistics["uncompressed_data_size"]
-                == get(table + "/@uncompressed_data_size")
-                and statistics["compressed_data_size"]
-                == get(table + "/@compressed_data_size")
-                and statistics["disk_space"]
-                == get(table + "/@resource_usage/disk_space")
+                and statistics["uncompressed_data_size"] == get(table + "/@uncompressed_data_size")
+                and statistics["compressed_data_size"] == get(table + "/@compressed_data_size")
+                and statistics["disk_space"] == get(table + "/@resource_usage/disk_space")
             )
 
         tablet_statistics = get("//tmp/t/@tablet_statistics")
@@ -105,12 +102,8 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
         assert read_table("//tmp/t") == self.simple_rows
         assert read_table("//tmp/t[2:5]") == self.simple_rows[2:5]
-        assert read_table("//tmp/t{key}") == [
-            {"key": r["key"]} for r in self.simple_rows
-        ]
-        assert read_table("//tmp/t{value}") == [
-            {"value": r["value"]} for r in self.simple_rows
-        ]
+        assert read_table("//tmp/t{key}") == [{"key": r["key"]} for r in self.simple_rows]
+        assert read_table("//tmp/t{value}") == [{"value": r["value"]} for r in self.simple_rows]
 
     def test_read_removed(self):
         sync_create_cells(1)
@@ -213,9 +206,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
         def _wait_func():
-            orchid = self._find_tablet_orchid(
-                get_tablet_leader_address(tablet_id), tablet_id
-            )
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
             for store in orchid["eden"]["stores"].itervalues():
                 if store["store_state"] == "active_dynamic":
                     return store["row_count"] < 5
@@ -249,9 +240,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
         # Wait till all stores are flushed.
         def _wait_func():
-            orchid = self._find_tablet_orchid(
-                get_tablet_leader_address(tablet_id), tablet_id
-            )
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
             for store in orchid["eden"]["stores"].itervalues():
                 if store["store_state"] == "passive_dynamic":
                     return False
@@ -261,11 +250,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
         # NB: Usually the last flush should request dynamic store id. However, in rare cases
         # two flushes run concurrently and the id is not requested, thus only one dynamic store remains.
-        wait(
-            lambda: expected_store_count
-            <= get("//tmp/t/@chunk_count")
-            <= expected_store_count + 1
-        )
+        wait(lambda: expected_store_count <= get("//tmp/t/@chunk_count") <= expected_store_count + 1)
         assert 1 <= _store_count_by_type()["dynamic_store"] <= 2
 
         assert read_table("//tmp/t", tx=tx) == rows
@@ -283,9 +268,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         assert ts > get("//tmp/t/@unflushed_timestamp")
 
         if enable_dynamic_store_read:
-            assert read_table("<timestamp={}>//tmp/t".format(ts)) == [
-                {"key": 1, "value": "a"}
-            ]
+            assert read_table("<timestamp={}>//tmp/t".format(ts)) == [{"key": 1, "value": "a"}]
 
             create("table", "//tmp/p")
             map(in_="<timestamp={}>//tmp/t".format(ts), out="//tmp/p", command="cat")
@@ -296,9 +279,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
             create("table", "//tmp/p")
             with pytest.raises(YtError):
-                map(
-                    in_="<timestamp={}>//tmp/t".format(ts), out="//tmp/p", command="cat"
-                )
+                map(in_="<timestamp={}>//tmp/t".format(ts), out="//tmp/p", command="cat")
 
     @pytest.mark.parametrize("freeze", [True, False])
     def test_bulk_insert_overwrite(self, freeze):
@@ -427,9 +408,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
         node_id = self._get_node_env_id(node)
 
-        self._create_simple_table(
-            "//tmp/t", attributes={"dynamic_store_auto_flush_period": YsonEntity()}
-        )
+        self._create_simple_table("//tmp/t", attributes={"dynamic_store_auto_flush_period": YsonEntity()})
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i} for i in range(50000)]
@@ -440,9 +419,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             in_="//tmp/t[50:49950]",
             out="//tmp/out",
             spec={
-                "job_io": {
-                    "table_reader": {"dynamic_store_reader": {"window_size": 1}}
-                },
+                "job_io": {"table_reader": {"dynamic_store_reader": {"window_size": 1}}},
                 "mapper": {"format": "json"},
                 "max_failed_job_count": 1,
             },
@@ -472,9 +449,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
         node_id = self._get_node_env_id(node)
 
-        self._create_simple_table(
-            "//tmp/t", attributes={"dynamic_store_auto_flush_period": YsonEntity()}
-        )
+        self._create_simple_table("//tmp/t", attributes={"dynamic_store_auto_flush_period": YsonEntity()})
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": i} for i in range(50000)])
@@ -486,9 +461,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             in_="<timestamp={}>//tmp/t".format(timestamp),
             out="//tmp/out",
             spec={
-                "job_io": {
-                    "table_reader": {"dynamic_store_reader": {"window_size": 1}}
-                },
+                "job_io": {"table_reader": {"dynamic_store_reader": {"window_size": 1}}},
                 "mapper": {"format": "json"},
                 "max_failed_job_count": 1,
             },

@@ -31,9 +31,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
     }
 
     @authors("ignat")
-    @pytest.mark.skipif(
-        is_asan_build(), reason="Memory allocation is not reported under ASAN"
-    )
+    @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_controller_memory_usage(self):
         # In this test we rely on the assignment order of memory tags.
         # Tags are given to operations sequentially during lifetime of controller agent.
@@ -47,19 +45,15 @@ class TestControllerMemoryUsage(YTEnvSetup):
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
 
-        controller_agent_orchid = (
-            "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
-                controller_agents[0]
-            )
+        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
+            controller_agents[0]
         )
 
         def check(tag_number, operation, usage_lower_bound, usage_upper_bound):
             state = operation.get_state()
             if state != "running":
                 return False
-            statistics = get(
-                controller_agent_orchid + "/tagged_memory_statistics/" + tag_number
-            )
+            statistics = get(controller_agent_orchid + "/tagged_memory_statistics/" + tag_number)
             if statistics["operation_id"] == YsonEntity():
                 return False
             assert statistics["operation_id"] == operation.id
@@ -67,9 +61,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
             assert statistics["usage"] < usage_upper_bound
             return True
 
-        for entry in get(
-            controller_agent_orchid + "/tagged_memory_statistics", verbose=False
-        ):
+        for entry in get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False):
             assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
@@ -110,9 +102,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
         print_debug("large_usage =", usage)
         assert usage > 10 * 10 ** 6
         wait(
-            lambda: get_operation(
-                op_large.id, attributes=["memory_usage"], include_runtime=True
-            )["memory_usage"]
+            lambda: get_operation(op_large.id, attributes=["memory_usage"], include_runtime=True)["memory_usage"]
             > 10 * 10 ** 6
         )
 
@@ -122,9 +112,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         time.sleep(5)
 
-        for i, entry in enumerate(
-            get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False)
-        ):
+        for i, entry in enumerate(get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False)):
             if i <= 1:
                 assert entry["operation_id"] in (op_small.id, op_large.id)
             else:
@@ -151,11 +139,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {"resource_limits": {"user_slots": 100, "cpu": 100}}
-        }
-    }
+    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"user_slots": 100, "cpu": 100}}}}
 
     @classmethod
     def modify_controller_agent_config(cls, config):
@@ -164,15 +148,11 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
         cls.controller_agent_counter += 1
         if cls.controller_agent_counter > 2:
             cls.controller_agent_counter -= 2
-        config["controller_agent"]["total_controller_memory_limit"] = (
-            cls.controller_agent_counter * 50 * 1024 ** 2
-        )
+        config["controller_agent"]["total_controller_memory_limit"] = cls.controller_agent_counter * 50 * 1024 ** 2
 
     @authors("ignat")
     @flaky(max_runs=5)
-    @pytest.mark.skipif(
-        is_asan_build(), reason="Memory allocation is not reported under ASAN"
-    )
+    @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_strategy(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         write_table("<append=%true>//tmp/t_in", [{"a": 0}])
@@ -197,22 +177,16 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 
         address_to_operation = defaultdict(list)
         for op in ops:
-            address_to_operation[
-                get(op.get_path() + "/@controller_agent_address")
-            ].append(op.id)
+            address_to_operation[get(op.get_path() + "/@controller_agent_address")].append(op.id)
 
-        operation_balance = sorted(
-            __builtin__.map(lambda value: len(value), address_to_operation.values())
-        )
+        operation_balance = sorted(__builtin__.map(lambda value: len(value), address_to_operation.values()))
         balance_ratio = float(operation_balance[0]) / operation_balance[1]
         print_debug("BALANCE_RATIO", balance_ratio)
         if not (0.5 <= balance_ratio <= 0.8):
             for op in ops:
                 print_debug(
                     op.id,
-                    get(
-                        op.get_path() + "/controller_orchid/memory_usage", verbose=False
-                    ),
+                    get(op.get_path() + "/controller_orchid/memory_usage", verbose=False),
                 )
         assert 0.5 <= balance_ratio <= 0.8
 
@@ -225,9 +199,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {"schedule_job_time_limit": 100, "operations_update_period": 10}
-    }
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"schedule_job_time_limit": 100, "operations_update_period": 10}}
 
     @authors("ignat")
     def test_time_based_throttling(self):
@@ -325,9 +297,7 @@ class TestCustomControllerQueues(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", data, sorted_by=["foo"])
 
-        reduce(
-            command="sleep 1; cat", in_="//tmp/in", out="//tmp/out", reduce_by=["foo"]
-        )
+        reduce(command="sleep 1; cat", in_="//tmp/in", out="//tmp/out", reduce_by=["foo"])
 
 
 ##################################################################
@@ -393,18 +363,12 @@ class TestControllerAgentTags(YTEnvSetup):
 
         def wait_for_tags_loaded():
             for agent in get("//sys/controller_agents/instances").keys():
-                tags_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
-                    agent
-                )
+                tags_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(agent)
                 wait(lambda: len(get(tags_path)) > 0)
 
         wait_for_tags_loaded()
         for agent in get("//sys/controller_agents/instances").keys():
-            agent_tags = get(
-                "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
-                    agent
-                )
-            )
+            agent_tags = get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(agent))
             assert len(agent_tags) == 1
             agent_tag = agent_tags[0]
             if agent_tag == "foo":
@@ -457,21 +421,12 @@ class TestControllerAgentTags(YTEnvSetup):
             )
 
         wait_for_tags_loaded()
-        assert get(
-            "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
-                foo_agent
-            )
-        ) == ["foo"]
-        assert get(
-            "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
-                baz_agent
-            )
-        ) == ["baz"]
-        assert get(
-            "//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(
-                boo_agent
-            )
-        ) == ["boo", "booo"]
+        assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(foo_agent)) == ["foo"]
+        assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(baz_agent)) == ["baz"]
+        assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(boo_agent)) == [
+            "boo",
+            "booo",
+        ]
 
         check_assignment("foo", foo_agent)
         check_assignment("baz", baz_agent)

@@ -136,16 +136,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t2",
-            attributes={
-                "schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "a2", "type": "int64", "sort_order": "ascending"}]},
         )
         write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
         write_table("//tmp/t2", [{"a2": 3}, {"a2": 4}])
@@ -217,16 +213,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t2",
-            attributes={
-                "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -268,19 +260,13 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
         write_table(
             "<append=true>//tmp/t1",
-            [
-                {"key": "%05d" % (count / 2), "value": "%05d" % (i + count)}
-                for i in range(count)
-            ],
+            [{"key": "%05d" % (count / 2), "value": "%05d" % (i + count)} for i in range(count)],
             sorted_by="key",
             table_writer={"block_size": 1024},
         )
         write_table(
             "<append=true>//tmp/t1",
-            [
-                {"key": "%05d" % (count / 2), "value": "%05d" % (i + 2 * count)}
-                for i in range(count)
-            ],
+            [{"key": "%05d" % (count / 2), "value": "%05d" % (i + 2 * count)} for i in range(count)],
             sorted_by="key",
             table_writer={"block_size": 1024},
         )
@@ -390,15 +376,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
 
-        write_table(
-            "//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"]
-        )
-        write_table(
-            "//tmp/t2", [{"k": "b", "s": 2}, {"k": "c", "s": 0}], sorted_by=["k", "s"]
-        )
-        write_table(
-            "//tmp/t3", [{"k": "b", "s": 1}, {"k": "b", "s": 2}], sorted_by=["k", "s"]
-        )
+        write_table("//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"])
+        write_table("//tmp/t2", [{"k": "b", "s": 2}, {"k": "c", "s": 0}], sorted_by=["k", "s"])
+        write_table("//tmp/t3", [{"k": "b", "s": 1}, {"k": "b", "s": 2}], sorted_by=["k", "s"])
 
         create("table", "//tmp/out")
         merge(
@@ -423,15 +403,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
 
-        write_table(
-            "//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"]
-        )
-        write_table(
-            "//tmp/t2", [{"k": "b", "s": 3}, {"k": "c", "s": 0}], sorted_by=["k", "s"]
-        )
-        write_table(
-            "//tmp/t3", [{"k": "b", "s": 2}, {"k": "b", "s": 4}], sorted_by=["k", "s"]
-        )
+        write_table("//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"])
+        write_table("//tmp/t2", [{"k": "b", "s": 3}, {"k": "c", "s": 0}], sorted_by=["k", "s"])
+        write_table("//tmp/t3", [{"k": "b", "s": 2}, {"k": "b", "s": 4}], sorted_by=["k", "s"])
 
         create("table", "//tmp/out")
         merge(
@@ -450,15 +424,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         create("table", "//tmp/t3")
 
-        write_table(
-            "//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"]
-        )
-        write_table(
-            "//tmp/t2", [{"k": "b", "s": 2}, {"k": "c", "s": 0}], sorted_by=["k", "s"]
-        )
-        write_table(
-            "//tmp/t3", [{"k": "b", "s": 0}, {"k": "b", "s": 3}], sorted_by=["k", "s"]
-        )
+        write_table("//tmp/t1", [{"k": "a", "s": 0}, {"k": "b", "s": 1}], sorted_by=["k", "s"])
+        write_table("//tmp/t2", [{"k": "b", "s": 2}, {"k": "c", "s": 0}], sorted_by=["k", "s"])
+        write_table("//tmp/t3", [{"k": "b", "s": 0}, {"k": "b", "s": 3}], sorted_by=["k", "s"])
 
         create("table", "//tmp/t_out")
         merge(
@@ -560,9 +528,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table("//tmp/t1", [{"a": 2}, {"a": 3}, {"a": 15}], sorted_by="a")
 
         create("table", "//tmp/t_out")
-        merge(
-            combine_chunks=False, mode="sorted", in_="//tmp/t1[:#2]", out="//tmp/t_out"
-        )
+        merge(combine_chunks=False, mode="sorted", in_="//tmp/t1[:#2]", out="//tmp/t_out")
 
         assert read_table("//tmp/t_out") == [{"a": 2}, {"a": 3}]
         assert get("//tmp/t_out/@chunk_count") == 1
@@ -590,9 +556,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out")
 
         # now merge_by is set
-        merge(
-            mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", merge_by="a"
-        )
+        merge(mode="sorted", in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out", merge_by="a")
 
         result = read_table("//tmp/t_out")
         assert result[:2] == [a1, b1]
@@ -758,9 +722,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/t_out")
 
@@ -782,9 +744,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         write_table("//tmp/t2", v2)
         write_table("//tmp/t_out", v3)
 
-        merge(
-            mode="ordered", in_=["//tmp/t1", "//tmp/t2"], out="<append=true>//tmp/t_out"
-        )
+        merge(mode="ordered", in_=["//tmp/t1", "//tmp/t2"], out="<append=true>//tmp/t_out")
 
         assert read_table("//tmp/t_out") == [v3, v1, v2]
 
@@ -949,9 +909,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t_out",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         rows = [{"key": i, "value": str(i)} for i in xrange(2)]
         write_table("//tmp/t", rows)
@@ -963,9 +921,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     def test_query_filtering(self, mode):
-        create(
-            "table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]}
-        )
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
@@ -995,9 +951,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("savrus")
     def test_sorted_merge_query_filtering(self):
-        create(
-            "table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]}
-        )
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
@@ -1026,9 +980,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t_out",
-            attributes={
-                "schema": [{"name": "k", "type": "int64", "sort_order": sort_order}]
-            },
+            attributes={"schema": [{"name": "k", "type": "int64", "sort_order": sort_order}]},
         )
         rows = [{"key": i, "value": str(i)} for i in xrange(2)]
         write_table("//tmp/t", rows)
@@ -1044,9 +996,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("babenko")
     def test_merge_chunk_properties(self):
-        create(
-            "table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False}
-        )
+        create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False})
         write_table("//tmp/t1", [{"a": 1}])
         chunk_id = get_singular_chunk_id("//tmp/t1")
 
@@ -1056,10 +1006,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/t2", attributes={"replication_factor": 3, "vital": True})
         merge(mode="ordered", in_=["//tmp/t1"], out="//tmp/t2")
 
-        wait(
-            lambda: get_chunk_replication_factor(chunk_id) == 3
-            and get("#" + chunk_id + "/@vital")
-        )
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 3 and get("#" + chunk_id + "/@vital"))
 
     @authors("ignat")
     def test_chunk_indices(self):
@@ -1159,13 +1106,9 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
     @authors("psushin")
     def test_auto_schema_inference_ordered(self):
-        output_schema = make_schema(
-            [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}]
-        )
+        output_schema = make_schema([{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}])
         good_schema = make_schema([{"name": "key", "type": "int64"}])
-        bad_schema = make_schema(
-            [{"name": "key", "type": "int64"}, {"name": "bad", "type": "int64"}]
-        )
+        bad_schema = make_schema([{"name": "key", "type": "int64"}, {"name": "bad", "type": "int64"}])
 
         create("table", "//tmp/input_good", attributes={"schema": good_schema})
         create("table", "//tmp/input_bad", attributes={"schema": bad_schema})
@@ -1176,9 +1119,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         merge(in_=["//tmp/input_weak", "//tmp/input_good"], out="//tmp/output_strong")
 
         with pytest.raises(YtError):
-            merge(
-                in_=["//tmp/input_weak", "//tmp/input_bad"], out="//tmp/output_strong"
-            )
+            merge(in_=["//tmp/input_weak", "//tmp/input_bad"], out="//tmp/output_strong")
 
         with pytest.raises(YtError):
             merge(in_=["//tmp/input_weak", "//tmp/input_good"], out="//tmp/output_weak")
@@ -1215,9 +1156,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert_items_equal(
-            read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)]
-        )
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
 
@@ -1258,9 +1197,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert read_table("//tmp/output") == [
-            {"key": i, "value": "foo"} for i in xrange(10)
-        ]
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(10)]
 
         write_table("//tmp/input", {"key": "1", "value": "foo"})
 
@@ -1291,9 +1228,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
 
         for i in xrange(10):
-            write_table(
-                "<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"}
-            )
+            write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
 
         assert get("//tmp/input/@sorted_by") == ["key"]
 
@@ -1306,9 +1241,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert read_table("//tmp/output") == [
-            {"key": i, "value": "foo"} for i in xrange(10)
-        ]
+        assert read_table("//tmp/output") == [{"key": i, "value": "foo"} for i in xrange(10)]
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
@@ -1377,9 +1310,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             spec={"schema_inference_mode": "from_output"},
             **merge_by_args
         )
-        assert normalize_schema_v3(output_schema) == normalize_schema_v3(
-            get("//tmp/output/@schema")
-        )
+        assert normalize_schema_v3(output_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
         merge(
             mode=mode,
             in_="//tmp/input",
@@ -1387,18 +1318,14 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             spec={"schema_inference_mode": "from_input"},
             **merge_by_args
         )
-        assert normalize_schema_v3(input_schema) == normalize_schema_v3(
-            get("//tmp/output/@schema")
-        )
+        assert normalize_schema_v3(input_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
 
     @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_sorted_merge_on_dynamic_table(self, external, optimize_for):
         sync_create_cells(1)
-        self._create_simple_dynamic_table(
-            "//tmp/t", optimize_for=optimize_for, external=external
-        )
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
 
         create("table", "//tmp/t_out")
 
@@ -1507,9 +1434,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t_in",
-            attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/t_out")
         for i in range(25):
@@ -1606,10 +1531,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table(
             "//tmp/t1",
-            [
-                {"key": ("%02d" % (i // 100)), "value": "x" * 10 ** 2}
-                for i in range(10000)
-            ],
+            [{"key": ("%02d" % (i // 100)), "value": "x" * 10 ** 2} for i in range(10000)],
             table_writer={"block_size": 1024},
         )
 
@@ -1625,9 +1547,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
         assert get("//tmp/t2/@row_count") == 0
         assert get("//tmp/t2/@row_count") == 0
-        assert get(op.get_path() + "/@progress/jobs/total") == get(
-            op.get_path() + "/@progress/jobs/completed/total"
-        )
+        assert get(op.get_path() + "/@progress/jobs/total") == get(op.get_path() + "/@progress/jobs/completed/total")
 
         op = merge(
             in_="//tmp/t1",
@@ -1642,9 +1562,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
         assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
         assert get("//tmp/t2/@chunk_count") == 1
-        assert get(op.get_path() + "/@progress/jobs/total") == get(
-            op.get_path() + "/@progress/jobs/completed/total"
-        )
+        assert get(op.get_path() + "/@progress/jobs/total") == get(op.get_path() + "/@progress/jobs/completed/total")
 
         op = merge(
             in_="//tmp/t1",
@@ -1659,9 +1577,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         )
         assert 0.25 * 10000 <= get("//tmp/t2/@row_count") <= 0.75 * 10000
         assert get("//tmp/t2/@chunk_count") > 1
-        assert get(op.get_path() + "/@progress/jobs/total") == get(
-            op.get_path() + "/@progress/jobs/completed/total"
-        )
+        assert get(op.get_path() + "/@progress/jobs/total") == get(op.get_path() + "/@progress/jobs/completed/total")
 
         if mode != "unordered":
             op = merge(
@@ -1737,9 +1653,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@row_count") == 0
         assert get("//tmp/t2/@row_count") == 0
-        assert get(op.get_path() + "/@progress/jobs/total") == get(
-            op.get_path() + "/@progress/jobs/completed/total"
-        )
+        assert get(op.get_path() + "/@progress/jobs/total") == get(op.get_path() + "/@progress/jobs/completed/total")
 
     @authors("max42")
     @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
@@ -1747,9 +1661,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/t2")
         for i in range(100):
@@ -1774,9 +1686,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"key": 0}, {"key": 1}])
@@ -1882,16 +1792,12 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t2",
-            attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
         )
         write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
         write_table("//tmp/t2", [{"a": 3}, {"a": 4}])
@@ -1899,10 +1805,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         create("table", "//tmp/t_out")
         op = merge(mode=merge_mode, in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out")
 
-        assert (
-            get(op.get_path() + "/@progress/legacy_controller")
-            == self.USE_LEGACY_CONTROLLERS
-        )
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
     @authors("ermolovd")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -1970,12 +1873,8 @@ class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
                 "table",
                 "//tmp/in{}".format(i),
                 attributes={
-                    "schema": [
-                        {"name": "key", "type": "string", "sort_order": "ascending"}
-                    ],
-                    "chunk_writer": {
-                        "block_size": 1
-                    },  # Each block should have exactly one row to make precise slices.
+                    "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}],
+                    "chunk_writer": {"block_size": 1},  # Each block should have exactly one row to make precise slices.
                     "compression_codec": "none",
                 },
             )
@@ -1988,8 +1887,7 @@ class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
                 # Last row ensures that chunk won't be teleported.
                 write_table(
                     "//tmp/in{}".format(i),
-                    [{"key": ("%04d" % (10 * i + x))} for x in range(9)]
-                    + [{"key": ("%04d" % (9000 + i))}],
+                    [{"key": ("%04d" % (10 * i + x))} for x in range(9)] + [{"key": ("%04d" % (9000 + i))}],
                 )
         create("table", "//tmp/out")
 
@@ -2044,9 +1942,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "0": {
                     "ref_counter": 1,
                     "vital": True,
-                    "media": {
-                        "default": {"replication_factor": 3, "data_parts_only": False}
-                    },
+                    "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
                 }
             }
         )
@@ -2056,15 +1952,11 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "0": {
                     "ref_counter": 1,
                     "vital": True,
-                    "media": {
-                        "default": {"replication_factor": 3, "data_parts_only": False}
-                    },
+                    "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
                 }
             }
         )
-        assert_items_equal(
-            ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id1, chunk_id2]
-        )
+        assert_items_equal(ls("//sys/foreign_chunks", driver=get_driver(0)), [chunk_id1, chunk_id2])
 
         assert read_table("//tmp/t") == [{"a": 1}, {"a": 2}]
 
@@ -2100,9 +1992,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "2": {
                     "ref_counter": 2,
                     "vital": True,
-                    "media": {
-                        "default": {"replication_factor": 3, "data_parts_only": False}
-                    },
+                    "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
                 }
             }
         )
@@ -2122,9 +2012,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "2": {
                     "ref_counter": 4,
                     "vital": True,
-                    "media": {
-                        "default": {"replication_factor": 3, "data_parts_only": False}
-                    },
+                    "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
                 }
             }
         )
@@ -2142,9 +2030,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "2": {
                     "ref_counter": 4,
                     "vital": True,
-                    "media": {
-                        "default": {"replication_factor": 3, "data_parts_only": False}
-                    },
+                    "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
                 }
             }
             and ls("//sys/foreign_chunks", driver=get_driver(2)) == [chunk_id]
@@ -2190,10 +2076,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         )
         merge(mode="ordered", in_=["//tmp/t1"], out="//tmp/t2")
 
-        wait(
-            lambda: get_chunk_replication_factor(chunk_id) == 3
-            and not get("#" + chunk_id + "/@vital")
-        )
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 3 and not get("#" + chunk_id + "/@vital"))
 
         set("//tmp/t2/@replication_factor", 2)
 
@@ -2217,10 +2100,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
         remove("//tmp/t2")
 
-        wait(
-            lambda: get_chunk_replication_factor(chunk_id) == 1
-            and not get("#" + chunk_id + "/@vital")
-        )
+        wait(lambda: get_chunk_replication_factor(chunk_id) == 1 and not get("#" + chunk_id + "/@vital"))
 
     @authors("babenko")
     def test_yt_4259(self):
@@ -2240,16 +2120,12 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                 "1": {
                     "ref_counter": 1,
                     "vital": True,
-                    "media": {
-                        "default": {"replication_factor": 3, "data_parts_only": False}
-                    },
+                    "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
                 },
                 "2": {
                     "ref_counter": 1,
                     "vital": True,
-                    "media": {
-                        "default": {"replication_factor": 3, "data_parts_only": False}
-                    },
+                    "media": {"default": {"replication_factor": 3, "data_parts_only": False}},
                 },
             }
         )

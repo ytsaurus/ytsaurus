@@ -94,9 +94,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     def _lookup_ordered_by_id_row(self, op_id):
         id_hi, id_lo = uuid_to_parts(op_id)
-        rows = lookup_rows(
-            "//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}]
-        )
+        rows = lookup_rows("//sys/operations_archive/ordered_by_id", [{"id_hi": id_hi, "id_lo": id_lo}])
         assert len(rows) == 1
         return rows[0]
 
@@ -131,12 +129,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert "finish_time" in row
             assert "start_time" in row
             assert "alerts" in row
-            assert (
-                row["runtime_parameters"]["scheduling_options_per_pool_tree"][
-                    "default"
-                ]["pool"]
-                == "root"
-            )
+            assert row["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
 
     @authors("asaitgalin")
     def test_operations_archive_is_not_initialized(self):
@@ -148,9 +141,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         # Earliest operations should be removed
         wait(lambda: len(self._get_removed_operations(ops)) == 7)
-        assert __builtin__.set(self._get_removed_operations(ops)) == __builtin__.set(
-            ops[:7]
-        )
+        assert __builtin__.set(self._get_removed_operations(ops)) == __builtin__.set(ops[:7])
 
         def scheduler_alert_set():
             for alert in get("//sys/scheduler/@alerts"):
@@ -160,18 +151,14 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(scheduler_alert_set)
 
-    def _test_start_stop_impl(
-        self, command, lookup_timeout=None, max_failed_job_count=1
-    ):
+    def _test_start_stop_impl(self, command, lookup_timeout=None, max_failed_job_count=1):
         init_operation_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
         config = {"enable": False}
         if lookup_timeout is not None:
-            config["finished_operations_archive_lookup_timeout"] = int(
-                lookup_timeout.total_seconds() * 1000
-            )
+            config["finished_operations_archive_lookup_timeout"] = int(lookup_timeout.total_seconds() * 1000)
         set("//sys/scheduler/config", {"operations_cleaner": config})
         wait(lambda: not get(CLEANER_ORCHID + "/enable"))
         wait(lambda: not get(CLEANER_ORCHID + "/enable_archivation"))

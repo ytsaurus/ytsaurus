@@ -32,7 +32,4 @@ class TestObjectServiceCache(YTEnvSetup):
         for _ in range(5):
             ls("//tmp", read_from="cache")
             time.sleep(0.25)
-        assert (
-            len(get("//sys/cluster_nodes/{0}/orchid/object_service_cache".format(node)))
-            > 0
-        )
+        assert len(get("//sys/cluster_nodes/{0}/orchid/object_service_cache".format(node))) > 0

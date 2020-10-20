@@ -10,7 +10,7 @@ from itertools import imap
 from dictionary import Dictionary
 
 # TODO: because of problems in mapreduce
-#class Dictionary(object):
+# class Dictionary(object):
 #    def __init__(self):
 #        self.words = []
 #
@@ -38,7 +38,7 @@ from dictionary import Dictionary
 #
 #        sum = math.log(len(self.words))
 #        return self.words[binary_search(math.log, random.uniform(0.0, sum), 1, len(self.words)) - 1]
- 
+
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print >>sys.stderr, "Usage: ./%s <dictionary_filename> <record_count> <word_count>" % sys.argv[0]
@@ -55,4 +55,3 @@ if __name__ == "__main__":
     for i in xrange(int(sys.argv[2])):
         words = [dict.get_random_word() for _ in xrange(int(sys.argv[3]))]
         sys.stdout.write("\t\t%s\n" % " ".join(words))
-

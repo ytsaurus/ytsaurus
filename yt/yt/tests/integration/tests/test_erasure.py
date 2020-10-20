@@ -77,9 +77,7 @@ class TestErasure(YTEnvSetup):
         for r in replicas:
             replica_index = r.attributes["index"]
             address = str(r)
-            print_debug(
-                "Banning node %s containing replica %d" % (address, replica_index)
-            )
+            print_debug("Banning node %s containing replica %d" % (address, replica_index))
             set_node_banned(address, True)
             wait(lambda: self._is_chunk_ok(chunk_id))
             assert read_table("//tmp/table") == [{"b": "hello"}]
@@ -90,11 +88,7 @@ class TestErasure(YTEnvSetup):
         parts = [int(s, 16) for s in chunk_id.split("-")]
         parts[2] = (parts[2] / 2 ** 16) * (2 ** 16) + 103 + replica_index
         node_chunk_id = "-".join(hex(i)[2:] for i in parts)
-        return get(
-            "//sys/cluster_nodes/{0}/orchid/stored_chunks/{1}".format(
-                address, node_chunk_id
-            )
-        )["block_count"]
+        return get("//sys/cluster_nodes/{0}/orchid/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
 
     def _prepare_table(self):
         for node in ls("//sys/cluster_nodes"):
@@ -153,9 +147,7 @@ class TestErasure(YTEnvSetup):
 
         correct_data = read_table("//tmp/table")
 
-        set(
-            "//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True
-        )
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
         try:
@@ -285,10 +277,7 @@ class TestErasure(YTEnvSetup):
             command="cat",
             spec={"slice_erasure_chunks_by_parts": True},
         )
-        chunk_count = get(
-            op1.get_path()
-            + "/@progress/data_flow_graph/edges/source/map/statistics/chunk_count"
-        )
+        chunk_count = get(op1.get_path() + "/@progress/data_flow_graph/edges/source/map/statistics/chunk_count")
         assert chunk_count == 12
 
         op2 = map(
@@ -297,10 +286,7 @@ class TestErasure(YTEnvSetup):
             command="cat",
             spec={"slice_erasure_chunks_by_parts": False},
         )
-        chunk_count = get(
-            op2.get_path()
-            + "/@progress/data_flow_graph/edges/source/map/statistics/chunk_count"
-        )
+        chunk_count = get(op2.get_path() + "/@progress/data_flow_graph/edges/source/map/statistics/chunk_count")
         assert chunk_count == 1
 
     @authors("prime")
@@ -355,9 +341,7 @@ class TestErasure(YTEnvSetup):
         assert "lrc_12_2_2" == get("//tmp/table/@erasure_codec")
 
         with pytest.raises(YtError):
-            write_table(
-                "<append=true;erasure_codec=lrc_12_2_2>//tmp/table", [{"key": 0}]
-            )
+            write_table("<append=true;erasure_codec=lrc_12_2_2>//tmp/table", [{"key": 0}])
 
     @authors("prime")
     def test_write_file_with_erasure(self):

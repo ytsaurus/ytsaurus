@@ -56,15 +56,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
 
         # Ensure that all three jobs have started.
-        events_on_fs().wait_event(
-            "master_job_started_0", timeout=datetime.timedelta(1000)
-        )
-        events_on_fs().wait_event(
-            "slave_job_started_0", timeout=datetime.timedelta(1000)
-        )
-        events_on_fs().wait_event(
-            "slave_job_started_1", timeout=datetime.timedelta(1000)
-        )
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("slave_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("slave_job_started_1", timeout=datetime.timedelta(1000))
 
         events_on_fs().notify_event("finish")
 
@@ -73,15 +67,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         data_flow_graph_path = op.get_path() + "/@progress/data_flow_graph"
         get(data_flow_graph_path)
         assert get(data_flow_graph_path + "/vertices/master/job_type") == "vanilla"
-        assert (
-            get(data_flow_graph_path + "/vertices/master/job_counter/completed/total")
-            == 1
-        )
+        assert get(data_flow_graph_path + "/vertices/master/job_counter/completed/total") == 1
         assert get(data_flow_graph_path + "/vertices/slave/job_type") == "vanilla"
-        assert (
-            get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total")
-            == 2
-        )
+        assert get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total") == 2
 
         tasks = {}
         for task in get(op.get_path() + "/@progress/tasks"):
@@ -97,18 +85,14 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     def test_task_job_index(self):
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd(
-                    "job_started_master_${YT_TASK_JOB_INDEX}"
-                ),
+                events_on_fs().notify_event_cmd("job_started_master_${YT_TASK_JOB_INDEX}"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
 
         slave_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd(
-                    "job_started_slave_${YT_TASK_JOB_INDEX}"
-                ),
+                events_on_fs().notify_event_cmd("job_started_slave_${YT_TASK_JOB_INDEX}"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -130,18 +114,10 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         )
 
         # Ensure that all three jobs have started.
-        events_on_fs().wait_event(
-            "job_started_master_0", timeout=datetime.timedelta(1000)
-        )
-        events_on_fs().wait_event(
-            "job_started_slave_0", timeout=datetime.timedelta(1000)
-        )
-        events_on_fs().wait_event(
-            "job_started_slave_1", timeout=datetime.timedelta(1000)
-        )
-        events_on_fs().wait_event(
-            "job_started_slave_2", timeout=datetime.timedelta(1000)
-        )
+        events_on_fs().wait_event("job_started_master_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("job_started_slave_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("job_started_slave_1", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("job_started_slave_2", timeout=datetime.timedelta(1000))
 
         events_on_fs().notify_event("finish")
 
@@ -150,15 +126,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         data_flow_graph_path = op.get_path() + "/@progress/data_flow_graph"
         get(data_flow_graph_path)
         assert get(data_flow_graph_path + "/vertices/master/job_type") == "vanilla"
-        assert (
-            get(data_flow_graph_path + "/vertices/master/job_counter/completed/total")
-            == 1
-        )
+        assert get(data_flow_graph_path + "/vertices/master/job_counter/completed/total") == 1
         assert get(data_flow_graph_path + "/vertices/slave/job_type") == "vanilla"
-        assert (
-            get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total")
-            == 3
-        )
+        assert get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total") == 3
 
         tasks = {}
         for task in get(op.get_path() + "/@progress/tasks"):
@@ -183,16 +153,12 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     "task_a": {
                         "job_count": 1,
                         "command": 'if [[ `cat data` != "data_a" ]] ; then exit 1; fi',
-                        "file_paths": [
-                            to_yson_type("//tmp/a", attributes={"file_name": "data"})
-                        ],
+                        "file_paths": [to_yson_type("//tmp/a", attributes={"file_name": "data"})],
                     },
                     "task_b": {
                         "job_count": 2,
                         "command": 'if [[ `cat data` != "data_b" ]] ; then exit 1; fi',
-                        "file_paths": [
-                            to_yson_type("//tmp/b", attributes={"file_name": "data"})
-                        ],
+                        "file_paths": [to_yson_type("//tmp/b", attributes={"file_name": "data"})],
                     },
                 },
                 "max_failed_job_count": 1,
@@ -224,8 +190,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
         job_ids = ls(op.get_path() + "/jobs")
         cypress_stderrs_per_task = Counter(
-            read_file(op.get_path() + "/jobs/{0}/stderr".format(job_id))
-            for job_id in job_ids
+            read_file(op.get_path() + "/jobs/{0}/stderr".format(job_id)) for job_id in job_ids
         )
 
         assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
@@ -352,9 +317,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             interrupt_job(job_id)
 
         exit_code = 17
-        command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; sleep 100)""".format(
-            exit_code
-        )
+        command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; sleep 100)""".format(exit_code)
 
         op = vanilla(
             track=False,
@@ -380,9 +343,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         time.sleep(5)
         interrupt()
 
-        wait(
-            lambda: op.get_job_count("completed") == 1 and op.get_job_count("lost") == 1
-        )
+        wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("lost") == 1)
         op.track()
 
     # TODO(max42): add lambda job: signal_job(job, "SIGKILL") when YT-8243 is fixed.
@@ -517,20 +478,9 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     @authors("max42")
     def test_operation_limits(self):
         with pytest.raises(YtError):
-            vanilla(
-                spec={
-                    "tasks": {
-                        "task_" + str(i): {"job_count": 1, "command": "true"}
-                        for i in range(101)
-                    }
-                }
-            )
+            vanilla(spec={"tasks": {"task_" + str(i): {"job_count": 1, "command": "true"} for i in range(101)}})
         with pytest.raises(YtError):
-            vanilla(
-                spec={
-                    "tasks": {"main": {"job_count": 100 * 1000 + 1, "command": "true"}}
-                }
-            )
+            vanilla(spec={"tasks": {"main": {"job_count": 100 * 1000 + 1, "command": "true"}}})
 
     @authors("dakovalkov", "max42")
     def test_restart_completed_jobs(self):
@@ -572,9 +522,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
     def test_set_final_job_state_metrics(self):
         nodes = ls("//sys/cluster_nodes")
 
-        metrics = [
-            Metric.at_node(node, "job_controller/job_final_state") for node in nodes
-        ]
+        metrics = [Metric.at_node(node, "job_controller/job_final_state") for node in nodes]
         op = run_test_vanilla("sleep 1")
 
         wait(lambda: any(metric.update().get(verbose=True) > 0 for metric in metrics))
@@ -631,10 +579,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             }
         )
 
-        assert (
-            get(op.get_path() + "/@progress/legacy_controller")
-            == self.USE_LEGACY_CONTROLLERS
-        )
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
 
 ##################################################################

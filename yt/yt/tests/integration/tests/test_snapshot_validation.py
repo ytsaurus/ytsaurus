@@ -23,9 +23,7 @@ class TestSnapshotValidation(YTEnvSetup):
         create("table", "//tmp/t")
         build_master_snapshots()
 
-        snapshot_dir = os.path.join(
-            self.path_to_run, "runtime_data", "master", "0", "snapshots"
-        )
+        snapshot_dir = os.path.join(self.path_to_run, "runtime_data", "master", "0", "snapshots")
         snapshots = os.listdir(snapshot_dir)
         assert len(snapshots) > 0
         snapshot_path = os.path.join(snapshot_dir, snapshots[0])
