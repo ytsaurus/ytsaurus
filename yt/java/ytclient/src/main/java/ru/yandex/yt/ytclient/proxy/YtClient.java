@@ -255,7 +255,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                     // Use http
                     dataCenterList.add(
                             ClientPoolService.httpBuilder()
-                                    .setDataCenterName(curCluster.getName())
+                                    .setDataCenterName(curCluster.getNormalizedName())
                                     .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
                                     .setRole(proxyRole)
                                     .setToken(credentials.getToken())
@@ -275,7 +275,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                             curCluster.addresses.stream().map(HostPort::parse).collect(Collectors.toList());
                     dataCenterList.add(
                             ClientPoolService.rpcBuilder()
-                                    .setDataCenterName(curCluster.getName())
+                                    .setDataCenterName(curCluster.getNormalizedName())
                                     .setInitialProxyList(initialProxyList)
                                     .setRole(proxyRole)
                                     .setOptions(options)
@@ -625,9 +625,9 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
          */
         public Builder setClusters(String firstCluster, String... rest) {
             List<YtCluster> ytClusters = new ArrayList<>();
-            ytClusters.add(new YtCluster(normalizeName(firstCluster)));
+            ytClusters.add(new YtCluster(YtCluster.normalizeName(firstCluster)));
             for (String clusterName : rest) {
-                ytClusters.add(new YtCluster(normalizeName(clusterName)));
+                ytClusters.add(new YtCluster(YtCluster.normalizeName(clusterName)));
             }
             return setClusters(ytClusters);
         }
@@ -655,7 +655,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
          * cluster based on network metrics.
          */
         public Builder setPreferredClusterName(@Nullable String preferredClusterName) {
-            this.preferredClusterName = normalizeName(preferredClusterName);
+            this.preferredClusterName = YtCluster.normalizeName(preferredClusterName);
             return this;
         }
 
@@ -744,20 +744,6 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         Builder disableValidation() {
             enableValidation = false;
             return this;
-        }
-
-        static @Nullable String normalizeName(@Nullable String name) {
-            if (name == null || name.equals("")) {
-                return null;
-            } else if (name.contains(":")) {
-                return name;
-            } else if (name.contains(".")) {
-                return name;
-            } else if (name.equals("localhost")) {
-                return name;
-            } else {
-                return name + ".yt.yandex.net";
-            }
         }
     }
 }
