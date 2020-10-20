@@ -796,10 +796,6 @@ private:
         NTabletClient::TTableReplicaId replicaId,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = {});
-    void ValidateOperationAccess(
-        NScheduler::TJobId jobId,
-        const NJobTrackerClient::NProto::TJobSpec& jobSpec,
-        NYTree::EPermissionSet permissions);
     void DoTransferAccountResources(
         const TString& srcAccount,
         const TString& dstAccount,
@@ -919,7 +915,7 @@ private:
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
 
-    NRpc::IChannelPtr TryCreateChannelToJobNode(
+    TErrorOr<NRpc::IChannelPtr> TryCreateChannelToJobNode(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
@@ -932,11 +928,22 @@ private:
     TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryFetchJobSpecFromJobNode(
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
-    // Fetch job spec from job archive and check that user has |requiredPermissions|
-    // for accessing the corresponding operation.
-    NJobTrackerClient::NProto::TJobSpec FetchJobSpecFromArchive(
+
+    // Returns zero id if operation is missing in corresponding table.
+    NScheduler::TOperationId TryGetOperationId(NScheduler::TJobId);
+
+    void ValidateOperationAccess(
         NScheduler::TJobId jobId,
-        NYTree::EPermissionSet requiredPermissions);
+        const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+        NYTree::EPermissionSet permissions);
+
+    void ValidateOperationAccess(
+        NScheduler::TOperationId operationId,
+        NScheduler::TJobId jobId,
+        NYTree::EPermissionSet permissions);
+
+    NJobTrackerClient::NProto::TJobSpec FetchJobSpecFromArchive(
+        NScheduler::TJobId jobId);
     // Tries to fetch job spec from both node and job archive and checks
     // that user has |requiredPermissions| for accessing the corresponding operation.
     // Throws if spec could not be fetched.

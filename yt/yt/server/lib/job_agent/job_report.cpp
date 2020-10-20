@@ -257,6 +257,14 @@ TJobReport TJobReport::ExtractFailContext() const
     return copy;
 }
 
+TJobReport TJobReport::ExtractIds() const
+{
+    TJobReport copy;
+    copy.JobId_ = JobId_;
+    copy.OperationId_ = OperationId_;
+    return copy;
+}
+
 TJobReport TJobReport::ExtractProfile() const
 {
     TJobReport copy;

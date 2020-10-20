@@ -306,6 +306,7 @@ public:
     TDuration MinRepeatDelay;
     TDuration MaxRepeatDelay;
     int MaxInProgressJobDataSize;
+    int MaxInProgressOperationIdDataSize;
     int MaxInProgressJobSpecDataSize;
     int MaxInProgressJobStderrDataSize;
     int MaxInProgressJobFailContextDataSize;
@@ -325,6 +326,8 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("max_in_progress_job_data_size", MaxInProgressJobDataSize)
             .Default(250_MB);
+        RegisterParameter("max_in_progress_operation_id_data_size", MaxInProgressOperationIdDataSize)
+            .Default(10_MB);
         RegisterParameter("max_in_progress_job_spec_data_size", MaxInProgressJobSpecDataSize)
             .Default(250_MB);
         RegisterParameter("max_in_progress_job_stderr_data_size", MaxInProgressJobStderrDataSize)

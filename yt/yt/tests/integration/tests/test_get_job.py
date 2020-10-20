@@ -3,20 +3,21 @@ from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
 
-from yt.common import date_string_to_datetime, uuid_to_parts
+from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid
 
 import __builtin__
 import copy
 import datetime
 
-OPERATION_JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
+JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
+OPERATION_IDS_TABLE = "//sys/operations_archive/operation_ids"
 
 
 def _delete_job_from_archive(op_id, job_id):
     op_id_hi, op_id_lo = uuid_to_parts(op_id)
     job_id_hi, job_id_lo = uuid_to_parts(job_id)
     delete_rows(
-        OPERATION_JOB_ARCHIVE_TABLE,
+        JOB_ARCHIVE_TABLE,
         [
             {
                 "operation_id_hi": op_id_hi,
@@ -40,14 +41,14 @@ def _update_job_in_archive(op_id, job_id, attributes):
             "job_id_lo": job_id_lo,
         }
     )
-    insert_rows(OPERATION_JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none")
+    insert_rows(JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none")
 
 
 def _get_job_from_archive(op_id, job_id):
     op_id_hi, op_id_lo = uuid_to_parts(op_id)
     job_id_hi, job_id_lo = uuid_to_parts(job_id)
     rows = lookup_rows(
-        OPERATION_JOB_ARCHIVE_TABLE,
+        JOB_ARCHIVE_TABLE,
         [
             {
                 "operation_id_hi": op_id_hi,
@@ -178,6 +179,34 @@ class _TestGetJobCommon(_TestGetJobBase):
         # Controller agent must be able to respond as it stores
         # zombie operation orchids.
         self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=None)
+
+    @authors("levysotsky")
+    def test_operation_ids_table(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat; BREAKPOINT"),
+        )
+        job_id, = wait_breakpoint()
+        release_breakpoint()
+        op.track()
+
+        def get_operation_id_from_archive(job_id):
+            job_id_hi, job_id_lo = uuid_to_parts(job_id)
+            rows = lookup_rows(OPERATION_IDS_TABLE, [{
+                "job_id_hi": job_id_hi,
+                "job_id_lo": job_id_lo,
+            }])
+            if not rows:
+                return None
+            return parts_to_uuid(rows[0]["operation_id_hi"], rows[0]["operation_id_lo"])
+
+        wait(lambda: get_operation_id_from_archive(job_id) is not None)
+        assert get_operation_id_from_archive(job_id) == op.id
 
 
 class TestGetJob(_TestGetJobCommon):

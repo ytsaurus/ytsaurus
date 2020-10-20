@@ -39,6 +39,8 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/core/ytree/ypath_resolver.h>
+
 #include <util/string/join.h>
 
 namespace NYT::NApi::NNative {
@@ -169,18 +171,7 @@ static TYPath GetControllerAgentOrchidRetainedFinishedJobsPath(TStringBuf contro
     return GetControllerAgentOrchidOperationPath(controllerAgentAddress, operationId) + "/retained_finished_jobs";
 }
 
-void TClient::DoDumpJobContext(
-    TJobId jobId,
-    const TYPath& path,
-    const TDumpJobContextOptions& /*options*/)
-{
-    auto req = JobProberProxy_->DumpInputContext();
-    ToProto(req->mutable_job_id(), jobId);
-    ToProto(req->mutable_path(), path);
-
-    WaitFor(req->Invoke())
-        .ThrowOnError();
-}
+////////////////////////////////////////////////////////////////////////////////
 
 static void ValidateJobSpecVersion(
     TJobId jobId,
@@ -223,7 +214,7 @@ TErrorOr<TNodeDescriptor> TClient::TryGetJobNodeDescriptor(
     }
 }
 
-IChannelPtr TClient::TryCreateChannelToJobNode(
+TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
     TOperationId operationId,
     TJobId jobId,
     EPermissionSet requiredPermissions)
@@ -233,33 +224,32 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
         return ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
     }
 
+    YT_LOG_DEBUG(
+        jobNodeDescriptorOrError,
+        "Failed to get job node descriptor from scheduler (OperationId: %v, JobId: %v)",
+        operationId,
+        jobId);
+
     if (!IsNoSuchJobOrOperationError(jobNodeDescriptorOrError)) {
         THROW_ERROR_EXCEPTION("Failed to get job node descriptor from scheduler")
             << jobNodeDescriptorOrError;
     }
 
     try {
+        ValidateOperationAccess(operationId, jobId, requiredPermissions);
+
         TGetJobOptions options;
         options.Attributes = {TString("address")};
         // TODO(ignat): support structured return value in GetJob.
         auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
             .ValueOrThrow();
         auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildOrThrow("address")->GetValue<TString>();
-
-        auto nodeChannel = ChannelFactory_->CreateChannel(address);
-        auto jobSpecOrError = TryFetchJobSpecFromJobNode(jobId, nodeChannel);
-        if (!jobSpecOrError.IsOK()) {
-            return nullptr;
-        }
-
-        const auto& jobSpec = jobSpecOrError.Value();
-        ValidateJobSpecVersion(jobId, jobSpec);
-        ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
-
-        return nodeChannel;
+        return ChannelFactory_->CreateChannel(address);
     } catch (const TErrorException& ex) {
-        YT_LOG_DEBUG(ex, "Failed create node channel to job using address from archive (JobId: %v)", jobId);
-        return nullptr;
+        YT_LOG_DEBUG(ex, "Failed to create node channel to job using address from archive (OperationId: %v, JobId: %v)",
+            operationId,
+            jobId);
+        return ex.Error();
     }
 }
 
@@ -290,19 +280,27 @@ TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryFetchJobSpecFromJobNod
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
+    if (auto operationId = TryGetOperationId(jobId)) {
+        auto nodeChannelOrError = TryCreateChannelToJobNode(operationId, jobId, requiredPermissions);
+        if (nodeChannelOrError.IsOK()) {
+            return TryFetchJobSpecFromJobNode(jobId, nodeChannelOrError.ValueOrThrow());
+        }
+        YT_LOG_DEBUG(
+            nodeChannelOrError,
+            "Failed to create channel to job node using archive info (OperationId: %v, JobId: %v)",
+            operationId,
+            jobId);
+    }
     auto jobNodeDescriptorOrError = TryGetJobNodeDescriptor(jobId, requiredPermissions);
     if (!jobNodeDescriptorOrError.IsOK()) {
         return TError(std::move(jobNodeDescriptorOrError));
     }
-
     const auto& nodeDescriptor = jobNodeDescriptorOrError.Value();
     auto nodeChannel = ChannelFactory_->CreateChannel(nodeDescriptor);
     return TryFetchJobSpecFromJobNode(jobId, nodeChannel);
 }
 
-NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpecFromArchive(
-    TJobId jobId,
-    EPermissionSet requiredPermissions)
+NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
 {
     auto nameTable = New<TNameTable>();
 
@@ -351,9 +349,120 @@ NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpecFromArchive(
     }
 
     ValidateJobSpecVersion(jobId, jobSpec);
-    ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
 
     return jobSpec;
+}
+
+TOperationId TClient::TryGetOperationId(
+    TJobId jobId)
+{
+    TOperationIdTableDescriptor table;
+
+    auto owningKey = CreateJobKey(jobId, table.NameTable);
+    std::vector<TUnversionedRow> keys = {owningKey};
+
+    TLookupRowsOptions lookupOptions;
+    lookupOptions.KeepMissingRows = true;
+
+    auto rowsetOrError = WaitFor(LookupRows(
+        GetOperationsArchiveOperationIdsPath(),
+        table.NameTable,
+        MakeSharedRange(std::move(keys), std::move(owningKey)),
+        lookupOptions));
+
+    if (!rowsetOrError.IsOK()) {
+        if (rowsetOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return {};
+        }
+        rowsetOrError.ThrowOnError();
+    }
+
+    auto rowset = rowsetOrError.ValueOrThrow();
+    auto rows = rowset->GetRows();
+    YT_VERIFY(!rows.Empty());
+    if (!rows[0]) {
+        return {};
+    }
+
+    auto row = rows[0];
+    auto operationIdHiIndex = rowset->GetSchema().GetColumnIndexOrThrow("operation_id_hi");
+    auto operationIdLoIndex = rowset->GetSchema().GetColumnIndexOrThrow("operation_id_lo");
+    auto operationIdHi = row[operationIdHiIndex];
+    auto operationIdLo = row[operationIdLoIndex];
+    YT_VERIFY(operationIdHi.Type == EValueType::Uint64);
+    YT_VERIFY(operationIdLo.Type == EValueType::Uint64);
+    return TOperationId(FromUnversionedValue<ui64>(operationIdHi), FromUnversionedValue<ui64>(operationIdLo));
+}
+
+void TClient::ValidateOperationAccess(
+    TOperationId operationId,
+    TJobId jobId,
+    EPermissionSet permissions)
+{
+    TGetOperationOptions getOperationOptions;
+    getOperationOptions.Attributes = {TString("runtime_parameters")};
+    auto operationOrError = WaitFor(GetOperation(operationId, getOperationOptions));
+
+    TSerializableAccessControlList acl;
+    if (operationOrError.IsOK()) {
+        auto operationYson = std::move(operationOrError).Value();
+        auto aclYson = TryGetAny(operationYson.GetData(), "/runtime_parameters/acl");
+        if (aclYson) {
+            acl = ConvertTo<TSerializableAccessControlList>(TYsonStringBuf(*aclYson));
+        } else {
+            // We check against an empty ACL to allow only "superusers" and "root" access.
+            YT_LOG_WARNING(
+                "Failed to get ACL from operation attributes; "
+                "validating against empty ACL (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+        }
+    } else {
+        // We check against an empty ACL to allow only "superusers" and "root" access.
+        YT_LOG_WARNING(
+            operationOrError,
+            "Failed to get operation to validate access; "
+            "validating against empty ACL (OperationId: %v, JobId: %v)",
+            operationId,
+            jobId);
+    }
+
+    NScheduler::ValidateOperationAccess(
+        /* user */ std::nullopt,
+        operationId,
+        jobId,
+        permissions,
+        acl,
+        this,
+        Logger);
+}
+
+void TClient::ValidateOperationAccess(
+    TJobId jobId,
+    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+    EPermissionSet permissions)
+{
+    const auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
+    TSerializableAccessControlList acl;
+    if (jobSpec.HasExtension(extensionId) && jobSpec.GetExtension(extensionId).has_acl()) {
+        TYsonString aclYson(jobSpec.GetExtension(extensionId).acl());
+        acl = ConvertTo<TSerializableAccessControlList>(aclYson);
+    } else {
+        // We check against an empty ACL to allow only "superusers" and "root" access.
+        YT_LOG_WARNING(
+            "Job spec has no sheduler_job_spec_ext or the extension has no ACL; "
+            "validating against empty ACL (JobId: %v)",
+            jobId);
+    }
+
+    NScheduler::ValidateOperationAccess(
+        /* user */ std::nullopt,
+        TOperationId(),
+        jobId,
+        permissions,
+        acl,
+        this,
+        Logger);
 }
 
 NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpec(
@@ -365,15 +474,42 @@ NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpec(
         THROW_ERROR jobSpecFromProxyOrError;
     }
 
-    NJobTrackerClient::NProto::TJobSpec jobSpec;
     if (jobSpecFromProxyOrError.IsOK()) {
-        jobSpec = std::move(jobSpecFromProxyOrError.Value());
-    } else {
-        jobSpec = FetchJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+        return std::move(jobSpecFromProxyOrError).Value();
     }
+
+    YT_LOG_DEBUG(jobSpecFromProxyOrError, "Failed to fetch job spec from job node (JobId: %v)",
+        jobId);
+
+    auto jobSpec = FetchJobSpecFromArchive(jobId);
+
+    auto operationId = TryGetOperationId(jobId);
+    if (operationId) {
+        ValidateOperationAccess(operationId, jobId, requiredPermissions);
+    } else {
+        ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
+    }
+
 
     return jobSpec;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClient::DoDumpJobContext(
+    TJobId jobId,
+    const TYPath& path,
+    const TDumpJobContextOptions& /*options*/)
+{
+    auto req = JobProberProxy_->DumpInputContext();
+    ToProto(req->mutable_job_id(), jobId);
+    ToProto(req->mutable_path(), path);
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     TJobId jobId,
@@ -437,6 +573,8 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     jobInputReader->Open();
     return jobInputReader;
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TYsonString TClient::DoGetJobInputPaths(
     TJobId jobId,
@@ -603,6 +741,8 @@ TYsonString TClient::DoGetJobInputPaths(
         });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TYsonString TClient::DoGetJobSpec(
     TJobId jobId,
     const TGetJobSpecOptions& options)
@@ -632,6 +772,8 @@ TYsonString TClient::DoGetJobSpec(
 
     return ConvertToYsonString(jobSpecNode);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <typename TFun>
 auto RetryJobIsNotRunning(TOperationId operationId, TJobId jobId, TFun invokeRequest, NLogging::TLogger Logger)
@@ -668,10 +810,11 @@ TSharedRef TClient::DoGetJobStderrFromNode(
     TOperationId operationId,
     TJobId jobId)
 {
-    auto nodeChannel = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read));
-    if (!nodeChannel) {
+    auto nodeChannelOrError = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read));
+    if (!nodeChannelOrError.IsOK()) {
         return TSharedRef();
     }
+    auto nodeChannel = std::move(nodeChannelOrError).Value();
 
     NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
     jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
@@ -754,8 +897,7 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
     TOperationId operationId,
     TJobId jobId)
 {
-    // Check permissions.
-    FetchJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+    ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
     try {
         TJobStderrTableDescriptor tableDescriptor;
@@ -829,12 +971,13 @@ TSharedRef TClient::DoGetJobStderr(
         << TErrorAttribute("job_id", jobId);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TSharedRef TClient::DoGetJobFailContextFromArchive(
     TOperationId operationId,
     TJobId jobId)
 {
-    // Check permissions.
-    FetchJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+    ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
     try {
         TJobFailContextTableDescriptor tableDescriptor;
@@ -948,6 +1091,8 @@ TSharedRef TClient::DoGetJobFailContext(
         << TErrorAttribute("operation_id", operationId)
         << TErrorAttribute("job_id", jobId);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 static void ValidateNonNull(
     const TUnversionedValue& value,
@@ -1767,6 +1912,8 @@ TListJobsResult TClient::DoListJobs(
     return result;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes)
 {
     std::vector<TString> result;
@@ -1937,5 +2084,7 @@ TYsonString TClient::DoGetJob(
             Serialize(job, fluent.GetConsumer(), "job_id");
         });
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
