@@ -100,6 +100,7 @@ public:
         , PrimaryPrefixLength_(options.SortedJobOptions.PrimaryPrefixLength)
         , ForeignPrefixLength_(options.SortedJobOptions.ForeignPrefixLength)
         , ShouldSlicePrimaryTableByKeys_(options.SortedJobOptions.ShouldSlicePrimaryTableByKeys)
+        , SliceForeignChunks_(options.SliceForeignChunks)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
@@ -233,6 +234,7 @@ public:
         Persist(context, PrimaryPrefixLength_);
         Persist(context, ForeignPrefixLength_);
         Persist(context, ShouldSlicePrimaryTableByKeys_);
+        Persist(context, SliceForeignChunks_);
         Persist(context, MinTeleportChunkSize_);
         Persist(context, JobSizeConstraints_);
         Persist(context, ChunkSliceFetcherFactory_);
@@ -285,6 +287,9 @@ private:
     //! Whether primary tables chunks should be sliced by keys.
     bool ShouldSlicePrimaryTableByKeys_;
 
+    //! Whether foreign chunks should be sliced.
+    bool SliceForeignChunks_ = false;
+
     //! An option to control chunk teleportation logic. Only large complete
     //! chunks of at least that size will be teleported.
     i64 MinTeleportChunkSize_;
@@ -321,9 +326,14 @@ private:
     void FetchNonTeleportDataSlices(const ISortedJobBuilderPtr& builder)
     {
         auto chunkSliceFetcher = ChunkSliceFetcherFactory_ ? ChunkSliceFetcherFactory_->CreateChunkSliceFetcher() : nullptr;
+        auto primarySliceSize = JobSizeConstraints_->GetInputSliceDataWeight();
+        auto foreignSliceSize = JobSizeConstraints_->GetForeignSliceDataWeight();
 
-        YT_LOG_DEBUG("Fetching non-teleport data slices (HasChunkSliceFetcher: %v)",
-            static_cast<bool>(chunkSliceFetcher));
+        YT_LOG_DEBUG("Fetching non-teleport data slices (HasChunkSliceFetcher: %v, PrimarySliceSize: %v, ForeignSliceSize: %v, SliceForeignChunks: %v)",
+            static_cast<bool>(chunkSliceFetcher),
+            primarySliceSize,
+            foreignSliceSize,
+            SliceForeignChunks_);
 
         // If chunkSliceFetcher == nullptr, we form chunk slices manually by putting them
         // into this vector.
@@ -357,6 +367,9 @@ private:
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
                     auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
                     auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
+                    auto sliceSize = isPrimary
+                        ? primarySliceSize
+                        : foreignSliceSize;
                     auto keyColumnCount = isPrimary
                         ? PrimaryPrefixLength_
                         : ForeignPrefixLength_;
@@ -364,16 +377,20 @@ private:
                         ? ShouldSlicePrimaryTableByKeys_
                         : false;
 
-                    if (chunkSliceFetcher) {
+                    if (chunkSliceFetcher && (isPrimary || SliceForeignChunks_)) {
                         if (SortedJobOptions_.LogDetails) {
-                            YT_LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, KeyColumnCount: %v, SliceByKeys: %v)",
+                            YT_LOG_DEBUG("Slicing chunk (ChunkId: %v, DataWeight: %v, IsPrimary: %v, SliceSize: %v, KeyColumnCount: %v, SliceByKeys: %v)",
                                 inputChunk->ChunkId(),
                                 inputChunk->GetDataWeight(),
                                 isPrimary,
+                                sliceSize,
                                 keyColumnCount,
                                 sliceByKeys);
                         }
-                        chunkSliceFetcher->AddChunkForSlicing(inputChunk, keyColumnCount, sliceByKeys);
+                        chunkSliceFetcher->AddChunkForSlicing(inputChunk, sliceSize, keyColumnCount, sliceByKeys);
+                    } else if (!isPrimary) {
+                        // Take foreign slice as-is.
+                        processDataSlice(dataSlice, inputCookie);
                     } else {
                         auto chunkSlice = CreateInputChunkSlice(inputChunk);
                         InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, PrimaryPrefixLength_);
@@ -737,6 +754,7 @@ private:
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
+            JobSizeConstraints_->GetForeignSliceDataWeight(),
             std::nullopt /* samplingRate */);
 
         // Teleport chunks do not affect the job split process since each original

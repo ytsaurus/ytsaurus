@@ -18,6 +18,7 @@ struct TSortedChunkPoolOptions
     TSortedJobOptions SortedJobOptions;
     i64 MinTeleportChunkSize = 0;
     bool SupportLocality = false;
+    bool SliceForeignChunks = false;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NScheduler::TOperationId OperationId;
     TString Task;

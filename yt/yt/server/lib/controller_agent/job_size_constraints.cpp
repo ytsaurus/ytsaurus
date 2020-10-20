@@ -23,6 +23,7 @@ public:
         i64 maxPrimaryDataWeightPerJob,
         i64 inputSliceDataWeight,
         i64 inputSliceRowCount,
+        i64 foreignSliceDataWeight,
         std::optional<double> samplingRate,
         i64 samplingDataWeightPerJob,
         i64 samplingPrimaryDataWeightPerJob,
@@ -101,6 +102,11 @@ public:
         return InputSliceRowCount_;
     }
 
+    virtual i64 GetForeignSliceDataWeight() const override
+    {
+        return ForeignSliceDataWeight_;
+    }
+
     virtual std::optional<double> GetSamplingRate() const override
     {
         return SamplingRate_;
@@ -146,6 +152,7 @@ public:
         Persist(context, MaxPrimaryDataWeightPerJob_);
         Persist(context, InputSliceDataWeight_);
         Persist(context, InputSliceRowCount_);
+        Persist(context, ForeignSliceDataWeight_);
         Persist(context, SamplingRate_);
         Persist(context, SamplingDataWeightPerJob_);
         Persist(context, SamplingPrimaryDataWeightPerJob_);
@@ -174,6 +181,7 @@ private:
     i64 MaxPrimaryDataWeightPerJob_;
     i64 InputSliceDataWeight_;
     i64 InputSliceRowCount_;
+    i64 ForeignSliceDataWeight_;
     std::optional<double> SamplingRate_;
     i64 SamplingDataWeightPerJob_;
     i64 SamplingPrimaryDataWeightPerJob_;
@@ -195,8 +203,9 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     i64 maxDataSlicesPerJob,
     i64 maxDataWeightPerJob,
     i64 maxPrimaryDataWeightPerJob,
-    i64 inputSliceDataSize,
+    i64 inputSliceDataWeight,
     i64 inputSliceRowCount,
+    i64 foreignSliceDataWeight,
     std::optional<double> samplingRate,
     i64 samplingDataWeightPerJob,
     i64 samplingPrimaryDataWeightPerJob,
@@ -212,8 +221,9 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         maxDataSlicesPerJob,
         maxDataWeightPerJob,
         maxPrimaryDataWeightPerJob,
-        inputSliceDataSize,
+        inputSliceDataWeight,
         inputSliceRowCount,
+        foreignSliceDataWeight,
         samplingRate,
         samplingDataWeightPerJob,
         samplingPrimaryDataWeightPerJob,

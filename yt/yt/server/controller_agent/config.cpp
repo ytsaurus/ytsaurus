@@ -575,6 +575,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("fetcher", Fetcher)
         .DefaultNew();
 
+    RegisterParameter("chunk_slice_fetcher", ChunkSliceFetcher)
+        .DefaultNew();
+
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default();
 

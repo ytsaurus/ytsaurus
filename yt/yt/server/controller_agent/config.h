@@ -721,6 +721,8 @@ public:
 
     NChunkClient::TFetcherConfigPtr Fetcher;
 
+    NChunkClient::TChunkSliceFetcherConfigPtr ChunkSliceFetcher;
+
     std::optional<NYPath::TYPath> UdfRegistryPath;
 
     //! Discriminates between "heavy" and "light" job specs. For those with slice count

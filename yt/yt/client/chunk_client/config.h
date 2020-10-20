@@ -87,6 +87,24 @@ DEFINE_REFCOUNTED_TYPE(TBlockReordererConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChunkSliceFetcherConfig
+    : public TFetcherConfig
+{
+public:
+    int MaxSlicesPerFetch;
+
+    TChunkSliceFetcherConfig()
+    {
+        RegisterParameter("max_slices_per_fetch", MaxSlicesPerFetch)
+            .GreaterThan(0)
+            .Default(10'000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkSliceFetcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEncodingWriterConfig
     : public virtual TWorkloadConfig
     , public virtual TBlockReordererConfig

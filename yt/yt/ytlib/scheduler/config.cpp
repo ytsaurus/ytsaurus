@@ -1057,6 +1057,9 @@ TReduceOperationSpec::TReduceOperationSpec()
     RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
         .Default(false);
 
+    RegisterParameter("slice_foreign_chunks", SliceForeignChunks)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (!JoinBy.empty()) {
             NTableClient::ValidateKeyColumns(JoinBy);
