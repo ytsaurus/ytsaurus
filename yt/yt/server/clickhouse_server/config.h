@@ -50,6 +50,14 @@ class TDynamicTableSettings
 public:
     bool EnableDynamicStoreRead;
 
+    int WriteRetryCount;
+
+    TDuration WriteRetryBackoff;
+
+    int MaxRowsPerWrite;
+
+    NTransactionClient::EAtomicity TransactionAtomicity;
+
     TDynamicTableSettings();
 };
 

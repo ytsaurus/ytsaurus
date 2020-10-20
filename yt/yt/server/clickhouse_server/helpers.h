@@ -31,6 +31,9 @@ void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString use
 
 DB::Field ConvertToField(const NTableClient::TUnversionedValue& value);
 
+// TODO(dakovalkov): Working with elements as DB::Field is inefficient. It copies complex values (strings/arrays, etc.).
+// Try to not use this function.
+// TODO(dakovalkov): Remove this function.
 //! `value` should have Type field filled.
 void ConvertToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue* value);
 
