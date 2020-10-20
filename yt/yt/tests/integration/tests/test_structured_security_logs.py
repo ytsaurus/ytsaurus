@@ -23,21 +23,42 @@ class TestStructuredSecurityLogs(YTEnvSetup):
 
         self.wait_log_event({"event": "group_created", "name": "some_group"})
         self.wait_log_event({"event": "user_created", "name": "some_user"})
-        self.wait_log_event({"event": "member_added", "group_name": "some_group", "member_type": "user", "member_name": "some_user"})
-        self.wait_log_event({"event": "member_removed", "group_name": "some_group", "member_type": "user", "member_name": "some_user"})
+        self.wait_log_event(
+            {
+                "event": "member_added",
+                "group_name": "some_group",
+                "member_type": "user",
+                "member_name": "some_user",
+            }
+        )
+        self.wait_log_event(
+            {
+                "event": "member_removed",
+                "group_name": "some_group",
+                "member_type": "user",
+                "member_name": "some_user",
+            }
+        )
         self.wait_log_event({"event": "user_destroyed", "name": "some_user"})
         self.wait_log_event({"event": "group_destroyed", "name": "some_group"})
 
     @authors("renadeen")
     def test_acd_update(self):
         create("table", "//tmp/test_table")
-        set("//tmp/test_table/@acl", [{"permissions": ["read"], "action": "allow", "subjects": ["root"]}])
+        set(
+            "//tmp/test_table/@acl",
+            [{"permissions": ["read"], "action": "allow", "subjects": ["root"]}],
+        )
 
-        self.wait_log_event({
-            "event": "object_acd_updated",
-            "attribute": "acl",
-            "value": [{"permissions": ["read"], "action": "allow", "subjects": ["root"]}]
-        })
+        self.wait_log_event(
+            {
+                "event": "object_acd_updated",
+                "attribute": "acl",
+                "value": [
+                    {"permissions": ["read"], "action": "allow", "subjects": ["root"]}
+                ],
+            }
+        )
 
     @authors("renadeen")
     def test_no_redundant_acd_updated_events(self):
@@ -54,7 +75,7 @@ class TestStructuredSecurityLogs(YTEnvSetup):
         log_path = self.path_to_run + "/logs/master-0-0.json.log"
         wait(lambda: os.path.exists(log_path), "Cannot find master's structured log")
         log = []
-        with open(log_path, 'r') as f:
+        with open(log_path, "r") as f:
             for line in f:
                 log.append(json.loads(line))
         return log
@@ -73,5 +94,9 @@ class TestStructuredSecurityLogs(YTEnvSetup):
         return False
 
     def wait_log_event(self, expected_event):
-        wait(lambda: self.log_contains_event(expected_event),
-             lambda: "Event {} is not presented in log {}".format(expected_event, self.load_structured_master_log()))
+        wait(
+            lambda: self.log_contains_event(expected_event),
+            lambda: "Event {} is not presented in log {}".format(
+                expected_event, self.load_structured_master_log()
+            ),
+        )

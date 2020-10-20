@@ -1,4 +1,5 @@
 from yt_env_setup import YTEnvSetup, wait
+
 # NOTE(asaitgalin): No full yt_commands import here, only rpc api should be used! :)
 from yt_commands import discover_proxies, print_debug, authors
 
@@ -8,19 +9,25 @@ from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
 try:
     import yt_proto.yt.client.api.rpc_proxy.proto.api_service_pb2 as api_service_pb2
     import yt_proto.yt.core.misc.proto.error_pb2 as error_pb2
+
     pb2_imported = True
 except ImportError:
     pb2_imported = False
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, underscore_case_to_camel_case
+
 try:
     from yt.common import uuid_to_parts, parts_to_uuid
 except ImportError:
     from yt.common import guid_to_parts as uuid_to_parts, parts_to_guid as parts_to_uuid
 
-from yt.wire_format import (AttachmentStream, serialize_rows_to_unversioned_wire_format,
-                            deserialize_rows_from_unversioned_wire_format, build_name_table_from_schema)
+from yt.wire_format import (
+    AttachmentStream,
+    serialize_rows_to_unversioned_wire_format,
+    deserialize_rows_from_unversioned_wire_format,
+    build_name_table_from_schema,
+)
 
 import pytest
 import grpc
@@ -32,14 +39,19 @@ from cStringIO import StringIO
 
 SERIALIZATION_ALIGNMENT = 8
 
+
 def uuid_from_dict(d):
     return parts_to_uuid(d["first"], d["second"])
+
 
 def uuid_to_dict(guid):
     parts = uuid_to_parts(guid)
     return {"first": parts[0], "second": parts[1]}
 
-@pytest.mark.skipif(not pb2_imported, reason="Some of pb2 modules could not be imported")
+
+@pytest.mark.skipif(
+    not pb2_imported, reason="Some of pb2 modules could not be imported"
+)
 class TestGrpcProxy(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     USE_DYNAMIC_TABLES = True
@@ -75,11 +87,10 @@ class TestGrpcProxy(YTEnvSetup):
         unary = self.channel.unary_unary(
             "/ApiService/" + camel_case_method,
             request_serializer=req_msg_class.SerializeToString,
-            response_deserializer=rsp_msg_class.FromString)
+            response_deserializer=rsp_msg_class.FromString,
+        )
 
-        metadata = [
-            ("yt-protocol-version", "1.0")
-        ]
+        metadata = [("yt-protocol-version", "1.0")]
 
         print_debug()
         print_debug(str(datetime.now()), method, params)
@@ -94,12 +105,13 @@ class TestGrpcProxy(YTEnvSetup):
         req_msg_class = getattr(api_service_pb2, "TReq" + camel_case_method)
         rsp_msg_class = getattr(api_service_pb2, "TRsp" + camel_case_method)
 
-        serialized_message = loads_proto(dumps(params), req_msg_class).SerializeToString()
+        serialized_message = loads_proto(
+            dumps(params), req_msg_class
+        ).SerializeToString()
         metadata = [
             ("yt-message-body-size", str(len(serialized_message))),
-            ("yt-protocol-version", "1.0")
+            ("yt-protocol-version", "1.0"),
         ]
-
 
         if data is None:
             to_send = serialized_message
@@ -145,7 +157,9 @@ class TestGrpcProxy(YTEnvSetup):
         return loads(self._make_light_api_request("create_node", kwargs))["node_id"]
 
     def _create_object(self, **kwargs):
-        object_id_parts = loads(self._make_light_api_request("create_object", kwargs))["object_id"]
+        object_id_parts = loads(self._make_light_api_request("create_object", kwargs))[
+            "object_id"
+        ]
         return uuid_from_dict(object_id_parts)
 
     def _exists_node(self, **kwargs):
@@ -155,7 +169,9 @@ class TestGrpcProxy(YTEnvSetup):
         self._make_light_api_request("mount_table", kwargs)
 
     def _start_transaction(self, **kwargs):
-        id_parts = loads(self._make_light_api_request("start_transaction", kwargs))["id"]
+        id_parts = loads(self._make_light_api_request("start_transaction", kwargs))[
+            "id"
+        ]
         return uuid_from_dict(id_parts)
 
     def _commit_transaction(self, **kwargs):
@@ -174,12 +190,19 @@ class TestGrpcProxy(YTEnvSetup):
         print_debug("Waiting for tablet cell", cell_id, "to become healthy...")
 
         def check_cell():
-            cell = self._get_node(path="//sys/tablet_cells/" + cell_id, attributes={"columns": ["id", "health", "peers"]})
+            cell = self._get_node(
+                path="//sys/tablet_cells/" + cell_id,
+                attributes={"columns": ["id", "health", "peers"]},
+            )
             if cell.attributes["health"] != "good":
                 return False
 
             node = cell.attributes["peers"][0]["address"]
-            if not self._exists_node(path="//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"])):
+            if not self._exists_node(
+                path="//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}".format(
+                    node, cell.attributes["id"]
+                )
+            ):
                 return False
 
             return True
@@ -188,7 +211,12 @@ class TestGrpcProxy(YTEnvSetup):
 
     def _sync_mount_table(self, path):
         self._mount_table(path=path)
-        wait(lambda: all(tablet["state"] == "mounted" for tablet in self._get_node(path=path + "/@tablets")))
+        wait(
+            lambda: all(
+                tablet["state"] == "mounted"
+                for tablet in self._get_node(path=path + "/@tablets")
+            )
+        )
 
     @authors("asaitgalin")
     def test_dynamic_table_commands(self):
@@ -199,11 +227,13 @@ class TestGrpcProxy(YTEnvSetup):
         schema = [
             {"name": "a", "type": "string", "sort_order": "ascending"},
             {"name": "b", "type": "int64"},
-            {"name": "c", "type": "uint64"}
+            {"name": "c", "type": "uint64"},
         ]
 
         # 401 = "table", see ytlib/object_client/public.h
-        self._create_node(type=401, path=table_path, attributes={"dynamic": True, "schema": schema})
+        self._create_node(
+            type=401, path=table_path, attributes={"dynamic": True, "schema": schema}
+        )
         self._sync_mount_table(table_path)
         # 1 = "tablet", see ETransactionType in proto
         tx = self._start_transaction(type=1, timeout=10000000, sticky=True)
@@ -215,7 +245,7 @@ class TestGrpcProxy(YTEnvSetup):
             {"a": "I", "c": 3},
             {"a": "am", "b": 7},
             {"a": "pickle", "c": 4},
-            {"a": "Rick!", "b": 3L}
+            {"a": "Rick!", "b": 3L},
         ]
 
         self._make_heavy_api_request(
@@ -225,17 +255,25 @@ class TestGrpcProxy(YTEnvSetup):
                 "path": table_path,
                 # 0 = "write", see ERowModificationType in proto
                 "row_modification_types": [0] * len(rows),
-                "rowset_descriptor": {"name_table_entries": build_name_table_from_schema(schema)},
+                "rowset_descriptor": {
+                    "name_table_entries": build_name_table_from_schema(schema)
+                },
             },
             data=rows,
-            data_serializer=partial(serialize_rows_to_unversioned_wire_format, schema=schema))
+            data_serializer=partial(
+                serialize_rows_to_unversioned_wire_format, schema=schema
+            ),
+        )
 
         self._commit_transaction(transaction_id=uuid_to_dict(tx))
 
-        msg, stream = self._make_heavy_api_request("select_rows", {"query": "* FROM [{}]".format(table_path)})
+        msg, stream = self._make_heavy_api_request(
+            "select_rows", {"query": "* FROM [{}]".format(table_path)}
+        )
         selected_rows = deserialize_rows_from_unversioned_wire_format(
             stream,
-            [entry["name"] for entry in msg["rowset_descriptor"]["name_table_entries"]])
+            [entry["name"] for entry in msg["rowset_descriptor"]["name_table_entries"]],
+        )
 
         assert_items_equal(selected_rows, rows)
 
@@ -246,7 +284,8 @@ class TestGrpcProxy(YTEnvSetup):
         unary = self.channel.unary_unary(
             "/ApiService/GetNode",
             request_serializer=api_service_pb2.TReqGetNode.SerializeToString,
-            response_deserializer=api_service_pb2.TReqGetNode.FromString)
+            response_deserializer=api_service_pb2.TReqGetNode.FromString,
+        )
 
         # Require min protocol version
         rsp = unary.future(msg, metadata=[("yt-protocol-version", "3.14")])

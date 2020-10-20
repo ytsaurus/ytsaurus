@@ -1,6 +1,13 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE, MASTERS_SERVICE
+from yt_env_setup import (
+    YTEnvSetup,
+    Restarter,
+    SCHEDULERS_SERVICE,
+    CONTROLLER_AGENTS_SERVICE,
+    NODES_SERVICE,
+    MASTERS_SERVICE,
+)
 
 from yt_commands import *
 
@@ -10,13 +17,12 @@ import __builtin__
 
 ################################################################################
 
+
 class TestMasterCellAddition(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
     START_SECONDARY_MASTER_CELLS = False
     DELTA_MASTER_CONFIG = {
-        "world_initializer": {
-            "update_period": 1000
-        },
+        "world_initializer": {"update_period": 1000},
     }
 
     NUM_NODES = 3
@@ -60,13 +66,17 @@ class TestMasterCellAddition(YTEnvSetup):
     def _enable_last_cell(cls):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
-        with Restarter(cls.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]):
+        with Restarter(
+            cls.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]
+        ):
             for cell_id in cls.CELL_IDS:
                 build_snapshot(cell_id=cell_id, set_read_only=True)
 
             with Restarter(cls.Env, MASTERS_SERVICE):
                 for i in xrange(len(cls.PATCHED_CONFIGS)):
-                    cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
+                    cls.PATCHED_CONFIGS[i]["secondary_masters"].append(
+                        cls.STASHED_CELL_CONFIGS[i]
+                    )
 
                 cls.Env.rewrite_master_configs()
 
@@ -103,7 +113,11 @@ class TestMasterCellAddition(YTEnvSetup):
         create_account("acc_sync_create")
 
         create_account("acc_async_remove")
-        create("table", "//tmp/t", attributes={"account": "acc_async_remove", "external_cell_tag": 1})
+        create(
+            "table",
+            "//tmp/t",
+            attributes={"account": "acc_async_remove", "external_cell_tag": 1},
+        )
 
         create_account("acc_sync_remove")
         remove_account("acc_sync_remove")
@@ -114,28 +128,69 @@ class TestMasterCellAddition(YTEnvSetup):
 
         yield
 
-        assert_true_for_secondary_cells(self.Env,
-            lambda driver: not exists("//sys/accounts/acc_sync_remove", driver=driver))
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: not exists("//sys/accounts/acc_sync_remove", driver=driver),
+        )
         assert not exists("//sys/accounts/acc_sync_remove")
 
-        assert_true_for_secondary_cells(self.Env,
-            lambda driver: get("//sys/accounts/acc_sync_create/@life_stage", driver=driver) == "creation_committed")
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get(
+                "//sys/accounts/acc_sync_create/@life_stage", driver=driver
+            )
+            == "creation_committed",
+        )
         assert get("//sys/accounts/acc_sync_create/@life_stage") == "creation_committed"
 
-        wait(lambda: get("//sys/accounts/acc_async_create/@life_stage") == "creation_committed")
-        assert_true_for_secondary_cells(self.Env,
-            lambda driver: get("//sys/accounts/acc_async_create/@life_stage", driver=driver) == "creation_committed")
+        wait(
+            lambda: get("//sys/accounts/acc_async_create/@life_stage")
+            == "creation_committed"
+        )
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get(
+                "//sys/accounts/acc_async_create/@life_stage", driver=driver
+            )
+            == "creation_committed",
+        )
 
         assert get("//sys/accounts/acc_async_remove/@life_stage") == "removal_started"
-        wait(lambda: self._do_for_cell(1, lambda driver: get("//sys/accounts/acc_async_remove/@life_stage", driver=driver)) == "removal_started")
-        wait(lambda: self._do_for_cell(2, lambda driver: get("//sys/accounts/acc_async_remove/@life_stage", driver=driver)) == "removal_pre_committed")
-        wait(lambda: self._do_for_cell(3, lambda driver: get("//sys/accounts/acc_async_remove/@life_stage", driver=driver)) == "removal_pre_committed")
+        wait(
+            lambda: self._do_for_cell(
+                1,
+                lambda driver: get(
+                    "//sys/accounts/acc_async_remove/@life_stage", driver=driver
+                ),
+            )
+            == "removal_started"
+        )
+        wait(
+            lambda: self._do_for_cell(
+                2,
+                lambda driver: get(
+                    "//sys/accounts/acc_async_remove/@life_stage", driver=driver
+                ),
+            )
+            == "removal_pre_committed"
+        )
+        wait(
+            lambda: self._do_for_cell(
+                3,
+                lambda driver: get(
+                    "//sys/accounts/acc_async_remove/@life_stage", driver=driver
+                ),
+            )
+            == "removal_pre_committed"
+        )
 
         remove("//tmp/t")
 
         wait(lambda: not exists("//sys/accounts/acc_async_remove"))
-        assert_true_for_secondary_cells(self.Env,
-            lambda driver: not exists("//sys/accounts/acc_async_remove", driver=driver))
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: not exists("//sys/accounts/acc_async_remove", driver=driver),
+        )
 
     def check_sys_masters_node(self):
         def check(cell_ids):
@@ -148,22 +203,22 @@ class TestMasterCellAddition(YTEnvSetup):
 
             return True
 
-        assert check(['1', '2'])
+        assert check(["1", "2"])
 
         yield
 
-        wait(lambda: check(['1', '2', '3']))
+        wait(lambda: check(["1", "2", "3"]))
 
     def check_transactions(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 2})
         tx = start_transaction(timeout=120000)
-        table_id = create("table", "//tmp/p1/t", tx=tx) # replicate tx to cell 2
+        table_id = create("table", "//tmp/p1/t", tx=tx)  # replicate tx to cell 2
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [2]
 
         yield
 
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 3})
-        table_id = create("table", "//tmp/p2/t", tx=tx) # replicate tx to cell 3
+        table_id = create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 3
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [2, 3]
 
     @authors("shakurov")
@@ -171,7 +226,7 @@ class TestMasterCellAddition(YTEnvSetup):
         CHECKER_LIST = [
             self.check_accounts,
             self.check_sys_masters_node,
-            self.check_transactions
+            self.check_transactions,
         ]
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

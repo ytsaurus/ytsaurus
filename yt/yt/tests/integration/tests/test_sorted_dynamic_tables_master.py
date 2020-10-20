@@ -13,6 +13,7 @@ from yt.environment.helpers import assert_items_equal
 
 ################################################################################
 
+
 class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
     @authors("babenko", "ignat")
     def test_mount(self):
@@ -57,7 +58,8 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         assert_items_equal(actual, rows)
 
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError): lookup_rows("//tmp/t", keys)
+        with pytest.raises(YtError):
+            lookup_rows("//tmp/t", keys)
 
         sync_mount_table("//tmp/t")
         actual = lookup_rows("//tmp/t", keys)
@@ -82,7 +84,8 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
         sync_freeze_table("//tmp/t")
-        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key": 0}])
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key": 0}])
         sync_unfreeze_table("//tmp/t")
         sync_unmount_table("//tmp/t")
 
@@ -132,33 +135,50 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         sync_freeze_table("//tmp/t")
         assert lookup_rows("//tmp/t", [{"key": 1}]) == rows
         assert select_rows("* from [//tmp/t]") == rows
-        with pytest.raises(YtError): insert_rows("//tmp/t", rows)
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", rows)
 
     @authors("savrus")
     @parametrize_external
     def test_mount_static_table_fails(self, external):
         sync_create_cells(1)
-        self._create_simple_static_table("//tmp/t", external=external, schema=[
+        self._create_simple_static_table(
+            "//tmp/t",
+            external=external,
+            schema=[
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}])
+                {"name": "value", "type": "string"},
+            ],
+        )
         assert not get("//tmp/t/@schema/@unique_keys")
-        with pytest.raises(YtError): alter_table("//tmp/t", dynamic=True)
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", dynamic=True)
 
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    @pytest.mark.parametrize("in_memory_mode, enable_lookup_hash_table", [
-        ["none", False],
-        ["compressed", False],
-        ["uncompressed", True]])
+    @pytest.mark.parametrize(
+        "in_memory_mode, enable_lookup_hash_table",
+        [["none", False], ["compressed", False], ["uncompressed", True]],
+    )
     @authors("savrus")
-    def test_mount_static_table(self, in_memory_mode, enable_lookup_hash_table, optimize_for, external):
+    def test_mount_static_table(
+        self, in_memory_mode, enable_lookup_hash_table, optimize_for, external
+    ):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", dynamic=False, optimize_for=optimize_for, external=external,
-            schema=make_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"},
-                {"name": "avalue", "type": "int64", "aggregate": "sum"}],
-                unique_keys=True))
+        self._create_simple_table(
+            "//tmp/t",
+            dynamic=False,
+            optimize_for=optimize_for,
+            external=external,
+            schema=make_schema(
+                [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                    {"name": "avalue", "type": "int64", "aggregate": "sum"},
+                ],
+                unique_keys=True,
+            ),
+        )
         rows = [{"key": i, "value": str(i), "avalue": 1} for i in xrange(2)]
         keys = [{"key": row["key"]} for row in rows] + [{"key": -1}, {"key": 1000}]
 
@@ -198,26 +218,35 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         expected = [{"key": i, "avalue": 2} for i in xrange(2)]
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
         assert actual == expected
-        actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True)
+        actual = lookup_rows(
+            "//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True
+        )
         assert actual == expected + [None, None]
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
 
         sync_unmount_table("//tmp/t")
 
-        alter_table("//tmp/t", schema=[
-                    {"name": "key", "type": "int64", "sort_order": "ascending"},
-                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
-                    {"name": "nvalue", "type": "string"},
-                    {"name": "value", "type": "string"},
-                    {"name": "avalue", "type": "int64", "aggregate": "sum"}])
+        alter_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                {"name": "nvalue", "type": "string"},
+                {"name": "value", "type": "string"},
+                {"name": "avalue", "type": "int64", "aggregate": "sum"},
+            ],
+        )
 
         sync_mount_table("//tmp/t")
         sleep(1.0)
 
         insert_rows("//tmp/t", rows, aggregate=True, update=True)
 
-        expected = [{"key": i, "key2": None, "nvalue": None, "value": str(i), "avalue": 3} for i in xrange(2)]
+        expected = [
+            {"key": i, "key2": None, "nvalue": None, "value": str(i), "avalue": 3}
+            for i in xrange(2)
+        ]
         actual = lookup_rows("//tmp/t", keys)
         assert actual == expected
         actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
@@ -228,7 +257,9 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         expected = [{"key": i, "avalue": 3} for i in xrange(2)]
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
         assert actual == expected
-        actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True)
+        actual = lookup_rows(
+            "//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True
+        )
         assert actual == expected + [None, None]
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
@@ -250,23 +281,40 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
     @authors("savrus")
     def test_create_table_with_invalid_schema(self):
         with pytest.raises(YtError):
-            create("table", "//tmp/t", attributes={
-                "dynamic": True,
-                "schema": make_schema([{"name": "key", "type": "int64", "sort_order": "ascending"}])
-                })
+            create(
+                "table",
+                "//tmp/t",
+                attributes={
+                    "dynamic": True,
+                    "schema": make_schema(
+                        [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+                    ),
+                },
+            )
         assert not exists("//tmp/t")
 
-class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTablesMountUnmountFreeze):
+
+class TestSortedDynamicTablesMountUnmountFreezeMulticell(
+    TestSortedDynamicTablesMountUnmountFreeze
+):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-class TestSortedDynamicTablesMountUnmountFreezeRpcProxy(TestSortedDynamicTablesMountUnmountFreeze):
+
+class TestSortedDynamicTablesMountUnmountFreezeRpcProxy(
+    TestSortedDynamicTablesMountUnmountFreeze
+):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
-class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMountUnmountFreezeMulticell):
+
+class TestSortedDynamicTablesMountUnmountFreezePortal(
+    TestSortedDynamicTablesMountUnmountFreezeMulticell
+):
     ENABLE_TMP_PORTAL = True
 
+
 ################################################################################
+
 
 class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     def _prepare_copy(self):
@@ -278,7 +326,8 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     def test_copy_failure(self):
         self._prepare_copy()
         sync_mount_table("//tmp/t1")
-        with pytest.raises(YtError): copy("//tmp/t1", "//tmp/t2")
+        with pytest.raises(YtError):
+            copy("//tmp/t1", "//tmp/t2")
 
     @authors("babenko")
     def test_copy_empty(self):
@@ -298,11 +347,17 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
 
         for child_id in child_ids1:
             assert get("#{0}/@ref_counter".format(child_id)) == 2
-            assert_items_equal(get("#{0}/@owning_nodes".format(child_id)), ["//tmp/t1", "//tmp/t2"])
+            assert_items_equal(
+                get("#{0}/@owning_nodes".format(child_id)), ["//tmp/t1", "//tmp/t2"]
+            )
 
-    @pytest.mark.parametrize("unmount_func, mount_func, unmounted_state", [
-        [sync_unmount_table, sync_mount_table, "unmounted"],
-        [sync_freeze_table, sync_unfreeze_table, "frozen"]])
+    @pytest.mark.parametrize(
+        "unmount_func, mount_func, unmounted_state",
+        [
+            [sync_unmount_table, sync_mount_table, "unmounted"],
+            [sync_freeze_table, sync_unfreeze_table, "frozen"],
+        ],
+    )
     @authors("babenko", "levysotsky")
     def test_copy_simple(self, unmount_func, mount_func, unmounted_state):
         self._prepare_copy()
@@ -318,9 +373,13 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("key from [//tmp/t1]"), rows)
         assert_items_equal(select_rows("key from [//tmp/t2]"), rows)
 
-    @pytest.mark.parametrize("unmount_func, mount_func, unmounted_state", [
-        [sync_unmount_table, sync_mount_table, "unmounted"],
-        [sync_freeze_table, sync_unfreeze_table, "frozen"]])
+    @pytest.mark.parametrize(
+        "unmount_func, mount_func, unmounted_state",
+        [
+            [sync_unmount_table, sync_mount_table, "unmounted"],
+            [sync_freeze_table, sync_unfreeze_table, "frozen"],
+        ],
+    )
     @authors("babenko")
     def test_copy_and_fork(self, unmount_func, mount_func, unmounted_state):
         self._prepare_copy()
@@ -373,13 +432,18 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
     @authors("babenko", "ignat")
     def test_reshard_unmounted(self):
         sync_create_cells(1)
-        create("table", "//tmp/t",attributes={
-            "dynamic": True,
-            "schema": [
-                {"name": "k", "type": "int64", "sort_order": "ascending"},
-                {"name": "l", "type": "uint64", "sort_order": "ascending"},
-                {"name": "value", "type": "int64"}
-            ]})
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "k", "type": "int64", "sort_order": "ascending"},
+                    {"name": "l", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "value", "type": "int64"},
+                ],
+            },
+        )
 
         sync_reshard_table("//tmp/t", [[]])
         assert self._get_pivot_keys("//tmp/t") == [[]]
@@ -387,28 +451,42 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         sync_reshard_table("//tmp/t", [[], [100]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100]]
 
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[], []])
+        with pytest.raises(YtError):
+            reshard_table("//tmp/t", [[], []])
         assert self._get_pivot_keys("//tmp/t") == [[], [100]]
 
-        sync_reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
+        sync_reshard_table(
+            "//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1
+        )
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[101]], first_tablet_index=1, last_tablet_index=1)
+        with pytest.raises(YtError):
+            reshard_table("//tmp/t", [[101]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[300]], first_tablet_index=3, last_tablet_index=3)
+        with pytest.raises(YtError):
+            reshard_table("//tmp/t", [[300]], first_tablet_index=3, last_tablet_index=3)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
+        with pytest.raises(YtError):
+            reshard_table(
+                "//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1
+            )
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        sync_reshard_table("//tmp/t", [[100], [150], [200]], first_tablet_index=1, last_tablet_index=2)
+        sync_reshard_table(
+            "//tmp/t", [[100], [150], [200]], first_tablet_index=1, last_tablet_index=2
+        )
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[100], [100]], first_tablet_index=1, last_tablet_index=1)
+        with pytest.raises(YtError):
+            reshard_table(
+                "//tmp/t", [[100], [100]], first_tablet_index=1, last_tablet_index=1
+            )
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[], [100, 200]])
+        with pytest.raises(YtError):
+            reshard_table("//tmp/t", [[], [100, 200]])
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
     @authors("babenko", "levysotsky")
@@ -417,9 +495,17 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [100], [200], [300]])
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError): reshard_table("//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3)
+        with pytest.raises(YtError):
+            reshard_table(
+                "//tmp/t",
+                [[100], [250], [300]],
+                first_tablet_index=1,
+                last_tablet_index=3,
+            )
         sync_unmount_table("//tmp/t", first_tablet_index=1, last_tablet_index=3)
-        sync_reshard_table("//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3)
+        sync_reshard_table(
+            "//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3
+        )
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [250], [300]]
 
     @authors("savrus", "levysotsky")
@@ -428,7 +514,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [1]])
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i, "value": "A"*256} for i in xrange(2)])
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 256} for i in xrange(2)])
         sync_flush_table("//tmp/t")
         sync_compact_table("//tmp/t")
         sync_unmount_table("//tmp/t")
@@ -507,7 +593,9 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
         tablet_chunk_lists = get_tablet_chunk_lists()
-        wait(lambda: chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1])))
+        wait(
+            lambda: chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1]))
+        )
 
         sync_unmount_table("//tmp/t")
 
@@ -515,16 +603,27 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             return get("#{0}/@chunk_id".format(chunk_view_id))
 
         tablet_chunk_lists = get_tablet_chunk_lists()
-        assert get_chunk_under_chunk_view(get("#{0}/@child_ids/0".format(tablet_chunk_lists[0]))) == chunk_id
+        assert (
+            get_chunk_under_chunk_view(
+                get("#{0}/@child_ids/0".format(tablet_chunk_lists[0]))
+            )
+            == chunk_id
+        )
         assert chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1]))
-        assert get_chunk_under_chunk_view(get("#{0}/@child_ids/0".format(tablet_chunk_lists[2]))) == chunk_id
+        assert (
+            get_chunk_under_chunk_view(
+                get("#{0}/@child_ids/0".format(tablet_chunk_lists[2]))
+            )
+            == chunk_id
+        )
 
         sync_reshard_table("//tmp/t", [[]])
 
         # Avoiding compaction.
         sync_mount_table("//tmp/t", freeze=True)
         assert list(lookup_rows("//tmp/t", [{"key": i} for i in xrange(3)])) == [
-            {"key": i, "value": str(i)} for i in (0, 2)]
+            {"key": i, "value": str(i)} for i in (0, 2)
+        ]
 
     @authors("max42", "savrus")
     def test_alter_table_fails(self):
@@ -535,67 +634,176 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         # valid schema can be set for an empty table without any checks.
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         sync_unmount_table("//tmp/t")
-        with pytest.raises(YtError): alter_table("//tmp/t", schema=[
-            {"name": "key1", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}])
-        with pytest.raises(YtError): alter_table("//tmp/t", schema=[
-            {"name": "key", "type": "uint64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}])
-        with pytest.raises(YtError): alter_table("//tmp/t", schema=[
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value1", "type": "string"}])
+        with pytest.raises(YtError):
+            alter_table(
+                "//tmp/t",
+                schema=[
+                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            )
+        with pytest.raises(YtError):
+            alter_table(
+                "//tmp/t",
+                schema=[
+                    {"name": "key", "type": "uint64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            )
+        with pytest.raises(YtError):
+            alter_table(
+                "//tmp/t",
+                schema=[
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value1", "type": "string"},
+                ],
+            )
 
         self._create_table_with_computed_column("//tmp/t1")
         sync_mount_table("//tmp/t1")
         insert_rows("//tmp/t1", [{"key1": 1, "value": "test"}])
         sync_unmount_table("//tmp/t1")
-        with pytest.raises(YtError): alter_table("//tmp/t1", schema=[
-            {"name": "key1", "type": "int64", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}])
-        with pytest.raises(YtError): alter_table("//tmp/t1", schema=[
-            {"name": "key1", "type": "int64", "expression": "key2 * 100 + 3", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}])
-        with pytest.raises(YtError): alter_table("//tmp/t1", schema=[
-            {"name": "key1", "type": "int64", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "expression": "key1 * 100", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}])
-        with pytest.raises(YtError): alter_table("//tmp/t1", schema=[
-            {"name": "key1", "type": "int64", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
-            {"name": "key3", "type": "int64", "expression": "key1 * 100 + 3", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}])
+        with pytest.raises(YtError):
+            alter_table(
+                "//tmp/t1",
+                schema=[
+                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            )
+        with pytest.raises(YtError):
+            alter_table(
+                "//tmp/t1",
+                schema=[
+                    {
+                        "name": "key1",
+                        "type": "int64",
+                        "expression": "key2 * 100 + 3",
+                        "sort_order": "ascending",
+                    },
+                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            )
+        with pytest.raises(YtError):
+            alter_table(
+                "//tmp/t1",
+                schema=[
+                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                    {
+                        "name": "key2",
+                        "type": "int64",
+                        "expression": "key1 * 100",
+                        "sort_order": "ascending",
+                    },
+                    {"name": "value", "type": "string"},
+                ],
+            )
+        with pytest.raises(YtError):
+            alter_table(
+                "//tmp/t1",
+                schema=[
+                    {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                    {
+                        "name": "key2",
+                        "type": "int64",
+                        "expression": "key1 * 100 + 3",
+                        "sort_order": "ascending",
+                    },
+                    {
+                        "name": "key3",
+                        "type": "int64",
+                        "expression": "key1 * 100 + 3",
+                        "sort_order": "ascending",
+                    },
+                    {"name": "value", "type": "string"},
+                ],
+            )
 
-        create("table", "//tmp/t2", attributes={"schema": [
-            {"name": "key", "type": "int64", "sort_order": "ascending"}]})
-        with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
-        alter_table("//tmp/t2", schema=[
-            {"name": "key", "type": "any", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}])
-        with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
+            },
+        )
+        with pytest.raises(YtError):
+            alter_table("//tmp/t2", dynamic=True)
+        alter_table(
+            "//tmp/t2",
+            schema=[
+                {"name": "key", "type": "any", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
+        with pytest.raises(YtError):
+            alter_table("//tmp/t2", dynamic=True)
 
     @authors("gritukan")
     def test_alter_key_column(self):
-        old_schema = make_schema([
-            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
-            {"name": "value", "type": "string", "required": False},
-        ])
-        new_schema = make_schema([
-            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
-            {"name": "x", "type": "int64", "required": False, "sort_order": "ascending"},
-            {"name": "value", "type": "string", "required": False},
-        ])
-        bad_schema_1 = make_schema([
-            {"name": "x", "type": "int64", "required": False, "sort_order": "ascending"},
-            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
-            {"name": "value", "type": "string", "required": False},
-        ])
-        bad_schema_2 = make_schema([
-            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
-            {"name": "value", "type": "string", "required": False},
-            {"name": "x", "type": "int64", "required": False, "sort_order": "ascending"},
-        ])
+        old_schema = make_schema(
+            [
+                {
+                    "name": "key",
+                    "type": "int64",
+                    "required": False,
+                    "sort_order": "ascending",
+                },
+                {"name": "value", "type": "string", "required": False},
+            ]
+        )
+        new_schema = make_schema(
+            [
+                {
+                    "name": "key",
+                    "type": "int64",
+                    "required": False,
+                    "sort_order": "ascending",
+                },
+                {
+                    "name": "x",
+                    "type": "int64",
+                    "required": False,
+                    "sort_order": "ascending",
+                },
+                {"name": "value", "type": "string", "required": False},
+            ]
+        )
+        bad_schema_1 = make_schema(
+            [
+                {
+                    "name": "x",
+                    "type": "int64",
+                    "required": False,
+                    "sort_order": "ascending",
+                },
+                {
+                    "name": "key",
+                    "type": "int64",
+                    "required": False,
+                    "sort_order": "ascending",
+                },
+                {"name": "value", "type": "string", "required": False},
+            ]
+        )
+        bad_schema_2 = make_schema(
+            [
+                {
+                    "name": "key",
+                    "type": "int64",
+                    "required": False,
+                    "sort_order": "ascending",
+                },
+                {"name": "value", "type": "string", "required": False},
+                {
+                    "name": "x",
+                    "type": "int64",
+                    "required": False,
+                    "sort_order": "ascending",
+                },
+            ]
+        )
 
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
@@ -613,18 +821,26 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         alter_table("//tmp/t", schema=new_schema)
 
         sync_mount_table("//tmp/t")
-        assert read_table("//tmp/t") == [{"key": 1, "value": "1", "x": yson.YsonEntity()}, {"key": 2, "value": "2", "x": yson.YsonEntity()}]
+        assert read_table("//tmp/t") == [
+            {"key": 1, "value": "1", "x": yson.YsonEntity()},
+            {"key": 2, "value": "2", "x": yson.YsonEntity()},
+        ]
         sync_unmount_table("//tmp/t")
 
         with pytest.raises(YtError):
             alter_table("//tmp/t", schema=old_schema)
 
+
 class TestSortedDynamicTablesCopyReshardMulticell(TestSortedDynamicTablesCopyReshard):
     NUM_SECONDARY_MASTER_CELLS = 2
+
 
 class TestSortedDynamicTablesCopyReshardRpcProxy(TestSortedDynamicTablesCopyReshard):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
-class TestSortedDynamicTablesCopyReshardPortal(TestSortedDynamicTablesCopyReshardMulticell):
+
+class TestSortedDynamicTablesCopyReshardPortal(
+    TestSortedDynamicTablesCopyReshardMulticell
+):
     ENABLE_TMP_PORTAL = True

@@ -3,7 +3,13 @@ import __builtin__
 
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt_env_setup import wait, skip_if_rpc_driver_backend, parametrize_external, Restarter, NODES_SERVICE
+from yt_env_setup import (
+    wait,
+    skip_if_rpc_driver_backend,
+    parametrize_external,
+    Restarter,
+    NODES_SERVICE,
+)
 from yt_commands import *
 from yt.yson import YsonEntity, loads, dumps
 
@@ -17,25 +23,21 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
+
 class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
     USE_MASTER_CACHE = True
 
     DELTA_DRIVER_CONFIG = {
         "max_rows_per_write_request": 2,
-
         "table_mount_cache": {
             "expire_after_successful_update_time": 60000,
             "refresh_time": 60000,
             "expire_after_failed_update_time": 1000,
-            "expire_after_access_time": 300000
-        }
+            "expire_after_access_time": 300000,
+        },
     }
 
-    DELTA_NODE_CONFIG = {
-        "tablet_node": {
-            "tablet_snapshot_eviction_timeout": 0
-        }
-    }
+    DELTA_NODE_CONFIG = {"tablet_node": {"tablet_snapshot_eviction_timeout": 0}}
 
     # Reimplement dynamic table commands without calling clear_metadata_caches()
 
@@ -62,7 +64,6 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         print_debug("Waiting for tablets to become unmounted...")
         wait_for_tablet_state(path, "unmounted", **kwargs)
 
-
     @authors("savrus")
     def test_select_with_expired_schema(self):
         sync_create_cells(1)
@@ -73,10 +74,14 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
         self._sync_unmount_table("//tmp/t")
-        alter_table("//tmp/t", schema=[
-                    {"name": "key", "type": "int64", "sort_order": "ascending"},
-                    {"name": "key2", "type": "int64", "sort_order": "ascending"},
-                    {"name": "value", "type": "string"}])
+        alter_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
         self._sync_mount_table("//tmp/t")
         expected = [{"key": i, "key2": None, "value": str(i)} for i in xrange(2)]
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)
@@ -121,14 +126,16 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
         self._sync_unmount_table("//tmp/t1")
-        with pytest.raises(YtError): lookup_rows("//tmp/t1", keys)
+        with pytest.raises(YtError):
+            lookup_rows("//tmp/t1", keys)
         clear_metadata_caches()
         self._sync_mount_table("//tmp/t1")
 
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
         self._sync_unmount_table("//tmp/t1")
-        with pytest.raises(YtError): select_rows("* from [//tmp/t1]")
+        with pytest.raises(YtError):
+            select_rows("* from [//tmp/t1]")
         clear_metadata_caches()
         self._sync_mount_table("//tmp/t1")
 
@@ -146,28 +153,42 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
         assert_items_equal(select_rows("* from [//tmp/t1]"), rows)
 
         reshard_mounted_table("//tmp/t1", [[]])
-        rows = [{"key": i, "value": str(i+1)} for i in xrange(3)]
-        with pytest.raises(YtError): insert_rows("//tmp/t1", rows)
+        rows = [{"key": i, "value": str(i + 1)} for i in xrange(3)]
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t1", rows)
         insert_rows("//tmp/t1", rows)
 
         insert_rows("//tmp/t1", rows)
         assert_items_equal(lookup_rows("//tmp/t1", keys), rows)
 
+
 ##################################################################
 
-class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMetadataCaching):
+
+class TestSortedDynamicTablesMetadataCachingMulticell(
+    TestSortedDynamicTablesMetadataCaching
+):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMetadataCaching2):
+
+class TestSortedDynamicTablesMetadataCachingMulticell2(
+    TestSortedDynamicTablesMetadataCaching2
+):
     NUM_SECONDARY_MASTER_CELLS = 2
+
 
 ###################################################################
 
-class TestSortedDynamicTablesMetadataCachingRpcProxy(TestSortedDynamicTablesMetadataCaching):
+
+class TestSortedDynamicTablesMetadataCachingRpcProxy(
+    TestSortedDynamicTablesMetadataCaching
+):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
-class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMetadataCaching2):
+
+class TestSortedDynamicTablesMetadataCachingRpcProxy2(
+    TestSortedDynamicTablesMetadataCaching2
+):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-

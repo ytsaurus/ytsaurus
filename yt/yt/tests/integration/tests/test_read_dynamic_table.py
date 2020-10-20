@@ -13,6 +13,7 @@ from yt.environment.helpers import assert_items_equal
 
 ################################################################################
 
+
 class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
     @authors("psushin")
     def test_read_invalid_limits(self):
@@ -25,16 +26,24 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1)
         sync_unmount_table("//tmp/t")
 
-        with pytest.raises(YtError): read_table("//tmp/t[#5:]")
-        with pytest.raises(YtError): read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
+        with pytest.raises(YtError):
+            read_table("//tmp/t[#5:]")
+        with pytest.raises(YtError):
+            read_table(
+                "<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t"
+            )
 
     @authors("savrus")
-    @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
+    @pytest.mark.parametrize(
+        "erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"]
+    )
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for, erasure_codec):
         sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec)
+        self._create_simple_table(
+            "//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec
+        )
         sync_mount_table("//tmp/t")
 
         rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
@@ -47,11 +56,11 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         ts = generate_timestamp()
 
         sync_unfreeze_table("//tmp/t")
-        rows2 = [{"key": i, "value": str(i+1)} for i in xrange(10)]
+        rows2 = [{"key": i, "value": str(i + 1)} for i in xrange(10)]
         insert_rows("//tmp/t", rows2)
         sync_unmount_table("//tmp/t")
 
-        assert read_table("<timestamp=%s>//tmp/t" %(ts)) == rows1
+        assert read_table("<timestamp=%s>//tmp/t" % (ts)) == rows1
         assert get("//tmp/t/@chunk_count") == 2
 
     @authors("savrus")
@@ -61,16 +70,19 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         table_id = get("//tmp/t/@id")
+
         def _find_driver():
             for i in xrange(self.Env.secondary_master_cell_count):
                 driver = get_driver(i + 1)
                 if exists("#{0}".format(table_id), driver=driver):
                     return driver
             return None
+
         driver = _find_driver()
 
         def _multicell_lock(table, *args, **kwargs):
             lock(table, *args, **kwargs)
+
             def _check():
                 locks = get("#{0}/@locks".format(table_id), driver=driver)
                 if "tx" in kwargs:
@@ -80,15 +92,25 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
                     return False
                 else:
                     return len(locks) > 0
+
             wait(_check)
 
         def get_chunk_tree(path):
             root_chunk_list_id = get(path + "/@chunk_list_id")
             root_chunk_list = get("#" + root_chunk_list_id + "/@")
-            tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
-            assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
+            tablet_chunk_lists = [
+                get("#" + x + "/@") for x in root_chunk_list["child_ids"]
+            ]
+            assert all(
+                [
+                    root_chunk_list_id in chunk_list["parent_ids"]
+                    for chunk_list in tablet_chunk_lists
+                ]
+            )
             # Validate against @chunk_count just to make sure that statistics arrive from secondary master to primary one.
-            assert get(path + "/@chunk_count") == sum([len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists])
+            assert get(path + "/@chunk_count") == sum(
+                [len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists]
+            )
 
             return root_chunk_list, tablet_chunk_lists
 
@@ -175,25 +197,26 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1)
         sync_flush_table("//tmp/t")
 
-        rows2 = [{"key": i, "value": str(i+1)} for i in xrange(1,5)]
+        rows2 = [{"key": i, "value": str(i + 1)} for i in xrange(1, 5)]
         insert_rows("//tmp/t", rows2)
         sync_flush_table("//tmp/t")
 
-        rows3 = [{"key": i, "value": str(i+2)} for i in xrange(5,9)]
+        rows3 = [{"key": i, "value": str(i + 2)} for i in xrange(5, 9)]
         insert_rows("//tmp/t", rows3)
         sync_flush_table("//tmp/t")
 
-        rows4 = [{"key": i, "value": str(i+3)} for i in xrange(0,3)]
+        rows4 = [{"key": i, "value": str(i + 3)} for i in xrange(0, 3)]
         insert_rows("//tmp/t", rows4)
         sync_flush_table("//tmp/t")
 
-        rows5 = [{"key": i, "value": str(i+4)} for i in xrange(7,10)]
+        rows5 = [{"key": i, "value": str(i + 4)} for i in xrange(7, 10)]
         insert_rows("//tmp/t", rows5)
         sync_flush_table("//tmp/t")
 
         sync_freeze_table("//tmp/t")
 
         rows = []
+
         def update(new):
             def update_row(row):
                 for r in rows:
@@ -201,6 +224,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
                         r["value"] = row["value"]
                         return
                 rows.append(row)
+
             for row in new:
                 update_row(row)
 
@@ -220,11 +244,18 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
 
         def do_test():
             for i in xrange(6):
-                assert read_table("//tmp/t[{0}:{1}]".format(i, i+1)) == rows[i:i+1]
+                assert (
+                    read_table("//tmp/t[{0}:{1}]".format(i, i + 1)) == rows[i : i + 1]
+                )
             for i in xrange(0, 6, 2):
-                assert read_table("//tmp/t[{0}:{1}]".format(i, i+2)) == rows[i:i+2]
+                assert (
+                    read_table("//tmp/t[{0}:{1}]".format(i, i + 2)) == rows[i : i + 2]
+                )
             for i in xrange(1, 6, 2):
-                assert read_table("//tmp/t[{0}:{1}]".format(i, i+2)) == rows[i:i+2]
+                assert (
+                    read_table("//tmp/t[{0}:{1}]".format(i, i + 2)) == rows[i : i + 2]
+                )
+
         do_test()
         sync_reshard_table("//tmp/t", [[], [2], [4]])
         do_test()
@@ -235,14 +266,18 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
+        with pytest.raises(YtError):
+            write_table("//tmp/t", [{"key": 1, "value": 2}])
+
 
 class TestSortedDynamicTablesReadTableMulticell(TestSortedDynamicTablesReadTable):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+
 class TestSortedDynamicTablesReadTableRpcProxy(TestSortedDynamicTablesReadTable):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
 
 class TestSortedDynamicTablesReadTablePortal(TestSortedDynamicTablesReadTableMulticell):
     ENABLE_TMP_PORTAL = True

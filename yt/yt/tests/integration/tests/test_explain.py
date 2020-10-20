@@ -8,11 +8,17 @@ class TestExplainQuery(YTEnvSetup):
     def _create_test_table(self, path):
         test_schema = make_schema(
             [
-                {"name": "hash", "type": "int64", "sort_order": "ascending", "expression": "int64(farm_hash(a))"},
+                {
+                    "name": "hash",
+                    "type": "int64",
+                    "sort_order": "ascending",
+                    "expression": "int64(farm_hash(a))",
+                },
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
                 {"name": "b", "type": "int64", "sort_order": "ascending"},
-                {"name": "c", "type": "int64"}
-            ])
+                {"name": "c", "type": "int64"},
+            ]
+        )
 
         create_dynamic_table(path, schema=test_schema)
 
@@ -36,44 +42,68 @@ class TestExplainQuery(YTEnvSetup):
         sync_create_cells(1)
         first_test_schema = make_schema(
             [
-                {"name": "hash", "type": "int64", "sort_order": "ascending", "expression": "int64(farm_hash(cid))"},
+                {
+                    "name": "hash",
+                    "type": "int64",
+                    "sort_order": "ascending",
+                    "expression": "int64(farm_hash(cid))",
+                },
                 {"name": "cid", "type": "int64", "sort_order": "ascending"},
                 {"name": "pid", "type": "int64", "sort_order": "ascending"},
                 {"name": "__shard__", "type": "int64"},
-                {"name": "PhraseID", "type": "int64"}
-            ])
+                {"name": "PhraseID", "type": "int64"},
+            ]
+        )
 
         create_dynamic_table("//tmp/first", schema=first_test_schema)
 
         second_test_schema = make_schema(
             [
-                {"name": "ExportIDHash", "type": "int64", "sort_order": "ascending", "expression": "int64(farm_hash(ExportID))"},
+                {
+                    "name": "ExportIDHash",
+                    "type": "int64",
+                    "sort_order": "ascending",
+                    "expression": "int64(farm_hash(ExportID))",
+                },
                 {"name": "ExportID", "type": "int64", "sort_order": "ascending"},
                 {"name": "GroupExportID", "type": "int64", "sort_order": "ascending"},
                 {"name": "PhraseID", "type": "uint64", "sort_order": "ascending"},
                 {"name": "UpdateTime", "type": "int64", "sort_order": "ascending"},
                 {"name": "value", "type": "int64"},
-            ])
+            ]
+        )
 
         create_dynamic_table("//tmp/second", schema=second_test_schema)
 
         third_test_schema = make_schema(
             [
-                {"name": "hash", "type": "int64", "sort_order": "ascending", "expression": "int64(farm_hash(pid))"},
+                {
+                    "name": "hash",
+                    "type": "int64",
+                    "sort_order": "ascending",
+                    "expression": "int64(farm_hash(pid))",
+                },
                 {"name": "pid", "type": "int64", "sort_order": "ascending"},
                 {"name": "__shard__", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "int64"}
-            ])
+                {"name": "value", "type": "int64"},
+            ]
+        )
 
         create_dynamic_table("//tmp/third", schema=third_test_schema)
 
         fourth_test_schema = make_schema(
             [
-                {"name": "hash", "type": "int64", "sort_order": "ascending", "expression": "int64(farm_hash(cid))"},
+                {
+                    "name": "hash",
+                    "type": "int64",
+                    "sort_order": "ascending",
+                    "expression": "int64(farm_hash(cid))",
+                },
                 {"name": "cid", "type": "int64", "sort_order": "ascending"},
                 {"name": "__shard__", "type": "int64", "sort_order": "ascending"},
-                {"name": "ExportID", "type": "int64"}
-            ])
+                {"name": "ExportID", "type": "int64"},
+            ]
+        )
 
         create_dynamic_table("//tmp/fourth", schema=fourth_test_schema)
 
@@ -90,8 +120,8 @@ class TestExplainQuery(YTEnvSetup):
             assert len(foreign_key_prefixes) == len(common_key_prefixes)
             assert len(joins) == size
             for index in range(size):
-                assert(joins[index]["foreign_key_prefix"] == foreign_key_prefixes[index])
-                assert(joins[index]["common_key_prefix"] == common_key_prefixes[index])
+                assert joins[index]["foreign_key_prefix"] == foreign_key_prefixes[index]
+                assert joins[index]["common_key_prefix"] == common_key_prefixes[index]
 
         query_string = """* from [//tmp/first] D
             left join [//tmp/fourth] C on D.cid = C.cid
@@ -147,20 +177,25 @@ class TestExplainQuery(YTEnvSetup):
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
                 {"name": "b", "type": "int64", "sort_order": "ascending"},
                 {"name": "c", "type": "int64"},
-            ])
+            ]
+        )
 
         create_dynamic_table("//tmp/t", schema=test_schema)
         sync_mount_table("//tmp/t")
 
-        response = explain_query("* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)")
+        response = explain_query(
+            "* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)"
+        )
 
-        expected_ranges = [['[0#1, 1#1]', '[0#1, 1#9, 0#<Max>]'],
-                           ['[0#2, 1#1]', '[0#2, 1#9, 0#<Max>]'],
-                           ['[0#10, 1#1]', '[0#10, 1#9, 0#<Max>]']]
+        expected_ranges = [
+            ["[0#1, 1#1]", "[0#1, 1#9, 0#<Max>]"],
+            ["[0#2, 1#1]", "[0#2, 1#9, 0#<Max>]"],
+            ["[0#10, 1#1]", "[0#10, 1#9, 0#<Max>]"],
+        ]
         expected_key_trie = "(key0, {  })\n0#1:\n  (key1, { [0#1:0#9] })\n0#2:\n  (key1, { [0#1:0#9] })\n0#10:\n  (key1, { [0#1:0#9] })"
 
-        assert(response["query"]["ranges"] == expected_ranges)
-        assert(response["query"]["key_trie"] == expected_key_trie)
+        assert response["query"]["ranges"] == expected_ranges
+        assert response["query"]["key_trie"] == expected_key_trie
 
     @authors("lexolordan")
     def test_explain_group_by_node(self):
@@ -171,19 +206,26 @@ class TestExplainQuery(YTEnvSetup):
                 {"name": "a", "type": "int64", "sort_order": "ascending"},
                 {"name": "b", "type": "int64", "sort_order": "ascending"},
                 {"name": "c", "type": "int64"},
-            ])
+            ]
+        )
 
         create_dynamic_table("//tmp/t", schema=test_schema)
         sync_mount_table("//tmp/t")
 
-        response = explain_query("* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)", verbose_output=True)
+        response = explain_query(
+            "* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)",
+            verbose_output=True,
+        )
 
-        expected_ranges = [[['[0#1, 1#1]', '[0#1, 1#9, 0#<Max>]'],
-                            ['[0#2, 1#1]', '[0#2, 1#9, 0#<Max>]'],
-                            ['[0#10, 1#1]', '[0#10, 1#9, 0#<Max>]']]]
+        expected_ranges = [
+            [
+                ["[0#1, 1#1]", "[0#1, 1#9, 0#<Max>]"],
+                ["[0#2, 1#1]", "[0#2, 1#9, 0#<Max>]"],
+                ["[0#10, 1#1]", "[0#10, 1#9, 0#<Max>]"],
+            ]
+        ]
 
         grouped_ranges = response["query"]["grouped_ranges"]
 
         assert len(grouped_ranges) == 1
         assert grouped_ranges.values()[0] == expected_ranges
-

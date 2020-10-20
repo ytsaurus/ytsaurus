@@ -8,6 +8,7 @@ from time import sleep
 
 ##################################################################
 
+
 class TestSchedulerAutoMerge(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 4
@@ -19,7 +20,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         "scheduler": {
             "watchers_update_period": 100,
             "operations_update_period": 10,
-            "running_jobs_update_period": 10
+            "running_jobs_update_period": 10,
         },
     }
 
@@ -32,9 +33,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     }
 
     DELTA_MASTER_CONFIG = {
-        "object_manager": {
-            "gc_sweep_period": 10
-        },
+        "object_manager": {"gc_sweep_period": 10},
         "chunk_manager": {
             "allow_multiple_erasure_parts_per_node": True,
         },
@@ -69,10 +68,16 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             if state == "completed":
                 break
             if op.get_state() == "failed":
-                op.track() # this should raise an exception
-            current_chunk_count = get("//sys/accounts/acc/@resource_usage/chunk_count", verbose=False)
+                op.track()  # this should raise an exception
+            current_chunk_count = get(
+                "//sys/accounts/acc/@resource_usage/chunk_count", verbose=False
+            )
             peak_chunk_count = max(peak_chunk_count, current_chunk_count)
-            print_debug("Peak chunk count = {}, current chunk count = {}".format(peak_chunk_count, current_chunk_count))
+            print_debug(
+                "Peak chunk count = {}, current chunk count = {}".format(
+                    peak_chunk_count, current_chunk_count
+                )
+            )
             sleep(2)
             if with_revive:
                 i += 1
@@ -89,7 +94,13 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     @pytest.mark.parametrize("op_type", ["map", "reduce"])
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_auto_merge_does_not_stuck(self, op_type):
-        create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
+            },
+        )
         create("table", "//tmp/t_out")
 
         parameters = [
@@ -106,10 +117,17 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
         run_op = map if op_type == "map" else reduce
 
-        for row_count, max_intermediate_chunk_count, chunk_count_per_merge_job in parameters:
-            write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)],
-                        max_row_buffer_size=1,
-                        table_writer={"desired_chunk_size": 1})
+        for (
+            row_count,
+            max_intermediate_chunk_count,
+            chunk_count_per_merge_job,
+        ) in parameters:
+            write_table(
+                "//tmp/t_in",
+                [{"a": i} for i in range(row_count)],
+                max_row_buffer_size=1,
+                table_writer={"desired_chunk_size": 1},
+            )
 
             assert get("//tmp/t_in/@chunk_count") == row_count
 
@@ -126,10 +144,15 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                         "chunk_count_per_merge_job": chunk_count_per_merge_job,
                     },
                     "data_size_per_job": 1,
-                })
+                },
+            )
             op.track()
-            assert get("//tmp/t_out/@chunk_count") == \
-                   (row_count - 1) // min(chunk_count_per_merge_job, max_intermediate_chunk_count) + 1
+            assert (
+                get("//tmp/t_out/@chunk_count")
+                == (row_count - 1)
+                // min(chunk_count_per_merge_job, max_intermediate_chunk_count)
+                + 1
+            )
             assert get("//tmp/t_out/@row_count") == row_count
 
     @authors("max42")
@@ -138,13 +161,22 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     def test_account_chunk_limit(self, op_type):
         self._create_account(35)
 
-        create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
+            },
+        )
         create("table", "//tmp/t_out")
 
         row_count = 300
-        write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)],
-                    max_row_buffer_size=1,
-                    table_writer={"desired_chunk_size": 1})
+        write_table(
+            "//tmp/t_in",
+            [{"a": i} for i in range(row_count)],
+            max_row_buffer_size=1,
+            table_writer={"desired_chunk_size": 1},
+        )
 
         assert get("//tmp/t_in/@chunk_count") == row_count
 
@@ -153,7 +185,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            reduce_by=["a"], # ignored for maps
+            reduce_by=["a"],  # ignored for maps
             command="cat",
             spec={
                 "auto_merge": {
@@ -165,7 +197,8 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
                 "intermediate_data_account": "acc",
-            })
+            },
+        )
 
         self._track_and_report_peak_chunk_count(op)
 
@@ -180,7 +213,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create("table", "//tmp/t_out2")
 
         row_count = 100
-        write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
+        write_table("//tmp/t_in", [{"a": i} for i in range(row_count)])
 
         op = map(
             track=False,
@@ -195,13 +228,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "chunk_count_per_merge_job": 15,
                     "use_intermediate_data_account": True,
                 },
-                "mapper": {
-                    "format": yson.loads("<columns=[a]>schemaful_dsv")
-                },
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
                 "intermediate_data_account": "acc",
-            })
+            },
+        )
 
         self._track_and_report_peak_chunk_count(op)
 
@@ -220,7 +252,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create("table", "//tmp/t_out2")
 
         row_count = 100
-        write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
+        write_table("//tmp/t_in", [{"a": i} for i in range(row_count)])
 
         op = map(
             track=False,
@@ -234,51 +266,54 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "chunk_count_per_merge_job": 15,
                     "use_intermediate_data_account": True,
                 },
-                "mapper": {
-                    "format": yson.loads("<columns=[a]>schemaful_dsv")
-                },
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
                 "intermediate_data_account": "acc",
-            })
+            },
+        )
 
         self._track_and_report_peak_chunk_count(op, with_revive=with_revive)
 
         assert get("//tmp/t_out1/@row_count") == row_count // 10
         assert get("//tmp/t_out2/@row_count") == row_count * 9 // 10
 
-
     @authors("max42", "ermolovd")
     @pytest.mark.timeout(240)
     def test_auto_merge_with_schema_and_append(self):
-        schema_in = make_schema([
-            {
-                "name": "a",
-                "type": "int64",
-                "sort_order": "ascending",
-            },
-            {
-                "name": "b",
-                "type": "string"
-            }
-        ], unique_keys=False, strict=True)
+        schema_in = make_schema(
+            [
+                {
+                    "name": "a",
+                    "type": "int64",
+                    "sort_order": "ascending",
+                },
+                {"name": "b", "type": "string"},
+            ],
+            unique_keys=False,
+            strict=True,
+        )
         create("table", "//tmp/t_in", attributes={"schema": schema_in})
 
-        schema_out = make_schema([
-            {
-                "name": "a",
-                "type": "int64",
-                "required": False,
-            },
-            {
-                "name": "b",
-                "type": "string",
-                "required": False,
-            }
-        ], unique_keys=False, strict=True)
+        schema_out = make_schema(
+            [
+                {
+                    "name": "a",
+                    "type": "int64",
+                    "required": False,
+                },
+                {
+                    "name": "b",
+                    "type": "string",
+                    "required": False,
+                },
+            ],
+            unique_keys=False,
+            strict=True,
+        )
         create("table", "//tmp/t_out", attributes={"schema": schema_out})
 
-        data = [{"a": i, "b" : str(i * i)} for i in range(10)];
+        data = [{"a": i, "b": str(i * i)} for i in range(10)]
         write_table("<append=%true>//tmp/t_in", data)
 
         init_content = [{"a": -1, "b": "1"}]
@@ -295,7 +330,8 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "chunk_count_per_merge_job": 2,
                 },
                 "data_size_per_job": 1,
-            })
+            },
+        )
 
         assert get("//tmp/t_out/@row_count") == 11
         assert get("//tmp/t_out/@chunk_count") == 6
@@ -323,13 +359,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 50,
                     "chunk_count_per_merge_job": 50,
-                    "chunk_size_threshold": 100 * 1024
+                    "chunk_size_threshold": 100 * 1024,
                 },
                 "data_size_per_job": 1,
-                "mapper": {
-                    "format": yson.loads("<columns=[a]>schemaful_dsv")
-                },
-            })
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+            },
+        )
         assert get("//tmp/t_out1/@chunk_count") == 0
         assert get("//tmp/t_out2/@chunk_count") == 6
         chunk_ids = get("//tmp/t_out2/@chunk_ids")
@@ -346,11 +381,28 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
         assert len(directions) == 3
         assert directions[("input", "map")]["job_data_statistics"]["chunk_count"] == 0
-        assert directions[("input", "map")]["teleport_data_statistics"]["chunk_count"] == 10
-        assert directions[("map", "auto_merge")]["job_data_statistics"]["chunk_count"] == 10
-        assert directions[("map", "auto_merge")]["teleport_data_statistics"]["chunk_count"] == 0
-        assert directions[("auto_merge", "output")]["job_data_statistics"]["chunk_count"] == 1
-        assert directions[("auto_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 5
+        assert (
+            directions[("input", "map")]["teleport_data_statistics"]["chunk_count"]
+            == 10
+        )
+        assert (
+            directions[("map", "auto_merge")]["job_data_statistics"]["chunk_count"]
+            == 10
+        )
+        assert (
+            directions[("map", "auto_merge")]["teleport_data_statistics"]["chunk_count"]
+            == 0
+        )
+        assert (
+            directions[("auto_merge", "output")]["job_data_statistics"]["chunk_count"]
+            == 1
+        )
+        assert (
+            directions[("auto_merge", "output")]["teleport_data_statistics"][
+                "chunk_count"
+            ]
+            == 5
+        )
 
     @authors("max42")
     @pytest.mark.timeout(60)
@@ -369,13 +421,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "auto_merge": {
                     "mode": "manual",
                     "chunk_count_per_merge_job": 2,
-                    "max_intermediate_chunk_count" : 100
+                    "max_intermediate_chunk_count": 100,
                 },
                 "data_size_per_job": 1,
-                "mapper": {
-                    "format": yson.loads("<columns=[a]>schemaful_dsv")
-                },
-            })
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+            },
+        )
         assert get("//tmp/t_out/@chunk_count") == 5
         chunk_ids = get("//tmp/t_out/@chunk_ids")
         for chunk_id in chunk_ids:
@@ -399,13 +450,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "auto_merge": {
                     "mode": "manual",
                     "chunk_count_per_merge_job": 2,
-                    "max_intermediate_chunk_count" : 100
+                    "max_intermediate_chunk_count": 100,
                 },
                 "data_size_per_job": 1,
-                "mapper": {
-                    "format": yson.loads("<columns=[a]>schemaful_dsv")
-                },
-            })
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+            },
+        )
         assert get("//tmp/t_out/@chunk_count") == 5
         chunk_ids = get("//tmp/t_out/@chunk_ids")
         for chunk_id in chunk_ids:
@@ -428,13 +478,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "auto_merge": {
                     "mode": "manual",
                     "chunk_count_per_merge_job": 4,
-                    "max_intermediate_chunk_count" : 100
+                    "max_intermediate_chunk_count": 100,
                 },
                 "data_size_per_job": 1,
-                "mapper": {
-                    "format": yson.loads("<columns=[a]>schemaful_dsv")
-                },
-            })
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+            },
+        )
         assert get("//tmp/t_out/@chunk_count") >= 5
         assert "auto_merge_disabled" in op.get_alerts()
 
@@ -444,13 +493,17 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
-        schema_out = make_schema([
-            {
-                "name": "a",
-                "type": "string",
-                "sort_order": "ascending",
-            },
-        ], unique_keys=False, strict=True)
+        schema_out = make_schema(
+            [
+                {
+                    "name": "a",
+                    "type": "string",
+                    "sort_order": "ascending",
+                },
+            ],
+            unique_keys=False,
+            strict=True,
+        )
         create("table", "//tmp/t_out_with_schema", attributes={"schema": schema_out})
 
         for i in range(10):
@@ -464,13 +517,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "auto_merge": {
                     "mode": "manual",
                     "chunk_count_per_merge_job": 4,
-                    "max_intermediate_chunk_count" : 100
+                    "max_intermediate_chunk_count": 100,
                 },
                 "data_size_per_job": 1,
-                "mapper": {
-                    "format": yson.loads("<columns=[a]>schemaful_dsv")
-                },
-            })
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+            },
+        )
         assert get("//tmp/t_out/@chunk_count") >= 5
         assert "auto_merge_disabled" in op.get_alerts()
 
@@ -482,13 +534,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "auto_merge": {
                     "mode": "manual",
                     "chunk_count_per_merge_job": 4,
-                    "max_intermediate_chunk_count" : 100
+                    "max_intermediate_chunk_count": 100,
                 },
                 "data_size_per_job": 1,
-                "mapper": {
-                    "format": yson.loads("<columns=[a]>schemaful_dsv")
-                },
-            })
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+            },
+        )
         assert get("//tmp/t_out_with_schema/@chunk_count") >= 5
         assert "auto_merge_disabled" in op.get_alerts()
 
@@ -500,7 +551,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create("table", "//tmp/t_out2")
 
         row_count = 50
-        write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
+        write_table("//tmp/t_in", [{"a": i} for i in range(row_count)])
 
         op = map(
             track=False,
@@ -514,11 +565,10 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
                 },
-                "mapper": {
-                    "format": yson.loads("<columns=[a]>schemaful_dsv")
-                },
-                "data_size_per_job": 1
-            })
+                "mapper": {"format": yson.loads("<columns=[a]>schemaful_dsv")},
+                "data_size_per_job": 1,
+            },
+        )
 
         # We check that each of 4 possible live previews was non-empty at some moment.
         live_preview_appeared = {"map": [False, False], "auto_merge": [False, False]}
@@ -528,23 +578,35 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             if state == "completed":
                 break
             elif state == "failed":
-                op.track() # this should raise an exception
+                op.track()  # this should raise an exception
             for i in range(2):
                 for vertex in live_preview_appeared:
-                    path = op.get_path() + "/orchid/data_flow_graph/vertices/{0}/live_previews/{1}".format(vertex, i)
+                    path = op.get_path() + "/orchid/data_flow_graph/vertices/{0}/live_previews/{1}".format(
+                        vertex, i
+                    )
                     try:
                         if not exists(path, verbose=False):
                             continue
-                        data = read_table(path, verbose=False, table_reader={"unavailable_chunk_strategy": "skip"})
+                        data = read_table(
+                            path,
+                            verbose=False,
+                            table_reader={"unavailable_chunk_strategy": "skip"},
+                        )
                         if len(data) > 0 and not live_preview_appeared[vertex][i]:
-                            print_debug("Live preview of type {0} and index {1} appeared".format(vertex, i))
+                            print_debug(
+                                "Live preview of type {0} and index {1} appeared".format(
+                                    vertex, i
+                                )
+                            )
                         live_preview_appeared[vertex][i] = True
                     except YtError:
                         pass
             time.sleep(0.5)
             print_debug("{0} jobs completed".format(op.get_job_count("completed")))
 
-            if all(live_preview_appeared["map"]) and all(live_preview_appeared["auto_merge"]):
+            if all(live_preview_appeared["map"]) and all(
+                live_preview_appeared["auto_merge"]
+            ):
                 break
 
         op.track()
@@ -552,11 +614,17 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     @authors("ifsmirnov")
     def test_unversioned_update_no_auto_merge(self):
         sync_create_cells(1)
-        create("table", "//tmp/t_out", attributes={
-            "dynamic": True,
-            "schema": [
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}]})
+        create(
+            "table",
+            "//tmp/t_out",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            },
+        )
         sync_mount_table("//tmp/t_out")
         create("table", "//tmp/t_in")
 
@@ -578,8 +646,9 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 "auto_merge": {
                     "mode": "relaxed",
                 },
-                "job_count": 2
-            })
+                "job_count": 2,
+            },
+        )
 
         assert read_table("//tmp/t_out") == versioned_rows
         wait(lambda: get("//tmp/t_out/@chunk_count") == 2)
@@ -590,14 +659,16 @@ class TestSchedulerAutoMerge(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", [{"x": 1}, {"x": 2}])
 
-        op = merge(mode="unordered",
-              in_=["//tmp/in"],
-              out="//tmp/out",
-              spec={
-                  "auto_merge": {
+        op = merge(
+            mode="unordered",
+            in_=["//tmp/in"],
+            out="//tmp/out",
+            spec={
+                "auto_merge": {
                     "mode": "relaxed",
-                  },
-              })
+                },
+            },
+        )
         op.track()
         assert read_table("//tmp/out") == [{"x": 1}, {"x": 2}]
         assert "auto_merge_disabled" in op.get_alerts()

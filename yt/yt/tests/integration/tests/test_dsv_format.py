@@ -22,18 +22,21 @@ class TestDsvFormat(YTEnvSetup):
                 ]
             },
         )
-        write_table("//tmp/t_in", [
-            {
-                "int": 53,
-                "opt_string": "foobar",
-                "list_string": ["a", "b", "c"],
-            },
-            {
-                "int": 82,
-                "opt_string": None,
-                "list_string": ["foo", "bar"],
-            },
-        ])
+        write_table(
+            "//tmp/t_in",
+            [
+                {
+                    "int": 53,
+                    "opt_string": "foobar",
+                    "list_string": ["a", "b", "c"],
+                },
+                {
+                    "int": 82,
+                    "opt_string": None,
+                    "list_string": ["foo", "bar"],
+                },
+            ],
+        )
 
         with raises_yt_error("are not supported by the chosen format"):
             read_table("//tmp/t_in", output_format="dsv")
@@ -61,18 +64,21 @@ class TestYamredDsvFormat(YTEnvSetup):
                 ]
             },
         )
-        write_table("//tmp/t_in", [
-            {
-                "int": 53,
-                "opt_string": "foobar",
-                "list_string": ["a", "b", "c"],
-            },
-            {
-                "int": 82,
-                "opt_string": None,
-                "list_string": ["foo", "bar"],
-            },
-        ])
+        write_table(
+            "//tmp/t_in",
+            [
+                {
+                    "int": 53,
+                    "opt_string": "foobar",
+                    "list_string": ["a", "b", "c"],
+                },
+                {
+                    "int": 82,
+                    "opt_string": None,
+                    "list_string": ["foo", "bar"],
+                },
+            ],
+        )
 
         format = yson.YsonString("yamred_dsv")
         format.attributes["key_column_names"] = ["int"]

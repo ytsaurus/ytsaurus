@@ -8,8 +8,10 @@ from yt.common import uuid_to_parts
 
 import pytest
 
+
 def _get_orchid_operation_path(op_id):
     return "//sys/scheduler/orchid/scheduler/operations/{0}/progress".format(op_id)
+
 
 def _get_operation_from_cypress(op_id):
     result = get(get_operation_cypress_path(op_id) + "/@")
@@ -18,6 +20,7 @@ def _get_operation_from_cypress(op_id):
     result["type"] = result["operation_type"]
     result["id"] = op_id
     return result
+
 
 def _get_operation_from_archive(op_id):
     id_hi, id_lo = uuid_to_parts(op_id)
@@ -28,10 +31,14 @@ def _get_operation_from_archive(op_id):
     else:
         return {}
 
+
 def get_running_job_count(op_id):
-    wait(lambda: "brief_progress" in get_operation(op_id, attributes=["brief_progress"]))
+    wait(
+        lambda: "brief_progress" in get_operation(op_id, attributes=["brief_progress"])
+    )
     result = get_operation(op_id, attributes=["brief_progress"])
     return result["brief_progress"]["jobs"]["running"]
+
 
 class TestGetOperation(YTEnvSetup):
     NUM_MASTERS = 1
@@ -57,7 +64,9 @@ class TestGetOperation(YTEnvSetup):
 
     def setup(self):
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
 
     def teardown(self):
         remove("//sys/operations_archive", force=True)
@@ -78,12 +87,8 @@ class TestGetOperation(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                }
-            })
+            spec={"mapper": {"input_format": "json", "output_format": "json"}},
+        )
         wait_breakpoint()
 
         wait(lambda: exists(op.get_path()))
@@ -179,30 +184,41 @@ class TestGetOperation(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                }
-            })
+            spec={"mapper": {"input_format": "json", "output_format": "json"}},
+        )
         wait_breakpoint()
 
         id_hi, id_lo = uuid_to_parts(op.id)
         archive_table_path = "//sys/operations_archive/ordered_by_id"
         brief_progress = {"ivan": "ivanov", "build_time": "2100-01-01T00:00:00.000000Z"}
-        progress = {"semen": "semenych", "semenych": "gorbunkov", "build_time": "2100-01-01T00:00:00.000000Z"}
+        progress = {
+            "semen": "semenych",
+            "semenych": "gorbunkov",
+            "build_time": "2100-01-01T00:00:00.000000Z",
+        }
 
         insert_rows(
             archive_table_path,
-            [{"id_hi": id_hi, "id_lo": id_lo, "brief_progress": brief_progress, "progress": progress}],
-            update=True)
+            [
+                {
+                    "id_hi": id_hi,
+                    "id_lo": id_lo,
+                    "brief_progress": brief_progress,
+                    "progress": progress,
+                }
+            ],
+            update=True,
+        )
 
         wait(lambda: _get_operation_from_archive(op.id))
 
         res_get_operation_new = get_operation(op.id)
         self.clean_build_time(res_get_operation_new)
         assert res_get_operation_new["brief_progress"] == {"ivan": "ivanov"}
-        assert res_get_operation_new["progress"] == {"semen": "semenych", "semenych": "gorbunkov"}
+        assert res_get_operation_new["progress"] == {
+            "semen": "semenych",
+            "semenych": "gorbunkov",
+        }
 
         release_breakpoint()
         op.track()
@@ -211,7 +227,10 @@ class TestGetOperation(YTEnvSetup):
         res_get_operation_new = get_operation(op.id)
         self.clean_build_time(res_get_operation_new)
         assert res_get_operation_new["brief_progress"] != {"ivan": "ivanov"}
-        assert res_get_operation_new["progress"] != {"semen": "semenych", "semenych": "gorbunkov"}
+        assert res_get_operation_new["progress"] != {
+            "semen": "semenych",
+            "semenych": "gorbunkov",
+        }
 
     @authors("ignat")
     def test_attributes(self):
@@ -225,12 +244,8 @@ class TestGetOperation(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                }
-            })
+            spec={"mapper": {"input_format": "json", "output_format": "json"}},
+        )
         wait_breakpoint()
 
         assert list(get_operation(op.id, attributes=["state"])) == ["state"]
@@ -239,7 +254,12 @@ class TestGetOperation(YTEnvSetup):
             get_operation(op.id, attributes=["PYSCH"])
 
         for read_from in ("cache", "follower"):
-            res_get_operation = get_operation(op.id, attributes=["progress", "state"], include_scheduler=True, read_from=read_from)
+            res_get_operation = get_operation(
+                op.id,
+                attributes=["progress", "state"],
+                include_scheduler=True,
+                read_from=read_from,
+            )
             res_cypress = get(op.get_path() + "/@", attributes=["progress", "state"])
 
             assert sorted(list(res_get_operation)) == ["progress", "state"]
@@ -259,11 +279,23 @@ class TestGetOperation(YTEnvSetup):
 
         assert list(get_operation(op.id, attributes=["progress"])) == ["progress"]
 
-        requesting_attributes = ["progress", "runtime_parameters", "slot_index_per_pool_tree", "state"]
-        res_get_operation_archive = get_operation(op.id, attributes=requesting_attributes)
+        requesting_attributes = [
+            "progress",
+            "runtime_parameters",
+            "slot_index_per_pool_tree",
+            "state",
+        ]
+        res_get_operation_archive = get_operation(
+            op.id, attributes=requesting_attributes
+        )
         assert sorted(list(res_get_operation_archive)) == requesting_attributes
         assert res_get_operation_archive["state"] == "completed"
-        assert res_get_operation_archive["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
+        assert (
+            res_get_operation_archive["runtime_parameters"][
+                "scheduling_options_per_pool_tree"
+            ]["default"]["pool"]
+            == "root"
+        )
         assert res_get_operation_archive["slot_index_per_pool_tree"]["default"] == 0
 
         with raises_yt_error(NoSuchAttribute):
@@ -284,12 +316,15 @@ class TestGetOperation(YTEnvSetup):
                         "command": with_breakpoint("BREAKPOINT"),
                     },
                 },
-            })
+            },
+        )
 
         wait(lambda: len(op.get_running_jobs()) == 3)
 
         def check_task_names():
-            assert sorted(list(get_operation(op.id, attributes=["task_names"])["task_names"])) == ["master", "slave"]
+            assert sorted(
+                list(get_operation(op.id, attributes=["task_names"])["task_names"])
+            ) == ["master", "slave"]
 
         check_task_names()
 
@@ -305,15 +340,15 @@ class TestGetOperation(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
 
-        op = map(in_="//tmp/t1",
-            out="//tmp/t2",
-            command="cat")
+        op = map(in_="//tmp/t1", out="//tmp/t2", command="cat")
 
         tx = start_transaction(timeout=300 * 1000)
-        lock(op.get_path(),
+        lock(
+            op.get_path(),
             mode="shared",
             child_key="completion_transaction_id",
-            transaction_id=tx)
+            transaction_id=tx,
+        )
 
         cleaner_path = "//sys/scheduler/config/operations_cleaner"
         set(cleaner_path + "/enable", True, recursive=True)
@@ -338,12 +373,8 @@ class TestGetOperation(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                }
-            })
+            spec={"mapper": {"input_format": "json", "output_format": "json"}},
+        )
         wait_breakpoint()
 
         wait(lambda: _get_operation_from_archive(op.id))
@@ -370,15 +401,17 @@ class TestGetOperation(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=with_breakpoint("cat ; BREAKPOINT"),
-            spec={
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json"
-                }
-            })
+            spec={"mapper": {"input_format": "json", "output_format": "json"}},
+        )
 
         wait_breakpoint()
-        wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
+        wait(
+            lambda: _get_operation_from_cypress(op.id)
+            .get("brief_progress", {})
+            .get("jobs", {})
+            .get("running")
+            == 1
+        )
 
         res_api = get_operation(op.id)
         self.clean_build_time(res_api)
@@ -391,7 +424,13 @@ class TestGetOperation(YTEnvSetup):
         sync_mount_table("//sys/operations_archive/ordered_by_id")
 
         wait(lambda: _get_operation_from_archive(op.id))
-        assert _get_operation_from_archive(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1
+        assert (
+            _get_operation_from_archive(op.id)
+            .get("brief_progress", {})
+            .get("jobs", {})
+            .get("running")
+            == 1
+        )
         release_breakpoint()
         op.track()
 
@@ -439,7 +478,13 @@ class TestGetOperation(YTEnvSetup):
         )
 
         wait_breakpoint()
-        wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
+        wait(
+            lambda: _get_operation_from_cypress(op.id)
+            .get("brief_progress", {})
+            .get("jobs", {})
+            .get("running")
+            == 1
+        )
 
         res_api = get_operation(op.id)
         self.clean_build_time(res_api)
@@ -449,7 +494,9 @@ class TestGetOperation(YTEnvSetup):
         assert res_api["brief_progress"] == res_cypress["brief_progress"]
         assert res_api["progress"] == res_cypress["progress"]
 
+
 ##################################################################
+
 
 class TestGetOperationRpcProxy(TestGetOperation):
     USE_DYNAMIC_TABLES = True
@@ -457,7 +504,9 @@ class TestGetOperationRpcProxy(TestGetOperation):
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
+
 ##################################################################
+
 
 class TestOperationAliases(YTEnvSetup):
     NUM_MASTERS = 1
@@ -483,7 +532,7 @@ class TestOperationAliases(YTEnvSetup):
                 "clean_delay": 50,
             },
             "static_orchid_cache_update_period": 100,
-            "alerts_update_period": 100
+            "alerts_update_period": 100,
         }
     }
 
@@ -495,13 +544,20 @@ class TestOperationAliases(YTEnvSetup):
     def test_aliases(self):
         with pytest.raises(YtError):
             # Alias should start with *.
-            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                          "alias": "my_op"})
+            vanilla(
+                spec={
+                    "tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                    "alias": "my_op",
+                }
+            )
 
-
-        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                           "alias": "*my_op"},
-                     track=False)
+        op = vanilla(
+            spec={
+                "tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                "alias": "*my_op",
+            },
+            track=False,
+        )
 
         assert ls("//sys/scheduler/orchid/scheduler/operations") == [op.id, "*my_op"]
         wait(lambda: op.get_state() == "running")
@@ -510,21 +566,29 @@ class TestOperationAliases(YTEnvSetup):
             data = get(path)
             del data["progress"]
             return data
-        assert get_op("//sys/scheduler/orchid/scheduler/operations/" + op.id) == \
-               get_op("//sys/scheduler/orchid/scheduler/operations/\\*my_op")
+
+        assert get_op("//sys/scheduler/orchid/scheduler/operations/" + op.id) == get_op(
+            "//sys/scheduler/orchid/scheduler/operations/\\*my_op"
+        )
 
         assert list_operations()["operations"][0]["brief_spec"]["alias"] == "*my_op"
 
         # It is not allowed to use alias of already running operation.
         with pytest.raises(YtError):
-            vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                          "alias": "*my_op"})
+            vanilla(
+                spec={
+                    "tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                    "alias": "*my_op",
+                }
+            )
 
         suspend_op("*my_op")
         assert get(op.get_path() + "/@suspended")
         resume_op("*my_op")
         assert not get(op.get_path() + "/@suspended")
-        update_op_parameters("*my_op", parameters={"acl": [make_ace("allow", "u", ["manage", "read"])]})
+        update_op_parameters(
+            "*my_op", parameters={"acl": [make_ace("allow", "u", ["manage", "read"])]}
+        )
         assert len(get(op.get_path() + "/@alerts")) == 1
         wait(lambda: get(op.get_path() + "/@state") == "running")
         abort_op("*my_op")
@@ -537,9 +601,13 @@ class TestOperationAliases(YTEnvSetup):
             complete_op("my_op")
 
         # Now using alias *my_op is ok.
-        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                           "alias": "*my_op"},
-                     track=False)
+        op = vanilla(
+            spec={
+                "tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                "alias": "*my_op",
+            },
+            track=False,
+        )
 
         wait(lambda: get(op.get_path() + "/@state") == "running")
 
@@ -548,15 +616,21 @@ class TestOperationAliases(YTEnvSetup):
 
     @authors("max42")
     def test_get_operation_latest_archive_version(self):
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
 
         # When no operation is assigned to an alias, get_operation should return an error.
         with pytest.raises(YtError):
             get_operation("*my_op", include_runtime=True)
 
-        op = vanilla(spec={"tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
-                           "alias": "*my_op"},
-                     track=False)
+        op = vanilla(
+            spec={
+                "tasks": {"main": {"command": "sleep 1000", "job_count": 1}},
+                "alias": "*my_op",
+            },
+            track=False,
+        )
         wait(lambda: get(op.get_path() + "/@state") == "running")
 
         with pytest.raises(YtError):
@@ -570,7 +644,9 @@ class TestOperationAliases(YTEnvSetup):
         op.complete()
 
         # Operation should still be exposed via Orchid, and get_operation will extract information from there.
-        assert get("//sys/scheduler/orchid/scheduler/operations/\*my_op") == {"operation_id": op.id}
+        assert get("//sys/scheduler/orchid/scheduler/operations/\*my_op") == {
+            "operation_id": op.id
+        }
         info = get_operation("*my_op", include_runtime=True)
         assert info["id"] == op.id
         assert info["type"] == "vanilla"
@@ -587,10 +663,7 @@ class TestOperationAliases(YTEnvSetup):
         assert info["type"] == "vanilla"
 
 
-
 class TestOperationAliasesRpcProxy(TestOperationAliases):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
-
-

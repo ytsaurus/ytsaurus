@@ -3,6 +3,7 @@ from yt_commands import *
 
 import pytest
 
+
 class TestColumnarStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -13,33 +14,61 @@ class TestColumnarStatistics(YTEnvSetup):
         "controller_agent": {
             "enable_map_job_size_adjustment": False,
             "max_user_file_table_data_weight": 2000,
-            "operation_options" : {
-                "spec_template" : {
-                    "use_columnar_statistics" : True,
+            "operation_options": {
+                "spec_template": {
+                    "use_columnar_statistics": True,
                 },
             },
             "tagged_memory_statistics_update_period": 100,
         },
     }
 
-    def _expect_statistics(self, lower_row_index, upper_row_index, columns, expected_data_weights, 
-                           expected_timestamp_weight=None, expected_legacy_data_weight=0, fetcher_mode="from_nodes", table="//tmp/t"):
-        path = '["{0}{{{1}}}[{2}:{3}]";]'.format(table,
-                                                 columns,
-                                                 "#" + str(lower_row_index) if lower_row_index is not None else "",
-                                                 "#" + str(upper_row_index) if upper_row_index is not None else "")
+    def _expect_statistics(
+        self,
+        lower_row_index,
+        upper_row_index,
+        columns,
+        expected_data_weights,
+        expected_timestamp_weight=None,
+        expected_legacy_data_weight=0,
+        fetcher_mode="from_nodes",
+        table="//tmp/t",
+    ):
+        path = '["{0}{{{1}}}[{2}:{3}]";]'.format(
+            table,
+            columns,
+            "#" + str(lower_row_index) if lower_row_index is not None else "",
+            "#" + str(upper_row_index) if upper_row_index is not None else "",
+        )
         statistics = get_table_columnar_statistics(path, fetcher_mode=fetcher_mode)[0]
         assert statistics["legacy_chunks_data_weight"] == expected_legacy_data_weight
-        assert statistics["column_data_weights"] == dict(zip(columns.split(','), expected_data_weights))
+        assert statistics["column_data_weights"] == dict(
+            zip(columns.split(","), expected_data_weights)
+        )
         if expected_timestamp_weight is not None:
             assert statistics["timestamp_total_weight"] == expected_timestamp_weight
 
-    def _expect_multi_statistics(self, paths, lower_row_indices, upper_row_indices, all_columns, all_expected_data_weights, all_expected_timestamp_weight=None):
+    def _expect_multi_statistics(
+        self,
+        paths,
+        lower_row_indices,
+        upper_row_indices,
+        all_columns,
+        all_expected_data_weights,
+        all_expected_timestamp_weight=None,
+    ):
         assert len(paths) == len(all_columns)
         for index in range(len(paths)):
-            paths[index] = '{0}{{{1}}}[{2}:{3}]'.format(paths[index], all_columns[index],
-                                                "#" + str(lower_row_indices[index]) if lower_row_indices[index] is not None else "",
-                                                "#" + str(upper_row_indices[index]) if upper_row_indices[index] is not None else "")
+            paths[index] = "{0}{{{1}}}[{2}:{3}]".format(
+                paths[index],
+                all_columns[index],
+                "#" + str(lower_row_indices[index])
+                if lower_row_indices[index] is not None
+                else "",
+                "#" + str(upper_row_indices[index])
+                if upper_row_indices[index] is not None
+                else "",
+            )
         yson_paths = "["
         for path in paths:
             yson_paths += '"' + path + '";'
@@ -48,17 +77,25 @@ class TestColumnarStatistics(YTEnvSetup):
         assert len(allStatistics) == len(all_expected_data_weights)
         for index in range(len(allStatistics)):
             assert allStatistics[index]["legacy_chunks_data_weight"] == 0
-            assert allStatistics[index]["column_data_weights"] == dict(zip(all_columns[index].split(','), all_expected_data_weights[index]))
+            assert allStatistics[index]["column_data_weights"] == dict(
+                zip(all_columns[index].split(","), all_expected_data_weights[index])
+            )
             if all_expected_timestamp_weight is not None:
                 assert allStatistics[index] == all_expected_timestamp_weight[index]
 
     def _create_simple_dynamic_table(self, path, optimize_for="lookup"):
-        create("table", path,
-               attributes = {
-                   "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}, {"name": "value", "type": "string"}],
-                   "dynamic": True,
-                   "optimize_for": optimize_for
-               })
+        create(
+            "table",
+            path,
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+                "dynamic": True,
+                "optimize_for": optimize_for,
+            },
+        )
 
     @authors("max42")
     def test_get_table_columnar_statistics(self):
@@ -82,20 +119,49 @@ class TestColumnarStatistics(YTEnvSetup):
                 remove("//tmp/t")
             create("table", "//tmp/t")
             if column_weights:
-                write_table("//tmp/t", [{"x{}".format(i): "a" * column_weights[i] for i in range(len(column_weights))}])
+                write_table(
+                    "//tmp/t",
+                    [
+                        {
+                            "x{}".format(i): "a" * column_weights[i]
+                            for i in range(len(column_weights))
+                        }
+                    ],
+                )
 
         make_table([255, 12, 45, 1, 0])
-        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4,zzz", [255, 12, 45, 1, 0, 0], fetcher_mode="from_master")
+        self._expect_statistics(
+            0,
+            1,
+            "x0,x1,x2,x3,x4,zzz",
+            [255, 12, 45, 1, 0, 0],
+            fetcher_mode="from_master",
+        )
 
         create("table", "//tmp/t2")
-        remote_copy(in_="//tmp/t", out="//tmp/t2", spec={"cluster_connection": self.__class__.Env.configs["driver"]})
-        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4,zzz", [255, 12, 45, 1, 0, 0], fetcher_mode="from_master", table="//tmp/t2")
+        remote_copy(
+            in_="//tmp/t",
+            out="//tmp/t2",
+            spec={"cluster_connection": self.__class__.Env.configs["driver"]},
+        )
+        self._expect_statistics(
+            0,
+            1,
+            "x0,x1,x2,x3,x4,zzz",
+            [255, 12, 45, 1, 0, 0],
+            fetcher_mode="from_master",
+            table="//tmp/t2",
+        )
 
         make_table([510, 12, 13, 1, 0])
-        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4", [510, 12, 14, 2, 0], fetcher_mode="from_master")
+        self._expect_statistics(
+            0, 1, "x0,x1,x2,x3,x4", [510, 12, 14, 2, 0], fetcher_mode="from_master"
+        )
 
         make_table([256, 12, 13, 1, 0])
-        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4", [256, 12, 14, 2, 0], fetcher_mode="from_master")
+        self._expect_statistics(
+            0, 1, "x0,x1,x2,x3,x4", [256, 12, 14, 2, 0], fetcher_mode="from_master"
+        )
 
         make_table([1])
         self._expect_statistics(0, 1, "", [], fetcher_mode="from_master")
@@ -105,12 +171,23 @@ class TestColumnarStatistics(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/max_heavy_columns", 1)
         make_table([255, 42])
-        self._expect_statistics(0, 1, "x0,x1,zzz", [255, 255, 255], fetcher_mode="from_master")
+        self._expect_statistics(
+            0, 1, "x0,x1,zzz", [255, 255, 255], fetcher_mode="from_master"
+        )
 
         set("//sys/@config/chunk_manager/max_heavy_columns", 0)
         make_table([256, 42])
-        self._expect_statistics(0, 1, "x0,x1,zzz", [0, 0, 0], fetcher_mode="from_master", expected_legacy_data_weight=299)
-        self._expect_statistics(0, 1, "x0,x1,zzz", [256, 42, 0], fetcher_mode="fallback")
+        self._expect_statistics(
+            0,
+            1,
+            "x0,x1,zzz",
+            [0, 0, 0],
+            fetcher_mode="from_master",
+            expected_legacy_data_weight=299,
+        )
+        self._expect_statistics(
+            0, 1, "x0,x1,zzz", [256, 42, 0], fetcher_mode="fallback"
+        )
 
     @authors("dakovalkov")
     def test_get_table_columnar_statistics_multi(self):
@@ -166,35 +243,56 @@ class TestColumnarStatistics(YTEnvSetup):
         all_columns.append("")
         all_expected_data_weights.append([])
 
-        self._expect_multi_statistics(paths, lower_row_indices, upper_row_indices, all_columns, all_expected_data_weights)
+        self._expect_multi_statistics(
+            paths,
+            lower_row_indices,
+            upper_row_indices,
+            all_columns,
+            all_expected_data_weights,
+        )
 
     @authors("max42")
     def test_map_thin_column(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})
         create("table", "//tmp/d")
         for i in range(10):
-            write_table("<append=%true>//tmp/t", [{"a": 'x' * 90, "b": 'y' * 10} for j in range(100)])
-        assert get("//tmp/t/@data_weight") == 101 * 10**3
-        self._expect_statistics(0, 1000, "a,b", [90 * 10**3, 10 * 10**3])
-        op = map(in_="//tmp/t{b}",
-                 out="//tmp/d",
-                 spec={"data_weight_per_job": 1000},
-                 command="echo '{a=1}'")
+            write_table(
+                "<append=%true>//tmp/t",
+                [{"a": "x" * 90, "b": "y" * 10} for j in range(100)],
+            )
+        assert get("//tmp/t/@data_weight") == 101 * 10 ** 3
+        self._expect_statistics(0, 1000, "a,b", [90 * 10 ** 3, 10 * 10 ** 3])
+        op = map(
+            in_="//tmp/t{b}",
+            out="//tmp/d",
+            spec={"data_weight_per_job": 1000},
+            command="echo '{a=1}'",
+        )
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
     @authors("max42")
     def test_sorted_merge_thin_column(self):
-        create("table", "//tmp/t", attributes={"optimize_for": "scan", "schema": [{"name": "a", "sort_order": "ascending", "type": "string"},
-                                                                                  {"name": "b", "type": "string"}]})
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "a", "sort_order": "ascending", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ],
+            },
+        )
         create("table", "//tmp/d")
         for i in range(10):
-            write_table("<append=%true>//tmp/t", [{"a": 'x' * 90, "b": 'y' * 10} for j in range(100)])
-        assert get("//tmp/t/@data_weight") == 101 * 10**3
-        self._expect_statistics(0, 1000, "a,b", [90 * 10**3, 10 * 10**3])
-        op = merge(in_="//tmp/t{b}",
-                   out="//tmp/d",
-                   spec={"data_weight_per_job": 1000})
+            write_table(
+                "<append=%true>//tmp/t",
+                [{"a": "x" * 90, "b": "y" * 10} for j in range(100)],
+            )
+        assert get("//tmp/t/@data_weight") == 101 * 10 ** 3
+        self._expect_statistics(0, 1000, "a,b", [90 * 10 ** 3, 10 * 10 ** 3])
+        op = merge(in_="//tmp/t{b}", out="//tmp/d", spec={"data_weight_per_job": 1000})
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
@@ -207,16 +305,27 @@ class TestColumnarStatistics(YTEnvSetup):
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
         for i in range(10):
-            insert_rows("//tmp/t", [{"key": j, "value": 'y' * 80} for j in range(i * 100, (i + 1) * 100)])
+            insert_rows(
+                "//tmp/t",
+                [{"key": j, "value": "y" * 80} for j in range(i * 100, (i + 1) * 100)],
+            )
             sync_flush_table("//tmp/t")
         create("table", "//tmp/d")
         wait(lambda: get("//tmp/t/@chunk_count") == 12)
-        assert get("//tmp/t/@data_weight") == (8 + (80 + 8) + 8) * 10**3
-        self._expect_statistics(None, None, "key,value", [8 * 10**3, (80 + 8) * 10**3], expected_timestamp_weight=(8 * 1000))
-        op = map(in_="//tmp/t{key}",
-                 out="//tmp/d",
-                 spec={"data_weight_per_job": 1600},
-                 command="echo '{a=1}'")
+        assert get("//tmp/t/@data_weight") == (8 + (80 + 8) + 8) * 10 ** 3
+        self._expect_statistics(
+            None,
+            None,
+            "key,value",
+            [8 * 10 ** 3, (80 + 8) * 10 ** 3],
+            expected_timestamp_weight=(8 * 1000),
+        )
+        op = map(
+            in_="//tmp/t{key}",
+            out="//tmp/d",
+            spec={"data_weight_per_job": 1600},
+            command="echo '{a=1}'",
+        )
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
@@ -225,9 +334,7 @@ class TestColumnarStatistics(YTEnvSetup):
         create("table", "//tmp/t")
         create("table", "//tmp/d")
         write_table("<append=%true>//tmp/t", [{"a": "x" * 100}] * 100)
-        op = merge(in_="//tmp/t{}",
-                   out="//tmp/d",
-                   spec={"data_weight_per_job": 10})
+        op = merge(in_="//tmp/t{}", out="//tmp/d", spec={"data_weight_per_job": 10})
         op.track()
         assert 9 <= get("//tmp/d/@chunk_count") <= 11
 
@@ -236,40 +343,45 @@ class TestColumnarStatistics(YTEnvSetup):
         create("table", "//tmp/t")
         s = "x" * 100
         for i in range(5):
-            write_table("<append=%true>//tmp/t", [{"a": s, "b": s, "c": s, "d": s, "e": s}])
+            write_table(
+                "<append=%true>//tmp/t", [{"a": s, "b": s, "c": s, "d": s, "e": s}]
+            )
         with pytest.raises(YtError):
             op = vanilla(
                 spec={
                     "tasks": {
                         "task": {
                             "job_count": 1,
-                            "command": 'exit',
-                            "file_paths": ["<format=dsv>//tmp/t"]
+                            "command": "exit",
+                            "file_paths": ["<format=dsv>//tmp/t"],
                         },
                     },
-                })
+                }
+            )
 
         op = vanilla(
             spec={
                 "tasks": {
                     "task": {
                         "job_count": 1,
-                        "command": 'exit',
-                        "file_paths": ["<format=dsv>//tmp/t[#1:#4]"]
+                        "command": "exit",
+                        "file_paths": ["<format=dsv>//tmp/t[#1:#4]"],
                     },
                 },
-            })
+            }
+        )
 
         op = vanilla(
             spec={
                 "tasks": {
                     "task": {
                         "job_count": 1,
-                        "command": 'exit',
-                        "file_paths": ["<format=dsv>//tmp/t{b,c,d}"]
+                        "command": "exit",
+                        "file_paths": ["<format=dsv>//tmp/t{b,c,d}"],
                     },
                 },
-            })
+            }
+        )
 
     @authors("max42")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -283,34 +395,47 @@ class TestColumnarStatistics(YTEnvSetup):
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [80, 10080], expected_timestamp_weight=(8 * 10))
+        self._expect_statistics(
+            None, None, "key,value", [80, 10080], expected_timestamp_weight=(8 * 10)
+        )
 
         rows = [{"key": i, "value": str(i // 2) * 1000} for i in range(10)]
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 20))
+        self._expect_statistics(
+            None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 20)
+        )
 
         sync_compact_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 20))
+        self._expect_statistics(
+            None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 20)
+        )
 
         rows = [{"key": i} for i in range(10)]
         delete_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 30))
+        self._expect_statistics(
+            None, None, "key,value", [160, 20160], expected_timestamp_weight=(8 * 30)
+        )
 
         sync_compact_table("//tmp/t")
 
-        self._expect_statistics(None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30))
+        self._expect_statistics(
+            None, None, "key,value", [80, 20160], expected_timestamp_weight=(8 * 30)
+        )
 
     @authors("max42")
     def test_fetch_cancelation(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})
         create("table", "//tmp/d")
         for i in range(10):
-            write_table("<append=%true>//tmp/t", [{"a": 'x' * 90, "b": 'y' * 10} for j in range(100)])
+            write_table(
+                "<append=%true>//tmp/t",
+                [{"a": "x" * 90, "b": "y" * 10} for j in range(100)],
+            )
 
         # Restart controller agent to ensure our operation taking memory tagged statistics slot 0.
         with Restarter(self.Env, [CONTROLLER_AGENTS_SERVICE]):
@@ -318,14 +443,22 @@ class TestColumnarStatistics(YTEnvSetup):
 
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
-        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
+        controller_agent_orchid = (
+            "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
+                controller_agents[0]
+            )
+        )
 
-        op = map(track=False,
-                 in_="//tmp/t{b}",
-                 out="//tmp/d",
-                 spec={"data_weight_per_job": 1000,
-                       "testing": {"cancellation_stage": "columnar_statistics_fetch"}},
-                 command="echo '{a=1}'")
+        op = map(
+            track=False,
+            in_="//tmp/t{b}",
+            out="//tmp/d",
+            spec={
+                "data_weight_per_job": 1000,
+                "testing": {"cancellation_stage": "columnar_statistics_fetch"},
+            },
+            command="echo '{a=1}'",
+        )
 
         with raises_yt_error("Test operation failure"):
             op.track()
@@ -340,23 +473,29 @@ class TestColumnarStatistics(YTEnvSetup):
 
     @authors("gritukan")
     def test_estimated_input_statistics(self):
-        create("table", "//tmp/in", attributes={"optimize_for": "scan", "compression_codec": "none"})
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"optimize_for": "scan", "compression_codec": "none"},
+        )
         create("table", "//tmp/out")
         for i in range(10):
-            write_table("<append=%true>//tmp/in", [{"a": 'x' * 90, "b": 'y' * 10} for j in range(100)])
+            write_table(
+                "<append=%true>//tmp/in",
+                [{"a": "x" * 90, "b": "y" * 10} for j in range(100)],
+            )
 
-        op = map(in_="//tmp/in{b}",
-                 out="//tmp/out",
-                 command="echo '{a=1}'")
+        op = map(in_="//tmp/in{b}", out="//tmp/out", command="echo '{a=1}'")
         op.track()
 
         statistics = get(op.get_path() + "/@progress/estimated_input_statistics")
         assert 10000 <= statistics["uncompressed_data_size"] <= 12000
         assert 10000 <= statistics["compressed_data_size"] <= 12000
 
+
 ##################################################################
+
 
 class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-

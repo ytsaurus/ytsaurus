@@ -12,6 +12,7 @@ import __builtin__
 
 ##################################################################
 
+
 class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -30,9 +31,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "banned_exec_nodes_check_period": 100
-        }
+        "controller_agent": {"banned_exec_nodes_check_period": 100}
     }
 
     @authors("babenko")
@@ -53,17 +52,19 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
                 "ban_nodes_with_failed_jobs": True,
                 "ignore_job_failures_at_banned_nodes": True,
                 "fail_on_all_nodes_banned": False,
-                "mapper": {
-                    "memory_limit": 100 * 1024 * 1024
-                }
-            })
+                "mapper": {"memory_limit": 100 * 1024 * 1024},
+            },
+        )
 
         jobs = wait_breakpoint(job_count=10)
         for id in jobs:
             release_breakpoint(job_id=id)
 
         wait(lambda: get(op.get_path() + "/@progress/jobs/failed") == 1)
-        wait(lambda: get(op.get_path() + "/@progress/jobs/aborted/scheduled/node_banned") == 9)
+        wait(
+            lambda: get(op.get_path() + "/@progress/jobs/aborted/scheduled/node_banned")
+            == 9
+        )
 
     @authors("babenko")
     def test_fail_on_all_nodes_banned(self):
@@ -84,10 +85,9 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
                 "ban_nodes_with_failed_jobs": True,
                 "ignore_job_failures_at_banned_nodes": True,
                 "fail_on_all_nodes_banned": True,
-                "mapper": {
-                    "memory_limit": 100 * 1024 * 1024
-                }
-            })
+                "mapper": {"memory_limit": 100 * 1024 * 1024},
+            },
+        )
 
         jobs = wait_breakpoint(job_count=10)
         for id in jobs:
@@ -111,9 +111,12 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
                 command="exit 22",
                 spec={
                     "max_failed_job_count": 1,
-                })
+                },
+            )
+
 
 ##################################################################
+
 
 class TestResourceLimitsOverrides(YTEnvSetup):
     NUM_MASTERS = 1
@@ -131,9 +134,13 @@ class TestResourceLimitsOverrides(YTEnvSetup):
     }
 
     def _wait_for_jobs(self, op_id):
-        jobs_path = get_operation_cypress_path(op_id) + "/controller_orchid/running_jobs"
-        wait(lambda: exists(jobs_path) and len(get(jobs_path)) > 0,
-             "Failed waiting for the first job")
+        jobs_path = (
+            get_operation_cypress_path(op_id) + "/controller_orchid/running_jobs"
+        )
+        wait(
+            lambda: exists(jobs_path) and len(get(jobs_path)) > 0,
+            "Failed waiting for the first job",
+        )
         return get(jobs_path)
 
     @authors("psushin")
@@ -148,7 +155,8 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             command='if [ "$YT_JOB_INDEX" == "0" ]; then sleep 1000; else cat; fi',
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            track=False)
+            track=False,
+        )
 
         jobs = self._wait_for_jobs(op.id)
         job_id = jobs.keys()[0]
@@ -173,19 +181,27 @@ class TestResourceLimitsOverrides(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             spec={"mapper": {"memory_limit": 100 * 1024 * 1024}},
-            track=False)
+            track=False,
+        )
 
         jobs = self._wait_for_jobs(op.id)
         job_id = jobs.keys()[0]
         address = jobs[job_id]["address"]
 
-        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/user_memory".format(address), 99 * 1024 * 1024)
+        set(
+            "//sys/cluster_nodes/{0}/@resource_limits_overrides/user_memory".format(
+                address
+            ),
+            99 * 1024 * 1024,
+        )
         op.track()
 
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
         assert get(op.get_path() + "/@progress/jobs/completed/total") == 1
 
+
 ##################################################################
+
 
 class TestSchedulingTags(YTEnvSetup):
     NUM_MASTERS = 1
@@ -193,20 +209,12 @@ class TestSchedulingTags(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "event_log": {
-                "flush_period": 300,
-                "retry_backoff_time": 300
-            }
-        }
+        "scheduler": {"event_log": {"flush_period": 300, "retry_backoff_time": 300}}
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "event_log": {
-                "flush_period": 300,
-                "retry_backoff_time": 300
-            },
+            "event_log": {"flush_period": 300, "retry_backoff_time": 300},
             "available_exec_nodes_check_period": 100,
             "max_available_exec_node_resources_update_period": 100,
             "snapshot_period": 500,
@@ -216,7 +224,11 @@ class TestSchedulingTags(YTEnvSetup):
 
     def _get_slots_by_filter(self, filter):
         try:
-            return get("//sys/scheduler/orchid/scheduler/cell/resource_limits_by_tags/{0}/user_slots".format(filter))
+            return get(
+                "//sys/scheduler/orchid/scheduler/cell/resource_limits_by_tags/{0}/user_slots".format(
+                    filter
+                )
+            )
         except YtResponseError as err:
             if not err.is_resolve_error():
                 raise
@@ -228,7 +240,10 @@ class TestSchedulingTags(YTEnvSetup):
 
         nodes = list(get("//sys/cluster_nodes"))
         self.node = nodes[0]
-        set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default", "tagA", "tagB"])
+        set(
+            "//sys/cluster_nodes/{0}/@user_tags".format(self.node),
+            ["default", "tagA", "tagB"],
+        )
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["tagC"])
 
         set("//sys/pool_trees/default/@nodes_filter", "default")
@@ -244,30 +259,57 @@ class TestSchedulingTags(YTEnvSetup):
 
         map(command="cat", in_="//tmp/t_in", out="//tmp/t_out")
         with pytest.raises(YtError):
-            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagC"})
+            map(
+                command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"scheduling_tag": "tagC"},
+            )
 
-        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
+        map(
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"scheduling_tag": "tagA"},
+        )
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
-        map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
-            spec={"scheduling_tag_filter": "tagA & !tagC"})
+        map(
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"scheduling_tag_filter": "tagA & !tagC"},
+        )
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
         with pytest.raises(YtError):
-            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
-                spec={"scheduling_tag_filter": "tagA & !tagB"})
+            map(
+                command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"scheduling_tag_filter": "tagA & !tagB"},
+            )
 
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default"])
         time.sleep(1.0)
         with pytest.raises(YtError):
-            map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagA"})
-
+            map(
+                command="cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"scheduling_tag": "tagA"},
+            )
 
     @authors("ignat")
     def test_pools(self):
         self._prepare()
 
         create_pool("test_pool", attributes={"scheduling_tag_filter": "tagA"})
-        op = map(command="cat; echo 'AAA' >&2", in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "test_pool"})
+        op = map(
+            command="cat; echo 'AAA' >&2",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"pool": "test_pool"},
+        )
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
         job_ids = ls(op.get_path() + "/jobs")
@@ -277,8 +319,8 @@ class TestSchedulingTags(YTEnvSetup):
             assert "tagA" in get("//sys/cluster_nodes/{0}/@user_tags".format(job_addr))
 
         # We do not support detection of the fact that no node satisfies pool scheduling tag filter.
-        #set("//sys/pools/test_pool/@scheduling_tag_filter", "tagC")
-        #with pytest.raises(YtError):
+        # set("//sys/pools/test_pool/@scheduling_tag_filter", "tagC")
+        # with pytest.raises(YtError):
         #    map(command="cat", in_="//tmp/t_in", out="//tmp/t_out",
         #        spec={"pool": "test_pool"})
 
@@ -287,7 +329,10 @@ class TestSchedulingTags(YTEnvSetup):
         def get_job_nodes(op):
             nodes = __builtin__.set()
             for row in read_table("//sys/scheduler/event_log"):
-                if row.get("event_type") == "job_started" and row.get("operation_id") == op.id:
+                if (
+                    row.get("event_type") == "job_started"
+                    and row.get("operation_id") == op.id
+                ):
                     nodes.add(row["node_address"])
             return nodes
 
@@ -296,11 +341,18 @@ class TestSchedulingTags(YTEnvSetup):
 
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.node), ["default", "tagB"])
         time.sleep(1.2)
-        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"scheduling_tag": "tagB", "job_count": 20})
+        op = map(
+            command="cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={"scheduling_tag": "tagB", "job_count": 20},
+        )
         time.sleep(0.8)
         assert get_job_nodes(op) == __builtin__.set([self.node])
 
-        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
+        op = map(
+            command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20}
+        )
         time.sleep(0.8)
         assert len(get_job_nodes(op)) <= 2
 
@@ -321,7 +373,8 @@ class TestSchedulingTags(YTEnvSetup):
             spec={
                 "pool_trees": ["other"],
                 "scheduling_tag_filter": "tagC",
-            })
+            },
+        )
 
         wait(lambda: len(op.get_running_jobs()) > 0)
 
@@ -335,7 +388,7 @@ class TestSchedulingTags(YTEnvSetup):
 
         running_jobs = list(op.get_running_jobs())
         if running_jobs:
-            assert(len(running_jobs) == 1)
+            assert len(running_jobs) == 1
             job_id = running_jobs[0]
             abort_job(job_id)
             wait(lambda: job_id not in op.get_running_jobs())
@@ -348,17 +401,15 @@ class TestSchedulingTags(YTEnvSetup):
         set("//sys/cluster_nodes/{0}/@user_tags".format(custom_node), ["tagC"])
         wait(lambda: len(op.get_running_jobs()) > 0)
 
+
 ##################################################################
+
 
 class TestNodeDoubleRegistration(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "node_heartbeat_timeout": 10000
-        }
-    }
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"node_heartbeat_timeout": 10000}}
 
     DELTA_NODE_CONFIG = {
         "data_node": {
@@ -377,17 +428,46 @@ class TestNodeDoubleRegistration(YTEnvSetup):
         assert len(nodes) == 1
         node = nodes[0]
 
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+        wait(
+            lambda: get(
+                "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)
+            )
+            == "online"
+        )
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            wait(
+                lambda: get(
+                    "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(
+                        node
+                    )
+                )
+                == "offline"
+            )
+            wait(
+                lambda: get(
+                    "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(
+                        node
+                    )
+                )
+                == "offline"
+            )
             remove("//sys/cluster_nodes/" + node)
 
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "online")
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+        wait(
+            lambda: get(
+                "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)
+            )
+            == "online"
+        )
+        wait(
+            lambda: get(
+                "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)
+            )
+            == "online"
+        )
 
     # It is disabled since Restarter await node to become online, this wait fails for banned node.
     @authors("ignat")
@@ -397,27 +477,58 @@ class TestNodeDoubleRegistration(YTEnvSetup):
         node = nodes[0]
 
         set_banned_flag(True, [node])
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+        wait(
+            lambda: get(
+                "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)
+            )
+            == "offline"
+        )
+        wait(
+            lambda: get(
+                "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)
+            )
+            == "online"
+        )
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            wait(
+                lambda: get(
+                    "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(
+                        node
+                    )
+                )
+                == "offline"
+            )
+            wait(
+                lambda: get(
+                    "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(
+                        node
+                    )
+                )
+                == "offline"
+            )
 
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+        wait(
+            lambda: get(
+                "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)
+            )
+            == "offline"
+        )
+        wait(
+            lambda: get(
+                "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)
+            )
+            == "online"
+        )
+
 
 class TestNodeMultipleUnregistrations(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 2
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "node_heartbeat_timeout": 10000
-        }
-    }
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"node_heartbeat_timeout": 10000}}
 
     DELTA_NODE_CONFIG = {
         "data_node": {
@@ -450,7 +561,8 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
                 command=with_breakpoint("BREAKPOINT", tag),
                 in_="//tmp/t1",
                 out="//tmp/t2",
-                spec={"data_size_per_job": 1})
+                spec={"data_size_per_job": 1},
+            )
             jobs = wait_breakpoint(tag, job_count=2)
             release_breakpoint(breakpoint_name=tag, job_id=jobs[0])
             release_breakpoint(breakpoint_name=tag, job_id=jobs[1])
@@ -463,16 +575,44 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
         op = start_op()
         with Restarter(self.Env, NODES_SERVICE, indexes=[0]):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            wait(
+                lambda: get(
+                    "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(
+                        node
+                    )
+                )
+                == "offline"
+            )
+            wait(
+                lambda: get(
+                    "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(
+                        node
+                    )
+                )
+                == "offline"
+            )
             release_breakpoint(op.tag)
             wait(lambda: get(op.get_path() + "/@state") == "completed")
 
         op = start_op()
         with Restarter(self.Env, NODES_SERVICE, indexes=[0]):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
-            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
+            wait(
+                lambda: get(
+                    "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(
+                        node
+                    )
+                )
+                == "offline"
+            )
+            wait(
+                lambda: get(
+                    "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(
+                        node
+                    )
+                )
+                == "offline"
+            )
             release_breakpoint(op.tag)
             wait(lambda: get(op.get_path() + "/@state") == "completed")
 
@@ -480,7 +620,11 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
         set("//sys/scheduler/config/max_offline_node_age", 20000)
         with Restarter(self.Env, NODES_SERVICE, indexes=[0]):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(lambda: not exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
+            wait(
+                lambda: not exists(
+                    "//sys/scheduler/orchid/scheduler/nodes/{}".format(node)
+                )
+            )
             release_breakpoint(op.tag)
             wait(lambda: get(op.get_path() + "/@state") == "completed")
 
@@ -488,7 +632,9 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
         release_breakpoint(op.tag)
         wait(lambda: get(op.get_path() + "/@state") == "completed")
 
+
 ##################################################################
+
 
 class TestOperationNodeBan(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -507,12 +653,11 @@ class TestOperationNodeBan(YTEnvSetup):
             out="//tmp/t2",
             command="exit 1",
             spec={
-                "resource_limits": {
-                    "cpu": 1
-                },
+                "resource_limits": {"cpu": 1},
                 "max_failed_job_count": 3,
-                "ban_nodes_with_failed_jobs": True
-            })
+                "ban_nodes_with_failed_jobs": True,
+            },
+        )
 
         with pytest.raises(YtError):
             op.track()
@@ -520,4 +665,3 @@ class TestOperationNodeBan(YTEnvSetup):
         jobs = ls(op.get_path() + "/jobs", attributes=["state", "address"])
         assert all(job.attributes["state"] == "failed" for job in jobs)
         assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 3
-

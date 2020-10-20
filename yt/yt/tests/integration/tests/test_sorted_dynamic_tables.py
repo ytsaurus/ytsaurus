@@ -19,83 +19,122 @@ from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 
+
 class TestSortedDynamicTablesBase(DynamicTablesBase):
     DELTA_NODE_CONFIG = {
-        "cluster_connection" : {
-            "timestamp_provider" : {
-                "update_period": 100
-            }
-        }
+        "cluster_connection": {"timestamp_provider": {"update_period": 100}}
     }
 
     def _create_simple_table(self, path, **attributes):
         if "schema" not in attributes:
-            attributes.update({"schema": [
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}]
-            })
+            attributes.update(
+                {
+                    "schema": [
+                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "value", "type": "string"},
+                    ]
+                }
+            )
         create_dynamic_table(path, **attributes)
 
     def _create_simple_static_table(self, path, **attributes):
         if "schema" not in attributes:
-            attributes.update({"schema": make_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}],
-                unique_keys=True)
-            })
+            attributes.update(
+                {
+                    "schema": make_schema(
+                        [
+                            {"name": "key", "type": "int64", "sort_order": "ascending"},
+                            {"name": "value", "type": "string"},
+                        ],
+                        unique_keys=True,
+                    )
+                }
+            )
         create("table", path, attributes=attributes)
 
     def _create_table_with_computed_column(self, path, **attributes):
         if "schema" not in attributes:
-            attributes.update({"schema": [
-                {"name": "key1", "type": "int64", "sort_order": "ascending"},
-                {"name": "key2", "type": "int64", "sort_order": "ascending", "expression": "key1 * 100 + 3"},
-                {"name": "value", "type": "string"}]
-            })
+            attributes.update(
+                {
+                    "schema": [
+                        {"name": "key1", "type": "int64", "sort_order": "ascending"},
+                        {
+                            "name": "key2",
+                            "type": "int64",
+                            "sort_order": "ascending",
+                            "expression": "key1 * 100 + 3",
+                        },
+                        {"name": "value", "type": "string"},
+                    ]
+                }
+            )
         create_dynamic_table(path, **attributes)
 
     def _create_table_with_hash(self, path, **attributes):
         if "schema" not in attributes:
-            attributes.update({"schema": [
-                {"name": "hash", "type": "uint64", "expression": "farm_hash(key)", "sort_order": "ascending"},
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}]
-            })
+            attributes.update(
+                {
+                    "schema": [
+                        {
+                            "name": "hash",
+                            "type": "uint64",
+                            "expression": "farm_hash(key)",
+                            "sort_order": "ascending",
+                        },
+                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "value", "type": "string"},
+                    ]
+                }
+            )
         create_dynamic_table(path, **attributes)
 
-    def _wait_for_in_memory_stores_preload(self, table, first_tablet_index=None, last_tablet_index=None):
+    def _wait_for_in_memory_stores_preload(
+        self, table, first_tablet_index=None, last_tablet_index=None
+    ):
         tablets = get(table + "/@tablets")
         if last_tablet_index is not None:
-            tablets = tablets[:last_tablet_index + 1]
+            tablets = tablets[: last_tablet_index + 1]
         if first_tablet_index is not None:
             tablets = tablets[first_tablet_index:]
 
         for tablet in tablets:
             tablet_id = tablet["tablet_id"]
+
             def all_preloaded(address):
                 orchid = self._find_tablet_orchid(address, tablet_id)
                 if not orchid:
                     return False
                 for store in orchid["eden"]["stores"].itervalues():
-                    if store["store_state"] == "persistent" and store["preload_state"] != "complete":
+                    if (
+                        store["store_state"] == "persistent"
+                        and store["preload_state"] != "complete"
+                    ):
                         return False
                 for partition in orchid["partitions"]:
                     for store in partition["stores"].itervalues():
                         if store["preload_state"] != "complete":
                             return False
                 return True
-            for address in get_tablet_follower_addresses(tablet_id) + [get_tablet_leader_address(tablet_id)]:
+
+            for address in get_tablet_follower_addresses(tablet_id) + [
+                get_tablet_leader_address(tablet_id)
+            ]:
                 wait(lambda: all_preloaded(address))
 
     def _wait_for_in_memory_stores_preload_failed(self, table):
         tablets = get(table + "/@tablets")
         for tablet in tablets:
             tablet_id = tablet["tablet_id"]
-            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            orchid = self._find_tablet_orchid(
+                get_tablet_leader_address(tablet_id), tablet_id
+            )
             if not orchid:
                 return False
             for store in orchid["eden"]["stores"].itervalues():
-                if store["store_state"] == "persistent" and store["preload_state"] == "failed":
+                if (
+                    store["store_state"] == "persistent"
+                    and store["preload_state"] == "failed"
+                ):
                     return True
             for partition in orchid["partitions"]:
                 for store in partition["stores"].itervalues():
@@ -126,25 +165,40 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             set("//tmp/t/@forced_compaction_revision", 1)
 
             chunk_list_id = get("//tmp/t/@chunk_list_id")
-            tablet_chunk_list_id = get("#{0}/@child_ids/{1}".format(chunk_list_id, tablet_index))
-            tablet_chunk_ids = __builtin__.set(get("#{}/@child_ids".format(tablet_chunk_list_id)))
+            tablet_chunk_list_id = get(
+                "#{0}/@child_ids/{1}".format(chunk_list_id, tablet_index)
+            )
+            tablet_chunk_ids = __builtin__.set(
+                get("#{}/@child_ids".format(tablet_chunk_list_id))
+            )
             assert len(tablet_chunk_ids) > 0
             for id in tablet_chunk_ids:
                 type = get("#{}/@type".format(id))
                 assert type == "chunk" or type == "chunk_view"
 
-            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            sync_mount_table(
+                "//tmp/t",
+                first_tablet_index=tablet_index,
+                last_tablet_index=tablet_index,
+            )
 
             def _check():
-                new_tablet_chunk_ids = __builtin__.set(get("#{}/@child_ids".format(tablet_chunk_list_id)))
+                new_tablet_chunk_ids = __builtin__.set(
+                    get("#{}/@child_ids".format(tablet_chunk_list_id))
+                )
                 assert len(new_tablet_chunk_ids) > 0
                 return len(new_tablet_chunk_ids.intersection(tablet_chunk_ids)) == 0
+
             wait(lambda: _check())
 
             sync_unmount_table("//tmp/t")
 
         def _write_row(tablet_index, key_count=2):
-            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            sync_mount_table(
+                "//tmp/t",
+                first_tablet_index=tablet_index,
+                last_tablet_index=tablet_index,
+            )
             rows = [{"key": tablet_index * 2 + i} for i in range(key_count)]
             insert_rows("//tmp/t", rows)
             sync_unmount_table("//tmp/t")
@@ -167,6 +221,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
 
 
 ##################################################################
+
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
@@ -202,12 +257,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_transaction_locks(self):
         sync_create_cells(1)
 
-        attributes = {"schema": [
+        attributes = {
+            "schema": [
                 {"name": "key", "type": "int64", "sort_order": "ascending"},
                 {"name": "a", "type": "int64", "lock": "a"},
                 {"name": "b", "type": "int64", "lock": "b"},
-                {"name": "c", "type": "int64", "lock": "c"}]
-            }
+                {"name": "c", "type": "int64", "lock": "c"},
+            ]
+        }
         create_dynamic_table("//tmp/t", **attributes)
         sync_mount_table("//tmp/t")
 
@@ -215,21 +272,26 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         tx2 = start_transaction(type="tablet")
 
         insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, tx=tx1)
-        lock_rows("//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
+        lock_rows(
+            "//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1, lock_type="shared_weak"
+        )
         insert_rows("//tmp/t", [{"key": 1, "b": 2}], update=True, tx=tx2)
 
         commit_transaction(tx1)
         commit_transaction(tx2)
 
-        assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a", "b"]) == [{"key": 1, "a": 1, "b": 2}]
-
+        assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a", "b"]) == [
+            {"key": 1, "a": 1, "b": 2}
+        ]
 
         tx1 = start_transaction(type="tablet")
         tx2 = start_transaction(type="tablet")
         tx3 = start_transaction(type="tablet")
 
         insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, tx=tx1)
-        lock_rows("//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
+        lock_rows(
+            "//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1, lock_type="shared_weak"
+        )
 
         insert_rows("//tmp/t", [{"key": 2, "b": 2}], update=True, tx=tx2)
         lock_rows("//tmp/t", [{"key": 2}], locks=["c"], tx=tx2, lock_type="shared_weak")
@@ -242,7 +304,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             commit_transaction(tx3)
 
-        assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
+        assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [
+            {"key": 2, "a": 1, "b": 2}
+        ]
 
         tx1 = start_transaction(type="tablet")
         tx2 = start_transaction(type="tablet")
@@ -258,7 +322,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         tx1 = start_transaction(type="tablet")
         tx2 = start_transaction(type="tablet")
 
-        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_strong")
+        lock_rows(
+            "//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_strong"
+        )
         insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
 
         commit_transaction(tx1)
@@ -270,14 +336,18 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_any_value_type(self, optimize_for):
         sync_create_cells(1)
-        create("table", "//tmp/t1",
+        create(
+            "table",
+            "//tmp/t1",
             attributes={
                 "dynamic": True,
-                "optimize_for" : optimize_for,
+                "optimize_for": optimize_for,
                 "schema": [
                     {"name": "key", "type": "int64", "sort_order": "ascending"},
-                    {"name": "value", "type": "any"}]
-            })
+                    {"name": "value", "type": "any"},
+                ],
+            },
+        )
 
         sync_mount_table("//tmp/t1")
 
@@ -285,10 +355,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             {"key": 11, "value": 100},
             {"key": 12, "value": False},
             {"key": 13, "value": True},
-            {"key": 14, "value": 2**63 + 1 },
-            {"key": 15, "value": 'stroka'},
+            {"key": 14, "value": 2 ** 63 + 1},
+            {"key": 15, "value": "stroka"},
             {"key": 16, "value": [1, {"attr": 3}, 4]},
-            {"key": 17, "value": {"numbers": [0,1,42]}}]
+            {"key": 17, "value": {"numbers": [0, 1, 42]}},
+        ]
 
         insert_rows("//tmp/t1", rows)
         actual = select_rows("* from [//tmp/t1]")
@@ -318,11 +389,15 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         for step in xrange(1, 5):
             rows = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2 * step)]
-            actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2 * step)], use_lookup_cache=True)
+            actual = lookup_rows(
+                "//tmp/t",
+                [{"key": i} for i in xrange(100, 200, 2 * step)],
+                use_lookup_cache=True,
+            )
             assert_items_equal(actual, rows)
 
         # Lookup non-existent key without polluting cache.
-        lookup_rows("//tmp/t", [{'key': 1}])
+        lookup_rows("//tmp/t", [{"key": 1}])
 
         path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
         wait(lambda: get(path) > 50)
@@ -333,18 +408,22 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
 
         # Check lookup result.
-        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
+        actual = lookup_rows(
+            "//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True
+        )
         assert_items_equal(actual, rows)
 
         # Flush table.
         sync_flush_table("//tmp/t")
 
         # And check that result after flush is equal.
-        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
+        actual = lookup_rows(
+            "//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True
+        )
         assert_items_equal(actual, rows)
 
         # Lookup non existent key adds two lookups (in two chunks).
-        lookup_rows("//tmp/t", [{'key': 1}], use_lookup_cache=True)
+        lookup_rows("//tmp/t", [{"key": 1}], use_lookup_cache=True)
 
         wait(lambda: get(path) > 51)
         assert get(path) == 53
@@ -371,8 +450,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             tablet_data = self._find_tablet_orchid(address, tablet_id)
             assert len(tablet_data["eden"]["stores"]) == 1
             for partition in tablet_data["partitions"]:
-                assert all(s["preload_state"] == state for _, s in partition["stores"].iteritems())
-            actual_preload_completed = get("//tmp/t/@tablets/0/statistics/preload_completed_store_count")
+                assert all(
+                    s["preload_state"] == state
+                    for _, s in partition["stores"].iteritems()
+                )
+            actual_preload_completed = get(
+                "//tmp/t/@tablets/0/statistics/preload_completed_store_count"
+            )
             if state == "complete":
                 assert actual_preload_completed >= 1
             else:
@@ -383,7 +467,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         # Check preload after mount.
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
-        keys = [{"key" : row["key"]} for row in rows]
+        keys = [{"key": row["key"]} for row in rows]
         insert_rows("//tmp/t", rows)
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
@@ -393,7 +477,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         # Check preload after flush.
         rows = [{"key": i, "value": str(i + 1)} for i in xrange(10)]
-        keys = [{"key" : row["key"]} for row in rows]
+        keys = [{"key": row["key"]} for row in rows]
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
         self._wait_for_in_memory_stores_preload("//tmp/t")
@@ -423,17 +507,24 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         # Check cell statistics
         tablet_statistics = get("//tmp/t/@tablets/0/statistics")
+
         def _check():
-            cell_statistics = get("//sys/tablet_cells/{}/@total_statistics".format(cell_id))
-            return cell_statistics["preload_completed_store_count"] == tablet_statistics["preload_completed_store_count"] and \
-                cell_statistics["preload_pending_store_count"] == 0
+            cell_statistics = get(
+                "//sys/tablet_cells/{}/@total_statistics".format(cell_id)
+            )
+            return (
+                cell_statistics["preload_completed_store_count"]
+                == tablet_statistics["preload_completed_store_count"]
+                and cell_statistics["preload_pending_store_count"] == 0
+            )
+
         wait(_check)
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_preload_block_range(self, enable_lookup_hash_table, optimize_for):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
         set("//tmp/t/@chunk_writer", {"block_size": 1024})
@@ -454,25 +545,47 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_reshard_table("//tmp/t", [[], [lower_bound], [upper_bound]])
         sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
-        self._wait_for_in_memory_stores_preload("//tmp/t", first_tablet_index=1, last_tablet_index=1)
+        self._wait_for_in_memory_stores_preload(
+            "//tmp/t", first_tablet_index=1, last_tablet_index=1
+        )
 
         node = get_tablet_leader_address(get("//tmp/t/@tablets/1/tablet_id"))
 
         def _check_memory_usage():
-            memory_usage = get("//sys/cluster_nodes/{}/@statistics/memory/tablet_static/used".format(node))
+            memory_usage = get(
+                "//sys/cluster_nodes/{}/@statistics/memory/tablet_static/used".format(
+                    node
+                )
+            )
             return 0 < memory_usage < memory_size
+
         if optimize_for == "lookup":
             wait(_check_memory_usage)
 
-        assert lookup_rows("//tmp/t", [{"key": i} for i in range(lower_bound, upper_bound)]) == expected
-        wait(lambda: lookup_rows("//tmp/t",
-            [{"key": i} for i in range(lower_bound, upper_bound)],
-            read_from="follower",
-            timestamp=AsyncLastCommittedTimestamp) == expected)
+        assert (
+            lookup_rows(
+                "//tmp/t", [{"key": i} for i in range(lower_bound, upper_bound)]
+            )
+            == expected
+        )
+        wait(
+            lambda: lookup_rows(
+                "//tmp/t",
+                [{"key": i} for i in range(lower_bound, upper_bound)],
+                read_from="follower",
+                timestamp=AsyncLastCommittedTimestamp,
+            )
+            == expected
+        )
 
         assert_items_equal(
-            select_rows("* from [//tmp/t] where key >= {} and key < {}".format(lower_bound, upper_bound)),
-            expected)
+            select_rows(
+                "* from [//tmp/t] where key >= {} and key < {}".format(
+                    lower_bound, upper_bound
+                )
+            ),
+            expected,
+        )
 
     @authors("savrus", "sandello")
     def test_lookup_hash_table(self):
@@ -528,58 +641,77 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         # check that we can extend key
         sync_unmount_table("//tmp/t")
-        alter_table("//tmp/t", schema=[
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}]);
+        alter_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
         sync_mount_table("//tmp/t")
         # ensure data is preloaded
         self._wait_for_in_memory_stores_preload("//tmp/t")
-        assert lookup_rows("//tmp/t", _keys(0, 50), column_names=["key", "value"]) == _rows(10, 30)
+        assert lookup_rows(
+            "//tmp/t", _keys(0, 50), column_names=["key", "value"]
+        ) == _rows(10, 30)
 
     @authors("babenko", "levysotsky")
     def test_update_key_columns_fail1(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
         sync_mount_table("//tmp/t")
-        with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key", "key2"])
+        with pytest.raises(YtError):
+            set("//tmp/t/@key_columns", ["key", "key2"])
 
     @authors("babenko")
     def test_update_key_columns_fail2(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        with pytest.raises(YtError): set("//tmp/t/@key_columns", ["key2", "key3"])
+        with pytest.raises(YtError):
+            set("//tmp/t/@key_columns", ["key2", "key3"])
 
     @authors("babenko")
     def test_update_key_columns_fail3(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        with pytest.raises(YtError): set("//tmp/t/@key_columns", [])
+        with pytest.raises(YtError):
+            set("//tmp/t/@key_columns", [])
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_update_key_columns_success(self, optimize_for):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", optimize_for = optimize_for)
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
 
         sync_mount_table("//tmp/t")
         rows1 = [{"key": i, "value": str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows1)
         sync_unmount_table("//tmp/t")
 
-        alter_table("//tmp/t", schema=[
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "key2", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}])
+        alter_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "key2", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        )
         sync_mount_table("//tmp/t")
 
         rows2 = [{"key": i, "key2": 0, "value": str(i)} for i in xrange(100)]
         insert_rows("//tmp/t", rows2)
 
-        assert lookup_rows("//tmp/t", [{"key" : 77}]) == [{"key": 77, "key2": YsonEntity(), "value": "77"}]
-        assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 1}]) == []
-        assert lookup_rows("//tmp/t", [{"key" : 77, "key2": 0}]) == [{"key": 77, "key2": 0, "value": "77"}]
-        assert select_rows("sum(1) as s from [//tmp/t] where is_null(key2) group by 0") == [{"s": 100}]
+        assert lookup_rows("//tmp/t", [{"key": 77}]) == [
+            {"key": 77, "key2": YsonEntity(), "value": "77"}
+        ]
+        assert lookup_rows("//tmp/t", [{"key": 77, "key2": 1}]) == []
+        assert lookup_rows("//tmp/t", [{"key": 77, "key2": 0}]) == [
+            {"key": 77, "key2": 0, "value": "77"}
+        ]
+        assert select_rows(
+            "sum(1) as s from [//tmp/t] where is_null(key2) group by 0"
+        ) == [{"s": 100}]
 
     @authors("babenko")
     def test_atomicity_mode_should_match(self):
@@ -588,7 +720,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             self._create_simple_table("//tmp/t", atomicity=a1)
             sync_mount_table("//tmp/t")
             rows = [{"key": i, "value": str(i)} for i in xrange(100)]
-            with pytest.raises(YtError): insert_rows("//tmp/t", rows, atomicity=a2)
+            with pytest.raises(YtError):
+                insert_rows("//tmp/t", rows, atomicity=a2)
             remove("//tmp/t")
 
         do("full", "none")
@@ -628,7 +761,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_stress_tablet_readers(self, optimize_for):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", optimize_for = optimize_for)
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
         sync_mount_table("//tmp/t")
 
         values = dict()
@@ -647,7 +780,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             expected = [{"key": key, "value": values[key]} for key in keys]
 
             if len(keys) > 0:
-                actual = select_rows("* from [//tmp/t] where key in (%s)" % ",".join([str(key) for key in keys]))
+                actual = select_rows(
+                    "* from [//tmp/t] where key in (%s)"
+                    % ",".join([str(key) for key in keys])
+                )
                 assert_items_equal(actual, expected)
 
             actual = lookup_rows("//tmp/t", [{"key": key} for key in keys])
@@ -659,7 +795,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         items = 100
 
         for wave in xrange(1, rounds):
-            rows = [{"key": i, "value": str(i + wave * 100)} for i in xrange(0, items, wave)]
+            rows = [
+                {"key": i, "value": str(i + wave * 100)} for i in xrange(0, items, wave)
+            ]
             for row in rows:
                 values[row["key"]] = row["value"]
             print_debug("Write rows ", rows)
@@ -667,12 +805,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             verify()
 
-            pivots = ([[]] + [[x] for x in xrange(0, items, items / wave)]) if wave % 2 == 0 else [[]]
+            pivots = (
+                ([[]] + [[x] for x in xrange(0, items, items / wave)])
+                if wave % 2 == 0
+                else [[]]
+            )
             self._reshard_with_retries("//tmp/t", pivots)
 
             verify()
 
-            keys = sorted(list(values.keys()))[::(wave * 12345) % items]
+            keys = sorted(list(values.keys()))[:: (wave * 12345) % items]
             print_debug("Delete keys ", keys)
             rows = [{"key": key} for key in keys]
             delete_rows("//tmp/t", rows)
@@ -689,17 +831,22 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_create_cells(1)
 
-        key_range=100
-        num_writes_per_iteration=50
-        num_deletes_per_iteration=10
-        num_write_iterations=3
-        num_lookup_iterations=30
+        key_range = 100
+        num_writes_per_iteration = 50
+        num_deletes_per_iteration = 10
+        num_write_iterations = 3
+        num_lookup_iterations = 30
 
         def random_row():
-            return {"key": randint(1, key_range), "value": "".join(choice(ascii_lowercase) for i in range(5))}
+            return {
+                "key": randint(1, key_range),
+                "value": "".join(choice(ascii_lowercase) for i in range(5)),
+            }
 
         # Prepare both tables.
-        self._create_simple_table("//tmp/t", optimize_for=optimize_for, in_memory_mode=in_memory_mode)
+        self._create_simple_table(
+            "//tmp/t", optimize_for=optimize_for, in_memory_mode=in_memory_mode
+        )
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
         self._create_simple_table("//tmp/correct")
@@ -711,7 +858,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         for iter in range(num_write_iterations):
             insert_keys = [random_row() for i in range(num_writes_per_iteration)]
-            delete_keys = [{"key": randint(1, key_range)} for i in range(num_deletes_per_iteration)]
+            delete_keys = [
+                {"key": randint(1, key_range)} for i in range(num_deletes_per_iteration)
+            ]
 
             insert_rows("//tmp/t", insert_keys)
             delete_rows("//tmp/t", delete_keys)
@@ -720,7 +869,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             sync_flush_table("//tmp/t")
             num_pivots = randint(0, 5)
-            pivots = [[]] + [ [i] for i in sorted(sample(range(1, key_range+1), num_pivots)) ]
+            pivots = [[]] + [
+                [i] for i in sorted(sample(range(1, key_range + 1), num_pivots))
+            ]
             sync_unmount_table("//tmp/t")
             sync_reshard_table("//tmp/t", pivots)
             sync_mount_table("//tmp/t")
@@ -730,7 +881,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         for iter in range(num_lookup_iterations):
             # Lookup keys.
-            keys = [{"key": randint(1, key_range)} for i in range(num_deletes_per_iteration)]
+            keys = [
+                {"key": randint(1, key_range)} for i in range(num_deletes_per_iteration)
+            ]
 
             expected = list(lookup_rows("//tmp/correct", keys))
             actual = list(lookup_rows("//tmp/t", keys))
@@ -738,11 +891,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
             # Lookup ranges.
             ranges_count = randint(1, 5)
-            keys = sorted(sample(range(1, key_range+1), ranges_count * 2))
-            query = '* from [{}] where ' + ' or '.join(
-                    '({} <= key and key < {})'.format(l, r)
-                    for l, r
-                    in zip(keys[::2], keys[1::2]))
+            keys = sorted(sample(range(1, key_range + 1), ranges_count * 2))
+            query = "* from [{}] where " + " or ".join(
+                "({} <= key and key < {})".format(l, r)
+                for l, r in zip(keys[::2], keys[1::2])
+            )
             expected = list(select_rows(query.format("//tmp/correct")))
             actual = list(select_rows(query.format("//tmp/t")))
             assert sorted(expected) == sorted(actual)
@@ -752,8 +905,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         [cell_id] = sync_create_cells(1)
         print_debug(get("//sys/cluster_nodes", attributes=["tablet_slots"]))
         print_debug(get("//sys/tablet_cell_bundles/default/@options"))
-        set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
-        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", True)
+        set(
+            "//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500
+        )
+        set(
+            "//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer",
+            True,
+        )
 
         self._create_simple_table("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
@@ -776,13 +934,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     def test_rff_requires_async_last_committed(self):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
-        self._create_simple_table("//tmp/t", optimize_for = "scan", tablet_cell_bundle="b")
+        self._create_simple_table(
+            "//tmp/t", optimize_for="scan", tablet_cell_bundle="b"
+        )
         sync_mount_table("//tmp/t")
 
         keys = [{"key": 1}]
-        with pytest.raises(YtError): lookup_rows("//tmp/t", keys, read_from="follower")
+        with pytest.raises(YtError):
+            lookup_rows("//tmp/t", keys, read_from="follower")
 
     @authors("babenko")
     def test_rff_when_only_leader_exists(self):
@@ -798,20 +959,30 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     def test_rff_lookup(self):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
-        self._create_simple_table("//tmp/t", optimize_for = "scan", tablet_cell_bundle="b")
+        self._create_simple_table(
+            "//tmp/t", optimize_for="scan", tablet_cell_bundle="b"
+        )
         sync_mount_table("//tmp/t")
 
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows)
 
-        wait(lambda: lookup_rows("//tmp/t", keys, read_from="follower", timestamp=AsyncLastCommittedTimestamp) == rows)
+        wait(
+            lambda: lookup_rows(
+                "//tmp/t",
+                keys,
+                read_from="follower",
+                timestamp=AsyncLastCommittedTimestamp,
+            )
+            == rows
+        )
 
     @authors("babenko")
     def test_lookup_with_backup(self):
-        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 3}})
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 3}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
         sync_mount_table("//tmp/t")
@@ -822,12 +993,21 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sleep(1.0)
         for delay in xrange(0, 10):
-            assert lookup_rows("//tmp/t", keys, read_from="follower", rpc_hedging_delay=delay, timestamp=AsyncLastCommittedTimestamp) == rows
+            assert (
+                lookup_rows(
+                    "//tmp/t",
+                    keys,
+                    read_from="follower",
+                    rpc_hedging_delay=delay,
+                    timestamp=AsyncLastCommittedTimestamp,
+                )
+                == rows
+            )
 
     @authors("babenko")
     def test_erasure(self):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", optimize_for = "scan")
+        self._create_simple_table("//tmp/t", optimize_for="scan")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")
         sync_mount_table("//tmp/t")
 
@@ -887,26 +1067,38 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
         sync_freeze_table("//tmp/t")
+
         def check_statistics(statistics):
-            return statistics["tablet_count"] == 1 and \
-                   statistics["tablet_count_per_memory_mode"]["none"] == 1 and \
-                   statistics["chunk_count"] == get("//tmp/t/@chunk_count") and \
-                   statistics["uncompressed_data_size"] == get("//tmp/t/@uncompressed_data_size") and \
-                   statistics["compressed_data_size"] == get("//tmp/t/@compressed_data_size") and \
-                   statistics["disk_space"] == get("//tmp/t/@resource_usage/disk_space") and \
-                   statistics["disk_space_per_medium"]["default"] == get("//tmp/t/@resource_usage/disk_space_per_medium/default")
+            return (
+                statistics["tablet_count"] == 1
+                and statistics["tablet_count_per_memory_mode"]["none"] == 1
+                and statistics["chunk_count"] == get("//tmp/t/@chunk_count")
+                and statistics["uncompressed_data_size"]
+                == get("//tmp/t/@uncompressed_data_size")
+                and statistics["compressed_data_size"]
+                == get("//tmp/t/@compressed_data_size")
+                and statistics["disk_space"]
+                == get("//tmp/t/@resource_usage/disk_space")
+                and statistics["disk_space_per_medium"]["default"]
+                == get("//tmp/t/@resource_usage/disk_space_per_medium/default")
+            )
 
         tablet_statistics = get("//tmp/t/@tablet_statistics")
-        assert tablet_statistics["overlapping_store_count"] == tablet_statistics["store_count"]
+        assert (
+            tablet_statistics["overlapping_store_count"]
+            == tablet_statistics["store_count"]
+        )
         assert check_statistics(tablet_statistics)
 
-        wait(lambda: check_statistics(get("#{0}/@total_statistics".format(cell_ids[0]))))
+        wait(
+            lambda: check_statistics(get("#{0}/@total_statistics".format(cell_ids[0])))
+        )
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_timestamp_access(self, optimize_for):
         sync_create_cells(3)
-        self._create_simple_table("//tmp/t", optimize_for = optimize_for)
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for)
         sync_mount_table("//tmp/t")
 
         rows = [{"key": 1, "value": "2"}]
@@ -924,14 +1116,23 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     @authors("savrus")
     def test_column_groups(self):
         sync_create_cells(1)
-        create("table", "//tmp/t",
+        create(
+            "table",
+            "//tmp/t",
             attributes={
                 "dynamic": True,
                 "optimize_for": "scan",
                 "schema": [
-                    {"name": "key", "type": "int64", "sort_order": "ascending", "group": "a"},
-                    {"name": "value", "type": "string", "group": "a"}]
-            })
+                    {
+                        "name": "key",
+                        "type": "int64",
+                        "sort_order": "ascending",
+                        "group": "a",
+                    },
+                    {"name": "value", "type": "string", "group": "a"},
+                ],
+            },
+        )
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
@@ -959,17 +1160,17 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get("#{0}/@kind".format(root_chunk_list)) == "sorted_dynamic_root"
         assert get("#{0}/@kind".format(tablet_chunk_list)) == "sorted_dynamic_tablet"
 
-
     @authors("babenko")
     def test_no_commit_ordering(self):
         self._create_simple_table("//tmp/t")
         assert not exists("//tmp/t/@commit_ordering")
 
-
     @authors("max42")
     def test_type_conversion(self):
         sync_create_cells(1)
-        create("table", "//tmp/t",
+        create(
+            "table",
+            "//tmp/t",
             attributes={
                 "dynamic": True,
                 "schema": [
@@ -977,8 +1178,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                     {"name": "uint64", "type": "uint64"},
                     {"name": "boolean", "type": "boolean"},
                     {"name": "double", "type": "double"},
-                    {"name": "any", "type": "any"}]
-            })
+                    {"name": "any", "type": "any"},
+                ],
+            },
+        )
         sync_mount_table("//tmp/t")
 
         row1 = {
@@ -986,14 +1189,14 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             "uint64": 42,
             "boolean": "false",
             "double": 18,
-            "any": {}
+            "any": {},
         }
-        row2 = {
-            "int64": yson.YsonUint64(3)
-        }
+        row2 = {"int64": yson.YsonUint64(3)}
 
         yson_with_type_conversion = loads("<enable_type_conversion=%true>yson")
-        yson_without_type_conversion = loads("<enable_integral_type_conversion=%false>yson")
+        yson_without_type_conversion = loads(
+            "<enable_integral_type_conversion=%false>yson"
+        )
 
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [row1], input_format=yson_without_type_conversion)
@@ -1001,14 +1204,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         with pytest.raises(YtError):
             lookup_rows("//tmp/t", [row2], input_format=yson_without_type_conversion)
-        assert len(lookup_rows("//tmp/t", [row2], input_format=yson_with_type_conversion)) == 1
+        assert (
+            len(lookup_rows("//tmp/t", [row2], input_format=yson_with_type_conversion))
+            == 1
+        )
 
         with pytest.raises(YtError):
             delete_rows("//tmp/t", [row2], input_format=yson_without_type_conversion)
         delete_rows("//tmp/t", [row2], input_format=yson_with_type_conversion)
 
         assert select_rows("* from [//tmp/t]") == []
-
 
     @authors("savrus")
     def test_retained_timestamp(self):
@@ -1091,7 +1296,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@compression_codec", "none")
         sync_mount_table("//tmp/t")
 
-        insert_rows("//tmp/t", [{"key": i, "value": "A"*1024} for i in xrange(10)])
+        insert_rows("//tmp/t", [{"key": i, "value": "A" * 1024} for i in xrange(10)])
         sync_unmount_table("//tmp/t")
 
         chunk_id = get_singular_chunk_id("//tmp/t")
@@ -1115,24 +1320,32 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_flush_table("//tmp/t")
         sync_compact_table("//tmp/t")
 
-        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
-        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
+        with pytest.raises(YtResponseError):
+            lookup_rows("//tmp/t", keys, timestamp=ts)
+        with pytest.raises(YtResponseError):
+            select_rows("* from [//tmp/t]", timestamp=ts)
 
         remount_table("//tmp/t")
 
-        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
-        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
+        with pytest.raises(YtResponseError):
+            lookup_rows("//tmp/t", keys, timestamp=ts)
+        with pytest.raises(YtResponseError):
+            select_rows("* from [//tmp/t]", timestamp=ts)
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
-        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
+        with pytest.raises(YtResponseError):
+            lookup_rows("//tmp/t", keys, timestamp=ts)
+        with pytest.raises(YtResponseError):
+            select_rows("* from [//tmp/t]", timestamp=ts)
 
     @authors("avmatrosov")
     def test_expired_timestamp_read_flush(self):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", min_data_ttl=0, min_data_versions=0, merge_rows_on_flush=True)
+        self._create_simple_table(
+            "//tmp/t", min_data_ttl=0, min_data_versions=0, merge_rows_on_flush=True
+        )
 
         sync_mount_table("//tmp/t")
 
@@ -1146,8 +1359,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_flush_table("//tmp/t")
 
-        with pytest.raises(YtResponseError): lookup_rows("//tmp/t", keys, timestamp=ts)
-        with pytest.raises(YtResponseError): select_rows("* from [//tmp/t]", timestamp=ts)
+        with pytest.raises(YtResponseError):
+            lookup_rows("//tmp/t", keys, timestamp=ts)
+        with pytest.raises(YtResponseError):
+            select_rows("* from [//tmp/t]", timestamp=ts)
 
     @authors("avmatrosov")
     def test_chunk_profiling(self):
@@ -1158,9 +1373,15 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         filter = {"table_path": path, "method": "compaction"}
 
-        disk_space_metric = Metric.at_tablet_node(path, "chunk_writer/disk_space", with_tags=filter)
-        data_weight_metric = Metric.at_tablet_node(path, "chunk_writer/data_weight", with_tags=filter)
-        data_bytes_metric = Metric.at_tablet_node(path, "chunk_reader_statistics/data_bytes_read_from_disk", with_tags=filter)
+        disk_space_metric = Metric.at_tablet_node(
+            path, "chunk_writer/disk_space", with_tags=filter
+        )
+        data_weight_metric = Metric.at_tablet_node(
+            path, "chunk_writer/data_weight", with_tags=filter
+        )
+        data_bytes_metric = Metric.at_tablet_node(
+            path, "chunk_reader_statistics/data_bytes_read_from_disk", with_tags=filter
+        )
 
         insert_rows(path, [{"key": 0, "value": "test"}])
         sync_compact_table(path)
@@ -1176,19 +1397,30 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_create_cells(1)
         schema1 = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value1", "type": "string"}]
+            {"name": "value1", "type": "string"},
+        ]
         schema2 = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
             {"name": "key2", "type": "int64", "sort_order": "ascending"},
             {"name": "value1", "type": "string"},
-            {"name": "value2", "type": "string"}]
+            {"name": "value2", "type": "string"},
+        ]
         if extend_twice:
-            schema2 = schema2[:2] + [{"name": "key3", "type": "int64", "sort_order": "ascending"}] + schema2[2:]
+            schema2 = (
+                schema2[:2]
+                + [{"name": "key3", "type": "int64", "sort_order": "ascending"}]
+                + schema2[2:]
+            )
 
-        create("table", "//tmp/t", attributes={
-            "dynamic": True,
-            "optimize_for": optimize_for,
-            "schema": schema1})
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": optimize_for,
+                "schema": schema1,
+            },
+        )
 
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 0, "value1": "0"}], update=True)
@@ -1197,39 +1429,76 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         alter_table("//tmp/t", schema=schema2)
         sync_mount_table("//tmp/t")
 
-        expected_row = [{"key": 0, "key2": yson.YsonEntity(), "value1": "0", "value2": yson.YsonEntity()}]
+        expected_row = [
+            {
+                "key": 0,
+                "key2": yson.YsonEntity(),
+                "value1": "0",
+                "value2": yson.YsonEntity(),
+            }
+        ]
         if extend_twice:
             expected_row[0]["key3"] = yson.YsonEntity()
 
         assert read_table("<ranges=[{lower_limit={key=[0;]}}]>//tmp/t") == expected_row
-        assert read_table("<ranges=[{lower_limit={key=[0; <type=min>#;]}}]>//tmp/t") == expected_row
-        assert read_table("<ranges=[{lower_limit={key=[<type=min>#; <type=max>#]}}]>//tmp/t") == expected_row
+        assert (
+            read_table("<ranges=[{lower_limit={key=[0; <type=min>#;]}}]>//tmp/t")
+            == expected_row
+        )
+        assert (
+            read_table(
+                "<ranges=[{lower_limit={key=[<type=min>#; <type=max>#]}}]>//tmp/t"
+            )
+            == expected_row
+        )
 
-        assert read_table("<ranges=[{lower_limit={key=[0; <type=max>#;]}}]>//tmp/t") == []
-        assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=max>#]}}]>//tmp/t") == []
-        assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=null>#; <type=null>#]}}]>//tmp/t") == []
+        assert (
+            read_table("<ranges=[{lower_limit={key=[0; <type=max>#;]}}]>//tmp/t") == []
+        )
+        assert (
+            read_table(
+                "<ranges=[{lower_limit={key=[0; <type=null>#; <type=max>#]}}]>//tmp/t"
+            )
+            == []
+        )
+        assert (
+            read_table(
+                "<ranges=[{lower_limit={key=[0; <type=null>#; <type=null>#; <type=null>#]}}]>//tmp/t"
+            )
+            == []
+        )
 
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+
 class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True
+
 
 class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
+
 ##################################################################
+
 
 class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     def test_required_columns(self):
         schema = [
-                {"name": "key_req", "type": "int64", "sort_order": "ascending", "required": True},
-                {"name": "key_opt", "type": "int64", "sort_order": "ascending"},
-                {"name": "value_req", "type": "string", "required": True},
-                {"name": "value_opt", "type": "string"}]
+            {
+                "name": "key_req",
+                "type": "int64",
+                "sort_order": "ascending",
+                "required": True,
+            },
+            {"name": "key_opt", "type": "int64", "sort_order": "ascending"},
+            {"name": "value_req", "type": "string", "required": True},
+            {"name": "value_opt", "type": "string"},
+        ]
 
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", schema=schema)
@@ -1240,20 +1509,32 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [dict(key_req=1, value_opt="data")])
         with pytest.raises(YtError):
-            insert_rows("//tmp/t", [dict(key_opt=1, value_req="data", value_opt="data")])
+            insert_rows(
+                "//tmp/t", [dict(key_opt=1, value_req="data", value_opt="data")]
+            )
 
         insert_rows("//tmp/t", [dict(key_req=1, value_req="data")])
-        insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_req="data", value_opt="data")])
+        insert_rows(
+            "//tmp/t", [dict(key_req=1, key_opt=1, value_req="data", value_opt="data")]
+        )
         with pytest.raises(YtError):
-            insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_opt="other_data")], update=True)
+            insert_rows(
+                "//tmp/t",
+                [dict(key_req=1, key_opt=1, value_opt="other_data")],
+                update=True,
+            )
 
-        assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == \
-                [dict(key_req=1, key_opt=1, value_req="data", value_opt="data")]
+        assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == [
+            dict(key_req=1, key_opt=1, value_req="data", value_opt="data")
+        ]
 
-        insert_rows("//tmp/t", [dict(key_req=1, key_opt=1, value_req="updated")], update=True)
+        insert_rows(
+            "//tmp/t", [dict(key_req=1, key_opt=1, value_req="updated")], update=True
+        )
 
-        assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == \
-                [dict(key_req=1, key_opt=1, value_req="updated", value_opt="data")]
+        assert lookup_rows("//tmp/t", [dict(key_req=1, key_opt=1)]) == [
+            dict(key_req=1, key_opt=1, value_req="updated", value_opt="data")
+        ]
 
         with pytest.raises(YtError):
             delete_rows("//tmp/t", [dict(key_opt=1)])
@@ -1264,9 +1545,16 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     def test_required_computed_columns(self):
         schema = [
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "computed", "type": "int64", "sort_order": "ascending", "expression": "key * 10", "required": True},
-                {"name": "value", "type": "string"}]
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {
+                "name": "computed",
+                "type": "int64",
+                "sort_order": "ascending",
+                "expression": "key * 10",
+                "required": True,
+            },
+            {"name": "value", "type": "string"},
+        ]
 
         sync_create_cells(1)
         with pytest.raises(YtError):
@@ -1275,8 +1563,9 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     def test_required_aggregate_columns(self):
         schema = [
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "int64", "aggregate": "sum", "required": True}]
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "aggregate": "sum", "required": True},
+        ]
 
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", schema=schema)
@@ -1291,13 +1580,23 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
     @authors("ifsmirnov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_select_omits_required_column(self, optimize_for):
-        schema = make_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending", "required": True},
+        schema = make_schema(
+            [
+                {
+                    "name": "key",
+                    "type": "int64",
+                    "sort_order": "ascending",
+                    "required": True,
+                },
                 {"name": "value", "type": "string", "required": True},
-        ], unique_keys=True)
+            ],
+            unique_keys=True,
+        )
 
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", schema=schema, dynamic=False, optimize_for=optimize_for)
+        self._create_simple_table(
+            "//tmp/t", schema=schema, dynamic=False, optimize_for=optimize_for
+        )
         write_table("//tmp/t", {"key": 1, "value": "a"})
         alter_table("//tmp/t", dynamic=True)
         sync_mount_table("//tmp/t", freeze=True)
@@ -1307,8 +1606,12 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
             assert select_rows("key from [//tmp/t] where key in (1)") == [{"key": 1}]
             assert select_rows("value from [//tmp/t]") == [{"value": "a"}]
 
-            assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key"]) == [{"key": 1}]
-            assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["value"]) == [{"value": "a"}]
+            assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key"]) == [
+                {"key": 1}
+            ]
+            assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["value"]) == [
+                {"value": "a"}
+            ]
 
         _check()
         sync_unfreeze_table("//tmp/t")
@@ -1329,7 +1632,7 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key1": 2, "value": "2"}])
         expected = [{"key1": 1, "key2": 103, "value": "2"}]
-        actual = lookup_rows("//tmp/t", [{"key1" : 1}])
+        actual = lookup_rows("//tmp/t", [{"key1": 1}])
         assert_items_equal(actual, expected)
         expected = [{"key1": 2, "key2": 203, "value": "2"}]
         actual = lookup_rows("//tmp/t", [{"key1": 2}])
@@ -1340,9 +1643,12 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, expected)
 
-        with pytest.raises(YtError): insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": "3"}])
-        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key1": 2, "key2": 203}])
-        with pytest.raises(YtError): delete_rows("//tmp/t", [{"key1": 2, "key2": 203}])
+        with pytest.raises(YtError):
+            insert_rows("//tmp/t", [{"key1": 3, "key2": 3, "value": "3"}])
+        with pytest.raises(YtError):
+            lookup_rows("//tmp/t", [{"key1": 2, "key2": 203}])
+        with pytest.raises(YtError):
+            delete_rows("//tmp/t", [{"key1": 2, "key2": 203}])
 
         expected = []
         actual = lookup_rows("//tmp/t", [{"key1": 3}])
@@ -1380,51 +1686,67 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_computed_column_update_consistency(self, optimize_for):
         sync_create_cells(1)
-        create_dynamic_table("//tmp/t", optimize_for=optimize_for, schema=[
-                {"name": "key1", "type": "int64", "expression": "key2", "sort_order": "ascending"},
+        create_dynamic_table(
+            "//tmp/t",
+            optimize_for=optimize_for,
+            schema=[
+                {
+                    "name": "key1",
+                    "type": "int64",
+                    "expression": "key2",
+                    "sort_order": "ascending",
+                },
                 {"name": "key2", "type": "int64", "sort_order": "ascending"},
                 {"name": "value1", "type": "string"},
-                {"name": "value2", "type": "string"}]
-            )
+                {"name": "value2", "type": "string"},
+            ],
+        )
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key2": 1, "value1": "2"}])
-        expected = [{"key1": 1, "key2": 1, "value1": "2", "value2" : YsonEntity()}]
-        actual = lookup_rows("//tmp/t", [{"key2" : 1}])
+        expected = [{"key1": 1, "key2": 1, "value1": "2", "value2": YsonEntity()}]
+        actual = lookup_rows("//tmp/t", [{"key2": 1}])
         assert_items_equal(actual, expected)
 
         insert_rows("//tmp/t", [{"key2": 1, "value2": "3"}], update=True)
         expected = [{"key1": 1, "key2": 1, "value1": "2", "value2": "3"}]
-        actual = lookup_rows("//tmp/t", [{"key2" : 1}])
+        actual = lookup_rows("//tmp/t", [{"key2": 1}])
         assert_items_equal(actual, expected)
 
         insert_rows("//tmp/t", [{"key2": 1, "value1": "4"}], update=True)
         expected = [{"key1": 1, "key2": 1, "value1": "4", "value2": "3"}]
-        actual = lookup_rows("//tmp/t", [{"key2" : 1}])
+        actual = lookup_rows("//tmp/t", [{"key2": 1}])
         assert_items_equal(actual, expected)
 
-class TestSortedDynamicTablesSpecialColumnsMulticell(TestSortedDynamicTablesSpecialColumns):
+
+class TestSortedDynamicTablesSpecialColumnsMulticell(
+    TestSortedDynamicTablesSpecialColumns
+):
     NUM_SECONDARY_MASTER_CELLS = 2
 
-class TestSortedDynamicTablesSpecialColumnsRpcProxy(TestSortedDynamicTablesSpecialColumns):
+
+class TestSortedDynamicTablesSpecialColumnsRpcProxy(
+    TestSortedDynamicTablesSpecialColumns
+):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
-class TestSortedDynamicTablesSpecialColumnsPortal(TestSortedDynamicTablesSpecialColumnsMulticell):
+
+class TestSortedDynamicTablesSpecialColumnsPortal(
+    TestSortedDynamicTablesSpecialColumnsMulticell
+):
     ENABLE_TMP_PORTAL = True
 
+
 ################################################################################
+
 
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
         "tablet_node": {
-            "resource_limits": {
-                "tablet_static_memory": 20000
-            },
-            "tablet_manager": {
-                "preload_backoff_time": 5000
-            },
+            "resource_limits": {"tablet_static_memory": 20000},
+            "tablet_manager": {"preload_backoff_time": 5000},
         },
     }
 
@@ -1514,8 +1836,12 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         sync_reshard_table(path, [[]] + [[i * 10] for i in xrange(3)])
 
-        sync_mount_table(path, first_tablet_index=0, last_tablet_index=1, cell_id=cells[0])
-        sync_mount_table(path, first_tablet_index=2, last_tablet_index=3, cell_id=cells[1])
+        sync_mount_table(
+            path, first_tablet_index=0, last_tablet_index=1, cell_id=cells[0]
+        )
+        sync_mount_table(
+            path, first_tablet_index=2, last_tablet_index=3, cell_id=cells[1]
+        )
 
         def gen_rows(x, y, size=1500, value="x"):
             return [{"key": i, "value": value * size} for i in xrange(x, y)]
@@ -1528,19 +1854,30 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         def is_preloaded(statistics):
             return (
-                statistics["preload_completed_store_count"] > 0 and
-                statistics["preload_pending_store_count"] == 0 and
-                statistics["preload_failed_store_count"] == 0)
+                statistics["preload_completed_store_count"] > 0
+                and statistics["preload_pending_store_count"] == 0
+                and statistics["preload_failed_store_count"] == 0
+            )
 
         def wait_preload(table, tablet):
-            wait(lambda: is_preloaded(get("{}/@tablets/{}/statistics".format(table, tablet))))
+            wait(
+                lambda: is_preloaded(
+                    get("{}/@tablets/{}/statistics".format(table, tablet))
+                )
+            )
 
         sync_unmount_table(path)
-        sync_mount_table(path, first_tablet_index=0, last_tablet_index=1, cell_id=cells[0])
-        sync_mount_table(path, first_tablet_index=3, last_tablet_index=3, cell_id=cells[1])
+        sync_mount_table(
+            path, first_tablet_index=0, last_tablet_index=1, cell_id=cells[0]
+        )
+        sync_mount_table(
+            path, first_tablet_index=3, last_tablet_index=3, cell_id=cells[1]
+        )
         wait_preload(path, 1)
         wait_preload(path, 3)
-        sync_mount_table(path, first_tablet_index=2, last_tablet_index=2, cell_id=cells[1])
+        sync_mount_table(
+            path, first_tablet_index=2, last_tablet_index=2, cell_id=cells[1]
+        )
 
         keys = [{"key": i} for i in xrange(0, 30)]
 
@@ -1549,16 +1886,17 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", keys, enable_partial_result=True)
         assert_items_equal(actual, expected)
 
+
 class TestSortedDynamicTablesMemoryLimitRpcProxy(TestSortedDynamicTablesMemoryLimit):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
+
 ################################################################################
 
+
 class TestSortedDynamicTablesMultipleWriteBatches(TestSortedDynamicTablesBase):
-    DELTA_DRIVER_CONFIG = {
-        "max_rows_per_write_request": 10
-    }
+    DELTA_DRIVER_CONFIG = {"max_rows_per_write_request": 10}
 
     @authors("babenko")
     def test_multiple_write_batches(self):
@@ -1570,21 +1908,23 @@ class TestSortedDynamicTablesMultipleWriteBatches(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         assert select_rows("* from [//tmp/t]") == rows
 
+
 ################################################################################
+
 
 class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "resource_limits": {
-                "tablet_dynamic_memory": 2 * 2**20,
+                "tablet_dynamic_memory": 2 * 2 ** 20,
                 "slots": 2,
             },
             "store_flusher": {
                 "min_forced_flush_data_size": 1,
             },
             "tablet_manager": {
-                "pool_chunk_size": 65 * 2**10,
+                "pool_chunk_size": 65 * 2 ** 10,
             },
             "tablet_snapshot_eviction_timeout": 0,
         },
@@ -1597,21 +1937,31 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
     }
 
     @authors("ifsmirnov")
-    @pytest.mark.parametrize("eviction_type", ["remove_cell", "update_weight", "disable_limit"])
+    @pytest.mark.parametrize(
+        "eviction_type", ["remove_cell", "update_weight", "disable_limit"]
+    )
     def test_tablet_dynamic_multiple_bundles(self, eviction_type):
         create_tablet_cell_bundle("b1", attributes={"options": self.BUNDLE_OPTIONS})
         create_tablet_cell_bundle("b2", attributes={"options": self.BUNDLE_OPTIONS})
         cell1 = sync_create_cells(1, tablet_cell_bundle="b1")[0]
         cell2 = sync_create_cells(1, tablet_cell_bundle="b2")[0]
 
-        self._create_simple_table("//tmp/t1", tablet_cell_bundle="b1", replication_factor=10,
-                                  chunk_writer={"upload_replication_factor": 10})
+        self._create_simple_table(
+            "//tmp/t1",
+            tablet_cell_bundle="b1",
+            replication_factor=10,
+            chunk_writer={"upload_replication_factor": 10},
+        )
         sync_mount_table("//tmp/t1")
 
-        self._create_simple_table("//tmp/t2", tablet_cell_bundle="b2", dynamic_store_auto_flush_period=YsonEntity())
+        self._create_simple_table(
+            "//tmp/t2",
+            tablet_cell_bundle="b2",
+            dynamic_store_auto_flush_period=YsonEntity(),
+        )
         sync_mount_table("//tmp/t2")
 
-        _get_row = ({"key": i, "value": str(i) * 100} for i in xrange(10**9))
+        _get_row = ({"key": i, "value": str(i) * 100} for i in xrange(10 ** 9))
 
         while True:
             try:
@@ -1628,17 +1978,38 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
         if eviction_type == "remove_cell":
             remove("#{}".format(cell2))
             node = ls("//sys/nodes")[0]
-            wait(lambda: cell2 not in ls("//sys/nodes/{}/orchid/tablet_cells".format(node)))
+            wait(
+                lambda: cell2
+                not in ls("//sys/nodes/{}/orchid/tablet_cells".format(node))
+            )
         elif eviction_type == "update_weight":
-            set("//sys/tablet_cell_bundles/b1/@dynamic_options/dynamic_memory_pool_weight", 1000)
+            set(
+                "//sys/tablet_cell_bundles/b1/@dynamic_options/dynamic_memory_pool_weight",
+                1000,
+            )
             node = ls("//sys/nodes")[0]
-            wait(lambda: get("//sys/nodes/{}/orchid/tablet_cells/{}/dynamic_options/dynamic_memory_pool_weight".format(
-                node, cell1)) == 1000)
+            wait(
+                lambda: get(
+                    "//sys/nodes/{}/orchid/tablet_cells/{}/dynamic_options/dynamic_memory_pool_weight".format(
+                        node, cell1
+                    )
+                )
+                == 1000
+            )
         elif eviction_type == "disable_limit":
-            set("//sys/tablet_cell_bundles/b1/@dynamic_options/enable_tablet_dynamic_memory_limit", False)
+            set(
+                "//sys/tablet_cell_bundles/b1/@dynamic_options/enable_tablet_dynamic_memory_limit",
+                False,
+            )
             node = ls("//sys/nodes")[0]
-            wait(lambda: get("//sys/nodes/{}/orchid/tablet_cells/{}/dynamic_options/enable_tablet_dynamic_memory_limit".format(
-                node, cell1)) == False)
+            wait(
+                lambda: get(
+                    "//sys/nodes/{}/orchid/tablet_cells/{}/dynamic_options/enable_tablet_dynamic_memory_limit".format(
+                        node, cell1
+                    )
+                )
+                == False
+            )
         else:
             assert False
 
@@ -1648,24 +2019,33 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
     @pytest.mark.parametrize("ratio", [0.3, 0.6])
     def test_forced_rotation_memory_ratio(self, ratio):
         create_tablet_cell_bundle("b", attributes={"options": self.BUNDLE_OPTIONS})
-        set("//sys/tablet_cell_bundles/b/@dynamic_options/forced_rotation_memory_ratio", ratio)
+        set(
+            "//sys/tablet_cell_bundles/b/@dynamic_options/forced_rotation_memory_ratio",
+            ratio,
+        )
         cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
 
-        self._create_simple_table("//tmp/t", tablet_cell_bundle="b", dynamic_store_auto_flush_period=YsonEntity())
+        self._create_simple_table(
+            "//tmp/t",
+            tablet_cell_bundle="b",
+            dynamic_store_auto_flush_period=YsonEntity(),
+        )
         sync_mount_table("//tmp/t")
 
-        _get_row = ({"key": i, "value": str(i) * 100} for i in xrange(10**9))
+        _get_row = ({"key": i, "value": str(i) * 100} for i in xrange(10 ** 9))
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = get_tablet_leader_address(tablet_id)
         node = get_tablet_leader_address(tablet_id)
         orchid_root = "//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}".format(
-            node,
-            cell_id,
-            tablet_id)
+            node, cell_id, tablet_id
+        )
 
         for store_id in ls(orchid_root + "/eden/stores"):
-            if get(orchid_root + "/eden/stores/{}/store_state".format(store_id)) == "active_dynamic":
+            if (
+                get(orchid_root + "/eden/stores/{}/store_state".format(store_id))
+                == "active_dynamic"
+            ):
                 original_store_id = store_id
                 break
         else:
@@ -1689,9 +2069,15 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
             if store["store_state"] == "passive_dynamic":
                 # Store rotated.
                 pool_size = store["pool_size"]
-                expected = self.DELTA_NODE_CONFIG["tablet_node"]["resource_limits"]["tablet_dynamic_memory"] * ratio
+                expected = (
+                    self.DELTA_NODE_CONFIG["tablet_node"]["resource_limits"][
+                        "tablet_dynamic_memory"
+                    ]
+                    * ratio
+                )
                 assert expected - 100000 < pool_size < expected + 100000
                 break
+
 
 class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
     NUM_NODES = 1
@@ -1709,13 +2095,15 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
 
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string"}]
+            {"name": "value", "type": "string"},
+        ]
 
         self._create_simple_table(
             "//tmp/t",
             schema=schema,
             replication_factor=1,
-            enable_dynamic_store_read=False)
+            enable_dynamic_store_read=False,
+        )
 
         sync_mount_table("//tmp/t", cell_id=cells[0])
         rows = [{"key": 1, "value": "foo"}]

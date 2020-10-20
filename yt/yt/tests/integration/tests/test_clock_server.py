@@ -9,6 +9,7 @@ from yt_commands import *
 
 ##################################################################
 
+
 class TestClockServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_CLOCKS = 1
@@ -34,10 +35,13 @@ class TestClockServer(YTEnvSetup):
     def test_sys_timestamp_providers(self):
         assert len(ls("//sys/timestamp_providers")) == self.NUM_CLOCKS
         for timestamp_provider in ls("//sys/timestamp_providers"):
-            assert "monitoring" in get("//sys/timestamp_providers/{}/orchid".format(timestamp_provider))
+            assert "monitoring" in get(
+                "//sys/timestamp_providers/{}/orchid".format(timestamp_provider)
+            )
+
 
 ##################################################################
 
+
 class TestClockServerMulticell(TestClockServer):
     NUM_SECONDARY_MASTER_CELLS = 1
-

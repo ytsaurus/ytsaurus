@@ -13,6 +13,7 @@ import yt_proto.yt.core.profiling.proto.profiling_pb2 as profiling_pb2
 
 ##################################################################
 
+
 class TestMonitoring(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -26,7 +27,9 @@ class TestMonitoring(YTEnvSetup):
     }
 
     def get_json(self, port, query):
-        return json.loads(urllib2.urlopen("http://localhost:{}/orchid{}".format(port, query)).read())
+        return json.loads(
+            urllib2.urlopen("http://localhost:{}/orchid{}".format(port, query)).read()
+        )
 
     def get_proto(self, port, query):
         rsp = requests.get("http://localhost:{}{}".format(port, query))
@@ -51,7 +54,12 @@ class TestMonitoring(YTEnvSetup):
 
         def monitoring_orchid_ready():
             try:
-                events = self.get_json(http_port, "/profiling/logging/backlog_events?from_time={}".format(int(start_time) * 1000000))
+                events = self.get_json(
+                    http_port,
+                    "/profiling/logging/backlog_events?from_time={}".format(
+                        int(start_time) * 1000000
+                    ),
+                )
                 return len(events) > 0
             except urllib2.HTTPError:
                 return False
@@ -65,7 +73,9 @@ class TestMonitoring(YTEnvSetup):
     @pytest.mark.parametrize("component", ["master"])
     def test_component_http_tracing(self, component):
         http_port = self.Env.configs[component][0]["monitoring_port"]
-        url = "http://localhost:{}/tracing/traces/v2?start_index=0&limit=1000".format(http_port)
+        url = "http://localhost:{}/tracing/traces/v2?start_index=0&limit=1000".format(
+            http_port
+        )
 
         rsp = requests.get(url)
         assert rsp.status_code == 200
@@ -89,17 +99,23 @@ class TestMonitoring(YTEnvSetup):
         root_orchid = self.get_json(http_port, "")
         assert "config" in root_orchid
 
-        events_empty = self.get_proto(http_port, "/profiling/proto?start_sample_index={}".format(10 ** 6))
+        events_empty = self.get_proto(
+            http_port, "/profiling/proto?start_sample_index={}".format(10 ** 6)
+        )
         assert len(events_empty.points) == 0
 
         def monitoring_orchid_ready():
-            events = self.get_proto(http_port, "/profiling/proto?start_sample_index={}".format(0))
+            events = self.get_proto(
+                http_port, "/profiling/proto?start_sample_index={}".format(0)
+            )
             assert len(events.points) > 0
             return True
 
         wait(monitoring_orchid_ready)
 
-        events = self.get_proto(http_port, "/profiling/proto?start_sample_index={}".format(0))
+        events = self.get_proto(
+            http_port, "/profiling/proto?start_sample_index={}".format(0)
+        )
         flag = False
         for point in events.points:
             flag |= point.path == "/profiling/enqueued"

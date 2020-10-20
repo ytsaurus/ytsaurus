@@ -7,6 +7,7 @@ from flaky import flaky
 
 ##################################################################
 
+
 class TestMasterCellsSync(YTEnvSetup):
     START_SECONDARY_MASTER_CELLS = True
     ENABLE_SECONDARY_CELLS_CLEANUP = False
@@ -15,8 +16,8 @@ class TestMasterCellsSync(YTEnvSetup):
 
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
-            "leader_reassignment_timeout" : 2000,
-            "peer_revocation_timeout" : 3000,
+            "leader_reassignment_timeout": 2000,
+            "peer_revocation_timeout": 3000,
         },
     }
 
@@ -29,12 +30,14 @@ class TestMasterCellsSync(YTEnvSetup):
         if self.delayed_secondary_cells_start:
             self.Env.start_secondary_master_cells()
         try:
+
             def _check():
                 for i in xrange(self.Env.secondary_master_cell_count):
                     if not check(get_driver(i + 1)):
                         return False
                 return true
                 wait(_check)
+
         finally:
             if self.delayed_secondary_cells_start:
                 for cell_index in xrange(self.Env.secondary_master_cell_count):
@@ -52,15 +55,22 @@ class TestMasterCellsSync(YTEnvSetup):
         for i in xrange(10):
             set("//sys/users/tester/@custom{0}".format(i), "value")
         self._check_true_for_secondary(
-            lambda driver: all([
-                get("//sys/users/tester/@custom{0}".format(i), driver=driver) == "value"
-                for i in xrange(10)]))
+            lambda driver: all(
+                [
+                    get("//sys/users/tester/@custom{0}".format(i), driver=driver)
+                    == "value"
+                    for i in xrange(10)
+                ]
+            )
+        )
         self._check_true_for_secondary(
-            lambda driver: "tester" in ls("//sys/users", driver=driver))
+            lambda driver: "tester" in ls("//sys/users", driver=driver)
+        )
 
         remove_user("tester")
         self._check_true_for_secondary(
-            lambda driver: "tester" not in ls("//sys/users", driver=driver))
+            lambda driver: "tester" not in ls("//sys/users", driver=driver)
+        )
 
     @authors("asaitgalin")
     def test_groups_sync(self):
@@ -69,23 +79,38 @@ class TestMasterCellsSync(YTEnvSetup):
         add_member("tester", "sudoers")
 
         self._check_true_for_secondary(
-            lambda driver: "sudoers" in ls("//sys/groups", driver=driver))
+            lambda driver: "sudoers" in ls("//sys/groups", driver=driver)
+        )
         self._check_true_for_secondary(
-            lambda driver: "tester" in get("//sys/groups/sudoers/@members", driver=driver))
+            lambda driver: "tester"
+            in get("//sys/groups/sudoers/@members", driver=driver)
+        )
         self._check_true_for_secondary(
-            lambda driver: "sudoers" in get("//sys/users/tester/@member_of", driver=driver))
+            lambda driver: "sudoers"
+            in get("//sys/users/tester/@member_of", driver=driver)
+        )
 
         for i in xrange(10):
             set("//sys/groups/sudoers/@attr{0}".format(i), "value")
         remove_member("tester", "sudoers")
 
-        check_attributes = lambda driver: all([
-            get("//sys/groups/sudoers/@attr{0}".format(i), driver=driver) == "value" for i in xrange(10)])
-        check_membership = lambda driver: "tester" not in get("//sys/groups/sudoers/@members", driver=driver)
+        check_attributes = lambda driver: all(
+            [
+                get("//sys/groups/sudoers/@attr{0}".format(i), driver=driver) == "value"
+                for i in xrange(10)
+            ]
+        )
+        check_membership = lambda driver: "tester" not in get(
+            "//sys/groups/sudoers/@members", driver=driver
+        )
 
-        self._check_true_for_secondary(lambda driver: check_attributes(driver) and check_membership(driver))
+        self._check_true_for_secondary(
+            lambda driver: check_attributes(driver) and check_membership(driver)
+        )
         remove_group("sudoers")
-        self._check_true_for_secondary(lambda driver: "sudoers" not in ls("//sys/groups", driver=driver))
+        self._check_true_for_secondary(
+            lambda driver: "sudoers" not in ls("//sys/groups", driver=driver)
+        )
 
     @authors("asaitgalin")
     def test_accounts_sync(self):
@@ -94,20 +119,29 @@ class TestMasterCellsSync(YTEnvSetup):
         for i in xrange(10):
             set("//sys/accounts/tst/@attr{0}".format(i), "value")
         self._check_true_for_secondary(
-            lambda driver: all([
-                get("//sys/accounts/tst/@attr{0}".format(i), driver=driver) == "value"
-                for i in xrange(10)]))
+            lambda driver: all(
+                [
+                    get("//sys/accounts/tst/@attr{0}".format(i), driver=driver)
+                    == "value"
+                    for i in xrange(10)
+                ]
+            )
+        )
 
         remove_account("tst")
         self._check_true_for_secondary(
-            lambda driver: "tst" not in ls("//sys/accounts", driver=driver))
+            lambda driver: "tst" not in ls("//sys/accounts", driver=driver)
+        )
 
     @authors("asaitgalin")
     def test_schemas_sync(self):
         create_group("testers")
 
         for subj in ["user", "account", "table"]:
-            set("//sys/schemas/{0}/@acl/end".format(subj), make_ace("allow", "testers", "create"))
+            set(
+                "//sys/schemas/{0}/@acl/end".format(subj),
+                make_ace("allow", "testers", "create"),
+            )
 
         def check(driver):
             ok = True
@@ -148,22 +182,35 @@ class TestMasterCellsSync(YTEnvSetup):
         for i in xrange(10):
             set("//sys/tablet_cell_bundles/b/@custom{0}".format(i), "value")
         self._check_true_for_secondary(
-            lambda driver: all([
-                get("//sys/tablet_cell_bundles/b/@custom{0}".format(i), driver=driver) == "value"
-                for i in xrange(10)]))
+            lambda driver: all(
+                [
+                    get(
+                        "//sys/tablet_cell_bundles/b/@custom{0}".format(i),
+                        driver=driver,
+                    )
+                    == "value"
+                    for i in xrange(10)
+                ]
+            )
+        )
 
         self._check_true_for_secondary(
-            lambda driver: "b" in ls("//sys/tablet_cell_bundles", driver=driver))
+            lambda driver: "b" in ls("//sys/tablet_cell_bundles", driver=driver)
+        )
 
         remove_tablet_cell_bundle("b")
         self._check_true_for_secondary(
-            lambda driver: "b" not in ls("//sys/tablet_cell_bundles", driver=driver))
+            lambda driver: "b" not in ls("//sys/tablet_cell_bundles", driver=driver)
+        )
 
     @authors("savrus")
     @flaky(max_runs=5)
     def test_tablet_cell_sync(self):
         create_tablet_cell_bundle("b")
-        set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)
+        set(
+            "//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission",
+            True,
+        )
         cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": "b"})
         wait_for_cells()
 
@@ -181,9 +228,25 @@ class TestMasterCellsSync(YTEnvSetup):
         assert config_version > 2
 
         def check(driver):
-            return get("//sys/tablet_cells/{0}/@tablet_cell_bundle".format(cell_id), driver=driver) == "b" and \
-                get("#{0}/@config_version".format(cell_id), driver=driver, read_from="leader") == config_version and \
-                get("#{0}/@tablet_cell_life_stage".format(cell_id), driver=driver, read_from="leader") == "decommissioned"
+            return (
+                get(
+                    "//sys/tablet_cells/{0}/@tablet_cell_bundle".format(cell_id),
+                    driver=driver,
+                )
+                == "b"
+                and get(
+                    "#{0}/@config_version".format(cell_id),
+                    driver=driver,
+                    read_from="leader",
+                )
+                == config_version
+                and get(
+                    "#{0}/@tablet_cell_life_stage".format(cell_id),
+                    driver=driver,
+                    read_from="leader",
+                )
+                == "decommissioned"
+            )
 
         self._check_true_for_secondary(lambda driver: check(driver))
 
@@ -198,7 +261,9 @@ class TestMasterCellsSync(YTEnvSetup):
         set("//sys/@config", {})
         self._check_true_for_secondary(lambda driver: check(driver, False))
 
+
 ##################################################################
+
 
 @pytest.mark.skipif("True", reason="Currently broken")
 class TestMasterCellsSyncDelayed(TestMasterCellsSync):
@@ -207,4 +272,5 @@ class TestMasterCellsSyncDelayed(TestMasterCellsSync):
     @classmethod
     def setup_class(cls):
         super(TestMasterCellsSyncDelayed, cls).setup_class(
-            delayed_secondary_cells_start=True)
+            delayed_secondary_cells_start=True
+        )

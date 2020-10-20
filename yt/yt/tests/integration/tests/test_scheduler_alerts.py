@@ -10,6 +10,7 @@ import time
 
 ##################################################################
 
+
 class TestSchedulerAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -32,7 +33,11 @@ class TestSchedulerAlerts(YTEnvSetup):
         assert get("//sys/scheduler/@alerts") == []
 
         # Incorrect pool configuration.
-        create_pool("poolA", attributes={"min_share_resources": {"cpu": 100}}, wait_for_orchid=False)
+        create_pool(
+            "poolA",
+            attributes={"min_share_resources": {"cpu": 100}},
+            wait_for_orchid=False,
+        )
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/pools/poolA/@min_share_resources/cpu", 0)
@@ -63,15 +68,42 @@ class TestSchedulerAlerts(YTEnvSetup):
     @authors("ignat")
     def test_snapshot_loading_alert(self):
         controller_agent = ls("//sys/controller_agents/instances")[0]
-        assert len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 0
+        assert (
+            len(
+                get(
+                    "//sys/controller_agents/instances/{0}/@alerts".format(
+                        controller_agent
+                    )
+                )
+            )
+            == 0
+        )
 
         set("//sys/controller_agents/config", {"enable_snapshot_loading": False})
 
-        wait(lambda: len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 1)
+        wait(
+            lambda: len(
+                get(
+                    "//sys/controller_agents/instances/{0}/@alerts".format(
+                        controller_agent
+                    )
+                )
+            )
+            == 1
+        )
 
         set("//sys/controller_agents/config/enable_snapshot_loading", True)
 
-        wait(lambda: len(get("//sys/controller_agents/instances/{0}/@alerts".format(controller_agent))) == 0)
+        wait(
+            lambda: len(
+                get(
+                    "//sys/controller_agents/instances/{0}/@alerts".format(
+                        controller_agent
+                    )
+                )
+            )
+            == 0
+        )
 
     @authors("ignat")
     def test_nodes_without_pool_tree_alert(self):
@@ -92,6 +124,7 @@ class TestSchedulerAlerts(YTEnvSetup):
         set("//sys/pool_trees/default/@nodes_filter", "")
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
 
+
 ##################################################################
 
 
@@ -102,11 +135,7 @@ class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "scheduler_connector": {
-                "heartbeat_period": 200
-            }
-        }
+        "exec_agent": {"scheduler_connector": {"heartbeat_period": 200}}
     }
 
     DELTA_SCHEDULER_CONFIG = {
@@ -150,7 +179,9 @@ class TestLowCpuUsageSchedulerAlertAbsence(LowCpuUsageSchedulerAlertBase):
 
     @authors("renadeen")
     def test_low_cpu_alert_absence(self):
-        op = run_test_vanilla(command='pids=""; for i in 1 2; do while : ; do : ; done & pids="$pids $!"; done; sleep 5; for p in $pids; do kill $p; done')
+        op = run_test_vanilla(
+            command='pids=""; for i in 1 2; do while : ; do : ; done & pids="$pids $!"; done; sleep 5; for p in $pids; do kill $p; done'
+        )
         op.track()
 
         assert "low_cpu_usage" not in op.get_alerts()
@@ -164,17 +195,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "scheduler_connector": {
-                "heartbeat_period": 200
-            },
-            "slot_manager": {
-                "job_environment": {
-                    "block_io_watchdog_period": 100
-                }
-            },
-            "job_controller": {
-                "get_job_specs_timeout": 30000
-            }
+            "scheduler_connector": {"heartbeat_period": 200},
+            "slot_manager": {"job_environment": {"block_io_watchdog_period": 100}},
+            "job_controller": {"get_job_specs_timeout": 30000},
         }
     }
 
@@ -182,9 +205,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         "scheduler": {
             "operations_update_period": 100,
             "schedule_job_time_limit": 3000,
-            "event_log": {
-                "flush_period": 1000
-            }
+            "event_log": {"flush_period": 1000},
         }
     }
 
@@ -206,12 +227,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "operation_too_long_alert_estimate_duration_threshold": 5000,
                 "queue_average_wait_time_threshold": 1500,
             },
-            "map_reduce_operation_options": {
-                "min_uncompressed_block_size": 1
-            },
-            "event_log": {
-                "flush_period": 1000
-            },
+            "map_reduce_operation_options": {"min_uncompressed_block_size": 1},
+            "event_log": {"flush_period": 1000},
         }
     }
 
@@ -223,12 +240,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="echo abcdef >local_file; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={
-                "mapper": {
-                    "tmpfs_size": 5 * 1024 * 1024,
-                    "tmpfs_path": "."
-                }
-            })
+            spec={"mapper": {"tmpfs_size": 5 * 1024 * 1024, "tmpfs_path": "."}},
+        )
 
         wait(lambda: "unused_tmpfs_space" in op.get_alerts())
 
@@ -236,16 +249,14 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="printf '=%.0s' {1..768} >local_file; sleep 3; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={
-                "mapper": {
-                    "tmpfs_size": 1024,
-                    "tmpfs_path": "."
-                }
-            })
+            spec={"mapper": {"tmpfs_size": 1024, "tmpfs_path": "."}},
+        )
 
         assert "unused_tmpfs_space" not in op.get_alerts()
 
-        update_controller_agent_config("operation_alerts/tmpfs_alert_memory_usage_mute_ratio", 0.0)
+        update_controller_agent_config(
+            "operation_alerts/tmpfs_alert_memory_usage_mute_ratio", 0.0
+        )
 
         op = map(
             command="echo abcdef >local_file; sleep 1.5; cat",
@@ -256,7 +267,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                     "tmpfs_size": 5 * 1024 * 1024,
                     "tmpfs_path": ".",
                 }
-            }
+            },
         )
 
         assert "unused_tmpfs_space" not in op.get_alerts()
@@ -275,9 +286,10 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             out="//tmp/t_out",
             spec={
                 "unavailable_chunk_strategy": "wait",
-                "unavailable_chunk_tactics": "wait"
+                "unavailable_chunk_tactics": "wait",
             },
-            track=False)
+            track=False,
+        )
 
         wait(lambda: op.get_state() == "running")
         wait(lambda: "lost_input_chunks" in op.get_alerts())
@@ -291,19 +303,17 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def test_woodpecker_jobs_alert(self):
         create_test_tables(row_count=7)
 
-        cmd = "set -e; echo aaa >local_file; for i in {1..200}; do " \
-              "dd if=./local_file of=/dev/null iflag=direct bs=1M count=1; done;"
+        cmd = (
+            "set -e; echo aaa >local_file; for i in {1..200}; do "
+            "dd if=./local_file of=/dev/null iflag=direct bs=1M count=1; done;"
+        )
 
         op = map(
             command=cmd,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={
-                "data_size_per_job": 1,
-                "resource_limits": {
-                    "user_slots": 1
-                }
-            })
+            spec={"data_size_per_job": 1, "resource_limits": {"user_slots": 1}},
+        )
 
         assert "excessive_disk_usage" in op.get_alerts()
 
@@ -318,7 +328,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 in_="//tmp/t_in",
                 out="//tmp/t_out",
                 spec={"data_size_per_job": 1},
-                track=False)
+                track=False,
+            )
         else:
             op = run_test_vanilla("sleep 3", job_count=5)
 
@@ -333,7 +344,14 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         op.track()
 
         # For debug purposes.
-        print_debug("Job statistics for", op.id, ":", yson.dumps(get(op.get_path() + "/@progress/job_statistics"), yson_format="text"))
+        print_debug(
+            "Job statistics for",
+            op.id,
+            ":",
+            yson.dumps(
+                get(op.get_path() + "/@progress/job_statistics"), yson_format="text"
+            ),
+        )
 
         if operation_type == "map":
             assert "long_aborted_jobs" in op.get_alerts()
@@ -348,7 +366,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"data_size_per_job": 1},
-            track=False)
+            track=False,
+        )
 
         self.wait_for_running_jobs(op)
         wait(lambda: "operation_too_long" in op.get_alerts())
@@ -373,7 +392,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             sort_by=["x"],
-            spec={"partition_count": 5})
+            spec={"partition_count": 5},
+        )
 
         assert "intermediate_data_skew" in op.get_alerts()
 
@@ -383,28 +403,30 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         create_test_tables(row_count=4)
 
         update_controller_agent_config(
-            "operation_alerts/short_jobs_alert_min_job_duration",
-            60000)
+            "operation_alerts/short_jobs_alert_min_job_duration", 60000
+        )
         op = map(
             command="cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
                 "data_size_per_job": 1,
-            })
+            },
+        )
 
         assert "short_jobs_duration" in op.get_alerts()
 
         update_controller_agent_config(
-            "operation_alerts/short_jobs_alert_min_job_duration",
-            5000)
+            "operation_alerts/short_jobs_alert_min_job_duration", 5000
+        )
         op = map(
             command="sleep 5; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
                 "data_size_per_job": 1,
-            })
+            },
+        )
 
         assert "short_jobs_duration" not in op.get_alerts()
 
@@ -421,7 +443,8 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             spec={
                 "testing": testing_options,
             },
-            track=False)
+            track=False,
+        )
 
         wait(lambda: "schedule_job_timed_out" in op.get_alerts())
 
@@ -433,23 +456,23 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="echo abcdef >local_file; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={
-                "mapper": {
-                    "tmpfs_size": 5 * 1024 * 1024,
-                    "tmpfs_path": "."
-                }
-            })
+            spec={"mapper": {"tmpfs_size": 5 * 1024 * 1024, "tmpfs_path": "."}},
+        )
 
         wait(lambda: "unused_tmpfs_space" in op.get_alerts())
 
         def check():
             events = read_table("//sys/scheduler/event_log")
             for event in events:
-                if event["event_type"] == "operation_completed" and event["operation_id"] == op.id:
+                if (
+                    event["event_type"] == "operation_completed"
+                    and event["operation_id"] == op.id
+                ):
                     assert len(event["alerts"]) >= 1
                     assert "unused_tmpfs_space" in event["alerts"]
                     return True
             return False
+
         wait(check)
 
     @authors("eshcherbin")
@@ -471,7 +494,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def wait_for_running_jobs(self, operation):
         wait(lambda: operation.get_job_count("running") >= 1)
 
+
 ##################################################################
+
 
 class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
     NUM_MASTERS = 1
@@ -489,13 +514,10 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
             "operations_update_period": 100,
             "operation_progress_analysis_period": 100,
             "heavy_job_spec_slice_count_threshold": 1,
-            "job_spec_slice_throttler": {
-                "limit": 1,
-                "period": 1000
-            },
+            "job_spec_slice_throttler": {"limit": 1, "period": 1000},
             "operation_alerts": {
                 "job_spec_throttling_alert_activation_count_threshold": 1
-            }
+            },
         }
     }
 
@@ -512,11 +534,14 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={"job_count": 3},
-            track=False)
+            track=False,
+        )
 
         wait(lambda: "excessive_job_spec_throttling" in op.get_alerts())
 
+
 ##################################################################
+
 
 class TestControllerAgentAlerts(YTEnvSetup):
     NUM_MASTERS = 1

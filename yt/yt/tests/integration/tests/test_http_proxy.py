@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 ##################################################################
 
+
 class HttpProxyTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -41,7 +42,10 @@ class HttpProxyTestBase(YTEnvSetup):
     def _get_hydra_monitoring(self, master=None):
         if master is None:
             master = self._get_master_address()
-        return get("//sys/primary_masters/{}/orchid/monitoring/hydra".format(master), default={})
+        return get(
+            "//sys/primary_masters/{}/orchid/monitoring/hydra".format(master),
+            default={},
+        )
 
 
 class TestHttpProxy(HttpProxyTestBase):
@@ -80,8 +84,9 @@ class TestHttpProxy(HttpProxyTestBase):
         data_metric = Metric.at_proxy(
             proxy,
             "http_proxy/http_code_count",
-            with_tags={"http_code": "200", "proxy_role" : "data"},
-            aggr_method="last")
+            with_tags={"http_code": "200", "proxy_role": "data"},
+            aggr_method="last",
+        )
 
         wait(lambda: make_request_and_check_metric(data_metric))
 
@@ -95,8 +100,9 @@ class TestHttpProxy(HttpProxyTestBase):
         control_metric = Metric.at_proxy(
             proxy,
             "http_proxy/http_code_count",
-            with_tags={"http_code": "200", "proxy_role" : "control"},
-            aggr_method="last")
+            with_tags={"http_code": "200", "proxy_role": "control"},
+            aggr_method="last",
+        )
 
         wait(lambda: make_request_and_check_metric(control_metric))
 
@@ -110,7 +116,9 @@ class TestHttpProxy(HttpProxyTestBase):
 
     @authors("prime")
     def test_discover_versions(self):
-        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions").json()
+        rsp = requests.get(
+            self._get_proxy_address() + "/internal/discover_versions"
+        ).json()
         service = requests.get(self._get_proxy_address() + "/service").json()
 
         assert len(rsp["primary_masters"]) == 1
@@ -140,12 +148,14 @@ class TestHttpProxy(HttpProxyTestBase):
         rsp = requests.get(self._get_proxy_address() + "/api/v4/get?path=//@")
         rsp.raise_for_status()
 
-        assert rsp.headers['cache-control'] == 'no-store'
+        assert rsp.headers["cache-control"] == "no-store"
 
     @authors("prime")
     def test_dynamic_config(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
+        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(
+            monitoring_port
+        )
 
         set("//sys/proxies/@config", {"tracing": {"user_sample_rate": {"prime": 1.0}}})
 
@@ -158,12 +168,21 @@ class TestHttpProxy(HttpProxyTestBase):
     @authors("greatkorn")
     def test_kill_nodes(self):
         create("map_node", "//sys/proxies/test_http_proxy")
-        set("//sys/proxies/test_http_proxy/@liveness", {"updated_at" : "2010-06-24T11:23:30.156098Z"})
+        set(
+            "//sys/proxies/test_http_proxy/@liveness",
+            {"updated_at": "2010-06-24T11:23:30.156098Z"},
+        )
         set("//sys/proxies/test_http_proxy/@start_time", "2009-06-19T16:39:02.171721Z")
         set("//sys/proxies/test_http_proxy/@version", "19.5.30948-master-ya~c9facaeaca")
         create("map_node", "//sys/rpc_proxies/test_rpc_proxy")
-        set("//sys/rpc_proxies/test_rpc_proxy/@start_time", "2009-06-19T16:39:02.171721Z")
-        set("//sys/rpc_proxies/test_rpc_proxy/@version", "19.5.30948-master-ya~c9facaeaca")
+        set(
+            "//sys/rpc_proxies/test_rpc_proxy/@start_time",
+            "2009-06-19T16:39:02.171721Z",
+        )
+        set(
+            "//sys/rpc_proxies/test_rpc_proxy/@version",
+            "19.5.30948-master-ya~c9facaeaca",
+        )
 
         rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions/v2")
         rsp.raise_for_status()
@@ -240,10 +259,10 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             assert tag in cls.FRAME_TAG_TO_NAME
             name = cls.FRAME_TAG_TO_NAME[tag]
             if name == "data":
-                (length,) = struct.unpack("<i", content[i: i + 4])
+                (length,) = struct.unpack("<i", content[i : i + 4])
                 i += 4
                 assert i + length <= len(content)
-                frame = content[i: i + length]
+                frame = content[i : i + length]
                 i += length
             else:
                 frame = None
@@ -252,16 +271,24 @@ class TestHttpProxyFraming(HttpProxyTestBase):
 
     def setup(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
-        set("//sys/proxies/@config", {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}})
-        wait(lambda: requests.get(config_url).json()["framing"]["keep_alive_period"] == self.KEEP_ALIVE_PERIOD)
+        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(
+            monitoring_port
+        )
+        set(
+            "//sys/proxies/@config",
+            {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}},
+        )
+        wait(
+            lambda: requests.get(config_url).json()["framing"]["keep_alive_period"]
+            == self.KEEP_ALIVE_PERIOD
+        )
 
     def _execute_command(self, http_method, command_name, params):
         headers = {
             "X-YT-Accept-Framing": "1",
-            'X-YT-Parameters': yson.dumps(params),
-            'X-YT-Header-Format': "<format=text>yson",
-            'X-YT-Output-Format': "<format=text>yson"
+            "X-YT-Parameters": yson.dumps(params),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Output-Format": "<format=text>yson",
         }
         start = datetime.now()
         rsp = requests.request(
@@ -272,9 +299,16 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         rsp.raise_for_status()
         assert "X-YT-Framing" in rsp.headers
         unframed_content = self._unframe_content(rsp.content)
-        keep_alive_frame_count = sum(name == "keep_alive" for name, frame in unframed_content)
-        assert keep_alive_frame_count >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 3
-        assert datetime.now() - start > timedelta(milliseconds=self.DELAY_BEFORE_COMMAND)
+        keep_alive_frame_count = sum(
+            name == "keep_alive" for name, frame in unframed_content
+        )
+        assert (
+            keep_alive_frame_count
+            >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 3
+        )
+        assert datetime.now() - start > timedelta(
+            milliseconds=self.DELAY_BEFORE_COMMAND
+        )
         actual_response = b""
         for name, frame in unframed_content:
             if name == "data":
@@ -284,7 +318,9 @@ class TestHttpProxyFraming(HttpProxyTestBase):
     @authors("levysotsky")
     def test_get(self):
         create("table", self.SUSPENDING_TABLE)
-        write_table(self.SUSPENDING_TABLE, [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        write_table(
+            self.SUSPENDING_TABLE, [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}]
+        )
         attribute_value = {"x": 1, "y": "qux"}
         set(self.SUSPENDING_TABLE + "/@foobar", attribute_value)
         params = {
@@ -332,12 +368,12 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
         params = {
             "cell_id": self.Env.configs["master"][0]["primary_master"]["cell_id"],
             "set_read_only": set_read_only,
-            "wait_for_snapshot_completion": False
+            "wait_for_snapshot_completion": False,
         }
         headers = {
-            'X-YT-Parameters': yson.dumps(params),
-            'X-YT-Header-Format': "<format=text>yson",
-            'X-YT-Output-Format': "<format=text>yson"
+            "X-YT-Parameters": yson.dumps(params),
+            "X-YT-Header-Format": "<format=text>yson",
+            "X-YT-Output-Format": "<format=text>yson",
         }
 
         rsp = requests.post(self._get_build_snapshot_url(), headers=headers)
@@ -350,9 +386,14 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
 
         def predicate():
             monitoring = self._get_hydra_monitoring(master)
-            return \
-                (building_snapshot is None or monitoring.get("building_snapshot", None) == building_snapshot) and \
-                (last_snapshot_id is None or monitoring.get("last_snapshot_id", None) == last_snapshot_id)
+            return (
+                building_snapshot is None
+                or monitoring.get("building_snapshot", None) == building_snapshot
+            ) and (
+                last_snapshot_id is None
+                or monitoring.get("last_snapshot_id", None) == last_snapshot_id
+            )
+
         wait(predicate)
 
 
@@ -363,6 +404,7 @@ class TestHttpProxyBuildSnapshotNoReadonly(TestHttpProxyBuildSnapshotBase):
         snapshot_id = self._build_snapshot(False)
         self._wait_for_snapshot_state(True, -1)
         self._wait_for_snapshot_state(False, snapshot_id)
+
 
 class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
     @authors("babenko")

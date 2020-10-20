@@ -6,6 +6,7 @@ from yt_commands import *
 
 ##################################################################
 
+
 class TestSchedulerEraseCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -17,16 +18,17 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         erase("//tmp/table[#0:#10]")
         assert read_table("//tmp/table") == []
 
-
     def _prepare_table(self):
         self.table = "//tmp/t_in"
         create("table", self.table)
 
-        self.v = [{"key": 0, "value": 10},
-                  {"key": -5, "value": 150},
-                  {"key": -1, "value": 2},
-                  {"key": 20, "value": 4},
-                  {"key": 15, "value": -1}]
+        self.v = [
+            {"key": 0, "value": 10},
+            {"key": -5, "value": 150},
+            {"key": -1, "value": 2},
+            {"key": 20, "value": 4},
+            {"key": 15, "value": -1},
+        ]
 
         for row in self.v:
             write_table("<append=true>" + self.table, row)
@@ -78,16 +80,15 @@ class TestSchedulerEraseCommands(YTEnvSetup):
     @authors("panin", "ignat")
     def test_by_key_from_non_sorted(self):
         create("table", "//tmp/table")
-        write_table("//tmp/table", {"v" : 42})
+        write_table("//tmp/table", {"v": 42})
 
         with pytest.raises(YtError):
             erase("//tmp/table[:42]")
 
-
     @authors("ignat")
     def test_by_column(self):
         create("table", "//tmp/table")
-        write_table("//tmp/table", {"v" : 42})
+        write_table("//tmp/table", {"v": 42})
 
         with pytest.raises(YtError):
             erase("//tmp/table{v}")
@@ -98,18 +99,19 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         with pytest.raises(YtError):
             erase("//tmp/table{}")
 
-
     def _prepare_medium_chunks(self):
         self.table = "//tmp/table"
         create("table", self.table)
-        self.v = [{"key" : 1},
-                  {"key" : 0},
-                  {"key" : 5},
-                  {"key" : 8},
-                  {"key" : 10},
-                  {"key" : -3},
-                  {"key" : -1},
-                  {"key" : 7}]
+        self.v = [
+            {"key": 1},
+            {"key": 0},
+            {"key": 5},
+            {"key": 8},
+            {"key": 10},
+            {"key": -3},
+            {"key": -1},
+            {"key": 7},
+        ]
 
         write_table("<append=true>" + self.table, self.v[0:2])
         write_table("<append=true>" + self.table, self.v[2:4])
@@ -123,26 +125,27 @@ class TestSchedulerEraseCommands(YTEnvSetup):
         self._prepare_medium_chunks()
         erase(self.table + "[#1:#4]")
         assert read_table(self.table) == [self.v[0]] + self.v[4:]
-        assert get(self.table + "/@chunk_count") == 3 # side chunks are not united
+        assert get(self.table + "/@chunk_count") == 3  # side chunks are not united
 
     @authors("panin", "ignat")
     def test_two_side_chunks(self):
         self._prepare_medium_chunks()
         erase(self.table + "[#1:#3]")
         assert read_table(self.table) == [self.v[0]] + self.v[3:]
-        assert get(self.table + "/@chunk_count") == 3 # side chunks are united
-
+        assert get(self.table + "/@chunk_count") == 3  # side chunks are united
 
     @authors("ignat")
     def test_by_key(self):
-        v1 = [{"key": -100, "value": 20},
-             {"key": -5, "value": 1},
-             {"key": 0, "value": 76},
-             {"key": 10, "value": 10},
-             {"key": 42, "value": 124}]
+        v1 = [
+            {"key": -100, "value": 20},
+            {"key": -5, "value": 1},
+            {"key": 0, "value": 76},
+            {"key": 10, "value": 10},
+            {"key": 42, "value": 124},
+        ]
 
         v2 = [{"key": 100500, "value": -20}]
-        v = v1 + v2 
+        v = v1 + v2
 
         create("table", "//tmp/table")
         write_table("//tmp/table", v1, sorted_by="key")
@@ -150,23 +153,30 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
         erase("//tmp/table[0:42]")
         assert read_table("//tmp/table") == v[0:2] + v[4:6]
-        assert get("//tmp/table/@sorted") # check that table is still sorted
+        assert get("//tmp/table/@sorted")  # check that table is still sorted
 
         erase("//tmp/table[1000:]")
         assert read_table("//tmp/table") == v[0:2] + v[4:5]
-        assert get("//tmp/table/@sorted") # check that table is still sorted
+        assert get("//tmp/table/@sorted")  # check that table is still sorted
 
         erase("//tmp/table[:0]")
         assert read_table("//tmp/table") == v[4:5]
-        assert get("//tmp/table/@sorted") # check that table is still sorted
+        assert get("//tmp/table/@sorted")  # check that table is still sorted
 
     @authors("babenko")
     def test_schema_validation(self):
-        create("table", "//tmp/table", attributes={
-            "schema": make_schema([
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string"}])
-            })
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "value", "type": "string"},
+                    ]
+                )
+            },
+        )
 
         write_table("//tmp/table", [{"key": i, "value": "foo"} for i in xrange(10)])
 
@@ -174,20 +184,29 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
         assert get("//tmp/table/@schema/@strict")
         assert get("//tmp/table/@schema_mode") == "strong"
-        assert read_table("//tmp/table") == [{"key": i, "value": "foo"} for i in xrange(5)]
+        assert read_table("//tmp/table") == [
+            {"key": i, "value": "foo"} for i in xrange(5)
+        ]
 
     @authors("gritukan")
     def test_legacy_controller_flag(self):
         self._prepare_table()
         op = erase(self.table)
-        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
+        assert (
+            get(op.get_path() + "/@progress/legacy_controller")
+            == self.USE_LEGACY_CONTROLLERS
+        )
+
 
 ##################################################################
+
 
 class TestSchedulerEraseCommandsLegacy(TestSchedulerEraseCommands):
     USE_LEGACY_CONTROLLERS = 2
 
+
 ##################################################################
+
 
 class TestSchedulerEraseCommandsMulticell(TestSchedulerEraseCommands):
     NUM_SECONDARY_MASTER_CELLS = 2

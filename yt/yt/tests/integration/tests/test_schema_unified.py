@@ -11,18 +11,15 @@ UNIFIED_TYPES_YSON = [
        type_name=int16;
     }
     """,
-
     """
     utf8
     """,
-
     """
     {
         type_name=optional;
         item=string;
     }
     """,
-
     """
     {
        type_name=list;
@@ -32,7 +29,6 @@ UNIFIED_TYPES_YSON = [
        }
     }
     """,
-
     """
     {
        type_name=optional;
@@ -42,7 +38,6 @@ UNIFIED_TYPES_YSON = [
        }
     }
     """,
-
     """
     {
       type_name=struct;
@@ -66,7 +61,6 @@ UNIFIED_TYPES_YSON = [
       ]
     }
     """,
-
     """
     {
       type_name=tuple;
@@ -80,7 +74,6 @@ UNIFIED_TYPES_YSON = [
       ]
     }
     """,
-
     """
     {
       type_name=variant;
@@ -96,7 +89,6 @@ UNIFIED_TYPES_YSON = [
       ]
     }
     """,
-
     """
     {
       type_name=variant;
@@ -110,7 +102,6 @@ UNIFIED_TYPES_YSON = [
       ]
     }
     """,
-
     """
     {
       type_name=dict;
@@ -121,7 +112,6 @@ UNIFIED_TYPES_YSON = [
       }
     }
     """,
-
     """
     {
       type_name=tagged;
@@ -133,6 +123,7 @@ UNIFIED_TYPES_YSON = [
 
 UNIFIED_TYPES_YSON = [s.strip() for s in UNIFIED_TYPES_YSON]
 
+
 @authors("ermolovd")
 class TestTypeV3Type(YTEnvSetup):
     @pytest.mark.parametrize("type_yson", UNIFIED_TYPES_YSON)
@@ -140,9 +131,18 @@ class TestTypeV3Type(YTEnvSetup):
         type = yson.loads(type_yson)
 
         # check we can create without exception
-        create("table", "//tmp/table", force=True, attributes={
-            "schema": make_schema([{
-                "name": "column",
-                "type_v3": type,
-            }])
-        })
+        create(
+            "table",
+            "//tmp/table",
+            force=True,
+            attributes={
+                "schema": make_schema(
+                    [
+                        {
+                            "name": "column",
+                            "type_v3": type,
+                        }
+                    ]
+                )
+            },
+        )

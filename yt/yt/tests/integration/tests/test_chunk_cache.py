@@ -6,20 +6,18 @@ import os.path
 
 #################################################################
 
+
 def trim(filepath):
     with open(filepath, "w"):
         pass
+
 
 class TestChunkCache(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "background_artifact_validation_delay": 0
-        }
-    }
+    DELTA_NODE_CONFIG = {"data_node": {"background_artifact_validation_delay": 0}}
 
     selected_node = None
     prev_obj = None
@@ -55,9 +53,17 @@ class TestChunkCache(YTEnvSetup):
 
     def restart(self):
         with Restarter(self.Env, NODES_SERVICE):
-            wait(lambda: self.get_online_nodes_count() == 0, "Scheduler doesn't know that nodes are dead", sleep_backoff=1)
+            wait(
+                lambda: self.get_online_nodes_count() == 0,
+                "Scheduler doesn't know that nodes are dead",
+                sleep_backoff=1,
+            )
 
-        wait(lambda: self.get_online_nodes_count() == self.NUM_NODES, "Scheduler doesn't know that nodes are alive", sleep_backoff=1)
+        wait(
+            lambda: self.get_online_nodes_count() == self.NUM_NODES,
+            "Scheduler doesn't know that nodes are alive",
+            sleep_backoff=1,
+        )
 
     def run_map(self):
         return map(
@@ -69,9 +75,9 @@ class TestChunkCache(YTEnvSetup):
                 "mapper": {
                     "input_format": "json",
                     "output_format": "json",
-                    "file_paths": ["//tmp/file.py"]
-                }
-            }
+                    "file_paths": ["//tmp/file.py"],
+                },
+            },
         )
 
     @authors("ogorod")
@@ -79,12 +85,15 @@ class TestChunkCache(YTEnvSetup):
         self.config_nodes()
 
         create("file", "//tmp/file.py")
-        write_file("//tmp/file.py", """
+        write_file(
+            "//tmp/file.py",
+            """
 import sys
 
 for line in sys.stdin:
     print(line)
-        """)
+        """,
+        )
 
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -98,4 +107,3 @@ for line in sys.stdin:
 
         self.run_map()
         assert read_table("//tmp/t2") == [{"foo": "bar"}]
-

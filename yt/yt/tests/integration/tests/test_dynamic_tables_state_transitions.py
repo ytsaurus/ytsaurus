@@ -7,11 +7,12 @@ from test_dynamic_tables import DynamicTablesBase
 
 ##################################################################
 
+
 class TestDynamicTableStateTransitions(DynamicTablesBase):
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
-            "leader_reassignment_timeout" : 2000,
-            "peer_revocation_timeout" : 600000,
+            "leader_reassignment_timeout": 2000,
+            "peer_revocation_timeout": 600000,
         }
     }
 
@@ -22,31 +23,94 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         U = "unmounted"
 
         expected = {
-            "mounted":
-                {
-                    "mount":        {"mount": M, "frozen_mount": E, "unmount": U, "freeze": F, "unfreeze": M},
-                    # frozen_mount
-                    "unmount":      {"mount": E, "frozen_mount": E, "unmount": U, "freeze": E, "unfreeze": E},
-                    "freeze":       {"mount": E, "frozen_mount": F, "unmount": U, "freeze": F, "unfreeze": E},
-                    "unfreeze":     {"mount": M, "frozen_mount": E, "unmount": U, "freeze": F, "unfreeze": M},
+            "mounted": {
+                "mount": {
+                    "mount": M,
+                    "frozen_mount": E,
+                    "unmount": U,
+                    "freeze": F,
+                    "unfreeze": M,
                 },
-            "frozen":
-                {
-                    # mount
-                    "frozen_mount": {"mount": E, "frozen_mount": F, "unmount": U, "freeze": F, "unfreeze": M},
-                    "unmount":      {"mount": E, "frozen_mount": E, "unmount": U, "freeze": E, "unfreeze": E},
-                    "freeze":       {"mount": E, "frozen_mount": F, "unmount": U, "freeze": F, "unfreeze": M},
-                    "unfreeze":     {"mount": M, "frozen_mount": E, "unmount": E, "freeze": E, "unfreeze": M},
+                # frozen_mount
+                "unmount": {
+                    "mount": E,
+                    "frozen_mount": E,
+                    "unmount": U,
+                    "freeze": E,
+                    "unfreeze": E,
                 },
-            "unmounted":
-                {
-                    "mount":        {"mount": M, "frozen_mount": E, "unmount": E, "freeze": E, "unfreeze": E},
-                    "frozen_mount": {"mount": E, "frozen_mount": F, "unmount": E, "freeze": F, "unfreeze": E},
-                    "unmount":      {"mount": M, "frozen_mount": F, "unmount": U, "freeze": E, "unfreeze": E},
-                    # freeze
-                    # unfreeze
-                }
-            }
+                "freeze": {
+                    "mount": E,
+                    "frozen_mount": F,
+                    "unmount": U,
+                    "freeze": F,
+                    "unfreeze": E,
+                },
+                "unfreeze": {
+                    "mount": M,
+                    "frozen_mount": E,
+                    "unmount": U,
+                    "freeze": F,
+                    "unfreeze": M,
+                },
+            },
+            "frozen": {
+                # mount
+                "frozen_mount": {
+                    "mount": E,
+                    "frozen_mount": F,
+                    "unmount": U,
+                    "freeze": F,
+                    "unfreeze": M,
+                },
+                "unmount": {
+                    "mount": E,
+                    "frozen_mount": E,
+                    "unmount": U,
+                    "freeze": E,
+                    "unfreeze": E,
+                },
+                "freeze": {
+                    "mount": E,
+                    "frozen_mount": F,
+                    "unmount": U,
+                    "freeze": F,
+                    "unfreeze": M,
+                },
+                "unfreeze": {
+                    "mount": M,
+                    "frozen_mount": E,
+                    "unmount": E,
+                    "freeze": E,
+                    "unfreeze": M,
+                },
+            },
+            "unmounted": {
+                "mount": {
+                    "mount": M,
+                    "frozen_mount": E,
+                    "unmount": E,
+                    "freeze": E,
+                    "unfreeze": E,
+                },
+                "frozen_mount": {
+                    "mount": E,
+                    "frozen_mount": F,
+                    "unmount": E,
+                    "freeze": F,
+                    "unfreeze": E,
+                },
+                "unmount": {
+                    "mount": M,
+                    "frozen_mount": F,
+                    "unmount": U,
+                    "freeze": E,
+                    "unfreeze": E,
+                },
+                # freeze
+                # unfreeze
+            },
+        }
         return expected[initial][first_command][second_command]
 
     def _create_cell(self):
@@ -55,18 +119,24 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
     def _get_callback(self, command):
         callbacks = {
             "mount": lambda x: mount_table(x, cell_id=self._cell_id),
-            "frozen_mount": lambda x: mount_table(x, cell_id=self._cell_id, freeze=True),
+            "frozen_mount": lambda x: mount_table(
+                x, cell_id=self._cell_id, freeze=True
+            ),
             "unmount": lambda x: unmount_table(x),
             "freeze": lambda x: freeze_table(x),
-            "unfreeze": lambda x: unfreeze_table(x)
+            "unfreeze": lambda x: unfreeze_table(x),
         }
         return callbacks[command]
 
-    @pytest.mark.parametrize(["initial", "command"], [
-        ["mounted", "frozen_mount"],
-        ["frozen", "mount"],
-        ["unmounted", "freeze"],
-        ["unmounted", "unfreeze"]])
+    @pytest.mark.parametrize(
+        ["initial", "command"],
+        [
+            ["mounted", "frozen_mount"],
+            ["frozen", "mount"],
+            ["unmounted", "freeze"],
+            ["unmounted", "unfreeze"],
+        ],
+    )
     @authors("savrus")
     def test_initial_incompatible(self, initial, command):
         self._create_cell()
@@ -89,14 +159,21 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
                     self._get_callback(second_command)("//tmp/t")
         else:
             self._get_callback(first_command)("//tmp/t")
-            wait(lambda: get("//tmp/t/@tablet_state") in ["mounted", "unmounted", "frozen"])
+            wait(
+                lambda: get("//tmp/t/@tablet_state")
+                in ["mounted", "unmounted", "frozen"]
+            )
             self._get_callback(second_command)("//tmp/t")
             wait(lambda: get("//tmp/t/@tablet_state") == expected)
         wait(lambda: get("//tmp/t/@tablet_state") != "transient")
 
     @authors("savrus", "levysotsky")
-    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
-    @pytest.mark.parametrize("first_command", ["mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize(
+        "second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"]
+    )
+    @pytest.mark.parametrize(
+        "first_command", ["mount", "unmount", "freeze", "unfreeze"]
+    )
     def test_state_transition_conflict_mounted(self, first_command, second_command):
         self._create_cell()
         self._create_sorted_table("//tmp/t")
@@ -104,8 +181,12 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         self._do_test_transition("mounted", first_command, second_command)
 
     @authors("savrus", "levysotsky")
-    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
-    @pytest.mark.parametrize("first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize(
+        "second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"]
+    )
+    @pytest.mark.parametrize(
+        "first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"]
+    )
     def test_state_transition_conflict_frozen(self, first_command, second_command):
         self._create_cell()
         self._create_sorted_table("//tmp/t")
@@ -113,7 +194,9 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         self._do_test_transition("frozen", first_command, second_command)
 
     @authors("savrus")
-    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
+    @pytest.mark.parametrize(
+        "second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"]
+    )
     @pytest.mark.parametrize("first_command", ["mount", "frozen_mount", "unmount"])
     def test_state_transition_conflict_unmounted(self, first_command, second_command):
         self._create_cell()
@@ -129,7 +212,9 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
 
         callbacks = [
             lambda: freeze_table("//tmp/t", first_tablet_index=0, last_tablet_index=0),
-            lambda: mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, freeze=True)
+            lambda: mount_table(
+                "//tmp/t", first_tablet_index=1, last_tablet_index=1, freeze=True
+            ),
         ]
 
         for callback in reversed(callbacks) if inverse else callbacks:
@@ -139,10 +224,13 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         wait(lambda: get("//tmp/t/@tablet_state") != "transient")
         assert get("//tmp/t/@expected_tablet_state") == "frozen"
 
+
 ##################################################################
+
 
 class TestDynamicTableStateTransitionsMulticell(TestDynamicTableStateTransitions):
     NUM_SECONDARY_MASTER_CELLS = 2
+
 
 class TestDynamicTableStateTransitionsPortal(TestDynamicTableStateTransitionsMulticell):
     ENABLE_TMP_PORTAL = True

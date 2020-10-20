@@ -8,6 +8,7 @@ import __builtin__
 
 ##################################################################
 
+
 class TestCypressLocks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
@@ -15,21 +16,26 @@ class TestCypressLocks(YTEnvSetup):
     @authors("panin", "ignat")
     def test_invalid_cases(self):
         # outside of transaction
-        with pytest.raises(YtError): lock("/")
+        with pytest.raises(YtError):
+            lock("/")
 
         # at non-existsing node
         tx = start_transaction()
-        with pytest.raises(YtError): lock("//tmp/non_existent", tx=tx)
+        with pytest.raises(YtError):
+            lock("//tmp/non_existent", tx=tx)
 
         # error while parsing mode
-        with pytest.raises(YtError): lock("/", mode="invalid", tx=tx)
+        with pytest.raises(YtError):
+            lock("/", mode="invalid", tx=tx)
 
         # taking None lock is forbidden
-        with pytest.raises(YtError): lock("/", mode="None", tx=tx)
+        with pytest.raises(YtError):
+            lock("/", mode="None", tx=tx)
 
         # attributes do not have @lock_mode
         set("//tmp/value", "<attr=some>42", is_raw=True, tx=tx)
-        with pytest.raises(YtError): lock("//tmp/value/@attr/@lock_mode", tx=tx)
+        with pytest.raises(YtError):
+            lock("//tmp/value/@attr/@lock_mode", tx=tx)
 
         abort_transaction(tx)
 
@@ -39,9 +45,9 @@ class TestCypressLocks(YTEnvSetup):
         set("//tmp/map", "{list=<attr=some>[1;2;3]}", is_raw=True, tx=tx)
 
         # check that lock is set on nested nodes
-        assert get("//tmp/map/@lock_mode", tx = tx) == "exclusive"
-        assert get("//tmp/map/list/@lock_mode", tx = tx) == "exclusive"
-        assert get("//tmp/map/list/0/@lock_mode", tx = tx) == "exclusive"
+        assert get("//tmp/map/@lock_mode", tx=tx) == "exclusive"
+        assert get("//tmp/map/list/@lock_mode", tx=tx) == "exclusive"
+        assert get("//tmp/map/list/0/@lock_mode", tx=tx) == "exclusive"
 
         abort_transaction(tx)
 
@@ -51,7 +57,9 @@ class TestCypressLocks(YTEnvSetup):
         create("map_node", "//tmp/node", driver=driver)
 
         tx = start_transaction(driver=driver)
-        rsp = lock("//tmp/node", mode="snapshot", tx=tx, full_response=True, driver=driver)
+        rsp = lock(
+            "//tmp/node", mode="snapshot", tx=tx, full_response=True, driver=driver
+        )
         assert rsp.keys() == ["lock_id", "node_id", "revision"]
         assert rsp["lock_id"] == get("//tmp/node/@locks/0/id")
 
@@ -72,23 +80,32 @@ class TestCypressLocks(YTEnvSetup):
         set("//tmp/node", 42)
 
         tx = start_transaction()
-        lock("//tmp/node", mode = "snapshot", tx = tx)
+        lock("//tmp/node", mode="snapshot", tx=tx)
 
         set("//tmp/node", 100)
         # check that node under snapshot lock wasn't changed
-        assert get("//tmp/node", tx = tx) == 42
+        assert get("//tmp/node", tx=tx) == 42
 
         # can't change value under snapshot lock
-        with pytest.raises(YtError): set("//tmp/node", 200, tx = tx)
+        with pytest.raises(YtError):
+            set("//tmp/node", 200, tx=tx)
 
         abort_transaction(tx)
 
     def _get_tx_lock_ids(self, tx):
-        return [lock_id for cell_tag, lock_ids in get("#{0}/@lock_ids".format(tx)).items() for lock_id in lock_ids]
+        return [
+            lock_id
+            for cell_tag, lock_ids in get("#{0}/@lock_ids".format(tx)).items()
+            for lock_id in lock_ids
+        ]
 
     def _get_tx_locked_node_ids(self, tx):
         cell_tag_to_locked_node_ids = get("#{0}/@locked_node_ids".format(tx))
-        return [lock_id for cell_tag, lock_ids in cell_tag_to_locked_node_ids.items() for lock_id in lock_ids]
+        return [
+            lock_id
+            for cell_tag, lock_ids in cell_tag_to_locked_node_ids.items()
+            for lock_id in lock_ids
+        ]
 
     def _assert_locked(self, path, tx, mode, child_key=None, attribute_key=None):
         self._assert_locked_impl(path, tx, True)
@@ -96,9 +113,11 @@ class TestCypressLocks(YTEnvSetup):
         locks = get(path + "/@locks", tx=tx)
         lock = None
         for l in locks:
-            if (l.get("transaction_id") == tx and
-                (child_key is None or l.get("child_key") == child_key) and
-                (attribute_key is None or l.get("attribute_key") == attribute_key)):
+            if (
+                l.get("transaction_id") == tx
+                and (child_key is None or l.get("child_key") == child_key)
+                and (attribute_key is None or l.get("attribute_key") == attribute_key)
+            ):
                 lock = l
                 break
 
@@ -141,7 +160,7 @@ class TestCypressLocks(YTEnvSetup):
         assert locks[0]["transaction_id"] == tx1
         assert locks[0]["mode"] == mode
 
-        commit_transaction(tx1) # mustn't crash
+        commit_transaction(tx1)  # mustn't crash
 
     @authors("shakurov")
     def test_pending_lock_promotion(self):
@@ -153,7 +172,9 @@ class TestCypressLocks(YTEnvSetup):
         other_tx = start_transaction()
 
         acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=other_tx)["lock_id"]
-        pending_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx2, waitable=True)["lock_id"]
+        pending_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx2, waitable=True)[
+            "lock_id"
+        ]
         assert get("#" + acquired_lock_id + "/@state") == "acquired"
         assert get("#" + pending_lock_id + "/@state") == "pending"
 
@@ -162,7 +183,14 @@ class TestCypressLocks(YTEnvSetup):
         self._assert_locked("//tmp/m1", other_tx, "exclusive")
         locks = get("//tmp/m1/@locks")
         assert len(locks) == 2
-        locks = {l["id"]: {"state": l["state"], "transaction_id": l["transaction_id"], "mode": l["mode"]} for l in locks}
+        locks = {
+            l["id"]: {
+                "state": l["state"],
+                "transaction_id": l["transaction_id"],
+                "mode": l["mode"],
+            }
+            for l in locks
+        }
         assert locks[acquired_lock_id]["state"] == "acquired"
         assert locks[acquired_lock_id]["transaction_id"] == other_tx
         assert locks[acquired_lock_id]["mode"] == "exclusive"
@@ -178,10 +206,12 @@ class TestCypressLocks(YTEnvSetup):
         assert locks[0]["transaction_id"] == tx1
         assert locks[0]["mode"] == "exclusive"
 
-        commit_transaction(tx1) # mustn't crash
+        commit_transaction(tx1)  # mustn't crash
 
     @authors("shakurov")
-    @pytest.mark.parametrize("mode", ["snapshot", "exclusive", "shared_child", "shared_attribute"])
+    @pytest.mark.parametrize(
+        "mode", ["snapshot", "exclusive", "shared_child", "shared_attribute"]
+    )
     def test_unlock_explicit(self, mode):
         create("map_node", "//tmp/m1")
 
@@ -203,7 +233,8 @@ class TestCypressLocks(YTEnvSetup):
 
         tx2 = start_transaction()
         if mode != "snapshot":
-            with pytest.raises(YtError): lock("//tmp/m1", mode=mode, tx=tx2, **kwargs1)
+            with pytest.raises(YtError):
+                lock("//tmp/m1", mode=mode, tx=tx2, **kwargs1)
         if mode == "shared":
             lock("//tmp/m1", mode=mode, tx=tx2, **kwargs2)
 
@@ -219,7 +250,7 @@ class TestCypressLocks(YTEnvSetup):
         lock_id = lock("//tmp/m1", mode=mode, tx=tx2, **kwargs1)["lock_id"]
         self._assert_locked("//tmp/m1", tx2, mode, **kwargs1)
 
-        commit_transaction(tx) # mustn't crash
+        commit_transaction(tx)  # mustn't crash
 
     @authors("shakurov")
     def test_unlock_implicit_noop(self):
@@ -240,7 +271,7 @@ class TestCypressLocks(YTEnvSetup):
         self._assert_locked("//tmp/m1", tx, "shared", attribute_key="a1")
         self._assert_locked("//tmp/m1/c1", tx, "exclusive")
 
-        commit_transaction(tx) # mustn't crash
+        commit_transaction(tx)  # mustn't crash
 
     @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared"])
@@ -254,7 +285,8 @@ class TestCypressLocks(YTEnvSetup):
 
         set("//tmp/m1/c1", "child_value", tx=tx)
 
-        with pytest.raises(YtError): unlock("//tmp/m1", tx=tx) # modified and can't be unlocked
+        with pytest.raises(YtError):
+            unlock("//tmp/m1", tx=tx)  # modified and can't be unlocked
 
     @authors("shakurov")
     def test_unlock_not_locked(self):
@@ -262,7 +294,7 @@ class TestCypressLocks(YTEnvSetup):
 
         tx = start_transaction()
         self._assert_not_locked("//tmp/m1", tx)
-        unlock("//tmp/m1", tx=tx) # should be a quiet noop
+        unlock("//tmp/m1", tx=tx)  # should be a quiet noop
 
     @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared"])
@@ -279,7 +311,7 @@ class TestCypressLocks(YTEnvSetup):
         unlock("//tmp/m1", tx=tx1)
         self._assert_not_locked("//tmp/m1", tx1)
 
-        commit_transaction(tx1) # mustn't crash
+        commit_transaction(tx1)  # mustn't crash
 
     @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared", "snapshot"])
@@ -292,7 +324,7 @@ class TestCypressLocks(YTEnvSetup):
         self._assert_not_locked("//tmp/m1", tx)
         lock("//tmp/m1", mode=mode, tx=tx)
         self._assert_locked("//tmp/m1", tx, mode)
-        commit_transaction(tx) # mustn't crash
+        commit_transaction(tx)  # mustn't crash
 
     @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared", "snapshot"])
@@ -309,7 +341,7 @@ class TestCypressLocks(YTEnvSetup):
         lock("//tmp/m1", mode=mode, tx=tx1)
         self._assert_locked("//tmp/m1", tx1, mode)
 
-        commit_transaction(tx1) # mustn't crash
+        commit_transaction(tx1)  # mustn't crash
 
     @authors("shakurov")
     @pytest.mark.parametrize("mode", ["exclusive", "shared", "snapshot"])
@@ -326,14 +358,14 @@ class TestCypressLocks(YTEnvSetup):
         lock("//tmp/m1", mode=mode, tx=tx2)
         self._assert_locked("//tmp/m1", tx2, mode)
 
-        commit_transaction(tx2) # mustn't crash
+        commit_transaction(tx2)  # mustn't crash
         commit_transaction(tx1)
 
     @authors("shakurov")
     def test_unlock_pending(self):
         create("map_node", "//tmp/m1")
         tx1 = start_transaction()
-        tx2 = start_transaction() # not nested
+        tx2 = start_transaction()  # not nested
 
         acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx1)["lock_id"]
         self._assert_locked("//tmp/m1", tx1, "exclusive")
@@ -346,14 +378,14 @@ class TestCypressLocks(YTEnvSetup):
         gc_collect()
         assert not exists("#" + pending_lock_id)
 
-        commit_transaction(tx2) # mustn't crash
+        commit_transaction(tx2)  # mustn't crash
         commit_transaction(tx1)
 
     @authors("shakurov")
     def test_unlock_promotes_pending(self):
         create("map_node", "//tmp/m1")
         tx1 = start_transaction()
-        tx2 = start_transaction() # not nested
+        tx2 = start_transaction()  # not nested
 
         acquired_lock_id = lock("//tmp/m1", mode="exclusive", tx=tx1)["lock_id"]
         self._assert_locked("//tmp/m1", tx1, "exclusive")
@@ -368,14 +400,14 @@ class TestCypressLocks(YTEnvSetup):
 
         assert get("#" + pending_lock_id + "/@state") == "acquired"
 
-        commit_transaction(tx2) # mustn't crash
+        commit_transaction(tx2)  # mustn't crash
         commit_transaction(tx1)
 
     @authors("shakurov")
     def test_unlock_unreachable_node(self):
         create("map_node", "//tmp/m1")
         create("map_node", "//tmp/m1/m2")
-        node_id =  create("map_node", "//tmp/m1/m2/m3")
+        node_id = create("map_node", "//tmp/m1/m2/m3")
 
         tx = start_transaction()
         acquired_lock_id = lock("//tmp/m1/m2/m3", mode="snapshot", tx=tx)["lock_id"]
@@ -428,7 +460,7 @@ class TestCypressLocks(YTEnvSetup):
         self._assert_not_locked("//tmp/m1", tx4)
         self._assert_locked("//tmp/m1", tx6, mode, **kwargs6)
 
-        unlock("//tmp/m1", tx=tx5) # not lock and does nothing
+        unlock("//tmp/m1", tx=tx5)  # not lock and does nothing
         self._assert_locked("//tmp/m1", tx2, mode, **kwargs2)
         self._assert_not_locked("//tmp/m1", tx4)
         self._assert_locked("//tmp/m1", tx6, mode, **kwargs6)
@@ -439,7 +471,8 @@ class TestCypressLocks(YTEnvSetup):
         self._assert_not_locked("//tmp/m1", tx6)
 
         if mode != "snapshot":
-            with pytest.raises(YtError): lock("//tmp/m1", tx=tx1, mode="exclusive")
+            with pytest.raises(YtError):
+                lock("//tmp/m1", tx=tx1, mode="exclusive")
 
         unlock("//tmp/m1", tx=tx2)
         self._assert_not_locked("//tmp/m1", tx2)
@@ -450,23 +483,34 @@ class TestCypressLocks(YTEnvSetup):
         self._assert_locked("//tmp/m1", tx1, "exclusive")
 
         for tx in [tx6, tx5, tx4, tx3, tx2, tx1]:
-            commit_transaction(tx) # mustn't throw
+            commit_transaction(tx)  # mustn't throw
 
     @authors("shakurov")
-    @pytest.mark.parametrize("transactions_to_skip", [{1, 3, 5}, {1, 3}, {1, 5}, {3, 5}, {1}, {3}, {5}, __builtin__.set()])
-    @pytest.mark.parametrize("modes", [["exclusive", "shared", "snapshot"], ["shared", "exclusive", "shared"], ["exclusive", "shared", "shared"], ["shared", "shared", "exclusive"]])
+    @pytest.mark.parametrize(
+        "transactions_to_skip",
+        [{1, 3, 5}, {1, 3}, {1, 5}, {3, 5}, {1}, {3}, {5}, __builtin__.set()],
+    )
+    @pytest.mark.parametrize(
+        "modes",
+        [
+            ["exclusive", "shared", "snapshot"],
+            ["shared", "exclusive", "shared"],
+            ["exclusive", "shared", "shared"],
+            ["shared", "shared", "exclusive"],
+        ],
+    )
     def test_unlock_deeply_nested_node2(self, modes, transactions_to_skip):
         create("map_node", "//tmp/m1")
 
         prev_tx = None
         transactions = [None] * 6
         for i in xrange(0, 6):
-            if i+1 in transactions_to_skip:
+            if i + 1 in transactions_to_skip:
                 transactions[i] = None
             else:
                 if prev_tx is None:
                     prev_tx = start_transaction(timeout=60000)
-                else :
+                else:
                     prev_tx = start_transaction(tx=prev_tx, timeout=60000)
                 transactions[i] = prev_tx
 
@@ -503,7 +547,7 @@ class TestCypressLocks(YTEnvSetup):
         self._assert_locked("//tmp/m1", tx6, mode6, **kwargs6)
 
         if tx5 is not None:
-            unlock("//tmp/m1", tx=tx5) # not lock and does nothing
+            unlock("//tmp/m1", tx=tx5)  # not lock and does nothing
             self._assert_locked("//tmp/m1", tx2, mode2, **kwargs2)
             self._assert_not_locked("//tmp/m1", tx4)
             self._assert_locked("//tmp/m1", tx6, mode6, **kwargs6)
@@ -515,9 +559,11 @@ class TestCypressLocks(YTEnvSetup):
 
         if tx1 is not None:
             if mode2 == "snapshot":
-                with pytest.raises(YtError): lock("//tmp/m1", tx=tx1, mode="shared", child_key="c1")
+                with pytest.raises(YtError):
+                    lock("//tmp/m1", tx=tx1, mode="shared", child_key="c1")
             else:
-                with pytest.raises(YtError): lock("//tmp/m1", tx=tx1, mode="exclusive")
+                with pytest.raises(YtError):
+                    lock("//tmp/m1", tx=tx1, mode="exclusive")
 
         unlock("//tmp/m1", tx=tx2)
         self._assert_not_locked("//tmp/m1", tx2)
@@ -530,7 +576,7 @@ class TestCypressLocks(YTEnvSetup):
 
         for tx in reversed(transactions):
             if tx is not None:
-                commit_transaction(tx) # mustn't throw
+                commit_transaction(tx)  # mustn't throw
 
     @authors("shakurov")
     def test_unlock_without_transaction(self):
@@ -538,7 +584,8 @@ class TestCypressLocks(YTEnvSetup):
         tx = start_transaction()
         lock("//tmp/m1", tx=tx, mode="exclusive")
         assert get("//tmp/m1/@lock_mode", tx=tx) == "exclusive"
-        with pytest.raises(YtError): unlock("//tmp/m1")
+        with pytest.raises(YtError):
+            unlock("//tmp/m1")
 
     @authors("shakurov")
     def test_snapshot_lock_patch_up(self):
@@ -590,33 +637,35 @@ class TestCypressLocks(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_remove_map_subtree_lock(self):
-        set("//tmp/a", {"b" : 1})
+        set("//tmp/a", {"b": 1})
         tx = start_transaction()
-        lock("//tmp/a/b", mode = "exclusive", tx = tx);
-        with pytest.raises(YtError): remove("//tmp/a")
+        lock("//tmp/a/b", mode="exclusive", tx=tx)
+        with pytest.raises(YtError):
+            remove("//tmp/a")
 
     @authors("babenko", "ignat")
     def test_remove_list_subtree_lock(self):
         set("//tmp/a", [1])
         tx = start_transaction()
-        lock("//tmp/a/0", mode = "exclusive", tx = tx);
-        with pytest.raises(YtError): remove("//tmp/a")
+        lock("//tmp/a/0", mode="exclusive", tx=tx)
+        with pytest.raises(YtError):
+            remove("//tmp/a")
 
     @authors("babenko", "ignat")
     def test_exclusive_vs_snapshot_locks1(self):
         create("table", "//tmp/t")
         tx1 = start_transaction()
         tx2 = start_transaction()
-        lock("//tmp/t", mode = "snapshot", tx = tx1)
-        lock("//tmp/t", mode = "exclusive", tx = tx2)
+        lock("//tmp/t", mode="snapshot", tx=tx1)
+        lock("//tmp/t", mode="exclusive", tx=tx2)
 
     @authors("babenko", "ignat")
     def test_exclusive_vs_snapshot_locks2(self):
         create("table", "//tmp/t")
         tx1 = start_transaction()
         tx2 = start_transaction()
-        lock("//tmp/t", mode = "exclusive", tx = tx2)
-        lock("//tmp/t", mode = "snapshot", tx = tx1)
+        lock("//tmp/t", mode="exclusive", tx=tx2)
+        lock("//tmp/t", mode="snapshot", tx=tx1)
 
     @authors("babenko", "ignat")
     def test_node_locks(self):
@@ -629,7 +678,7 @@ class TestCypressLocks(YTEnvSetup):
         assert locks[0]["state"] == "acquired"
         assert locks[0]["transaction_id"] == tx
         assert locks[0]["mode"] == "exclusive"
-        assert get("#" + lock_id +"/@state") == "acquired"
+        assert get("#" + lock_id + "/@state") == "acquired"
 
         abort_transaction(tx)
         assert get("//tmp/a/@locks") == []
@@ -639,15 +688,15 @@ class TestCypressLocks(YTEnvSetup):
         set("//tmp/a", 1)
 
         tx1 = start_transaction()
-        tx2 = start_transaction(tx = tx1)
-        lock_id = lock("//tmp/a", tx = tx2)["lock_id"]
+        tx2 = start_transaction(tx=tx1)
+        lock_id = lock("//tmp/a", tx=tx2)["lock_id"]
 
         locks = get("//tmp/a/@locks")
         assert len(locks) == 1
         assert locks[0]["state"] == "acquired"
         assert locks[0]["transaction_id"] == tx2
         assert locks[0]["mode"] == "exclusive"
-        assert get("#" + lock_id +"/@state") == "acquired"
+        assert get("#" + lock_id + "/@state") == "acquired"
 
         commit_transaction(tx2)
 
@@ -656,26 +705,26 @@ class TestCypressLocks(YTEnvSetup):
         assert locks[0]["state"] == "acquired"
         assert locks[0]["transaction_id"] == tx1
         assert locks[0]["mode"] == "exclusive"
-        assert get("#" + lock_id +"/@state") == "acquired"
+        assert get("#" + lock_id + "/@state") == "acquired"
 
         commit_transaction(tx1)
 
-        assert get('//tmp/a/@locks') == []
+        assert get("//tmp/a/@locks") == []
 
     @authors("babenko", "ignat")
     def test_no_lock_propagation_on_abort(self):
         set("//tmp/a", 1)
 
         tx1 = start_transaction()
-        tx2 = start_transaction(tx = tx1)
-        lock_id = lock("//tmp/a", tx = tx2)["lock_id"]
+        tx2 = start_transaction(tx=tx1)
+        lock_id = lock("//tmp/a", tx=tx2)["lock_id"]
 
         locks = get("//tmp/a/@locks")
         assert len(locks) == 1
         assert locks[0]["state"] == "acquired"
         assert locks[0]["transaction_id"] == tx2
         assert locks[0]["mode"] == "exclusive"
-        assert get("#" + lock_id +"/@state") == "acquired"
+        assert get("#" + lock_id + "/@state") == "acquired"
 
         abort_transaction(tx2)
 
@@ -713,7 +762,7 @@ class TestCypressLocks(YTEnvSetup):
         create("table", "//tmp/t")
         tx = start_transaction()
         for i in xrange(5):
-            write_table("//tmp/t", {"foo": "bar"}, tx = tx)
+            write_table("//tmp/t", {"foo": "bar"}, tx=tx)
             assert len(get("//tmp/t/@locks")) == 1
 
     @authors("babenko", "ignat")
@@ -803,7 +852,8 @@ class TestCypressLocks(YTEnvSetup):
         assert get("#" + lock_id4 + "/@state") == "pending"
 
         commit_transaction(tx1)
-        with pytest.raises(YtError): get("#" + lock_id1 + "/@state")
+        with pytest.raises(YtError):
+            get("#" + lock_id1 + "/@state")
         assert get("#" + lock_id2 + "/@state") == "acquired"
         assert get("#" + lock_id3 + "/@state") == "acquired"
         assert get("#" + lock_id4 + "/@state") == "pending"
@@ -848,7 +898,7 @@ class TestCypressLocks(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_waitable_lock7(self):
-        set("//tmp/a", {"b" : 1 })
+        set("//tmp/a", {"b": 1})
 
         tx1 = start_transaction()
         lock_id1 = lock("//tmp/a/b", tx=tx1)["lock_id"]
@@ -875,13 +925,13 @@ class TestCypressLocks(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_waitable_lock8(self):
         tx1 = start_transaction()
-        tx2 = start_transaction(tx = tx1)
+        tx2 = start_transaction(tx=tx1)
         tx3 = start_transaction()
 
         create("table", "//tmp/t")
-        write_table("//tmp/t", {"foo": "bar"}, tx = tx2)
+        write_table("//tmp/t", {"foo": "bar"}, tx=tx2)
 
-        lock_id = lock("//tmp/t", tx = tx3, mode = "exclusive", waitable = True)["lock_id"]
+        lock_id = lock("//tmp/t", tx=tx3, mode="exclusive", waitable=True)["lock_id"]
 
         assert get("//sys/locks/" + lock_id + "/@state") == "pending"
         assert len(get("//tmp/t/@locks")) == 2
@@ -904,13 +954,13 @@ class TestCypressLocks(YTEnvSetup):
 
         create("table", "//tmp/t")
 
-        lock_id1 = lock("//tmp/t", tx = tx1, mode = "exclusive")["lock_id"]
+        lock_id1 = lock("//tmp/t", tx=tx1, mode="exclusive")["lock_id"]
         assert get("//sys/locks/" + lock_id1 + "/@state") == "acquired"
 
-        lock_id2 = lock("//tmp/t", tx = tx2, mode = "exclusive", waitable = True)["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="exclusive", waitable=True)["lock_id"]
         assert get("//sys/locks/" + lock_id2 + "/@state") == "pending"
 
-        lock_id3 = lock("//tmp/t", tx = tx3, mode = "snapshot")["lock_id"]
+        lock_id3 = lock("//tmp/t", tx=tx3, mode="snapshot")["lock_id"]
         assert get("//sys/locks/" + lock_id3 + "/@state") == "acquired"
 
     @authors("babenko")
@@ -930,8 +980,12 @@ class TestCypressLocks(YTEnvSetup):
         tx2 = start_transaction()
         tx3 = start_transaction()
         lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")["lock_id"]
-        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="a", waitable=True)["lock_id"]
-        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="b", waitable=True)["lock_id"]
+        lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="a", waitable=True)[
+            "lock_id"
+        ]
+        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="b", waitable=True)[
+            "lock_id"
+        ]
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
         assert get("#" + lock_id3 + "/@state") == "acquired"
@@ -945,8 +999,12 @@ class TestCypressLocks(YTEnvSetup):
         tx4 = start_transaction()
         lock_id1 = lock("//tmp/t", tx=tx1, mode="shared", child_key="a")["lock_id"]
         lock_id2 = lock("//tmp/t", tx=tx2, mode="shared", child_key="b")["lock_id"]
-        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="a", waitable=True)["lock_id"]
-        lock_id4 = lock("//tmp/t", tx=tx4, mode="shared", child_key="b", waitable=True)["lock_id"]
+        lock_id3 = lock("//tmp/t", tx=tx3, mode="shared", child_key="a", waitable=True)[
+            "lock_id"
+        ]
+        lock_id4 = lock("//tmp/t", tx=tx4, mode="shared", child_key="b", waitable=True)[
+            "lock_id"
+        ]
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "acquired"
         assert get("#" + lock_id3 + "/@state") == "pending"
@@ -970,7 +1028,7 @@ class TestCypressLocks(YTEnvSetup):
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("#" + lock_id2 + "/@state") == "pending"
 
-        write_table("//tmp/t", {"foo": "bar1"}, tx = tx1)
+        write_table("//tmp/t", {"foo": "bar1"}, tx=tx1)
         commit_transaction(tx1)
 
         assert get("#" + lock_id2 + "/@state") == "acquired"
@@ -978,7 +1036,7 @@ class TestCypressLocks(YTEnvSetup):
         lock_id3 = lock("//tmp/t", tx=tx3, waitable=True)["lock_id"]
         assert get("#" + lock_id3 + "/@state") == "pending"
 
-        write_table("<append=true>//tmp/t", {"foo": "bar2"}, tx = tx2)
+        write_table("<append=true>//tmp/t", {"foo": "bar2"}, tx=tx2)
         commit_transaction(tx2)
 
         assert read_table("//tmp/t") == [{"foo": "bar1"}, {"foo": "bar2"}]
@@ -1036,22 +1094,23 @@ class TestCypressLocks(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_remove_locks(self):
-        set("//tmp/a", {"b" : 1})
+        set("//tmp/a", {"b": 1})
 
         tx1 = start_transaction()
         tx2 = start_transaction()
 
-        set("//tmp/a/b", 2, tx = tx1)
-        with pytest.raises(YtError): remove("//tmp/a", tx = tx2)
+        set("//tmp/a/b", 2, tx=tx1)
+        with pytest.raises(YtError):
+            remove("//tmp/a", tx=tx2)
 
     @authors("babenko", "ignat")
     def test_map_locks1(self):
         tx = start_transaction()
-        set("//tmp/a", 1, tx = tx)
+        set("//tmp/a", 1, tx=tx)
         assert get("//tmp/@lock_mode") == "none"
-        assert get("//tmp/@lock_mode", tx = tx) == "shared"
+        assert get("//tmp/@lock_mode", tx=tx) == "shared"
 
-        locks = get("//tmp/@locks", tx = tx)
+        locks = get("//tmp/@locks", tx=tx)
         assert len(locks) == 1
 
         lock = locks[0]
@@ -1059,45 +1118,46 @@ class TestCypressLocks(YTEnvSetup):
         assert lock["child_key"] == "a"
 
         commit_transaction(tx)
-        assert get("//tmp") == {"a" : 1}
+        assert get("//tmp") == {"a": 1}
 
     @authors("babenko", "ignat")
     def test_map_locks2(self):
         tx1 = start_transaction()
-        set("//tmp/a", 1, tx = tx1)
+        set("//tmp/a", 1, tx=tx1)
 
         tx2 = start_transaction()
-        set("//tmp/b", 2, tx = tx2)
+        set("//tmp/b", 2, tx=tx2)
 
-        assert get("//tmp", tx = tx1) == {"a" : 1}
-        assert get("//tmp", tx = tx2) == {"b" : 2}
+        assert get("//tmp", tx=tx1) == {"a": 1}
+        assert get("//tmp", tx=tx2) == {"b": 2}
         assert get("//tmp") == {}
 
         commit_transaction(tx1)
-        assert get("//tmp") == {"a" : 1}
-        assert get("//tmp", tx = tx2) == {"a" : 1, "b" : 2}
+        assert get("//tmp") == {"a": 1}
+        assert get("//tmp", tx=tx2) == {"a": 1, "b": 2}
 
         commit_transaction(tx2)
-        assert get("//tmp") == {"a" : 1, "b" : 2}
+        assert get("//tmp") == {"a": 1, "b": 2}
 
     @authors("babenko")
     def test_map_locks3(self):
         tx1 = start_transaction()
-        set("//tmp/a", 1, tx = tx1)
+        set("//tmp/a", 1, tx=tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YtError): set("//tmp/a", 2, tx = tx2)
+        with pytest.raises(YtError):
+            set("//tmp/a", 2, tx=tx2)
 
     @authors("babenko", "ignat")
     def test_map_locks4(self):
         set("//tmp/a", 1)
 
         tx = start_transaction()
-        remove("//tmp/a", tx = tx)
+        remove("//tmp/a", tx=tx)
 
-        assert get("//tmp/@lock_mode", tx = tx) == "shared"
+        assert get("//tmp/@lock_mode", tx=tx) == "shared"
 
-        locks = get("//tmp/@locks", tx = tx)
+        locks = get("//tmp/@locks", tx=tx)
         assert len(locks) == 1
 
         lock = locks[0]
@@ -1109,21 +1169,23 @@ class TestCypressLocks(YTEnvSetup):
         set("//tmp/a", 1)
 
         tx1 = start_transaction()
-        remove("//tmp/a", tx = tx1)
+        remove("//tmp/a", tx=tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YtError): set("//tmp/a", 2, tx = tx2)
+        with pytest.raises(YtError):
+            set("//tmp/a", 2, tx=tx2)
 
     @authors("babenko", "ignat")
     def test_map_locks6(self):
         tx = start_transaction()
-        set("//tmp/a", 1, tx = tx)
-        assert get("//tmp/a", tx = tx) == 1
+        set("//tmp/a", 1, tx=tx)
+        assert get("//tmp/a", tx=tx) == 1
         assert get("//tmp") == {}
 
-        with pytest.raises(YtError): remove("//tmp/a")
-        remove("//tmp/a", tx = tx)
-        assert get("//tmp", tx = tx) == {}
+        with pytest.raises(YtError):
+            remove("//tmp/a")
+        remove("//tmp/a", tx=tx)
+        assert get("//tmp", tx=tx) == {}
 
         commit_transaction(tx)
         assert get("//tmp") == {}
@@ -1133,9 +1195,9 @@ class TestCypressLocks(YTEnvSetup):
         set("//tmp/a", 1)
 
         tx = start_transaction()
-        remove("//tmp/a", tx = tx)
-        set("//tmp/a", 2, tx = tx)
-        remove("//tmp/a", tx = tx)
+        remove("//tmp/a", tx=tx)
+        set("//tmp/a", 2, tx=tx)
+        remove("//tmp/a", tx=tx)
         commit_transaction(tx)
 
         assert get("//tmp") == {}
@@ -1178,15 +1240,14 @@ class TestCypressLocks(YTEnvSetup):
         assert exists("//tmp/a/l")
         assert not exists("//tmp/a/l", tx=tx)
 
-
     @authors("babenko", "ignat")
     def test_attr_locks1(self):
         tx = start_transaction()
-        set("//tmp/@a", 1, tx = tx)
+        set("//tmp/@a", 1, tx=tx)
         assert get("//tmp/@lock_mode") == "none"
-        assert get("//tmp/@lock_mode", tx = tx) == "shared"
+        assert get("//tmp/@lock_mode", tx=tx) == "shared"
 
-        locks = get("//tmp/@locks", tx = tx)
+        locks = get("//tmp/@locks", tx=tx)
         assert len(locks) == 1
 
         lock = locks[0]
@@ -1199,20 +1260,22 @@ class TestCypressLocks(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_attr_locks2(self):
         tx1 = start_transaction()
-        set("//tmp/@a", 1, tx = tx1)
+        set("//tmp/@a", 1, tx=tx1)
 
         tx2 = start_transaction()
-        set("//tmp/@b", 2, tx = tx2)
+        set("//tmp/@b", 2, tx=tx2)
 
-        assert get("//tmp/@a", tx = tx1) == 1
-        assert get("//tmp/@b", tx = tx2) == 2
-        with pytest.raises(YtError): get("//tmp/@a")
-        with pytest.raises(YtError): get("//tmp/@b")
+        assert get("//tmp/@a", tx=tx1) == 1
+        assert get("//tmp/@b", tx=tx2) == 2
+        with pytest.raises(YtError):
+            get("//tmp/@a")
+        with pytest.raises(YtError):
+            get("//tmp/@b")
 
         commit_transaction(tx1)
         assert get("//tmp/@a") == 1
-        assert get("//tmp/@a", tx = tx2) == 1
-        assert get("//tmp/@b", tx = tx2) == 2
+        assert get("//tmp/@a", tx=tx2) == 1
+        assert get("//tmp/@b", tx=tx2) == 2
 
         commit_transaction(tx2)
         assert get("//tmp/@a") == 1
@@ -1221,21 +1284,22 @@ class TestCypressLocks(YTEnvSetup):
     @authors("babenko")
     def test_attr_locks3(self):
         tx1 = start_transaction()
-        set("//tmp/@a", 1, tx = tx1)
+        set("//tmp/@a", 1, tx=tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YtError): set("//tmp/@a", 2, tx = tx2)
+        with pytest.raises(YtError):
+            set("//tmp/@a", 2, tx=tx2)
 
     @authors("babenko", "ignat")
     def test_attr_locks4(self):
         set("//tmp/@a", 1)
 
         tx = start_transaction()
-        remove("//tmp/@a", tx = tx)
+        remove("//tmp/@a", tx=tx)
 
-        assert get("//tmp/@lock_mode", tx = tx) == "shared"
+        assert get("//tmp/@lock_mode", tx=tx) == "shared"
 
-        locks = get("//tmp/@locks", tx = tx)
+        locks = get("//tmp/@locks", tx=tx)
         assert len(locks) == 1
 
         lock = locks[0]
@@ -1247,24 +1311,29 @@ class TestCypressLocks(YTEnvSetup):
         set("//tmp/@a", 1)
 
         tx1 = start_transaction()
-        remove("//tmp/@a", tx = tx1)
+        remove("//tmp/@a", tx=tx1)
 
         tx2 = start_transaction()
-        with pytest.raises(YtError): set("//tmp/@a", 2, tx = tx2)
+        with pytest.raises(YtError):
+            set("//tmp/@a", 2, tx=tx2)
 
     @authors("babenko", "ignat")
     def test_attr_locks6(self):
         tx = start_transaction()
-        set("//tmp/@a", 1, tx = tx)
-        assert get("//tmp/@a", tx = tx) == 1
-        with pytest.raises(YtError): get("//tmp/@a")
+        set("//tmp/@a", 1, tx=tx)
+        assert get("//tmp/@a", tx=tx) == 1
+        with pytest.raises(YtError):
+            get("//tmp/@a")
 
-        with pytest.raises(YtError): remove("//tmp/@a")
-        remove("//tmp/@a", tx = tx)
-        with pytest.raises(YtError): get("//tmp/@a", tx = tx)
+        with pytest.raises(YtError):
+            remove("//tmp/@a")
+        remove("//tmp/@a", tx=tx)
+        with pytest.raises(YtError):
+            get("//tmp/@a", tx=tx)
 
         commit_transaction(tx)
-        with pytest.raises(YtError): get("//tmp/@a")
+        with pytest.raises(YtError):
+            get("//tmp/@a")
 
     @authors("ignat")
     def test_attr_locks7(self):
@@ -1281,14 +1350,16 @@ class TestCypressLocks(YTEnvSetup):
     @authors("sandello")
     def test_lock_mode_for_child_and_attr_locks(self):
         tx = start_transaction()
-        with pytest.raises(YtError): lock("//tmp", mode="exclusive", tx=tx, child_key="a")
-        with pytest.raises(YtError): lock("//tmp", mode="exclusive", tx=tx, attribute_key="a")
+        with pytest.raises(YtError):
+            lock("//tmp", mode="exclusive", tx=tx, child_key="a")
+        with pytest.raises(YtError):
+            lock("//tmp", mode="exclusive", tx=tx, attribute_key="a")
 
     @authors("babenko")
     def test_nested_tx1(self):
         tx1 = start_transaction()
-        tx2 = start_transaction(tx = tx1)
-        lock("//tmp", tx = tx2)
+        tx2 = start_transaction(tx=tx1)
+        lock("//tmp", tx=tx2)
         assert len(get("//tmp/@locks")) == 1
         abort_transaction(tx2)
         assert len(get("//tmp/@locks")) == 0
@@ -1296,8 +1367,8 @@ class TestCypressLocks(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_nested_tx2(self):
         tx1 = start_transaction()
-        tx2 = start_transaction(tx = tx1)
-        lock_id = lock("//tmp", tx = tx2)["lock_id"]
+        tx2 = start_transaction(tx=tx1)
+        lock_id = lock("//tmp", tx=tx2)["lock_id"]
         assert len(get("//tmp/@locks")) == 1
         commit_transaction(tx2)
         assert len(get("//tmp/@locks")) == 1
@@ -1306,8 +1377,8 @@ class TestCypressLocks(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_nested_tx3(self):
         tx1 = start_transaction()
-        tx2 = start_transaction(tx = tx1)
-        lock_id = lock("//tmp", tx = tx2, mode = "snapshot")["lock_id"]
+        tx2 = start_transaction(tx=tx1)
+        lock_id = lock("//tmp", tx=tx2, mode="snapshot")["lock_id"]
         assert len(get("//tmp/@locks")) == 1
         commit_transaction(tx2)
         assert not exists("//sys/locks/" + lock_id)
@@ -1315,23 +1386,25 @@ class TestCypressLocks(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_nested_tx4(self):
         tx1 = start_transaction()
-        tx2 = start_transaction(tx = tx1)
-        lock("//tmp", tx = tx1)
-        lock("//tmp", tx = tx2)
-        with pytest.raises(YtError): lock("//tmp", tx = tx1)
+        tx2 = start_transaction(tx=tx1)
+        lock("//tmp", tx=tx1)
+        lock("//tmp", tx=tx2)
+        with pytest.raises(YtError):
+            lock("//tmp", tx=tx1)
 
     @authors("babenko", "ignat")
     def test_nested_tx5(self):
         set("//tmp/x", 1)
         tx1 = start_transaction()
-        tx2 = start_transaction(tx = tx1)
-        set("//tmp/x", 2, tx = tx1)
-        set("//tmp/x", 3, tx = tx2)
-        with pytest.raises(YtError): set("//tmp/x", 4, tx = tx1)
+        tx2 = start_transaction(tx=tx1)
+        set("//tmp/x", 2, tx=tx1)
+        set("//tmp/x", 3, tx=tx2)
+        with pytest.raises(YtError):
+            set("//tmp/x", 4, tx=tx1)
 
     @authors("babenko")
     def test_manual_lock_not_recursive1(self):
-        set("//tmp/x", {"y":{}})
+        set("//tmp/x", {"y": {}})
         tx = start_transaction()
         lock("//tmp/x", tx=tx, mode="shared", child_key="a")
         assert len(get("//tmp/x/@locks")) == 1
@@ -1339,7 +1412,7 @@ class TestCypressLocks(YTEnvSetup):
 
     @authors("babenko")
     def test_manual_lock_not_recursive2(self):
-        set("//tmp/x", {"y":{}})
+        set("//tmp/x", {"y": {}})
         tx1 = start_transaction()
         tx2 = start_transaction()
         lock("//tmp/x/y", tx=tx1, mode="shared", child_key="a")
@@ -1383,8 +1456,13 @@ class TestCypressLocks(YTEnvSetup):
         tx1 = start_transaction()
         lock_id1 = lock("//tmp/a", tx=tx1)["lock_id"]
 
-        assert parse_yt_time(get("#{}/@creation_time".format(lock_id1))) < get_current_time()
-        assert get("#{}/@creation_time".format(lock_id1)) == get("#{}/@acquisition_time".format(lock_id1))
+        assert (
+            parse_yt_time(get("#{}/@creation_time".format(lock_id1)))
+            < get_current_time()
+        )
+        assert get("#{}/@creation_time".format(lock_id1)) == get(
+            "#{}/@acquisition_time".format(lock_id1)
+        )
 
         tx2 = start_transaction()
         lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)["lock_id"]
@@ -1393,8 +1471,13 @@ class TestCypressLocks(YTEnvSetup):
         assert get("#" + lock_id1 + "/@state") == "acquired"
         assert get("//tmp/a/@lock_mode", tx=tx1) == "exclusive"
         assert get("#" + lock_id2 + "/@state") == "pending"
-        assert parse_yt_time(get("#{}/@creation_time".format(lock_id2))) < get_current_time()
-        assert parse_yt_time(get("#{}/@creation_time".format(lock_id1))) < parse_yt_time(get("#{}/@creation_time".format(lock_id2)))
+        assert (
+            parse_yt_time(get("#{}/@creation_time".format(lock_id2)))
+            < get_current_time()
+        )
+        assert parse_yt_time(
+            get("#{}/@creation_time".format(lock_id1))
+        ) < parse_yt_time(get("#{}/@creation_time".format(lock_id2)))
 
         abort_transaction(tx1)
 
@@ -1402,26 +1485,33 @@ class TestCypressLocks(YTEnvSetup):
         assert get("#" + lock_id2 + "/@state") == "acquired"
         assert get("//tmp/a/@lock_mode", tx=tx2) == "exclusive"
         assert exists("#{}/@acquisition_time".format(lock_id2))
-        assert parse_yt_time(get("#{}/@acquisition_time".format(lock_id2))) < get_current_time()
+        assert (
+            parse_yt_time(get("#{}/@acquisition_time".format(lock_id2)))
+            < get_current_time()
+        )
+
 
 ##################################################################
+
 
 class TestCypressLocksMulticell(TestCypressLocks):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+
 ##################################################################
+
 
 class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_ROLES = {
         "0": ["cypress_node_host"],
         "3": ["transaction_coordinator"],
-        "4": ["transaction_coordinator"]
+        "4": ["transaction_coordinator"],
     }
+
 
 class TestCypressLocksShardedTxNoBoomerangs(TestCypressLocksShardedTx):
     def setup_method(self, method):
         super(TestCypressLocksShardedTxNoBoomerangs, self).setup_method(method)
         set("//sys/@config/object_service/enable_mutation_boomerangs", False)
         set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
-

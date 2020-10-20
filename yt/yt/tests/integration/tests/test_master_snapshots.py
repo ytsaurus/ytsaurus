@@ -8,6 +8,7 @@ import pytest
 
 ##################################################################
 
+
 def check_simple_node():
     set("//tmp/a", 42)
 
@@ -15,9 +16,15 @@ def check_simple_node():
 
     assert get("//tmp/a") == 42
 
+
 def check_schema():
     def get_schema(strict):
-        return make_schema([{"name": "value", "type": "string", "required": True}], unique_keys=False, strict=strict)
+        return make_schema(
+            [{"name": "value", "type": "string", "required": True}],
+            unique_keys=False,
+            strict=strict,
+        )
+
     create("table", "//tmp/table1", attributes={"schema": get_schema(True)})
     create("table", "//tmp/table2", attributes={"schema": get_schema(True)})
     create("table", "//tmp/table3", attributes={"schema": get_schema(False)})
@@ -28,18 +35,17 @@ def check_schema():
     assert normalize_schema(get("//tmp/table2/@schema")) == get_schema(True)
     assert normalize_schema(get("//tmp/table3/@schema")) == get_schema(False)
 
+
 def check_forked_schema():
     schema1 = make_schema(
-        [
-            {"name": "foo", "type": "string", "required": True}
-        ],
+        [{"name": "foo", "type": "string", "required": True}],
         unique_keys=False,
         strict=True,
     )
     schema2 = make_schema(
         [
             {"name": "foo", "type": "string", "required": True},
-            {"name": "bar", "type": "string", "required": True}
+            {"name": "bar", "type": "string", "required": True},
         ],
         unique_keys=False,
         strict=True,
@@ -55,6 +61,7 @@ def check_forked_schema():
 
     assert normalize_schema(get("//tmp/forked_schema_table/@schema")) == schema2
     assert normalize_schema(get("//tmp/forked_schema_table/@schema", tx=tx)) == schema1
+
 
 def check_removed_account():
     create_account("a1")
@@ -81,6 +88,7 @@ def check_removed_account():
         chunk_id = get_singular_chunk_id("//tmp/a2_table{0}".format(i))
         wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 1)
 
+
 def check_hierarchical_accounts():
     create_account("b1")
     create_account("b2")
@@ -90,14 +98,24 @@ def check_hierarchical_accounts():
     create("table", "//tmp/b11_table", attributes={"account": "b11"})
     write_table("//tmp/b11_table", {"a": "b"})
     create("table", "//tmp/b21_table", attributes={"account": "b21"})
-    write_table("//tmp/b21_table", {"a": "b", "c" : "d"})
+    write_table("//tmp/b21_table", {"a": "b", "c": "d"})
     remove_account("b2", sync_deletion=False)
 
     # XXX(kiselyovp) this might be flaky
-    wait(lambda: get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") > 0)
-    wait(lambda: get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default") > 0)
-    b11_disk_usage = get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default")
-    b21_disk_usage = get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default")
+    wait(
+        lambda: get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default")
+        > 0
+    )
+    wait(
+        lambda: get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default")
+        > 0
+    )
+    b11_disk_usage = get(
+        "//sys/accounts/b11/@resource_usage/disk_space_per_medium/default"
+    )
+    b21_disk_usage = get(
+        "//sys/accounts/b21/@resource_usage/disk_space_per_medium/default"
+    )
 
     yield
 
@@ -107,7 +125,14 @@ def check_hierarchical_accounts():
         assert not account.startswith("#")
 
     topmost_accounts = ls("//sys/account_tree")
-    for account in ["sys", "tmp", "intermediate", "chunk_wise_accounting_migration", "b1", "b2"]:
+    for account in [
+        "sys",
+        "tmp",
+        "intermediate",
+        "chunk_wise_accounting_migration",
+        "b1",
+        "b2",
+    ]:
         assert account in accounts
         assert account in topmost_accounts
     for account in ["b11", "b21", "root"]:
@@ -121,15 +146,25 @@ def check_hierarchical_accounts():
     assert ls("//sys/account_tree/b1/b11") == []
     assert ls("//sys/account_tree/b2/b21") == []
 
-    assert get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default") == b21_disk_usage
-    assert get("//sys/accounts/b2/@recursive_resource_usage/disk_space_per_medium/default") == b21_disk_usage
+    assert (
+        get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default")
+        == b21_disk_usage
+    )
+    assert (
+        get("//sys/accounts/b2/@recursive_resource_usage/disk_space_per_medium/default")
+        == b21_disk_usage
+    )
 
     set("//tmp/b21_table/@account", "b11")
     wait(lambda: not exists("//sys/account_tree/b2"), iter=120, sleep_backoff=0.5)
     assert not exists("//sys/accounts/b2")
     assert exists("//sys/accounts/b11")
 
-    assert get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") == b11_disk_usage + b21_disk_usage
+    assert (
+        get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default")
+        == b11_disk_usage + b21_disk_usage
+    )
+
 
 def check_master_memory():
     resource_limits = {
@@ -138,18 +173,22 @@ def check_master_memory():
         "node_count": 100,
         "tablet_count": 100,
         "tablet_static_memory": 100000,
-        "master_memory": 100000
+        "master_memory": 100000,
     }
     create_account("a", attributes={"resource_limits": resource_limits})
 
-    create("map_node", "//tmp/dir1", attributes={"account": "a", "sdkjnfkdjs": "lsdkfj"})
-    create("table", "//tmp/dir1/t", attributes={"account": "a", "aksdj" : "sdkjf"})
-    write_table("//tmp/dir1/t", {"adssaa" : "kfjhsdkb"})
+    create(
+        "map_node", "//tmp/dir1", attributes={"account": "a", "sdkjnfkdjs": "lsdkfj"}
+    )
+    create("table", "//tmp/dir1/t", attributes={"account": "a", "aksdj": "sdkjf"})
+    write_table("//tmp/dir1/t", {"adssaa": "kfjhsdkb"})
     copy("//tmp/dir1", "//tmp/dir2", preserve_account=True)
 
     sync_create_cells(1)
-    schema=[{"name": "key", "type": "int64", "sort_order": "ascending"},
-        {"name": "value", "type": "string"}]
+    schema = [
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value", "type": "string"},
+    ]
     create_dynamic_table("//tmp/d1", schema=schema, account="a")
     create_dynamic_table("//tmp/d2", schema=schema, account="a")
 
@@ -165,13 +204,20 @@ def check_master_memory():
 
     yield
 
-    wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory") == master_memory_usage)
+    wait(
+        lambda: get("//sys/accounts/a/@resource_usage/master_memory")
+        == master_memory_usage
+    )
+
 
 def check_dynamic_tables():
     sync_create_cells(1)
-    create_dynamic_table("//tmp/t", schema=[
-        {"name": "key", "type": "int64", "sort_order": "ascending"},
-        {"name": "value", "type": "string"}]
+    create_dynamic_table(
+        "//tmp/t",
+        schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ],
     )
     rows = [{"key": 0, "value": "0"}]
     keys = [{"key": 0}]
@@ -185,16 +231,23 @@ def check_dynamic_tables():
     wait_for_cells()
     assert lookup_rows("//tmp/t", keys) == rows
 
+
 def check_security_tags():
     for i in xrange(10):
-        create("table", "//tmp/t" + str(i), attributes={
-                "security_tags": ["atag" + str(i), "btag" + str(i)]
-            })
+        create(
+            "table",
+            "//tmp/t" + str(i),
+            attributes={"security_tags": ["atag" + str(i), "btag" + str(i)]},
+        )
 
     yield
 
     for i in xrange(10):
-        assert_items_equal(get("//tmp/t" + str(i) + "/@security_tags"), ["atag" + str(i), "btag" + str(i)])
+        assert_items_equal(
+            get("//tmp/t" + str(i) + "/@security_tags"),
+            ["atag" + str(i), "btag" + str(i)],
+        )
+
 
 def check_transactions():
     tx1 = start_transaction(timeout=120000)
@@ -202,8 +255,8 @@ def check_transactions():
 
     create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 2})
     create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 3})
-    table_id = create("table", "//tmp/p1/t", tx=tx1) # replicate tx1 to cell 2
-    table_id = create("table", "//tmp/p2/t", tx=tx2) # replicate tx2 to cell 3
+    table_id = create("table", "//tmp/p1/t", tx=tx1)  # replicate tx1 to cell 2
+    table_id = create("table", "//tmp/p2/t", tx=tx2)  # replicate tx2 to cell 3
     assert get("#{}/@replicated_to_cell_tags".format(tx1)) == [2, 3]
     assert get("#{}/@replicated_to_cell_tags".format(tx2)) == [3]
 
@@ -211,6 +264,7 @@ def check_transactions():
 
     assert get("#{}/@replicated_to_cell_tags".format(tx1)) == [2, 3]
     assert get("#{}/@replicated_to_cell_tags".format(tx2)) == [3]
+
 
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
@@ -227,7 +281,7 @@ class TestMasterSnapshots(YTEnvSetup):
             check_security_tags,
             check_master_memory,
             check_hierarchical_accounts,
-            check_removed_account # keep this item last as it's sensitive to timings
+            check_removed_account,  # keep this item last as it's sensitive to timings
         ]
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
@@ -246,11 +300,14 @@ class TestMasterSnapshots(YTEnvSetup):
     @authors("gritukan")
     def test_master_snapshots_free_space_profiling(self):
         primary_master = ls("//sys/primary_masters")[0]
-        profiling = get("//sys/primary_masters/{0}/orchid/profiling".format(primary_master))
+        profiling = get(
+            "//sys/primary_masters/{0}/orchid/profiling".format(primary_master)
+        )
         assert "free_space" in profiling["snapshots"]
         assert "available_space" in profiling["snapshots"]
         assert "free_space" in profiling["changelogs"]
         assert "available_space" in profiling["changelogs"]
+
 
 class TestAllMastersSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
@@ -269,7 +326,7 @@ class TestAllMastersSnapshots(YTEnvSetup):
             check_master_memory,
             check_hierarchical_accounts,
             check_transactions,
-            check_removed_account # keep this item last as it's sensitive to timings
+            check_removed_account,  # keep this item last as it's sensitive to timings
         ]
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
