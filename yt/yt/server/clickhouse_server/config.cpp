@@ -19,6 +19,18 @@ TDynamicTableSettings::TDynamicTableSettings()
 {
     RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
         .Default(true);
+
+    RegisterParameter("write_retry_count", WriteRetryCount)
+        .Default(5);
+
+    RegisterParameter("write_retry_backoff", WriteRetryBackoff)
+        .Default(TDuration::Seconds(1));
+
+    RegisterParameter("max_rows_per_write", MaxRowsPerWrite)
+        .Default(100'000);
+    
+    RegisterParameter("transaction_atomicity", TransactionAtomicity)
+        .Default(NTransactionClient::EAtomicity::Full);
 }
 
 TQuerySettings::TQuerySettings()

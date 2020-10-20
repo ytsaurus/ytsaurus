@@ -16,13 +16,10 @@
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
-#include <yt/ytlib/chunk_client/input_data_slice.h>
-
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/table_client/schemaless_chunk_writer.h>
+#include <yt/ytlib/chunk_client/input_data_slice.h>
 
-#include <yt/client/table_client/name_table.h>
 #include <yt/client/ypath/rich.h>
 
 #include <DataStreams/materializeBlock.h>
@@ -583,18 +580,24 @@ public:
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
                 << TErrorAttribute("paths", getTableName());
         }
-
-        auto path = Tables_.front()->Path;
-        path.SetAppend(path.GetAppend(true /* defaultValue */));
-        auto writer = WaitFor(CreateSchemalessTableWriter(
-            QueryContext_->Host->GetConfig()->TableWriterConfig,
-            New<TTableWriterOptions>(),
-            path,
-            New<TNameTable>(),
-            QueryContext_->Client(),
-            nullptr /* transaction */))
-            .ValueOrThrow();
-        return CreateBlockOutputStream(std::move(writer), QueryContext_->Logger);
+        const auto& table = Tables_.front();
+        auto path = table->Path;
+        if (table->Dynamic) {
+            return CreateDynamicTableBlockOutputStream(
+                path,
+                table->Schema,
+                QueryContext_->Settings->DynamicTable,
+                QueryContext_->Client(),
+                QueryContext_->Logger);
+        } else {
+            path.SetAppend(path.GetAppend(true /* defaultValue */));
+            return CreateStaticTableBlockOutputStream(
+                path,
+                table->Schema,
+                QueryContext_->Host->GetConfig()->TableWriterConfig,
+                QueryContext_->Client(),
+                QueryContext_->Logger);
+        }
     }
 
     // IStorageDistributor overrides.

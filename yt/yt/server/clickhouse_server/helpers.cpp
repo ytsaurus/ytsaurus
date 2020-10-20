@@ -145,12 +145,24 @@ TQuerySettingsPtr ParseCustomSettings(
             }
         }
         auto field = setting.getValue();
+        auto fieldType = ToValueType(field.getType());
         YT_LOG_TRACE("Parsing custom setting (YPath: %v, FieldValue: %v)", ypath, field.dump());
-        TUnversionedValue unversionedValue;
-        unversionedValue.Id = 0;
-        unversionedValue.Type = ToValueType(field.getType());
-        ConvertToUnversionedValue(field, &unversionedValue);
-        auto patchNode = ConvertToNode(unversionedValue);
+        
+        auto modifiedNode = FindNodeByYPath(node, ypath);
+
+        INodePtr patchNode;
+        if (modifiedNode && fieldType == EValueType::String && modifiedNode->GetType() != ENodeType::String) {
+            // If we expect something diffrent from string, then try to convert it.
+            const auto& stringVal = field.get<std::string>();
+            patchNode = ConvertToNode(TYsonStringBuf(stringVal));
+        } else {
+            TUnversionedValue unversionedValue;
+            unversionedValue.Id = 0;
+            unversionedValue.Type = fieldType;
+            ConvertToUnversionedValue(field, &unversionedValue);
+            patchNode = ConvertToNode(unversionedValue);
+        }
+
         YT_LOG_TRACE("Patch node (Node: %v)", ConvertToYsonString(patchNode, EYsonFormat::Text));
         SetNodeByYPath(node, ypath, patchNode);
     }

@@ -3673,6 +3673,43 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
                 clique.make_query("select * from `//tmp/dyn_off`")
             assert clique.make_query("select * from `//tmp/dyn_off`", settings=settings) == []
 
+    @authors("dakovalkov")
+    def test_write_to_dynamic_table(self):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
+        sync_mount_table("//tmp/t")
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            clique.make_query("insert into `//tmp/t` select number as key, toString(number) as value from numbers(10)")
+            assert sorted(read_table("//tmp/t")) == [{"key": i, "value": str(i)} for i in range(10)]
+
+            clique.make_query("insert into `//tmp/t` select number as key, toString(number) as value from numbers(500000)")
+            rows = [{"key": i, "value": str(i)} for i in range(500000)]
+            # Somehow select * from ... works faster than read_table.
+            written_rows = sorted(clique.make_query("select * from `//tmp/t`", verbose=False))
+            # "assert rows == written_rows" is a bad idea. In case of error printing diff will take too long. 
+            # These checks can detect simple failures and avoid printing 500'000 rows.
+            assert len(rows) == len(written_rows)
+            assert rows[0] == written_rows[0]
+            assert rows[-1] == written_rows[-1]
+            rows_are_equeal = (rows == written_rows)
+            assert rows_are_equeal
+
+    @authors("dakovalkov")
+    def test_write_to_unmounted_dynamic_table(self):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=True)
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            # To speed up the test we disable the backoff timeout.
+            fast_error_settings = {"chyt.dynamic_table.write_retry_backoff": 0}
+            with pytest.raises(YtError):
+                clique.make_query("insert into `//tmp/t` select number as key, toString(number) as value from numbers(10)", settings=fast_error_settings)
+
+            t = clique.make_async_query("insert into `//tmp/t` select number as key, toString(number) as value from numbers(20)")
+            time.sleep(2)
+            sync_mount_table("//tmp/t")
+            t.join()
+            assert sorted(read_table("//tmp/t")) == [{"key": i, "value": str(i)} for i in range(20)]
+
 
 class TestColumnarRead(ClickHouseTestBase):
     CONFIG_PATCH = {
