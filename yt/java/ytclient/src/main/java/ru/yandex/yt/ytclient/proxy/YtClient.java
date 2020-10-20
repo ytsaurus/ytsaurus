@@ -255,7 +255,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                     // Use http
                     dataCenterList.add(
                             ClientPoolService.httpBuilder()
-                                    .setDataCenterName(curCluster.getNormalizedName())
+                                    .setDataCenterName(curCluster.getName())
                                     .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
                                     .setRole(proxyRole)
                                     .setToken(credentials.getToken())
@@ -275,7 +275,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                             curCluster.addresses.stream().map(HostPort::parse).collect(Collectors.toList());
                     dataCenterList.add(
                             ClientPoolService.rpcBuilder()
-                                    .setDataCenterName(curCluster.getNormalizedName())
+                                    .setDataCenterName(curCluster.getName())
                                     .setInitialProxyList(initialProxyList)
                                     .setRole(proxyRole)
                                     .setOptions(options)
