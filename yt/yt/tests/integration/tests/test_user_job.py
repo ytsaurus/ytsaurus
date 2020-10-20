@@ -2,7 +2,6 @@ import yt_env_setup
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
-import yt.common
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.yson import *
 from yt.test_helpers import are_almost_equal

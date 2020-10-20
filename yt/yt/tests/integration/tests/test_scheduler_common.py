@@ -1,5 +1,4 @@
 from __future__ import print_function
-import sys
 
 from yt_env_setup import (
     YTEnvSetup,
@@ -13,17 +12,17 @@ from yt_helpers import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.common import date_string_to_timestamp, update
+from yt.common import date_string_to_timestamp
 
 import pytest
 
+import json
 import gzip
 import time
-from datetime import datetime
+import sys
 
 import __builtin__
 
-import json
 
 ##################################################################
 
@@ -2223,7 +2222,7 @@ class TestJobStatisticsPorto(YTEnvSetup):
         statistics = get(op.get_path() + "/@progress/job_statistics")
 
         for component in ["user_job", "job_proxy"]:
-            print(component)
+            print(component, file=sys.stderr)
             assert get_statistics(statistics, component + ".cpu.user.$.completed.map.sum") > 0
             assert get_statistics(statistics, component + ".cpu.system.$.completed.map.sum") > 0
             assert get_statistics(statistics, component + ".cpu.context_switches.$.completed.map.sum") is not None

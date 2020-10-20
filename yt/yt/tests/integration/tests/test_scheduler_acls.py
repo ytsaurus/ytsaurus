@@ -7,8 +7,6 @@ from yt_env_setup import (
 )
 from yt_commands import *
 
-import yt.common
-
 import pytest
 
 import random

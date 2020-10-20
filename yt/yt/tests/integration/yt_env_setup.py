@@ -1,13 +1,15 @@
+from __future__ import print_function
+
 import yt_commands
 
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
-from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
+from yt.environment.porto_helpers import remove_all_volumes
 from yt.environment.default_configs import (
     get_dynamic_master_config,
     get_dynamic_node_config,
 )
-from yt.environment.helpers import (
+from yt.environment.helpers import (  # noqa
     Restarter,
     SCHEDULERS_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
@@ -24,14 +26,11 @@ import pytest
 import gc
 import os
 import sys
-import glob
 import logging
 import shutil
 import decorator
 import functools
-import inspect
 import subprocess
-import uuid
 
 from time import sleep, time
 from threading import Thread
@@ -157,7 +156,7 @@ class Checker(Thread):
             self._check_function()
             delta = time() - now
             if delta > 0.1:
-                print >>sys.stderr, "Check took %lf seconds" % delta
+                print("Check took %lf seconds" % delta, file=sys.stderr)
             sleep(1.0)
 
     def stop(self):
@@ -566,7 +565,7 @@ class YTEnvSetup(object):
                 p = subprocess.Popen(chown_command, stderr=subprocess.PIPE)
                 _, stderr = p.communicate()
                 if p.returncode != 0:
-                    print >>sys.stderr, stderr
+                    print(stderr, file=sys.stderr)
                     raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
 
                 # XXX(psushin): Porto volume directories may have weirdest permissions ever.
@@ -575,7 +574,7 @@ class YTEnvSetup(object):
                 p = subprocess.Popen(chmod_command, stderr=subprocess.PIPE)
                 _, stderr = p.communicate()
                 if p.returncode != 0:
-                    print >>sys.stderr, stderr
+                    print(stderr, file=sys.stderr)
                     raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
 
                 # XXX(dcherednik): Delete named pipes.
@@ -589,9 +588,9 @@ class YTEnvSetup(object):
                 if os.path.exists(destination_path):
                     shutil.rmtree(destination_path, ignore_errors=True)
 
-                print >>sys.stderr, "Moving test artifacts from", cls.path_to_run, "to", destination_path
+                print("Moving test artifacts from", cls.path_to_run, "to", destination_path, file=sys.stderr)
                 shutil.move(cls.path_to_run, destination_path)
-                print >>sys.stderr, "Move completed"
+                print("Move completed", file=sys.stderr)
 
     def setup_method(self, method):
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
@@ -1109,7 +1108,7 @@ class YTEnvSetup(object):
         try:
             operations_from_orchid = yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver)
         except YtError as err:
-            print >>sys.stderr, format_error(err)
+            print(format_error(err), file=sys.stderr)
 
         requests = []
         for operation_id in operations_from_orchid:
@@ -1120,7 +1119,7 @@ class YTEnvSetup(object):
         for response in responses:
             err = yt_commands.get_batch_error(response)
             if err is not None:
-                print >>sys.stderr, format_error(err)
+                print(format_error(err), file=sys.stderr)
 
         self._abort_transactions(driver=driver)
 
@@ -1160,9 +1159,9 @@ class YTEnvSetup(object):
                 for node in nodes
             ]
             responses = yt_commands.execute_batch(requests, driver=driver)
-            print >>sys.stderr, "There are remaining scheduler jobs:"
+            print("There are remaining scheduler jobs:", file=sys.stderr)
             for node, response in zip(nodes, responses):
-                print >>sys.stderr, "Node {}: {}".format(node, response)
+                print("Node {}: {}".format(node, response), file=sys.stderr)
 
 
 def get_porto_delta_node_config():
