@@ -12,7 +12,6 @@ from yt_env_setup import (
     is_asan_build,
 )
 from yt.test_helpers import are_almost_equal
-from yt.common import date_string_to_timestamp
 import yt.common
 
 from flaky import flaky

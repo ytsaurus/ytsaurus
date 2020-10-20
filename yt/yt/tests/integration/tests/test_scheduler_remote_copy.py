@@ -8,7 +8,6 @@ from yt_env_setup import (
     CONTROLLER_AGENTS_SERVICE,
 )
 from yt_commands import *
-from yt import yson
 
 import time
 

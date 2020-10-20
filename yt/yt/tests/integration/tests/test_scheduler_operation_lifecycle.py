@@ -4,7 +4,6 @@ from yt_env_setup import (
     Restarter,
     is_asan_build,
     SCHEDULERS_SERVICE,
-    MASTERS_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
 )
 
@@ -23,7 +22,7 @@ from flaky import flaky
 import shutil
 import time
 import subprocess
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 ##################################################################
 

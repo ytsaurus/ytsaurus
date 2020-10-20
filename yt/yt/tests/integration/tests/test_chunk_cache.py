@@ -1,7 +1,6 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, SCHEDULERS_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 
-import sys
 import os.path
 
 #################################################################

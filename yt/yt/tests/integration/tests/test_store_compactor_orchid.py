@@ -1,10 +1,6 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, SCHEDULERS_SERVICE
 from yt_commands import *
 
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
-
-import sys
-import os.path
 
 #################################################################
 
