@@ -4381,9 +4381,13 @@ private:
 
         for (auto& tabletInfo : request->tablets()) {
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
-            auto* tablet = FindTablet(tabletId);
+            auto mountRevision = tabletInfo.mount_revision();
 
-            if (!IsObjectAlive(tablet) || tablet->GetState() == ETabletState::Unmounted) {
+            auto* tablet = FindTablet(tabletId);
+            if (!IsObjectAlive(tablet) || 
+                tablet->GetState() == ETabletState::Unmounted ||
+                mountRevision != tablet->GetMountRevision())
+            {
                 continue;
             }
 

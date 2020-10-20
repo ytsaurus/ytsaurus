@@ -866,6 +866,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         if (CellTagFromId(tabletSnapshot->TabletId) == cellTag) {
             auto* protoTabletInfo = request->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletSnapshot->TabletId);
+            protoTabletInfo->set_mount_revision(tabletSnapshot->MountRevision);
 
             auto* protoTabletStatistics = protoTabletInfo->mutable_statistics();
             protoTabletStatistics->set_partition_count(tabletSnapshot->PartitionList.size());
