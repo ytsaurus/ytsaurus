@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
 public class YtCluster {
     final String balancerFqdn;
     int httpPort;
@@ -54,6 +56,25 @@ public class YtCluster {
             return 80;
         } else {
             return Integer.parseInt(name.substring(index+1));
+        }
+    }
+
+    String getNormalizedName() {
+        return normalizeName(name);
+    }
+
+    static @Nullable
+    String normalizeName(@Nullable String name) {
+        if (name == null || name.equals("")) {
+            return null;
+        } else if (name.contains(":")) {
+            return name;
+        } else if (name.contains(".")) {
+            return name;
+        } else if (name.equals("localhost")) {
+            return name;
+        } else {
+            return name + ".yt.yandex.net";
         }
     }
 }
