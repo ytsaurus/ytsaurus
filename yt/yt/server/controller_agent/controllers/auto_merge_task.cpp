@@ -92,6 +92,7 @@ TAutoMergeTask::TAutoMergeTask(
             std::numeric_limits<i64>::max() / 4 /* primaryMaxDataWeightPerJob */,
             std::numeric_limits<i64>::max() / 4 /* inputSliceDataSize */,
             std::numeric_limits<i64>::max() / 4 /* inputSliceRowCount */,
+            0 /* foreignSliceDataWeight */,
             std::nullopt /* samplingRate */);
 
         TUnorderedChunkPoolOptions options;

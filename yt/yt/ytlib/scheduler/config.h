@@ -1162,6 +1162,8 @@ public:
 
     bool ConsiderOnlyPrimarySize;
 
+    bool SliceForeignChunks;
+
     TReduceOperationSpec();
 
 private:

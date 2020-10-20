@@ -21,6 +21,7 @@ struct TSortedChunkPoolOptions
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     NScheduler::TOperationId OperationId;
     TString Task;
+    bool SliceForeignChunks = false;
     //! External row buffer, if it is available.
     NTableClient::TRowBufferPtr RowBuffer;
 };

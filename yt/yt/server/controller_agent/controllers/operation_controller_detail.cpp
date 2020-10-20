@@ -6489,8 +6489,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     for (const auto& table : InputTables_) {
         if (!table->IsForeign() && table->Dynamic && table->Schema->IsSorted()) {
             auto fetcher = CreateChunkSliceFetcher(
-                Config->Fetcher,
-                sliceSize,
+                Config->ChunkSliceFetcher,
                 InputNodeDirectory_,
                 GetCancelableInvoker(),
                 createScraperForFetcher(),
@@ -6507,7 +6506,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                     continue;
                 }
 
-                fetcher->AddChunkForSlicing(chunk, keyColumnCount, true);
+                fetcher->AddChunkForSlicing(chunk, sliceSize, keyColumnCount, true);
             }
 
             fetcher->SetCancelableContext(GetCancelableContext());

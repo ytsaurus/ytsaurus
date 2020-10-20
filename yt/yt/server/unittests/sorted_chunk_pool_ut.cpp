@@ -53,6 +53,7 @@ protected:
     virtual void SetUp() override
     {
         Options_.MinTeleportChunkSize = Inf64;
+        Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.Task = "TestTask";
         DataSizePerJob_ = Inf64;
@@ -76,6 +77,7 @@ protected:
             MaxPrimaryDataWeightPerJob_,
             InputSliceDataWeight_,
             Inf64 /* inputSliceRowCount */,
+            InputSliceDataWeight_,
             SamplingRate_,
             SamplingDataWeightPerJob_,
             SamplingPrimaryDataWeightPerJob_,
@@ -104,7 +106,7 @@ protected:
         void RegisterSliceableUnversionedChunk(const TInputChunkPtr& chunk, std::vector<TInputChunkSlicePtr> slices)
         {
             ChunkSlices.insert(ChunkSlices.end(), slices.begin(), slices.end());
-            AllChunksAreAdded += EXPECT_CALL(*ChunkSliceFetcher, AddChunkForSlicing(chunk, _, _));
+            AllChunksAreAdded += EXPECT_CALL(*ChunkSliceFetcher, AddChunkForSlicing(chunk, _, _, _));
         }
 
         void RegisterTriviallySliceableUnversionedChunk(const TInputChunkPtr& chunk)

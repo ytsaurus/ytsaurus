@@ -64,6 +64,7 @@ IJobSizeConstraintsPtr CreateClickHouseJobSizeConstraints(
         1024 * 1024 * 1_TB /* primaryMaxDataWeightPerJob */,
         inputSliceDataWeight /* inputSliceDataWeight */,
         std::max<i64>(1, totalRowCount / jobCount) /* inputSliceRowCount */,
+        0 /* foreignSliceDataWeight */,
         std::nullopt /* samplingRate */);
 }
 

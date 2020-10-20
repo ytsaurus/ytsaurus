@@ -52,6 +52,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PartitionedTables)                    (300419))
     ((FailedJobCount)                       (300420))
     ((PerTaskInputDataSizeHistograms)       (300421))
+    ((ForeignDataSliceWeight)               (300422))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

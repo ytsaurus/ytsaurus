@@ -643,8 +643,7 @@ private:
         FetcherChunkScraper_ = CreateFetcherChunkScraper();
 
         auto fetcher = NTableClient::CreateChunkSliceFetcher(
-            Config->Fetcher,
-            InputSliceDataWeight_,
+            Config->ChunkSliceFetcher,
             InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper_,
@@ -1217,6 +1216,7 @@ private:
     {
         auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
         options.SortedJobOptions.PivotKeys = std::vector<TKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
+        options.SliceForeignChunks = Spec_->SliceForeignChunks;
         return options;
     }
 

@@ -101,6 +101,24 @@ public:
         return std::max<i64>(1, sliceDataSize);
     }
 
+    virtual i64 GetForeignSliceDataWeight() const override
+    {
+        auto foreignInputDataWeight = InputDataWeight_ - PrimaryInputDataWeight_;
+        YT_VERIFY(foreignInputDataWeight >= 0);
+
+        auto jobCount = GetJobCount();
+        auto foreignDataWeightPerJob = jobCount > 0
+            ? std::max<i64>(1, DivCeil<i64>(foreignInputDataWeight, jobCount))
+            : 1;
+
+        auto foreignSliceDataWeight = Clamp<i64>(
+            Options_->SliceDataWeightMultiplier * foreignDataWeightPerJob,
+            Options_->MinSliceDataWeight,
+            Options_->MaxSliceDataWeight);
+
+        return std::max<i64>(1, foreignSliceDataWeight);
+    }
+
     virtual i64 GetMaxDataWeightPerJob() const override
     {
         return Spec_->MaxDataWeightPerJob;
@@ -129,7 +147,6 @@ public:
             InputDataWeight_,
             inputDataWeight);
         InputDataWeight_ = inputDataWeight;
-
     }
 
     virtual void Persist(const TPersistenceContext& context) override
@@ -792,6 +809,7 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
         spec->MaxPrimaryDataWeightPerJob,
         std::numeric_limits<i64>::max() / 4 /* inputSliceDataSize */,
         std::numeric_limits<i64>::max() / 4 /* inputSliceRowCount */,
+        0 /* foreignSliceDataWeight */,
         std::nullopt /* samplingRate */);
 }
 
