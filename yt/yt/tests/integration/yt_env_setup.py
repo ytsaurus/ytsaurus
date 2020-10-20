@@ -4,18 +4,13 @@ from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config, get_dynamic_node_config
-
-try:
-    from yt.environment.helpers import (
-        Restarter,
-        SCHEDULERS_SERVICE,
-        CONTROLLER_AGENTS_SERVICE,
-        NODES_SERVICE,
-        MASTERS_SERVICE,
-    )
-except ImportError:
-    # Let's hope we won't need Restarter :(
-    pass
+from yt.environment.helpers import (
+    Restarter,
+    SCHEDULERS_SERVICE,
+    CONTROLLER_AGENTS_SERVICE,
+    NODES_SERVICE,
+    MASTERS_SERVICE,
+)
 
 from yt.test_helpers import wait, WaitFailed
 from yt.common import makedirp, YtError, YtResponseError, format_error, update_inplace
@@ -34,23 +29,16 @@ import functools
 import inspect
 import subprocess
 import uuid
-from distutils.spawn import find_executable
+
 from time import sleep, time
 from threading import Thread
 
-if arcadia_interop.yatest_common is None:
-    SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
-    SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
-else:
-    SANDBOX_ROOTDIR = None
-    SANDBOX_STORAGE_ROOTDIR = None
+SANDBOX_ROOTDIR = None
+SANDBOX_STORAGE_ROOTDIR = None
 
 ##################################################################
 
 def prepare_yatest_environment(need_suid):
-    if arcadia_interop.yatest_common is None:
-        return
-
     yt.logger.LOGGER.setLevel(logging.DEBUG)
 
     global SANDBOX_ROOTDIR
@@ -100,27 +88,12 @@ def _retry_with_gc_collect(func, driver=None):
             yt_commands.gc_collect(driver=driver)
 
 def find_ut_file(file_name):
-    if arcadia_interop.yatest_common is not None:
-        import library.python.resource as rs
-        with open(file_name, 'wb') as bc:
-            bc_content = rs.find("/llvm_bc/" + file_name.split(".")[0])
-            bc.write(bc_content)
-        return file_name
+    import library.python.resource as rs
+    with open(file_name, 'wb') as bc:
+        bc_content = rs.find("/llvm_bc/" + file_name.split(".")[0])
+        bc.write(bc_content)
+    return file_name
 
-    unittester_path = find_executable("unittester-ytlib")
-    assert unittester_path is not None
-    for unittests_path in [
-        os.path.join(os.path.dirname(unittester_path), "..", "yt", "ytlib", "query_client", "ut"),
-        os.path.dirname(unittester_path)
-    ]:
-        result_path = os.path.join(unittests_path, file_name)
-        if os.path.exists(result_path):
-            return result_path
-    else:
-        raise RuntimeError("Cannot find '{0}'".format(file_name))
-
-linux_only = pytest.mark.skipif('not sys.platform.startswith("linux")')
-unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys.platform.startswith("darwin")')
 
 def skip_if_porto(func):
     def wrapper(func, self, *args, **kwargs):
@@ -131,20 +104,10 @@ def skip_if_porto(func):
     return decorator.decorate(func, wrapper)
 
 def is_asan_build():
-    if arcadia_interop.yatest_common is not None:
-        return arcadia_interop.yatest_common.context.sanitize == "address"
-
-    binary = find_executable("ytserver-master")
-    version = subprocess.check_output([binary, "--version"])
-    return "asan" in version
+    return arcadia_interop.yatest_common.context.sanitize == "address"
 
 def is_msan_build():
-    if arcadia_interop.yatest_common is not None:
-        return arcadia_interop.yatest_common.context.sanitize == "memory"
-
-    binary = find_executable("ytserver-master")
-    version = subprocess.check_output([binary, "--version"])
-    return "msan" in version
+    return arcadia_interop.yatest_common.context.sanitize == "memory"
 
 def skip_if_rpc_driver_backend(func):
     def wrapper(func, self, *args, **kwargs):
@@ -166,10 +129,6 @@ def parametrize_external(func):
     return pytest.mark.parametrize("external", [False, True])(
         decorator.decorate(func, wrapper))
 
-def resolve_test_paths(name):
-    path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)
-    path_to_environment = os.path.join(path_to_sandbox, "run")
-    return path_to_sandbox, path_to_environment
 
 class Checker(Thread):
     def __init__(self, check_function):
@@ -297,10 +256,7 @@ class YTEnvSetup(object):
             cls.apply_config_patches,
             cluster_index=index)
 
-        if arcadia_interop.yatest_common is None:
-            capture_stderr_to_file = bool(int(os.environ.get("YT_CAPTURE_STDERR_TO_FILE", "0")))
-        else:
-            capture_stderr_to_file = True
+        capture_stderr_to_file = True
 
         instance = YTInstance(
             path,
@@ -382,13 +338,8 @@ class YTEnvSetup(object):
         prepare_yatest_environment(need_suid=need_suid) # It initializes SANDBOX_ROOTDIR
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
-        # For running in parallel
-        if arcadia_interop.yatest_common is None:
-            cls.run_id = "run_" + uuid.uuid4().hex[:8] if not run_id else run_id
-            cls.path_to_run = os.path.join(cls.path_to_test, cls.run_id)
-        else:
-            cls.run_id = None
-            cls.path_to_run = cls.path_to_test
+        cls.run_id = None
+        cls.path_to_run = cls.path_to_test
 
         cls.run_name = os.path.basename(cls.path_to_run)
 

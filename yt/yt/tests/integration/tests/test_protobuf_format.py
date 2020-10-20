@@ -1,7 +1,7 @@
 from yt_commands import *
 from yt.test_helpers import assert_items_equal
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup
 
 import protobuf_format
 
@@ -176,7 +176,6 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         assert_rowsets_equal(read_rows, rows)
 
     @authors("levysotsky")
-    @unix_only
     def test_multi_output_map(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", SCHEMALESS_TABLE_ROWS)
@@ -209,7 +208,6 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         assert_rowsets_equal(read_table("//tmp/t_out2"), SCHEMALESS_TABLE_ROWS)
 
     @authors("levysotsky")
-    @unix_only
     def test_multi_output_map_wrong_config(self):
         """Check bad format (number of tables in format doesn't match number of output tables)"""
         create("table", "//tmp/t_in")
@@ -241,7 +239,6 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
             assert "Protobuf format does not have table with index 1" in str(error)
 
     @authors("levysotsky")
-    @unix_only
     def test_id_map(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", SCHEMALESS_TABLE_ROWS)
@@ -299,7 +296,6 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         assert_rowsets_equal(read_table("//tmp/t_out"), SCHEMALESS_TABLE_ROWS)
 
     @authors("levysotsky")
-    @unix_only
     def test_id_map_reduce(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", SCHEMALESS_TABLE_ROWS)
@@ -852,7 +848,6 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             remove_empty(row, "dict")
         assert_rowsets_equal(parsed_rows, expected_rows)
 
-    @unix_only
     def test_multi_output_map(self):
         create("table", "//tmp/t_in", attributes={"schema": SCHEMA})
         write_table("//tmp/t_in", SCHEMAFUL_TABLE_ROWS)

@@ -1,7 +1,7 @@
 import pytest
 import yt.yson as yson
 
-from yt_env_setup import YTEnvSetup, unix_only, parametrize_external
+from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -860,7 +860,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert_items_equal(read_table("//tmp/t_out"), [{"k": r["key"]} for r in rows])
 
     @authors("babenko")
-    @unix_only
     def test_merge_chunk_properties(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False})
         write_table("//tmp/t1", [{"a": 1}])
@@ -878,7 +877,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                      get("#" + chunk_id + "/@vital"))
 
     @authors("ignat")
-    @unix_only
     def test_chunk_indices(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1595,7 +1593,6 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("babenko")
-    @unix_only
     def test_multicell_merge_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
@@ -1633,7 +1630,6 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
                      ls("//sys/foreign_chunks", driver=get_driver(0)) == [])
 
     @authors("babenko")
-    @unix_only
     def test_multicell_merge_multi_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
@@ -1687,7 +1683,6 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
         wait(lambda: not exists("#" + chunk_id))
 
     @authors("babenko")
-    @unix_only
     def test_multicell_merge_chunk_properties(self):
         create("table", "//tmp/t1", attributes={"replication_factor": 1, "vital": False, "external_cell_tag": 1})
         write_table("//tmp/t1", [{"a": 1}])
@@ -1730,7 +1725,6 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
              not get("#" + chunk_id + "/@vital"))
 
     @authors("babenko")
-    @unix_only
     def test_yt_4259(self):
         create("table", "//tmp/t", attributes={"external": False})
         create("table", "//tmp/t1", attributes={"external_cell_tag": 1})

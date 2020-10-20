@@ -1,7 +1,7 @@
 import pytest
 import yt.yson as yson
 
-from yt_env_setup import YTEnvSetup, unix_only, Restarter, SCHEDULERS_SERVICE, is_asan_build
+from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, is_asan_build
 from yt_commands import *
 
 from time import sleep

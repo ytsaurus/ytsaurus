@@ -1,7 +1,7 @@
 import yt.environment.init_operation_archive as init_operation_archive
 
 from yt_env_setup import (
-    YTEnvSetup, unix_only, Restarter, SCHEDULERS_SERVICE,
+    YTEnvSetup, Restarter, SCHEDULERS_SERVICE,
 )
 from yt_commands import *
 

@@ -119,19 +119,8 @@ def raises_yt_error(code=None):
         result_list.append(e)
 
 def print_debug(*args):
-    if arcadia_interop.yatest_common is None:
-        print(*args, file=sys.stderr)
-    else:
-        if args:
-            root_logger.debug(" ".join(__builtin__.map(str, args)))
-
-def is_debug():
-    try:
-        from yson_lib import is_debug_build
-    except ImportError:
-        from yt_yson_bindings.yson_lib import is_debug_build
-
-    return is_debug_build()
+    if args:
+        root_logger.debug(" ".join(__builtin__.map(str, args)))
 
 def get_driver(cell_index=0, cluster="primary", api_version=default_api_version):
     if cluster not in clusters_drivers:

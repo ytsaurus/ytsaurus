@@ -177,12 +177,8 @@ def resources_equal(lhs, rhs):
 
 ##################################################################
 
-if arcadia_interop.yatest_common is not None:
-    CONVERTER_BINARY = arcadia_interop.search_binary_path("convert_operations_to_binary_format")
-    SIMULATOR_BINARY = arcadia_interop.search_binary_path("scheduler_simulator")
-else:
-    CONVERTER_BINARY = "convert_operations_to_binary_format"
-    SIMULATOR_BINARY = "scheduler_simulator"
+CONVERTER_BINARY = arcadia_interop.search_binary_path("convert_operations_to_binary_format")
+SIMULATOR_BINARY = arcadia_interop.search_binary_path("scheduler_simulator")
 
 ONE_GB = 1024 * 1024 * 1024
 

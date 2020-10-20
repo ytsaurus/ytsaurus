@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only, is_asan_build
+from yt_env_setup import YTEnvSetup, is_asan_build
 from yt_commands import *
 
 from flaky import flaky
@@ -28,7 +28,6 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
 
     #pytest.mark.xfail(run = False, reason = "Set-uid-root before running.")
     @authors("psushin")
-    @unix_only
     def test_map(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
@@ -59,7 +58,6 @@ while True:
         check_memory_limit(op)
 
     @authors("max42", "ignat")
-    @unix_only
     def test_dirty_sandbox(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
@@ -94,7 +92,6 @@ class TestMemoryReserveFactor(YTEnvSetup):
 
     @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
     @authors("max42")
-    @unix_only
     def test_memory_reserve_factor(self):
         job_count = 30
 

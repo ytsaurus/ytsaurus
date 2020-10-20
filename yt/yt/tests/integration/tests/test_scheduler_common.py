@@ -1,7 +1,7 @@
 from __future__ import print_function
 import sys
 
-from yt_env_setup import YTEnvSetup, unix_only, wait,\
+from yt_env_setup import YTEnvSetup, wait,\
     Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 from yt_commands import *
 from yt_helpers import *
@@ -165,7 +165,6 @@ class TestSchedulerCommon(YTEnvSetup):
                 spec={"mapper": {"format": "yamr"}})
 
     @authors("ignat")
-    @unix_only
     def test_fail_context(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -577,7 +576,6 @@ class TestSchedulerCommon(YTEnvSetup):
                 spec={"data_size_per_job": 1, "max_failed_job_count": 10, "testing": testing_options})
 
     @authors("ignat")
-    @unix_only
     def test_YT_5629(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

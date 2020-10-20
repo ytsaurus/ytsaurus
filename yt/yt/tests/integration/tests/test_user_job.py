@@ -1,6 +1,6 @@
 import yt_env_setup
 from yt_env_setup import (
-    YTEnvSetup, unix_only,
+    YTEnvSetup,
     Restarter, SCHEDULERS_SERVICE
 )
 from yt_commands import *
@@ -961,7 +961,6 @@ class TestNetworkIsolation(YTEnvSetup):
 
 ##################################################################
 
-@unix_only
 class TestJobStderr(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1277,7 +1276,6 @@ class TestUserFiles(YTEnvSetup):
         assert read_table("//tmp/output") == [{"name": "//tmp/file1"}, {"name": "//tmp/file2"}, {"name": "//tmp/file3"}]
 
     @authors("ignat")
-    @unix_only
     def test_with_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -1326,7 +1324,6 @@ class TestUserFiles(YTEnvSetup):
                 file=["//tmp/table_file"])
 
     @authors("ignat")
-    @unix_only
     def test_empty_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
@@ -1349,7 +1346,6 @@ class TestUserFiles(YTEnvSetup):
         assert read_table("//tmp/output") == []
 
     @authors("ignat")
-    @unix_only
     def test_multi_chunk_user_files(self):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})

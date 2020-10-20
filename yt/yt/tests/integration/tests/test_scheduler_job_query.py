@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, find_ut_file
+from yt_env_setup import YTEnvSetup, find_ut_file
 from yt_commands import *
 
 from yt.test_helpers import assert_items_equal, are_almost_equal
@@ -8,7 +8,6 @@ import os
 
 ##################################################################
 
-@unix_only
 class TestJobQuery(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
