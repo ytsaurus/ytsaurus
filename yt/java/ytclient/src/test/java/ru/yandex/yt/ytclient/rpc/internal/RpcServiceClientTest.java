@@ -24,7 +24,6 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.not;
 
 public class RpcServiceClientTest {
@@ -165,7 +164,7 @@ public class RpcServiceClientTest {
         MyService service = RpcServiceClient.create(MyService.class);
         int h = service.hashCode();
         String s = service.toString();
-        assertThat(s, not(isEmptyString()));
+        assertThat(s, is(not("")));
         boolean e = service.equals(service);
         assertThat(e, is(true));
     }

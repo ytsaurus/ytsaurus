@@ -62,7 +62,6 @@ import ru.yandex.yt.rpcproxy.TReqGetTablePivotKeys;
 import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
-import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
 import ru.yandex.yt.rpcproxy.TReqMoveNode;
@@ -626,11 +625,10 @@ public class ApiServiceClient implements TransactionalClient {
         });
     }
 
-    private <T> CompletableFuture<T> lookupRowsImpl(AbstractLookupRowsRequest<?> request,
-                                                    Function<RpcClientResponse<TRspLookupRows>, T> responseReader) {
-
-        RpcClientRequestBuilder<TReqLookupRows.Builder, RpcClientResponse<TRspLookupRows>> builder =
-                service.lookupRows();
+    private <T> CompletableFuture<T> lookupRowsImpl(
+            AbstractLookupRowsRequest<?> request,
+            Function<RpcClientResponse<TRspLookupRows>, T> responseReader)
+    {
         return handleHeavyResponse(
                 sendRequest(request.asLookupRowsWritable(), service.lookupRows()),
                 response -> {
