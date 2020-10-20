@@ -263,7 +263,7 @@ func CopyTree(src, dst string, options *CopyTreeOptions) error {
 		return err
 	}
 
-	err = os.MkdirAll(dst, srcFileInfo.Mode())
+	err = os.MkdirAll(dst, 0755)
 	if err != nil {
 		return err
 	}
@@ -320,5 +320,11 @@ func CopyTree(src, dst string, options *CopyTreeOptions) error {
 			}
 		}
 	}
+
+	err = CopyMode(src, dst, false)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
