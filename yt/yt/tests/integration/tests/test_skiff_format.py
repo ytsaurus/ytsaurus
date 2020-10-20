@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 from random import shuffle
@@ -48,7 +48,6 @@ class TestSkiffFormat(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     @authors("ermolovd")
-    @unix_only
     def test_id_map(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [

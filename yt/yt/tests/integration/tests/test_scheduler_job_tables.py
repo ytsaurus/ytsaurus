@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, wait, \
+from yt_env_setup import YTEnvSetup, wait, \
     skip_if_porto, is_asan_build, \
     Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
@@ -14,22 +14,9 @@ import time
 import threading
 from multiprocessing import Queue
 
-from distutils.spawn import find_executable
-
-if arcadia_interop.yatest_common is None:
-    TEST_DIR = os.path.join(os.path.dirname(__file__))
-
-    YT_CUDA_CORE_DUMP_SIMULATOR = os.environ.get("YT_CUDA_CORE_DUMP_SIMULATOR")
-    if YT_CUDA_CORE_DUMP_SIMULATOR is None:
-        YT_CUDA_CORE_DUMP_SIMULATOR = find_executable("cuda_core_dump_simulator")
-
-    YT_LIB_CUDA_CORE_DUMP_INJECTION = os.environ.get("YT_LIB_CUDA_CORE_DUMP_INJECTION")
-    if YT_LIB_CUDA_CORE_DUMP_INJECTION is None:
-        YT_LIB_CUDA_CORE_DUMP_INJECTION = find_executable("libcuda_core_dump_injection.so")
-else:
-    TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
-    YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.search_binary_path("cuda_core_dump_simulator")
-    YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.search_binary_path("libcuda_core_dump_injection.so")
+TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
+YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.search_binary_path("cuda_core_dump_simulator")
+YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.search_binary_path("libcuda_core_dump_injection.so")
 
 ##################################################################
 
@@ -90,7 +77,6 @@ class TestStderrTable(YTEnvSetup):
     }
 
     @authors("ermolovd")
-    @unix_only
     def test_map(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -108,7 +94,6 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @authors("ermolovd")
-    @unix_only
     def test_aborted_operation(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -138,7 +123,6 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @authors("ermolovd")
-    @unix_only
     def test_ordered_map(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -157,7 +141,6 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @authors("ermolovd")
-    @unix_only
     def test_reduce(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -176,7 +159,6 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @authors("ermolovd")
-    @unix_only
     def test_join_reduce(self):
         create("table", "//tmp/t_foreign")
         create("table", "//tmp/t_primary")
@@ -208,7 +190,6 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @authors("ermolovd")
-    @unix_only
     def test_map_reduce(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -228,7 +209,6 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @authors("ermolovd")
-    @unix_only
     def test_map_reduce_no_map(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -247,7 +227,6 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @authors("ermolovd")
-    @unix_only
     def test_map_reduce_only_reduce(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -266,7 +245,6 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @authors("ermolovd")
-    @unix_only
     def test_map_combine_reduce(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -297,7 +275,6 @@ class TestStderrTable(YTEnvSetup):
         compare_stderr_table_and_files("//tmp/t_stderr", op.id)
 
     @authors("ermolovd")
-    @unix_only
     def test_failed_jobs(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -321,7 +298,6 @@ class TestStderrTable(YTEnvSetup):
         assert get("//tmp/t_stderr/@sorted_by") == ["job_id", "part_index"]
 
     @authors("ermolovd")
-    @unix_only
     def test_append_stderr_prohibited(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -340,7 +316,6 @@ class TestStderrTable(YTEnvSetup):
             )
 
     @authors("ermolovd")
-    @unix_only
     def test_failing_write(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -364,7 +339,6 @@ class TestStderrTable(YTEnvSetup):
 
 
     @authors("ermolovd")
-    @unix_only
     def test_max_part_size(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -385,7 +359,6 @@ class TestStderrTable(YTEnvSetup):
         )
 
     @authors("ermolovd")
-    @unix_only
     def test_big_stderr(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -407,7 +380,6 @@ class TestStderrTable(YTEnvSetup):
         assert str("".join(item["data"] for item in stderr_rows)) == str("x " * (30 * 1024 * 1024))
 
     @authors("max42", "ermolovd")
-    @unix_only
     def test_scheduler_revive(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -728,7 +700,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @unix_only
     def test_no_cores(self):
         op, job_ids = self._start_operation(2)
         release_breakpoint()
@@ -739,7 +710,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @unix_only
     def test_simple(self):
         op, job_ids = self._start_operation(2)
 
@@ -755,7 +725,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @unix_only
     def test_large_core(self):
         op, job_ids = self._start_operation(1)
 
@@ -771,7 +740,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @unix_only
     def test_core_order(self):
         # In this test we check that cores are being processed
         # strictly in the order of their appearance.
@@ -809,7 +777,6 @@ class TestCoreTable(YTEnvSetup):
     @authors("gritukan", "max42")
     @pytest.mark.parametrize("fail_job_on_core_dump", [False, True])
     @skip_if_porto
-    @unix_only
     def test_fail_job_on_core_dump(self, fail_job_on_core_dump):
         op, job_ids = self._start_operation(1, max_failed_job_count=1, fail_job_on_core_dump=fail_job_on_core_dump)
 
@@ -830,7 +797,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @unix_only
     def test_cores_with_job_revival(self):
         op, job_ids = self._start_operation(1)
 
@@ -876,7 +842,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("gritukan")
     @skip_if_porto
-    @unix_only
     def test_core_table_account_disk_space_limit_exceeded(self):
         create_account("a")
         set_account_disk_space_limit("a", 0)
@@ -900,7 +865,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @unix_only
     def test_timeout_while_receiving_core(self):
         op, job_ids = self._start_operation(1)
 
@@ -924,7 +888,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("gritukan")
     @skip_if_porto
-    @unix_only
     def test_cores_processing_timeout(self):
         op, job_ids = self._start_operation(1)
 
@@ -955,7 +918,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("gritukan")
     @skip_if_porto
-    @unix_only
     def test_core_pipe_not_opened(self):
         op, job_ids = self._start_operation(1)
 
@@ -977,7 +939,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @unix_only
     def test_core_when_user_job_was_killed(self):
         pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
 
@@ -999,7 +960,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @unix_only
     def test_core_timeout_when_user_job_was_killed(self):
         pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to Porto.")
 
@@ -1022,7 +982,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("ignat", "gritukan")
     @skip_if_porto
-    @unix_only
     def test_core_infos_from_archive(self):
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
@@ -1058,7 +1017,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("gritukan")
     @skip_if_porto
-    @unix_only
     def test_sparse_core_dump_format(self):
         op, job_ids = self._start_operation(2)
 
@@ -1075,7 +1033,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("gritukan")
     @skip_if_porto
-    @unix_only
     def test_sparse_compression_rate_on_sparse_core_dump(self):
         op, job_ids = self._start_operation(2)
 
@@ -1095,7 +1052,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("gritukan")
     @skip_if_porto
-    @unix_only
     def test_cuda_gpu_core_dump(self):
         if YT_CUDA_CORE_DUMP_SIMULATOR is None:
             pytest.skip("This test requires cuda_core_dump_simulator being built")
@@ -1120,7 +1076,6 @@ class TestCoreTablePorto(TestCoreTable):
     USE_PORTO = True
 
     @authors("dcherednik", "gritukan")
-    @unix_only
     def test_core_when_user_job_was_killed_porto(self):
         # Breakpoints are not supported in tests with rootfs.
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1, get_job_id=False, enable_cuda_gpu_core_dump=True)

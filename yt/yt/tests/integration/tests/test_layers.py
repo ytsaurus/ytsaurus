@@ -1,6 +1,5 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
-from yt_helpers import from_sandbox
 
 import pytest
 import inspect

@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.yson import YsonEntity
 
@@ -37,7 +37,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
     }
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_tricky_chunk_boundaries(self):
         create("table", "//tmp/in1")
         write_table(
@@ -81,7 +80,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_cat_simple(self):
         create("table", "//tmp/in1")
         write_table(
@@ -129,7 +127,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @authors("psushin")
-    @unix_only
     def test_join_reduce_split_further(self):
         create("table", "//tmp/primary")
         write_table(
@@ -173,7 +170,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_primary_attribute_compatibility(self):
         create("table", "//tmp/in1")
         write_table("//tmp/in1", [{"key": i, "value": i+1} for i in range(8)], sorted_by = "key")
@@ -206,7 +202,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_control_attributes_yson(self):
         create("table", "//tmp/in1")
         write_table(
@@ -263,7 +258,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 """
 
     @authors("klyachin")
-    @unix_only
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_join_reduce_cat_two_output(self, optimize_for):
         schema = [
@@ -334,7 +328,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
 
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_empty_in(self):
         create("table", "//tmp/in1", attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
         create("table", "//tmp/in2", attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]})
@@ -349,7 +342,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
         assert read_table("//tmp/out") == []
 
     @authors("babenko", "klyachin")
-    @unix_only
     def test_join_reduce_duplicate_key_columns(self):
         create("table", "//tmp/in1", attributes={
                 "schema": [
@@ -372,7 +364,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 join_by=["a", "b", "a"])
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_unsorted_input(self):
         create("table", "//tmp/in1")
         write_table("//tmp/in1", {"foo": "bar"})
@@ -388,7 +379,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 command = "cat")
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_different_key_column(self):
         create("table", "//tmp/in1")
         write_table("//tmp/in1", {"foo": "bar"}, sorted_by=["foo"])
@@ -404,7 +394,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 command = "cat")
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_non_prefix(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -419,7 +408,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 join_by = "subkey")
 
     @authors("klyachin")
-    @unix_only
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_join_reduce_short_limits(self, optimize_for):
         schema = [
@@ -449,7 +437,6 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
             ]
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_many_output_tables(self):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
 
@@ -481,7 +468,6 @@ echo {v = 2} >&7
         assert read_table(output_tables[2]) == [{"v": 2}]
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_job_count(self):
         create("table", "//tmp/in1", attributes={"compression_codec": "none"})
         create("table", "//tmp/in2", attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]})
@@ -524,7 +510,6 @@ echo {v = 2} >&7
         assert get("//tmp/out/@row_count") >= 2
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_key_switch_yamr(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
@@ -571,7 +556,6 @@ echo {v = 2} >&7
             "010000006200000000"
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_with_small_block_size(self):
         create("table", "//tmp/in1", attributes={"compression_codec": "none"})
         create("table", "//tmp/in2")
@@ -619,7 +603,6 @@ echo {v = 2} >&7
         assert get("//tmp/out/@row_count") > 800
 
     @authors("renadeen", "klyachin")
-    @unix_only
     def test_join_reduce_skewed_key_distribution(self):
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
@@ -669,7 +652,6 @@ echo {v = 2} >&7
 
     # Check compatibility with deprecated <primary=true> attribute
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_compatibility(self):
         create("table", "//tmp/in1")
         write_table(
@@ -711,7 +693,6 @@ echo {v = 2} >&7
         assert get("//tmp/out/@sorted")
 
     @authors("max42", "klyachin")
-    @unix_only
     def test_join_reduce_row_count_limit(self):
         create("table", "//tmp/in1")
 
@@ -750,7 +731,6 @@ echo {v = 2} >&7
         assert len(read_table("//tmp/out")) == 6
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_short_range(self):
         count = 300
 
@@ -785,7 +765,6 @@ echo {v = 2} >&7
         assert get("//tmp/out/@row_count") == 200
 
     @authors("max42")
-    @unix_only
     def test_join_reduce_cartesian_product(self):
         create("table", "//tmp/in")
         for i in range(20):
@@ -814,7 +793,6 @@ echo {v = 2} >&7
         assert 9 <= job_count <= 11
 
     @authors("klyachin")
-    @unix_only
     def test_join_reduce_input_paths_attr(self):
         create("table", "//tmp/in1")
         for i in xrange(0, 5, 2):
@@ -1065,7 +1043,6 @@ done
         assert interrupted["job_split"] >= 1
 
     @authors("renadeen")
-    @unix_only
     def test_join_reduce_two_primaries(self):
         create("table", "//tmp/in1")
         write_table("//tmp/in1", [{"key": 0}], sorted_by="key")
@@ -1110,7 +1087,6 @@ class TestMaxTotalSliceCount(YTEnvSetup):
     }
 
     @authors("ignat")
-    @unix_only
     def test_hit_limit(self):
         create("table", "//tmp/t_primary")
         write_table("//tmp/t_primary", [

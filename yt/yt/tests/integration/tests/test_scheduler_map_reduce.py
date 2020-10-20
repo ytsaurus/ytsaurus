@@ -1,7 +1,7 @@
 import pytest
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 
-from yt_env_setup import YTEnvSetup, unix_only, wait, parametrize_external
+from yt_env_setup import YTEnvSetup, wait, parametrize_external
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
@@ -268,7 +268,6 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             assert_items_equal(read_table("//tmp/t_out"), output)
 
     @authors("ignat")
-    @unix_only
     @pytest.mark.parametrize("ordered", [False, True])
     def test_many_output_tables(self, ordered):
         create("table", "//tmp/t_in")
@@ -283,7 +282,6 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                          "ordered": ordered})
 
     @authors("psushin")
-    @unix_only
     def test_reduce_with_sort(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -337,7 +335,6 @@ print "x={0}\ty={1}".format(x, y)
         assert get('//tmp/t_out/@sorted')
 
     @authors("babenko")
-    @unix_only
     def test_row_count_limit(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -467,7 +464,6 @@ print "x={0}\ty={1}".format(x, y)
         op.abort()
 
     @authors("savrus")
-    @unix_only
     def test_query_simple(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -522,7 +518,6 @@ print "x={0}\ty={1}".format(x, y)
         return [node_id]
 
     @authors("psushin")
-    @unix_only
     @pytest.mark.parametrize("ordered", [False, True])
     def test_lost_jobs(self, ordered):
         create("table", "//tmp/t_in")
@@ -564,7 +559,6 @@ print "x={0}\ty={1}".format(x, y)
         assert get(op.get_path() + "/@progress/partition_jobs/lost") == 1
 
     @authors("psushin")
-    @unix_only
     @pytest.mark.parametrize("ordered", [False, True])
     def test_unavailable_intermediate_chunks(self, ordered):
         create("table", "//tmp/t_in")
@@ -660,7 +654,6 @@ print "x={0}\ty={1}".format(x, y)
         assert partition_reduce_counter["pending"] == 0
 
     @authors("savrus")
-    @unix_only
     def test_query_reader_projection(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -672,7 +665,6 @@ print "x={0}\ty={1}".format(x, y)
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("savrus")
-    @unix_only
     def test_query_with_condition(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -684,7 +676,6 @@ print "x={0}\ty={1}".format(x, y)
         assert read_table("//tmp/t2") == [{"a": 1}]
 
     @authors("savrus", "psushin")
-    @unix_only
     def test_query_asterisk(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

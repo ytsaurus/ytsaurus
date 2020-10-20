@@ -1,5 +1,5 @@
 from yt_commands import *
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup
 
 import yt.yson as yson
 
@@ -452,7 +452,6 @@ class TestWebJsonFormat(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     @authors("bidzilya")
-    @unix_only
     def test_read_table(self):
         create("table", TABLE_PATH)
         write_table(TABLE_PATH, get_rows())
@@ -475,7 +474,6 @@ class TestWebJsonFormat(YTEnvSetup):
 
     # NB! Expect to have |null| value in the output for every schema column not presented in the data.
     @authors("bidzilya")
-    @unix_only
     def test_read_table_schema_column_null_values(self):
         schema = get_schema(strict=False)
         create("table", TABLE_PATH, attributes={"schema": schema})
@@ -495,7 +493,6 @@ class TestWebJsonFormat(YTEnvSetup):
         assert missed_schema_column in output["all_column_names"]
 
     @authors("bidzilya")
-    @unix_only
     def test_select_rows_from_sorted_dynamic_table(self):
         sync_create_cells(1)
         schema = get_schema(dynamic=True, key_column_names=["string32_column"], unique_keys=True, strict=True)
@@ -519,7 +516,6 @@ class TestWebJsonFormat(YTEnvSetup):
         sync_unmount_table(TABLE_PATH)
 
     @authors("ignat")
-    @unix_only
     def test_select_rows_from_sorted_dynamic_table_with_duplicate_columns(self):
         sync_create_cells(1)
         schema = get_schema(dynamic=True, key_column_names=["string32_column"], unique_keys=True, strict=True)
@@ -538,7 +534,6 @@ class TestWebJsonFormat(YTEnvSetup):
         sync_unmount_table(TABLE_PATH)
 
     @authors("bidzilya")
-    @unix_only
     def test_select_rows_from_ordered_dynamic_table(self):
         sync_create_cells(1)
         schema = get_schema(dynamic=True)

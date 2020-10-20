@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt.yson import YsonList
 from yt.environment.helpers import assert_items_equal
@@ -366,21 +366,18 @@ class TestCypressAcls(CheckPermissionBase):
         map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("babenko")
-    @unix_only
     def test_scheduler_in_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t1/@acl/end", make_ace("deny", "u", "read"))
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("babenko")
-    @unix_only
     def test_scheduler_out_acl(self):
         self._prepare_scheduler_test()
         set("//tmp/t2/@acl/end", make_ace("deny", "u", "write"))
         with pytest.raises(YtError): map(in_="//tmp/t1", out="//tmp/t2", command="cat", authenticated_user="u")
 
     @authors("babenko")
-    @unix_only
     def test_scheduler_account_quota(self):
         self._prepare_scheduler_test()
         set("//tmp/t2/@account", "a")

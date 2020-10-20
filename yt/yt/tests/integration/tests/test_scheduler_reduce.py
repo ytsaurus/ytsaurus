@@ -3,7 +3,7 @@ import itertools
 import pytest
 
 from yt.environment.helpers import assert_items_equal, wait
-from yt_env_setup import YTEnvSetup, unix_only, parametrize_external
+from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import *
 from yt.yson import YsonEntity
 
@@ -49,7 +49,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
 
     # TODO(max42): eventually remove this test as it duplicates unittest TSortedChunkPoolTest/SortedReduceSimple.
     @authors("psushin", "klyachin")
-    @unix_only
     def test_tricky_chunk_boundaries(self):
         create("table", "//tmp/in1")
         write_table(
@@ -89,7 +88,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @authors("klyachin")
-    @unix_only
     def test_cat(self):
         create("table", "//tmp/in1")
         write_table(
@@ -137,7 +135,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @authors("psushin")
-    @unix_only
     def test_column_filter(self):
         create("table", "//tmp/in1")
         set("//tmp/in1/@optimize_for", "scan")
@@ -275,7 +272,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
                 spec={"reducer": {"format": "dsv"}})
 
     @authors("psushin", "klyachin")
-    @unix_only
     def test_control_attributes_yson(self):
         create("table", "//tmp/in1")
         write_table(
@@ -336,7 +332,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         check_all_stderrs(op, expected_stderr, 1)
 
     @authors("savrus", "klyachin")
-    @unix_only
     def test_cat_teleport(self):
         schema = make_schema([
             {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -416,7 +411,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get("//tmp/out2/@sorted")
 
     @authors("psushin", "klyachin")
-    @unix_only
     def test_maniac_chunk(self):
         create("table", "//tmp/in1")
         write_table(
@@ -545,7 +539,6 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         assert get("//tmp/out/@sorted")
 
     @authors("panin", "klyachin")
-    @unix_only
     def test_many_output_tables(self):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
 
@@ -710,7 +703,6 @@ echo {v = 2} >&7
         assert not get("//tmp/out/@sorted")
 
     @authors("klyachin")
-    @unix_only
     def test_reduce_with_foreign_join_one_job(self):
         create("table", "//tmp/hosts")
         write_table(
@@ -796,7 +788,6 @@ echo {v = 2} >&7
             ]
 
     @authors("klyachin")
-    @unix_only
     def test_reduce_with_foreign_skip_joining_rows(self):
         create("table", "//tmp/hosts")
         write_table(
@@ -883,7 +874,6 @@ echo {v = 2} >&7
         create("table", "//tmp/output")
 
     @authors("klyachin")
-    @unix_only
     def test_reduce_with_foreign_join_with_ranges(self):
         self._prepare_join_tables()
 
@@ -917,7 +907,6 @@ echo {v = 2} >&7
             ]
 
     @authors("klyachin")
-    @unix_only
     def test_reduce_with_foreign_join_multiple_jobs(self):
         self._prepare_join_tables()
 
@@ -937,7 +926,6 @@ echo {v = 2} >&7
         assert len(read_table("//tmp/output")) == 18
 
     @authors("klyachin")
-    @unix_only
     def test_reduce_with_foreign_multiple_jobs(self):
         for i in range(4):
             create("table", "//tmp/t{0}".format(i))
@@ -972,7 +960,6 @@ echo {v = 2} >&7
         assert output[0] == {"key":"00017", "value":"10017", "@table_index":"0"}
 
     @authors("klyachin")
-    @unix_only
     def test_reduce_with_foreign_reduce_by_equals_join_by(self):
         self._prepare_join_tables()
 
@@ -992,7 +979,6 @@ echo {v = 2} >&7
         assert len(read_table("//tmp/output")) == 12
 
     @authors("klyachin")
-    @unix_only
     def test_reduce_with_foreign_invalid_reduce_by(self):
         self._prepare_join_tables()
 
@@ -1011,7 +997,6 @@ echo {v = 2} >&7
                 })
 
     @authors("klyachin")
-    @unix_only
     def test_reduce_with_foreign_join_key_switch_yson(self):
         create("table", "//tmp/hosts")
         write_table(
@@ -1092,7 +1077,6 @@ echo {v = 2} >&7
 """
 
     @authors("klyachin")
-    @unix_only
     def test_reduce_row_count_limit(self):
         create("table", "//tmp/input")
         for i in xrange(5):
@@ -1118,7 +1102,6 @@ echo {v = 2} >&7
         assert len(read_table("//tmp/output")) == 3
 
     @authors("dakovalkov")
-    @unix_only
     def test_reduce_row_count_limit_teleport(self):
         create("table", "//tmp/in1", attributes = {
             "schema": make_schema([
@@ -1147,7 +1130,6 @@ echo {v = 2} >&7
         assert read_table("//tmp/out") == [{"key": 1}, {"key": 3}]
 
     @authors("dakovalkov")
-    @unix_only
     def test_reduce_row_count_limit_teleport_2(self):
         create("table", "//tmp/in1", attributes = {
             "schema": make_schema([
@@ -1173,7 +1155,6 @@ echo {v = 2} >&7
         assert sorted(read_table("//tmp/out2")) == [{"key": 1}, {"key" : 3}, {"key": 6}, {"key" : 10}, {"key" : 11}]
 
     @authors("savrus")
-    @unix_only
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
     def test_schema_validation(self, sort_order):
         create("table", "//tmp/input")
@@ -1208,7 +1189,6 @@ echo {v = 2} >&7
                 command="cat")
 
     @authors("babenko", "klyachin")
-    @unix_only
     def test_reduce_input_paths_attr(self):
         create("table", "//tmp/in1")
         for i in xrange(0, 5, 2):
@@ -1243,7 +1223,6 @@ echo {v = 2} >&7
             op.track();
 
     @authors("savrus")
-    @unix_only
     def test_computed_columns(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2",
@@ -1265,7 +1244,6 @@ echo {v = 2} >&7
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in xrange(2)]
 
     @authors("savrus")
-    @unix_only
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_reduce_on_dynamic_table(self, optimize_for, external):
@@ -1300,7 +1278,6 @@ echo {v = 2} >&7
         assert_items_equal(read_table("//tmp/t_out"), rows)
 
     @authors("savrus")
-    @unix_only
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_reduce_with_foreign_dynamic(self, optimize_for, external):
@@ -1374,7 +1351,6 @@ echo {v = 2} >&7
 """
 
     @authors("klyachin")
-    @unix_only
     @pytest.mark.parametrize("with_foreign", [False, True])
     def test_reduce_interrupt_job(self, with_foreign):
         if with_foreign:
@@ -2058,7 +2034,6 @@ for line in sys.stdin:
         assert read_table("//tmp/out") == [{"key": 0, "value": 0}]
 
     @authors("gritukan")
-    @unix_only
     def test_foreign_table_and_barrier_jobs(self):
         create("table", "//tmp/foreign")
         write_table(

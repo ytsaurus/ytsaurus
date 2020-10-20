@@ -2,7 +2,7 @@ import pytest
 from flaky import flaky
 
 import yt.common
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import string
@@ -216,7 +216,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     }
 
     @authors("ignat")
-    @unix_only
     def test_unused_tmpfs_size_alert(self):
         create_test_tables()
 

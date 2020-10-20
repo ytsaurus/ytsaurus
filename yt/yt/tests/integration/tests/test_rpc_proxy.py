@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, wait
+from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
 from yt.wrapper import JsonFormat

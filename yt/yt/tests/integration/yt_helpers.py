@@ -259,21 +259,6 @@ class Metric(object):
         return data
 
 
-def from_sandbox(resource_id):
-    print_debug("Fetching resource {0}".format(resource_id))
-    sandbox_url = "https://proxy.sandbox.yandex-team.ru/{0}".format(resource_id)
-    response = requests.get(sandbox_url)
-    if not response:
-        if response.status_code == 404:
-            pytest.fail("Resource #{0} not found".format(resource_id))
-        else:
-            pytest.skip("Unable to get sandbox resource {0}, status_code {1}".format(resource_id, response.status_code))
-    print_debug("")
-    file_obj = BytesIO(response.content)
-    tar = tarfile.open(fileobj=file_obj)
-    tar.list()
-    tar.extractall()
-
 def parse_yt_time(time):
     return parser.parse(time)
 

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 import pytest

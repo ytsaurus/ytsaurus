@@ -1,5 +1,5 @@
 from yt_commands import *
-from yt_env_setup import YTEnvSetup, unix_only
+from yt_env_setup import YTEnvSetup
 
 
 def _test_yson_row(type, optimize_for, canonical_value, format, format_value):

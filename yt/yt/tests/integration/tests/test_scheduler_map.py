@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, wait, skip_if_porto, parametrize_external, is_asan_build,
+    YTEnvSetup, wait, skip_if_porto, parametrize_external, is_asan_build,
 )
 
 from yt_commands import *
@@ -90,7 +90,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert [] == read_table("//tmp/t2", verbose=False)
 
     @authors("ignat")
-    @unix_only
     def test_one_chunk(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -176,7 +175,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 verbose=True)
 
     @authors("psushin")
-    @unix_only
     def test_in_equal_to_out(self):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"foo": "bar"})
@@ -230,7 +228,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert encode_time > 0
 
     @authors("psushin")
-    @unix_only
     def test_sorted_output(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -287,7 +284,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
                 spec={"job_count": 2})
 
     @authors("psushin")
-    @unix_only
     def test_job_count(self):
         create("table", "//tmp/t1")
         for i in xrange(5):
@@ -307,7 +303,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         check("//tmp/t3", 10, 5) # number of jobs cannot be more than number of rows.
 
     @authors("max42")
-    @unix_only
     def test_skewed_rows(self):
         create("table", "//tmp/t1")
         # 5 small rows
@@ -326,7 +321,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
     # (since there are a lot of operations with large number of jobs).
     # There is completely nothing Porto-specific here.
     @authors("ignat")
-    @unix_only
     @skip_if_porto
     def test_job_per_row(self):
         create("table", "//tmp/input")
@@ -350,7 +344,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
             assert op.get_job_count("total") == job_count
             op.abort()
 
-    @unix_only
     def run_many_output_tables(self, yamr_mode=False):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
 
@@ -379,17 +372,14 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[2]) == [{"v": 2}]
 
     @authors("ignat")
-    @unix_only
     def test_many_output_yt(self):
         self.run_many_output_tables()
 
     @authors("ignat")
-    @unix_only
     def test_many_output_yamr(self):
         self.run_many_output_tables(True)
 
     @authors("ignat")
-    @unix_only
     def test_output_tables_switch(self):
         output_tables = ["//tmp/t%d" % i for i in range(3)]
 
@@ -413,7 +403,6 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert read_table(output_tables[2]) == [{"v": 0}, {"v": 1}]
 
     @authors("ignat")
-    @unix_only
     def test_executable_mapper(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -438,7 +427,6 @@ cat > /dev/null; echo {hello=world}
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
     @authors("ignat")
-    @unix_only
     def test_table_index(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -473,7 +461,6 @@ print row + table_index
         assert_items_equal(read_table("//tmp/out"), expected)
 
     @authors("ignat")
-    @unix_only
     def test_range_index(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/out")
@@ -676,7 +663,6 @@ print row + table_index
 
     @authors("psushin")
     @pytest.mark.parametrize("ordered", [False, True])
-    @unix_only
     def test_map_row_count_limit(self, ordered):
         create("table", "//tmp/input")
         for i in xrange(5):
@@ -704,7 +690,6 @@ print row + table_index
 
 
     @authors("psushin")
-    @unix_only
     def test_job_controller_orchid(self):
         create("table", "//tmp/input")
         for i in xrange(5):
@@ -738,7 +723,6 @@ print row + table_index
         op.abort()
 
     @authors("psushin")
-    @unix_only
     def test_map_row_count_limit_second_output(self):
         create("table", "//tmp/input")
         for i in xrange(5):
@@ -1660,7 +1644,6 @@ class TestInputOutputFormats(YTEnvSetup):
     }
 
     @authors("ignat")
-    @unix_only
     def test_tskv_input_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -1686,7 +1669,6 @@ print '{hello=world}'
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
     @authors("ignat")
-    @unix_only
     def test_tskv_output_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -1717,7 +1699,6 @@ print "tskv" + "\\t" + "hello=world"
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
     @authors("ignat")
-    @unix_only
     def test_yamr_output_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -1746,7 +1727,6 @@ print "key\\tsubkey\\tvalue"
         assert read_table("//tmp/t_out") == [{"key": "key", "subkey": "subkey", "value": "value"}]
 
     @authors("ignat")
-    @unix_only
     def test_yamr_input_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"value": "value", "subkey": "subkey", "key": "key", "a": "another"})
@@ -1801,7 +1781,6 @@ print '{hello=world}'
             command="echo '{0}'".format(row), format=yson_with_type_conversion,
             spec={"max_failed_job_count": 1, "mapper": {"output_format": yson_with_type_conversion}})
 
-    #@unix_only
     @authors("max42")
     def test_invalid_row_indices(self):
         create("table", "//tmp/t_in")

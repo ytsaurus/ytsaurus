@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, wait,
+    YTEnvSetup, wait,
 )
 from yt_commands import *
 
@@ -26,7 +26,6 @@ class TestJobProber(YTEnvSetup):
     USE_PORTO = True
 
     @authors("ignat")
-    @unix_only
     def test_abandon_job(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -51,7 +50,6 @@ class TestJobProber(YTEnvSetup):
         assert len(read_table("//tmp/t2")) == 4
 
     @authors("ignat")
-    @unix_only
     def test_abandon_job_sorted_empty_output(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -71,7 +69,6 @@ class TestJobProber(YTEnvSetup):
         assert len(read_table("//tmp/t2")) == 0
 
     @authors("ignat")
-    @unix_only
     def test_abandon_job_permissions(self):
         create_user("u1")
         create_user("u2")
@@ -276,7 +273,6 @@ class TestJobProber(YTEnvSetup):
         assert output == expected
 
     @authors("ignat")
-    @unix_only
     def test_abort_job(self):
         time.sleep(2)
         start_profiling = get_job_count_profiling()

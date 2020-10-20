@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, wait, Restarter, CONTROLLER_AGENTS_SERVICE,
+    YTEnvSetup, wait, Restarter, CONTROLLER_AGENTS_SERVICE,
 )
 from yt_commands import *
 from yt_helpers import *
@@ -78,7 +78,6 @@ class TestPoolMetrics(YTEnvSetup):
     USE_PORTO = True
 
     @authors("ignat")
-    @unix_only
     def test_map(self):
         create_pool("parent")
         create_pool("child1", parent_name="parent")

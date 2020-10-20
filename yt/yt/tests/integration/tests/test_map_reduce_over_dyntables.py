@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, wait, parametrize_external,
+    YTEnvSetup, wait, parametrize_external,
 )
 from yt_commands import *
 

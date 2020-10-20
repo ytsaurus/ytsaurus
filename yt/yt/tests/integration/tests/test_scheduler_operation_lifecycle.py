@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, wait, Restarter, unix_only, is_asan_build,
+    YTEnvSetup, wait, Restarter, is_asan_build,
     SCHEDULERS_SERVICE, MASTERS_SERVICE, CONTROLLER_AGENTS_SERVICE,
 )
 
@@ -1060,7 +1060,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         return get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
 
     @authors("eshcherbin")
-    @unix_only
     def test_operation_completed(self):
         self._prepare_tables()
         create_pool("unique_pool")
@@ -1076,7 +1075,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         wait(lambda: metric_completed_delta.update().get(verbose=True) == 117)
 
     @authors("eshcherbin")
-    @unix_only
     def test_operation_failed(self):
         self._prepare_tables()
         create_pool("unique_pool")
@@ -1215,7 +1213,6 @@ class TestSafeAssertionsMode(YTEnvSetup):
         }
 
     @authors("max42")
-    @unix_only
     @pytest.mark.skipif(is_asan_build(), reason="Core dumps + ASAN = no way")
     def test_assertion_failure(self):
         create("table", "//tmp/t_in")
@@ -1254,9 +1251,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
 
         wait(check_core, iter=200, sleep_backoff=5)
 
-        gdb = "gdb"
-        if arcadia_interop.yatest_common is not None:
-            gdb = arcadia_interop.yatest_common.gdb_path()
+        gdb = arcadia_interop.yatest_common.gdb_path()
 
         assert os.path.exists(core_path)
         child = subprocess.Popen([gdb, "--batch", "-ex", "bt",
