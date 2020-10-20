@@ -54,9 +54,7 @@ class TestStructuredSecurityLogs(YTEnvSetup):
             {
                 "event": "object_acd_updated",
                 "attribute": "acl",
-                "value": [
-                    {"permissions": ["read"], "action": "allow", "subjects": ["root"]}
-                ],
+                "value": [{"permissions": ["read"], "action": "allow", "subjects": ["root"]}],
             }
         )
 
@@ -96,7 +94,5 @@ class TestStructuredSecurityLogs(YTEnvSetup):
     def wait_log_event(self, expected_event):
         wait(
             lambda: self.log_contains_event(expected_event),
-            lambda: "Event {} is not presented in log {}".format(
-                expected_event, self.load_structured_master_log()
-            ),
+            lambda: "Event {} is not presented in log {}".format(expected_event, self.load_structured_master_log()),
         )

@@ -16,9 +16,7 @@ import tempfile
 import shutil
 
 # User must be entertained!
-logging.basicConfig(
-        format="%(asctime)-15s %(levelname)s: %(message)s",
-        level=logging.INFO)
+logging.basicConfig(format="%(asctime)-15s %(levelname)s: %(message)s", level=logging.INFO)
 
 InputFileInfo = collections.namedtuple("InputFileInfo", ["yt_path", "testset", "shasum"])
 
@@ -33,51 +31,58 @@ When adding new compression codecs please modify this script:
      Don't forget to mark the resource as "Important" so that its ttl is set to inf.
 """
 
+
 def including_xrange(i, j):
     return xrange(i, j + 1)
 
+
 def get_codec_list():
-    return [
-        "snappy",
-        "lz4",
-        "lz4_high_compression",
-        "quick_lz",
-        "zstd_legacy",
-    ] + [
-        "brotli_{0}".format(i) for i in including_xrange(1, 11)
-    ] + [
-        "bzip2_{0}".format(i) for i in including_xrange(1, 9)
-    ] + [
-        "lzma_{0}".format(i) for i in including_xrange(0, 9)
-    ] + [
-        "zlib_{0}".format(i) for i in including_xrange(1, 9)
-    ] + [
-        "zstd_{0}".format(i) for i in including_xrange(1, 21)
-    ]
+    return (
+        [
+            "snappy",
+            "lz4",
+            "lz4_high_compression",
+            "quick_lz",
+            "zstd_legacy",
+        ]
+        + ["brotli_{0}".format(i) for i in including_xrange(1, 11)]
+        + ["bzip2_{0}".format(i) for i in including_xrange(1, 9)]
+        + ["lzma_{0}".format(i) for i in including_xrange(0, 9)]
+        + ["zlib_{0}".format(i) for i in including_xrange(1, 9)]
+        + ["zstd_{0}".format(i) for i in including_xrange(1, 21)]
+    )
+
 
 def get_input_file_info_list():
     return [
         InputFileInfo(
             yt_path="//home/files/test_data/compression/template/YT-2072/data",
             testset="YT-2072",
-            shasum="95b75100e74db32c2714bc691861888e5b589322"),
+            shasum="95b75100e74db32c2714bc691861888e5b589322",
+        ),
         InputFileInfo(
             yt_path="//home/files/test_data/compression/template/YT-5096/data",
             testset="YT-5096",
-            shasum="f49966824a617322ff9c0797656e17d6dda1429a"),
+            shasum="f49966824a617322ff9c0797656e17d6dda1429a",
+        ),
     ]
+
 
 def get_uncompressed_path(map_node, testset):
     return map_node + "/{0}/data".format(testset)
 
+
 def get_compressed_path(map_node, testset, codec):
     return map_node + "/{0}/data.compressed.{1}".format(testset, codec)
+
 
 def get_shasum(data):
     return hashlib.sha1(data).hexdigest()
 
+
 def get_testcases_file(destination_directory):
     return os.path.join(destination_directory, "testcases.json")
+
 
 def compress_save_shasum_file(file, codec, destination_path):
     file.seek(0)
@@ -90,6 +95,7 @@ def compress_save_shasum_file(file, codec, destination_path):
 
     return get_shasum(compressed)
 
+
 def save_testset(input_file_info, destination_directory):
     testset_info = {}
     with tempfile.TemporaryFile() as temp_input_file:
@@ -101,9 +107,9 @@ def save_testset(input_file_info, destination_directory):
                 "Path: {path}\n"
                 "Expected: {expected}\n"
                 "Actual: {actual}\n".format(
-                    path=input_file_info.yt_path,
-                    expected=input_file_info.shasum,
-                    actual=shasum))
+                    path=input_file_info.yt_path, expected=input_file_info.shasum, actual=shasum
+                )
+            )
         temp_input_file.write(input_data)
         temp_input_file.flush()
 
@@ -120,19 +126,27 @@ def save_testset(input_file_info, destination_directory):
         compressed_file_infos = []
         testset_info["compressed_files"] = compressed_file_infos
         for codec in get_codec_list():
-            compressed_file_path = destination_directory + "/{0}/data.compressed.{1}".format(input_file_info.testset, codec)
-            logging.info("Testset: {0} codec: {1} saving to: {2}".format(input_file_info.testset, codec, compressed_file_path))
+            compressed_file_path = destination_directory + "/{0}/data.compressed.{1}".format(
+                input_file_info.testset, codec
+            )
+            logging.info(
+                "Testset: {0} codec: {1} saving to: {2}".format(input_file_info.testset, codec, compressed_file_path)
+            )
             shasum = compress_save_shasum_file(temp_input_file, codec, compressed_file_path)
-            compressed_file_infos.append({
-                "path": compressed_file_path,
-                "codec": codec,
-                "shasum": shasum,
-            })
+            compressed_file_infos.append(
+                {
+                    "path": compressed_file_path,
+                    "codec": codec,
+                    "shasum": shasum,
+                }
+            )
     return testset_info
+
 
 def exit_with_error(error):
     print("ERROR:", error)
     exit(1)
+
 
 def main():
     argument_parser = argparse.ArgumentParser(description=USAGE, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -161,6 +175,7 @@ def main():
         json.dump(result_info, testcases_file)
 
     print("{0} was created. Upload it to Sandbox to use it in tests.".format(destination_directory))
+
 
 if __name__ == "__main__":
     main()

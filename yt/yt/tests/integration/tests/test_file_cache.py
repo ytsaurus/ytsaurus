@@ -25,9 +25,7 @@ class TestFileCache(YTEnvSetup):
             recursive=True,
         )
 
-        assert get_file_from_cache(
-            md5, cache_path
-        ) == "//tmp/file_cache/{0}/{1}".format(md5[-2:], md5)
+        assert get_file_from_cache(md5, cache_path) == "//tmp/file_cache/{0}/{1}".format(md5[-2:], md5)
 
         create("file", "//tmp/file")
         write_file("//tmp/file", "aba", compute_md5=True)
@@ -71,9 +69,7 @@ class TestFileCache(YTEnvSetup):
         with pytest.raises(YtError):
             put_file_to_cache("//tmp/file", hashlib.md5("abacaba").hexdigest())
 
-        path = put_file_to_cache(
-            "//tmp/file", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache"
-        )
+        path = put_file_to_cache("//tmp/file", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache")
         assert read_file(path) == "abacaba"
         assert get(path + "/@touched")
         assert exists("//tmp/file")
@@ -81,9 +77,7 @@ class TestFileCache(YTEnvSetup):
         write_file("//tmp/file", "abacaba", compute_md5=True)
         set(path + "/@touched", False)
 
-        path2 = put_file_to_cache(
-            "//tmp/file", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache"
-        )
+        path2 = put_file_to_cache("//tmp/file", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache")
         assert path2 == path
         assert get(path + "/@touched")
 
@@ -92,16 +86,12 @@ class TestFileCache(YTEnvSetup):
         create("file", "//tmp/file2")
         write_file("//tmp/file2", "abacaba", compute_md5=True)
 
-        path3 = put_file_to_cache(
-            "//tmp/file2", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache"
-        )
+        path3 = put_file_to_cache("//tmp/file2", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache")
         assert read_file(path3) == "abacaba"
         assert path3 == path2
 
         write_file("//tmp/file", "abacaba", compute_md5=True)
-        path4 = put_file_to_cache(
-            "//tmp/file", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache"
-        )
+        path4 = put_file_to_cache("//tmp/file", hashlib.md5("abacaba").hexdigest(), cache_path="//tmp/cache")
 
         assert read_file(path4) == "abacaba"
         assert path4 == path3
@@ -165,10 +155,7 @@ class TestFileCache(YTEnvSetup):
         path3 = get_file_from_cache(content_md5, "//tmp/cache")
         assert path2 == path3
         assert read_file(path) == content
-        assert (
-            date_string_to_datetime(get(path + "/@modification_time"))
-            > modification_time
-        )
+        assert date_string_to_datetime(get(path + "/@modification_time")) > modification_time
 
     @authors("ignat")
     def test_under_transaction(self):
@@ -180,9 +167,7 @@ class TestFileCache(YTEnvSetup):
         create("map_node", "//tmp/cache", tx=tx)
         create("file", "//tmp/file", tx=tx)
         write_file("//tmp/file", content, compute_md5=True, tx=tx)
-        path = put_file_to_cache(
-            "//tmp/file", content_md5, cache_path="//tmp/cache", tx=tx
-        )
+        path = put_file_to_cache("//tmp/file", content_md5, cache_path="//tmp/cache", tx=tx)
         path2 = get_file_from_cache(content_md5, "//tmp/cache", tx=tx)
         assert path == path2
         assert read_file(path, tx=tx) == content

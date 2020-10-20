@@ -20,9 +20,7 @@ def get_stderr_from_table(operation_id, job_id):
         select_rows(
             "stderr from [//sys/operations_archive/stderrs] "
             "where operation_id_lo={0}u and operation_id_hi={1}u and "
-            "job_id_lo={2}u and job_id_hi={3}u".format(
-                operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi
-            )
+            "job_id_lo={2}u and job_id_hi={3}u".format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)
         )
     )
     assert len(rows) == 1
@@ -166,9 +164,7 @@ class TestListJobsBase(YTEnvSetup):
             address_to_job_ids[address].append(job["id"])
         for address, job_ids in address_to_job_ids.iteritems():
             actual_jobs_for_address = checked_list_jobs(op.id, address=address)["jobs"]
-            assert __builtin__.set(
-                job["id"] for job in actual_jobs_for_address
-            ) == __builtin__.set(job_ids)
+            assert __builtin__.set(job["id"] for job in actual_jobs_for_address) == __builtin__.set(job_ids)
 
     @staticmethod
     def _get_answers_for_filters_during_map(job_ids):
@@ -182,8 +178,7 @@ class TestListJobsBase(YTEnvSetup):
             ("with_stderr", True): job_ids["failed_map"] + job_ids["completed_map"],
             ("with_stderr", False): job_ids["aborted_map"],
             ("with_fail_context", True): job_ids["failed_map"],
-            ("with_fail_context", False): job_ids["aborted_map"]
-            + job_ids["completed_map"],
+            ("with_fail_context", False): job_ids["aborted_map"] + job_ids["completed_map"],
         }
 
     @staticmethod
@@ -195,14 +190,10 @@ class TestListJobsBase(YTEnvSetup):
             ("job_state", "running"): job_ids["reduce"],
             ("job_type", "partition_map"): job_ids["map"],
             ("job_type", "partition_reduce"): job_ids["reduce"],
-            ("with_stderr", True): job_ids["failed_map"]
-            + job_ids["completed_map"]
-            + job_ids["reduce"],
+            ("with_stderr", True): job_ids["failed_map"] + job_ids["completed_map"] + job_ids["reduce"],
             ("with_stderr", False): job_ids["aborted_map"],
             ("with_fail_context", True): job_ids["failed_map"],
-            ("with_fail_context", False): job_ids["aborted_map"]
-            + job_ids["completed_map"]
-            + job_ids["reduce"],
+            ("with_fail_context", False): job_ids["aborted_map"] + job_ids["completed_map"] + job_ids["reduce"],
         }
 
     @staticmethod
@@ -214,14 +205,10 @@ class TestListJobsBase(YTEnvSetup):
             ("job_state", "running"): [],
             ("job_type", "partition_map"): job_ids["map"],
             ("job_type", "partition_reduce"): job_ids["reduce"],
-            ("with_stderr", True): job_ids["failed_map"]
-            + job_ids["completed_map"]
-            + job_ids["reduce"],
+            ("with_stderr", True): job_ids["failed_map"] + job_ids["completed_map"] + job_ids["reduce"],
             ("with_stderr", False): job_ids["aborted_map"],
             ("with_fail_context", True): job_ids["failed_map"],
-            ("with_fail_context", False): job_ids["aborted_map"]
-            + job_ids["completed_map"]
-            + job_ids["reduce"],
+            ("with_fail_context", False): job_ids["aborted_map"] + job_ids["completed_map"] + job_ids["reduce"],
         }
 
     @staticmethod
@@ -317,9 +304,7 @@ class TestListJobsBase(YTEnvSetup):
             def key(job):
                 finish_time_str = job.get("finish_time")
                 finish_time = (
-                    date_string_to_datetime(finish_time_str)
-                    if finish_time_str is not None
-                    else datetime.now()
+                    date_string_to_datetime(finish_time_str) if finish_time_str is not None else datetime.now()
                 )
                 return finish_time - date_string_to_datetime(job["start_time"])
 
@@ -345,9 +330,7 @@ class TestListJobsBase(YTEnvSetup):
                         reverse=reverse,
                     )
                     == jobs
-                ), "Assertion for sort_field={} and sort_order={} failed".format(
-                    field_name, sort_order
-                )
+                ), "Assertion for sort_field={} and sort_order={} failed".format(field_name, sort_order)
 
                 if reverse:
                     correct_job_ids = reversed(correct_job_ids)
@@ -355,21 +338,15 @@ class TestListJobsBase(YTEnvSetup):
                 group_start_idx = 0
                 for correct_group in correct_job_ids:
                     group = jobs[group_start_idx : group_start_idx + len(correct_group)]
-                    assert __builtin__.set(
-                        job["id"] for job in group
-                    ) == __builtin__.set(
+                    assert __builtin__.set(job["id"] for job in group) == __builtin__.set(
                         correct_group
-                    ), "Assertion for sort_field={} and sort_order={} failed".format(
-                        field_name, sort_order
-                    )
+                    ), "Assertion for sort_field={} and sort_order={} failed".format(field_name, sort_order)
                     group_start_idx += len(correct_group)
 
     @staticmethod
     def _check_during_map(op, job_ids):
         res = checked_list_jobs(op.id)
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(
-            job_ids["map"]
-        )
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["map"])
         assert res["type_counts"] == {"partition_map": 5}
         assert res["state_counts"] == {"running": 3, "failed": 1, "aborted": 1}
 
@@ -387,9 +364,7 @@ class TestListJobsBase(YTEnvSetup):
     @staticmethod
     def _check_during_reduce(op, job_ids):
         res = checked_list_jobs(op.id)
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(
-            job_ids["reduce"] + job_ids["map"]
-        )
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
         assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
         assert res["state_counts"] == {
             "running": 1,
@@ -403,22 +378,16 @@ class TestListJobsBase(YTEnvSetup):
         assert res["cypress_job_count"] == yson.YsonEntity()
         assert res["archive_job_count"] == 6
 
-        answers_for_filters = TestListJobs._get_answers_for_filters_during_reduce(
-            job_ids
-        )
+        answers_for_filters = TestListJobs._get_answers_for_filters_during_reduce(job_ids)
         TestListJobs._validate_filters(op, answers_for_filters)
 
-        answers_for_sorting = TestListJobs._get_answers_for_sorting_during_reduce(
-            job_ids
-        )
+        answers_for_sorting = TestListJobs._get_answers_for_sorting_during_reduce(job_ids)
         TestListJobs._validate_sorting(op, answers_for_sorting)
 
     @staticmethod
     def _check_after_finish(op, job_ids, operation_cleaned):
         res = checked_list_jobs(op.id)
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(
-            job_ids["reduce"] + job_ids["map"]
-        )
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(job_ids["reduce"] + job_ids["map"])
         assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
         assert res["state_counts"] == {"completed": 4, "failed": 1, "aborted": 1}
 
@@ -429,17 +398,13 @@ class TestListJobsBase(YTEnvSetup):
         assert res["cypress_job_count"] == yson.YsonEntity()
         assert res["archive_job_count"] == 6
 
-        answers_for_filters = TestListJobs._get_answers_for_filters_after_finish(
-            job_ids
-        )
+        answers_for_filters = TestListJobs._get_answers_for_filters_after_finish(job_ids)
         TestListJobs._validate_filters(
             op,
             answers_for_filters,
         )
 
-        answers_for_sorting = TestListJobs._get_answers_for_sorting_after_finish(
-            job_ids
-        )
+        answers_for_sorting = TestListJobs._get_answers_for_sorting_after_finish(job_ids)
         TestListJobs._validate_sorting(
             op,
             answers_for_sorting,
@@ -484,9 +449,7 @@ class TestListJobsBase(YTEnvSetup):
         )
 
         job_ids = {}
-        job_ids["completed_map"] = wait_breakpoint(
-            breakpoint_name="mapper", job_count=3
-        )
+        job_ids["completed_map"] = wait_breakpoint(breakpoint_name="mapper", job_count=3)
         return op, job_ids
 
     def _run_op_and_fill_job_ids(self):
@@ -501,9 +464,7 @@ class TestListJobsBase(YTEnvSetup):
         job_ids["aborted_map"] = [job_ids["completed_map"].pop()]
         abort_job(job_ids["aborted_map"][0])
 
-        job_ids["completed_map"] = wait_breakpoint(
-            breakpoint_name="mapper", job_count=4
-        )
+        job_ids["completed_map"] = wait_breakpoint(breakpoint_name="mapper", job_count=4)
         aborted_job_index = job_ids["completed_map"].index(job_ids["aborted_map"][0])
         del job_ids["completed_map"][aborted_job_index]
 
@@ -513,9 +474,7 @@ class TestListJobsBase(YTEnvSetup):
 
         wait(check_running_jobs)
 
-        job_ids["map"] = (
-            job_ids["completed_map"] + job_ids["failed_map"] + job_ids["aborted_map"]
-        )
+        job_ids["map"] = job_ids["completed_map"] + job_ids["failed_map"] + job_ids["aborted_map"]
         return op, job_ids
 
     @authors("levysotsky")
@@ -535,15 +494,11 @@ class TestListJobsBase(YTEnvSetup):
         completed_map_job_id = job_ids["completed_map"][0]
 
         def has_job_state_converged():
-            set_job_in_table(
-                op.id, completed_map_job_id, {"transient_state": "running"}
-            )
+            set_job_in_table(op.id, completed_map_job_id, {"transient_state": "running"})
             time.sleep(1)
             return (
-                get_job_from_table(op.id, completed_map_job_id)["transient_state"]
-                == "running"
-                and get_job_from_table(op.id, aborted_map_job_id)["transient_state"]
-                == "aborted"
+                get_job_from_table(op.id, completed_map_job_id)["transient_state"] == "running"
+                and get_job_from_table(op.id, aborted_map_job_id)["transient_state"] == "aborted"
             )
 
         wait(has_job_state_converged)
@@ -556,9 +511,7 @@ class TestListJobsBase(YTEnvSetup):
 
         res = checked_list_jobs(op.id)
 
-        completed_map_job_list = [
-            job for job in res["jobs"] if job["id"] == completed_map_job_id
-        ]
+        completed_map_job_list = [job for job in res["jobs"] if job["id"] == completed_map_job_id]
         assert len(completed_map_job_list) == 1
         completed_map_job = completed_map_job_list[0]
 
@@ -572,9 +525,7 @@ class TestListJobsBase(YTEnvSetup):
         stderr_size = len("STDERR-OUTPUT\n")
         assert completed_map_job["stderr_size"] == stderr_size
 
-        aborted_map_job_list = [
-            job for job in res["jobs"] if job["id"] == aborted_map_job_id
-        ]
+        aborted_map_job_list = [job for job in res["jobs"] if job["id"] == aborted_map_job_id]
         assert len(aborted_map_job_list) == 1
         aborted_map_job = aborted_map_job_list[0]
 
@@ -633,19 +584,14 @@ class TestListJobs(TestListJobsBase):
         jobs = wait_breakpoint()
 
         def get_stderr_size():
-            return get(
-                op.get_path()
-                + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0])
-            )
+            return get(op.get_path() + "/controller_orchid/running_jobs/{0}/stderr_size".format(jobs[0]))
 
         wait(lambda: get_stderr_size() == expected_stderr_size)
 
         res = checked_list_jobs(
             op.id,
         )
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(
-            jobs
-        )
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(jobs)
         for job in res["jobs"]:
             assert job["stderr_size"] == expected_stderr_size
 
@@ -655,9 +601,7 @@ class TestListJobs(TestListJobsBase):
         )
         for job in res["jobs"]:
             assert job["stderr_size"] == expected_stderr_size
-        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(
-            jobs
-        )
+        assert __builtin__.set(job["id"] for job in res["jobs"]) == __builtin__.set(jobs)
 
         res = checked_list_jobs(
             op.id,
@@ -700,15 +644,9 @@ class TestListJobs(TestListJobsBase):
             op.id,
         )["jobs"]
         assert any(job["state"] == "aborted" for job in res)
+        assert all((date_string_to_datetime(job["start_time"]) > before_start) for job in res)
         assert all(
-            (date_string_to_datetime(job["start_time"]) > before_start) for job in res
-        )
-        assert all(
-            (
-                date_string_to_datetime(job["finish_time"])
-                >= date_string_to_datetime(job["start_time"])
-            )
-            for job in res
+            (date_string_to_datetime(job["finish_time"]) >= date_string_to_datetime(job["start_time"])) for job in res
         )
 
     @authors("ignat")
@@ -771,9 +709,7 @@ class TestListJobs(TestListJobsBase):
             wait(lambda: len(list_jobs(op.id)["errors"]) >= 1)
         finally:
             mount_table("//sys/operations_archive/jobs")
-            wait(
-                lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted"
-            )
+            wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
             release_breakpoint()
             op.track()
 
@@ -823,15 +759,11 @@ class TestListJobs(TestListJobsBase):
                 "tasks": {
                     "master": {
                         "job_count": 1,
-                        "command": with_breakpoint(
-                            "BREAKPOINT", breakpoint_name="master"
-                        ),
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="master"),
                     },
                     "slave": {
                         "job_count": 2,
-                        "command": with_breakpoint(
-                            "BREAKPOINT", breakpoint_name="slave"
-                        ),
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="slave"),
                     },
                 },
             },

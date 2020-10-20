@@ -78,9 +78,7 @@ class Metric(object):
             if self.aggr_method == "delta":
                 self.state = {
                     "start_value": start_samples[-1]["value"] if start_samples else 0,
-                    "last_sample_time": start_samples[-1]["time"]
-                    if start_samples
-                    else 0,
+                    "last_sample_time": start_samples[-1]["time"] if start_samples else 0,
                 }
             elif self.aggr_method == "last":
                 self.state = {"last_sample_time": 0}
@@ -92,9 +90,7 @@ class Metric(object):
         else:
             self.data = defaultdict(default_factory)
             if self.aggr_method == "delta":
-                self.state = defaultdict(
-                    lambda: {"start_value": 0, "last_sample_time": 0}
-                )
+                self.state = defaultdict(lambda: {"start_value": 0, "last_sample_time": 0})
             elif self.aggr_method == "last":
                 self.state = defaultdict(lambda: {"last_sample_time": 0})
             else:
@@ -117,19 +113,13 @@ class Metric(object):
         if not tags:
             assert self.grouped_by_tags is None
             if verbose:
-                print_debug(
-                    'Metric "{}" (aggr={}): {}'.format(
-                        self.path, self.aggr_method, self.data
-                    )
-                )
+                print_debug('Metric "{}" (aggr={}): {}'.format(self.path, self.aggr_method, self.data))
             return self.data
         else:
             assert self.grouped_by_tags is not None
             if verbose:
                 print_debug(
-                    'Metric "{}" (aggr={}, tags={}): {}'.format(
-                        self.path, self.aggr_method, tags, self.data[tags]
-                    )
+                    'Metric "{}" (aggr={}, tags={}): {}'.format(self.path, self.aggr_method, tags, self.data[tags])
                 )
             return self.data[tags]
 
@@ -144,15 +134,11 @@ class Metric(object):
         update_time = int(time.time() * 1e6)
 
         if from_time is None:
-            from_time = max(
-                self.last_update_time - Metric.FROM_TIME_GAP, self.start_time
-            )
+            from_time = max(self.last_update_time - Metric.FROM_TIME_GAP, self.start_time)
         new_samples = self._read_from_orchid(from_time=from_time)
 
         if isinstance(new_samples, list):
-            self.data, self.state = Metric._update_data(
-                self.data, self.state, new_samples, self.aggr_method
-            )
+            self.data, self.state = Metric._update_data(self.data, self.state, new_samples, self.aggr_method)
 
             if new_samples:
                 update_time = max(update_time, new_samples[-1]["time"])
@@ -174,42 +160,24 @@ class Metric(object):
 
     @staticmethod
     def at_node(node, path, *args, **kwargs):
-        return Metric(
-            "//sys/cluster_nodes/{0}/orchid/profiling/{1}".format(node, path),
-            *args,
-            **kwargs
-        )
+        return Metric("//sys/cluster_nodes/{0}/orchid/profiling/{1}".format(node, path), *args, **kwargs)
 
     @staticmethod
     def at_tablet_node(node, path, *args, **kwargs):
         tablets = get(node + "/@tablets")
         address = get("#%s/@peers/0/address" % tablets[0]["cell_id"])
-        return Metric(
-            "//sys/cluster_nodes/{0}/orchid/profiling/tablet_node/{1}".format(
-                address, path
-            ),
-            *args,
-            **kwargs
-        )
+        return Metric("//sys/cluster_nodes/{0}/orchid/profiling/tablet_node/{1}".format(address, path), *args, **kwargs)
 
     @staticmethod
     def at_master(path, master_num=0, *args, **kwargs):
         primary_masters = [key for key in get("//sys/primary_masters")]
         return Metric(
-            "//sys/primary_masters/{0}/orchid/profiling/{1}".format(
-                primary_masters[master_num], path
-            ),
-            *args,
-            **kwargs
+            "//sys/primary_masters/{0}/orchid/profiling/{1}".format(primary_masters[master_num], path), *args, **kwargs
         )
 
     @staticmethod
     def at_proxy(proxy, path, *args, **kwargs):
-        return Metric(
-            "//sys/proxies/{0}/orchid/profiling/{1}".format(proxy, path),
-            *args,
-            **kwargs
-        )
+        return Metric("//sys/proxies/{0}/orchid/profiling/{1}".format(proxy, path), *args, **kwargs)
 
     @staticmethod
     def _update_data(data, state, new_samples, aggr):
@@ -217,11 +185,7 @@ class Metric(object):
 
         if aggr == "none":
             new_data = (
-                sorted(
-                    data + [(sample["time"], sample["value"]) for sample in new_samples]
-                )
-                if new_samples
-                else data
+                sorted(data + [(sample["time"], sample["value"]) for sample in new_samples]) if new_samples else data
             )
         elif aggr == "delta":
             new_data = (
@@ -230,15 +194,11 @@ class Metric(object):
                 else data
             )
             if new_samples:
-                new_state["last_sample_time"] = max(
-                    new_state["last_sample_time"], new_samples[-1]["time"]
-                )
+                new_state["last_sample_time"] = max(new_state["last_sample_time"], new_samples[-1]["time"])
         elif aggr == "sum":
             new_data = data + sum(sample["value"] for sample in new_samples)
         elif aggr == "max":
-            max_sample = (
-                max(sample["value"] for sample in new_samples) if new_samples else None
-            )
+            max_sample = max(sample["value"] for sample in new_samples) if new_samples else None
 
             if max_sample is None:
                 new_data = data
@@ -253,15 +213,9 @@ class Metric(object):
                 else data
             )
             if new_samples:
-                new_state["last_sample_time"] = max(
-                    new_state["last_sample_time"], new_samples[-1]["time"]
-                )
+                new_state["last_sample_time"] = max(new_state["last_sample_time"], new_samples[-1]["time"])
         else:
-            raise Exception(
-                'Trying to update metric data with unknown aggregator (Aggr: "{}")'.format(
-                    aggr
-                )
-            )
+            raise Exception('Trying to update metric data with unknown aggregator (Aggr: "{}")'.format(aggr))
 
         return new_data, new_state
 
@@ -271,25 +225,18 @@ class Metric(object):
 
         # Keep last_update_samples up to date.
         from_time = kwargs["from_time"] if "from_time" in kwargs else 0
-        self.last_update_samples = [
-            sample for sample in self.last_update_samples if sample["time"] > from_time
-        ]
+        self.last_update_samples = [sample for sample in self.last_update_samples if sample["time"] > from_time]
 
         # Filter out samples that were already seen before. They will be here because of FROM_TIME_GAP.
         data = [sample for sample in data if sample not in self.last_update_samples]
         data = sorted(data, key=lambda x: x["time"])
-        self.last_update_samples = sorted(
-            self.last_update_samples + data, key=lambda x: x["time"]
-        )
+        self.last_update_samples = sorted(self.last_update_samples + data, key=lambda x: x["time"])
 
         if self.with_tags is not None:
 
             def check_tags(sample):
                 for tag_name, tag_value in self.with_tags.iteritems():
-                    if (
-                        tag_name not in sample["tags"]
-                        or sample["tags"][tag_name] != tag_value
-                    ):
+                    if tag_name not in sample["tags"] or sample["tags"][tag_name] != tag_value:
                         return False
                 return True
 
@@ -325,12 +272,6 @@ def create_custom_pool_tree_with_one_node(pool_tree):
     set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
     set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
     create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
-    wait(
-        lambda: tag
-        in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(node))
-    )
-    wait(
-        lambda: pool_tree
-        in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree")
-    )
+    wait(lambda: tag in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(node)))
+    wait(lambda: pool_tree in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
     return node

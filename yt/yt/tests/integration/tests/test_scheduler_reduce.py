@@ -237,9 +237,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
         ]
 
         completed = get(op.get_path() + "/@progress/jobs/completed")
-        assert (
-            completed["total"] == 1
-        )  # Actualy all rows should be in one job despite job_count > 1
+        assert completed["total"] == 1  # Actualy all rows should be in one job despite job_count > 1
 
     @authors("dakovalkov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -541,9 +539,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     def test_no_outputs(self):
         create("table", "//tmp/t1")
         write_table("<sorted_by=[key]>//tmp/t1", [{"key": "value"}])
-        op = reduce(
-            in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2", reduce_by=["key"]
-        )
+        op = reduce(in_="//tmp/t1", command="cat > /dev/null; echo stderr>&2", reduce_by=["key"])
         check_all_stderrs(op, "stderr\n", 1)
 
     @authors("psushin", "klyachin")
@@ -572,9 +568,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     def test_non_prefix(self):
         create("table", "//tmp/in")
         create("table", "//tmp/out")
-        write_table(
-            "//tmp/in", {"key": "1", "subkey": "2"}, sorted_by=["key", "subkey"]
-        )
+        write_table("//tmp/in", {"key": "1", "subkey": "2"}, sorted_by=["key", "subkey"])
 
         with pytest.raises(YtError):
             reduce(in_="//tmp/in", out="//tmp/out", command="cat", reduce_by="subkey")
@@ -704,12 +698,7 @@ echo {v = 2} >&7
         assert len(job_ids) == 1
         stderr_bytes = read_file("{0}/{1}/stderr".format(jobs_path, job_ids[0]))
 
-        assert (
-            stderr_bytes.encode("hex") == "010000006100000000"
-            "feffffff"
-            "010000006200000000"
-            "010000006200000000"
-        )
+        assert stderr_bytes.encode("hex") == "010000006100000000" "feffffff" "010000006200000000" "010000006200000000"
 
         assert not get("//tmp/out/@sorted")
 
@@ -1040,10 +1029,7 @@ echo {v = 2} >&7
             create("table", "//tmp/t{0}".format(i))
             write_table(
                 "//tmp/t" + str(i),
-                [
-                    {"key": "%05d" % j, "value": "%05d" % j}
-                    for j in range(20 - i, 30 + i)
-                ],
+                [{"key": "%05d" % j, "value": "%05d" % j} for j in range(20 - i, 30 + i)],
                 sorted_by=["key", "value"],
             )
 
@@ -1057,8 +1043,7 @@ echo {v = 2} >&7
         create("table", "//tmp/output")
 
         reduce(
-            in_=["<foreign=true>//tmp/foreign"]
-            + ["//tmp/t{0}".format(i) for i in range(4)],
+            in_=["<foreign=true>//tmp/foreign"] + ["//tmp/t{0}".format(i) for i in range(4)],
             out=["<sorted_by=[key]>//tmp/output"],
             command="grep @table_index=0 | head -n 1",
             reduce_by=["key", "value"],
@@ -1224,20 +1209,12 @@ echo {v = 2} >&7
         create(
             "table",
             "//tmp/in1",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "key", "type": "int64", "sort_order": "ascending"}])},
         )
         create(
             "table",
             "//tmp/in2",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "key", "type": "int64", "sort_order": "ascending"}])},
         )
         write_table("//tmp/in1", [{"key": 1}, {"key": 3}])
         write_table("<append=true>//tmp/in1", [{"key": 5}, {"key": 7}])
@@ -1259,20 +1236,12 @@ echo {v = 2} >&7
         create(
             "table",
             "//tmp/in1",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "key", "type": "int64", "sort_order": "ascending"}])},
         )
         create(
             "table",
             "//tmp/in2",
-            attributes={
-                "schema": make_schema(
-                    [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "key", "type": "int64", "sort_order": "ascending"}])},
         )
         write_table("//tmp/in1", [{"key": 1}, {"key": 3}])
         write_table("<append=true>//tmp/in1", [{"key": 5}, {"key": 7}])
@@ -1314,26 +1283,20 @@ echo {v = 2} >&7
         )
 
         for i in xrange(10):
-            write_table(
-                "<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"}
-            )
+            write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
             print_debug(get("//tmp/input/@schema"))
 
         reduce(in_="//tmp/input", out="//tmp/output", reduce_by="key", command="cat")
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert_items_equal(
-            read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)]
-        )
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
         assert get("//tmp/input/@sorted_by") == ["key"]
 
         with pytest.raises(YtError):
-            reduce(
-                in_="//tmp/input", out="//tmp/output", reduce_by="key", command="cat"
-            )
+            reduce(in_="//tmp/input", out="//tmp/output", reduce_by="key", command="cat")
 
     @authors("babenko", "klyachin")
     def test_reduce_input_paths_attr(self):
@@ -1396,9 +1359,7 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_reduce_on_dynamic_table(self, optimize_for, external):
         sync_create_cells(1)
-        self._create_simple_dynamic_table(
-            "//tmp/t", optimize_for=optimize_for, external=external
-        )
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(10)]
@@ -1424,9 +1385,7 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_reduce_with_foreign_dynamic(self, optimize_for, external):
         sync_create_cells(1)
-        self._create_simple_dynamic_table(
-            "//tmp/t2", optimize_for=optimize_for, external=external
-        )
+        self._create_simple_dynamic_table("//tmp/t2", optimize_for=optimize_for, external=external)
         create("table", "//tmp/t1")
         create("table", "//tmp/t_out")
 
@@ -1464,9 +1423,7 @@ echo {v = 2} >&7
         sync_mount_table("//tmp/t2")
         sync_mount_table("//tmp/t3")
 
-        write_table(
-            "<sorted_by=[key]>//tmp/t1", [{"key": i, "value": str(i)} for i in range(1)]
-        )
+        write_table("<sorted_by=[key]>//tmp/t1", [{"key": i, "value": str(i)} for i in range(1)])
         insert_rows("//tmp/t2", [{"key": i, "value": str(i)} for i in range(1, 2)])
         insert_rows("//tmp/t3", [{"key": i, "value": str(i)} for i in range(2, 3)])
 
@@ -1538,9 +1495,7 @@ echo {v = 2} >&7
             label="interrupt_job",
             in_=in_,
             out="<sorted_by=[key]>//tmp/output",
-            command=with_breakpoint(
-                """read; echo "${REPLY/(???)/(job)}" ; echo "$REPLY" ; BREAKPOINT ; cat"""
-            ),
+            command=with_breakpoint("""read; echo "${REPLY/(???)/(job)}" ; echo "$REPLY" ; BREAKPOINT ; cat"""),
             reduce_by=["key", "value"],
             spec={
                 "reducer": {
@@ -1586,18 +1541,13 @@ echo {v = 2} >&7
         else:
             assert job_indexes[1] == 3
         assert (
-            get(
-                op.get_path()
-                + "/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum"
-            )
+            get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/sorted_reduce/sum")
             == len(result) - 2
         )
 
     @authors("savrus")
     def test_query_filtering(self):
-        create(
-            "table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]}
-        )
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
@@ -1683,9 +1633,7 @@ done
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "foo", "type": "string", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "foo", "type": "string", "sort_order": "ascending"}]},
         )
         write_table("//tmp/t1", {"foo": "bar"})
         create("table", "//tmp/t2")
@@ -1701,9 +1649,7 @@ done
         time.sleep(2)
 
         operation_path = op.get_path()
-        scheduler_transaction_id = get(
-            operation_path + "/@async_scheduler_transaction_id"
-        )
+        scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         wait(lambda: exists(operation_path + "/output_0", tx=scheduler_transaction_id))
 
         op.track()
@@ -1733,9 +1679,7 @@ done
         )
         assert get("//tmp/t2/@chunk_count") == 3
         chunk_ids = get("//tmp/t2/@chunk_ids")
-        assert sorted(
-            [get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]
-        ) == [3, 4, 5]
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [3, 4, 5]
 
     @authors("max42")
     def test_pivot_keys_incorrect_options(self):
@@ -1784,10 +1728,7 @@ done
         create("table", "//tmp/t2")
         write_table(
             "//tmp/t1",
-            [
-                {"key": ("%02d" % (i // 100)), "value": "x" * 10 ** 2}
-                for i in range(10000)
-            ],
+            [{"key": ("%02d" % (i // 100)), "value": "x" * 10 ** 2} for i in range(10000)],
             table_writer={"block_size": 1024},
         )
 
@@ -1850,9 +1791,7 @@ done
         create("table", "//tmp/out")
 
         data = [{"key": "a"}] * 1000 + [{"key": "b"}] * 1
-        write_table(
-            "//tmp/in1", data, sorted_by=["key"], table_writer={"block_size": 1024}
-        )
+        write_table("//tmp/in1", data, sorted_by=["key"], table_writer={"block_size": 1024})
 
         reduce(
             in_=["//tmp/in1"],
@@ -1876,9 +1815,7 @@ done
         create("table", "//tmp/out")
 
         data = [{"key": "a"}] * 1000 + [{"key": "b"}] * 1
-        write_table(
-            "//tmp/in1", data, sorted_by=["key"], table_writer={"block_size": 1024}
-        )
+        write_table("//tmp/in1", data, sorted_by=["key"], table_writer={"block_size": 1024})
 
         reduce(
             in_=["//tmp/in1", "//tmp/in1"],
@@ -1909,16 +1846,12 @@ done
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t2",
-            attributes={
-                "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -1938,16 +1871,12 @@ done
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t2",
-            attributes={
-                "schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -1968,23 +1897,17 @@ done
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "any", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t2",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t3",
-            attributes={
-                "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -2090,16 +2013,12 @@ done
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "key", "type": "int32", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int32", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t2",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -2120,16 +2039,12 @@ done
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t2",
-            attributes={
-                "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out")
 
@@ -2152,16 +2067,12 @@ done
         create(
             "table",
             "//tmp/t_in",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t_out",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         reduce(
             in_=["//tmp/t_in"],
@@ -2177,16 +2088,12 @@ done
         create(
             "table",
             "//tmp/in1",
-            attributes={
-                "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/in2",
-            attributes={
-                "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/out1")
         create("table", "//tmp/out2")
@@ -2276,9 +2183,7 @@ done
             spec={"reducer": {"format": "dsv"}, "enable_key_guarantee": False},
         )
 
-        assert read_table("//tmp/out") == [
-            {"k1": "1", "k2": str(i)} for i in range(1, 5)
-        ]
+        assert read_table("//tmp/out") == [{"k1": "1", "k2": str(i)} for i in range(1, 5)]
 
         with pytest.raises(YtError):
             reduce(
@@ -2478,9 +2383,7 @@ for line in sys.stdin:
         assert get("//tmp/output/@chunk_count") == 4
         chunk_ids = get("//tmp/output/@chunk_ids")
         # Each chunk has two rows: one primary and one foreign.
-        assert sorted(
-            [get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]
-        ) == [2, 2, 2, 2]
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [2, 2, 2, 2]
 
         expected = [
             {"key": "2", "subkey": "1", "value": "11", "@table_index": "0"},
@@ -2500,16 +2403,12 @@ for line in sys.stdin:
         create(
             "table",
             "//tmp/t_in",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         create(
             "table",
             "//tmp/t_out",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         op = reduce(
             in_=["//tmp/t_in"],
@@ -2519,10 +2418,7 @@ for line in sys.stdin:
             spec={"job_count": 1},
         )
 
-        assert (
-            get(op.get_path() + "/@progress/legacy_controller")
-            == self.USE_LEGACY_CONTROLLERS
-        )
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
 
 ##################################################################
@@ -2558,12 +2454,8 @@ class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
                 "table",
                 "//tmp/in{}".format(i),
                 attributes={
-                    "schema": [
-                        {"name": "key", "type": "string", "sort_order": "ascending"}
-                    ],
-                    "chunk_writer": {
-                        "block_size": 1
-                    },  # Each block should have exactly one row to make precise slices.
+                    "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}],
+                    "chunk_writer": {"block_size": 1},  # Each block should have exactly one row to make precise slices.
                     "compression_codec": "none",
                 },
             )
@@ -2576,8 +2468,7 @@ class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
                 # Last row ensures that chunk won't be teleported.
                 write_table(
                     "//tmp/in{}".format(i),
-                    [{"key": ("%04d" % (10 * i + x))} for x in range(9)]
-                    + [{"key": ("%04d" % (9000 + i))}],
+                    [{"key": ("%04d" % (10 * i + x))} for x in range(9)] + [{"key": ("%04d" % (9000 + i))}],
                 )
         create("table", "//tmp/out")
 

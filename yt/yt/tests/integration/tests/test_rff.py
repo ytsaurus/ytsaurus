@@ -46,24 +46,18 @@ class TestRff(YTEnvSetup):
 
         assert all(
             not c.attributes["replication_status"]["default"]["overreplicated"]
-            for c in ls(
-                "//sys/chunks", attributes=["replication_status"], read_from="follower"
-            )
+            for c in ls("//sys/chunks", attributes=["replication_status"], read_from="follower")
         )
 
         assert all(
             n.attributes["state"] == "online"
-            for n in ls(
-                "//sys/cluster_nodes", attributes=["state"], read_from="follower"
-            )
+            for n in ls("//sys/cluster_nodes", attributes=["state"], read_from="follower")
         )
 
         assert get("//sys/@chunk_replicator_enabled", read_from="follower")
 
         tx = start_transaction()
-        last_ping_time = parse_yt_time(
-            get("#" + tx + "/@last_ping_time", read_from="follower")
-        )
+        last_ping_time = parse_yt_time(get("#" + tx + "/@last_ping_time", read_from="follower"))
         now = get_current_time()
         assert last_ping_time < now
         assert (now - last_ping_time).total_seconds() < 3

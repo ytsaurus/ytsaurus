@@ -18,8 +18,7 @@ class TestJournals(YTEnvSetup):
             + str(i)
             + "-"
             + "".join(
-                random.choice(string.ascii_uppercase + string.digits)
-                for _ in range(i * i + random.randrange(10))
+                random.choice(string.ascii_uppercase + string.digits) for _ in range(i * i + random.randrange(10))
             )
         }
         for i in xrange(0, 10)
@@ -32,12 +31,7 @@ class TestJournals(YTEnvSetup):
     def _wait_until_last_chunk_sealed(self, path):
         chunk_ids = get(path + "/@chunk_ids")
         chunk_id = chunk_ids[-1]
-        wait(
-            lambda: all(
-                r.attributes["state"] == "sealed"
-                for r in get("#{}/@stored_replicas".format(chunk_id))
-            )
-        )
+        wait(lambda: all(r.attributes["state"] == "sealed" for r in get("#{}/@stored_replicas".format(chunk_id))))
 
     def _truncate_and_check(self, path, row_count, expected_row_count):
         truncate_journal(path, row_count)
@@ -124,15 +118,10 @@ class TestJournals(YTEnvSetup):
         assert get("//tmp/j/@chunk_count") == 10
 
         for i in xrange(0, 10):
-            assert read_journal("//tmp/j[#" + str(i * 10) + ":]") == self.DATA * (
-                10 - i
-            )
+            assert read_journal("//tmp/j[#" + str(i * 10) + ":]") == self.DATA * (10 - i)
 
         for i in xrange(0, 9):
-            assert (
-                read_journal("//tmp/j[#" + str(i * 10 + 5) + ":]")
-                == (self.DATA * (10 - i))[5:]
-            )
+            assert read_journal("//tmp/j[#" + str(i * 10 + 5) + ":]") == (self.DATA * (10 - i))[5:]
 
         assert read_journal("//tmp/j[#200:]") == []
 
@@ -201,10 +190,7 @@ class TestJournals(YTEnvSetup):
 
         remove("//tmp/j")
 
-        wait(
-            lambda: get_account_committed_disk_space("tmp") == 0
-            and get_account_disk_space("tmp") == 0
-        )
+        wait(lambda: get_account_committed_disk_space("tmp") == 0 and get_account_disk_space("tmp") == 0)
 
     @authors("babenko")
     def test_no_copy(self):
@@ -249,9 +235,7 @@ class TestJournals(YTEnvSetup):
         self._write_and_wait_until_sealed("//tmp/j", self.DATA)
         chunk_id = get("//tmp/j/@chunk_ids/0")
         replica = get("#{}/@last_seen_replicas/0".format(chunk_id))
-        orchid = get(
-            "//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id)
-        )
+        orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
         assert "location" in orchid
         assert "disk_space" in orchid
 
@@ -298,17 +282,12 @@ class TestJournalsChangeMedia(YTEnvSetup):
             for i in xrange(0, len(self.Env.configs["node"])):
                 config = self.Env.configs["node"][i]
 
-                node_address = "{0}:{1}".format(
-                    config["address_resolver"]["localhost_fqdn"], config["rpc_port"]
-                )
+                node_address = "{0}:{1}".format(config["address_resolver"]["localhost_fqdn"], config["rpc_port"])
 
                 if node_address == node_to_patch:
                     location = config["data_node"]["store_locations"][0]
 
-                    assert (
-                        "medium_name" not in location
-                        or location["medium_name"] == "default"
-                    )
+                    assert "medium_name" not in location or location["medium_name"] == "default"
                     location["medium_name"] = "ssd"
 
                     config_path = self.Env.config_paths["node"][i]
@@ -367,17 +346,13 @@ class TestErasureJournals(TestJournals):
         },
     }
 
-    @pytest.mark.parametrize(
-        "erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3"]
-    )
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
     @authors("babenko", "ignat")
     def test_seal_abruptly_closed_journal(self, erasure_codec):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         N = 3
         for i in xrange(N):
-            self._write_and_wait_until_sealed(
-                "//tmp/j", self.DATA, journal_writer={"ignore_closing": True}
-            )
+            self._write_and_wait_until_sealed("//tmp/j", self.DATA, journal_writer={"ignore_closing": True})
             self._wait_until_last_chunk_sealed("//tmp/j")
 
         assert get("//tmp/j/@sealed")
@@ -385,9 +360,7 @@ class TestErasureJournals(TestJournals):
         assert get("//tmp/j/@chunk_count") == N
         assert read_journal("//tmp/j") == self.DATA * N
 
-    @pytest.mark.parametrize(
-        "erasure_codec", ["isa_lrc_12_2_2", "isa_reed_solomon_3_3"]
-    )
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
     @authors("babenko")
     def test_repair_jobs(self, erasure_codec):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
@@ -399,9 +372,7 @@ class TestErasureJournals(TestJournals):
 
         def _check_all_replicas_ok():
             replicas = get("#{}/@stored_replicas".format(chunk_id))
-            return len(replicas) == replica_count and all(
-                r.attributes["state"] == "sealed" for r in replicas
-            )
+            return len(replicas) == replica_count and all(r.attributes["state"] == "sealed" for r in replicas)
 
         for i in xrange(10):
             wait(_check_all_replicas_ok)
@@ -424,9 +395,7 @@ class TestErasureJournals(TestJournals):
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
-        create(
-            "journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_lrc_12_2_2"]
-        )
+        create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_lrc_12_2_2"])
         write_journal("//tmp/j", self.DATA, journal_writer={"ignore_closing": True})
 
         chunk_ids = get("//tmp/j/@chunk_ids")
@@ -450,9 +419,7 @@ class TestErasureJournals(TestJournals):
     def test_erasure_lost(self):
         self._test_critical_erasure_state("lost_vital", 5)
 
-    @pytest.mark.parametrize(
-        "erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3"]
-    )
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
     @authors("babenko", "ignat")
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_read_with_repair(self, erasure_codec):
@@ -465,9 +432,7 @@ class TestErasureJournals(TestJournals):
 
         def check():
             for i in xrange(0, len(self.DATA)):
-                assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [
-                    self.DATA[i]
-                ]
+                assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [self.DATA[i]]
             for i in xrange(0, len(self.DATA)):
                 assert read_journal("//tmp/j[#" + str(i) + ":]") == self.DATA[i:]
             for i in xrange(0, len(self.DATA)):

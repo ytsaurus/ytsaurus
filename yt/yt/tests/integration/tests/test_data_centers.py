@@ -122,9 +122,7 @@ class TestDataCenters(YTEnvSetup):
             rack_to_counter[rack] += 1
         return max(rack_to_counter.itervalues())
 
-    def _get_max_replicas_per_data_center(
-        self, node_to_rack_map, rack_to_dc_map, chunk_id
-    ):
+    def _get_max_replicas_per_data_center(self, node_to_rack_map, rack_to_dc_map, chunk_id):
         replicas = self._get_replica_nodes(chunk_id)
         dc_to_counter = {}
         for replica in replicas:
@@ -255,9 +253,7 @@ class TestDataCenters(YTEnvSetup):
         self._init_n_racks(10)
         self._init_n_data_centers(3)
         create("file", "//tmp/file")
-        write_file(
-            "//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3}
-        )
+        write_file("//tmp/file", self.FILE_DATA, file_writer={"upload_replication_factor": 3})
 
     @authors("shakurov")
     def test_write_erasure(self):

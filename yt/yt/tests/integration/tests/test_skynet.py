@@ -172,9 +172,7 @@ class TestSkynetIntegration(YTEnvSetup):
         else:
             raise KeyError(node_id)
 
-        rsp = requests.get(
-            "http://{}/read_skynet_part".format(http_address), params=kwargs
-        )
+        rsp = requests.get("http://{}/read_skynet_part".format(http_address), params=kwargs)
         rsp.raise_for_status()
         return rsp.content
 
@@ -193,9 +191,7 @@ class TestSkynetIntegration(YTEnvSetup):
             if node_id in chunk["replicas"]:
                 break
         else:
-            assert False, "Node not found: {}, {}".format(
-                chunk["replicas"], str(info["nodes"])
-            )
+            assert False, "Node not found: {}, {}".format(chunk["replicas"], str(info["nodes"]))
 
         with pytest.raises(requests.HTTPError):
             self.get_skynet_part(
@@ -244,9 +240,7 @@ class TestSkynetIntegration(YTEnvSetup):
             if node_id in chunk["replicas"]:
                 break
         else:
-            assert False, "Node not found: {}, {}".format(
-                chunk["replicas"], str(info["nodes"])
-            )
+            assert False, "Node not found: {}, {}".format(chunk["replicas"], str(info["nodes"]))
 
         assert "abc" == self.get_skynet_part(
             node_id,
@@ -440,7 +434,5 @@ class TestSkynetIntegration(YTEnvSetup):
         for row in read_table("//tmp/table", verbose=False):
             assert hashlib.sha1(row["data"]).digest() == row["sha1"], str(row)
 
-            file_content[row["filename"]] = (
-                file_content.get(row["filename"], "") + row["data"]
-            )
+            file_content[row["filename"]] = file_content.get(row["filename"], "") + row["data"]
             assert hashlib.md5(file_content[row["filename"]]).digest() == row["md5"]

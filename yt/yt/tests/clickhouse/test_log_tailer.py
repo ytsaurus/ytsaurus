@@ -20,6 +20,7 @@ HOST_PATHS = get_host_paths(arcadia_interop, ["dummy-logger", "ytserver-log-tail
 
 #################################################################
 
+
 class TestLogTailer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -28,32 +29,21 @@ class TestLogTailer(YTEnvSetup):
     @authors("gritukan")
     def test_log_rotation(self):
         log_tailer_config = get_log_tailer_config()
-        log_path = \
-            os.path.join(self.path_to_run,
-            "logs",
-            "dummy_logger",
-            "log")
+        log_path = os.path.join(self.path_to_run, "logs", "dummy_logger", "log")
 
-        log_tailer_config["log_tailer"]["log_files"] = [{
-            "path": log_path,
-            "tables": [{"path": "//sys/log1"}, {"path": "//sys/log2", "require_trace_id": True}]
-        }]
+        log_tailer_config["log_tailer"]["log_files"] = [
+            {"path": log_path, "tables": [{"path": "//sys/log1"}, {"path": "//sys/log2", "require_trace_id": True}]}
+        ]
 
         log_tailer_config["log_tailer"]["log_files"] = log_tailer_config["log_tailer"]["log_files"][:1]
 
-        log_tailer_config["logging"]["writers"]["debug"]["file_name"] = \
-            os.path.join(self.path_to_run,
-            "logs",
-            "dummy_logger",
-            "log_tailer.debug.log")
+        log_tailer_config["logging"]["writers"]["debug"]["file_name"] = os.path.join(
+            self.path_to_run, "logs", "dummy_logger", "log_tailer.debug.log"
+        )
         log_tailer_config["cluster_connection"] = self.__class__.Env.configs["driver"]
 
         os.mkdir(os.path.join(self.path_to_run, "logs", "dummy_logger"))
-        log_tailer_config_file = \
-            os.path.join(self.path_to_run,
-            "logs",
-            "dummy_logger",
-            "log_tailer_config.yson")
+        log_tailer_config_file = os.path.join(self.path_to_run, "logs", "dummy_logger", "log_tailer_config.yson")
 
         with open(log_tailer_config_file, "w") as config:
             config.write(yson.dumps(log_tailer_config, yson_format="pretty"))
@@ -61,10 +51,18 @@ class TestLogTailer(YTEnvSetup):
         create_tablet_cell_bundle("sys")
         sync_create_cells(1, tablet_cell_bundle="sys")
 
-        create("table", "//sys/log1", attributes={
+        create(
+            "table",
+            "//sys/log1",
+            attributes={
                 "dynamic": True,
                 "schema": [
-                    {"name": "job_id_shard", "type": "uint64", "expression": "farm_hash(job_id) % 123", "sort_order": "ascending"},
+                    {
+                        "name": "job_id_shard",
+                        "type": "uint64",
+                        "expression": "farm_hash(job_id) % 123",
+                        "sort_order": "ascending",
+                    },
                     {"name": "timestamp", "type": "string", "sort_order": "ascending"},
                     {"name": "increment", "type": "uint64", "sort_order": "ascending"},
                     {"name": "job_id", "type": "string", "sort_order": "ascending"},
@@ -78,12 +76,21 @@ class TestLogTailer(YTEnvSetup):
                 ],
                 "tablet_cell_bundle": "sys",
                 "atomicity": "none",
-            })
+            },
+        )
 
-        create("table", "//sys/log2", attributes={
+        create(
+            "table",
+            "//sys/log2",
+            attributes={
                 "dynamic": True,
                 "schema": [
-                    {"name": "trace_id_hash", "type": "uint64", "expression": "farm_hash(trace_id)", "sort_order": "ascending"},
+                    {
+                        "name": "trace_id_hash",
+                        "type": "uint64",
+                        "expression": "farm_hash(trace_id)",
+                        "sort_order": "ascending",
+                    },
                     {"name": "trace_id", "type": "string", "sort_order": "ascending"},
                     {"name": "timestamp", "type": "string", "sort_order": "ascending"},
                     {"name": "job_id", "type": "string", "sort_order": "ascending"},
@@ -97,7 +104,8 @@ class TestLogTailer(YTEnvSetup):
                 ],
                 "tablet_cell_bundle": "sys",
                 "atomicity": "none",
-            })
+            },
+        )
 
         log_tables = ["//sys/log1", "//sys/log2"]
 
@@ -108,18 +116,21 @@ class TestLogTailer(YTEnvSetup):
         add_member("yt-log-tailer", "superusers")
 
         port_iterator = OpenPortIterator(
-            port_locks_path=self.Env.port_locks_path,
-            local_port_range=self.Env.local_port_range)
+            port_locks_path=self.Env.port_locks_path, local_port_range=self.Env.local_port_range
+        )
         log_tailer_monitoring_port = next(port_iterator)
 
         dummy_logger = subprocess.Popen([HOST_PATHS["dummy-logger"], log_path, "5", "1000", "2000"])
-        log_tailer = subprocess.Popen([
-            HOST_PATHS["ytserver-log-tailer"],
-            str(dummy_logger.pid),
-            "--config",
-            log_tailer_config_file,
-            "--monitoring-port",
-            str(log_tailer_monitoring_port)])
+        log_tailer = subprocess.Popen(
+            [
+                HOST_PATHS["ytserver-log-tailer"],
+                str(dummy_logger.pid),
+                "--config",
+                log_tailer_config_file,
+                "--monitoring-port",
+                str(log_tailer_monitoring_port),
+            ]
+        )
 
         def cleanup():
             # NB(gritukan): some of the processes are already terminated.
@@ -138,9 +149,14 @@ class TestLogTailer(YTEnvSetup):
                 remove(log_table)
 
         try:
+
             def check_rows_written_profiling():
                 try:
-                    r = requests.get(url="http://localhost:{}/orchid/profiling/log_tailer/rows_written".format(log_tailer_monitoring_port))
+                    r = requests.get(
+                        url="http://localhost:{}/orchid/profiling/log_tailer/rows_written".format(
+                            log_tailer_monitoring_port
+                        )
+                    )
                     rsp = r.json()
                     if len(rsp) == 0:
                         return False
@@ -149,6 +165,7 @@ class TestLogTailer(YTEnvSetup):
                     return rsp[-1]["value"] == 1000
                 except:
                     return False
+
             wait(check_rows_written_profiling)
 
             os.wait()

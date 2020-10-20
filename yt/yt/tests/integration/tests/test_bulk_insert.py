@@ -156,9 +156,7 @@ class TestBulkInsert(DynamicTablesBase):
 
     def test_write_to_mounted_tablets_of_partially_mounted_table(self):
         sync_create_cells(1)
-        set(
-            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False
-        )
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         create("table", "//tmp/t_input")
         self._create_simple_dynamic_table("//tmp/t_output")
         sync_reshard_table("//tmp/t_output", [[], [1]])
@@ -170,9 +168,7 @@ class TestBulkInsert(DynamicTablesBase):
         with pytest.raises(YtError):
             map(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", command="cat")
 
-    @pytest.mark.xfail(
-        run=False, reason="Duplicate output tables are not fully supported, YT-10326"
-    )
+    @pytest.mark.xfail(run=False, reason="Duplicate output tables are not fully supported, YT-10326")
     def test_same_table_more_than_once(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
@@ -301,14 +297,10 @@ class TestBulkInsert(DynamicTablesBase):
         operations = []
         for i in range(3):
             command = "cat >/dev/null; echo '{{key={};value=\"{}\"}}'".format(i, str(i))
-            op = map(
-                in_="//tmp/t_input", out="<append=%true>//tmp/t_output", command=command
-            )
+            op = map(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", command=command)
             operations.append(op)
 
-        assert read_table("//tmp/t_output") == [
-            {"key": i, "value": str(i)} for i in range(len(operations))
-        ]
+        assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
         assert_items_equal(
             select_rows("* from [//tmp/t_output]"),
             [{"key": i, "value": str(i)} for i in range(len(operations))],
@@ -338,9 +330,7 @@ class TestBulkInsert(DynamicTablesBase):
         for op in operations:
             op.wait_for_state("completed")
 
-        assert read_table("//tmp/t_output") == [
-            {"key": i, "value": str(i)} for i in range(len(operations))
-        ]
+        assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
         assert_items_equal(
             select_rows("* from [//tmp/t_output]"),
             [{"key": i, "value": str(i)} for i in range(len(operations))],
@@ -459,11 +449,7 @@ class TestBulkInsert(DynamicTablesBase):
         root_chunk_list = get("//tmp/t_output/@chunk_list_id")
         tablet_chunk_list = get("#{}/@child_ids/0".format(root_chunk_list))
         child_ids = get("#{}/@child_ids".format(tablet_chunk_list))
-        subtablets = [
-            child_id
-            for child_id in child_ids
-            if get("#{}/@type".format(child_id)) == "chunk_list"
-        ]
+        subtablets = [child_id for child_id in child_ids if get("#{}/@type".format(child_id)) == "chunk_list"]
         assert len(subtablets) == 1
         subtablet_chunk_list = subtablets[0]
         assert get("#{}/@statistics/chunk_list_count".format(tablet_chunk_list)) == 2
@@ -586,13 +572,8 @@ class TestBulkInsert(DynamicTablesBase):
         assert get("//tmp/t_output/@chunk_ids") == get("//tmp/t_input/@chunk_ids")
         assert read_table("//tmp/t_output") == rows
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
-        lookup_result = lookup_rows(
-            "//tmp/t_output", [{"key": 1}, {"key": 2}], versioned=True
-        )
-        assert (
-            lookup_result[0].attributes["write_timestamps"]
-            == lookup_result[1].attributes["write_timestamps"]
-        )
+        lookup_result = lookup_rows("//tmp/t_output", [{"key": 1}, {"key": 2}], versioned=True)
+        assert lookup_result[0].attributes["write_timestamps"] == lookup_result[1].attributes["write_timestamps"]
 
     def test_partially_sorted(self):
         sync_create_cells(1)
@@ -622,10 +603,7 @@ class TestBulkInsert(DynamicTablesBase):
         wait(lambda: get("//tmp/t_output/@chunk_count") == 4)
         assert read_table("//tmp/t_output") == sorted(rows)
         assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(rows))
-        wait(
-            lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count")
-            == 3
-        )
+        wait(lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count") == 3)
 
         # Single job processing [1, 3, 2, 4] should fail.
         with raises_yt_error(SortOrderViolation):
@@ -707,9 +685,7 @@ class TestBulkInsert(DynamicTablesBase):
         with pytest.raises(YtError):
             commit_transaction(tablet_tx)
 
-        assert_items_equal(
-            select_rows("* from [//tmp/t_output]"), [] if empty_output else rows[:1]
-        )
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), [] if empty_output else rows[:1])
 
     @pytest.mark.parametrize(
         "pivot_keys_before, pivot_keys_after",
@@ -756,9 +732,7 @@ class TestBulkInsert(DynamicTablesBase):
         sync_unmount_table("//tmp/t_output")
         sync_reshard_table("//tmp/t_output", [[]])
         sync_mount_table("//tmp/t_output")
-        assert lookup_result == lookup_rows(
-            "//tmp/t_output", [{"key": 1}], versioned=True
-        )
+        assert lookup_result == lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
 
         chunk_list_id = get("//tmp/t_output/@chunk_list_id")
         tablet_chunk_list_id = get("#{}/@child_ids/0".format(chunk_list_id))
@@ -774,9 +748,7 @@ class TestBulkInsert(DynamicTablesBase):
         usage_before = get("//sys/accounts/a/@resource_usage")
 
         create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table(
-            "//tmp/t_output", account="a", in_memory_mode=in_memory_mode
-        )
+        self._create_simple_dynamic_table("//tmp/t_output", account="a", in_memory_mode=in_memory_mode)
         sync_mount_table("//tmp/t_output")
 
         write_table("//tmp/t_input", [{"key": i, "value": str(i)} for i in range(100)])
@@ -785,30 +757,19 @@ class TestBulkInsert(DynamicTablesBase):
 
         wait(lambda: get_account_disk_space("a") > 0)
         if in_memory_mode != "none":
-            wait(
-                lambda: get("//sys/accounts/a/@resource_usage/tablet_static_memory") > 0
-            )
+            wait(lambda: get("//sys/accounts/a/@resource_usage/tablet_static_memory") > 0)
 
         # Overwrite table with less data, usage should decrease.
         disk_space_usage = get_account_disk_space("a")
-        tablet_static_usage = get(
-            "//sys/accounts/a/@resource_usage/tablet_static_memory"
-        )
+        tablet_static_usage = get("//sys/accounts/a/@resource_usage/tablet_static_memory")
         map(in_="//tmp/t_input[:#10]", out="//tmp/t_output", command="cat")
         wait(lambda: 0 < get_account_disk_space("a") < disk_space_usage)
         if in_memory_mode != "none":
-            wait(
-                lambda: 0
-                < get("//sys/accounts/a/@resource_usage/tablet_static_memory")
-                < tablet_static_usage
-            )
+            wait(lambda: 0 < get("//sys/accounts/a/@resource_usage/tablet_static_memory") < tablet_static_usage)
 
         sync_unmount_table("//tmp/t_output")
         if in_memory_mode != "none":
-            wait(
-                lambda: get("//sys/accounts/a/@resource_usage/tablet_static_memory")
-                == 0
-            )
+            wait(lambda: get("//sys/accounts/a/@resource_usage/tablet_static_memory") == 0)
 
         remove("//tmp/t_output")
         wait(lambda: get("//sys/accounts/a/@resource_usage") == usage_before)
@@ -878,11 +839,7 @@ class TestBulkInsert(DynamicTablesBase):
         )
 
         chunk_id = get("//tmp/t_output/@chunk_ids/0")
-        assert (
-            block_size - 50
-            < get("#{}/@max_block_size".format(chunk_id))
-            < block_size + 50
-        )
+        assert block_size - 50 < get("#{}/@max_block_size".format(chunk_id)) < block_size + 50
 
     def test_no_user_transaction(self):
         sync_create_cells(1)
@@ -950,9 +907,7 @@ class TestBulkInsert(DynamicTablesBase):
     def test_overwrite(self, flush):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table(
-            "//tmp/t_output", enable_dynamic_store_read=False
-        )
+        self._create_simple_dynamic_table("//tmp/t_output", enable_dynamic_store_read=False)
         if not flush:
             set("//tmp/t_output/@enable_store_rotation", False)
         sync_mount_table("//tmp/t_output")
@@ -987,10 +942,7 @@ class TestBulkInsert(DynamicTablesBase):
 
         _run_op()
         _run_op()
-        wait(
-            lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count")
-            == 3
-        )
+        wait(lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count") == 3)
         with pytest.raises(YtError):
             _run_op()
 
@@ -1007,11 +959,7 @@ class TestBulkInsert(DynamicTablesBase):
             for instance in ls("//sys/controller_agents/instances"):
 
                 def _wait_func():
-                    config = get(
-                        "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(
-                            instance
-                        )
-                    )
+                    config = get("//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(instance))
                     return config.get("enable_bulk_insert_for_everyone", False) == value
 
                 wait(_wait_func)
@@ -1068,9 +1016,7 @@ class TestBulkInsert(DynamicTablesBase):
         self._create_simple_dynamic_table("//tmp/t_input", schema=schema, dynamic=False)
 
         with pytest.raises(YtError):
-            sort(
-                in_="//tmp/t_input", out="<append=%true>//tmp/t_output", sort_by=["k1"]
-            )
+            sort(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", sort_by=["k1"])
         with pytest.raises(YtError):
             sort(
                 in_="//tmp/t_input",
@@ -1104,9 +1050,7 @@ class TestBulkInsert(DynamicTablesBase):
             ],
             unique_keys=True,
         )
-        self._create_simple_dynamic_table(
-            "//tmp/t", dynamic=False, schema=schema, enable_dynamic_store_read=False
-        )
+        self._create_simple_dynamic_table("//tmp/t", dynamic=False, schema=schema, enable_dynamic_store_read=False)
 
         write_table("<append=%true>//tmp/t", [{"key": i} for i in range(0, 3)])
         write_table("<append=%true>//tmp/t", [{"key": i} for i in range(3, 6)])
@@ -1217,14 +1161,10 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             )
         create_dynamic_table(path, **attributes)
 
-    def _make_value(
-        self, column_name, value, aggregate=False, treat_empty_flags_as_null=False
-    ):
+    def _make_value(self, column_name, value, aggregate=False, treat_empty_flags_as_null=False):
         if value is None:
             # Treat as missing.
-            result = {
-                "$flags:{}".format(column_name): yson.YsonUint64(self.MISSING_FLAG)
-            }
+            result = {"$flags:{}".format(column_name): yson.YsonUint64(self.MISSING_FLAG)}
             return result
         if aggregate:
             flags = self.AGGREGATE_FLAG
@@ -1250,18 +1190,14 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         kwargs["$change_type"] = self.DELETE_CHANGE_TYPE
         return kwargs
 
-    def _run_operation(
-        self, rows, input_table="//tmp/t_input", output_table="//tmp/t_output"
-    ):
+    def _run_operation(self, rows, input_table="//tmp/t_input", output_table="//tmp/t_output"):
         if not isinstance(rows, list):
             rows = [rows]
         create("table", input_table, force=True)
         write_table(input_table, rows)
         map(
             in_=input_table,
-            out="<append=%true;schema_modification=unversioned_update>{}".format(
-                output_table
-            ),
+            out="<append=%true;schema_modification=unversioned_update>{}".format(output_table),
             command="cat",
             spec={"max_failed_job_count": 1},
         )
@@ -1285,14 +1221,8 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         sync_mount_table("//tmp/t_output")
 
         # First, test that at least something works and that subsequent errors are not bogus.
-        self._run_operation(
-            self._prepare_write_row(
-                self._make_value("v1", 3), self._make_value("v2", "4"), k1=1, k2=2
-            )
-        )
-        assert select_rows("* from [//tmp/t_output]") == [
-            {"k1": 1, "k2": 2, "v1": 3, "v2": "4"}
-        ]
+        self._run_operation(self._prepare_write_row(self._make_value("v1", 3), self._make_value("v2", "4"), k1=1, k2=2))
+        assert select_rows("* from [//tmp/t_output]") == [{"k1": 1, "k2": 2, "v1": 3, "v2": "4"}]
 
         # Missing change_type.
         with raises_yt_error(SchemaViolation):
@@ -1316,29 +1246,21 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
 
         # Invalid key type.
         with raises_yt_error(SchemaViolation):
-            self._run_operation(
-                self._prepare_write_row(self._make_value("v2", "1"), k1=1, k2=0.5)
-            )
+            self._run_operation(self._prepare_write_row(self._make_value("v2", "1"), k1=1, k2=0.5))
         with raises_yt_error(SchemaViolation):
             self._run_operation(self._prepare_delete_row(k1=1, k2=0.5))
 
         # Invalid value type.
         with raises_yt_error(SchemaViolation):
-            self._run_operation(
-                self._prepare_write_row(self._make_value("v2", 100500), k1=1, k2=1)
-            )
+            self._run_operation(self._prepare_write_row(self._make_value("v2", 100500), k1=1, k2=1))
 
         # Delete with non-null value columns.
         with raises_yt_error(SchemaViolation):
-            self._run_operation(
-                self._prepare_delete_row(self._make_value("v2", 1), k1=1, k2=1)
-            )
+            self._run_operation(self._prepare_delete_row(self._make_value("v2", 1), k1=1, k2=1))
 
         # Null required key column.
         with raises_yt_error(SchemaViolation):
-            self._run_operation(
-                self._prepare_write_row(self._make_value("v2", 1), k1=1)
-            )
+            self._run_operation(self._prepare_write_row(self._make_value("v2", 1), k1=1))
             self._run_operation(self._prepare_delete_row(k1=1))
 
         # Null required value column.
@@ -1347,9 +1269,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
 
         # Required column marked as missing.
         with raises_yt_error(SchemaViolation):
-            self._run_operation(
-                self._prepare_write_row(self._make_value("v2", None), k1=1, k2=1)
-            )
+            self._run_operation(self._prepare_write_row(self._make_value("v2", None), k1=1, k2=1))
 
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_delete(self, optimize_for):
@@ -1374,9 +1294,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
                 assert chunk_format == "versioned_columnar"
 
         def _verify():
-            assert_items_equal(
-                select_rows("* from [//tmp/t_output]"), [{"key": 2, "value": "b"}]
-            )
+            assert_items_equal(select_rows("* from [//tmp/t_output]"), [{"key": 2, "value": "b"}])
             lookup_result = lookup_rows("//tmp/t_output", [{"key": 1}], versioned=True)
             assert len(lookup_result) == 1
             row = lookup_result[0]
@@ -1408,21 +1326,13 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             assert_items_equal(select_rows("* from [//tmp/t_output]"), expected)
             assert_items_equal(read_table("//tmp/t_output"), expected)
 
-        self._run_operation(
-            self._prepare_write_row(self._make_value("value", 1), key=1)
-        )
+        self._run_operation(self._prepare_write_row(self._make_value("value", 1), key=1))
         _verify(1)
 
-        self._run_operation(
-            self._prepare_write_row(
-                self._make_value("value", 1, self.AGGREGATE_FLAG), key=1
-            )
-        )
+        self._run_operation(self._prepare_write_row(self._make_value("value", 1, self.AGGREGATE_FLAG), key=1))
         _verify(2)
 
-        self._run_operation(
-            self._prepare_write_row(self._make_value("value", 10), key=1)
-        )
+        self._run_operation(self._prepare_write_row(self._make_value("value", 10), key=1))
         _verify(10)
 
         sync_compact_table("//tmp/t_output")
@@ -1444,19 +1354,11 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             assert_items_equal(select_rows("* from [//tmp/t_output]"), expected)
             assert_items_equal(read_table("//tmp/t_output"), expected)
 
-        self._run_operation(
-            self._prepare_write_row(
-                self._make_value("v1", 1), self._make_value("v2", 1), k1=1
-            )
-        )
+        self._run_operation(self._prepare_write_row(self._make_value("v1", 1), self._make_value("v2", 1), k1=1))
         _verify(1, 1)
 
         # v2 is explicitly missing.
-        self._run_operation(
-            self._prepare_write_row(
-                self._make_value("v1", 2), self._make_value("v2", None), k1=1
-            )
-        )
+        self._run_operation(self._prepare_write_row(self._make_value("v1", 2), self._make_value("v2", None), k1=1))
         _verify(2, 1)
 
         # v1 is not marked as missing thus is written as Null.
@@ -1479,16 +1381,12 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             assert_items_equal(read_table("//tmp/t_output"), expected)
 
         self._run_operation(
-            self._prepare_write_row(
-                self._make_value("value", 1, treat_empty_flags_as_null=True), key=1
-            )
+            self._prepare_write_row(self._make_value("value", 1, treat_empty_flags_as_null=True), key=1)
         )
         _verify(1)
 
         self._run_operation(
-            self._prepare_write_row(
-                self._make_value("value", 2, treat_empty_flags_as_null=False), key=1
-            )
+            self._prepare_write_row(self._make_value("value", 2, treat_empty_flags_as_null=False), key=1)
         )
         _verify(2)
 
@@ -1515,9 +1413,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             ]
         )
 
-        assert_items_equal(
-            select_rows("* from [//tmp/t_output]"), [{"hash": 4, "key": 2, "value": 2}]
-        )
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), [{"hash": 4, "key": 2, "value": 2}])
 
     def test_not_sorted(self):
         sync_create_cells(1)
@@ -1525,14 +1421,10 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         sync_mount_table("//tmp/t_output")
 
         with raises_yt_error(UniqueKeyViolation):
-            self._run_operation(
-                [self._prepare_write_row(key=1), self._prepare_delete_row(key=1)]
-            )
+            self._run_operation([self._prepare_write_row(key=1), self._prepare_delete_row(key=1)])
 
         with raises_yt_error(SortOrderViolation):
-            self._run_operation(
-                [self._prepare_delete_row(key=2), self._prepare_write_row(key=1)]
-            )
+            self._run_operation([self._prepare_delete_row(key=2), self._prepare_write_row(key=1)])
 
     @pytest.mark.parametrize("mode", ["sorted", "ordered"])
     @pytest.mark.parametrize("use_schema", [True, False])
@@ -1685,9 +1577,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         else:
             assert lhs == rhs
 
-    @pytest.mark.parametrize(
-        "modification", ["unversioned_update", "unversioned_update_unsorted"]
-    )
+    @pytest.mark.parametrize("modification", ["unversioned_update", "unversioned_update_unsorted"])
     def test_intermediate_table_schema_alter(self, modification):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -1735,9 +1625,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
                 "table",
                 "//tmp/t",
                 force=True,
-                attributes={
-                    "schema": make_schema(schema, schema_modification=modification)
-                },
+                attributes={"schema": make_schema(schema, schema_modification=modification)},
             )
 
         # Cannot modify schema of nonempty table.
@@ -1780,13 +1668,9 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             attributes={"schema": make_schema(schema, unique_keys=True)},
         )
         alter_table("//tmp/t", schema_modification=modification)
-        assert get("//tmp/t/@schema/@unique_keys") == (
-            modification == "unversioned_update"
-        )
+        assert get("//tmp/t/@schema/@unique_keys") == (modification == "unversioned_update")
 
-    @pytest.mark.parametrize(
-        "modification", ["unversioned_update", "unversioned_update_unsorted"]
-    )
+    @pytest.mark.parametrize("modification", ["unversioned_update", "unversioned_update_unsorted"])
     def test_unversioned_update_schema_inference(self, modification):
         schema = [
             {"name": "key", "type": "int64", "sort_order": "ascending"},
@@ -1809,16 +1693,12 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
 
         create("table", "//tmp/t_sorted")
         sort(in_="//tmp/t", out="//tmp/t_sorted", sort_by=["key"])
-        self._assert_schema_equal(
-            get("//tmp/t_sorted/@schema"), sorted_schema, reordered=True
-        )
+        self._assert_schema_equal(get("//tmp/t_sorted/@schema"), sorted_schema, reordered=True)
         assert get("//tmp/t_sorted/@schema/@schema_modification") == modification
 
         create("table", "//tmp/t_merged")
         merge(in_="//tmp/t", out="//tmp/t_merged", mode="ordered")
-        self._assert_schema_equal(
-            get("//tmp/t_merged/@schema"), unversioned_update_schema, reordered=True
-        )
+        self._assert_schema_equal(get("//tmp/t_merged/@schema"), unversioned_update_schema, reordered=True)
         assert get("//tmp/t_merged/@schema/@schema_modification") == modification
 
     def test_chunk_timestamp(self):
@@ -1832,9 +1712,7 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
             max_data_ttl=6000,
         )
         sync_mount_table("//tmp/t_output")
-        self._run_operation(
-            self._prepare_write_row(self._make_value("value", "foo"), key=1)
-        )
+        self._run_operation(self._prepare_write_row(self._make_value("value", "foo"), key=1))
 
         # YT-13616. Data is not immediately discarded by TTL...
         sleep(2)

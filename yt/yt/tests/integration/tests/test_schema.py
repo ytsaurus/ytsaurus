@@ -89,9 +89,7 @@ class SingleColumnTable(object):
             force=True,
             attributes={
                 "optimize_for": optimize_for,
-                "schema": make_schema(
-                    [make_column("column", column_type)], strict=True, unique_keys=False
-                ),
+                "schema": make_schema([make_column("column", column_type)], strict=True, unique_keys=False),
             },
         )
 
@@ -337,11 +335,7 @@ class TestComplexTypes(YTEnvSetup):
             "table",
             "//tmp/table",
             force=True,
-            attributes={
-                "schema": make_schema(
-                    [{"name": "column", "type_v3": optional_type(null_type)}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "column", "type_v3": optional_type(null_type)}])},
         )
         tx_write_table("//tmp/table", [{"column": None}, {"column": [None]}])
 
@@ -550,11 +544,7 @@ class TestComplexTypesMisc(YTEnvSetup):
             "table",
             "//tmp/table",
             force=True,
-            attributes={
-                "schema": make_schema(
-                    [{"name": "foo", "type": "uint32", "type_v3": "uint32"}]
-                )
-            },
+            attributes={"schema": make_schema([{"name": "foo", "type": "uint32", "type_v3": "uint32"}])},
         )
 
         assert get("//tmp/table/@schema/0/type") == "uint32"
@@ -689,9 +679,7 @@ class TestComplexTypesMisc(YTEnvSetup):
         with raises_yt_error("Type mismatch for column"):
             alter_table(
                 "//table",
-                schema=make_schema(
-                    [make_column("column", optional_type(list_type("int64")))]
-                ),
+                schema=make_schema([make_column("column", optional_type(list_type("int64")))]),
             )
 
         with raises_yt_error("Cannot insert a new required column"):
@@ -987,9 +975,7 @@ class TestLogicalType(YTEnvSetup):
                 },
             )
 
-        with raises_yt_error(
-            'Aggregated column "key1" is forbidden to have logical type'
-        ):
+        with raises_yt_error('Aggregated column "key1" is forbidden to have logical type'):
             create(
                 "table",
                 "//test-table",
@@ -1199,11 +1185,7 @@ class TestRequiredOption(YTEnvSetup):
         create(
             "table",
             table,
-            attributes={
-                "schema": make_schema(
-                    [make_column("value", "string")], unique_keys=False, strict=True
-                )
-            },
+            attributes={"schema": make_schema([make_column("value", "string")], unique_keys=False, strict=True)},
         )
         table = "//tmp/input2"
         create(
@@ -1259,8 +1241,7 @@ class TestRequiredOption(YTEnvSetup):
         with raises_yt_error("Cannot insert a new required column"):
             alter_table(
                 "//tmp/t",
-                schema=schema
-                + [{"name": "value3_req", "type": "string", "required": True}],
+                schema=schema + [{"name": "value3_req", "type": "string", "required": True}],
             )
 
         # Adding non-required columns is OK
@@ -1288,9 +1269,7 @@ class TestSchemaDeduplication(YTEnvSetup):
     @authors("ermolovd")
     def test_simple_schema(self):
         def get_schema(strict):
-            return make_schema(
-                [make_column("value", "string")], unique_keys=False, strict=strict
-            )
+            return make_schema([make_column("value", "string")], unique_keys=False, strict=strict)
 
         create("table", "//tmp/table1", attributes={"schema": get_schema(True)})
         create("table", "//tmp/table2", attributes={"schema": get_schema(True)})
@@ -1311,9 +1290,7 @@ class TestSchemaValidation(YTEnvSetup):
     @authors("ermolovd")
     def test_schema_complexity(self):
         def make_schema(size):
-            return [
-                {"name": "column{}".format(i), "type": "int64"} for i in range(size)
-            ]
+            return [{"name": "column{}".format(i), "type": "int64"} for i in range(size)]
 
         def make_row(size):
             return {"column{}".format(i): i for i in range(size)}

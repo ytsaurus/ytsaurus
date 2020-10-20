@@ -8,4 +8,3 @@ if __name__ == "__main__":
         words = line.split()
         sys.stdout.write("".join("%s\t\t1\n" % word for word in words))
         sys.stdout.write("".join("%s %s\t\t1\n" % pair for pair in izip(words, words[1:])))
-

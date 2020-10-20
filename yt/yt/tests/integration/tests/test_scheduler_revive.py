@@ -48,9 +48,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {"job_controller": {"total_confirmation_period": 5000}}
-    }
+    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"total_confirmation_period": 5000}}}
 
     OP_COUNT = 10
 
@@ -200,9 +198,7 @@ class TestSchedulerRestart(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {"job_controller": {"total_confirmation_period": 5000}}
-    }
+    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"total_confirmation_period": 5000}}}
 
     @authors("ignat")
     def test_live_preview(self):
@@ -233,15 +229,8 @@ class TestSchedulerRestart(YTEnvSetup):
         release_breakpoint(job_id=jobs[1])
         wait(lambda: op.get_job_count("completed") == 2)
 
-        wait(
-            lambda: len(
-                read_table(op.get_path() + "/output_0", tx=async_transaction_id)
-            )
-            == 2
-        )
-        live_preview_data = read_table(
-            op.get_path() + "/output_0", tx=async_transaction_id
-        )
+        wait(lambda: len(read_table(op.get_path() + "/output_0", tx=async_transaction_id)) == 2)
+        live_preview_data = read_table(op.get_path() + "/output_0", tx=async_transaction_id)
         assert all(record in data for record in live_preview_data)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -251,16 +240,12 @@ class TestSchedulerRestart(YTEnvSetup):
 
         wait(lambda: op.get_state() == "running")
 
-        new_async_transaction_id = get(
-            op.get_path() + "/@async_scheduler_transaction_id"
-        )
+        new_async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
         assert new_async_transaction_id != async_transaction_id
 
         async_transaction_id = new_async_transaction_id
         assert exists(op.get_path() + "/output_0", tx=async_transaction_id)
-        live_preview_data = read_table(
-            op.get_path() + "/output_0", tx=async_transaction_id
-        )
+        live_preview_data = read_table(op.get_path() + "/output_0", tx=async_transaction_id)
         assert all(record in data for record in live_preview_data)
 
         release_breakpoint()
@@ -329,15 +314,10 @@ class TestSchedulerRestart(YTEnvSetup):
         }
 
         def check_cypress():
-            return (
-                exists(annotations_path)
-                and get(annotations_path) == required_annotations
-            )
+            return exists(annotations_path) and get(annotations_path) == required_annotations
 
         def check_get_operation():
-            result = get_operation(op.id, attributes=["runtime_parameters"])[
-                "runtime_parameters"
-            ]
+            result = get_operation(op.id, attributes=["runtime_parameters"])["runtime_parameters"]
             return result.get("annotations", None) == required_annotations
 
         wait(check_cypress)
@@ -396,11 +376,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
             controller_agents = ls("//sys/controller_agents/instances")
             assert len(controller_agents) == 1
             return parse_yt_time(
-                get(
-                    "//sys/controller_agents/instances/{}/@connection_time".format(
-                        controller_agents[0]
-                    )
-                )
+                get("//sys/controller_agents/instances/{}/@connection_time".format(controller_agents[0]))
             )
 
         time.sleep(3)
@@ -442,9 +418,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._create_table("//tmp/t_out")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        op = map(
-            command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False
-        )
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
         self._wait_for_state(op, "running")
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -457,9 +431,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
 
     @authors("gritukan")
     @pytest.mark.parametrize("use_legacy_controllers", [False, True])
-    def test_legacy_controller_fraction_changed_during_revive(
-        self, use_legacy_controllers
-    ):
+    def test_legacy_controller_fraction_changed_during_revive(self, use_legacy_controllers):
         update_controller_agent_config(
             "map_operation_options/spec_template/legacy_controller_fraction",
             256 if use_legacy_controllers else 0,
@@ -469,9 +441,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
         self._create_table("//tmp/t_out")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        op = map(
-            command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False
-        )
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
 
         def get_is_legacy():
             while True:
@@ -642,9 +612,7 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {"scheduler_connector": {"heartbeat_period": 100}}
-    }
+    DELTA_NODE_CONFIG = {"exec_agent": {"scheduler_connector": {"heartbeat_period": 100}}}
 
     @authors("renadeen")
     def test_race_between_shard_and_strategy(self):
@@ -719,9 +687,7 @@ class OperationReviveBase(YTEnvSetup):
     def test_missing_transactions(self):
         self._prepare_tables()
 
-        op = self._start_op(
-            with_breakpoint("echo '{foo=bar}'; BREAKPOINT"), track=False
-        )
+        op = self._start_op(with_breakpoint("echo '{foo=bar}'; BREAKPOINT"), track=False)
 
         for iter in xrange(5):
             self._wait_for_state(op, "running")
@@ -805,10 +771,7 @@ class OperationReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "running")
 
-        wait(
-            lambda: op.get_job_count("completed") == 1
-            and op.get_job_count("running") == 1
-        )
+        wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("running") == 1)
 
         op.wait_for_fresh_snapshot()
 
@@ -816,11 +779,7 @@ class OperationReviveBase(YTEnvSetup):
         op.complete(ignore_result=True)
 
         self._wait_for_state(op, "completing")
-        wait(
-            lambda: get(
-                op.get_path() + "/controller_orchid/testing/commit_sleep_started"
-            )
-        )
+        wait(lambda: get(op.get_path() + "/controller_orchid/testing/commit_sleep_started"))
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             assert op.get_state() == "completing"
@@ -931,9 +890,7 @@ class OperationReviveBase(YTEnvSetup):
         self._create_table("//tmp/t_out")
         write_table("//tmp/t_in", {"foo": "bar"})
 
-        op = self._start_op(
-            "sleep 1; false", spec={"max_failed_job_count": 10000}, track=False
-        )
+        op = self._start_op("sleep 1; false", spec={"max_failed_job_count": 10000}, track=False)
 
         self._wait_for_state(op, "running")
 
@@ -1118,8 +1075,7 @@ class TestJobRevival(TestJobRevivalBase):
                     continue
                 for op_id in operations[key]:
                     total_job_count += get(
-                        get_operation_cypress_path(op_id)
-                        + "/@progress/jobs/{}".format(category),
+                        get_operation_cypress_path(op_id) + "/@progress/jobs/{}".format(category),
                         default=0,
                         verbose=False,
                     )
@@ -1131,14 +1087,10 @@ class TestJobRevival(TestJobRevivalBase):
             while True:
                 completed_job_count = get_total_job_count("completed/total")
                 aborted_job_count = get_total_job_count("aborted/total")
-                aborted_on_revival_job_count = get_total_job_count(
-                    "aborted/scheduled/revival_confirmation_timeout"
-                )
+                aborted_on_revival_job_count = get_total_job_count("aborted/scheduled/revival_confirmation_timeout")
                 print_debug("completed_job_count =", completed_job_count)
                 print_debug("aborted_job_count =", aborted_job_count)
-                print_debug(
-                    "aborted_on_revival_job_count =", aborted_on_revival_job_count
-                )
+                print_debug("aborted_on_revival_job_count =", aborted_on_revival_job_count)
                 if completed_job_count >= switch_job_count:
                     if (switch_job_count // 40) % 2 == 0:
                         with Restarter(self.Env, SCHEDULERS_SERVICE):
@@ -1156,20 +1108,14 @@ class TestJobRevival(TestJobRevivalBase):
             op.track()
 
         if aborted_job_count != aborted_on_revival_job_count:
-            print_debug(
-                "There were aborted jobs other than during the revival process:"
-            )
+            print_debug("There were aborted jobs other than during the revival process:")
             for op in ops:
                 output = StringIO()
-                pprint.pprint(
-                    dict(get(op.get_path() + "/@progress/jobs/aborted")), stream=output
-                )
+                pprint.pprint(dict(get(op.get_path() + "/@progress/jobs/aborted")), stream=output)
                 print_debug(output.getvalue())
 
         for output_table in output_tables:
-            assert sorted(read_table(output_table, verbose=False)) == [
-                {"a": i} for i in range(op_count)
-            ]
+            assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
 
     @authors("max42", "ignat")
     @pytest.mark.parametrize(
@@ -1214,10 +1160,7 @@ class TestJobRevival(TestJobRevivalBase):
         # Comment about '+10' - we need some additional room for jobs that can be non-scheduled aborted.
         wait(
             lambda: sum(
-                [
-                    events_on_fs().check_event("ready_for_revival_" + str(i))
-                    for i in xrange(user_slots_limit + 10)
-                ]
+                [events_on_fs().check_event("ready_for_revival_" + str(i)) for i in xrange(user_slots_limit + 10)]
             )
             == user_slots_limit
         )
@@ -1231,9 +1174,7 @@ class TestJobRevival(TestJobRevivalBase):
 
         for i in xrange(1000):
             user_slots = None
-            user_slots_path = (
-                orchid_path + "/operations/{0}/resource_usage/user_slots".format(op.id)
-            )
+            user_slots_path = orchid_path + "/operations/{0}/resource_usage/user_slots".format(op.id)
             try:
                 user_slots = get(user_slots_path, verbose=False)
             except YtError:
@@ -1252,11 +1193,7 @@ class TestJobRevival(TestJobRevivalBase):
                 events_on_fs().notify_event("complete_operation")
             running = jobs["running"]
             aborted = jobs["aborted"]["total"]
-            assert (
-                running <= user_slots_limit
-                or user_slots is None
-                or user_slots <= user_slots_limit
-            )
+            assert running <= user_slots_limit or user_slots is None or user_slots <= user_slots_limit
             assert aborted == 0
 
         op.track()
@@ -1378,9 +1315,7 @@ class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
             out="//tmp/t_out_0",
             track=False,
         )
-        op2 = map(
-            command="sleep 2; cat", in_="//tmp/t_in", out="//tmp/t_out_1", track=False
-        )
+        op2 = map(command="sleep 2; cat", in_="//tmp/t_in", out="//tmp/t_out_1", track=False)
         op3 = map(
             command="sleep 1000; cat",
             in_="//tmp/t_in",

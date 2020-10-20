@@ -146,9 +146,7 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
                     "string_column": make_random_string(20),
                     "any_column": ["a", {"v": 4}],
                     "enum_string_column": random.choice(enum_names),
-                    "enum_int_column": ENUMERATIONS["MyEnum"][
-                        random.choice(enum_names)
-                    ],
+                    "enum_int_column": ENUMERATIONS["MyEnum"][random.choice(enum_names)],
                 }
             )
         return rows
@@ -175,9 +173,7 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         row_count = 50000
         rows = self._generate_random_rows(row_count)
         data = protobuf_format.write_lenval_protobuf(rows, format)
-        write_table(
-            "//tmp/t", value=data, is_raw=True, input_format=format, verbose=False
-        )
+        write_table("//tmp/t", value=data, is_raw=True, input_format=format, verbose=False)
         read_rows = read_table("//tmp/t", verbose=False)
         assert_rowsets_equal(read_rows, rows)
 
@@ -625,9 +621,7 @@ SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
     ],
 }
 
-HELLO_WORLD = (
-    b"\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!"
-)
+HELLO_WORLD = b"\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!"
 GOODBYE_WORLD = b"\xd0\x9f\xd0\xbe\xd0\xba\xd0\xb0, \xd0\xbc\xd0\xb8\xd1\x80!"
 
 SCHEMAFUL_TABLE_ROWS = [
@@ -793,17 +787,13 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
         create("table", "//tmp/t", attributes={"schema": SCHEMA})
         table_config = SCHEMAFUL_TABLE_PROTOBUF_CONFIG
         format = create_protobuf_format([table_config], ENUMERATIONS)
-        data = protobuf_format.write_lenval_protobuf(
-            PROTOBUF_SCHEMAFUL_TABLE_ROWS, format
-        )
+        data = protobuf_format.write_lenval_protobuf(PROTOBUF_SCHEMAFUL_TABLE_ROWS, format)
         assert_rowsets_equal(
             protobuf_format.parse_lenval_protobuf(data, format),
             PROTOBUF_SCHEMAFUL_TABLE_ROWS,
         )
         write_table("//tmp/t", value=data, is_raw=True, input_format=format)
-        assert_rowsets_equal(
-            read_table("//tmp/t"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD
-        )
+        assert_rowsets_equal(read_table("//tmp/t"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD)
 
     def _generate_random_rows(self, count):
         rows = []
@@ -813,9 +803,7 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             rows.append(
                 {
                     "int16": random.randrange(1 << 15),
-                    "list_of_strings": make_random_list(
-                        5, lambda: make_random_string(random.randrange(10))
-                    ),
+                    "list_of_strings": make_random_list(5, lambda: make_random_string(random.randrange(10))),
                     "optional_boolean": make_random_bool(),
                     "list_of_optional_any": [
                         yson.YsonEntity(),
@@ -844,12 +832,8 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
                         ),
                     },
                     "utf8": make_random_string(10),
-                    "packed_repeated_int8": make_random_list(
-                        5, lambda: random.randrange(-128, 128)
-                    ),
-                    "optional_list_of_int64": make_random_list(
-                        5, lambda: random.randrange(1 << 63), optional=True
-                    ),
+                    "packed_repeated_int8": make_random_list(5, lambda: random.randrange(-128, 128)),
+                    "optional_list_of_int64": make_random_list(5, lambda: random.randrange(1 << 63), optional=True),
                     "variant": make_random_variant_struct(
                         [
                             ("f1", lambda: random.randrange(-128, 128)),
@@ -863,9 +847,7 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
                                             ("g2", lambda: make_random_string(7)),
                                         ]
                                     ),
-                                    "list_of_ints": make_random_list(
-                                        5, lambda: random.randrange(1 << 63)
-                                    ),
+                                    "list_of_ints": make_random_list(5, lambda: random.randrange(1 << 63)),
                                 },
                             ),
                         ]
@@ -898,9 +880,7 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             row["dict"] = [{"key": key, "value": value} for key, value in row["dict"]]
 
         data = protobuf_format.write_lenval_protobuf(rows, format)
-        write_table(
-            "//tmp/t", value=data, is_raw=True, input_format=format, verbose=False
-        )
+        write_table("//tmp/t", value=data, is_raw=True, input_format=format, verbose=False)
         read_rows = read_table("//tmp/t", verbose=False)
 
         def empty_to_entity(d, key):
@@ -944,9 +924,7 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             if row["variant"][0] == "f3":
                 remove_empty(row["variant"][1], "list_of_ints")
             if "dict" in row:
-                row["dict"] = [
-                    {"key": key, "value": value} for key, value in row["dict"]
-                ]
+                row["dict"] = [{"key": key, "value": value} for key, value in row["dict"]]
             remove_empty(row, "dict")
         assert_rowsets_equal(parsed_rows, expected_rows)
 
@@ -978,9 +956,5 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             },
         )
 
-        assert_rowsets_equal(
-            read_table("//tmp/t_out1"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD
-        )
-        assert_rowsets_equal(
-            read_table("//tmp/t_out2"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD
-        )
+        assert_rowsets_equal(read_table("//tmp/t_out1"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD)
+        assert_rowsets_equal(read_table("//tmp/t_out2"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD)

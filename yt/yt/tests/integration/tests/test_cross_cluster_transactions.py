@@ -50,12 +50,7 @@ class TestCrossClusterTransactions(YTEnvSetup):
         sync_mount_table("//tmp/remote", driver=self.remote_driver)
 
         tx = start_transaction(type="tablet", driver=self.primary_driver)
-        assert (
-            start_transaction(
-                type="tablet", transaction_id_override=tx, driver=self.remote_driver
-            )
-            == tx
-        )
+        assert start_transaction(type="tablet", transaction_id_override=tx, driver=self.remote_driver) == tx
 
         PRIMARY_ROWS = [{"key": 1, "value": "hello"}]
         insert_rows("//tmp/primary", PRIMARY_ROWS, driver=self.primary_driver, tx=tx)
@@ -63,9 +58,7 @@ class TestCrossClusterTransactions(YTEnvSetup):
         REMOTE_ROWS = [{"key": 2, "value": "world"}]
         insert_rows("//tmp/remote", REMOTE_ROWS, driver=self.remote_driver, tx=tx)
 
-        self.primary_driver.register_alien_transaction(
-            transaction_id=tx, alien_driver=self.remote_driver
-        )
+        self.primary_driver.register_alien_transaction(transaction_id=tx, alien_driver=self.remote_driver)
 
         commit_transaction(tx)
 
@@ -73,9 +66,7 @@ class TestCrossClusterTransactions(YTEnvSetup):
             select_rows("* from [//tmp/primary]", driver=self.primary_driver),
             PRIMARY_ROWS,
         )
-        assert_items_equal(
-            select_rows("* from [//tmp/remote]", driver=self.remote_driver), REMOTE_ROWS
-        )
+        assert_items_equal(select_rows("* from [//tmp/remote]", driver=self.remote_driver), REMOTE_ROWS)
 
 
 class TestCrossClusterTransactionsRpcProxy(TestCrossClusterTransactions):

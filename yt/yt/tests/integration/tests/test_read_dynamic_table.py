@@ -29,21 +29,15 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             read_table("//tmp/t[#5:]")
         with pytest.raises(YtError):
-            read_table(
-                "<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t"
-            )
+            read_table("<ranges=[{lower_limit={offset = 0};upper_limit={offset = 1}}]>//tmp/t")
 
     @authors("savrus")
-    @pytest.mark.parametrize(
-        "erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"]
-    )
+    @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_read_table(self, optimize_for, erasure_codec):
         sync_create_cells(1)
 
-        self._create_simple_table(
-            "//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec
-        )
+        self._create_simple_table("//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec)
         sync_mount_table("//tmp/t")
 
         rows1 = [{"key": i, "value": str(i)} for i in xrange(10)]
@@ -98,15 +92,8 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         def get_chunk_tree(path):
             root_chunk_list_id = get(path + "/@chunk_list_id")
             root_chunk_list = get("#" + root_chunk_list_id + "/@")
-            tablet_chunk_lists = [
-                get("#" + x + "/@") for x in root_chunk_list["child_ids"]
-            ]
-            assert all(
-                [
-                    root_chunk_list_id in chunk_list["parent_ids"]
-                    for chunk_list in tablet_chunk_lists
-                ]
-            )
+            tablet_chunk_lists = [get("#" + x + "/@") for x in root_chunk_list["child_ids"]]
+            assert all([root_chunk_list_id in chunk_list["parent_ids"] for chunk_list in tablet_chunk_lists])
             # Validate against @chunk_count just to make sure that statistics arrive from secondary master to primary one.
             assert get(path + "/@chunk_count") == sum(
                 [len(chunk_list["child_ids"]) for chunk_list in tablet_chunk_lists]
@@ -244,17 +231,11 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
 
         def do_test():
             for i in xrange(6):
-                assert (
-                    read_table("//tmp/t[{0}:{1}]".format(i, i + 1)) == rows[i : i + 1]
-                )
+                assert read_table("//tmp/t[{0}:{1}]".format(i, i + 1)) == rows[i : i + 1]
             for i in xrange(0, 6, 2):
-                assert (
-                    read_table("//tmp/t[{0}:{1}]".format(i, i + 2)) == rows[i : i + 2]
-                )
+                assert read_table("//tmp/t[{0}:{1}]".format(i, i + 2)) == rows[i : i + 2]
             for i in xrange(1, 6, 2):
-                assert (
-                    read_table("//tmp/t[{0}:{1}]".format(i, i + 2)) == rows[i : i + 2]
-                )
+                assert read_table("//tmp/t[{0}:{1}]".format(i, i + 2)) == rows[i : i + 2]
 
         do_test()
         sync_reshard_table("//tmp/t", [[], [2], [4]])

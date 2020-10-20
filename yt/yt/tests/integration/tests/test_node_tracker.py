@@ -27,9 +27,7 @@ class TestNodeTracker(YTEnvSetup):
     @authors("babenko")
     def test_resource_limits_overrides_defaults(self):
         node = ls("//sys/cluster_nodes")[0]
-        assert (
-            get("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node)) == {}
-        )
+        assert get("//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node)) == {}
 
     @authors("psushin")
     def test_disable_write_sessions(self):
@@ -62,18 +60,10 @@ class TestNodeTracker(YTEnvSetup):
         assert len(nodes) == 3
 
         test_node = nodes[0]
-        assert (
-            get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node))
-            > 0
-        )
+        assert get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)) > 0
         set("//sys/cluster_nodes/{0}/@disable_scheduler_jobs".format(test_node), True)
 
-        wait(
-            lambda: get(
-                "//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)
-            )
-            == 0
-        )
+        wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(test_node)) == 0)
 
     @authors("babenko")
     def test_resource_limits_overrides_valiation(self):
@@ -132,36 +122,21 @@ class TestNodeTracker(YTEnvSetup):
                 return False
 
         for node in nodes:
-            wait(
-                lambda: get(
-                    "//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)
-                )
-                > 0
-            )
+            wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
         wait(lambda: can_write())
 
         for node in nodes:
             set("//sys/cluster_nodes/{0}/@decommissioned".format(node), True)
 
         for node in nodes:
-            wait(
-                lambda: get(
-                    "//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)
-                )
-                == 0
-            )
+            wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) == 0)
         wait(lambda: not can_write())
 
         for node in nodes:
             set("//sys/cluster_nodes/{0}/@decommissioned".format(node), False)
 
         for node in nodes:
-            wait(
-                lambda: get(
-                    "//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)
-                )
-                > 0
-            )
+            wait(lambda: get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node)) > 0)
         wait(lambda: can_write())
 
 
@@ -186,20 +161,10 @@ class TestNodeTrackerMulticell(TestNodeTracker):
         assert "r0" in tags
         assert "d0" in tags
 
-        tags1 = {
-            tag
-            for tag in get(
-                "//sys/cluster_nodes/{0}/@tags".format(node), driver=get_driver(1)
-            )
-        }
+        tags1 = {tag for tag in get("//sys/cluster_nodes/{0}/@tags".format(node), driver=get_driver(1))}
         assert tags1 == tags
 
-        tags2 = {
-            tag
-            for tag in get(
-                "//sys/cluster_nodes/{0}/@tags".format(node), driver=get_driver(2)
-            )
-        }
+        tags2 = {tag for tag in get("//sys/cluster_nodes/{0}/@tags".format(node), driver=get_driver(2))}
         assert tags2 == tags2
 
 
@@ -227,10 +192,7 @@ class TestRemoveClusterNodes(YTEnvSetup):
         for _ in xrange(10):
             with Restarter(self.Env, NODES_SERVICE):
                 for node in ls("//sys/cluster_nodes"):
-                    wait(
-                        lambda: get("//sys/cluster_nodes/{}/@state".format(node))
-                        == "offline"
-                    )
+                    wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
                     id = get("//sys/cluster_nodes/{}/@id".format(node))
                     remove("//sys/cluster_nodes/" + node)
                     wait(lambda: not exists("#" + id))

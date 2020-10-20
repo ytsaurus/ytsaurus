@@ -48,9 +48,7 @@ def prepare_yatest_environment(need_suid):
     global SANDBOX_ROOTDIR
     global SANDBOX_STORAGE_ROOTDIR
     if arcadia_interop.yatest_common.get_param("teamcity"):
-        SANDBOX_ROOTDIR = os.environ.get(
-            "TESTS_SANDBOX", os.path.abspath("tests.sandbox")
-        )
+        SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
         SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
         return
 
@@ -140,9 +138,7 @@ def parametrize_external(func):
             pytest.skip("No secondary cells")
         return func(self, *args, **kwargs)
 
-    return pytest.mark.parametrize("external", [False, True])(
-        decorator.decorate(func, wrapper)
-    )
+    return pytest.mark.parametrize("external", [False, True])(decorator.decorate(func, wrapper))
 
 
 class Checker(Thread):
@@ -267,9 +263,7 @@ class YTEnvSetup(object):
 
     @classmethod
     def create_yt_cluster_instance(cls, index, path):
-        modify_configs_func = functools.partial(
-            cls.apply_config_patches, cluster_index=index
-        )
+        modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index)
 
         capture_stderr_to_file = True
 
@@ -277,25 +271,19 @@ class YTEnvSetup(object):
             path,
             master_count=cls.get_param("NUM_MASTERS", index),
             nonvoting_master_count=cls.get_param("NUM_NONVOTING_MASTERS", index),
-            secondary_master_cell_count=cls.get_param(
-                "NUM_SECONDARY_MASTER_CELLS", index
-            ),
+            secondary_master_cell_count=cls.get_param("NUM_SECONDARY_MASTER_CELLS", index),
             clock_count=cls.get_param("NUM_CLOCKS", index),
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
-            defer_controller_agent_start=cls.get_param(
-                "DEFER_CONTROLLER_AGENT_START", index
-            ),
+            defer_controller_agent_start=cls.get_param("DEFER_CONTROLLER_AGENT_START", index),
             http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index)
             if cls.get_param("ENABLE_HTTP_PROXY", index)
             else 0,
             http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
-            rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index)
-            if cls.get_param("ENABLE_RPC_PROXY", index)
-            else 0,
+            rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
             watcher_config={"disable_logrotate": True},
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             kill_child_processes=True,
@@ -306,18 +294,14 @@ class YTEnvSetup(object):
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
-            enable_rpc_driver_proxy_discovery=cls.get_param(
-                "ENABLE_RPC_DRIVER_PROXY_DISCOVERY", index
-            ),
+            enable_rpc_driver_proxy_discovery=cls.get_param("ENABLE_RPC_DRIVER_PROXY_DISCOVERY", index),
             enable_structured_master_logging=True,
             enable_structured_scheduler_logging=True,
             capture_stderr_to_file=capture_stderr_to_file,
         )
 
         instance._cluster_name = cls.get_cluster_name(index)
-        setattr(
-            instance, "_default_driver_backend", cls.get_param("DRIVER_BACKEND", index)
-        )
+        setattr(instance, "_default_driver_backend", cls.get_param("DRIVER_BACKEND", index))
 
         return instance
 
@@ -363,9 +347,7 @@ class YTEnvSetup(object):
         log_rotator.start()
         cls.liveness_checkers.append(log_rotator)
 
-        prepare_yatest_environment(
-            need_suid=need_suid
-        )  # It initializes SANDBOX_ROOTDIR
+        prepare_yatest_environment(need_suid=need_suid)  # It initializes SANDBOX_ROOTDIR
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         cls.run_id = None
@@ -398,12 +380,8 @@ class YTEnvSetup(object):
     def start_envs(cls):
         cls.Env = cls.create_yt_cluster_instance(0, cls.primary_cluster_path)
         for cluster_index in xrange(1, cls.NUM_REMOTE_CLUSTERS + 1):
-            cluster_path = os.path.join(
-                cls.path_to_run, cls.get_cluster_name(cluster_index)
-            )
-            cls.remote_envs.append(
-                cls.create_yt_cluster_instance(cluster_index, cluster_path)
-            )
+            cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
+            cls.remote_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
 
         latest_run_path = os.path.join(cls.path_to_test, "run_latest")
         if os.path.exists(latest_run_path):
@@ -420,22 +398,14 @@ class YTEnvSetup(object):
             on_masters_started_func=cls.on_masters_started,
         )
         for index, env in enumerate(cls.remote_envs):
-            env.start(
-                start_secondary_master_cells=cls.get_param(
-                    "START_SECONDARY_MASTER_CELLS", index
-                )
-            )
+            env.start(start_secondary_master_cells=cls.get_param("START_SECONDARY_MASTER_CELLS", index))
 
         yt_commands.wait_drivers()
 
         for env in [cls.Env] + cls.remote_envs:
             # To avoid strange hangups.
             if env.master_count > 0:
-                liveness_checker = Checker(
-                    lambda: env.check_liveness(
-                        callback_func=emergency_exit_within_tests
-                    )
-                )
+                liveness_checker = Checker(lambda: env.check_liveness(callback_func=emergency_exit_within_tests))
                 liveness_checker.daemon = True
                 liveness_checker.start()
                 cls.liveness_checkers.append(liveness_checker)
@@ -445,31 +415,17 @@ class YTEnvSetup(object):
             for instance in [cls.Env] + cls.remote_envs:
                 clusters[instance._cluster_name] = {
                     "primary_master": instance.configs["master"][0]["primary_master"],
-                    "secondary_masters": instance.configs["master"][0][
-                        "secondary_masters"
-                    ],
-                    "timestamp_provider": instance.configs["master"][0][
-                        "timestamp_provider"
-                    ],
-                    "transaction_manager": instance.configs["master"][0][
-                        "transaction_manager"
-                    ],
-                    "table_mount_cache": instance.configs["driver"][
-                        "table_mount_cache"
-                    ],
+                    "secondary_masters": instance.configs["master"][0]["secondary_masters"],
+                    "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
+                    "transaction_manager": instance.configs["master"][0]["transaction_manager"],
+                    "table_mount_cache": instance.configs["driver"]["table_mount_cache"],
                     "permission_cache": instance.configs["driver"]["permission_cache"],
-                    "cell_directory_synchronizer": instance.configs["driver"][
-                        "cell_directory_synchronizer"
-                    ],
-                    "cluster_directory_synchronizer": instance.configs["driver"][
-                        "cluster_directory_synchronizer"
-                    ],
+                    "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
+                    "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"],
                 }
 
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
-                driver = yt_commands.get_driver(
-                    cluster=cls.get_cluster_name(cluster_index)
-                )
+                driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
                 if driver is None:
                     continue
                 yt_commands.set("//sys/clusters", clusters, driver=driver)
@@ -480,15 +436,11 @@ class YTEnvSetup(object):
 
         if yt_commands.is_multicell and cls.START_SECONDARY_MASTER_CELLS:
             yt_commands.remove("//sys/operations")
-            yt_commands.create(
-                "portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1}
-            )
+            yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})
 
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
-                driver = yt_commands.get_driver(
-                    cluster=cls.get_cluster_name(cluster_index)
-                )
+                driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
                 if driver is None:
                     continue
                 # Raise dynamic tables limits since they are zero by default.
@@ -506,48 +458,32 @@ class YTEnvSetup(object):
         if cls.USE_CUSTOM_ROOTFS:
             yt_commands.create("map_node", "//layers")
 
-            yt_commands.create(
-                "file", "//layers/exec.tar.gz", attributes={"replication_factor": 1}
-            )
-            yt_commands.write_file(
-                "//layers/exec.tar.gz", open("rootfs/exec.tar.gz").read()
-            )
-            yt_commands.create(
-                "file", "//layers/rootfs.tar.gz", attributes={"replication_factor": 1}
-            )
-            yt_commands.write_file(
-                "//layers/rootfs.tar.gz", open("rootfs/rootfs.tar.gz").read()
-            )
+            yt_commands.create("file", "//layers/exec.tar.gz", attributes={"replication_factor": 1})
+            yt_commands.write_file("//layers/exec.tar.gz", open("rootfs/exec.tar.gz").read())
+            yt_commands.create("file", "//layers/rootfs.tar.gz", attributes={"replication_factor": 1})
+            yt_commands.write_file("//layers/rootfs.tar.gz", open("rootfs/rootfs.tar.gz").read())
 
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
-        for tag in [configs["master"]["primary_cell_tag"]] + configs["master"][
-            "secondary_cell_tags"
-        ]:
+        for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
             for index, config in enumerate(configs["master"][tag]):
                 configs["master"][tag][index] = update_inplace(
                     config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index)
                 )
                 cls.modify_master_config(configs["master"][tag][index], index)
         for index, config in enumerate(configs["scheduler"]):
-            configs["scheduler"][index] = update_inplace(
-                config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index)
-            )
+            configs["scheduler"][index] = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
             cls.modify_scheduler_config(configs["scheduler"][index])
         for index, config in enumerate(configs["controller_agent"]):
             delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             configs["controller_agent"][index] = update_inplace(
-                update_inplace(
-                    config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG
-                ),
+                update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG),
                 delta_config,
             )
 
             cls.modify_controller_agent_config(configs["controller_agent"][index])
         for index, config in enumerate(configs["node"]):
-            config = update_inplace(
-                config, cls.get_param("DELTA_NODE_CONFIG", cluster_index)
-            )
+            config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
             if cls.USE_PORTO:
                 config = update_inplace(config, get_porto_delta_node_config())
             if cls.USE_CUSTOM_ROOTFS:
@@ -557,21 +493,15 @@ class YTEnvSetup(object):
             cls.modify_node_config(configs["node"][index])
 
         for index, config in enumerate(configs["http_proxy"]):
-            configs["http_proxy"][index] = update_inplace(
-                config, cls.get_param("DELTA_PROXY_CONFIG", cluster_index)
-            )
+            configs["http_proxy"][index] = update_inplace(config, cls.get_param("DELTA_PROXY_CONFIG", cluster_index))
             cls.modify_proxy_config(configs["http_proxy"])
 
         for index, config in enumerate(configs["rpc_proxy"]):
-            configs["rpc_proxy"][index] = update_inplace(
-                config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index)
-            )
+            configs["rpc_proxy"][index] = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
             cls.modify_rpc_proxy_config(configs["rpc_proxy"])
 
         for key, config in configs["driver"].iteritems():
-            configs["driver"][key] = update_inplace(
-                config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index)
-            )
+            configs["driver"][key] = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 
         configs["rpc_driver"] = update_inplace(
             configs["rpc_driver"],
@@ -637,9 +567,7 @@ class YTEnvSetup(object):
                 _, stderr = p.communicate()
                 if p.returncode != 0:
                     print >>sys.stderr, stderr
-                    raise subprocess.CalledProcessError(
-                        p.returncode, " ".join(chown_command)
-                    )
+                    raise subprocess.CalledProcessError(p.returncode, " ".join(chown_command))
 
                 # XXX(psushin): Porto volume directories may have weirdest permissions ever.
                 chmod_command = ["chmod", "-R", "+rw", cls.path_to_run]
@@ -648,15 +576,11 @@ class YTEnvSetup(object):
                 _, stderr = p.communicate()
                 if p.returncode != 0:
                     print >>sys.stderr, stderr
-                    raise subprocess.CalledProcessError(
-                        p.returncode, " ".join(chmod_command)
-                    )
+                    raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
 
                 # XXX(dcherednik): Delete named pipes.
                 # TODO(prime@): remove this garbage
-                subprocess.check_call(
-                    ["find", cls.path_to_run, "-type", "p", "-delete"]
-                )
+                subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
 
             if SANDBOX_ROOTDIR != SANDBOX_STORAGE_ROOTDIR:
                 destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
@@ -671,9 +595,7 @@ class YTEnvSetup(object):
 
     def setup_method(self, method):
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
-            driver = yt_commands.get_driver(
-                cluster=self.get_cluster_name(cluster_index)
-            )
+            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue
 
@@ -683,9 +605,9 @@ class YTEnvSetup(object):
 
             scheduler_count = self.get_param("NUM_SCHEDULERS", cluster_index)
             if scheduler_count > 0:
-                scheduler_pool_trees_root = self.Env.configs["scheduler"][0][
-                    "scheduler"
-                ].get("pool_trees_root", "//sys/pool_trees")
+                scheduler_pool_trees_root = self.Env.configs["scheduler"][0]["scheduler"].get(
+                    "pool_trees_root", "//sys/pool_trees"
+                )
             else:
                 scheduler_pool_trees_root = "//sys/pool_trees"
             self._restore_globals(
@@ -723,9 +645,7 @@ class YTEnvSetup(object):
                                     "enable_bulk_insert_for_everyone": self.ENABLE_BULK_INSERT,
                                     "operation_options": {
                                         "spec_template": {
-                                            "legacy_controller_fraction": 256
-                                            if self.USE_LEGACY_CONTROLLERS
-                                            else 0,
+                                            "legacy_controller_fraction": 256 if self.USE_LEGACY_CONTROLLERS else 0,
                                         },
                                     },
                                     "testing_options": {
@@ -762,31 +682,20 @@ class YTEnvSetup(object):
                         for orchid in orchids
                     ]
                     responses = yt_commands.execute_batch(requests, driver=driver)
-                    return list(
-                        map(lambda r: yt_commands.get_batch_output(r), responses)
-                    )
+                    return list(map(lambda r: yt_commands.get_batch_output(r), responses))
 
                 def _wait_for_configs(orchids):
                     old_versions = _get_config_versions(orchids)
 
                     def _wait_func():
                         new_versions = _get_config_versions(orchids)
-                        return all(
-                            new >= old + 2
-                            for old, new in zip(old_versions, new_versions)
-                        )
+                        return all(new >= old + 2 for old, new in zip(old_versions, new_versions))
 
                     wait(_wait_func)
 
                 orchids = []
-                for instance in yt_commands.ls(
-                    "//sys/controller_agents/instances", driver=driver
-                ):
-                    orchids.append(
-                        "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
-                            instance
-                        )
-                    )
+                for instance in yt_commands.ls("//sys/controller_agents/instances", driver=driver):
+                    orchids.append("//sys/controller_agents/instances/{}/orchid/controller_agent".format(instance))
                 orchids.append("//sys/scheduler/orchid/scheduler")
                 _wait_for_configs(orchids)
 
@@ -845,9 +754,7 @@ class YTEnvSetup(object):
             env.check_liveness(callback_func=emergency_exit_within_tests)
 
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
-            driver = yt_commands.get_driver(
-                cluster=self.get_cluster_name(cluster_index)
-            )
+            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue
 
@@ -863,9 +770,7 @@ class YTEnvSetup(object):
                 wait(lambda: not yt_commands.exists("//tmp&", driver=driver))
 
             self._remove_objects(
-                enable_secondary_cells_cleanup=self.get_param(
-                    "ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index
-                ),
+                enable_secondary_cells_cleanup=self.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),
                 driver=driver,
             )
 
@@ -875,15 +780,9 @@ class YTEnvSetup(object):
         yt_commands.reset_events_on_fs()
 
     def _abort_transactions(self, driver=None):
-        command_name = (
-            "abort_transaction"
-            if driver.get_config()["api_version"] == 4
-            else "abort_tx"
-        )
+        command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
         requests = []
-        for tx in yt_commands.ls(
-            "//sys/transactions", attributes=["title"], driver=driver
-        ):
+        for tx in yt_commands.ls("//sys/transactions", attributes=["title"], driver=driver):
             title = tx.attributes.get("title", "")
             id = str(tx)
             if "Scheduler lock" in title:
@@ -894,9 +793,7 @@ class YTEnvSetup(object):
                 continue
             if "World initialization" in title:
                 continue
-            requests.append(
-                yt_commands.make_batch_request(command_name, transaction_id=id)
-            )
+            requests.append(yt_commands.make_batch_request(command_name, transaction_id=id))
         yt_commands.execute_batch(requests, driver=driver)
 
     def _reset_nodes(self, driver=None):
@@ -911,9 +808,7 @@ class YTEnvSetup(object):
             "resource_limits_overrides",
             "user_tags",
         ]
-        nodes = yt_commands.ls(
-            "//sys/cluster_nodes", attributes=attributes, driver=driver
-        )
+        nodes = yt_commands.ls("//sys/cluster_nodes", attributes=attributes, driver=driver)
 
         requests = []
         for node in nodes:
@@ -923,9 +818,7 @@ class YTEnvSetup(object):
                     requests.append(
                         yt_commands.make_batch_request(
                             "set",
-                            path="//sys/cluster_nodes/{0}/@{1}".format(
-                                node_name, attribute
-                            ),
+                            path="//sys/cluster_nodes/{0}/@{1}".format(node_name, attribute),
                             input=False,
                         )
                     )
@@ -933,9 +826,7 @@ class YTEnvSetup(object):
                 requests.append(
                     yt_commands.make_batch_request(
                         "set",
-                        path="//sys/cluster_nodes/{0}/@resource_limits_overrides".format(
-                            node_name
-                        ),
+                        path="//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node_name),
                         input={},
                     )
                 )
@@ -991,35 +882,25 @@ class YTEnvSetup(object):
                 id = object.attributes["id"]
                 object_ids_to_check.append(id)
                 life_stage = object.attributes["life_stage"]
-                if (
-                    life_stage == "creation_committed"
-                    or life_stage == "creation_pre_committed"
-                ):
+                if life_stage == "creation_committed" or life_stage == "creation_pre_committed":
                     object_ids_to_remove.append(id)
 
         def do():
             yt_commands.gc_collect(driver=driver)
 
             yt_commands.execute_batch(
-                [
-                    yt_commands.make_batch_request("remove", path="#" + id, force=True)
-                    for id in object_ids_to_remove
-                ],
+                [yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove],
                 driver=driver,
             )
 
             results = yt_commands.execute_batch(
                 [
-                    yt_commands.make_batch_request(
-                        "exists", path="#" + id, return_only_value=True
-                    )
+                    yt_commands.make_batch_request("exists", path="#" + id, return_only_value=True)
                     for id in object_ids_to_check
                 ],
                 driver=driver,
             )
-            return all(
-                not yt_commands.get_batch_output(result)["value"] for result in results
-            )
+            return all(not yt_commands.get_batch_output(result)["value"] for result in results)
 
         wait(do)
 
@@ -1031,20 +912,17 @@ class YTEnvSetup(object):
                 [
                     yt_commands.make_batch_request(
                         "list",
-                        path=yt_commands.scheduler_orchid_path()
-                        + "/scheduler/scheduling_info_per_pool_tree",
+                        path=yt_commands.scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree",
                         return_only_value=True,
                     ),
                     yt_commands.make_batch_request(
                         "get",
-                        path=yt_commands.scheduler_orchid_path()
-                        + "/scheduler/default_pool_tree",
+                        path=yt_commands.scheduler_orchid_path() + "/scheduler/default_pool_tree",
                         return_only_value=True,
                     ),
                     yt_commands.make_batch_request(
                         "list",
-                        path=yt_commands.scheduler_orchid_default_pool_tree_path()
-                        + "/pools",
+                        path=yt_commands.scheduler_orchid_default_pool_tree_path() + "/pools",
                         return_only_value=True,
                     ),
                     yt_commands.make_batch_request(
@@ -1066,9 +944,7 @@ class YTEnvSetup(object):
 
         wait(check)
 
-    def _restore_globals(
-        self, master_cell_roles, scheduler_count, scheduler_pool_trees_root, driver=None
-    ):
+    def _restore_globals(self, master_cell_roles, scheduler_count, scheduler_pool_trees_root, driver=None):
         dynamic_master_config = get_dynamic_master_config()
         dynamic_master_config["multicell_manager"]["cell_roles"] = master_cell_roles
 
@@ -1084,9 +960,7 @@ class YTEnvSetup(object):
                     path="//sys/tablet_cell_bundles/default/@tablet_balancer_config",
                     input={},
                 ),
-                yt_commands.make_batch_request(
-                    "set", path="//sys/@config", input=dynamic_master_config
-                ),
+                yt_commands.make_batch_request("set", path="//sys/@config", input=dynamic_master_config),
             ],
             driver=driver,
         ):
@@ -1099,9 +973,7 @@ class YTEnvSetup(object):
         if yt_commands.exists(scheduler_pool_trees_root + "/default", driver=driver):
             restore_pool_trees_requests.extend(
                 [
-                    yt_commands.make_batch_request(
-                        "remove", path=scheduler_pool_trees_root + "/default/*"
-                    ),
+                    yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"),
                     # TODO(eshcherbin): Clear default tree's config when it is moved to a separate attribute.
                     yt_commands.make_batch_request(
                         "set",
@@ -1131,28 +1003,20 @@ class YTEnvSetup(object):
         for pool_tree in yt_commands.ls(scheduler_pool_trees_root, driver=driver):
             if pool_tree != "default":
                 restore_pool_trees_requests.append(
-                    yt_commands.make_batch_request(
-                        "remove", path=scheduler_pool_trees_root + "/" + pool_tree
-                    )
+                    yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/" + pool_tree)
                 )
-        for response in yt_commands.execute_batch(
-            restore_pool_trees_requests, driver=driver
-        ):
+        for response in yt_commands.execute_batch(restore_pool_trees_requests, driver=driver):
             assert not yt_commands.get_batch_error(response)
 
         # Could not add this to the batch request because of possible races at scheduler.
-        yt_commands.set(
-            scheduler_pool_trees_root + "/@default_tree", "default", driver=driver
-        )
+        yt_commands.set(scheduler_pool_trees_root + "/@default_tree", "default", driver=driver)
 
         if scheduler_count > 0:
             self._wait_for_scheduler_state_restored(driver=driver)
 
     def _setup_nodes_dynamic_config(self, driver=None):
         dynamic_node_config = get_dynamic_node_config()
-        yt_commands.set(
-            "//sys/cluster_nodes/@config", dynamic_node_config, driver=driver
-        )
+        yt_commands.set("//sys/cluster_nodes/@config", dynamic_node_config, driver=driver)
 
         nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
 
@@ -1161,19 +1025,14 @@ class YTEnvSetup(object):
                 [
                     yt_commands.make_batch_request(
                         "get",
-                        path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(
-                            node
-                        ),
+                        path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node),
                         return_only_value=True,
                     )
                     for node in nodes
                 ],
                 driver=driver,
             ):
-                if (
-                    yt_commands.get_batch_output(response)
-                    != dynamic_node_config["%true"]
-                ):
+                if yt_commands.get_batch_output(response) != dynamic_node_config["%true"]:
                     return False
             return True
 
@@ -1225,15 +1084,11 @@ class YTEnvSetup(object):
                         "set",
                         path="//sys/tablet_cell_bundles/default/@options",
                         input={
-                            "changelog_replication_factor": 1
-                            if self.NUM_NODES < 3
-                            else 3,
+                            "changelog_replication_factor": 1 if self.NUM_NODES < 3 else 3,
                             "changelog_read_quorum": 1 if self.NUM_NODES < 3 else 2,
                             "changelog_write_quorum": 1 if self.NUM_NODES < 3 else 2,
                             "changelog_account": "sys",
-                            "snapshot_replication_factor": 1
-                            if self.NUM_NODES < 3
-                            else 3,
+                            "snapshot_replication_factor": 1 if self.NUM_NODES < 3 else 3,
                             "snapshot_account": "sys",
                         },
                     ),
@@ -1245,29 +1100,21 @@ class YTEnvSetup(object):
         _retry_with_gc_collect(do, driver=driver)
 
     def _remove_operations(self, driver=None):
-        command_name = (
-            "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"
-        )
+        command_name = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"
 
         if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
             return
 
         operations_from_orchid = []
         try:
-            operations_from_orchid = yt_commands.ls(
-                "//sys/scheduler/orchid/scheduler/operations", driver=driver
-            )
+            operations_from_orchid = yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver)
         except YtError as err:
             print >>sys.stderr, format_error(err)
 
         requests = []
         for operation_id in operations_from_orchid:
             if not operation_id.startswith("*"):
-                requests.append(
-                    yt_commands.make_batch_request(
-                        command_name, operation_id=operation_id
-                    )
-                )
+                requests.append(yt_commands.make_batch_request(command_name, operation_id=operation_id))
 
         responses = yt_commands.execute_batch(requests, driver=driver)
         for response in responses:
@@ -1280,9 +1127,7 @@ class YTEnvSetup(object):
         for response in yt_commands.execute_batch(
             [
                 yt_commands.make_batch_request("remove", path="//sys/operations/*"),
-                yt_commands.make_batch_request(
-                    "remove", path="//sys/operations_archive", force=True
-                ),
+                yt_commands.make_batch_request("remove", path="//sys/operations_archive", force=True),
             ],
             driver=driver,
         ):
@@ -1295,18 +1140,13 @@ class YTEnvSetup(object):
             requests = [
                 yt_commands.make_batch_request(
                     "get",
-                    path="//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(
-                        node
-                    ),
+                    path="//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(node),
                     return_only_value=True,
                 )
                 for node in nodes
             ]
             responses = yt_commands.execute_batch(requests, driver=driver)
-            return all(
-                yt_commands.get_batch_output(response).get("scheduler", 0) == 0
-                for response in responses
-            )
+            return all(yt_commands.get_batch_output(response).get("scheduler", 0) == 0 for response in responses)
 
         try:
             wait(check_no_jobs, iter=300)
@@ -1314,9 +1154,7 @@ class YTEnvSetup(object):
             requests = [
                 yt_commands.make_batch_request(
                     "list",
-                    path="//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(
-                        node
-                    ),
+                    path="//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(node),
                     return_only_value=True,
                 )
                 for node in nodes

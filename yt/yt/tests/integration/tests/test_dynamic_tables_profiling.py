@@ -25,9 +25,7 @@ from yt.environment.helpers import assert_items_equal
 
 
 class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {"timestamp_provider": {"update_period": 100}}
-    }
+    DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}
 
     @authors("gridem")
     def test_sorted_tablet_node_profiling(self):
@@ -156,9 +154,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         # Dynamic read lookup change, read must not change
         wait(lambda: get(path + "/dynamic_row_lookup_data_weight_count") > 0)
-        assert get(path + "/dynamic_row_read_data_weight_count") == get(
-            path + "/dynamic_row_lookup_data_weight_count"
-        )
+        assert get(path + "/dynamic_row_read_data_weight_count") == get(path + "/dynamic_row_lookup_data_weight_count")
 
         # Static read/lookup must not change
         assert get(path + "/static_chunk_row_read_data_weight_count") == 0

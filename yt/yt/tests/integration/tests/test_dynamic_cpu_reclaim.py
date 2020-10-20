@@ -69,15 +69,10 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
 
         wait(lambda: preemptable_cpu_delta.update().get(verbose=True) > 0)
         wait(lambda: smoothed_cpu_delta.update().get(verbose=True) > 0)
-        wait(
-            lambda: smoothed_cpu_delta.update().get(verbose=True)
-            < max_cpu_delta.update().get(verbose=True)
-        )
+        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) < max_cpu_delta.update().get(verbose=True))
 
     @authors("renadeen")
-    @pytest.mark.skip(
-        reason="Works fine locally but fails at tc. Need to observe it a bit."
-    )
+    @pytest.mark.skip(reason="Works fine locally but fails at tc. Need to observe it a bit.")
     def test_busy(self):
         spec = copy.deepcopy(SPEC_WITH_CPU_MONITOR)
         spec["job_cpu_monitor"]["min_cpu_limit"] = 1
@@ -95,19 +90,14 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
             with_tags={"pool": "root"},
         )
 
-        op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT; while true; do : ; done"), spec
-        )
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), spec)
         wait_breakpoint()
         release_breakpoint()
         time.sleep(0.2)
         op.abort()
 
         wait(lambda: smoothed_cpu_delta.update().get(verbose=True) > 0)
-        wait(
-            lambda: smoothed_cpu_delta.update().get(verbose=True)
-            < max_cpu_delta.update().get(verbose=True)
-        )
+        wait(lambda: smoothed_cpu_delta.update().get(verbose=True) < max_cpu_delta.update().get(verbose=True))
         wait(lambda: preemptable_cpu_delta.update().get(verbose=True) == 0)
 
 
@@ -180,9 +170,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     def test_new_jobs_are_scheduled_on_reclaimed_cpu(self):
         # node has 1.5 CPU, min spare CPU to schedule new jobs is 1
 
-        run_test_vanilla(
-            with_breakpoint("BREAKPOINT", "Op1"), spec=SPEC_WITH_CPU_MONITOR
-        )
+        run_test_vanilla(with_breakpoint("BREAKPOINT", "Op1"), spec=SPEC_WITH_CPU_MONITOR)
         job_id1 = wait_breakpoint("Op1")[0]
 
         stats_path = self.wait_and_get_stats_path(job_id1)
@@ -205,12 +193,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
 
         release_breakpoint("Op1")
         wait(lambda: len(op2.get_running_jobs()) == 0)
-        wait(
-            lambda: get(
-                op2.get_path() + "/@progress/jobs/aborted/scheduled/resource_overdraft"
-            )
-            == 1
-        )
+        wait(lambda: get(op2.get_path() + "/@progress/jobs/aborted/scheduled/resource_overdraft") == 1)
         wait(lambda: len(op1.get_running_jobs()) == 1)
 
     def wait_and_get_stats_path(self, job_id):
@@ -227,11 +210,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {"resource_limits": {"cpu": 2.5, "user_slots": 3}}
-        }
-    }
+    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 2.5, "user_slots": 3}}}}
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"watchers_update_period": 100}}
 
@@ -254,18 +233,13 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
         )
         wait_breakpoint("Op1")
 
-        op2 = run_test_vanilla(
-            "while true; do : ; done", spec={"weight": 0.001}, job_count=2
-        )
+        op2 = run_test_vanilla("while true; do : ; done", spec={"weight": 0.001}, job_count=2)
         wait(lambda: len(op2.get_running_jobs()) == 2)
 
         release_breakpoint("Op1")
 
         wait(lambda: len(op2.get_running_jobs()) == 1)
-        wait(
-            lambda: get(op2.get_path() + "/@progress/jobs/aborted/scheduled/preemption")
-            > 0
-        )
+        wait(lambda: get(op2.get_path() + "/@progress/jobs/aborted/scheduled/preemption") > 0)
         wait(lambda: len(op1.get_running_jobs()) == 1)
 
 
@@ -286,7 +260,9 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
     @authors("renadeen")
     @pytest.mark.skip(reason="Currently broken")
     def test_node_aborts_job_on_lack_of_memory(self):
-        memory_consume_command = 'python -c "import time\ncount = 100*1000*1000\nx = list(range(count))\ntime.sleep(1000)"'
+        memory_consume_command = (
+            'python -c "import time\ncount = 100*1000*1000\nx = list(range(count))\ntime.sleep(1000)"'
+        )
         op1 = run_test_vanilla(
             with_breakpoint("BREAKPOINT; " + memory_consume_command, "Op1"),
             spec={
@@ -310,9 +286,4 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
         wait(lambda: len(op2.get_running_jobs()) == 1)
 
         release_breakpoint("Op1")
-        wait(
-            lambda: get(
-                op1.get_path() + "/@progress/jobs/aborted/scheduled/resource_overdraft"
-            )
-            == 1
-        )
+        wait(lambda: get(op1.get_path() + "/@progress/jobs/aborted/scheduled/resource_overdraft") == 1)

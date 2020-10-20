@@ -51,9 +51,7 @@ class TestLayers(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             disabled_path = None
             for node in self.Env.configs["node"][:1]:
-                for layer_location in node["data_node"]["volume_manager"][
-                    "layer_locations"
-                ]:
+                for layer_location in node["data_node"]["volume_manager"]["layer_locations"]:
                     try:
                         disabled_path = layer_location["path"]
                         os.mkdir(layer_location["path"])
@@ -212,27 +210,13 @@ class TestTmpfsLayerCache(YTEnvSetup):
         orchid_path = "orchid/job_controller/slot_manager/root_volume_manager"
 
         for node in ls("//sys/cluster_nodes"):
-            assert (
-                get(
-                    "//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(
-                        node, orchid_path
-                    )
-                )
-                == 0
-            )
+            assert get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 0
 
         create("map_node", "//tmp/cached_layers")
         link("//tmp/layer1", "//tmp/cached_layers/layer1")
 
         for node in ls("//sys/cluster_nodes"):
-            wait(
-                lambda: get(
-                    "//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(
-                        node, orchid_path
-                    )
-                )
-                == 1
-            )
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 1)
 
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
@@ -259,14 +243,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
 
         remove("//tmp/cached_layers/layer1")
         for node in ls("//sys/cluster_nodes"):
-            wait(
-                lambda: get(
-                    "//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(
-                        node, orchid_path
-                    )
-                )
-                == 0
-            )
+            wait(lambda: get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 0)
 
 
 @authors("mrkastep")
@@ -728,9 +705,7 @@ class TestCudaLayer(YTEnvSetup):
         },
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {"cuda_toolkit_layer_directory_path": "//tmp/cuda"}
-    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"cuda_toolkit_layer_directory_path": "//tmp/cuda"}}
 
     USE_PORTO = True
 
@@ -826,9 +801,7 @@ class TestForceCudaLayer(YTEnvSetup):
         },
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {"cuda_toolkit_layer_directory_path": "//tmp/cuda"}
-    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"cuda_toolkit_layer_directory_path": "//tmp/cuda"}}
 
     USE_PORTO = True
 
@@ -1018,8 +991,7 @@ class TestRootFS(YTEnvSetup):
 
         job_ids = ls(op.get_path() + "/jobs")
         cypress_stderrs_per_task = Counter(
-            read_file(op.get_path() + "/jobs/{0}/stderr".format(job_id))
-            for job_id in job_ids
+            read_file(op.get_path() + "/jobs/{0}/stderr".format(job_id)) for job_id in job_ids
         )
 
         assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}

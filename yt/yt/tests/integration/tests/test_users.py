@@ -118,18 +118,10 @@ class TestUsers(YTEnvSetup):
             get("//sys/users/application_operations/@member_of"),
             ["superusers", "users"],
         )
-        assert_items_equal(
-            get("//sys/users/operations_cleaner/@member_of"), ["superusers"]
-        )
-        assert_items_equal(
-            get("//sys/users/tablet_cell_changelogger/@member_of"), ["superusers"]
-        )
-        assert_items_equal(
-            get("//sys/users/tablet_cell_snapshotter/@member_of"), ["superusers"]
-        )
-        assert_items_equal(
-            get("//sys/users/table_mount_informer/@member_of"), ["superusers"]
-        )
+        assert_items_equal(get("//sys/users/operations_cleaner/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/tablet_cell_changelogger/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/tablet_cell_snapshotter/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/table_mount_informer/@member_of"), ["superusers"])
 
         assert_items_equal(
             get("//sys/users/root/@member_of_closure"),
@@ -240,12 +232,8 @@ class TestUsers(YTEnvSetup):
         assert sorted(get("//sys/users/u1/@member_of")) == sorted(["g1", "users"])
         assert sorted(get("//sys/users/u2/@member_of")) == sorted(["g2", "users"])
 
-        assert sorted(get("//sys/users/u1/@member_of_closure")) == sorted(
-            ["g1", "users", "everyone"]
-        )
-        assert sorted(get("//sys/users/u2/@member_of_closure")) == sorted(
-            ["g1", "g2", "users", "everyone"]
-        )
+        assert sorted(get("//sys/users/u1/@member_of_closure")) == sorted(["g1", "users", "everyone"])
+        assert sorted(get("//sys/users/u2/@member_of_closure")) == sorted(["g1", "g2", "users", "everyone"])
 
         remove_member("g2", "g1")
 
@@ -255,12 +243,8 @@ class TestUsers(YTEnvSetup):
         assert sorted(get("//sys/users/u1/@member_of")) == sorted(["g1", "users"])
         assert sorted(get("//sys/users/u2/@member_of")) == sorted(["g2", "users"])
 
-        assert sorted(get("//sys/users/u1/@member_of_closure")) == sorted(
-            ["g1", "users", "everyone"]
-        )
-        assert sorted(get("//sys/users/u2/@member_of_closure")) == sorted(
-            ["g2", "users", "everyone"]
-        )
+        assert sorted(get("//sys/users/u1/@member_of_closure")) == sorted(["g1", "users", "everyone"])
+        assert sorted(get("//sys/users/u2/@member_of_closure")) == sorted(["g2", "users", "everyone"])
 
     @authors("babenko", "ignat")
     def test_membership3(self):
@@ -339,16 +323,12 @@ class TestUsers(YTEnvSetup):
         add_member("u", "g")
 
         assert sorted(get("//sys/users/u/@member_of")) == sorted(["g", "users"])
-        assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(
-            ["g", "users", "everyone"]
-        )
+        assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["g", "users", "everyone"])
 
         remove_group("g")
 
         assert get("//sys/users/u/@member_of") == ["users"]
-        assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(
-            ["users", "everyone"]
-        )
+        assert sorted(get("//sys/users/u/@member_of_closure")) == sorted(["users", "everyone"])
 
     @authors("prime")
     def test_prerequisite_transactions(self):
@@ -421,10 +401,7 @@ class TestUsers(YTEnvSetup):
         )
         add_member("u", "g1")
 
-        wait(
-            lambda: __builtin__.set(["g1", "g2"])
-            <= __builtin__.set(get("//sys/users/u/@member_of_closure"))
-        )
+        wait(lambda: __builtin__.set(["g1", "g2"]) <= __builtin__.set(get("//sys/users/u/@member_of_closure")))
 
     @authors("gritukan")
     def test_network_projects(self):
@@ -479,9 +456,7 @@ class TestUsers(YTEnvSetup):
             )
 
         set("//sys/users/u/@allow_external_false", True)
-        create(
-            "table", "//tmp/t3", attributes={"external": False}, authenticated_user="u"
-        )
+        create("table", "//tmp/t3", attributes={"external": False}, authenticated_user="u")
 
         set("//sys/users/u/@allow_external_false", False)
         with pytest.raises(YtError):

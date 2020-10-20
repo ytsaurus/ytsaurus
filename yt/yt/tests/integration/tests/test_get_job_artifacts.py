@@ -164,9 +164,7 @@ class TestGetJobInput(YTEnvSetup):
         self.check_job_ids(job_ids)
 
     @authors("ermolovd")
-    @pytest.mark.xfail(
-        run=False, reason="Job input is unavailable while the operation is not finished"
-    )
+    @pytest.mark.xfail(run=False, reason="Job input is unavailable while the operation is not finished")
     def test_map_reduce(self):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -198,9 +196,7 @@ class TestGetJobInput(YTEnvSetup):
             track=False,
         )
 
-        events_on_fs().wait_event(
-            "reducer_almost_complete", timeout=datetime.timedelta(300)
-        )
+        events_on_fs().wait_event("reducer_almost_complete", timeout=datetime.timedelta(300))
 
         job_ids = os.listdir(self._tmpdir)
         assert len(job_ids) >= 3
@@ -369,9 +365,7 @@ class TestGetJobInput(YTEnvSetup):
         rows = get_job_rows_for_operation(op.id)
         assert len(rows) == 1
 
-        op_id = parts_to_uuid(
-            id_lo=rows[0]["operation_id_lo"], id_hi=rows[0]["operation_id_hi"]
-        )
+        op_id = parts_to_uuid(id_lo=rows[0]["operation_id_lo"], id_hi=rows[0]["operation_id_hi"])
 
         assert op_id == op.id
         job_id = parts_to_uuid(id_lo=rows[0]["job_id_lo"], id_hi=rows[0]["job_id_hi"])
@@ -441,9 +435,7 @@ class TestGetJobInput(YTEnvSetup):
                 new_r[key] = r[key]
             new_r["spec"] = "junk"
             updated.append(new_r)
-        insert_rows(
-            OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True, atomicity="none"
-        )
+        insert_rows(OPERATION_JOB_SPEC_ARCHIVE_TABLE, updated, update=True, atomicity="none")
 
         job_ids = os.listdir(self._tmpdir)
         assert job_ids
@@ -528,9 +520,7 @@ class TestGetJobInput(YTEnvSetup):
         op = map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
-            command="cat > {0}/$YT_JOB_ID; exit {1}".format(
-                self._tmpdir, 0 if successfull_jobs else 1
-            ),
+            command="cat > {0}/$YT_JOB_ID; exit {1}".format(self._tmpdir, 0 if successfull_jobs else 1),
             spec={"data_size_per_job": 1, "max_failed_job_count": 25},
             track=False,
         )
@@ -671,12 +661,7 @@ class TestGetJobStderr(YTEnvSetup):
             job_id = job_ids[0]
 
             # We should use 'wait' since job can be still in prepare phase in the opinion of the node.
-            wait(
-                lambda: retry(
-                    lambda: get_job_stderr(op.id, job_id, authenticated_user="u")
-                )
-                == "STDERR-OUTPUT\n"
-            )
+            wait(lambda: retry(lambda: get_job_stderr(op.id, job_id, authenticated_user="u")) == "STDERR-OUTPUT\n")
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 
@@ -689,9 +674,7 @@ class TestGetJobStderr(YTEnvSetup):
             op.track()
 
             def get_other_job_ids():
-                return __builtin__.set(ls(op.get_path() + "/jobs")) - __builtin__.set(
-                    job_ids
-                )
+                return __builtin__.set(ls(op.get_path() + "/jobs")) - __builtin__.set(job_ids)
 
             wait(lambda: len(get_other_job_ids()) == 1)
             other_job_id = list(get_other_job_ids())[0]
@@ -705,10 +688,7 @@ class TestGetJobStderr(YTEnvSetup):
 
             clean_operations()
 
-            wait(
-                lambda: get_job_stderr(op.id, job_id, authenticated_user="u")
-                == "STDERR-OUTPUT\n"
-            )
+            wait(lambda: get_job_stderr(op.id, job_id, authenticated_user="u") == "STDERR-OUTPUT\n")
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 

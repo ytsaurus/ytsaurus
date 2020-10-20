@@ -38,22 +38,8 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
             "pending_tasks": [],
             "finished_tasks": [],
         }
-        assert (
-            get(
-                "//sys/cluster_nodes/{0}/orchid/store_compactor/compaction_tasks".format(
-                    node
-                )
-            )
-            == empty_task_dict
-        )
-        assert (
-            get(
-                "//sys/cluster_nodes/{0}/orchid/store_compactor/partitioning_tasks".format(
-                    node
-                )
-            )
-            == empty_task_dict
-        )
+        assert get("//sys/cluster_nodes/{0}/orchid/store_compactor/compaction_tasks".format(node)) == empty_task_dict
+        assert get("//sys/cluster_nodes/{0}/orchid/store_compactor/partitioning_tasks".format(node)) == empty_task_dict
 
         for table_idx in range(NUM_TABLES):
             set(
@@ -69,24 +55,15 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
                     [{"key": j, "value": str(j)} for j in range(i * 10, (i + 1) * 10)],
                 )
                 sync_flush_table("//tmp/t{0}".format(table_idx))
-            set(
-                "//tmp/t{0}/@enable_compaction_and_partitioning".format(table_idx), True
-            )
+            set("//tmp/t{0}/@enable_compaction_and_partitioning".format(table_idx), True)
             remount_table("//tmp/t{0}".format(table_idx))
 
-        tablets = [
-            get("//tmp/t{0}/@tablets/0".format(tablet_idx))
-            for tablet_idx in range(NUM_TABLES)
-        ]
+        tablets = [get("//tmp/t{0}/@tablets/0".format(tablet_idx)) for tablet_idx in range(NUM_TABLES)]
         tablet_ids = [tablets[i]["tablet_id"] for i in range(NUM_TABLES)]
         tablet_ids.sort()
 
         def _compaction_task_finished():
-            compaction_tasks = get(
-                "//sys/cluster_nodes/{0}/orchid/store_compactor/compaction_tasks".format(
-                    node
-                )
-            )
+            compaction_tasks = get("//sys/cluster_nodes/{0}/orchid/store_compactor/compaction_tasks".format(node))
             for task in compaction_tasks["finished_tasks"]:
                 # We don't want to predict priorities in integration test
                 del task["task_priority"]
@@ -98,23 +75,13 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
                 "task_count": 0,
                 "finished_task_count": NUM_TABLES,
                 "pending_tasks": [],
-                "finished_tasks": [
-                    {"tablet_id": tablet_ids[i], "store_count": 5}
-                    for i in range(NUM_TABLES)
-                ],
+                "finished_tasks": [{"tablet_id": tablet_ids[i], "store_count": 5} for i in range(NUM_TABLES)],
             }
 
             return compaction_tasks == expected_compaction_tasks
 
         wait(lambda: _compaction_task_finished())
-        assert (
-            get(
-                "//sys/cluster_nodes/{0}/orchid/store_compactor/partitioning_tasks".format(
-                    node
-                )
-            )
-            == empty_task_dict
-        )
+        assert get("//sys/cluster_nodes/{0}/orchid/store_compactor/partitioning_tasks".format(node)) == empty_task_dict
 
     @authors("akozhikhov")
     def test_partitioning_orchid(self):
@@ -144,15 +111,9 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
                 "task_count": 0,
                 "finished_task_count": 1,
                 "pending_tasks": [],
-                "finished_tasks": [
-                    {"tablet_id": get("//tmp/t/@tablets/0/tablet_id"), "store_count": 1}
-                ],
+                "finished_tasks": [{"tablet_id": get("//tmp/t/@tablets/0/tablet_id"), "store_count": 1}],
             }
-            partition_task = get(
-                "//sys/cluster_nodes/{0}/orchid/store_compactor/partitioning_tasks".format(
-                    node
-                )
-            )
+            partition_task = get("//sys/cluster_nodes/{0}/orchid/store_compactor/partitioning_tasks".format(node))
             if partition_task["finished_task_count"] == 0:
                 return False
             del partition_task["finished_tasks"][0]["task_priority"]

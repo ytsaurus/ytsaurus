@@ -35,9 +35,7 @@ class TestClockServer(YTEnvSetup):
     def test_sys_timestamp_providers(self):
         assert len(ls("//sys/timestamp_providers")) == self.NUM_CLOCKS
         for timestamp_provider in ls("//sys/timestamp_providers"):
-            assert "monitoring" in get(
-                "//sys/timestamp_providers/{}/orchid".format(timestamp_provider)
-            )
+            assert "monitoring" in get("//sys/timestamp_providers/{}/orchid".format(timestamp_provider))
 
 
 ##################################################################

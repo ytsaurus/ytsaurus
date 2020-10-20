@@ -54,10 +54,7 @@ class TestFiles(YTEnvSetup):
         length = 212
         assert read_file("//tmp/file", offset=offset) == content[offset:]
         assert read_file("//tmp/file", length=length) == content[:length]
-        assert (
-            read_file("//tmp/file", offset=offset, length=length)
-            == content[offset : offset + length]
-        )
+        assert read_file("//tmp/file", offset=offset, length=length) == content[offset : offset + length]
 
         with pytest.raises(YtError):
             assert read_file("//tmp/file", length=-1)
@@ -78,10 +75,7 @@ class TestFiles(YTEnvSetup):
 
         for offset in range(len(content)):
             for length in range(0, len(content) - offset):
-                assert (
-                    read_file("//tmp/file", offset=offset, length=length)
-                    == content[offset : offset + length]
-                )
+                assert read_file("//tmp/file", offset=offset, length=length) == content[offset : offset + length]
 
     @authors("babenko", "ignat")
     def test_copy(self):
@@ -241,29 +235,17 @@ class TestFiles(YTEnvSetup):
 
         write_file("<append=%true>//tmp/fcache", "abacaba", compute_md5=True)
 
-        assert (
-            get("//tmp/fcache/@md5")
-            == "129296d4fd2ade2b2dbc402d4564bf81"
-            == hashlib.md5("abacaba").hexdigest()
-        )
+        assert get("//tmp/fcache/@md5") == "129296d4fd2ade2b2dbc402d4564bf81" == hashlib.md5("abacaba").hexdigest()
         assert exists("//tmp/fcache/@md5")
 
         write_file("<append=%true>//tmp/fcache", "new", compute_md5=True)
-        assert (
-            get("//tmp/fcache/@md5")
-            == "12ef1dfdbbb50c2dfd2b4119bac9dee5"
-            == hashlib.md5("abacabanew").hexdigest()
-        )
+        assert get("//tmp/fcache/@md5") == "12ef1dfdbbb50c2dfd2b4119bac9dee5" == hashlib.md5("abacabanew").hexdigest()
 
         write_file("//tmp/fcache2", "abacaba")
         assert not exists("//tmp/fcache2/@md5")
 
         write_file("//tmp/fcache3", "test", compute_md5=True)
-        assert (
-            get("//tmp/fcache3/@md5")
-            == "098f6bcd4621d373cade4e832627b4f6"
-            == hashlib.md5("test").hexdigest()
-        )
+        assert get("//tmp/fcache3/@md5") == "098f6bcd4621d373cade4e832627b4f6" == hashlib.md5("test").hexdigest()
 
         write_file("//tmp/fcache3", "test2", compute_md5=True)
         assert get("//tmp/fcache3/@md5") == hashlib.md5("test2").hexdigest()
@@ -278,11 +260,7 @@ class TestFiles(YTEnvSetup):
             set("//tmp/fcache/@md5", "test")
 
         write_file("//tmp/fcache5", "", compute_md5=True)
-        assert (
-            get("//tmp/fcache5/@md5")
-            == "d41d8cd98f00b204e9800998ecf8427e"
-            == hashlib.md5("").hexdigest()
-        )
+        assert get("//tmp/fcache5/@md5") == "d41d8cd98f00b204e9800998ecf8427e" == hashlib.md5("").hexdigest()
 
 
 ##################################################################
@@ -344,10 +322,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
                 tx=tx,
             )
 
-        wait(
-            lambda: get("//sys/transactions/{0}/@nested_transaction_ids".format(tx))
-            == []
-        )
+        wait(lambda: get("//sys/transactions/{0}/@nested_transaction_ids".format(tx)) == [])
         assert read_file("//tmp/file") == "abacaba"
 
     @authors("kiselyovp")

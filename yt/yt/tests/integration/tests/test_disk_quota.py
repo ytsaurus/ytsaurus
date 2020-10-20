@@ -42,17 +42,13 @@ class TestDiskUsagePorto(YTEnvSetup):
     @classmethod
     def modify_node_config(cls, config):
         os.makedirs(cls.default_disk_path)
-        config["exec_agent"]["slot_manager"]["locations"][0][
-            "path"
-        ] = cls.default_disk_path
+        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
 
     @classmethod
     def teardown_class(cls):
         super(TestDiskUsagePorto, cls).teardown_class()
         if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(
-                os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name)
-            )
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     def _init_tables(self):
         tables = ["//tmp/t1", "//tmp/t2", "//tmp/t3"]
@@ -249,9 +245,7 @@ class TestDiskMediumsPorto(YTEnvSetup):
     def teardown_class(cls):
         super(TestDiskMediumsPorto, cls).teardown_class()
         if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(
-                os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name)
-            )
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     @classmethod
     def on_masters_started(cls):
@@ -497,9 +491,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
     def teardown_class(cls):
         super(TestDiskMediumRenamePorto, cls).teardown_class()
         if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(
-                os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name)
-            )
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     @classmethod
     def on_masters_started(cls):
@@ -540,10 +532,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
 
         set("//sys/media/ssd/@name", "ssd_renamed")
 
-        wait(
-            lambda: "ssd_renamed"
-            in ls("//sys/scheduler/orchid/scheduler/cluster/medium_directory")
-        )
+        wait(lambda: "ssd_renamed" in ls("//sys/scheduler/orchid/scheduler/cluster/medium_directory"))
 
         controller_agents = ls("//sys/controller_agents/instances")
         assert len(controller_agents) == 1
@@ -551,9 +540,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
         wait(
             lambda: "ssd_renamed"
             in ls(
-                "//sys/controller_agents/instances/{}/orchid/controller_agent/medium_directory".format(
-                    controller_agent
-                )
+                "//sys/controller_agents/instances/{}/orchid/controller_agent/medium_directory".format(controller_agent)
             )
         )
 
@@ -625,9 +612,7 @@ class TestDefaultDiskMediumPorto(YTEnvSetup):
     def teardown_class(cls):
         super(TestDefaultDiskMediumPorto, cls).teardown_class()
         if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(
-                os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name)
-            )
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     @classmethod
     def on_masters_started(cls):

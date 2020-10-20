@@ -94,10 +94,7 @@ class TestSchedulerCommon(YTEnvSetup):
         for job_desc in ls(op.get_path() + "/jobs", attributes=["error"]):
             print_debug(job_desc.attributes)
             print_debug(job_desc.attributes["error"]["inner_errors"][0]["message"])
-            assert (
-                "Process exited with code "
-                in job_desc.attributes["error"]["inner_errors"][0]["message"]
-            )
+            assert "Process exited with code " in job_desc.attributes["error"]["inner_errors"][0]["message"]
 
     @authors("ignat")
     def test_job_progress(self):
@@ -115,16 +112,10 @@ class TestSchedulerCommon(YTEnvSetup):
         )
 
         jobs = wait_breakpoint()
-        progress = get(
-            op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress"
-        )
+        progress = get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress")
         assert progress >= 0
 
-        test_flag = get(
-            "//sys/scheduler/orchid/scheduler/operations/{0}/spec/test_flag".format(
-                op.id
-            )
-        )
+        test_flag = get("//sys/scheduler/orchid/scheduler/operations/{0}/spec/test_flag".format(op.id))
         assert str(test_flag) == "value"
         assert test_flag.attributes == {"attr": 0}
 
@@ -148,12 +139,7 @@ class TestSchedulerCommon(YTEnvSetup):
         jobs = wait_breakpoint()
 
         def get_stderr_size():
-            return get(
-                op.get_path()
-                + "/controller_orchid/running_jobs/"
-                + jobs[0]
-                + "/stderr_size"
-            )
+            return get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/stderr_size")
 
         wait(lambda: get_stderr_size() == len("FOOBAR\n"))
 
@@ -207,9 +193,7 @@ class TestSchedulerCommon(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command='python -c "import os; os.read(0, 1);"',
-            spec={
-                "mapper": {"input_format": "dsv", "check_input_fully_consumed": True}
-            },
+            spec={"mapper": {"input_format": "dsv", "check_input_fully_consumed": True}},
         )
 
         # If all jobs failed then operation is also failed
@@ -219,9 +203,7 @@ class TestSchedulerCommon(YTEnvSetup):
         jobs_path = op.get_path() + "/jobs"
         for job_id in ls(jobs_path):
             assert len(read_file(jobs_path + "/" + job_id + "/fail_context")) > 0
-            assert read_file(
-                jobs_path + "/" + job_id + "/fail_context"
-            ) == get_job_fail_context(op.id, job_id)
+            assert read_file(jobs_path + "/" + job_id + "/fail_context") == get_job_fail_context(op.id, job_id)
 
     @authors("ignat")
     def test_dump_job_context(self):
@@ -240,15 +222,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         jobs = wait_breakpoint()
         # Wait till job starts reading input
-        wait(
-            lambda: get(
-                op.get_path()
-                + "/controller_orchid/running_jobs/"
-                + jobs[0]
-                + "/progress"
-            )
-            >= 0.5
-        )
+        wait(lambda: get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
         dump_job_context(jobs[0], "//tmp/input_context")
 
@@ -265,11 +239,7 @@ class TestSchedulerCommon(YTEnvSetup):
         create(
             "map_node",
             "//tmp/dir",
-            attributes={
-                "acl": [
-                    {"action": "deny", "subjects": ["abc"], "permissions": ["write"]}
-                ]
-            },
+            attributes={"acl": [{"action": "deny", "subjects": ["abc"], "permissions": ["write"]}]},
         )
 
         create("table", "//tmp/t1")
@@ -288,20 +258,10 @@ class TestSchedulerCommon(YTEnvSetup):
 
         jobs = wait_breakpoint()
         # Wait till job starts reading input
-        wait(
-            lambda: get(
-                op.get_path()
-                + "/controller_orchid/running_jobs/"
-                + jobs[0]
-                + "/progress"
-            )
-            >= 0.5
-        )
+        wait(lambda: get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
         with pytest.raises(YtError):
-            dump_job_context(
-                jobs[0], "//tmp/dir/input_context", authenticated_user="abc"
-            )
+            dump_job_context(jobs[0], "//tmp/dir/input_context", authenticated_user="abc")
 
         assert not exists("//tmp/dir/input_context")
 
@@ -356,16 +316,8 @@ class TestSchedulerCommon(YTEnvSetup):
         op = map(command="cat", in_="//tmp/t_input", out="//tmp/t_output")
 
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert (
-            get_statistics(statistics, "user_job.pipes.input.bytes.$.completed.map.sum")
-            == 15
-        )
-        assert (
-            get_statistics(
-                statistics, "user_job.pipes.output.0.bytes.$.completed.map.sum"
-            )
-            == 15
-        )
+        assert get_statistics(statistics, "user_job.pipes.input.bytes.$.completed.map.sum") == 15
+        assert get_statistics(statistics, "user_job.pipes.output.0.bytes.$.completed.map.sum") == 15
 
     @authors("ignat")
     def test_writer_config(self):
@@ -411,9 +363,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 out="<optimize_for={0}>//tmp/tout1_{0}".format(optimize_for),
                 command="cat",
             )
-            assert (
-                get("//tmp/tout1_{}/@optimize_for".format(optimize_for)) == optimize_for
-            )
+            assert get("//tmp/tout1_{}/@optimize_for".format(optimize_for)) == optimize_for
 
         for compression_codec in ["none", "lz4"]:
             create("table", "//tmp/tout2_" + compression_codec)
@@ -423,9 +373,7 @@ class TestSchedulerCommon(YTEnvSetup):
                 command="cat",
             )
 
-            stats = get(
-                "//tmp/tout2_{}/@compression_statistics".format(compression_codec)
-            )
+            stats = get("//tmp/tout2_{}/@compression_statistics".format(compression_codec))
             assert compression_codec in stats, str(stats)
             assert stats[compression_codec]["chunk_count"] > 0
 
@@ -697,9 +645,7 @@ class TestSchedulerCommon(YTEnvSetup):
             "NYT::NScheduler::NVectorScheduler::TOperationElement",
             "NYT::NScheduler::NClassicScheduler::TOperationElement",
         ]
-        records = [
-            record for record in statistics if record["name"] in operation_objects
-        ]
+        records = [record for record in statistics if record["name"] in operation_objects]
         assert len(records) == 2
         assert records[0]["objects_alive"] == 0
         assert records[1]["objects_alive"] == 0
@@ -842,9 +788,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         wait_breakpoint()
 
-        nested_input_transaction_ids = get(
-            op.get_path() + "/@nested_input_transaction_ids"
-        )
+        nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
         assert len(nested_input_transaction_ids) == 1
         nested_tx = nested_input_transaction_ids[0]
 
@@ -863,9 +807,7 @@ class TestSchedulerCommon(YTEnvSetup):
             abort_transaction(nested_tx)
 
         op.ensure_running()
-        new_nested_input_transaction_ids = get(
-            op.get_path() + "/@nested_input_transaction_ids"
-        )
+        new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
         assert len(new_nested_input_transaction_ids) == 1
         assert new_nested_input_transaction_ids[0] != nested_tx
 
@@ -887,9 +829,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
         wait_breakpoint()
 
-        nested_input_transaction_ids = get(
-            op.get_path() + "/@nested_input_transaction_ids"
-        )
+        nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
         assert len(nested_input_transaction_ids) == 2
         assert nested_input_transaction_ids[0] == nested_input_transaction_ids[1]
 
@@ -912,13 +852,9 @@ class TestSchedulerCommon(YTEnvSetup):
             abort_transaction(nested_tx)
 
         op.ensure_running()
-        new_nested_input_transaction_ids = get(
-            op.get_path() + "/@nested_input_transaction_ids"
-        )
+        new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
         assert len(new_nested_input_transaction_ids) == 2
-        assert (
-            new_nested_input_transaction_ids[0] == new_nested_input_transaction_ids[1]
-        )
+        assert new_nested_input_transaction_ids[0] == new_nested_input_transaction_ids[1]
         assert new_nested_input_transaction_ids[0] != nested_tx
 
     @authors("babenko")
@@ -951,28 +887,27 @@ class TestSchedulerCommon(YTEnvSetup):
                     },
                 },
             )
-            schedule_job_statistics = get(
-                op.get_path() + "/@progress/schedule_job_statistics"
-            )
-            return schedule_job_statistics.get("failed", {}).get(
-                "controller_throttling", 0
-            )
+            schedule_job_statistics = get(op.get_path() + "/@progress/schedule_job_statistics")
+            return schedule_job_statistics.get("failed", {}).get("controller_throttling", 0)
 
         if not exists("//sys/controller_agents/config/operation_options"):
             set("//sys/controller_agents/config/operation_options", {})
 
-        job_spec_count_limit_path = "//sys/controller_agents/config/operation_options/controller_building_job_spec_count_limit"
-        total_job_spec_slice_count_limit_path = "//sys/controller_agents/config/operation_options/controller_total_building_job_spec_slice_count_limit"
-        controller_agent_config_revision_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config_revision".format(
-            ls("//sys/controller_agents/instances")[0]
+        job_spec_count_limit_path = (
+            "//sys/controller_agents/config/operation_options/controller_building_job_spec_count_limit"
+        )
+        total_job_spec_slice_count_limit_path = (
+            "//sys/controller_agents/config/operation_options/controller_total_building_job_spec_slice_count_limit"
+        )
+        controller_agent_config_revision_path = (
+            "//sys/controller_agents/instances/{}/orchid/controller_agent/config_revision".format(
+                ls("//sys/controller_agents/instances")[0]
+            )
         )
 
         def wait_for_fresh_config():
             config_revision = get(controller_agent_config_revision_path)
-            wait(
-                lambda: get(controller_agent_config_revision_path) - config_revision
-                >= 2
-            )
+            wait(lambda: get(controller_agent_config_revision_path) - config_revision >= 2)
 
         assert get_controller_throttling_schedule_job_fail_count() == 0
 
@@ -1035,9 +970,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     def test_hot_standby(self):
         self._prepare_tables()
 
-        op = map(
-            track=False, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5"
-        )
+        op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
 
         op.wait_for_fresh_snapshot()
 
@@ -1110,9 +1043,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
         # Must be 2 jobs since input has 2 chunks.
         assert get(op.get_path() + "/@progress/jobs/total") == 2
 
-        op = map(
-            command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out"
-        )
+        op = map(command="cat >/dev/null", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
         assert get(op.get_path() + "/@progress/jobs/total") == 2
 
         op = merge(mode="sorted", in_=["//tmp/in1", "//tmp/in2"], out="//tmp/out")
@@ -1187,9 +1118,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
             time.sleep(0.1)
 
         transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
-        wait(
-            lambda: get(op.get_path() + "/output_0/@row_count", tx=transaction_id) == 2
-        )
+        wait(lambda: get(op.get_path() + "/output_0/@row_count", tx=transaction_id) == 2)
 
         release_breakpoint()
         op.track()
@@ -1229,27 +1158,19 @@ class TestSchedulerConfig(YTEnvSetup):
     def test_basic(self):
         orchid_scheduler_config = "//sys/scheduler/orchid/scheduler/config"
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
-        assert (
-            get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
-        )
+        assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
 
         set("//sys/scheduler/config", {"event_log": {"flush_period": 10000}})
         time.sleep(2)
 
-        assert (
-            get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 10000
-        )
-        assert (
-            get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
-        )
+        assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 10000
+        assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
 
         set("//sys/scheduler/config", {})
         time.sleep(2)
 
         assert get("{0}/event_log/flush_period".format(orchid_scheduler_config)) == 5000
-        assert (
-            get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
-        )
+        assert get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7
 
     @authors("ignat")
     def test_adresses(self):
@@ -1264,30 +1185,17 @@ class TestSchedulerConfig(YTEnvSetup):
 
         create("table", "//tmp/t_out")
 
-        op = map(
-            command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False
-        )
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
         wait(lambda: exists(op.get_path() + "/@full_spec"))
         # XXX(ignat)
         for spec_type in ("full_spec",):
+            assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 2000
             assert (
-                get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type))
+                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type))
                 == 2000
             )
             assert (
-                get(
-                    "//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(
-                        op.id, spec_type
-                    )
-                )
-                == 2000
-            )
-            assert (
-                get(
-                    "//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(
-                        op.id, spec_type
-                    )
-                )
+                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type))
                 == 10
             )
         op.abort()
@@ -1303,24 +1211,13 @@ class TestSchedulerConfig(YTEnvSetup):
         time.sleep(1)
         # XXX(ignat)
         for spec_type in ("full_spec",):
+            assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 1000
             assert (
-                get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type))
+                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type))
                 == 1000
             )
             assert (
-                get(
-                    "//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(
-                        op.id, spec_type
-                    )
-                )
-                == 1000
-            )
-            assert (
-                get(
-                    "//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(
-                        op.id, spec_type
-                    )
-                )
+                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type))
                 == 10
             )
 
@@ -1331,24 +1228,13 @@ class TestSchedulerConfig(YTEnvSetup):
 
         # XXX(ignat)
         for spec_type in ("full_spec",):
+            assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 1000
             assert (
-                get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type))
+                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(op.id, spec_type))
                 == 1000
             )
             assert (
-                get(
-                    "//sys/scheduler/orchid/scheduler/operations/{0}/{1}/data_weight_per_job".format(
-                        op.id, spec_type
-                    )
-                )
-                == 1000
-            )
-            assert (
-                get(
-                    "//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(
-                        op.id, spec_type
-                    )
-                )
+                get("//sys/scheduler/orchid/scheduler/operations/{0}/{1}/max_failed_job_count".format(op.id, spec_type))
                 == 10
             )
 
@@ -1375,9 +1261,7 @@ class TestSchedulerConfig(YTEnvSetup):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"a": "b"}])
         create("table", "//tmp/t_out")
-        op = map(
-            command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False
-        )
+        op = map(command="sleep 1000", in_=["//tmp/t_in"], out="//tmp/t_out", track=False)
 
         wait(lambda: exists(op.get_path() + "/@brief_progress"))
         assert "jobs" in list(get(op.get_path() + "/@brief_progress"))
@@ -1395,18 +1279,14 @@ class TestSchedulerConfig(YTEnvSetup):
         set(
             "//sys/controller_agents/config",
             {
-                "map_operation_options": {
-                    "spec_template": {"max_failed_job_count": 50}
-                },
+                "map_operation_options": {"spec_template": {"max_failed_job_count": 50}},
                 "environment": {"OTHER_VAR": "20"},
             },
         )
 
         instances = ls("//sys/controller_agents/instances")
         for instance in instances:
-            config_path = "//sys/controller_agents/instances/{0}/orchid/controller_agent/config".format(
-                instance
-            )
+            config_path = "//sys/controller_agents/instances/{0}/orchid/controller_agent/config".format(instance)
             wait(
                 lambda: exists(config_path + "/environment/OTHER_VAR")
                 and get(config_path + "/environment/OTHER_VAR") == "20"
@@ -1416,15 +1296,7 @@ class TestSchedulerConfig(YTEnvSetup):
             assert environment["TEST_VAR"] == "10"
             assert environment["OTHER_VAR"] == "20"
 
-            assert (
-                get(
-                    config_path
-                    + "/map_operation_options/spec_template/max_failed_job_count".format(
-                        instance
-                    )
-                )
-                == 50
-            )
+            assert get(config_path + "/map_operation_options/spec_template/max_failed_job_count".format(instance)) == 50
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
         assert get(op.get_path() + "/@full_spec/data_weight_per_job") == 2000
@@ -1476,9 +1348,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
         copy(snapshot_path, snapshot_backup_path)
         assert len(read_file(snapshot_backup_path, verbose=False)) > 0
 
-        ts_str = get(
-            op.get_path() + "/controller_orchid/progress/last_successful_snapshot_time"
-        )
+        ts_str = get(op.get_path() + "/controller_orchid/progress/last_successful_snapshot_time")
         assert time.time() - date_string_to_timestamp(ts_str) < 60
 
         release_breakpoint()
@@ -1592,18 +1462,8 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
 
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots"
-            )
-            == 2
-        )
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots"
-            )
-            == 0
-        )
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 0)
 
         wait(
             lambda: get(
@@ -1634,18 +1494,8 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
             )
             == 2
         )
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots"
-            )
-            == 2
-        )
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots"
-            )
-            == 2
-        )
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 2)
 
         wait(
             lambda: get(
@@ -1669,9 +1519,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {"scheduler_connector": {"heartbeat_period": 100}}  # 100 msec
-    }
+    DELTA_NODE_CONFIG = {"exec_agent": {"scheduler_connector": {"heartbeat_period": 100}}}  # 100 msec
 
     def _create_table(self, table):
         create("table", table)
@@ -1731,9 +1579,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         statistics_appeared = False
         for iter in xrange(300):
-            statistics = get(
-                "//sys/scheduler/orchid/scheduler/jobs/{0}/statistics".format(job_id)
-            )
+            statistics = get("//sys/scheduler/orchid/scheduler/jobs/{0}/statistics".format(job_id))
             data = statistics.get("data", {})
             _input = data.get("input", {})
             row_count = _input.get("row_count", {})
@@ -1789,9 +1635,7 @@ fi
                 track=False,
             )
 
-            state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(
-                op.id
-            )
+            state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
             wait(lambda: get(state_path) == "running")
 
             ops.append(op)
@@ -1806,12 +1650,7 @@ fi
             pass
 
         for op in ops:
-            wait(
-                lambda: get(
-                    "//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)
-                )
-                == "running"
-            )
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id)) == "running")
             wait(lambda: get(op.get_path() + "/@state") == "running")
             assert op.get_job_count("failed") == 1
 
@@ -1846,9 +1685,7 @@ fi
             track=False,
         )
 
-        state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(
-            op.id
-        )
+        state_path = "//sys/scheduler/orchid/scheduler/operations/{0}/state".format(op.id)
         wait(lambda: get(state_path) == "running", ignore_exceptions=True)
         time.sleep(1.0)  # Give scheduler some time to dump attributes to cypress.
 
@@ -1862,9 +1699,7 @@ fi
     @authors("asaitgalin")
     def test_inner_operation_nodes(self):
         create("table", "//tmp/t_input")
-        write_table(
-            "<append=%true>//tmp/t_input", [{"key": "value"} for i in xrange(2)]
-        )
+        write_table("<append=%true>//tmp/t_input", [{"key": "value"} for i in xrange(2)])
         create("table", "//tmp/t_output")
 
         cmd = """
@@ -1887,45 +1722,22 @@ fi
                 track=False,
             )
 
-            wait(
-                lambda: op.get_job_count("failed") == 1
-                and op.get_job_count("running") >= 1
-            )
+            wait(lambda: op.get_job_count("failed") == 1 and op.get_job_count("running") >= 1)
 
             time.sleep(1.0)
 
             return op
 
-        get_async_scheduler_tx_path = (
-            lambda op: "//sys/operations/" + op.id + "/@async_scheduler_transaction_id"
-        )
-        get_async_scheduler_tx_path_new = (
-            lambda op: op.get_path() + "/@async_scheduler_transaction_id"
-        )
+        get_async_scheduler_tx_path = lambda op: "//sys/operations/" + op.id + "/@async_scheduler_transaction_id"
+        get_async_scheduler_tx_path_new = lambda op: op.get_path() + "/@async_scheduler_transaction_id"
 
         get_output_path_new = lambda op: op.get_path() + "/output_0"
 
-        get_stderr_path = (
-            lambda op, job_id: "//sys/operations/"
-            + op.id
-            + "/jobs/"
-            + job_id
-            + "/stderr"
-        )
-        get_stderr_path_new = (
-            lambda op, job_id: op.get_path() + "/jobs/" + job_id + "/stderr"
-        )
+        get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
+        get_stderr_path_new = lambda op, job_id: op.get_path() + "/jobs/" + job_id + "/stderr"
 
-        get_fail_context_path = (
-            lambda op, job_id: "//sys/operations/"
-            + op.id
-            + "/jobs/"
-            + job_id
-            + "/fail_context"
-        )
-        get_fail_context_path_new = (
-            lambda op, job_id: op.get_path() + "/jobs/" + job_id + "/fail_context"
-        )
+        get_fail_context_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/fail_context"
+        get_fail_context_path_new = lambda op, job_id: op.get_path() + "/jobs/" + job_id + "/fail_context"
 
         # Compatible mode or simple hash buckets mode.
         op = _run_op()
@@ -1943,13 +1755,7 @@ fi
 
     @authors("ignat")
     def test_rewrite_operation_path(self):
-        get_stderr_path = (
-            lambda op, job_id: "//sys/operations/"
-            + op.id
-            + "/jobs/"
-            + job_id
-            + "/stderr"
-        )
+        get_stderr_path = lambda op, job_id: "//sys/operations/" + op.id + "/jobs/" + job_id + "/stderr"
 
         create("table", "//tmp/t_input")
         write_table("//tmp/t_input", [{"x": "y"}, {"a": "b"}])
@@ -1967,9 +1773,9 @@ fi
 
         assert not exists("//sys/operations/" + op.id + "/@")
         assert exists("//sys/operations/" + op.id + "/@", rewrite_operation_path=True)
-        assert get(
-            "//sys/operations/" + op.id + "/@id", rewrite_operation_path=True
-        ) == get(op.get_path() + "/@id", rewrite_operation_path=True)
+        assert get("//sys/operations/" + op.id + "/@id", rewrite_operation_path=True) == get(
+            op.get_path() + "/@id", rewrite_operation_path=True
+        )
 
         tx = start_transaction()
         assert lock(
@@ -1980,10 +1786,7 @@ fi
         )
 
         jobs = ls("//sys/operations/" + op.id + "/jobs", rewrite_operation_path=True)
-        assert (
-            read_file(get_stderr_path(op, jobs[0]), rewrite_operation_path=True)
-            == "XYZ\n"
-        )
+        assert read_file(get_stderr_path(op, jobs[0]), rewrite_operation_path=True) == "XYZ\n"
 
 
 ##################################################################
@@ -2020,8 +1823,7 @@ class TestNewLivePreview(YTEnvSetup):
         wait(lambda: op.get_job_count("completed") == 2)
 
         live_preview_data = read_table(
-            op.get_path()
-            + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0"
+            op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0"
         )
         assert len(live_preview_data) == 2
 
@@ -2060,15 +1862,13 @@ class TestNewLivePreview(YTEnvSetup):
         wait(lambda: op.get_job_count("completed") == 2)
 
         read_table(
-            op.get_path()
-            + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0",
+            op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0",
             authenticated_user="u1",
         )
 
         with pytest.raises(YtError):
             read_table(
-                op.get_path()
-                + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0",
+                op.get_path() + "/controller_orchid/data_flow_graph/vertices/map/live_previews/0",
                 authenticated_user="u2",
             )
 
@@ -2097,8 +1897,7 @@ class TestNewLivePreview(YTEnvSetup):
         assert exists(op.get_path() + "/controller_orchid")
 
         live_preview_path = (
-            op.get_path()
-            + "/controller_orchid/data_flow_graph/vertices/partition_map(0)/live_previews/0"
+            op.get_path() + "/controller_orchid/data_flow_graph/vertices/partition_map(0)/live_previews/0"
         )
         live_preview_data = read_table(live_preview_path)
 
@@ -2118,9 +1917,7 @@ class TestNewLivePreview(YTEnvSetup):
                             real_lower_index = max(real_lower_index, lower_row_index)
                         if not lower_chunk_index is None:
                             lower_limit["chunk_index"] = lower_chunk_index
-                            real_lower_index = max(
-                                real_lower_index, lower_chunk_index * 3
-                            )
+                            real_lower_index = max(real_lower_index, lower_chunk_index * 3)
 
                         upper_limit = dict()
                         real_upper_index = 9
@@ -2129,22 +1926,14 @@ class TestNewLivePreview(YTEnvSetup):
                             real_upper_index = min(real_upper_index, upper_row_index)
                         if not upper_chunk_index is None:
                             upper_limit["chunk_index"] = upper_chunk_index
-                            real_upper_index = min(
-                                real_upper_index, upper_chunk_index * 3
-                            )
+                            real_upper_index = min(real_upper_index, upper_chunk_index * 3)
 
-                        all_ranges.append(
-                            {"lower_limit": lower_limit, "upper_limit": upper_limit}
-                        )
-                        expected_all_ranges_data += [
-                            live_preview_data[real_lower_index:real_upper_index]
-                        ]
+                        all_ranges.append({"lower_limit": lower_limit, "upper_limit": upper_limit})
+                        expected_all_ranges_data += [live_preview_data[real_lower_index:real_upper_index]]
 
         all_ranges_path = (
             "<"
-            + yson.dumps(
-                {"ranges": all_ranges}, yson_type="map_fragment", yson_format="text"
-            )
+            + yson.dumps({"ranges": all_ranges}, yson_type="map_fragment", yson_format="text")
             + ">"
             + live_preview_path
         )
@@ -2156,9 +1945,7 @@ class TestNewLivePreview(YTEnvSetup):
             if all_ranges_data[position : position + len(range_)] != range_:
                 print_debug("position =", position, ", range =", all_ranges[i])
                 print_debug("expected:", range_)
-                print_debug(
-                    "actual:", all_ranges_data[position : position + len(range_)]
-                )
+                print_debug("actual:", all_ranges_data[position : position + len(range_)])
                 assert all_ranges_data[position : position + len(range_)] == range_
             position += len(range_)
 
@@ -2178,9 +1965,7 @@ class TestNewLivePreview(YTEnvSetup):
         create("table", "//tmp/t2")
 
         # Run operation with given params and return a tuple (live preview created, suppression alert set)
-        def check_live_preview(
-            enable_legacy_live_preview=None, authenticated_user=None, index=None
-        ):
+        def check_live_preview(enable_legacy_live_preview=None, authenticated_user=None, index=None):
             op = map(
                 wait_for_jobs=True,
                 track=False,
@@ -2196,12 +1981,8 @@ class TestNewLivePreview(YTEnvSetup):
 
             wait_breakpoint(job_count=2, breakpoint_name=str(index))
 
-            async_transaction_id = get(
-                op.get_path() + "/@async_scheduler_transaction_id"
-            )
-            live_preview_created = exists(
-                op.get_path() + "/output_0", tx=async_transaction_id
-            )
+            async_transaction_id = get(op.get_path() + "/@async_scheduler_transaction_id")
+            live_preview_created = exists(op.get_path() + "/output_0", tx=async_transaction_id)
             suppression_alert_set = "legacy_live_preview_suppressed" in op.get_alerts()
 
             op.abort()
@@ -2224,11 +2005,14 @@ class TestNewLivePreview(YTEnvSetup):
                 live_preview_created,
                 suppression_alert_set,
             ) = combination
-            assert check_live_preview(
-                enable_legacy_live_preview=enable_legacy_live_preview,
-                authenticated_user=authenticated_user,
-                index=i,
-            ) == (live_preview_created, suppression_alert_set)
+            assert (
+                check_live_preview(
+                    enable_legacy_live_preview=enable_legacy_live_preview,
+                    authenticated_user=authenticated_user,
+                    index=i,
+                )
+                == (live_preview_created, suppression_alert_set)
+            )
 
 
 ##################################################################
@@ -2250,10 +2034,7 @@ class TestConnectToMaster(YTEnvSetup):
 
     def has_safe_mode_error_in_log(self):
         for line in gzip.open(self.path_to_run + "/logs/scheduler-0.log.gz"):
-            if (
-                "Error connecting to master" in line
-                and "Cluster is in safe mode" in line
-            ):
+            if "Error connecting to master" in line and "Cluster is in safe mode" in line:
                 return True
         return False
 
@@ -2270,17 +2051,11 @@ class TestConnectToMaster(YTEnvSetup):
         assert alerts[0]["attributes"]["alert_type"] == "scheduler_cannot_connect"
 
         scheduler = ls("//sys/scheduler/instances")[0]
-        assert not get(
-            "//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/connected"
-        )
+        assert not get("//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/connected")
 
         remove("//sys/pool_trees")
         move("//sys/pool_trees_bak", "//sys/pool_trees")
-        wait(
-            lambda: get(
-                "//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/connected"
-            )
-        )
+        wait(lambda: get("//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/connected"))
 
 
 ##################################################################
@@ -2294,9 +2069,7 @@ class TestEventLog(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {"scheduler": {"event_log": {"flush_period": 1000}}}
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {"event_log": {"flush_period": 1000}}
-    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"event_log": {"flush_period": 1000}}}
 
     @authors("ignat")
     def test_scheduler_event_log(self):
@@ -2310,46 +2083,13 @@ class TestEventLog(YTEnvSetup):
         )
 
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        wait(
-            lambda: get_statistics(statistics, "user_job.cpu.user.$.completed.map.sum")
-            > 0
-        )
-        wait(
-            lambda: get_statistics(
-                statistics, "user_job.block_io.bytes_read.$.completed.map.sum"
-            )
-            is not None
-        )
-        wait(
-            lambda: get_statistics(
-                statistics, "user_job.current_memory.rss.$.completed.map.count"
-            )
-            > 0
-        )
-        wait(
-            lambda: get_statistics(
-                statistics, "user_job.max_memory.$.completed.map.count"
-            )
-            > 0
-        )
-        wait(
-            lambda: get_statistics(
-                statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.count"
-            )
-            > 0
-        )
-        wait(
-            lambda: get_statistics(
-                statistics, "job_proxy.cpu.user.$.completed.map.count"
-            )
-            == 1
-        )
-        wait(
-            lambda: get_statistics(
-                statistics, "job_proxy.cpu.user.$.completed.map.count"
-            )
-            == 1
-        )
+        wait(lambda: get_statistics(statistics, "user_job.cpu.user.$.completed.map.sum") > 0)
+        wait(lambda: get_statistics(statistics, "user_job.block_io.bytes_read.$.completed.map.sum") is not None)
+        wait(lambda: get_statistics(statistics, "user_job.current_memory.rss.$.completed.map.count") > 0)
+        wait(lambda: get_statistics(statistics, "user_job.max_memory.$.completed.map.count") > 0)
+        wait(lambda: get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.count") > 0)
+        wait(lambda: get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1)
+        wait(lambda: get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1)
 
         # wait for scheduler to dump the event log
         def check():
@@ -2421,10 +2161,7 @@ class TestEventLog(YTEnvSetup):
         def check_event_log():
             event_log = read_table("//sys/scheduler/event_log")
             for event in event_log:
-                if (
-                    event["event_type"] == "operation_completed"
-                    and event["operation_id"] == op.id
-                ):
+                if event["event_type"] == "operation_completed" and event["operation_id"] == op.id:
                     return True
             return False
 
@@ -2440,13 +2177,9 @@ class TestEventLog(YTEnvSetup):
                     return events
 
             scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
-            controller_agent_log_file = (
-                self.path_to_run + "/logs/controller-agent-0.json.log"
-            )
+            controller_agent_log_file = self.path_to_run + "/logs/controller-agent-0.json.log"
 
-            structured_log = extract_event_log(scheduler_log_file) + extract_event_log(
-                controller_agent_log_file
-            )
+            structured_log = extract_event_log(scheduler_log_file) + extract_event_log(controller_agent_log_file)
 
             for normal_event in event_log:
                 flag = False
@@ -2491,51 +2224,15 @@ class TestJobStatisticsPorto(YTEnvSetup):
 
         for component in ["user_job", "job_proxy"]:
             print(component)
-            assert (
-                get_statistics(statistics, component + ".cpu.user.$.completed.map.sum")
-                > 0
-            )
-            assert (
-                get_statistics(
-                    statistics, component + ".cpu.system.$.completed.map.sum"
-                )
-                > 0
-            )
-            assert (
-                get_statistics(
-                    statistics, component + ".cpu.context_switches.$.completed.map.sum"
-                )
-                is not None
-            )
-            assert (
-                get_statistics(statistics, component + ".cpu.wait.$.completed.map.sum")
-                is not None
-            )
-            assert (
-                get_statistics(
-                    statistics, component + ".cpu.throttled.$.completed.map.sum"
-                )
-                is not None
-            )
-            assert (
-                get_statistics(
-                    statistics, component + ".block_io.bytes_read.$.completed.map.sum"
-                )
-                is not None
-            )
-            assert (
-                get_statistics(
-                    statistics, component + ".max_memory.$.completed.map.sum"
-                )
-                > 0
-            )
+            assert get_statistics(statistics, component + ".cpu.user.$.completed.map.sum") > 0
+            assert get_statistics(statistics, component + ".cpu.system.$.completed.map.sum") > 0
+            assert get_statistics(statistics, component + ".cpu.context_switches.$.completed.map.sum") is not None
+            assert get_statistics(statistics, component + ".cpu.wait.$.completed.map.sum") is not None
+            assert get_statistics(statistics, component + ".cpu.throttled.$.completed.map.sum") is not None
+            assert get_statistics(statistics, component + ".block_io.bytes_read.$.completed.map.sum") is not None
+            assert get_statistics(statistics, component + ".max_memory.$.completed.map.sum") > 0
 
-        assert (
-            get_statistics(
-                statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.sum"
-            )
-            > 0
-        )
+        assert get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.sum") > 0
 
 
 ##################################################################
@@ -2607,9 +2304,7 @@ class TestResourceMetering(YTEnvSetup):
                     events = list(filter(lambda e: "event_type" not in e, items))
                     return events
 
-            scheduler_log_file = os.path.join(
-                self.path_to_run, "logs/scheduler-0.json.log"
-            )
+            scheduler_log_file = os.path.join(self.path_to_run, "logs/scheduler-0.json.log")
 
             structured_log = extract_metering_log(scheduler_log_file)
 

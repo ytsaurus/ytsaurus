@@ -30,9 +30,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
         }
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {"banned_exec_nodes_check_period": 100}
-    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"banned_exec_nodes_check_period": 100}}
 
     @authors("babenko")
     def test_ignore_job_failures_at_banned_nodes(self):
@@ -61,10 +59,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
             release_breakpoint(job_id=id)
 
         wait(lambda: get(op.get_path() + "/@progress/jobs/failed") == 1)
-        wait(
-            lambda: get(op.get_path() + "/@progress/jobs/aborted/scheduled/node_banned")
-            == 9
-        )
+        wait(lambda: get(op.get_path() + "/@progress/jobs/aborted/scheduled/node_banned") == 9)
 
     @authors("babenko")
     def test_fail_on_all_nodes_banned(self):
@@ -134,9 +129,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
     }
 
     def _wait_for_jobs(self, op_id):
-        jobs_path = (
-            get_operation_cypress_path(op_id) + "/controller_orchid/running_jobs"
-        )
+        jobs_path = get_operation_cypress_path(op_id) + "/controller_orchid/running_jobs"
         wait(
             lambda: exists(jobs_path) and len(get(jobs_path)) > 0,
             "Failed waiting for the first job",
@@ -189,9 +182,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
         address = jobs[job_id]["address"]
 
         set(
-            "//sys/cluster_nodes/{0}/@resource_limits_overrides/user_memory".format(
-                address
-            ),
+            "//sys/cluster_nodes/{0}/@resource_limits_overrides/user_memory".format(address),
             99 * 1024 * 1024,
         )
         op.track()
@@ -208,9 +199,7 @@ class TestSchedulingTags(YTEnvSetup):
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {"event_log": {"flush_period": 300, "retry_backoff_time": 300}}
-    }
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"event_log": {"flush_period": 300, "retry_backoff_time": 300}}}
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -224,11 +213,7 @@ class TestSchedulingTags(YTEnvSetup):
 
     def _get_slots_by_filter(self, filter):
         try:
-            return get(
-                "//sys/scheduler/orchid/scheduler/cell/resource_limits_by_tags/{0}/user_slots".format(
-                    filter
-                )
-            )
+            return get("//sys/scheduler/orchid/scheduler/cell/resource_limits_by_tags/{0}/user_slots".format(filter))
         except YtResponseError as err:
             if not err.is_resolve_error():
                 raise
@@ -329,10 +314,7 @@ class TestSchedulingTags(YTEnvSetup):
         def get_job_nodes(op):
             nodes = __builtin__.set()
             for row in read_table("//sys/scheduler/event_log"):
-                if (
-                    row.get("event_type") == "job_started"
-                    and row.get("operation_id") == op.id
-                ):
+                if row.get("event_type") == "job_started" and row.get("operation_id") == op.id:
                     nodes.add(row["node_address"])
             return nodes
 
@@ -350,9 +332,7 @@ class TestSchedulingTags(YTEnvSetup):
         time.sleep(0.8)
         assert get_job_nodes(op) == __builtin__.set([self.node])
 
-        op = map(
-            command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20}
-        )
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
         time.sleep(0.8)
         assert len(get_job_nodes(op)) <= 2
 
@@ -428,46 +408,17 @@ class TestNodeDoubleRegistration(YTEnvSetup):
         assert len(nodes) == 1
         node = nodes[0]
 
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)
-            )
-            == "online"
-        )
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(
-                lambda: get(
-                    "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(
-                        node
-                    )
-                )
-                == "offline"
-            )
-            wait(
-                lambda: get(
-                    "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(
-                        node
-                    )
-                )
-                == "offline"
-            )
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
             remove("//sys/cluster_nodes/" + node)
 
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)
-            )
-            == "online"
-        )
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)
-            )
-            == "online"
-        )
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "online")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
 
     # It is disabled since Restarter await node to become online, this wait fails for banned node.
     @authors("ignat")
@@ -477,50 +428,16 @@ class TestNodeDoubleRegistration(YTEnvSetup):
         node = nodes[0]
 
         set_banned_flag(True, [node])
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)
-            )
-            == "offline"
-        )
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)
-            )
-            == "online"
-        )
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
 
         with Restarter(self.Env, NODES_SERVICE):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(
-                lambda: get(
-                    "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(
-                        node
-                    )
-                )
-                == "offline"
-            )
-            wait(
-                lambda: get(
-                    "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(
-                        node
-                    )
-                )
-                == "offline"
-            )
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
 
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)
-            )
-            == "offline"
-        )
-        wait(
-            lambda: get(
-                "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)
-            )
-            == "online"
-        )
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
 
 
 class TestNodeMultipleUnregistrations(YTEnvSetup):
@@ -575,44 +492,16 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
         op = start_op()
         with Restarter(self.Env, NODES_SERVICE, indexes=[0]):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(
-                lambda: get(
-                    "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(
-                        node
-                    )
-                )
-                == "offline"
-            )
-            wait(
-                lambda: get(
-                    "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(
-                        node
-                    )
-                )
-                == "offline"
-            )
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
             release_breakpoint(op.tag)
             wait(lambda: get(op.get_path() + "/@state") == "completed")
 
         op = start_op()
         with Restarter(self.Env, NODES_SERVICE, indexes=[0]):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(
-                lambda: get(
-                    "//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(
-                        node
-                    )
-                )
-                == "offline"
-            )
-            wait(
-                lambda: get(
-                    "//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(
-                        node
-                    )
-                )
-                == "offline"
-            )
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
+            wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
             release_breakpoint(op.tag)
             wait(lambda: get(op.get_path() + "/@state") == "completed")
 
@@ -620,11 +509,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
         set("//sys/scheduler/config/max_offline_node_age", 20000)
         with Restarter(self.Env, NODES_SERVICE, indexes=[0]):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
-            wait(
-                lambda: not exists(
-                    "//sys/scheduler/orchid/scheduler/nodes/{}".format(node)
-                )
-            )
+            wait(lambda: not exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
             release_breakpoint(op.tag)
             wait(lambda: get(op.get_path() + "/@state") == "completed")
 

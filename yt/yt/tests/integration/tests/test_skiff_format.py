@@ -263,9 +263,7 @@ class TestSkiffFormat(YTEnvSetup):
         format.attributes["table_skiff_schemas"] = [
             skiff_tuple(
                 [
-                    skiff_repeated_variant8(
-                        [skiff_simple("string32")], name="list_of_strings"
-                    ),
+                    skiff_repeated_variant8([skiff_simple("string32")], name="list_of_strings"),
                     skiff_optional(
                         skiff_repeated_variant8([skiff_simple("string32")]),
                         name="optional_list_of_strings",
@@ -369,9 +367,7 @@ class TestSkiffFormat(YTEnvSetup):
         format.attributes["table_skiff_schemas"] = [
             skiff_tuple(
                 [
-                    skiff_repeated_variant8(
-                        [skiff_simple("string32")], name="list_of_strings"
-                    ),
+                    skiff_repeated_variant8([skiff_simple("string32")], name="list_of_strings"),
                     skiff_optional(
                         skiff_repeated_variant8([skiff_simple("string32")]),
                         name="optional_list_of_strings",
@@ -424,9 +420,7 @@ class TestSkiffFormat(YTEnvSetup):
         )
 
         format = yson.YsonString("skiff")
-        format.attributes["table_skiff_schemas"] = [
-            {"wire_type": "tuple", "children": []}
-        ]
+        format.attributes["table_skiff_schemas"] = [{"wire_type": "tuple", "children": []}]
 
         read_data = read_table("//tmp/t_in{}", output_format=format)
         assert read_data == "\x00\x00\x00\x00\x00\x00"
@@ -693,9 +687,7 @@ while True:
             }
         ]
 
-        write_table(
-            "//tmp/table", [{"column": 1}, {"column": 2, "missing_column": None}]
-        )
+        write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": None}])
         read_data = read_table("//tmp/table", is_raw=True, output_format=format)
         assert read_data == (
             "\x00\x00"
@@ -708,8 +700,6 @@ while True:
             "\x00"
         )
 
-        write_table(
-            "//tmp/table", [{"column": 1}, {"column": 2, "missing_column": "GG"}]
-        )
+        write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": "GG"}])
         with raises_yt_error("Cannot represent nonnull value of column"):
             read_data = read_table("//tmp/table", is_raw=True, output_format=format)

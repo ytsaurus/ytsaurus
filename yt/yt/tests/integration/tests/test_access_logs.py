@@ -38,9 +38,7 @@ class TestAccessLog(YTEnvSetup):
         return False
 
     def _validate_entries_are_in_log(self, entries):
-        self.LOG_PATH = os.path.join(
-            self.path_to_run, "logs/master-0-1.access.json.log"
-        )
+        self.LOG_PATH = os.path.join(self.path_to_run, "logs/master-0-1.access.json.log")
         ts = str(generate_timestamp())
         create("table", "//tmp/access_log/{}".format(ts))
         wait(lambda: self._is_node_in_logs(ts), iter=120, sleep_backoff=1.0)
@@ -49,19 +47,14 @@ class TestAccessLog(YTEnvSetup):
         def _check_entry_is_in_log(log, line_json):
             for key, value in log.iteritems():
                 if key in ["attributes", "transaction_id"]:
-                    if (
-                        line_json.get("transaction_info") is None
-                        or line_json.get("transaction_info")[key] != value
-                    ):
+                    if line_json.get("transaction_info") is None or line_json.get("transaction_info")[key] != value:
                         return False
                 elif line_json.get(key) != value:
                     return False
             return True
 
         for log in entries:
-            assert any(
-                _check_entry_is_in_log(log, line_json) for line_json in written_logs
-            )
+            assert any(_check_entry_is_in_log(log, line_json) for line_json in written_logs)
 
     @classmethod
     def modify_master_config(cls, config, index):
@@ -77,9 +70,7 @@ class TestAccessLog(YTEnvSetup):
 
         config["logging"]["writers"]["access"] = {
             "type": "file",
-            "file_name": os.path.join(
-                cls.path_to_run, "logs/master-0-{}.access.json.log".format(index)
-            ),
+            "file_name": os.path.join(cls.path_to_run, "logs/master-0-{}.access.json.log".format(index)),
             "accepted_message_format": "structured",
         }
 
@@ -89,9 +80,7 @@ class TestAccessLog(YTEnvSetup):
         create("map_node", "//tmp/access_log")
 
         create("table", "//tmp/access_log/a")
-        log_list.append(
-            {"path": "//tmp/access_log/a", "method": "Create", "type": "table"}
-        )
+        log_list.append({"path": "//tmp/access_log/a", "method": "Create", "type": "table"})
 
         set("//tmp/access_log/a/@abc", "abc")
         log_list.append({"path": "//tmp/access_log/a/@abc", "method": "Set"})
@@ -204,9 +193,7 @@ class TestAccessLog(YTEnvSetup):
         create("map_node", "//tmp/access_log")
 
         create("table", "//tmp/access_log/enabled")
-        enabled_logs.append(
-            {"method": "Create", "path": "//tmp/access_log/enabled", "type": "table"}
-        )
+        enabled_logs.append({"method": "Create", "path": "//tmp/access_log/enabled", "type": "table"})
 
         set("//sys/@config/security_manager/enable_access_log", False)
 
@@ -262,9 +249,7 @@ class TestAccessLog(YTEnvSetup):
         log_list = []
 
         create("map_node", "//tmp/access_log")
-        create_dynamic_table(
-            "//tmp/access_log/table", schema=[{"name": "value", "type": "string"}]
-        )
+        create_dynamic_table("//tmp/access_log/table", schema=[{"name": "value", "type": "string"}])
 
         sync_mount_table("//tmp/access_log/table")
         log_list.append({"path": "//tmp/access_log/table", "method": "PrepareMount"})
@@ -308,9 +293,7 @@ class TestAccessLogPortal(TestAccessLog):
         create("map_node", "//tmp/access_log")
         create("document", "//tmp/access_log/doc")
 
-        create(
-            "portal_entrance", "//tmp/access_log/p1", attributes={"exit_cell_tag": 2}
-        )
+        create("portal_entrance", "//tmp/access_log/p1", attributes={"exit_cell_tag": 2})
         move("//tmp/access_log/doc", "//tmp/access_log/p1/doc")
         log_list.append({"path": "//tmp/access_log/doc", "method": "BeginCopy"})
         log_list.append({"path": "//tmp/access_log/p1/doc", "method": "EndCopy"})

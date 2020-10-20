@@ -57,11 +57,9 @@ for l in sys.stdin:
         second_struct="struct1",
         second_struct_a="a1",
     )
-    TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS = (
-        TWO_INPUT_SCHEMAFUL_REDUCER_TEMPLATE.format(
-            second_struct="struct",
-            second_struct_a="a",
-        )
+    TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS = TWO_INPUT_SCHEMAFUL_REDUCER_TEMPLATE.format(
+        second_struct="struct",
+        second_struct_a="a",
     )
 
     @pytest.mark.parametrize(
@@ -324,9 +322,7 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
-        write_table(
-            "//tmp/t_in", [{"x": 1, "y": 2}, {"x": 1, "y": 1}, {"x": 1, "y": 3}]
-        )
+        write_table("//tmp/t_in", [{"x": 1, "y": 2}, {"x": 1, "y": 1}, {"x": 1, "y": 3}])
 
         write_table(
             "<append=true>//tmp/t_in",
@@ -415,10 +411,7 @@ print "x={0}\ty={1}".format(x, y)
                 in_="//tmp/t1",
                 out="//tmp/t2",
             )
-            return any(
-                ace["subjects"] == ["admin"]
-                for ace in get_operation(op.id)["runtime_parameters"]["acl"]
-            )
+            return any(ace["subjects"] == ["admin"] for ace in get_operation(op.id)["runtime_parameters"]["acl"])
 
         wait(is_admin_in_base_acl)
 
@@ -439,14 +432,10 @@ print "x={0}\ty={1}".format(x, y)
             wait(lambda: op.get_job_count("completed") == 1)
 
             operation_path = op.get_path()
-            scheduler_transaction_id = get(
-                operation_path + "/@async_scheduler_transaction_id"
-            )
+            scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
             assert exists(operation_path + "/intermediate", tx=scheduler_transaction_id)
 
-            intermediate_acl = get(
-                operation_path + "/intermediate/@acl", tx=scheduler_transaction_id
-            )
+            intermediate_acl = get(operation_path + "/intermediate/@acl", tx=scheduler_transaction_id)
             assert sorted(intermediate_acl) == sorted(
                 [
                     # "authenticated_user" of operation.
@@ -466,9 +455,7 @@ print "x={0}\ty={1}".format(x, y)
 
     @authors("levysotsky")
     def test_intermediate_new_live_preview(self):
-        partition_map_vertex = (
-            "partition_map" if self.USE_LEGACY_CONTROLLERS else "partition_map(0)"
-        )
+        partition_map_vertex = "partition_map" if self.USE_LEGACY_CONTROLLERS else "partition_map(0)"
 
         create_user("admin")
         set(
@@ -499,9 +486,7 @@ print "x={0}\ty={1}".format(x, y)
             get(operation_path + "/controller_orchid/data_flow_graph/vertices")
             intermediate_live_data = read_table(
                 operation_path
-                + "/controller_orchid/data_flow_graph/vertices/{}/live_previews/0".format(
-                    partition_map_vertex
-                )
+                + "/controller_orchid/data_flow_graph/vertices/{}/live_previews/0".format(partition_map_vertex)
             )
 
             release_breakpoint()
@@ -530,9 +515,7 @@ print "x={0}\ty={1}".format(x, y)
         wait(lambda: exists(operation_path + "/@async_scheduler_transaction_id"))
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
         wait(lambda: exists(operation_path + "/intermediate", tx=async_transaction_id))
-        assert "brotli_3" == get(
-            operation_path + "/intermediate/@compression_codec", tx=async_transaction_id
-        )
+        assert "brotli_3" == get(operation_path + "/intermediate/@compression_codec", tx=async_transaction_id)
         op.abort()
 
     @authors("savrus")
@@ -590,9 +573,7 @@ print "x={0}\ty={1}".format(x, y)
             if "staging_transaction_id" in c.attributes:
                 tx_id = c.attributes["staging_transaction_id"]
                 try:
-                    if 'Scheduler "output" transaction' in get(
-                        "#{}/@title".format(tx_id)
-                    ):
+                    if 'Scheduler "output" transaction' in get("#{}/@title".format(tx_id)):
                         intermediate_chunk_ids.append(str(c))
                 except:
                     # Transaction may vanish
@@ -703,10 +684,7 @@ print "x={0}\ty={1}".format(x, y)
         events_on_fs().notify_event("continue_reducer")
 
         def get_unavailable_chunk_count():
-            return get(
-                op.get_path()
-                + "/@progress/estimated_input_statistics/unavailable_chunk_count"
-            )
+            return get(op.get_path() + "/@progress/estimated_input_statistics/unavailable_chunk_count")
 
         # Wait till scheduler discovers that chunk is unavailable.
         wait(lambda: get_unavailable_chunk_count() > 0)
@@ -761,8 +739,7 @@ print "x={0}\ty={1}".format(x, y)
         op.track()
 
         partition_reduce_counter = get(
-            op.get_path()
-            + "/@progress/data_flow_graph/vertices/partition_reduce/job_counter"
+            op.get_path() + "/@progress/data_flow_graph/vertices/partition_reduce/job_counter"
         )
         total_counter = get(op.get_path() + "/@progress/jobs")
 
@@ -855,11 +832,7 @@ print "x={0}\ty={1}".format(x, y)
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 sort_by=["foo"],
-                spec={
-                    "reduce_job_io": {
-                        "control_attributes": {"enable_row_index": "true"}
-                    }
-                },
+                spec={"reduce_job_io": {"control_attributes": {"enable_row_index": "true"}}},
             )
 
     @authors("savrus")
@@ -877,9 +850,7 @@ print "x={0}\ty={1}".format(x, y)
         )
 
         for i in xrange(10):
-            write_table(
-                "<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"}
-            )
+            write_table("<append=true; sorted_by=[key]>//tmp/input", {"key": i, "value": "foo"})
 
         map_reduce(
             in_="//tmp/input",
@@ -891,9 +862,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert get("//tmp/output/@schema_mode") == "strong"
         assert get("//tmp/output/@schema/@strict")
-        assert_items_equal(
-            read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)]
-        )
+        assert_items_equal(read_table("//tmp/output"), [{"key": i, "value": "foo"} for i in xrange(10)])
 
         write_table("<sorted_by=[key]>//tmp/input", {"key": "1", "value": "foo"})
 
@@ -1079,10 +1048,7 @@ print "x={0}\ty={1}".format(x, y)
         create("table", "//tmp/t3")  # This table will contain the cat'ed input.
         write_table(
             "//tmp/t1",
-            [
-                {"key": ("%02d" % (i // 100)), "value": "x" * 10 ** 2}
-                for i in range(10000)
-            ],
+            [{"key": ("%02d" % (i // 100)), "value": "x" * 10 ** 2} for i in range(10000)],
             table_writer={"block_size": 1024},
         )
 
@@ -1168,9 +1134,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert_items_equal(read_table("//tmp/t2"), sorted(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
-        assert sorted(
-            [get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]
-        ) == [1, 7, 42]
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
 
         map_reduce(
             in_="//tmp/t1",
@@ -1182,9 +1146,7 @@ print "x={0}\ty={1}".format(x, y)
 
         assert_items_equal(read_table("//tmp/t3"), sorted(rows))
         chunk_ids = get("//tmp/t3/@chunk_ids")
-        assert sorted(
-            [get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]
-        ) == [1, 7, 42]
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 42]
 
     @authors("gritukan")
     def test_pivot_keys_incorrect_options(self):
@@ -1234,9 +1196,7 @@ print "x={0}\ty={1}".format(x, y)
         )
         assert_items_equal(read_table("//tmp/t2"), sorted(rows))
         chunk_ids = get("//tmp/t2/@chunk_ids")
-        assert sorted(
-            [get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]
-        ) == [1, 7, 21, 21]
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 21, 21]
 
     @authors("gritukan")
     def test_legacy_controller_flag(self):
@@ -1251,10 +1211,7 @@ print "x={0}\ty={1}".format(x, y)
             sort_by=["x"],
         )
 
-        assert (
-            get(op.get_path() + "/@progress/legacy_controller")
-            == self.USE_LEGACY_CONTROLLERS
-        )
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
     @authors("levysotsky")
     def test_intermediate_schema(self):
@@ -1328,9 +1285,7 @@ for l in sys.stdin:
         assert get(op.get_path() + "/@progress/legacy_controller") == True
 
         result_rows = read_table("//tmp/t2")
-        expected_rows = [
-            {"a": r["a"], "struct": {"a": r["a"], "b": r["b"], "c": True}} for r in rows
-        ]
+        expected_rows = [{"a": r["a"], "struct": {"a": r["a"], "b": r["b"], "c": True}} for r in rows]
         assert sorted(expected_rows) == sorted(result_rows)
 
     @authors("levysotsky")
@@ -1376,9 +1331,7 @@ for l in sys.stdin:
         create("table", "//tmp/out", attributes={"schema": output_schema})
 
         row_count = 50
-        rows1 = [
-            {"a": i, "struct": {"a": i ** 2, "b": str(i) * 3}} for i in range(row_count)
-        ]
+        rows1 = [{"a": i, "struct": {"a": i ** 2, "b": str(i) * 3}} for i in range(row_count)]
         write_table("//tmp/in1", rows1)
         rows2 = [{"a": i, "struct1": {"a1": i ** 3}} for i in range(row_count)]
         write_table("//tmp/in2", rows2)
@@ -1523,9 +1476,7 @@ for l in sys.stdin:
 
     @authors("levysotsky")
     @pytest.mark.parametrize("cat_combiner", [False, True])
-    @pytest.mark.xfail(
-        reason="several streams with combiner are not currently supported"
-    )
+    @pytest.mark.xfail(reason="several streams with combiner are not currently supported")
     def test_several_intermediate_schemas_with_combiner(self, cat_combiner):
         first_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": "ascending"},
@@ -1613,9 +1564,7 @@ for l in sys.stdin:
             mapper_file=["//tmp/mapper.py"],
             mapper_command="python mapper.py",
             reduce_combiner_file=["//tmp/reduce_combiner.py"],
-            reduce_combiner_command="cat"
-            if cat_combiner
-            else "python reduce_combiner.py",
+            reduce_combiner_command="cat" if cat_combiner else "python reduce_combiner.py",
             reducer_file=["//tmp/reducer.py"],
             reducer_command="python reducer.py",
             sort_by=["a"],
@@ -1698,9 +1647,7 @@ for l in sys.stdin:
         write_file("//tmp/mapper.py", mapper)
 
         create("file", "//tmp/reducer.py")
-        write_file(
-            "//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS
-        )
+        write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS)
 
         map_reduce(
             in_="//tmp/t1",
@@ -1762,19 +1709,13 @@ for l in sys.stdin:
         create("table", "//tmp/out", attributes={"schema": output_schema})
 
         row_count = 50
-        rows1 = [
-            {"a": i, "struct": {"a": i ** 2, "b": str(i) * 3}} for i in range(row_count)
-        ]
+        rows1 = [{"a": i, "struct": {"a": i ** 2, "b": str(i) * 3}} for i in range(row_count)]
         write_table("//tmp/in1", rows1)
-        rows2 = [
-            {"a": i, "struct": {"a": i ** 3, "b": str(i) * 5}} for i in range(row_count)
-        ]
+        rows2 = [{"a": i, "struct": {"a": i ** 3, "b": str(i) * 5}} for i in range(row_count)]
         write_table("//tmp/in2", rows2)
 
         create("file", "//tmp/reducer.py")
-        write_file(
-            "//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS
-        )
+        write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER_IDENTICAL_SCHEMAS)
 
         map_reduce(
             in_=["//tmp/in1", "//tmp/in2"],

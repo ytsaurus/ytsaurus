@@ -33,9 +33,7 @@ def _get_operation_from_archive(op_id):
 
 
 def get_running_job_count(op_id):
-    wait(
-        lambda: "brief_progress" in get_operation(op_id, attributes=["brief_progress"])
-    )
+    wait(lambda: "brief_progress" in get_operation(op_id, attributes=["brief_progress"]))
     result = get_operation(op_id, attributes=["brief_progress"])
     return result["brief_progress"]["jobs"]["running"]
 
@@ -285,15 +283,11 @@ class TestGetOperation(YTEnvSetup):
             "slot_index_per_pool_tree",
             "state",
         ]
-        res_get_operation_archive = get_operation(
-            op.id, attributes=requesting_attributes
-        )
+        res_get_operation_archive = get_operation(op.id, attributes=requesting_attributes)
         assert sorted(list(res_get_operation_archive)) == requesting_attributes
         assert res_get_operation_archive["state"] == "completed"
         assert (
-            res_get_operation_archive["runtime_parameters"][
-                "scheduling_options_per_pool_tree"
-            ]["default"]["pool"]
+            res_get_operation_archive["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"]
             == "root"
         )
         assert res_get_operation_archive["slot_index_per_pool_tree"]["default"] == 0
@@ -322,9 +316,7 @@ class TestGetOperation(YTEnvSetup):
         wait(lambda: len(op.get_running_jobs()) == 3)
 
         def check_task_names():
-            assert sorted(
-                list(get_operation(op.id, attributes=["task_names"])["task_names"])
-            ) == ["master", "slave"]
+            assert sorted(list(get_operation(op.id, attributes=["task_names"])["task_names"])) == ["master", "slave"]
 
         check_task_names()
 
@@ -405,13 +397,7 @@ class TestGetOperation(YTEnvSetup):
         )
 
         wait_breakpoint()
-        wait(
-            lambda: _get_operation_from_cypress(op.id)
-            .get("brief_progress", {})
-            .get("jobs", {})
-            .get("running")
-            == 1
-        )
+        wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
 
         res_api = get_operation(op.id)
         self.clean_build_time(res_api)
@@ -424,13 +410,7 @@ class TestGetOperation(YTEnvSetup):
         sync_mount_table("//sys/operations_archive/ordered_by_id")
 
         wait(lambda: _get_operation_from_archive(op.id))
-        assert (
-            _get_operation_from_archive(op.id)
-            .get("brief_progress", {})
-            .get("jobs", {})
-            .get("running")
-            == 1
-        )
+        assert _get_operation_from_archive(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1
         release_breakpoint()
         op.track()
 
@@ -478,13 +458,7 @@ class TestGetOperation(YTEnvSetup):
         )
 
         wait_breakpoint()
-        wait(
-            lambda: _get_operation_from_cypress(op.id)
-            .get("brief_progress", {})
-            .get("jobs", {})
-            .get("running")
-            == 1
-        )
+        wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
 
         res_api = get_operation(op.id)
         self.clean_build_time(res_api)
@@ -586,9 +560,7 @@ class TestOperationAliases(YTEnvSetup):
         assert get(op.get_path() + "/@suspended")
         resume_op("*my_op")
         assert not get(op.get_path() + "/@suspended")
-        update_op_parameters(
-            "*my_op", parameters={"acl": [make_ace("allow", "u", ["manage", "read"])]}
-        )
+        update_op_parameters("*my_op", parameters={"acl": [make_ace("allow", "u", ["manage", "read"])]})
         assert len(get(op.get_path() + "/@alerts")) == 1
         wait(lambda: get(op.get_path() + "/@state") == "running")
         abort_op("*my_op")
@@ -644,9 +616,7 @@ class TestOperationAliases(YTEnvSetup):
         op.complete()
 
         # Operation should still be exposed via Orchid, and get_operation will extract information from there.
-        assert get("//sys/scheduler/orchid/scheduler/operations/\*my_op") == {
-            "operation_id": op.id
-        }
+        assert get("//sys/scheduler/orchid/scheduler/operations/\*my_op") == {"operation_id": op.id}
         info = get_operation("*my_op", include_runtime=True)
         assert info["id"] == op.id
         assert info["type"] == "vanilla"

@@ -41,9 +41,7 @@ class TestGetFeatures(YTEnvSetup):
             "timestamp",
             "interval",
         }
-        assert expected_types == expected_types.intersection(
-            __builtin__.set(features["primitive_types"])
-        )
+        assert expected_types == expected_types.intersection(__builtin__.set(features["primitive_types"]))
 
         assert "compression_codecs" in features
         expected_compression_codecs = {
@@ -67,9 +65,7 @@ class TestGetFeatures(YTEnvSetup):
             __builtin__.set(features["compression_codecs"])
         )
         deprecated_compression_codecs = {"zlib6", "gzip_best_compression", "brotli8"}
-        assert not deprecated_compression_codecs.intersection(
-            __builtin__.set(features["compression_codecs"])
-        )
+        assert not deprecated_compression_codecs.intersection(__builtin__.set(features["compression_codecs"]))
 
         assert "erasure_codecs" in features
         expected_erasure_codecs = {

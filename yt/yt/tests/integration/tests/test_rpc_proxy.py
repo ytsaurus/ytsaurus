@@ -32,9 +32,7 @@ class TestRpcProxy(YTEnvSetup):
         )
 
         def config_updated():
-            config = get(
-                "//sys/rpc_proxies/" + proxy_name + "/orchid/coordinator/dynamic_config"
-            )
+            config = get("//sys/rpc_proxies/" + proxy_name + "/orchid/coordinator/dynamic_config")
             return "prime" in config["tracing"]["user_sample_rate"]
 
         wait(config_updated)
@@ -69,9 +67,7 @@ class TestRpcProxyBase(YTEnvSetup):
 
     def _create_simple_table(self, path, data=[], dynamic=True, sorted=True, **kwargs):
         schema = self._schema_sorted if sorted else self._schema
-        create(
-            "table", path, attributes={"dynamic": dynamic, "schema": schema}, **kwargs
-        )
+        create("table", path, attributes={"dynamic": dynamic, "schema": schema}, **kwargs)
 
         if dynamic:
             sync_create_cells(1)
@@ -85,30 +81,16 @@ class TestRpcProxyBase(YTEnvSetup):
             write_table(path, data)
 
     def _start_simple_operation(self, cmd, **kwargs):
-        self._create_simple_table(
-            "//tmp/t_in", data=[self._sample_line], sorted=True, dynamic=True
-        )
+        self._create_simple_table("//tmp/t_in", data=[self._sample_line], sorted=True, dynamic=True)
         self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True)
 
-        return map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            track=False,
-            mapper_command=cmd,
-            **kwargs
-        )
+        return map(in_="//tmp/t_in", out="//tmp/t_out", track=False, mapper_command=cmd, **kwargs)
 
     def _start_simple_operation_on_fs(self, event_name="barrier", **kwargs):
-        return self._start_simple_operation(
-            events_on_fs().wait_event_cmd(event_name), **kwargs
-        )
+        return self._start_simple_operation(events_on_fs().wait_event_cmd(event_name), **kwargs)
 
-    def _start_simple_operation_with_breakpoint(
-        self, cmd_with_breakpoint="BREAKPOINT", **kwargs
-    ):
-        return self._start_simple_operation(
-            events_on_fs().with_breakpoint(cmd_with_breakpoint), **kwargs
-        )
+    def _start_simple_operation_with_breakpoint(self, cmd_with_breakpoint="BREAKPOINT", **kwargs):
+        return self._start_simple_operation(events_on_fs().with_breakpoint(cmd_with_breakpoint), **kwargs)
 
     def _prepare_output_table(self):
         alter_table("//tmp/t_out", dynamic=True, schema=self._schema_sorted)
@@ -151,17 +133,13 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
         try:
             for i in xrange(5):
                 set(
-                    "//sys/rpc_proxies/{0}/@banned".format(
-                        rpc_proxy_addresses[i % self.NUM_RPC_PROXIES]
-                    ),
+                    "//sys/rpc_proxies/{0}/@banned".format(rpc_proxy_addresses[i % self.NUM_RPC_PROXIES]),
                     True,
                 )
                 time.sleep(0.1)
                 get("//@")
                 set(
-                    "//sys/rpc_proxies/{0}/@banned".format(
-                        rpc_proxy_addresses[i % self.NUM_RPC_PROXIES]
-                    ),
+                    "//sys/rpc_proxies/{0}/@banned".format(rpc_proxy_addresses[i % self.NUM_RPC_PROXIES]),
                     False,
                 )
         finally:
@@ -210,9 +188,7 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
         end = time.time()
         assert end - start >= 1.4
 
-        rsp = create(
-            "map_node", "//tmp/test", authenticated_user="u", return_response=True
-        )
+        rsp = create("map_node", "//tmp/test", authenticated_user="u", return_response=True)
         time.sleep(0.1)
         assert not rsp.is_set()
         set("//sys/users/u/@request_queue_size_limit", 1)
@@ -252,9 +228,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         self._create_simple_table("//tmp/t_in", data=[self._sample_line])
 
         self._create_simple_table("//tmp/t_out", dynamic=False)
-        map_reduce(
-            in_="//tmp/t_in", out="//tmp/t_out", sort_by="index", reducer_command="cat"
-        )
+        map_reduce(in_="//tmp/t_in", out="//tmp/t_out", sort_by="index", reducer_command="cat")
 
         self._prepare_output_table()
 
@@ -265,26 +239,18 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
     @authors("kiselyovp")
     def test_sort(self):
         size = 10 ** 3
-        original_table = [
-            {"index": num, "str": "number " + str(num)} for num in range(size)
-        ]
+        original_table = [{"index": num, "str": "number " + str(num)} for num in range(size)]
         new_table = deepcopy(original_table)
         shuffle(new_table)
 
-        self._create_simple_table(
-            "//tmp/t_in1", data=new_table[: size / 2], sorted=False
-        )
-        self._create_simple_table(
-            "//tmp/t_in2", data=new_table[size / 2 :], sorted=False
-        )
+        self._create_simple_table("//tmp/t_in1", data=new_table[: size / 2], sorted=False)
+        self._create_simple_table("//tmp/t_in2", data=new_table[size / 2 :], sorted=False)
         self._create_simple_table("//tmp/t_out", dynamic=False, sorted=True)
         sort(in_=["//tmp/t_in1", "//tmp/t_in2"], out="//tmp/t_out", sort_by="index")
 
         self._prepare_output_table()
 
-        assert (
-            select_rows("* from [//tmp/t_out] LIMIT " + str(2 * size)) == original_table
-        )
+        assert select_rows("* from [//tmp/t_out] LIMIT " + str(2 * size)) == original_table
 
     @authors("kiselyovp")
     def test_abort_operation(self):
@@ -357,9 +323,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         create_user("u")
 
-        update_op_parameters(
-            op.id, parameters={"acl": [make_ace("allow", "u", ["read", "manage"])]}
-        )
+        update_op_parameters(op.id, parameters={"acl": [make_ace("allow", "u", ["read", "manage"])]})
         # No exception.
         op.complete(authenticated_user="u")
 
@@ -407,15 +371,7 @@ class TestDumpJobContextRpcProxy(TestRpcProxyBase):
 
         jobs = wait_breakpoint()
         # Wait till job starts reading input
-        wait(
-            lambda: get(
-                op.get_path()
-                + "/controller_orchid/running_jobs/"
-                + jobs[0]
-                + "/progress"
-            )
-            >= 0.5
-        )
+        wait(lambda: get(op.get_path() + "/controller_orchid/running_jobs/" + jobs[0] + "/progress") >= 0.5)
 
         dump_job_context(jobs[0], "//tmp/input_context")
 
@@ -457,14 +413,10 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         set("//sys/accounts/{0}/@resource_limits/tablet_count".format(account), value)
 
     def _is_account_disk_space_limit_violated(self, account):
-        return get(
-            "//sys/accounts/{0}/@violated_resource_limits/disk_space".format(account)
-        )
+        return get("//sys/accounts/{0}/@violated_resource_limits/disk_space".format(account))
 
     def _is_account_chunk_count_limit_violated(self, account):
-        return get(
-            "//sys/accounts/{0}/@violated_resource_limits/chunk_count".format(account)
-        )
+        return get("//sys/accounts/{0}/@violated_resource_limits/chunk_count".format(account))
 
     @authors("kiselyovp")
     def test_chunk_count_limits(self):
@@ -541,10 +493,7 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
 
         commit_transaction(tx)
 
-        expected_result = [
-            {"index": i, "str": str((request_count - i - 1) // key_count)}
-            for i in range(key_count)
-        ]
+        expected_result = [{"index": i, "str": str((request_count - i - 1) // key_count)} for i in range(key_count)]
         assert select_rows("* from [//tmp/table]") == expected_result
 
         sync_unmount_table("//tmp/table")

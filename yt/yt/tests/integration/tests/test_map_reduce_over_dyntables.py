@@ -106,9 +106,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_sorted_dynamic_table_as_user_file(self, external, optimize_for):
         sync_create_cells(1)
-        self._create_simple_dynamic_table(
-            "//tmp/t", optimize_for=optimize_for, external=external
-        )
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
 
@@ -181,9 +179,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
     @parametrize_external
     def test_dynamic_table_timestamp(self, external):
         sync_create_cells(1)
-        self._create_simple_dynamic_table(
-            "//tmp/t", external=external, enable_dynamic_store_read=False
-        )
+        self._create_simple_dynamic_table("//tmp/t", external=external, enable_dynamic_store_read=False)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
@@ -294,9 +290,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         sync_unmount_table("//tmp/t")
 
-        actual = read_table(
-            "<timestamp={};retention_timestamp={}>//tmp/t".format(ts2, ts1)
-        )
+        actual = read_table("<timestamp={};retention_timestamp={}>//tmp/t".format(ts2, ts1))
         assert actual == [{"key": 2, "value": "2"}]
 
     @authors("savrus")
@@ -304,9 +298,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_dynamic_table_input_data_statistics(self, external, optimize_for):
         sync_create_cells(1)
-        self._create_simple_dynamic_table(
-            "//tmp/t", optimize_for=optimize_for, external=external
-        )
+        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
@@ -317,28 +309,11 @@ class TestMapOnDynamicTables(YTEnvSetup):
         op = map(in_="//tmp/t", out="//tmp/t_out", command="cat")
 
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert (
-            get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum")
-            == 1
-        )
-        assert (
-            get_statistics(statistics, "data.input.row_count.$.completed.map.sum") == 2
-        )
-        assert (
-            get_statistics(
-                statistics, "data.input.uncompressed_data_size.$.completed.map.sum"
-            )
-            > 0
-        )
-        assert (
-            get_statistics(
-                statistics, "data.input.compressed_data_size.$.completed.map.sum"
-            )
-            > 0
-        )
-        assert (
-            get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
-        )
+        assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == 1
+        assert get_statistics(statistics, "data.input.row_count.$.completed.map.sum") == 2
+        assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") > 0
+        assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
+        assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
 
     @authors("savrus")
     @parametrize_external
@@ -394,9 +369,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
             assert read_table("//tmp/t_out") == [{c: row[c] for c in columns}]
 
             if columns == ["u", "v"] or optimize_for == "lookup":
-                assert (
-                    stat1["uncompressed_data_size"] == stat2["uncompressed_data_size"]
-                )
+                assert stat1["uncompressed_data_size"] == stat2["uncompressed_data_size"]
                 assert stat1["compressed_data_size"] == stat2["compressed_data_size"]
             else:
                 assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
@@ -417,10 +390,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         sync_unmount_table("//tmp/t")
 
         def _check(*columns):
-            expected = [
-                {column: row[column] for column in columns if column in row}
-                for row in rows
-            ]
+            expected = [{column: row[column] for column in columns if column in row} for row in rows]
             actual = read_table("//tmp/t{" + ",".join(columns) + "}")
             assert expected == actual
 
@@ -544,10 +514,7 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
 
     @staticmethod
     def _insert_chunk(first_value, tablet_index):
-        rows = [
-            {"$tablet_index": tablet_index, "key": i}
-            for i in range(first_value, first_value + 3)
-        ]
+        rows = [{"$tablet_index": tablet_index, "key": i} for i in range(first_value, first_value + 3)]
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
@@ -585,9 +552,7 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
         sync_reshard_table("//tmp/t", shard_count)
         sync_mount_table("//tmp/t")
 
-        schema2 = make_schema(
-            [{"name": "key", "type": "int64"}], unique_keys=True, strict=True
-        )
+        schema2 = make_schema([{"name": "key", "type": "int64"}], unique_keys=True, strict=True)
         create("table", "//tmp/t_out", schema=schema2)
 
         script = "\n".join(
@@ -658,9 +623,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
         insert_rows("//tmp/sorted_t", [{"key": 1, "value": str(2)}])
         sync_unmount_table("//tmp/sorted_t")
         with pytest.raises(YtError):
-            self._run_map_operation(
-                "<ranges=[{exact={tablet_index=0}}]>", input_table_name="//tmp/sorted_t"
-            )
+            self._run_map_operation("<ranges=[{exact={tablet_index=0}}]>", input_table_name="//tmp/sorted_t")
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -759,9 +722,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
         # which correspond to two parents of this tablet.
         sync_reshard_table("//tmp/t", 2, first_tablet_index=0, last_tablet_index=0)
 
-        self._run_map_operation(
-            "<ranges=[{exact={tablet_index=1}};]>", input_table_name="//tmp/t_copied"
-        )
+        self._run_map_operation("<ranges=[{exact={tablet_index=1}};]>", input_table_name="//tmp/t_copied")
 
         expected_content = [
             {"key": 3, "range_index": 0, "tablet_index": 1},
@@ -775,15 +736,11 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 ##################################################################
 
 
-class TestInputOutputForOrderedWithTabletIndexMulticell(
-    TestInputOutputForOrderedWithTabletIndex
-):
+class TestInputOutputForOrderedWithTabletIndexMulticell(TestInputOutputForOrderedWithTabletIndex):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
-class TestInputOutputForOrderedWithTabletIndexPortal(
-    TestInputOutputForOrderedWithTabletIndexMulticell
-):
+class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWithTabletIndexMulticell):
     ENABLE_TMP_PORTAL = True
 
 

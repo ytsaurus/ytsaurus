@@ -345,10 +345,7 @@ class TestCypress(YTEnvSetup):
 
         # check output format for json
         set("//tmp/json_out", {"list": [1, 2, {"string": "this"}]})
-        assert (
-            get("//tmp/json_out", is_raw=True, output_format="json")
-            == '{"list":[1,2,{"string":"this"}]}'
-        )
+        assert get("//tmp/json_out", is_raw=True, output_format="json") == '{"list":[1,2,{"string":"this"}]}'
 
     @authors("ignat")
     def test_map_remove_all1(self):
@@ -633,10 +630,7 @@ class TestCypress(YTEnvSetup):
         create("file", "//tmp/p1/f", attributes={"account": "a"})
 
         remove("//sys/accounts/a")
-        wait(
-            lambda: get("//sys/accounts/a/@life_stage")
-            in ["removal_started", "removal_pre_committed"]
-        )
+        wait(lambda: get("//sys/accounts/a/@life_stage") in ["removal_started", "removal_pre_committed"])
 
         with pytest.raises(YtError):
             copy("//tmp/p1/f", "//tmp/p2/f", preserve_account=True)
@@ -653,10 +647,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/p1/t", attributes={"tablet_cell_bundle": "b"})
 
         remove("//sys/tablet_cell_bundles/b")
-        wait(
-            lambda: get("//sys/tablet_cell_bundles/b/@life_stage")
-            in ["removal_started", "removal_pre_committed"]
-        )
+        wait(lambda: get("//sys/tablet_cell_bundles/b/@life_stage") in ["removal_started", "removal_pre_committed"])
 
         with pytest.raises(YtError):
             copy("//tmp/p1/t", "//tmp/p2/t")
@@ -942,12 +933,8 @@ class TestCypress(YTEnvSetup):
         set("//tmp/a", {})
         set("//tmp/a/@attr", {"key": "value"})
         set("//tmp/a/@attr/key/@embedded_attr", "emb")
-        assert get("//tmp/a/@attr") == {
-            "key": to_yson_type("value", attributes={"embedded_attr": "emb"})
-        }
-        assert get("//tmp/a/@attr/key") == to_yson_type(
-            "value", attributes={"embedded_attr": "emb"}
-        )
+        assert get("//tmp/a/@attr") == {"key": to_yson_type("value", attributes={"embedded_attr": "emb"})}
+        assert get("//tmp/a/@attr/key") == to_yson_type("value", attributes={"embedded_attr": "emb"})
         assert get("//tmp/a/@attr/key/@embedded_attr") == "emb"
 
     @authors("babenko")
@@ -960,15 +947,11 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_list_with_attributes(self):
         set("//tmp/a/b", {}, recursive=True, force=True)
-        assert ls("//tmp/a", attributes=["type"]) == [
-            to_yson_type("b", attributes={"type": "map_node"})
-        ]
+        assert ls("//tmp/a", attributes=["type"]) == [to_yson_type("b", attributes={"type": "map_node"})]
 
     @authors("kiselyovp")
     def test_get_with_attributes_objects(self):
-        assert get("//sys/accounts/tmp", attributes=["name"]) == to_yson_type(
-            {}, {"name": "tmp"}
-        )
+        assert get("//sys/accounts/tmp", attributes=["name"]) == to_yson_type({}, {"name": "tmp"})
         assert get("//sys/users/root", attributes=["name", "type"]) == to_yson_type(
             None, {"name": "root", "type": "user"}
         )
@@ -994,9 +977,7 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_list_with_attributes_virtual_maps(self):
         tx = start_transaction()
-        assert ls("//sys/transactions", attributes=["type"]) == [
-            to_yson_type(tx, attributes={"type": "transaction"})
-        ]
+        assert ls("//sys/transactions", attributes=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
 
     @authors("aleksandra-zh")
     def test_map_node_branch(self):
@@ -1487,9 +1468,7 @@ class TestCypress(YTEnvSetup):
     def test_list_attributes(self):
         create("map_node", "//tmp/map", attributes={"user_attr1": 10})
         set("//tmp/map/@user_attr2", "abc")
-        assert sorted(get("//tmp/map/@user_attribute_keys")) == sorted(
-            ["user_attr1", "user_attr2"]
-        )
+        assert sorted(get("//tmp/map/@user_attribute_keys")) == sorted(["user_attr1", "user_attr2"])
         assert get("//tmp/map/@user_attributes") == {
             "user_attr1": 10,
             "user_attr2": "abc",
@@ -1662,9 +1641,7 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t",
-            attributes={
-                "expiration_time": str(get_current_time() + timedelta(seconds=10.0))
-            },
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=10.0))},
         )
         time.sleep(1)
         assert exists("//tmp/t")
@@ -1687,9 +1664,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_expiration_time_removal(self):
-        create(
-            "table", "//tmp/t", attributes={"expiration_time": str(get_current_time())}
-        )
+        create("table", "//tmp/t", attributes={"expiration_time": str(get_current_time())})
         time.sleep(1)
         assert not exists("//tmp/t")
 
@@ -1855,9 +1830,7 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "expiration_time": str(get_current_time() + timedelta(seconds=1))
-            },
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
         )
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True)
         assert exists("//tmp/t2/@expiration_time")
@@ -1870,9 +1843,7 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "expiration_time": str(get_current_time() + timedelta(seconds=1))
-            },
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
         )
         copy("//tmp/t1", "//tmp/t2")
         assert not exists("//tmp/t2/@expiration_time")
@@ -1885,9 +1856,7 @@ class TestCypress(YTEnvSetup):
         create(
             "table",
             "//tmp/t1",
-            attributes={
-                "expiration_time": str(get_current_time() + timedelta(seconds=1))
-            },
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))},
         )
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
@@ -1910,9 +1879,7 @@ class TestCypress(YTEnvSetup):
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
         assert exists("//tmp/t1/@expiration_time", tx=tx)
         assert exists("//tmp/t2/@expiration_time", tx=tx)
-        assert get("//tmp/t1/@expiration_time", tx=tx) == get(
-            "//tmp/t2/@expiration_time", tx=tx
-        )
+        assert get("//tmp/t1/@expiration_time", tx=tx) == get("//tmp/t2/@expiration_time", tx=tx)
         time.sleep(2)
         assert exists("//tmp/t1")
         assert exists("//tmp/t1", tx=tx)
@@ -1927,9 +1894,7 @@ class TestCypress(YTEnvSetup):
         node_id = create(
             "table",
             "//tmp/t",
-            attributes={
-                "expiration_time": str(get_current_time() + timedelta(seconds=2))
-            },
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=2))},
             tx=tx1,
         )
         lock("#" + node_id, tx=tx2, mode="snapshot")
@@ -2009,9 +1974,7 @@ class TestCypress(YTEnvSetup):
             "//tmp/t1",
             attributes={
                 "expiration_timeout": 2000,
-                "expiration_time": str(
-                    get_current_time() + timedelta(milliseconds=500)
-                ),
+                "expiration_time": str(get_current_time() + timedelta(milliseconds=500)),
             },
         )
         time.sleep(1.0)
@@ -2036,9 +1999,7 @@ class TestCypress(YTEnvSetup):
             "//tmp/t1",
             attributes={
                 "expiration_timeout": 400,
-                "expiration_time": str(
-                    get_current_time() + timedelta(milliseconds=1500)
-                ),
+                "expiration_time": str(get_current_time() + timedelta(milliseconds=1500)),
             },
         )
         remove("//tmp/t1/@expiration_timeout")
@@ -2052,9 +2013,7 @@ class TestCypress(YTEnvSetup):
             "//tmp/t2",
             attributes={
                 "expiration_timeout": 1500,
-                "expiration_time": str(
-                    get_current_time() + timedelta(milliseconds=400)
-                ),
+                "expiration_time": str(get_current_time() + timedelta(milliseconds=400)),
             },
         )
         remove("//tmp/t2/@expiration_time")
@@ -2164,12 +2123,7 @@ class TestCypress(YTEnvSetup):
         for i in xrange(10):
             set("//tmp/{0}".format(i), i)
         get_results = execute_batch(
-            [
-                make_batch_request(
-                    "get", return_only_value=True, path="//tmp/{0}".format(i)
-                )
-                for i in xrange(10)
-            ],
+            [make_batch_request("get", return_only_value=True, path="//tmp/{0}".format(i)) for i in xrange(10)],
             concurrency=2,
         )
         assert len(get_results) == 10
@@ -2442,9 +2396,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/dir2/t1/@primary_medium") == "hdd"
         assert get("//tmp/dir1/dir2/t1/@tablet_cell_bundle") == "b"
         assert get("//tmp/dir1/dir2/t1/@optimize_for") == "scan"
-        assert get("//tmp/dir1/dir2/t1/@media") == {
-            "hdd": {"replication_factor": 5, "data_parts_only": False}
-        }
+        assert get("//tmp/dir1/dir2/t1/@media") == {"hdd": {"replication_factor": 5, "data_parts_only": False}}
         assert get("//tmp/dir1/dir2/t1/@atomicity") == "full"
 
     @authors("shakurov")
@@ -2483,9 +2435,7 @@ class TestCypress(YTEnvSetup):
             "//tmp/dir1/@media",
             {"default": {"replication_factor": 3, "data_parts_only": False}},
         )
-        assert get("//tmp/dir1/@media") == {
-            "default": {"replication_factor": 3, "data_parts_only": False}
-        }
+        assert get("//tmp/dir1/@media") == {"default": {"replication_factor": 3, "data_parts_only": False}}
         with pytest.raises(YtError):
             set("//tmp/dir1/@primary_medium", "ssd")
         assert not exists("//tmp/dir1/@primary_medium")
@@ -2651,10 +2601,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//sys/tablet_cell_bundles/b1"))
 
         remove("//sys/tablet_cell_bundles/b2")
-        wait(
-            lambda: get("//sys/tablet_cell_bundles/b2/@life_stage")
-            in ["removal_started", "removal_pre_committed"]
-        )
+        wait(lambda: get("//sys/tablet_cell_bundles/b2/@life_stage") in ["removal_started", "removal_pre_committed"])
 
         remove("//tmp/dir1")
         wait(lambda: not exists("//sys/tablet_cell_bundles/b1"))
@@ -2926,11 +2873,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/empty_node")
         set("//tmp/@annotation", "tmp")
 
-        assert (
-            get("//tmp/test_node/@annotation")
-            == get("//tmp/test_node/child/@annotation")
-            == "test_node"
-        )
+        assert get("//tmp/test_node/@annotation") == get("//tmp/test_node/child/@annotation") == "test_node"
         assert get("//tmp/empty_node/@annotation") == "tmp"
         assert get("//tmp/empty_node/@annotation_path") == "//tmp"
 
@@ -2990,9 +2933,7 @@ class TestCypress(YTEnvSetup):
 
         tx = start_transaction(authenticated_user="u")
 
-        create(
-            "table", "//tmp/d1/d2/src/t", tx=tx, recursive=True, authenticated_user="u"
-        )
+        create("table", "//tmp/d1/d2/src/t", tx=tx, recursive=True, authenticated_user="u")
         copy(
             "//tmp/d1/d2/src",
             "//tmp/d1/d2/dst",

@@ -65,9 +65,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
         )
 
         replica_table_path = "//tmp/{}".format(generate_uuid())
-        replica_id = create_table_replica(
-            replicated_table_path, self.REPLICA_CLUSTER_NAME, replica_table_path
-        )
+        replica_id = create_table_replica(replicated_table_path, self.REPLICA_CLUSTER_NAME, replica_table_path)
         self._create_replica_table(replica_table_path, replica_id, schema)
 
         tablet_profiling = self._get_table_profiling(replicated_table_path)
@@ -76,9 +74,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
             return tablet_profiling.get_counter("replica/lag_row_count")
 
         def get_lag_time():
-            return (
-                tablet_profiling.get_counter("replica/lag_time") / 1e6
-            )  # conversion from us to s
+            return tablet_profiling.get_counter("replica/lag_time") / 1e6  # conversion from us to s
 
         sync_enable_table_replica(replica_id)
         sleep(2)
@@ -129,9 +125,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
     def test_replication_lag(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.AGGREGATE_SCHEMA)
 
         def get_lag_time():
@@ -139,9 +133,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 
         assert get_lag_time() == 0
 
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         sleep(1.0)
         assert 1000000 < get_lag_time()
 
@@ -151,9 +143,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
         sync_disable_table_replica(replica_id)
         wait(lambda: get_lag_time() == 0)
 
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         sleep(1.0)
 
         base_lag_time = get_lag_time()
@@ -163,13 +153,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
             sleep(1.0)
             cur_unix_time = time()
             cur_lag_time = get_lag_time()
-            assert (
-                abs(
-                    (cur_lag_time - base_lag_time)
-                    - (cur_unix_time - base_unix_time) * 1000
-                )
-                <= 2000
-            )
+            assert abs((cur_lag_time - base_lag_time) - (cur_unix_time - base_unix_time) * 1000) <= 2000
 
         sync_enable_table_replica(replica_id)
         wait(lambda: get_lag_time() == 0)
@@ -178,9 +162,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 ##################################################################
 
 
-class TestReplicatedDynamicTablesProfilingMulticell(
-    TestReplicatedDynamicTablesProfiling
-):
+class TestReplicatedDynamicTablesProfilingMulticell(TestReplicatedDynamicTablesProfiling):
     NUM_SECONDARY_MASTER_CELLS = 2
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
@@ -197,9 +179,7 @@ class TestReplicatedDynamicTablesProfilingMulticell(
     def test_external_replicated_table(self, mode, external):
         self._create_cells()
         self._create_replicated_table("//tmp/t", external=external)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode}
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
         self._create_replica_table("//tmp/r", replica_id, external=external)
 
         if external:

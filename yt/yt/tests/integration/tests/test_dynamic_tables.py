@@ -102,9 +102,7 @@ class DynamicTablesBase(YTEnvSetup):
                     tablets = ls(path + "/" + cell_id + "/tablets")
                     if tablet_id in tablets:
                         try:
-                            return self._get_recursive(
-                                path + "/" + cell_id + "/tablets/" + tablet_id
-                            )
+                            return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
                         except:
                             return None
             return None
@@ -137,10 +135,7 @@ class DynamicTablesBase(YTEnvSetup):
         class Profiling:
             def get_counter(self, counter_name):
                 try:
-                    counters = get(
-                        "//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s"
-                        % (address, counter_name)
-                    )
+                    counters = get("//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
                     for counter in counters[::-1]:
                         tags = counter["tags"]
                         if user is not None and tags.get("user", None) != user:
@@ -154,10 +149,7 @@ class DynamicTablesBase(YTEnvSetup):
 
             def get_latest_tags(self, counter_name):
                 try:
-                    counters = get(
-                        "//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s"
-                        % (address, counter_name)
-                    )
+                    counters = get("//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
                     return counters[-1]["tags"]
                 except YtResponseError as error:
                     if not error.is_resolve_error():
@@ -201,10 +193,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         self._create_ordered_table("//tmp/t")
         sync_mount_table("//tmp/t")
         ts = generate_timestamp()
-        wait(
-            lambda: get_tablet_infos("//tmp/t", [0])["tablets"][0]["barrier_timestamp"]
-            >= ts
-        )
+        wait(lambda: get_tablet_infos("//tmp/t", [0])["tablets"][0]["barrier_timestamp"] >= ts)
 
     @authors("babenko")
     def test_follower_start(self):
@@ -222,10 +211,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     def _check_cell_stable(self, cell_id):
         addresses = [peer["address"] for peer in get("#" + cell_id + "/@peers")]
         metrics = [
-            Metric.at_node(
-                address, "hydra/restart_count", with_tags={"cell_id": cell_id}
-            )
-            for address in addresses
+            Metric.at_node(address, "hydra/restart_count", with_tags={"cell_id": cell_id}) for address in addresses
         ]
         sleep(10.0)
         for metric in metrics:
@@ -247,9 +233,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         cell_id = ls("//sys/tablet_cells")[0]
         peers = get("#" + cell_id + "/@peers")
-        follower_address = list(
-            x["address"] for x in peers if x["state"] == "following"
-        )[0]
+        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(follower_address, True)
         wait_for_cells([cell_id], decommissioned_addresses=[follower_address])
@@ -281,9 +265,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         cell_id = ls("//sys/tablet_cells")[0]
         peers = get("#" + cell_id + "/@peers")
         leader_address = list(x["address"] for x in peers if x["state"] == "leading")[0]
-        follower_address = list(
-            x["address"] for x in peers if x["state"] == "following"
-        )[0]
+        follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(leader_address, True)
         wait_for_cells([cell_id], decommissioned_addresses=[leader_address])
@@ -324,9 +306,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     @authors("babenko")
     @pytest.mark.parametrize("peer_count", [1, 2])
     def test_recover_after_prerequisite_failure(self, peer_count):
-        create_tablet_cell_bundle(
-            "b", attributes={"options": {"peer_count": peer_count}}
-        )
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count": peer_count}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
         sync_mount_table("//tmp/t")
@@ -463,15 +443,10 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         set_node_decommissioned(second_peer_address, True)
         wait(
-            lambda: len(get_peers()) == 2
-            and get_peers()[1].get("address", second_peer_address)
-            != second_peer_address
+            lambda: len(get_peers()) == 2 and get_peers()[1].get("address", second_peer_address) != second_peer_address
         )
         new_second_peer_address = get_peers()[1]["address"]
-        assert (
-            new_second_peer_address != first_peer_address
-            and new_second_peer_address != second_peer_address
-        )
+        assert new_second_peer_address != first_peer_address and new_second_peer_address != second_peer_address
         wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
 
         wait(lambda: len(get_peers()) == 1)
@@ -537,9 +512,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         sync_create_cells(cell_count)
         cell_ids = ls("//sys/tablet_cells")
         self._create_sorted_table("//tmp/t")
-        sync_reshard_table(
-            "//tmp/t", [[]] + [[i * 100] for i in xrange(cell_count - 1)]
-        )
+        sync_reshard_table("//tmp/t", [[]] + [[i * 100] for i in xrange(cell_count - 1)])
         for i in xrange(len(cell_ids)):
             mount_table(
                 "//tmp/t",
@@ -548,11 +521,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                 cell_id=cell_ids[i],
             )
         wait_for_tablet_state("//tmp/t", "mounted")
-        rows = [
-            {"key": i * 100 - j, "value": "payload" + str(i)}
-            for i in xrange(cell_count)
-            for j in xrange(10)
-        ]
+        rows = [{"key": i * 100 - j, "value": "payload" + str(i)} for i in xrange(cell_count) for j in xrange(10)]
         insert_rows("//tmp/t", rows)
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
@@ -702,14 +671,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         self._create_sorted_table("//tmp/d/t0")
         self._create_sorted_table("//tmp/d/t1", profiling_tag="custom_tag1")
-        assert (
-            get("//tmp/d/t0/@profiling_mode") == "tag"
-            and get("//tmp/d/t1/@profiling_mode") == "tag"
-        )
-        assert (
-            get("//tmp/d/t0/@profiling_tag") == "custom_tag0"
-            and get("//tmp/d/t1/@profiling_tag") == "custom_tag1"
-        )
+        assert get("//tmp/d/t0/@profiling_mode") == "tag" and get("//tmp/d/t1/@profiling_mode") == "tag"
+        assert get("//tmp/d/t0/@profiling_tag") == "custom_tag0" and get("//tmp/d/t1/@profiling_tag") == "custom_tag1"
         sync_mount_table("//tmp/d/t0")
         sync_mount_table("//tmp/d/t1")
 
@@ -946,26 +909,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_tablet_cell_journal_acl(self):
         create_user("u")
         acl = [make_ace("allow", "u", "read")]
-        create_tablet_cell_bundle(
-            "b", attributes={"options": {"snapshot_acl": acl, "changelog_acl": acl}}
-        )
+        create_tablet_cell_bundle("b", attributes={"options": {"snapshot_acl": acl, "changelog_acl": acl}})
         cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
-        assert (
-            get("//sys/tablet_cells/{0}/changelogs/@inherit_acl".format(cell_id))
-            == False
-        )
-        assert (
-            get("//sys/tablet_cells/{0}/snapshots/@inherit_acl".format(cell_id))
-            == False
-        )
-        assert (
-            get("//sys/tablet_cells/{0}/changelogs/@effective_acl".format(cell_id))
-            == acl
-        )
-        assert (
-            get("//sys/tablet_cells/{0}/snapshots/@effective_acl".format(cell_id))
-            == acl
-        )
+        assert get("//sys/tablet_cells/{0}/changelogs/@inherit_acl".format(cell_id)) == False
+        assert get("//sys/tablet_cells/{0}/snapshots/@inherit_acl".format(cell_id)) == False
+        assert get("//sys/tablet_cells/{0}/changelogs/@effective_acl".format(cell_id)) == acl
+        assert get("//sys/tablet_cells/{0}/snapshots/@effective_acl".format(cell_id)) == acl
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("domain", ["snapshot_acl", "changelog_acl"])
@@ -1102,16 +1051,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_create_cells(1, tablet_cell_bundle="b")
         create_user("u")
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
-        self._create_sorted_table(
-            "//tmp/t", tablet_cell_bundle="b", authenticated_user="u"
-        )
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", authenticated_user="u")
         set("//tmp/t/@acl/end", make_ace("allow", "u", "mount"))
         sync_mount_table("//tmp/t", authenticated_user="u")
         with pytest.raises(YtError):
             sync_unmount_table("//tmp/t", force=True, authenticated_user="u")
-        set(
-            "//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "administer")
-        )
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "administer"))
         sync_unmount_table("//tmp/t", force=True, authenticated_user="u")
 
     @authors("lexolordan")
@@ -1120,9 +1065,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_create_cells(1, tablet_cell_bundle="b")
         create_user("u")
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
-        self._create_sorted_table(
-            "//tmp/t", tablet_cell_bundle="b", authenticated_user="u"
-        )
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", authenticated_user="u")
         set("//tmp/t/@acl/end", make_ace("allow", "u", "mount"))
         sync_mount_table("//tmp/t", authenticated_user="u")
 
@@ -1309,12 +1252,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
-    def _test_cell_bundle_distribution(
-        self, enable_tablet_cell_balancer, test_decommission=False
-    ):
-        set(
-            "//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500
-        )
+    def _test_cell_bundle_distribution(self, enable_tablet_cell_balancer, test_decommission=False):
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
         set(
             "//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer",
             enable_tablet_cell_balancer,
@@ -1341,13 +1280,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             def predicate():
                 for node in nodes:
                     slots = get("//sys/cluster_nodes/{0}/@tablet_slots".format(node))
-                    count = Counter(
-                        [
-                            cell_ids[slot["cell_id"]]
-                            for slot in slots
-                            if slot["state"] != "none"
-                        ]
-                    )
+                    count = Counter([cell_ids[slot["cell_id"]] for slot in slots if slot["state"] != "none"])
                     for bundle in bundles:
                         if not floor <= count[bundle] <= ceil:
                             return False
@@ -1413,9 +1346,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         )
         create_tablet_cell_bundle(
             "custom",
-            attributes={
-                "options": {"changelog_account": "tmp", "snapshot_account": "tmp"}
-            },
+            attributes={"options": {"changelog_account": "tmp", "snapshot_account": "tmp"}},
         )
         options = get("//sys/tablet_cell_bundles/custom/@options")
         assert options["changelog_read_quorum"] == 3
@@ -1430,9 +1361,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError):
             create_tablet_cell_bundle("invalid", initialize_options=False)
         with pytest.raises(YtError):
-            create_tablet_cell_bundle(
-                "invalid", initialize_options=False, attributes={"options": {}}
-            )
+            create_tablet_cell_bundle("invalid", initialize_options=False, attributes={"options": {}})
 
     @authors("akozhikhov")
     def test_bundle_options_reconfiguration(self):
@@ -1446,22 +1375,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             last_snapshot = sorted(snapshots)[-1]
 
             if (
-                get(
-                    "//sys/tablet_cells/{0}/changelogs/{1}/@account".format(
-                        cell_id, last_changelog
-                    )
-                )
+                get("//sys/tablet_cells/{0}/changelogs/{1}/@account".format(cell_id, last_changelog))
                 != expected_account
             ):
                 return False
-            if (
-                get(
-                    "//sys/tablet_cells/{0}/snapshots/{1}/@account".format(
-                        cell_id, last_snapshot
-                    )
-                )
-                != expected_account
-            ):
+            if get("//sys/tablet_cells/{0}/snapshots/{1}/@account".format(cell_id, last_snapshot)) != expected_account:
                 return False
 
             return True
@@ -1479,10 +1397,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         config_version = get("//sys/tablet_cells/{}/@config_version".format(cell_id))
         set("//sys/tablet_cell_bundles/custom/@options/changelog_account", "tmp")
         set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "tmp")
-        wait(
-            lambda: config_version + 2
-            <= get("//sys/tablet_cells/{}/@config_version".format(cell_id))
-        )
+        wait(lambda: config_version + 2 <= get("//sys/tablet_cells/{}/@config_version".format(cell_id)))
 
         wait_for_cells([cell_id])
 
@@ -1504,9 +1419,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert "account" not in ls("//sys/accounts")
         with pytest.raises(YtError):
-            set(
-                "//sys/tablet_cell_bundles/custom/@options/changelog_account", "account"
-            )
+            set("//sys/tablet_cell_bundles/custom/@options/changelog_account", "account")
         with pytest.raises(YtError):
             set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "account")
 
@@ -1595,9 +1508,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         _verify(1, 0, 0)
         sync_reshard_table("//tmp/t", [[], [0], [1]])
         _verify(3, 0, 0)
-        sync_mount_table(
-            "//tmp/t", first_tablet_index=1, last_tablet_index=1, freeze=True
-        )
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, freeze=True)
         _verify(2, 1, 0)
         sync_mount_table("//tmp/t", first_tablet_index=2, last_tablet_index=2)
         _verify(1, 1, 1)
@@ -1732,12 +1643,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             strict=True,
         )
 
-        create(
-            "table", "//tmp/t1", attributes={"schema": ordered_schema, "dynamic": True}
-        )
-        create(
-            "table", "//tmp/t2", attributes={"schema": sorted_schema, "dynamic": True}
-        )
+        create("table", "//tmp/t1", attributes={"schema": ordered_schema, "dynamic": True})
+        create("table", "//tmp/t2", attributes={"schema": sorted_schema, "dynamic": True})
         with pytest.raises(YtError):
             alter_table("//tmp/t1", schema=sorted_schema)
         with pytest.raises(YtError):
@@ -1750,19 +1657,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("savrus", "gritukan")
     def test_tablet_slot_charges_cpu_resource_limit(self):
-        get_cpu = lambda x: get(
-            "//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(
-                x
-            )
-        )
+        get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
 
         create_tablet_cell_bundle("b")
         cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
         peer = get("#{0}/@peers/0/address".format(cell))
 
-        node = list(
-            __builtin__.set(ls("//sys/cluster_nodes")) - __builtin__.set([peer])
-        )[0]
+        node = list(__builtin__.set(ls("//sys/cluster_nodes")) - __builtin__.set([peer]))[0]
 
         def get_cpu_delta():
             empty_node_cpu = get_cpu(node)
@@ -1772,11 +1673,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: int(get_cpu_delta()) == 1)
 
         def _get_orchid(path):
-            return get(
-                "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}{2}".format(
-                    peer, cell, path
-                )
-            )
+            return get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}{2}".format(peer, cell, path))
 
         assert _get_orchid("/dynamic_config_version") == 0
 
@@ -1902,21 +1799,15 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         target_cell_ids = [cells[0], cells[0], cells[1]]
         sync_mount_table("//tmp/t", target_cell_ids=target_cell_ids)
-        assert target_cell_ids == [
-            tablet["cell_id"] for tablet in get("//tmp/t/@tablets")
-        ]
+        assert target_cell_ids == [tablet["cell_id"] for tablet in get("//tmp/t/@tablets")]
 
         # Cells are not changed for mounted tablets.
         sync_mount_table("//tmp/t", target_cell_ids=[cells[0], cells[2], cells[2]])
-        assert target_cell_ids == [
-            tablet["cell_id"] for tablet in get("//tmp/t/@tablets")
-        ]
+        assert target_cell_ids == [tablet["cell_id"] for tablet in get("//tmp/t/@tablets")]
 
         sync_unmount_table("//tmp/t", first_tablet_index=0, last_tablet_index=1)
         sync_mount_table("//tmp/t", target_cell_ids=[cells[2], cells[1], cells[0]])
-        assert [cells[2], cells[1], cells[1]] == [
-            tablet["cell_id"] for tablet in get("//tmp/t/@tablets")
-        ]
+        assert [cells[2], cells[1], cells[1]] == [tablet["cell_id"] for tablet in get("//tmp/t/@tablets")]
 
         sync_unmount_table("//tmp/t")
         sync_mount_table(
@@ -1925,9 +1816,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             last_tablet_index=2,
             target_cell_ids=[cells[1], cells[2]],
         )
-        assert [None, cells[1], cells[2]] == [
-            tablet.get("cell_id") for tablet in get("//tmp/t/@tablets")
-        ]
+        assert [None, cells[1], cells[2]] == [tablet.get("cell_id") for tablet in get("//tmp/t/@tablets")]
 
     @authors("aozeritsky")
     def test_modification_access_time(self):
@@ -1989,21 +1878,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         version = get("//sys/tablet_cell_bundles/b/@dynamic_config_version")
         wait(
-            lambda: get(
-                "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/dynamic_config_version".format(
-                    address, cell
-                )
-            )
+            lambda: get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/dynamic_config_version".format(address, cell))
             == version
         )
 
         remove("#{0}".format(cell))
         wait(
-            lambda: get(
-                "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(
-                    address, cell
-                )
-            )
+            lambda: get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell))
             == "decommissioning_on_node"
         )
 
@@ -2014,20 +1895,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         with pytest.raises(YtError):
             mount_table("//tmp/t2")
 
-        assert (
-            get("#{0}/@tablet_cell_life_stage".format(cell))
-            == "decommissioning_on_node"
-        )
+        assert get("#{0}/@tablet_cell_life_stage".format(cell)) == "decommissioning_on_node"
         set(
             "//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission",
             False,
         )
         wait(
-            lambda: get(
-                "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(
-                    address, cell
-                )
-            )
+            lambda: get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/life_stage".format(address, cell))
             == "decommissioned"
         )
 
@@ -2059,10 +1933,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         cell = sync_create_cells(1, tablet_cell_bundle="b")[0]
 
         remove("#{0}".format(cell))
-        wait(
-            lambda: get("#{0}/@tablet_cell_life_stage".format(cell))
-            == "decommissioning_on_node"
-        )
+        wait(lambda: get("#{0}/@tablet_cell_life_stage".format(cell)) == "decommissioning_on_node")
 
         remove("#{0}".format(cell), force=True)
         wait(lambda: not exists("#" + cell))
@@ -2087,15 +1958,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             statistics = get("#{0}/@statistics".format(chunk_list))
             if not statistics["sealed"]:
                 return False
-            cumulative_statistics = get(
-                "#{0}/@cumulative_statistics".format(chunk_list)
-            )
+            cumulative_statistics = get("#{0}/@cumulative_statistics".format(chunk_list))
             assert cumulative_statistics[-1]["row_count"] == statistics["row_count"]
             assert cumulative_statistics[-1]["chunk_count"] == statistics["chunk_count"]
-            assert (
-                cumulative_statistics[-1]["data_size"]
-                == statistics["uncompressed_data_size"]
-            )
+            assert cumulative_statistics[-1]["data_size"] == statistics["uncompressed_data_size"]
             return True
 
         wait(check)
@@ -2111,9 +1977,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_reshard_table("//tmp/t", [[], [2]])
 
         sync_mount_table("//tmp/t")
-        chunk_views = get(
-            "//sys/chunk_views", attributes=["chunk_id", "lower_limit", "upper_limit"]
-        )
+        chunk_views = get("//sys/chunk_views", attributes=["chunk_id", "lower_limit", "upper_limit"])
         for value in chunk_views.itervalues():
             attrs = value.attributes
             if attrs["lower_limit"] == {} and attrs["upper_limit"] == {"key": [2]}:
@@ -2125,10 +1989,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert len(table_chunks) == 2
         assert table_chunks[0] == table_chunks[1]
         assert len(chunk_views) == 2
-        assert all(
-            attr.attributes["chunk_id"] == table_chunks[0]
-            for attr in chunk_views.values()
-        )
+        assert all(attr.attributes["chunk_id"] == table_chunks[0] for attr in chunk_views.values())
         chunk_tree = get("#{}/@tree".format(get("//tmp/t/@chunk_list_id")))
         assert chunk_tree.attributes["rank"] == 2
         assert len(chunk_tree) == 2
@@ -2216,23 +2077,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", rows, update=True)
         sync_flush_table("//tmp/t")
 
-        assert (
-            read_table(
-                "<ranges=[{lower_limit={key=[0;]}; upper_limit={key=[0; <type=min>#]}}]>//tmp/t"
-            )
-            == rows
-        )
+        assert read_table("<ranges=[{lower_limit={key=[0;]}; upper_limit={key=[0; <type=min>#]}}]>//tmp/t") == rows
 
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", schema=schema2)
         sync_mount_table("//tmp/t")
 
-        assert (
-            read_table(
-                "<ranges=[{lower_limit={key=[0;]}; upper_limit={key=[0; <type=min>#]}}]>//tmp/t"
-            )
-            == []
-        )
+        assert read_table("<ranges=[{lower_limit={key=[0;]}; upper_limit={key=[0; <type=min>#]}}]>//tmp/t") == []
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -2279,16 +2130,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         def _generate_read_ranges(lower_key, upper_key):
             ranges = []
-            lower_sentinels = (
-                ["", "<type=min>#", "<type=null>#", "<type=max>#"]
-                if lower_key is not None
-                else [""]
-            )
-            upper_sentinels = (
-                ["", "<type=min>#", "<type=null>#", "<type=max>#"]
-                if upper_key is not None
-                else [""]
-            )
+            lower_sentinels = ["", "<type=min>#", "<type=null>#", "<type=max>#"] if lower_key is not None else [""]
+            upper_sentinels = ["", "<type=min>#", "<type=null>#", "<type=max>#"] if upper_key is not None else [""]
 
             for lower_sentinel in lower_sentinels:
                 for upper_sentinel in upper_sentinels:
@@ -2339,9 +2182,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("babenko")
     def test_erasure_snapshots(self):
-        create_tablet_cell_bundle(
-            "b", attributes={"options": {"snapshot_erasure_codec": "isa_lrc_12_2_2"}}
-        )
+        create_tablet_cell_bundle("b", attributes={"options": {"snapshot_erasure_codec": "isa_lrc_12_2_2"}})
         cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
 
         def _try_build_snapshot():
@@ -2368,11 +2209,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         snapshot = _get_lastest_snapshot()
         chunk_id = get(snapshot + "/@chunk_ids")[0]
         chunk_replica_address = list(
-            [
-                str(r)
-                for r in get("#{}/@stored_replicas".format(chunk_id))
-                if r.attributes["index"] == 0
-            ]
+            [str(r) for r in get("#{}/@stored_replicas".format(chunk_id)) if r.attributes["index"] == 0]
         )[0]
         set("//sys/cluster_nodes/{0}/@banned".format(chunk_replica_address), True)
 
@@ -2389,9 +2226,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         cell_count = 3
         tablet_count = 10
 
-        self._create_sorted_table(
-            "//tmp/t", pivot_keys=[[]] + [[i] for i in range(1, tablet_count)]
-        )
+        self._create_sorted_table("//tmp/t", pivot_keys=[[]] + [[i] for i in range(1, tablet_count)])
 
         set(
             "//sys/@config/tablet_manager/tablet_cell_decommissioner/decommission_check_period",
@@ -2488,10 +2323,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_create_cells(1)
 
         def _create_key_schema(key_count):
-            return [
-                {"name": "key{}".format(i), "type": "int64", "sort_order": "ascending"}
-                for i in range(key_count)
-            ]
+            return [{"name": "key{}".format(i), "type": "int64", "sort_order": "ascending"} for i in range(key_count)]
 
         key_schema = _create_key_schema(32)
         value_schema = [{"name": "value", "type": "int64"}]
@@ -2548,15 +2380,11 @@ class TestDynamicTablesSafeMode(DynamicTablesBase):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}], authenticated_user="u")
         with pytest.raises(YtError):
             trim_rows("//tmp/t", 0, 1, authenticated_user="u")
-        assert select_rows("key, value from [//tmp/t]", authenticated_user="u") == [
-            {"key": 0, "value": "0"}
-        ]
+        assert select_rows("key, value from [//tmp/t]", authenticated_user="u") == [{"key": 0, "value": "0"}]
         set("//sys/@config/enable_safe_mode", False)
         trim_rows("//tmp/t", 0, 1, authenticated_user="u")
         insert_rows("//tmp/t", [{"key": 1, "value": "1"}], authenticated_user="u")
-        assert select_rows("key, value from [//tmp/t]", authenticated_user="u") == [
-            {"key": 1, "value": "1"}
-        ]
+        assert select_rows("key, value from [//tmp/t]", authenticated_user="u") == [{"key": 1, "value": "1"}]
 
 
 ##################################################################
@@ -2579,34 +2407,18 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
 
         sync_mount_table("//tmp/t")
 
-        wait(
-            lambda: get(
-                "//sys/tablet_cells/{0}/@tablet_count".format(cells[0]), driver=driver
-            )
-            == 1
-        )
+        wait(lambda: get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0]), driver=driver) == 1)
         wait(lambda: get("//sys/tablet_cells/{0}/@tablet_count".format(cells[0])) == 1)
 
         tablet = get("//tmp/t/@tablets/0")
-        assert get(
-            "//sys/tablet_cells/{0}/@tablet_ids".format(cells[0]), driver=driver
-        ) == [tablet["tablet_id"]]
-        assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0])) == [
-            tablet["tablet_id"]
-        ]
+        assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0]), driver=driver) == [tablet["tablet_id"]]
+        assert get("//sys/tablet_cells/{0}/@tablet_ids".format(cells[0])) == [tablet["tablet_id"]]
 
         wait(
-            lambda: get(
-                "//sys/tablet_cells/{0}/@multicell_statistics".format(cells[0])
-            )[str(cell_tag)]["tablet_count"]
+            lambda: get("//sys/tablet_cells/{0}/@multicell_statistics".format(cells[0]))[str(cell_tag)]["tablet_count"]
             == 1
         )
-        wait(
-            lambda: get("//sys/tablet_cells/{0}/@total_statistics".format(cells[0]))[
-                "tablet_count"
-            ]
-            == 1
-        )
+        wait(lambda: get("//sys/tablet_cells/{0}/@total_statistics".format(cells[0]))["tablet_count"] == 1)
 
         rows = [{"key": 0, "value": "0"}]
         keys = [{"key": r["key"]} for r in rows]
@@ -2661,11 +2473,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
 
         requests = []
         requests.append(make_batch_request("remove", path="#" + cells[0]))
-        requests.append(
-            make_batch_request(
-                "mount_table", path="//tmp/t", cell_id=cells[0], freeze=freeze
-            )
-        )
+        requests.append(make_batch_request("mount_table", path="//tmp/t", cell_id=cells[0], freeze=freeze))
         rsps = execute_batch(requests)
         assert len(rsps[1]["output"]) == 0
 
@@ -2719,9 +2527,7 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     ENABLE_HTTP_PROXY = True
 
 
-class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(
-    DynamicTablesSingleCellBase
-):
+class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
     def setup_method(self, method):
         super(DynamicTablesSingleCellBase, self).setup_method(method)
         set("//sys/@config/tablet_manager/abandon_leader_lease_during_recovery", True)

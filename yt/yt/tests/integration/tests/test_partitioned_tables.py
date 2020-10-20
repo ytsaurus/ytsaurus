@@ -120,10 +120,7 @@ class TestPartitionedTables(YTEnvSetup):
         write_table("//tmp/t2", [{"baz": 1}])
         write_table("//tmp/t3", [{"baz": 10}])
 
-        assert read_table(
-            "//tmp/pt",
-            table_reader={"assume_partitioned_table": assume_partitioned_table},
-        ) == [
+        assert read_table("//tmp/pt", table_reader={"assume_partitioned_table": assume_partitioned_table},) == [
             {"foo": 10, "bar": "abc", "baz": 5, "qux": None},
             {"foo": 10, "bar": "def", "baz": 4, "qux": None},
             {"foo": 20, "bar": "abc", "baz": 1, "qux": None},
@@ -258,9 +255,7 @@ class TestPartitionedTables(YTEnvSetup):
         ]
 
         # Incorrect sort order.
-        set(
-            "//tmp/pt/@partitions", PARTITIONS[:1] + PARTITIONS[2:0:-1] + PARTITIONS[3:]
-        )
+        set("//tmp/pt/@partitions", PARTITIONS[:1] + PARTITIONS[2:0:-1] + PARTITIONS[3:])
 
         with raises_yt_error(SortOrderViolation):
             read_table("//tmp/pt")

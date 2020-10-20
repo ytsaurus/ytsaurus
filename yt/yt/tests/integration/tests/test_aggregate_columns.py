@@ -163,17 +163,13 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         sync_compact_table("//tmp/t")
 
         verify_after_flush({"key": 1, "time": 18, "value": 30})
-        test_row(
-            {"key": 1, "time": 19, "value": 10}, {"key": 1, "time": 19, "value": 10}
-        )
+        test_row({"key": 1, "time": 19, "value": 10}, {"key": 1, "time": 19, "value": 10})
         test_row(
             {"key": 1, "time": 20, "value": 10},
             {"key": 1, "time": 20, "value": 20},
             aggregate=True,
         )
-        test_row(
-            {"key": 1, "time": 21, "value": 10}, {"key": 1, "time": 21, "value": 10}
-        )
+        test_row({"key": 1, "time": 21, "value": 10}, {"key": 1, "time": 21, "value": 10})
 
         sync_flush_table("//tmp/t")
         sync_compact_table("//tmp/t")
@@ -183,9 +179,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
     @authors("savrus")
     def test_aggregate_min_max(self):
         sync_create_cells(1)
-        self._create_table_with_aggregate_column(
-            "//tmp/t", aggregate="min", optimize_for="scan"
-        )
+        self._create_table_with_aggregate_column("//tmp/t", aggregate="min", optimize_for="scan")
         sync_mount_table("//tmp/t")
 
         insert_rows(
@@ -206,9 +200,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
             ],
             aggregate=True,
         )
-        assert_items_equal(
-            select_rows("max(value) as max from [//tmp/t] group by 1"), [{"max": 20}]
-        )
+        assert_items_equal(select_rows("max(value) as max from [//tmp/t] group by 1"), [{"max": 20}])
 
     @authors("savrus")
     def test_aggregate_first(self):
@@ -218,9 +210,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": 10}], aggregate=True)
         insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 20}], aggregate=True)
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == [
-            {"key": 1, "time": 2, "value": 10}
-        ]
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 2, "value": 10}]
 
     @authors("savrus")
     @pytest.mark.parametrize("aggregate", ["min", "max", "sum", "first"])
@@ -229,17 +219,11 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         self._create_table_with_aggregate_column("//tmp/t", aggregate=aggregate)
         sync_mount_table("//tmp/t")
         insert_rows("//tmp/t", [{"key": 1, "time": 1}], aggregate=True)
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == [
-            {"key": 1, "time": 1, "value": None}
-        ]
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 1, "value": None}]
         insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 10}], aggregate=True)
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == [
-            {"key": 1, "time": 2, "value": 10}
-        ]
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 2, "value": 10}]
         insert_rows("//tmp/t", [{"key": 1, "time": 3}], aggregate=True)
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == [
-            {"key": 1, "time": 3, "value": 10}
-        ]
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 3, "value": 10}]
 
     @authors("savrus")
     def test_aggregate_alter(self):
@@ -288,9 +272,7 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
     @authors("savrus")
     def test_aggregate_non_atomic(self):
         sync_create_cells(1)
-        self._create_table_with_aggregate_column(
-            "//tmp/t", aggregate="sum", atomicity="none"
-        )
+        self._create_table_with_aggregate_column("//tmp/t", aggregate="sum", atomicity="none")
         sync_mount_table("//tmp/t")
 
         tx1 = start_transaction(type="tablet", atomicity="none")
@@ -314,18 +296,14 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         commit_transaction(tx1)
         commit_transaction(tx2)
 
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == [
-            {"key": 1, "time": 2, "value": 30}
-        ]
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == [{"key": 1, "time": 2, "value": 30}]
 
     @pytest.mark.parametrize(
         "merge_rows_on_flush, min_data_ttl, min_data_versions",
         [a + b for a in [(False,), (True,)] for b in [(0, 0), (1, 10000)]],
     )
     @authors("babenko")
-    def test_aggregate_merge_rows_on_flush(
-        self, merge_rows_on_flush, min_data_ttl, min_data_versions
-    ):
+    def test_aggregate_merge_rows_on_flush(self, merge_rows_on_flush, min_data_ttl, min_data_versions):
         sync_create_cells(1)
         self._create_table_with_aggregate_column(
             "//tmp/t",
@@ -344,36 +322,26 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": 10}], aggregate=True)
         insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 20}], aggregate=True)
 
-        assert_items_equal(
-            select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 30}]
-        )
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 30}])
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        assert_items_equal(
-            select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 30}]
-        )
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 30}])
 
         insert_rows("//tmp/t", [{"key": 1, "time": 1, "value": 100}], aggregate=True)
         insert_rows("//tmp/t", [{"key": 1, "time": 2, "value": 200}], aggregate=True)
 
-        assert_items_equal(
-            select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 330}]
-        )
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 330}])
 
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        assert_items_equal(
-            select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 330}]
-        )
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 330}])
 
         sync_compact_table("//tmp/t")
 
-        assert_items_equal(
-            select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 330}]
-        )
+        assert_items_equal(select_rows("* from [//tmp/t]"), [{"key": 1, "time": 2, "value": 330}])
 
     @authors("savrus")
     @pytest.mark.parametrize("aggregate", ["avg", "cardinality"])

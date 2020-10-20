@@ -14,9 +14,7 @@ class TestJobQuery(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {"udf_registry_path": "//tmp/udfs"}
-    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"udf_registry_path": "//tmp/udfs"}}
 
     def _init_udf_registry(self):
         registry_path = "//tmp/udfs"
@@ -72,9 +70,7 @@ class TestJobQuery(YTEnvSetup):
             )
 
         with raises_yt_error(OperationFailedToPrepare):
-            map(
-                in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"input_query": "b"}
-            )
+            map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"input_query": "b"})
 
     @authors("lukyan")
     def test_query_two_input_tables(self):
@@ -128,36 +124,25 @@ class TestJobQuery(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b", "c": "d"})
 
-        op = map(
-            in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"input_query": "a"}
-        )
+        op = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"input_query": "a"})
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
         statistics = get(op.get_path() + "/@progress/job_statistics")
         attrs = get("//tmp/t1/@")
         assert (
-            get_statistics(
-                statistics, "data.input.uncompressed_data_size.$.completed.map.sum"
-            )
+            get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum")
             < attrs["uncompressed_data_size"]
         )
         assert (
-            get_statistics(
-                statistics, "data.input.compressed_data_size.$.completed.map.sum"
-            )
+            get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum")
             < attrs["compressed_data_size"]
         )
-        assert (
-            get_statistics(statistics, "data.input.data_weight.$.completed.map.sum")
-            < attrs["data_weight"]
-        )
+        assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") < attrs["data_weight"]
 
     @authors("lukyan")
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     def test_query_filtering(self, mode):
-        create(
-            "table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]}
-        )
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"a": i} for i in xrange(2)])
 
@@ -296,9 +281,7 @@ class TestJobQuery(YTEnvSetup):
         create(
             "table",
             "//tmp/t",
-            attributes={
-                "schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
         )
         create("table", "//tmp/t_out")
         for i in range(3):
@@ -315,15 +298,10 @@ class TestJobQuery(YTEnvSetup):
 
             assert_items_equal(read_table("//tmp/t_out"), rows)
             statistics = get(op.get_path() + "/@progress/job_statistics")
-            assert (
-                get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum")
-                == chunk_count
-            )
+            assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == chunk_count
 
         _test("", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
-        _test(
-            "[#0:]", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1
-        )
+        _test("[#0:]", "a where a between 5 and 15", [{"a": i} for i in xrange(10, 13)], 1)
         _test(
             "[11:12]",
             "a where a between 5 and 15",
@@ -359,9 +337,7 @@ class TestJobQuery(YTEnvSetup):
         )
         create("table", "//tmp/t_out")
         for i in range(3):
-            write_table(
-                "<append=%true>//tmp/t", [{"k": i, "a": i * 10 + j} for j in xrange(3)]
-            )
+            write_table("<append=%true>//tmp/t", [{"k": i, "a": i * 10 + j} for j in xrange(3)])
         assert get("//tmp/t/@chunk_count") == 3
 
         def _test(query, rows, chunk_count):
@@ -374,10 +350,7 @@ class TestJobQuery(YTEnvSetup):
 
             assert_items_equal(read_table("//tmp/t_out"), rows)
             statistics = get(op.get_path() + "/@progress/job_statistics")
-            assert (
-                get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum")
-                == chunk_count
-            )
+            assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == chunk_count
 
         _test("a where k = 1", [{"a": i} for i in xrange(10, 13)], 1)
         _test(

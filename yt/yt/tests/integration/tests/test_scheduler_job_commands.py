@@ -140,9 +140,7 @@ class TestJobProber(YTEnvSetup):
         )
         job_id = wait_breakpoint()[0]
 
-        r = poll_job_shell(
-            job_id, operation="spawn", term="screen-256color", height=50, width=132
-        )
+        r = poll_job_shell(job_id, operation="spawn", term="screen-256color", height=50, width=132)
         shell_id = r["shell_id"]
         self._poll_until_prompt(job_id, shell_id)
 
@@ -253,12 +251,8 @@ class TestJobProber(YTEnvSetup):
             )
 
     @authors("gritukan")
-    @pytest.mark.parametrize(
-        "enable_secure_vault_variables_in_job_shell", [False, True]
-    )
-    def test_poll_job_shell_secret_vault(
-        self, enable_secure_vault_variables_in_job_shell
-    ):
+    @pytest.mark.parametrize("enable_secure_vault_variables_in_job_shell", [False, True])
+    def test_poll_job_shell_secret_vault(self, enable_secure_vault_variables_in_job_shell):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"key": "foo"})
@@ -325,9 +319,7 @@ class TestJobProber(YTEnvSetup):
 
         assert len(read_table("//tmp/t2")) == 5
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 1
-        assert (
-            get(op.get_path() + "/@progress/jobs/aborted/scheduled/user_request") == 1
-        )
+        assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/user_request") == 1
         assert get(op.get_path() + "/@progress/jobs/aborted/scheduled/other") == 0
         assert get(op.get_path() + "/@progress/jobs/failed") == 0
 
@@ -355,10 +347,7 @@ class TestJobProber(YTEnvSetup):
                     start_profiling["abort_reason"][abort_reason],
                     end_profiling["abort_reason"][abort_reason],
                 )
-                value = (
-                    end_profiling["abort_reason"][abort_reason]
-                    - start_profiling["abort_reason"][abort_reason]
-                )
+                value = end_profiling["abort_reason"][abort_reason] - start_profiling["abort_reason"][abort_reason]
                 if value != (1 if abort_reason == "user_request" else 0):
                     return False
             return True
@@ -456,13 +445,9 @@ class TestJobShellInSubcontainer(TestJobProber):
         assert get_subcontainer_name("nirvana") == "N"
 
         with raises_yt_error(ContainerDoesNotExist):
-            poll_job_shell(
-                job_id, shell_name="non_existent", operation="spawn", command="echo hi"
-            )
+            poll_job_shell(job_id, shell_name="non_existent", operation="spawn", command="echo hi")
         with raises_yt_error(NoSuchJobShell):
-            poll_job_shell(
-                job_id, shell_name="brrr", operation="spawn", command="echo hi"
-            )
+            poll_job_shell(job_id, shell_name="brrr", operation="spawn", command="echo hi")
 
         # Check job shell permissions.
         def check_permission(shell_name, user, allowed):

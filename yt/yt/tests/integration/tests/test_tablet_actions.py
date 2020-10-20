@@ -89,20 +89,14 @@ class TabletActionsBase(DynamicTablesBase):
 
     def _validate_state(self, tablets, state=None, expected_state=None):
         if state is not None:
-            assert state == [
-                tablet["state"] if s is not None else None
-                for tablet, s in zip(tablets, state)
-            ]
+            assert state == [tablet["state"] if s is not None else None for tablet, s in zip(tablets, state)]
         if expected_state is not None:
             assert expected_state == [
-                tablet["expected_state"] if s is not None else None
-                for tablet, s in zip(tablets, expected_state)
+                tablet["expected_state"] if s is not None else None for tablet, s in zip(tablets, expected_state)
             ]
 
     def _validate_tablets(self, path, state=None, expected_state=None):
-        self._validate_state(
-            self._get_tablets(path), state=state, expected_state=expected_state
-        )
+        self._validate_state(self._get_tablets(path), state=state, expected_state=expected_state)
 
 
 ################################################################################
@@ -215,9 +209,7 @@ class TestTabletActions(TabletActionsBase):
             "",
             attributes={
                 "kind": "reshard",
-                "expiration_time": (
-                    datetime.utcnow() + timedelta(seconds=5)
-                ).isoformat(),
+                "expiration_time": (datetime.utcnow() + timedelta(seconds=5)).isoformat(),
                 "tablet_ids": [tablet_id],
                 "pivot_keys": [[], [1]],
             },
@@ -310,9 +302,7 @@ class TestTabletActions(TabletActionsBase):
             assert get("#{0}/@error".format(action))
         wait(lambda: get("//tmp/t/@tablets/1/state") == expected_state)
         wait(lambda: get("//tmp/t/@tablets/0/state") == expected_touch_state)
-        self._validate_tablets(
-            "//tmp/t", expected_state=[expected_touch_state, expected_state]
-        )
+        self._validate_tablets("//tmp/t", expected_state=[expected_touch_state, expected_state])
 
     @authors("ifsmirnov", "ilpauzner")
     @pytest.mark.parametrize("skip_freezing", [False, True])
@@ -382,43 +372,26 @@ class TestTabletActions(TabletActionsBase):
         set("//tmp/t/@in_memory_mode", "compressed")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         wait(
-            lambda: get(
-                "//sys/accounts/test_account/@resource_usage/tablet_static_memory"
-            )
+            lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory")
             >= get("//tmp/t/@compressed_data_size")
         )
 
         size = get("//sys/accounts/test_account/@resource_usage/tablet_static_memory")
 
         move(cells[1])
-        wait(
-            lambda: get(
-                "//sys/accounts/test_account/@resource_usage/tablet_static_memory"
-            )
-            == size
-        )
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size)
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "none")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         move(cells[1])
-        wait(
-            lambda: get(
-                "//sys/accounts/test_account/@resource_usage/tablet_static_memory"
-            )
-            == 0
-        )
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == 0)
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@in_memory_mode", "compressed")
         sync_mount_table("//tmp/t", cell_id=cells[0], freeze=freeze)
         move(cells[1])
-        wait(
-            lambda: get(
-                "//sys/accounts/test_account/@resource_usage/tablet_static_memory"
-            )
-            == size
-        )
+        wait(lambda: get("//sys/accounts/test_account/@resource_usage/tablet_static_memory") == size)
 
     @authors("ifsmirnov")
     def test_tablet_cell_decomission(self):
@@ -485,12 +458,8 @@ class TestTabletBalancer(TabletActionsBase):
         cells = sync_create_cells(2)
         self._create_sorted_table("//tmp/t", pivot_keys=[[], [1]])
         set("//tmp/t/@in_memory_mode", "uncompressed")
-        sync_mount_table(
-            "//tmp/t", first_tablet_index=0, last_tablet_index=0, cell_id=cells[0]
-        )
-        sync_mount_table(
-            "//tmp/t", first_tablet_index=1, last_tablet_index=1, cell_id=cells[1]
-        )
+        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0, cell_id=cells[0])
+        sync_mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, cell_id=cells[1])
         insert_rows("//tmp/t", [{"key": i, "value": "A" * 128} for i in xrange(2)])
         sync_flush_table("//tmp/t")
         if freeze:
@@ -523,9 +492,7 @@ class TestTabletBalancer(TabletActionsBase):
         cells = sync_create_cells(2)
         cells_b = sync_create_cells(4, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t1", pivot_keys=[[], [1], [2], [3]])
-        self._create_sorted_table(
-            "//tmp/t2", pivot_keys=[[], [1], [2], [3]], tablet_cell_bundle="b"
-        )
+        self._create_sorted_table("//tmp/t2", pivot_keys=[[], [1], [2], [3]], tablet_cell_bundle="b")
         pairs = [("//tmp/t1", cells), ("//tmp/t2", cells_b)]
         for pair in pairs:
             table = pair[0]
@@ -591,20 +558,13 @@ class TestTabletBalancer(TabletActionsBase):
             reshard(name, 3)
             sync_mount_table(name, cell_id=cells[2])
 
-        wait(
-            lambda: all(
-                max(self._tablets_distribution("//tmp/t{}".format(i), cells)) == 1
-                for i in range(3, 15)
-            )
-        )
+        wait(lambda: all(max(self._tablets_distribution("//tmp/t{}".format(i), cells)) == 1 for i in range(3, 15)))
 
         # Add new cell and wait till slack tablets distribute evenly between cells
         cells += sync_create_cells(1)
 
         def wait_func():
-            cell_fullness = [
-                get("//sys/tablet_cells/{}/@tablet_count".format(c)) for c in cells
-            ]
+            cell_fullness = [get("//sys/tablet_cells/{}/@tablet_count".format(c)) for c in cells]
             return max(cell_fullness) - min(cell_fullness) <= 1
 
         wait(wait_func)
@@ -630,9 +590,7 @@ class TestTabletBalancer(TabletActionsBase):
         sync_mount_table("//tmp/t", cell_id=cells[0])
 
         def check_tablet_count():
-            tablet_counts = [
-                get("//sys/tablet_cells/{}/@tablet_count".format(i)) for i in cells
-            ]
+            tablet_counts = [get("//sys/tablet_cells/{}/@tablet_count".format(i)) for i in cells]
             return (
                 tablet_count / cell_count <= min(tablet_counts)
                 and max(tablet_counts) <= (tablet_count - 1) / cell_count + 1
@@ -658,9 +616,7 @@ class TestTabletBalancer(TabletActionsBase):
         )
         cells = sync_create_cells(2)
 
-        set(
-            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False
-        )
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
 
         self._create_sorted_table("//tmp/in")
         set("//tmp/in/@in_memory_mode", "uncompressed")
@@ -753,18 +709,12 @@ class TestTabletBalancer(TabletActionsBase):
         if is_sorted:
             schema[0]["sort_order"] = "ascending"
 
-        create(
-            "replicated_table", "//tmp/t", attributes=dict(dynamic=True, schema=schema)
-        )
-        replica_id = create_table_replica(
-            "//tmp/t", self.get_cluster_name(0), "//tmp/r"
-        )
+        create("replicated_table", "//tmp/t", attributes=dict(dynamic=True, schema=schema))
+        replica_id = create_table_replica("//tmp/t", self.get_cluster_name(0), "//tmp/r")
         create(
             "table",
             "//tmp/r",
-            attributes=dict(
-                dynamic=True, schema=schema, upstream_replica_id=replica_id
-            ),
+            attributes=dict(dynamic=True, schema=schema, upstream_replica_id=replica_id),
         )
 
         if is_sorted:
@@ -813,9 +763,7 @@ class TestTabletBalancer(TabletActionsBase):
 
         def _check():
             assert get("#{}/@state".format(action)) == "freezing"
-            self._validate_tablets(
-                "//tmp/t1", state=["freezing"], expected_state=["mounted"]
-            )
+            self._validate_tablets("//tmp/t1", state=["freezing"], expected_state=["mounted"])
 
         _check()
 
@@ -832,9 +780,7 @@ class TestTabletBalancer(TabletActionsBase):
         # test cell balancing
 
         sync_unmount_table("//tmp/t2")
-        set(
-            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False
-        )
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         set("//tmp/t2/@in_memory_mode", "uncompressed")
         sync_reshard_table("//tmp/t2", [[], [1]])
 
@@ -856,9 +802,7 @@ class TestTabletBalancer(TabletActionsBase):
     @authors("ifsmirnov", "shakurov")
     @pytest.mark.parametrize("enable", [False, True])
     def test_tablet_balancer_schedule(self, enable):
-        assert get(
-            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer"
-        )
+        assert get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
         set(
             "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule",
             "1" if enable else "0",
@@ -893,9 +837,7 @@ class TestTabletBalancer(TabletActionsBase):
                 wait(lambda: get("//tmp/t/@tablet_count") == 2)
             sync_unmount_table("//tmp/t")
 
-        global_config = (
-            "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule"
-        )
+        global_config = "//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule"
         local_config = "//sys/tablet_cell_bundles/default/@tablet_balancer_config/tablet_balancer_schedule"
 
         check_balancer_is_active(True)
@@ -1087,9 +1029,7 @@ class TestTabletBalancer(TabletActionsBase):
 
     @authors("ifsmirnov")
     def test_sync_reshard(self):
-        set(
-            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False
-        )
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         cells = sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[], [1]])
@@ -1099,15 +1039,11 @@ class TestTabletBalancer(TabletActionsBase):
         get("//sys/tablet_actions")
         tablet_actions = get("//sys/tablet_actions", attributes=["state"])
         assert len(tablet_actions) == 1
-        assert all(
-            v.attributes["state"] == "completed" for v in tablet_actions.values()
-        )
+        assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
 
     @authors("ifsmirnov")
     def test_sync_move_all_tables(self):
-        set(
-            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False
-        )
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         cells = sync_create_cells(2)
         self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
 
@@ -1119,24 +1055,16 @@ class TestTabletBalancer(TabletActionsBase):
         sync_balance_tablet_cells("default")
         tablet_actions = get("//sys/tablet_actions", attributes=["state"])
         assert len(tablet_actions) == 1
-        assert all(
-            v.attributes["state"] == "completed" for v in tablet_actions.values()
-        )
+        assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
         assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t/@tablets"))) == 2
 
     @authors("ifsmirnov")
     def test_sync_move_one_table(self):
-        set(
-            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False
-        )
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         cells = sync_create_cells(4)
         if is_multicell:
-            self._create_sorted_table(
-                "//tmp/t1", external_cell_tag=1, in_memory_mode="uncompressed"
-            )
-            self._create_sorted_table(
-                "//tmp/t2", external_cell_tag=2, in_memory_mode="uncompressed"
-            )
+            self._create_sorted_table("//tmp/t1", external_cell_tag=1, in_memory_mode="uncompressed")
+            self._create_sorted_table("//tmp/t2", external_cell_tag=2, in_memory_mode="uncompressed")
         else:
             self._create_sorted_table("//tmp/t1", in_memory_mode="uncompressed")
             self._create_sorted_table("//tmp/t2", in_memory_mode="uncompressed")
@@ -1151,17 +1079,13 @@ class TestTabletBalancer(TabletActionsBase):
         sync_balance_tablet_cells("default", ["//tmp/t1"])
         tablet_actions = get("//sys/tablet_actions", attributes=["state"])
         assert len(tablet_actions) == 1
-        assert all(
-            v.attributes["state"] == "completed" for v in tablet_actions.values()
-        )
+        assert all(v.attributes["state"] == "completed" for v in tablet_actions.values())
         assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t1/@tablets"))) == 2
         assert len(__builtin__.set(t["cell_id"] for t in get("//tmp/t2/@tablets"))) == 1
 
     @authors("ifsmirnov")
     def test_sync_tablet_balancer_acl(self):
-        set(
-            "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False
-        )
+        set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", False)
         create_user("u")
         create_tablet_cell_bundle("b")
         set(

@@ -53,7 +53,8 @@ def test_compression(caching_file_getter):
         process = subprocess.Popen(
             [arcadia_interop.search_binary_path("run_codec"), "decompress", testcase_info.compressed_file["codec"]],
             stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE)
+            stdout=subprocess.PIPE,
+        )
         stdout, stderr = process.communicate(compressed_data)
         assert process.returncode == 0, stderr
         assert stdout == uncompressed_data

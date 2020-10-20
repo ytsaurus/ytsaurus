@@ -106,9 +106,7 @@ def raises_yt_error(code=None):
 
     result_list = []
     if not isinstance(code, (str, int, type(None))):
-        raise TypeError(
-            "code must be str, int or None, actual type: {}".format(code.__class__)
-        )
+        raise TypeError("code must be str, int or None, actual type: {}".format(code.__class__))
     try:
         yield result_list
         raise AssertionError("Expected exception to be raised.")
@@ -179,9 +177,7 @@ def init_drivers(clusters):
                 for i in xrange(instance.secondary_master_cell_count)
             ]
 
-            clusters_drivers[instance._cluster_name] = [
-                default_driver
-            ] + secondary_drivers
+            clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
 
 
 def wait_assert(check_fn, *args, **kwargs):
@@ -204,9 +200,7 @@ def wait_assert(check_fn, *args, **kwargs):
         if not last_exception:
             raise
         tb = "\n".join(traceback.format_tb(last_exc_info[0][2]))
-        raise AssertionError(
-            "waited assertion failed\n{}{}".format(tb, last_exception[0])
-        )
+        raise AssertionError("waited assertion failed\n{}{}".format(tb, last_exception[0]))
 
 
 def wait_drivers():
@@ -230,9 +224,7 @@ def terminate_drivers():
 def get_branch(dict, path):
     root = dict
     for field in path:
-        assert isinstance(
-            field, str
-        ), "non-string keys are not allowed in command parameters"
+        assert isinstance(field, str), "non-string keys are not allowed in command parameters"
         if field not in root:
             return None
         root = root[field]
@@ -242,9 +234,7 @@ def get_branch(dict, path):
 def set_branch(dict, path, value):
     root = dict
     for field in path[:-1]:
-        assert isinstance(
-            field, str
-        ), "non-string keys are not allowed in command parameters"
+        assert isinstance(field, str), "non-string keys are not allowed in command parameters"
         if field not in root:
             root[field] = {}
         root = root[field]
@@ -266,9 +256,7 @@ def prepare_path(path):
     attributes = {}
     if isinstance(path, yson.YsonString):
         attributes = path.attributes
-    result = execute_command(
-        "parse_ypath", parameters={"path": path}, verbose=False, parse_yson=True
-    )
+    result = execute_command("parse_ypath", parameters={"path": path}, verbose=False, parse_yson=True)
     update_inplace(result.attributes, attributes)
     return result
 
@@ -396,11 +384,7 @@ def execute_command(
     if verbose:
 
         def _is_text_yson(fmt):
-            return (
-                fmt is not None
-                and str(fmt) == "yson"
-                and fmt.attributes.get("format", None) == "text"
-            )
+            return fmt is not None and str(fmt) == "yson" and fmt.attributes.get("format", None) == "text"
 
         pretty_parameters = pycopy.deepcopy(parameters)
         for key in ["input_format", "output_format"]:
@@ -464,9 +448,7 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
     if not has_output_format:
         kwargs["output_format"] = yson.loads("<format=text>yson")
     output = kwargs.pop("output_stream", StringIO())
-    response = execute_command(
-        command_name, kwargs, input_stream=input_stream, output_stream=output
-    )
+    response = execute_command(command_name, kwargs, input_stream=input_stream, output_stream=output)
     if return_response:
         return response
     if not has_output_format:
@@ -628,9 +610,7 @@ def get(path, is_raw=False, **kwargs):
     if "return_only_value" not in kwargs:
         kwargs["return_only_value"] = True
     try:
-        return execute_command(
-            "get", kwargs, parse_yson=not is_raw, unwrap_v4_result=False
-        )
+        return execute_command("get", kwargs, parse_yson=not is_raw, unwrap_v4_result=False)
     except YtResponseError as err:
         if err.is_resolve_error() and "default" in kwargs:
             return kwargs["default"]
@@ -799,9 +779,7 @@ def _prepare_rows_stream(data, is_raw=False):
 def insert_rows(path, data, is_raw=False, **kwargs):
     kwargs["path"] = path
     if not is_raw:
-        return execute_command(
-            "insert_rows", kwargs, input_stream=_prepare_rows_stream(data)
-        )
+        return execute_command("insert_rows", kwargs, input_stream=_prepare_rows_stream(data))
     else:
         return execute_command("insert_rows", kwargs, input_stream=StringIO(data))
 
@@ -813,9 +791,7 @@ def lock_rows(path, data, **kwargs):
 
 def delete_rows(path, data, **kwargs):
     kwargs["path"] = path
-    return execute_command(
-        "delete_rows", kwargs, input_stream=_prepare_rows_stream(data)
-    )
+    return execute_command("delete_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
 
 def trim_rows(path, tablet_index, trimmed_row_count, **kwargs):
@@ -827,9 +803,7 @@ def trim_rows(path, tablet_index, trimmed_row_count, **kwargs):
 
 def lookup_rows(path, data, **kwargs):
     kwargs["path"] = path
-    return execute_command_with_output_format(
-        "lookup_rows", kwargs, input_stream=_prepare_rows_stream(data)
-    )
+    return execute_command_with_output_format("lookup_rows", kwargs, input_stream=_prepare_rows_stream(data))
 
 
 def get_in_sync_replicas(path, data, **kwargs):
@@ -850,9 +824,7 @@ def get_table_pivot_keys(path, **kwargs):
 def get_tablet_infos(path, tablet_indexes, **kwargs):
     kwargs["path"] = path
     kwargs["tablet_indexes"] = tablet_indexes
-    return execute_command(
-        "get_tablet_infos", kwargs, parse_yson=True, unwrap_v4_result=False
-    )
+    return execute_command("get_tablet_infos", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def start_transaction(**kwargs):
@@ -1038,23 +1010,17 @@ def check_permission(user, permission, path, **kwargs):
     kwargs["user"] = user
     kwargs["permission"] = permission
     kwargs["path"] = path
-    return execute_command(
-        "check_permission", kwargs, parse_yson=True, unwrap_v4_result=False
-    )
+    return execute_command("check_permission", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def check_permission_by_acl(user, permission, acl, **kwargs):
     kwargs["user"] = user
     kwargs["permission"] = permission
     kwargs["acl"] = acl
-    return execute_command(
-        "check_permission_by_acl", kwargs, parse_yson=True, unwrap_v4_result=False
-    )
+    return execute_command("check_permission_by_acl", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
-def transfer_account_resources(
-    source_account, destination_account, resource_delta, **kwargs
-):
+def transfer_account_resources(source_account, destination_account, resource_delta, **kwargs):
     kwargs["source_account"] = source_account
     kwargs["destination_account"] = destination_account
     kwargs["resource_delta"] = resource_delta
@@ -1100,9 +1066,7 @@ def events_on_fs():
 def with_breakpoint(cmd, breakpoint_name="default"):
     if "BREAKPOINT" not in cmd:
         raise ValueError("Command doesn't have BREAKPOINT: {0}".format(cmd))
-    result = cmd.replace(
-        "BREAKPOINT", events_on_fs().breakpoint_cmd(breakpoint_name), 1
-    )
+    result = cmd.replace("BREAKPOINT", events_on_fs().breakpoint_cmd(breakpoint_name), 1)
     if "BREAKPOINT" in result:
         raise ValueError("Command has multiple BREAKPOINT: {0}".format(cmd))
     return result
@@ -1120,22 +1084,16 @@ def release_breakpoint(*args, **kwargs):
 
 
 def get_operation_cypress_path(op_id):
-    return "//sys/operations/{}/{}".format(
-        "%02x" % (long(op_id.split("-")[3], 16) % 256), op_id
-    )
+    return "//sys/operations/{}/{}".format("%02x" % (long(op_id.split("-")[3], 16) % 256), op_id)
 
 
 def get_cypress_metrics(operation_id, key, aggr="sum"):
-    statistics = get(
-        get_operation_cypress_path(operation_id) + "/@progress/job_statistics"
-    )
+    statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")
     return sum(
         filter(
             lambda x: x is not None,
             [
-                get_statistics(
-                    statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr)
-                )
+                get_statistics(statistics, "{0}.$.{1}.map.{2}".format(key, job_state, aggr))
                 for job_state in ("completed", "failed", "aborted")
             ],
         )
@@ -1202,10 +1160,7 @@ class Operation(object):
         return get(jobs_path, verbose=False, default={})
 
     def get_runtime_state(self, **kwargs):
-        return get(
-            "//sys/scheduler/orchid/scheduler/operations/{}/state".format(self.id),
-            **kwargs
-        )
+        return get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(self.id), **kwargs)
 
     def get_state(self, **kwargs):
         try:
@@ -1227,8 +1182,7 @@ class Operation(object):
             snapshot_path = self.get_path() + "/snapshot"
             wait(
                 lambda: exists(snapshot_path)
-                and date_string_to_datetime(get(snapshot_path + "/@creation_time"))
-                > timepoint
+                and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > timepoint
             )
 
     def get_alerts(self):
@@ -1256,9 +1210,7 @@ class Operation(object):
                     job_error = get(job_error_path, verbose=False)
                     message = job_error["message"]
                     if "stderr" in jobs[job]:
-                        message = (
-                            message + "\n" + read_file(job_stderr_path, verbose=False)
-                        )
+                        message = message + "\n" + read_file(job_stderr_path, verbose=False)
                     job_errors.append(
                         YtError(
                             message=message,
@@ -1269,11 +1221,7 @@ class Operation(object):
                     )
             inner_errors = error.get("inner_errors", [])
             if len(job_errors) > 0:
-                inner_errors.append(
-                    YtError(
-                        message="Some of the jobs have failed", inner_errors=job_errors
-                    )
-                )
+                inner_errors.append(YtError(message="Some of the jobs have failed", inner_errors=job_errors))
 
             return YtError(
                 message=error["message"],
@@ -1300,9 +1248,7 @@ class Operation(object):
                 result[job_type] = progress[job_type]["total"]
             else:
                 result[job_type] = progress[job_type]
-        return "({0})".format(
-            ", ".join("{0}={1}".format(key, result[key]) for key in result)
-        )
+        return "({0})".format(", ".join("{0}={1}".format(key, result[key]) for key in result))
 
     def track(self, raise_on_failed=True, raise_on_aborted=True):
         counter = 0
@@ -1350,9 +1296,7 @@ def create_tmpdir(prefix):
     except OSError:
         sys.excepthook(*sys.exc_info())
 
-    tmpdir = tempfile.mkdtemp(
-        prefix="{0}_{1}_".format(prefix, os.getpid()), dir=basedir
-    )
+    tmpdir = tempfile.mkdtemp(prefix="{0}_{1}_".format(prefix, os.getpid()), dir=basedir)
     # Give full access to tmpdir, it must be accessible from user jobs
     # to implement waitable jobs.
     os.chmod(tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
@@ -1410,9 +1354,7 @@ def start_op(op_type, **kwargs):
     kwargs["operation_type"] = op_type
 
     if kwargs.get("return_response", False):
-        return execute_command(
-            "start_op", kwargs, parse_yson=True, return_response=True
-        )
+        return execute_command("start_op", kwargs, parse_yson=True, return_response=True)
 
     operation.id = execute_command("start_op", kwargs, parse_yson=True)
     if track:
@@ -1562,10 +1504,7 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
 
     if "resource_limits" in kwargs["attributes"]:
         resource_limits = kwargs["attributes"]["resource_limits"]
-        set_master_memory = (
-            isinstance(resource_limits, dict)
-            and resource_limits.get("master_memory", 0) == 0
-        )
+        set_master_memory = isinstance(resource_limits, dict) and resource_limits.get("master_memory", 0) == 0
     else:
         set_master_memory = True
 
@@ -1576,8 +1515,7 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
     if sync:
         wait(
             lambda: exists("//sys/accounts/{0}".format(name), driver=driver)
-            and get("//sys/accounts/{0}/@life_stage".format(name), driver=driver)
-            == "creation_committed"
+            and get("//sys/accounts/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
         )
     if set_master_memory:
         set(
@@ -1613,9 +1551,7 @@ def remove_pool_tree(name, wait_for_orchid=True, **kwargs):
         wait(lambda: not exists(scheduler_orchid_pool_tree_path(name)))
 
 
-def create_pool(
-    name, pool_tree="default", parent_name=None, wait_for_orchid=True, **kwargs
-):
+def create_pool(name, pool_tree="default", parent_name=None, wait_for_orchid=True, **kwargs):
     kwargs["type"] = "scheduler_pool"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
@@ -1637,8 +1573,7 @@ def create_user(name, **kwargs):
     execute_command("create", kwargs)
     wait(
         lambda: exists("//sys/users/{0}".format(name), driver=driver)
-        and get("//sys/users/{0}/@life_stage".format(name), driver=driver)
-        == "creation_committed"
+        and get("//sys/users/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
     )
 
 
@@ -1662,13 +1597,9 @@ def create_test_tables(row_count=1, **kwargs):
     create("table", "//tmp/t_out", **kwargs)
 
 
-def run_test_vanilla(
-    command, spec=None, job_count=1, track=False, task_patch=None, **kwargs
-):
+def run_test_vanilla(command, spec=None, job_count=1, track=False, task_patch=None, **kwargs):
     spec = spec or {}
-    spec["tasks"] = {
-        "task": update({"job_count": job_count, "command": command}, task_patch)
-    }
+    spec["tasks"] = {"task": update({"job_count": job_count, "command": command}, task_patch)}
     return vanilla(spec=spec, track=track, **kwargs)
 
 
@@ -1747,8 +1678,7 @@ def create_tablet_cell_bundle(name, initialize_options=True, **kwargs):
     execute_command("create", kwargs)
     wait(
         lambda: exists("//sys/tablet_cell_bundles/{0}".format(name), driver=driver)
-        and get("//sys/tablet_cell_bundles/{0}/@life_stage".format(name), driver=driver)
-        == "creation_committed"
+        and get("//sys/tablet_cell_bundles/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
     )
 
 
@@ -1764,14 +1694,7 @@ def sync_remove_tablet_cells(cells, driver=None):
     cells = __builtin__.set(cells)
     for id in cells:
         remove_tablet_cell(id, driver=driver)
-    wait(
-        lambda: len(
-            cells.intersection(
-                __builtin__.set(get("//sys/tablet_cells", driver=driver))
-            )
-        )
-        == 0
-    )
+    wait(lambda: len(cells.intersection(__builtin__.set(get("//sys/tablet_cells", driver=driver)))) == 0)
 
 
 def remove_tablet_action(id, driver=None):
@@ -1885,9 +1808,7 @@ def get_media(driver=None):
 
 
 def get_chunk_owner_disk_space(path, *args, **kwargs):
-    disk_space = get(
-        "{0}/@resource_usage/disk_space_per_medium".format(path), *args, **kwargs
-    )
+    disk_space = get("{0}/@resource_usage/disk_space_per_medium".format(path), *args, **kwargs)
     return disk_space.get("default", 0)
 
 
@@ -1897,33 +1818,23 @@ def get_recursive_disk_space(path):
 
 
 def get_account_disk_space(account):
-    disk_space = get(
-        "//sys/accounts/{0}/@resource_usage/disk_space_per_medium".format(account)
-    )
+    disk_space = get("//sys/accounts/{0}/@resource_usage/disk_space_per_medium".format(account))
     return disk_space.get("default", 0)
 
 
 def get_account_committed_disk_space(account):
-    disk_space = get(
-        "//sys/accounts/{0}/@committed_resource_usage/disk_space_per_medium".format(
-            account
-        )
-    )
+    disk_space = get("//sys/accounts/{0}/@committed_resource_usage/disk_space_per_medium".format(account))
     return disk_space.get("default", 0)
 
 
 def get_account_disk_space_limit(account, medium="default"):
-    disk_space = get(
-        "//sys/accounts/{0}/@resource_limits/disk_space_per_medium".format(account)
-    )
+    disk_space = get("//sys/accounts/{0}/@resource_limits/disk_space_per_medium".format(account))
     return disk_space.get(medium, 0)
 
 
 def set_account_disk_space_limit(account, limit, medium="default"):
     set(
-        "//sys/accounts/{0}/@resource_limits/disk_space_per_medium/{1}".format(
-            account, medium
-        ),
+        "//sys/accounts/{0}/@resource_limits/disk_space_per_medium/{1}".format(account, medium),
         limit,
     )
 
@@ -1942,8 +1853,7 @@ def cluster_resources_equal(a, b):
     media = __builtin__.set(a.get("disk_space_per_medium", {}).keys())
     media.union(__builtin__.set(b.get("disk_space_per_medium", {}).keys()))
     return all(
-        a.get("disk_space_per_medium", {}).get(medium, 0)
-        == b.get("disk_space_per_medium", {}).get(medium, 0)
+        a.get("disk_space_per_medium", {}).get(medium, 0) == b.get("disk_space_per_medium", {}).get(medium, 0)
         for medium in media
     )
 
@@ -2175,9 +2085,7 @@ def set_banned_flag(value, nodes=None, driver=None):
 
     def check():
         return all(
-            get("//sys/cluster_nodes/{0}/@state".format(address), driver=driver)
-            == expected_state
-            for address in nodes
+            get("//sys/cluster_nodes/{0}/@state".format(address), driver=driver) == expected_state for address in nodes
         )
 
     wait(check)
@@ -2210,17 +2118,14 @@ def set_node_banned(address, flag, driver=None):
 
 def set_node_decommissioned(address, flag, driver=None):
     set("//sys/cluster_nodes/%s/@decommissioned" % address, flag, driver=driver)
-    print_debug(
-        "Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned")
-    )
+    print_debug("Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned"))
 
 
 def wait_for_nodes(driver=None):
     print_debug("Waiting for nodes to become online...")
     wait(
         lambda: all(
-            n.attributes["state"] == "online"
-            for n in ls("//sys/cluster_nodes", attributes=["state"], driver=driver)
+            n.attributes["state"] == "online" for n in ls("//sys/cluster_nodes", attributes=["state"], driver=driver)
         )
     )
 
@@ -2232,16 +2137,10 @@ def wait_for_chunk_replicator(driver=None):
 
 def get_cluster_drivers(primary_driver=None):
     if primary_driver is None:
-        return [
-            drivers_by_cell_tag[default_api_version]
-            for drivers_by_cell_tag in clusters_drivers["primary"]
-        ]
+        return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in clusters_drivers["primary"]]
     for drivers in clusters_drivers.values():
         if drivers[0][default_api_version] == primary_driver:
-            return [
-                drivers_by_cell_tag[default_api_version]
-                for drivers_by_cell_tag in drivers
-            ]
+            return [drivers_by_cell_tag[default_api_version] for drivers_by_cell_tag in drivers]
     raise "Failed to get cluster drivers"
 
 
@@ -2270,17 +2169,13 @@ def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
                     return False
                 try:
                     actual_config_version = get(
-                        "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(
-                            address, cell_id
-                        ),
+                        "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(address, cell_id),
                         driver=driver,
                     )
                     if actual_config_version != expected_config_version:
                         return False
                     if not get(
-                        "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/active".format(
-                            address, cell_id
-                        ),
+                        "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/active".format(address, cell_id),
                         driver=driver,
                     ):
                         return False
@@ -2304,9 +2199,7 @@ def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
 def sync_create_cells(cell_count, tablet_cell_bundle="default", driver=None):
     cell_ids = []
     for _ in xrange(cell_count):
-        cell_id = create_tablet_cell(
-            attributes={"tablet_cell_bundle": tablet_cell_bundle}, driver=driver
-        )
+        cell_id = create_tablet_cell(attributes={"tablet_cell_bundle": tablet_cell_bundle}, driver=driver)
         cell_ids.append(cell_id)
     wait_for_cells(cell_ids, driver=driver)
     return cell_ids
@@ -2325,10 +2218,7 @@ def truncate_journal(path, row_count, **kwargs):
 def wait_for_tablet_state(path, state, **kwargs):
     print_debug("Waiting for tablets to become %s..." % (state))
     driver = kwargs.pop("driver", None)
-    if (
-        kwargs.get("first_tablet_index", None) == None
-        and kwargs.get("last_tablet_index", None) == None
-    ):
+    if kwargs.get("first_tablet_index", None) == None and kwargs.get("last_tablet_index", None) == None:
         wait(lambda: get(path + "/@tablet_state", driver=driver) == state)
     else:
         tablet_count = get(path + "/@tablet_count", driver=driver)
@@ -2337,9 +2227,7 @@ def wait_for_tablet_state(path, state, **kwargs):
         wait(
             lambda: all(
                 x["state"] == state
-                for x in get(path + "/@tablets", driver=driver)[
-                    first_tablet_index : last_tablet_index + 1
-                ]
+                for x in get(path + "/@tablets", driver=driver)[first_tablet_index : last_tablet_index + 1]
             )
         )
         wait(lambda: get(path + "/@tablet_state") != "transient")
@@ -2373,8 +2261,7 @@ def sync_reshard_table(path, *args, **kwargs):
 def _wait_for_tablet_actions(action_ids):
     wait(
         lambda: all(
-            get("//sys/tablet_actions/{}/@state".format(action_id))
-            in ("completed", "failed")
+            get("//sys/tablet_actions/{}/@state".format(action_id)) in ("completed", "failed")
             for action_id in action_ids
         )
     )
@@ -2404,14 +2291,7 @@ def sync_compact_table(path, driver=None):
     sync_mount_table(path, driver=driver)
 
     print_debug("Waiting for tablets to become compacted...")
-    wait(
-        lambda: len(
-            chunk_ids.intersection(
-                __builtin__.set(get(path + "/@chunk_ids", driver=driver))
-            )
-        )
-        == 0
-    )
+    wait(lambda: len(chunk_ids.intersection(__builtin__.set(get(path + "/@chunk_ids", driver=driver)))) == 0)
 
     print_debug("Waiting for tablets to become stable...")
 
@@ -2458,9 +2338,7 @@ def sync_alter_table_replica_mode(replica_id, mode, driver=None):
     print_debug("Waiting for replica mode to become {}...".format(mode))
     tablets = get("#{}/@tablets".format(replica_id), driver=driver)
     tablet_ids = [x["tablet_id"] for x in tablets]
-    cell_ids = [
-        get("#{}/@cell_id".format(tablet_id), driver=driver) for tablet_id in tablet_ids
-    ]
+    cell_ids = [get("#{}/@cell_id".format(tablet_id), driver=driver) for tablet_id in tablet_ids]
     addresses = [get_tablet_leader_address(tablet_id) for tablet_id in tablet_ids]
 
     def check():
@@ -2522,9 +2400,7 @@ def get_job_count_profiling():
     job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
 
     try:
-        profiling_response = get(
-            "//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False
-        )
+        profiling_response = get("//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False)
     except YtError:
         return job_count
 
@@ -2550,9 +2426,7 @@ def get_job_count_profiling():
     duration = (datetime.now() - start_time).total_seconds()
 
     # Enable it for debugging.
-    print_debug(
-        "job_counters (take {} seconds to calculate): {}".format(duration, job_count)
-    )
+    print_debug("job_counters (take {} seconds to calculate): {}".format(duration, job_count))
 
     return job_count
 
@@ -2562,10 +2436,7 @@ def scheduler_orchid_path():
 
 
 def scheduler_orchid_pool_tree_path(tree):
-    return (
-        scheduler_orchid_path()
-        + "/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info".format(tree)
-    )
+    return scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info".format(tree)
 
 
 def scheduler_orchid_default_pool_tree_path():
@@ -2573,10 +2444,7 @@ def scheduler_orchid_default_pool_tree_path():
 
 
 def scheduler_orchid_pool_tree_config_path(tree):
-    return (
-        scheduler_orchid_path()
-        + "/scheduler/scheduling_info_per_pool_tree/{}/config".format(tree)
-    )
+    return scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/{}/config".format(tree)
 
 
 def scheduler_orchid_default_pool_tree_config_path():
@@ -2592,9 +2460,7 @@ def scheduler_orchid_operation_path(op, tree="default"):
 
 
 def get_applied_node_dynamic_config(node):
-    return get(
-        "//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node)
-    )
+    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node))
 
 
 # Implements config.update(new_config) for dynamic nodes config and waits for config apply
@@ -2611,7 +2477,5 @@ def update_nodes_dynamic_config(new_config):
 def update_controller_agent_config(path, value):
     set("//sys/controller_agents/config/" + path, value, recursive=True)
     for agent in ls("//sys/controller_agents/instances"):
-        orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(
-            agent
-        )
+        orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
         wait(lambda: get("{}/{}".format(orchid_config_path, path)) == value)

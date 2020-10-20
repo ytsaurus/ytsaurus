@@ -51,9 +51,7 @@ class Timer(object):
             sys.stderr.write("  {0:>30s} | {1}\n".format(key, value))
 
         sys.stderr.write("\n=== {0}\n".format(self._extra_info or repr(self)))
-        dump_stats_line(
-            "wall clock time",
-            "{0:.3f}s".format(self.finish_wall_clock - self.start_wall_clock))
+        dump_stats_line("wall clock time", "{0:.3f}s".format(self.finish_wall_clock - self.start_wall_clock))
 
     def __enter__(self):
         if not self._running:
@@ -72,10 +70,9 @@ class TestYsonPerformance(object):
     DATASETS_PATH = "testdata"
 
     @flaky(max_runs=5)
-    @pytest.mark.parametrize("dataset,expected_loads_time,expected_dumps_time", [
-        ("access_log.yson", 5.0, 4.0),
-        ("numbers.yson", 2.5, 2.5)
-    ])
+    @pytest.mark.parametrize(
+        "dataset,expected_loads_time,expected_dumps_time", [("access_log.yson", 5.0, 4.0), ("numbers.yson", 2.5, 2.5)]
+    )
     def test_yson_performance(self, dataset, expected_loads_time, expected_dumps_time):
         if is_debug() or is_asan_build() or is_msan_build() or yson.TYPE != "BINARY":
             pytest.skip()
@@ -93,7 +90,9 @@ class TestYsonPerformance(object):
             loads_results.append(t.finish_wall_clock - t.start_wall_clock)
 
             with Timer() as t:
-                dumped = yson.dumps(loaded, yson_type="list_fragment", yson_format="binary", ignore_inner_attributes=True)
+                dumped = yson.dumps(
+                    loaded, yson_type="list_fragment", yson_format="binary", ignore_inner_attributes=True
+                )
                 t.set_extra_info("{0}: dumped {1} bytes".format(dataset, len(dumped)))
             dumps_results.append(t.finish_wall_clock - t.start_wall_clock)
 

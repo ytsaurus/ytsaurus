@@ -36,17 +36,13 @@ class TestSandboxTmpfs(YTEnvSetup):
     def modify_node_config(cls, config):
         if not os.path.exists(cls.default_disk_path):
             os.makedirs(cls.default_disk_path)
-        config["exec_agent"]["slot_manager"]["locations"][0][
-            "path"
-        ] = cls.default_disk_path
+        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
 
     @classmethod
     def teardown_class(cls):
         super(TestSandboxTmpfs, cls).teardown_class()
         if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(
-                os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name)
-            )
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     @authors("ignat")
     def test_simple(self):
@@ -170,9 +166,7 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "copy_files": True,
                     "file_paths": [
                         "//tmp/test_file",
-                        to_yson_type(
-                            "//tmp/script", attributes={"file_name": "script.py"}
-                        ),
+                        to_yson_type("//tmp/script", attributes={"file_name": "script.py"}),
                     ],
                 }
             },
@@ -209,9 +203,7 @@ class TestSandboxTmpfs(YTEnvSetup):
         )
 
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        tmpfs_size = get_statistics(
-            statistics, "user_job.tmpfs_volumes.0.max_size.$.completed.map.sum"
-        )
+        tmpfs_size = get_statistics(statistics, "user_job.tmpfs_volumes.0.max_size.$.completed.map.sum")
         assert 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024
 
         with pytest.raises(YtError):
@@ -746,9 +738,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
             job_info = get_job(op.id, job)
             try:
                 sum = 0
-                for key, value in job_info["statistics"]["user_job"][
-                    "tmpfs_volumes"
-                ].iteritems():
+                for key, value in job_info["statistics"]["user_job"]["tmpfs_volumes"].iteritems():
                     sum += value["max_size"]["sum"]
                 return sum
             except KeyError:
@@ -858,9 +848,7 @@ class TestFilesInSandbox(YTEnvSetup):
 
         wait(
             lambda: op.get_state() == "aborted"
-            and are_almost_equal(
-                get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0
-            )
+            and are_almost_equal(get("//sys/scheduler/orchid/scheduler/cell/resource_usage/cpu"), 0)
         )
 
 
@@ -910,9 +898,7 @@ class TestArtifactCacheBypass(YTEnvSetup):
             out="//tmp/t_output",
             spec={
                 "mapper": {
-                    "file_paths": [
-                        "<bypass_artifact_cache=%true;format=json>//tmp/table"
-                    ],
+                    "file_paths": ["<bypass_artifact_cache=%true;format=json>//tmp/table"],
                     "output_format": "json",
                 }
             },
@@ -997,15 +983,11 @@ class TestNetworkIsolation(YTEnvSetup):
 
         # User `u2` is not allowed to use `n`. Job should fail.
         with pytest.raises(YtError):
-            op = run_test_vanilla(
-                "true", task_patch={"network_project": "n"}, authenticated_user="u2"
-            )
+            op = run_test_vanilla("true", task_patch={"network_project": "n"}, authenticated_user="u2")
             op.track()
 
         op = run_test_vanilla(
-            with_breakpoint(
-                "echo $YT_NETWORK_PROJECT_ID >&2; hostname >&2; BREAKPOINT"
-            ),
+            with_breakpoint("echo $YT_NETWORK_PROJECT_ID >&2; hostname >&2; BREAKPOINT"),
             task_patch={"network_project": "n"},
             authenticated_user="u1",
         )
@@ -1023,9 +1005,7 @@ class TestNetworkIsolation(YTEnvSetup):
         set("//sys/network_projects/n/@project_id", 0xDEADBEEF)
 
         op = run_test_vanilla(
-            with_breakpoint(
-                "getent hosts $(hostname) | awk '{ print $1 }' >&2; BREAKPOINT"
-            ),
+            with_breakpoint("getent hosts $(hostname) | awk '{ print $1 }' >&2; BREAKPOINT"),
             task_patch={"network_project": "n"},
         )
 
@@ -1045,9 +1025,7 @@ class TestJobStderr(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_MASTER_CONFIG = {
-        "chunk_manager": {"allow_multiple_erasure_parts_per_node": True}
-    }
+    DELTA_MASTER_CONFIG = {"chunk_manager": {"allow_multiple_erasure_parts_per_node": True}}
 
     @authors("ignat")
     def test_stderr_ok(self):
@@ -1154,12 +1132,8 @@ class TestJobStderr(YTEnvSetup):
         wait(enough_jobs_completed, sleep_backoff=0.6)
 
         stderr_tx = get(op.get_path() + "/@async_scheduler_transaction_id")
-        staged_objects = get(
-            "//sys/transactions/{0}/@staged_object_ids".format(stderr_tx)
-        )
-        assert sum(len(ids) for ids in staged_objects.values()) == 0, str(
-            staged_objects
-        )
+        staged_objects = get("//sys/transactions/{0}/@staged_object_ids".format(stderr_tx))
+        assert sum(len(ids) for ids in staged_objects.values()) == 0, str(staged_objects)
 
     @authors("ignat")
     def test_stderr_of_failed_jobs(self):
@@ -1226,9 +1200,7 @@ class TestJobStderr(YTEnvSetup):
         jobs = ls(op.get_path() + "/jobs")
         get(op.get_path() + "/jobs/{}".format(jobs[0]))
         get(op.get_path() + "/jobs/{}/stderr".format(jobs[0]))
-        recursive_resource_usage = get(
-            op.get_path() + "/jobs/{0}/@recursive_resource_usage".format(jobs[0])
-        )
+        recursive_resource_usage = get(op.get_path() + "/jobs/{0}/@recursive_resource_usage".format(jobs[0]))
 
         assert recursive_resource_usage["chunk_count"] == resource_usage["chunk_count"]
         assert (
@@ -1265,9 +1237,7 @@ class TestUserFiles(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_MASTER_CONFIG = {
-        "chunk_manager": {"allow_multiple_erasure_parts_per_node": True}
-    }
+    DELTA_MASTER_CONFIG = {"chunk_manager": {"allow_multiple_erasure_parts_per_node": True}}
 
     @authors("ignat")
     def test_file_with_integer_name(self):
@@ -1305,9 +1275,7 @@ class TestUserFiles(YTEnvSetup):
             in_="//tmp/t_input",
             out=["//tmp/t_output"],
             command="cat dir/my_file >&2; cat",
-            file=[
-                to_yson_type("//tmp/test_file", attributes={"file_name": "dir/my_file"})
-            ],
+            file=[to_yson_type("//tmp/test_file", attributes={"file_name": "dir/my_file"})],
             verbose=True,
         )
 
@@ -1316,11 +1284,7 @@ class TestUserFiles(YTEnvSetup):
                 in_="//tmp/t_input",
                 out=["//tmp/t_output"],
                 command="cat dir/my_file >&2; cat",
-                file=[
-                    to_yson_type(
-                        "//tmp/test_file", attributes={"file_name": "../dir/my_file"}
-                    )
-                ],
+                file=[to_yson_type("//tmp/test_file", attributes={"file_name": "../dir/my_file"})],
                 spec={"max_failed_job_count": 1},
                 verbose=True,
             )
@@ -1620,9 +1584,7 @@ class TestSecureVault(YTEnvSetup):
     def test_secure_vault_not_visible(self):
         op = self.run_map_with_secure_vault()
         cypress_info = str(op.get_path() + "/@")
-        scheduler_info = str(
-            get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id))
-        )
+        scheduler_info = str(get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)))
         op.track()
 
         # Check that secure environment variables is neither presented in the Cypress node of the
@@ -1649,9 +1611,7 @@ class TestSecureVault(YTEnvSetup):
 
     @authors("ignat")
     def test_secure_vault_with_revive_with_new_storage_scheme(self):
-        op = self.run_map_with_secure_vault(
-            spec={"enable_compatible_storage_mode": True}
-        )
+        op = self.run_map_with_secure_vault(spec={"enable_compatible_storage_mode": True})
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
         op.track()

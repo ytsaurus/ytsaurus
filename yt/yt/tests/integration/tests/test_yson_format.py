@@ -46,12 +46,8 @@ class TestYsonPositionalFormat(YTEnvSetup):
             positional_yson,
             [42, "forty_two"],
         )
-        _test_yson_row(
-            type1, optimize_for, {"f1": 53, "f2": None}, positional_yson, [53, None]
-        )
-        _test_yson_row(
-            type1, optimize_for, {"f1": 83, "f2": None}, positional_yson, [83, None]
-        )
+        _test_yson_row(type1, optimize_for, {"f1": 53, "f2": None}, positional_yson, [53, None])
+        _test_yson_row(type1, optimize_for, {"f1": 83, "f2": None}, positional_yson, [83, None])
 
         type2 = variant_struct_type(
             [

@@ -43,12 +43,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
             command='cat; echo "{\\"name/with/slashes\\"={\\"@table_index\\"=42}}">&5',
         )
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert (
-            get_statistics(
-                statistics, "custom.name/with/slashes.@table_index.$.completed.map.max"
-            )
-            == 42
-        )
+        assert get_statistics(statistics, "custom.name/with/slashes.@table_index.$.completed.map.max") == 42
 
         # But the empty keys are not ok (as well as for any other map nodes).
         with pytest.raises(YtError):
@@ -92,9 +87,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
                 out="//tmp/t2",
                 spec={
                     "max_failed_job_count": 1,
-                    "mapper": {
-                        "custom_statistics_count_limit": custom_statistics_count_limit
-                    },
+                    "mapper": {"custom_statistics_count_limit": custom_statistics_count_limit},
                 },
                 command="cat; " + write_line,
             )
@@ -107,12 +100,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         op = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert (
-            get_statistics(
-                statistics, "data.input.unmerged_data_weight.$.completed.map.count"
-            )
-            == 2
-        )
+        assert get_statistics(statistics, "data.input.unmerged_data_weight.$.completed.map.count") == 2
 
     @authors("babenko")
     def test_job_statistics_progress(self):

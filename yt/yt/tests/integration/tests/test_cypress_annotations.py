@@ -12,9 +12,7 @@ class TestCypressAnnotations(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {"cypress_annotations": {"whoami": "scheduler"}}
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "cypress_annotations": {"whoami": "controller_agent"}
-    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {"cypress_annotations": {"whoami": "controller_agent"}}
 
     DELTA_MASTER_CONFIG = {
         "cypress_annotations": {"whoami": "master"},
@@ -36,14 +34,10 @@ class TestCypressAnnotations(YTEnvSetup):
         assert "node" == get("//sys/cluster_nodes/{0}/@annotations/whoami".format(n))
 
         s = ls("//sys/scheduler/instances")[0]
-        assert "scheduler" == get(
-            "//sys/scheduler/instances/{0}/@annotations/whoami".format(s)
-        )
+        assert "scheduler" == get("//sys/scheduler/instances/{0}/@annotations/whoami".format(s))
 
         ca = ls("//sys/controller_agents/instances")[0]
-        assert "controller_agent" == get(
-            "//sys/controller_agents/instances/{0}/@annotations/whoami".format(ca)
-        )
+        assert "controller_agent" == get("//sys/controller_agents/instances/{0}/@annotations/whoami".format(ca))
 
         p = ls("//sys/proxies")[0]
         assert "proxy" == get("//sys/proxies/{}/@annotations/whoami".format(p))
@@ -53,17 +47,9 @@ class TestCypressAnnotations(YTEnvSetup):
 
         pm = ls("//sys/primary_masters")[0]
         wait(lambda: exists("//sys/primary_masters/{0}/@annotations".format(pm)))
-        assert "master" == get(
-            "//sys/primary_masters/{0}/@annotations/whoami".format(pm)
-        )
+        assert "master" == get("//sys/primary_masters/{0}/@annotations/whoami".format(pm))
 
         cell = ls("//sys/secondary_masters")[0]
         sm = ls("//sys/secondary_masters/" + cell)[0]
-        wait(
-            lambda: exists(
-                "//sys/secondary_masters/{0}/{1}/@annotations".format(cell, sm)
-            )
-        )
-        assert "master" == get(
-            "//sys/secondary_masters/{0}/{1}/@annotations/whoami".format(cell, sm)
-        )
+        wait(lambda: exists("//sys/secondary_masters/{0}/{1}/@annotations".format(cell, sm)))
+        assert "master" == get("//sys/secondary_masters/{0}/{1}/@annotations/whoami".format(cell, sm))

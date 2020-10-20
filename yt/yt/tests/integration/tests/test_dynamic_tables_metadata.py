@@ -165,30 +165,22 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
 ##################################################################
 
 
-class TestSortedDynamicTablesMetadataCachingMulticell(
-    TestSortedDynamicTablesMetadataCaching
-):
+class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMetadataCaching):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
-class TestSortedDynamicTablesMetadataCachingMulticell2(
-    TestSortedDynamicTablesMetadataCaching2
-):
+class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMetadataCaching2):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 ###################################################################
 
 
-class TestSortedDynamicTablesMetadataCachingRpcProxy(
-    TestSortedDynamicTablesMetadataCaching
-):
+class TestSortedDynamicTablesMetadataCachingRpcProxy(TestSortedDynamicTablesMetadataCaching):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-class TestSortedDynamicTablesMetadataCachingRpcProxy2(
-    TestSortedDynamicTablesMetadataCaching2
-):
+class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMetadataCaching2):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

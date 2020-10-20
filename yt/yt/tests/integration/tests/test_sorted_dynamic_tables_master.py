@@ -161,9 +161,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         [["none", False], ["compressed", False], ["uncompressed", True]],
     )
     @authors("savrus")
-    def test_mount_static_table(
-        self, in_memory_mode, enable_lookup_hash_table, optimize_for, external
-    ):
+    def test_mount_static_table(self, in_memory_mode, enable_lookup_hash_table, optimize_for, external):
         sync_create_cells(1)
         self._create_simple_table(
             "//tmp/t",
@@ -218,9 +216,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         expected = [{"key": i, "avalue": 2} for i in xrange(2)]
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
         assert actual == expected
-        actual = lookup_rows(
-            "//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True
-        )
+        actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True)
         assert actual == expected + [None, None]
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
@@ -243,10 +239,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
 
         insert_rows("//tmp/t", rows, aggregate=True, update=True)
 
-        expected = [
-            {"key": i, "key2": None, "nvalue": None, "value": str(i), "avalue": 3}
-            for i in xrange(2)
-        ]
+        expected = [{"key": i, "key2": None, "nvalue": None, "value": str(i), "avalue": 3} for i in xrange(2)]
         actual = lookup_rows("//tmp/t", keys)
         assert actual == expected
         actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
@@ -257,9 +250,7 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
         expected = [{"key": i, "avalue": 3} for i in xrange(2)]
         actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"])
         assert actual == expected
-        actual = lookup_rows(
-            "//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True
-        )
+        actual = lookup_rows("//tmp/t", keys, column_names=["key", "avalue"], keep_missing_rows=True)
         assert actual == expected + [None, None]
         actual = select_rows("key, avalue from [//tmp/t]")
         assert_items_equal(actual, expected)
@@ -286,30 +277,22 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
                 "//tmp/t",
                 attributes={
                     "dynamic": True,
-                    "schema": make_schema(
-                        [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-                    ),
+                    "schema": make_schema([{"name": "key", "type": "int64", "sort_order": "ascending"}]),
                 },
             )
         assert not exists("//tmp/t")
 
 
-class TestSortedDynamicTablesMountUnmountFreezeMulticell(
-    TestSortedDynamicTablesMountUnmountFreeze
-):
+class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTablesMountUnmountFreeze):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
-class TestSortedDynamicTablesMountUnmountFreezeRpcProxy(
-    TestSortedDynamicTablesMountUnmountFreeze
-):
+class TestSortedDynamicTablesMountUnmountFreezeRpcProxy(TestSortedDynamicTablesMountUnmountFreeze):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
-class TestSortedDynamicTablesMountUnmountFreezePortal(
-    TestSortedDynamicTablesMountUnmountFreezeMulticell
-):
+class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMountUnmountFreezeMulticell):
     ENABLE_TMP_PORTAL = True
 
 
@@ -347,9 +330,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
 
         for child_id in child_ids1:
             assert get("#{0}/@ref_counter".format(child_id)) == 2
-            assert_items_equal(
-                get("#{0}/@owning_nodes".format(child_id)), ["//tmp/t1", "//tmp/t2"]
-            )
+            assert_items_equal(get("#{0}/@owning_nodes".format(child_id)), ["//tmp/t1", "//tmp/t2"])
 
     @pytest.mark.parametrize(
         "unmount_func, mount_func, unmounted_state",
@@ -455,9 +436,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             reshard_table("//tmp/t", [[], []])
         assert self._get_pivot_keys("//tmp/t") == [[], [100]]
 
-        sync_reshard_table(
-            "//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1
-        )
+        sync_reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
         with pytest.raises(YtError):
@@ -469,20 +448,14 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
         with pytest.raises(YtError):
-            reshard_table(
-                "//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1
-            )
+            reshard_table("//tmp/t", [[100], [200]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [200]]
 
-        sync_reshard_table(
-            "//tmp/t", [[100], [150], [200]], first_tablet_index=1, last_tablet_index=2
-        )
+        sync_reshard_table("//tmp/t", [[100], [150], [200]], first_tablet_index=1, last_tablet_index=2)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
         with pytest.raises(YtError):
-            reshard_table(
-                "//tmp/t", [[100], [100]], first_tablet_index=1, last_tablet_index=1
-            )
+            reshard_table("//tmp/t", [[100], [100]], first_tablet_index=1, last_tablet_index=1)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [150], [200]]
 
         with pytest.raises(YtError):
@@ -503,9 +476,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
                 last_tablet_index=3,
             )
         sync_unmount_table("//tmp/t", first_tablet_index=1, last_tablet_index=3)
-        sync_reshard_table(
-            "//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3
-        )
+        sync_reshard_table("//tmp/t", [[100], [250], [300]], first_tablet_index=1, last_tablet_index=3)
         assert self._get_pivot_keys("//tmp/t") == [[], [100], [250], [300]]
 
     @authors("savrus", "levysotsky")
@@ -593,9 +564,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1)
         wait(lambda: get("//tmp/t/@tablets/1/state") == "mounted")
         tablet_chunk_lists = get_tablet_chunk_lists()
-        wait(
-            lambda: chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1]))
-        )
+        wait(lambda: chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1])))
 
         sync_unmount_table("//tmp/t")
 
@@ -603,19 +572,9 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             return get("#{0}/@chunk_id".format(chunk_view_id))
 
         tablet_chunk_lists = get_tablet_chunk_lists()
-        assert (
-            get_chunk_under_chunk_view(
-                get("#{0}/@child_ids/0".format(tablet_chunk_lists[0]))
-            )
-            == chunk_id
-        )
+        assert get_chunk_under_chunk_view(get("#{0}/@child_ids/0".format(tablet_chunk_lists[0]))) == chunk_id
         assert chunk_id not in get("#{0}/@child_ids".format(tablet_chunk_lists[1]))
-        assert (
-            get_chunk_under_chunk_view(
-                get("#{0}/@child_ids/0".format(tablet_chunk_lists[2]))
-            )
-            == chunk_id
-        )
+        assert get_chunk_under_chunk_view(get("#{0}/@child_ids/0".format(tablet_chunk_lists[2]))) == chunk_id
 
         sync_reshard_table("//tmp/t", [[]])
 
@@ -724,9 +683,7 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         create(
             "table",
             "//tmp/t2",
-            attributes={
-                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]
-            },
+            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
         )
         with pytest.raises(YtError):
             alter_table("//tmp/t2", dynamic=True)
@@ -840,7 +797,5 @@ class TestSortedDynamicTablesCopyReshardRpcProxy(TestSortedDynamicTablesCopyResh
     ENABLE_RPC_PROXY = True
 
 
-class TestSortedDynamicTablesCopyReshardPortal(
-    TestSortedDynamicTablesCopyReshardMulticell
-):
+class TestSortedDynamicTablesCopyReshardPortal(TestSortedDynamicTablesCopyReshardMulticell):
     ENABLE_TMP_PORTAL = True

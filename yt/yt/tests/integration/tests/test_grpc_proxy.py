@@ -49,9 +49,7 @@ def uuid_to_dict(guid):
     return {"first": parts[0], "second": parts[1]}
 
 
-@pytest.mark.skipif(
-    not pb2_imported, reason="Some of pb2 modules could not be imported"
-)
+@pytest.mark.skipif(not pb2_imported, reason="Some of pb2 modules could not be imported")
 class TestGrpcProxy(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     USE_DYNAMIC_TABLES = True
@@ -105,9 +103,7 @@ class TestGrpcProxy(YTEnvSetup):
         req_msg_class = getattr(api_service_pb2, "TReq" + camel_case_method)
         rsp_msg_class = getattr(api_service_pb2, "TRsp" + camel_case_method)
 
-        serialized_message = loads_proto(
-            dumps(params), req_msg_class
-        ).SerializeToString()
+        serialized_message = loads_proto(dumps(params), req_msg_class).SerializeToString()
         metadata = [
             ("yt-message-body-size", str(len(serialized_message))),
             ("yt-protocol-version", "1.0"),
@@ -157,9 +153,7 @@ class TestGrpcProxy(YTEnvSetup):
         return loads(self._make_light_api_request("create_node", kwargs))["node_id"]
 
     def _create_object(self, **kwargs):
-        object_id_parts = loads(self._make_light_api_request("create_object", kwargs))[
-            "object_id"
-        ]
+        object_id_parts = loads(self._make_light_api_request("create_object", kwargs))["object_id"]
         return uuid_from_dict(object_id_parts)
 
     def _exists_node(self, **kwargs):
@@ -169,9 +163,7 @@ class TestGrpcProxy(YTEnvSetup):
         self._make_light_api_request("mount_table", kwargs)
 
     def _start_transaction(self, **kwargs):
-        id_parts = loads(self._make_light_api_request("start_transaction", kwargs))[
-            "id"
-        ]
+        id_parts = loads(self._make_light_api_request("start_transaction", kwargs))["id"]
         return uuid_from_dict(id_parts)
 
     def _commit_transaction(self, **kwargs):
@@ -199,9 +191,7 @@ class TestGrpcProxy(YTEnvSetup):
 
             node = cell.attributes["peers"][0]["address"]
             if not self._exists_node(
-                path="//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}".format(
-                    node, cell.attributes["id"]
-                )
+                path="//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}".format(node, cell.attributes["id"])
             ):
                 return False
 
@@ -211,12 +201,7 @@ class TestGrpcProxy(YTEnvSetup):
 
     def _sync_mount_table(self, path):
         self._mount_table(path=path)
-        wait(
-            lambda: all(
-                tablet["state"] == "mounted"
-                for tablet in self._get_node(path=path + "/@tablets")
-            )
-        )
+        wait(lambda: all(tablet["state"] == "mounted" for tablet in self._get_node(path=path + "/@tablets")))
 
     @authors("asaitgalin")
     def test_dynamic_table_commands(self):
@@ -231,9 +216,7 @@ class TestGrpcProxy(YTEnvSetup):
         ]
 
         # 401 = "table", see ytlib/object_client/public.h
-        self._create_node(
-            type=401, path=table_path, attributes={"dynamic": True, "schema": schema}
-        )
+        self._create_node(type=401, path=table_path, attributes={"dynamic": True, "schema": schema})
         self._sync_mount_table(table_path)
         # 1 = "tablet", see ETransactionType in proto
         tx = self._start_transaction(type=1, timeout=10000000, sticky=True)
@@ -255,21 +238,15 @@ class TestGrpcProxy(YTEnvSetup):
                 "path": table_path,
                 # 0 = "write", see ERowModificationType in proto
                 "row_modification_types": [0] * len(rows),
-                "rowset_descriptor": {
-                    "name_table_entries": build_name_table_from_schema(schema)
-                },
+                "rowset_descriptor": {"name_table_entries": build_name_table_from_schema(schema)},
             },
             data=rows,
-            data_serializer=partial(
-                serialize_rows_to_unversioned_wire_format, schema=schema
-            ),
+            data_serializer=partial(serialize_rows_to_unversioned_wire_format, schema=schema),
         )
 
         self._commit_transaction(transaction_id=uuid_to_dict(tx))
 
-        msg, stream = self._make_heavy_api_request(
-            "select_rows", {"query": "* FROM [{}]".format(table_path)}
-        )
+        msg, stream = self._make_heavy_api_request("select_rows", {"query": "* FROM [{}]".format(table_path)})
         selected_rows = deserialize_rows_from_unversioned_wire_format(
             stream,
             [entry["name"] for entry in msg["rowset_descriptor"]["name_table_entries"]],

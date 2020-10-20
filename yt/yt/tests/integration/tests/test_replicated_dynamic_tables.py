@@ -110,9 +110,7 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     def _get_table_attributes(self, schema):
         return {"dynamic": True, "schema": schema}
 
-    def _create_replicated_table(
-        self, path, schema=SIMPLE_SCHEMA_SORTED, mount=True, **attributes
-    ):
+    def _create_replicated_table(self, path, schema=SIMPLE_SCHEMA_SORTED, mount=True, **attributes):
         attributes.update(self._get_table_attributes(schema))
         attributes["enable_replication_logging"] = True
         create("replicated_table", path, attributes=attributes)
@@ -120,13 +118,7 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
             sync_mount_table(path)
 
     def _create_replica_table(
-        self,
-        path,
-        replica_id=None,
-        schema=SIMPLE_SCHEMA_SORTED,
-        mount=True,
-        replica_driver=None,
-        **kwargs
+        self, path, replica_id=None, schema=SIMPLE_SCHEMA_SORTED, mount=True, replica_driver=None, **kwargs
     ):
         if not replica_driver:
             replica_driver = self.replica_driver
@@ -174,9 +166,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
 
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
         if schema is self.SIMPLE_SCHEMA_SORTED:
             delete_rows("//tmp/t", [{"key": 2}], require_sync_replica=False)
 
@@ -185,9 +175,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_replication_error(self, schema):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema, mount=False)
         sync_enable_table_replica(replica_id)
 
@@ -210,25 +198,17 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             if error_count != int(get("#{}/@tablets/0/has_error".format(replica_id))):
                 return False
 
-            orchid = self._find_tablet_orchid(
-                get_tablet_leader_address(tablet_id), tablet_id
-            )
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
             errors = orchid["replication_errors"]
 
             if message is None:
                 return error_count == 0 and len(errors) == 0
             else:
-                return (
-                    error_count == 1
-                    and len(errors) == 1
-                    and error_contains_message(errors[replica_id], message)
-                )
+                return error_count == 1 and len(errors) == 1 and error_contains_message(errors[replica_id], message)
 
         assert check_error()
 
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         wait(lambda: check_error("Table //tmp/r has no mounted tablets"))
 
         sync_mount_table("//tmp/r", driver=self.replica_driver)
@@ -265,9 +245,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
 
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         assert exists("//tmp/t/@replicas/{0}".format(replica_id))
         attributes = get("#{0}/@".format(replica_id))
         assert attributes["type"] == "table_replica"
@@ -281,9 +259,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_replicated_table("//tmp/t", mount=False)
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
 
         sync_mount_table("//tmp/t")
         sync_enable_table_replica(replica_id)
@@ -303,9 +279,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("babenko")
     def test_enable_disable_replica_unmounted(self):
         self._create_replicated_table("//tmp/t", mount=False)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "disabled"
         assert len(attributes["tablets"]) == 1
@@ -328,9 +302,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
 
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         assert get("#{0}/@state".format(replica_id)) == "disabled"
 
         sync_enable_table_replica(replica_id)
@@ -344,9 +316,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
 
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         assert get("#{0}/@state".format(replica_id)) == "disabled"
 
         self._create_replica_table("//tmp/r", replica_id)
@@ -360,50 +330,27 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         timestamp0 = generate_timestamp()
         assert get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id]
 
-        wait(
-            lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0)
-            == [replica_id]
-        )
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
 
         insert_rows("//tmp/t", rows, require_sync_replica=False)
         timestamp1 = generate_timestamp()
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [
-            replica_id
-        ]
+        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
 
-        wait(
-            lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0)
-            == [replica_id]
-        )
-        wait(
-            lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1)
-            == [replica_id]
-        )
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id])
 
         timestamp2 = generate_timestamp()
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [
-            replica_id
-        ]
-        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [
-            replica_id
-        ]
+        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id]
+        assert get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id]
 
-        wait(
-            lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2)
-            == [replica_id]
-        )
-        wait(
-            lambda: get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0)
-            == [replica_id]
-        )
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp2) == [replica_id])
+        wait(lambda: get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id])
 
     @authors("gridem")
     def test_in_sync_replicas_expression(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.EXPRESSION_SCHEMA)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.EXPRESSION_SCHEMA)
 
         sync_enable_table_replica(replica_id)
@@ -415,30 +362,17 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         keys = [{"key": 1}]
         insert_rows("//tmp/t", rows, require_sync_replica=False)
         timestamp1 = generate_timestamp()
-        wait(
-            lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
-            == [{"hash": 1, "key": 1, "value": 2}]
-        )
-        wait(
-            lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0)
-            == [replica_id]
-        )
-        wait(
-            lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1)
-            == [replica_id]
-        )
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 1, "key": 1, "value": 2}])
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp0) == [replica_id])
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp1) == [replica_id])
 
     @authors("gridem")
     def test_in_sync_replicas_disabled(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
 
-        replica_id1 = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1"
-        )
-        replica_id2 = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2"
-        )
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1")
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2")
 
         self._create_replica_table("//tmp/r1", replica_id1)
         self._create_replica_table("//tmp/r2", replica_id2)
@@ -459,10 +393,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             [replica_id1, replica_id2],
         )
 
-        wait(
-            lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp)
-            == [replica_id1]
-        )
+        wait(lambda: get_in_sync_replicas("//tmp/t", keys, timestamp=timestamp) == [replica_id1])
 
         sync_enable_table_replica(replica_id2)
         wait(
@@ -478,9 +409,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_async_replication_sorted(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id)
 
         sync_enable_table_replica(replica_id)
@@ -529,9 +458,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             self.SIMPLE_SCHEMA_ORDERED,
             preserve_tablet_index=preserve_tablet_index,
         )
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, self.SIMPLE_SCHEMA_ORDERED)
 
         sync_enable_table_replica(replica_id)
@@ -554,9 +481,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             ]
         )
 
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "new_test"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "new_test"}], require_sync_replica=False)
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)[-1]
             == {
@@ -590,12 +515,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             tablet_count=2,
             preserve_tablet_index=True,
         )
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode}
-        )
-        self._create_replica_table(
-            "//tmp/r", replica_id, self.SIMPLE_SCHEMA_ORDERED, tablet_count=2
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
+        self._create_replica_table("//tmp/r", replica_id, self.SIMPLE_SCHEMA_ORDERED, tablet_count=2)
 
         sync_enable_table_replica(replica_id)
 
@@ -617,9 +538,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         )
 
         wait(
-            lambda: select_rows(
-                "* from [//tmp/r] where [$tablet_index]=0", driver=self.replica_driver
-            )
+            lambda: select_rows("* from [//tmp/r] where [$tablet_index]=0", driver=self.replica_driver)
             == [
                 {
                     "$tablet_index": 0L,
@@ -631,9 +550,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             ]
         )
         wait(
-            lambda: select_rows(
-                "* from [//tmp/r] where [$tablet_index]=1", driver=self.replica_driver
-            )
+            lambda: select_rows("* from [//tmp/r] where [$tablet_index]=1", driver=self.replica_driver)
             == [
                 {
                     "$tablet_index": 1L,
@@ -649,9 +566,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_replication_sorted_with_tablet_index(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id)
 
         sync_enable_table_replica(replica_id)
@@ -693,9 +608,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             replication_throttler={"limit": 500},
             max_data_weight_per_replication_commit=500,
         )
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id)
 
         inserter = Inserter(self.replica_driver)
@@ -739,20 +652,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert len(tablets) == 1
 
         def _do():
-            before_index1 = get(
-                "#{0}/@tablets/0/current_replication_row_index".format(replica_id1)
-            )
-            before_index2 = get(
-                "#{0}/@tablets/0/current_replication_row_index".format(replica_id2)
-            )
+            before_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
+            before_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
             assert before_index1 == before_index2
 
-            before_ts1 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id1)
-            )
-            before_ts2 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id2)
-            )
+            before_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            before_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
             assert before_ts1 == before_ts2
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
@@ -784,30 +689,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
             delete_rows("//tmp/t", [{"key": 1}])
             assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == []
-            wait(
-                lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver)
-                == []
-            )
+            wait(lambda: select_rows("* from [//tmp/r2]", driver=self.replica_driver) == [])
 
-            wait(
-                lambda: get(
-                    "#{0}/@tablets/0/current_replication_row_index".format(replica_id1)
-                )
-                == before_index1 + 4
-            )
-            wait(
-                lambda: get(
-                    "#{0}/@tablets/0/current_replication_row_index".format(replica_id2)
-                )
-                == before_index1 + 4
-            )
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 4)
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2)) == before_index1 + 4)
 
-            after_ts1 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id1)
-            )
-            after_ts2 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id2)
-            )
+            after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
             assert after_ts1 == after_ts2
             assert after_ts1 > before_ts1
 
@@ -860,28 +748,18 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 return result[-1]
 
         def _do():
-            before_index1 = get(
-                "#{0}/@tablets/0/current_replication_row_index".format(replica_id1)
-            )
-            before_index2 = get(
-                "#{0}/@tablets/0/current_replication_row_index".format(replica_id2)
-            )
+            before_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
+            before_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
             assert before_index1 == before_index2
 
-            before_ts1 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id1)
-            )
-            before_ts2 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id2)
-            )
+            before_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            before_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
             assert before_ts1 == before_ts2
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
             # TODO(babenko): fix distributed commit for ordered tables
             wait(
-                lambda: _last_row(
-                    select_rows("* from [//tmp/r1]", driver=self.replica_driver)
-                )
+                lambda: _last_row(select_rows("* from [//tmp/r1]", driver=self.replica_driver))
                 == {
                     "$tablet_index": 0L,
                     "$row_index": before_index1,
@@ -891,9 +769,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 }
             )
             wait(
-                lambda: _last_row(
-                    select_rows("* from [//tmp/r2]", driver=self.replica_driver)
-                )
+                lambda: _last_row(select_rows("* from [//tmp/r2]", driver=self.replica_driver))
                 == {
                     "$tablet_index": 0L,
                     "$row_index": before_index2,
@@ -947,25 +823,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 }
             )
 
-            wait(
-                lambda: get(
-                    "#{0}/@tablets/0/current_replication_row_index".format(replica_id1)
-                )
-                == before_index1 + 3
-            )
-            wait(
-                lambda: get(
-                    "#{0}/@tablets/0/current_replication_row_index".format(replica_id2)
-                )
-                == before_index1 + 3
-            )
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 3)
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2)) == before_index1 + 3)
 
-            after_ts1 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id1)
-            )
-            after_ts2 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id2)
-            )
+            after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
             assert after_ts1 == after_ts2
             assert after_ts1 > before_ts1
 
@@ -1002,20 +864,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert len(tablets) == 1
 
         def _do():
-            before_index1 = get(
-                "#{0}/@tablets/0/current_replication_row_index".format(replica_id1)
-            )
-            before_index2 = get(
-                "#{0}/@tablets/0/current_replication_row_index".format(replica_id2)
-            )
+            before_index1 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1))
+            before_index2 = get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2))
             assert before_index1 == before_index2
 
-            before_ts1 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id1)
-            )
-            before_ts2 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id2)
-            )
+            before_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            before_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
             assert before_ts1 == before_ts2
 
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
@@ -1023,9 +877,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 {"key": 1, "value1": "test", "value2": 123}
             ]
             wait(
-                lambda: select_rows(
-                    "* from [//tmp/r2] where key=1", driver=self.replica_driver
-                )
+                lambda: select_rows("* from [//tmp/r2] where key=1", driver=self.replica_driver)
                 == [{"key": 1, "value1": "test", "value2": 123}]
             )
 
@@ -1034,9 +886,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 {"key": 1, "value1": "new_test", "value2": 123}
             ]
             wait(
-                lambda: select_rows(
-                    "* from [//tmp/r2] where key=1", driver=self.replica_driver
-                )
+                lambda: select_rows("* from [//tmp/r2] where key=1", driver=self.replica_driver)
                 == [{"key": 1, "value1": "new_test", "value2": 123}]
             )
 
@@ -1045,20 +895,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 {"key": 1, "value1": "new_test", "value2": 456}
             ]
             wait(
-                lambda: select_rows(
-                    "* from [//tmp/r2] where key=1", driver=self.replica_driver
-                )
+                lambda: select_rows("* from [//tmp/r2] where key=1", driver=self.replica_driver)
                 == [{"key": 1, "value1": "new_test", "value2": 456}]
             )
 
             delete_rows("//tmp/t", [{"key": 1}])
             assert select_rows("* from [//tmp/r1]", driver=self.replica_driver) == []
-            wait(
-                lambda: select_rows(
-                    "* from [//tmp/r2] where key=1", driver=self.replica_driver
-                )
-                == []
-            )
+            wait(lambda: select_rows("* from [//tmp/r2] where key=1", driver=self.replica_driver) == [])
 
             insert_rows(
                 "//tmp/r2",
@@ -1067,31 +910,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 driver=self.replica_driver,
             )
             wait(
-                lambda: select_rows(
-                    "* from [//tmp/r2] where key=2", driver=self.replica_driver
-                )
+                lambda: select_rows("* from [//tmp/r2] where key=2", driver=self.replica_driver)
                 == [{"key": 2, "value1": YsonEntity(), "value2": 457}]
             )
 
-            wait(
-                lambda: get(
-                    "#{0}/@tablets/0/current_replication_row_index".format(replica_id1)
-                )
-                == before_index1 + 4
-            )
-            wait(
-                lambda: get(
-                    "#{0}/@tablets/0/current_replication_row_index".format(replica_id2)
-                )
-                == before_index1 + 4
-            )
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id1)) == before_index1 + 4)
+            wait(lambda: get("#{0}/@tablets/0/current_replication_row_index".format(replica_id2)) == before_index1 + 4)
 
-            after_ts1 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id1)
-            )
-            after_ts2 = get(
-                "#{0}/@tablets/0/current_replication_timestamp".format(replica_id2)
-            )
+            after_ts1 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id1))
+            after_ts2 = get("#{0}/@tablets/0/current_replication_timestamp".format(replica_id2))
             assert after_ts1 == after_ts2
             assert after_ts1 > before_ts1
 
@@ -1179,13 +1006,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             "//tmp/r1",
             attributes={"mode": "sync"},
         )
-        replica_id2 = create_table_replica(
-            "//tmp/t", "primary", "//tmp/r2", attributes={"mode": "async"}
-        )
+        replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
-        self._create_replica_table(
-            "//tmp/r2", replica_id2, replica_driver=self.primary_driver
-        )
+        self._create_replica_table("//tmp/r2", replica_id2, replica_driver=self.primary_driver)
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
@@ -1197,12 +1020,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             },
         )
 
-        wait(
-            lambda: get(
-                "//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver
-            )
-            == "good"
-        )
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 
         nodes = ls("//sys/cluster_nodes", driver=self.replica_driver)
         for node in nodes:
@@ -1212,12 +1030,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 driver=self.replica_driver,
             )
 
-        wait(
-            lambda: get(
-                "//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver
-            )
-            != "good"
-        )
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) != "good")
 
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
@@ -1229,12 +1042,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
                 driver=self.replica_driver,
             )
 
-        wait(
-            lambda: get(
-                "//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver
-            )
-            == "good"
-        )
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 
     @authors("aozeritsky")
     def test_sync_replication_switch_with_min_sync_replica(self):
@@ -1382,10 +1190,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             remove("//tmp/r{}".format(i), driver=self.replica_driver)
         wait(lambda: self._get_sync_replicas(replica_ids) == 3)
 
-        replica_modes = {
-            replica_id: get("#{0}/@mode".format(replica_id))
-            for replica_id in replica_ids
-        }
+        replica_modes = {replica_id: get("#{0}/@mode".format(replica_id)) for replica_id in replica_ids}
         sleep(1.0)
         for replica_id in replica_ids:
             assert get("#{0}/@mode".format(replica_id)) == replica_modes[replica_id]
@@ -1398,9 +1203,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             {"expire_after_access_time": 1337},
         )
         assert (
-            get(
-                "//sys/@config/tablet_manager/replicated_table_tracker/bundle_health_cache/expire_after_access_time"
-            )
+            get("//sys/@config/tablet_manager/replicated_table_tracker/bundle_health_cache/expire_after_access_time")
             == 1337
         )
 
@@ -1408,9 +1211,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_cannot_sync_write_into_disabled_replica(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"}
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
         self._create_replica_table("//tmp/r", replica_id)
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}])
@@ -1420,17 +1221,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replica_table("//tmp/r", "1-2-3-4")
         with pytest.raises(YtError):
-            insert_rows(
-                "//tmp/r", [{"key": 1, "value2": 456}], driver=self.replica_driver
-            )
+            insert_rows("//tmp/r", [{"key": 1, "value2": 456}], driver=self.replica_driver)
 
     @authors("babenko")
     def test_upstream_replica_id_check2(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"}
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
         self._create_replica_table("//tmp/r", "1-2-3-4")
         sync_enable_table_replica(replica_id)
         with pytest.raises(YtError):
@@ -1583,16 +1380,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_disable_propagates_replication_row_index(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id)
 
         sync_enable_table_replica(replica_id)
 
-        assert (
-            get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
-        )
+        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
 
         insert_rows(
             "//tmp/t",
@@ -1607,25 +1400,19 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_disable_table_replica(replica_id)
 
-        assert (
-            get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 1
-        )
+        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 1
 
     @authors("babenko")
     def test_unmount_propagates_replication_row_index(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id)
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         sync_enable_table_replica(replica_id)
 
-        assert (
-            get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
-        )
+        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 0
 
         insert_rows(
             "//tmp/t",
@@ -1639,9 +1426,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
 
-        assert (
-            get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 1
-        )
+        assert get("#{0}/@tablets/0/current_replication_row_index".format(replica_id)) == 1
 
     @pytest.mark.parametrize(
         "with_data, schema",
@@ -1657,9 +1442,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema)
 
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
 
         replica_id = create_table_replica(
             "//tmp/t",
@@ -1672,9 +1455,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id)
 
         if with_data:
-            insert_rows(
-                "//tmp/t", [{"key": 2, "value1": "test"}], require_sync_replica=False
-            )
+            insert_rows("//tmp/t", [{"key": 2, "value1": "test"}], require_sync_replica=False)
 
         def _maybe_add_system_fields(dict):
             if schema is self.SIMPLE_SCHEMA_ORDERED:
@@ -1686,15 +1467,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
-            == (
-                [
-                    _maybe_add_system_fields(
-                        {"key": 2, "value1": "test", "value2": YsonEntity()}
-                    )
-                ]
-                if with_data
-                else []
-            )
+            == ([_maybe_add_system_fields({"key": 2, "value1": "test", "value2": YsonEntity()})] if with_data else [])
         )
 
     @authors("savrus")
@@ -1739,16 +1512,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_replicated_table("//tmp/t", dynamic_store_auto_flush_period=1000)
 
         sync_mount_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode}
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
         self._create_replica_table("//tmp/r", replica_id)
 
         sync_enable_table_replica(replica_id)
 
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
             == [{"key": 1, "value1": "test1", "value2": YsonEntity()}]
@@ -1768,9 +1537,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sleep(5.0)
 
-        insert_rows(
-            "//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 2, "value1": "test2"}], require_sync_replica=False)
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
             == [
@@ -1794,16 +1561,12 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_aggregate_replication(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.AGGREGATE_SCHEMA)
 
         sync_enable_table_replica(replica_id)
 
-        insert_rows(
-            "//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
         wait(
             lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
             == [{"key": 1, "value1": "test1", "value2": YsonEntity()}]
@@ -1836,13 +1599,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @pytest.mark.parametrize("dynamic", [True, False])
     def test_expression_replication(self, dynamic, only_replica):
         self._create_cells()
-        replicated_schema = (
-            self.EXPRESSIONLESS_SCHEMA if only_replica else self.EXPRESSION_SCHEMA
-        )
+        replicated_schema = self.EXPRESSIONLESS_SCHEMA if only_replica else self.EXPRESSION_SCHEMA
         self._create_replicated_table("//tmp/t", schema=replicated_schema)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         self._create_replica_table("//tmp/r", replica_id, schema=self.EXPRESSION_SCHEMA)
 
         if dynamic:
@@ -1853,10 +1612,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             sync_mount_table("//tmp/t")
             sync_enable_table_replica(replica_id)
 
-        wait(
-            lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
-            == [{"hash": 1, "key": 1, "value": 2}]
-        )
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 1, "key": 1, "value": 2}])
 
         if not dynamic:
             sync_disable_table_replica(replica_id)
@@ -1873,22 +1629,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         delete_rows("//tmp/t", [{"key": 1}], require_sync_replica=False)
         wait(
-            lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
-            == [{"hash": 2, "key": 12, "value": 12}]
+            lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"hash": 2, "key": 12, "value": 12}]
         )
 
     @authors("gridem")
     def test_shard_replication(self):
         self._create_cells()
-        self._create_replicated_table(
-            "//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, pivot_keys=[[], [10]]
-        )
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
-        self._create_replica_table(
-            "//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED
-        )
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, pivot_keys=[[], [10]])
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
 
         sync_enable_table_replica(replica_id)
 
@@ -1913,15 +1662,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("babenko", "gridem")
     def test_reshard_replication(self):
         self._create_cells()
-        self._create_replicated_table(
-            "//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, mount=False
-        )
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
-        self._create_replica_table(
-            "//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED
-        )
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, mount=False)
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
+        self._create_replica_table("//tmp/r", replica_id, schema=self.SIMPLE_SCHEMA_SORTED)
 
         sync_enable_table_replica(replica_id)
 
@@ -1964,9 +1707,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         abort_transaction(tx1)
 
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r"
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
         tx2 = start_transaction()
         lock("//tmp/t", mode="exclusive", tx=tx2)
         with pytest.raises(YtError):
@@ -1988,12 +1729,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             "//tmp/r2",
             attributes={"mode": "sync"},
         )
-        self._create_replica_table(
-            "//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA
-        )
-        self._create_replica_table(
-            "//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA
-        )
+        self._create_replica_table("//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA)
 
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
@@ -2002,9 +1739,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             insert_rows("//tmp/t", [{"key": i, "value1": "test" + str(i)}])
 
         for i in xrange(9):
-            assert lookup_rows(
-                "//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]
-            ) == [
+            assert lookup_rows("//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]) == [
                 {"key": i, "value1": "test" + str(i)},
                 {"key": i + 1, "value1": "test" + str(i + 1)},
             ]
@@ -2015,9 +1750,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_alter_table_replica_mode(replica_id2, "async")
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}])
-        insert_rows(
-            "//tmp/t", [{"key": 666, "value1": "hello"}], require_sync_replica=False
-        )
+        insert_rows("//tmp/t", [{"key": 666, "value1": "hello"}], require_sync_replica=False)
 
         sync_alter_table_replica_mode(replica_id2, "sync")
         with pytest.raises(YtError):
@@ -2027,9 +1760,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         def check_catchup():
             try:
-                return lookup_rows(
-                    "//tmp/t", [{"key": 666}], column_names=["key", "value1"]
-                ) == [{"key": 666, "value1": "hello"}]
+                return lookup_rows("//tmp/t", [{"key": 666}], column_names=["key", "value1"]) == [
+                    {"key": 666, "value1": "hello"}
+                ]
             except:
                 return False
 
@@ -2055,12 +1788,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             "//tmp/r2",
             attributes={"mode": "sync"},
         )
-        self._create_replica_table(
-            "//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA
-        )
-        self._create_replica_table(
-            "//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA
-        )
+        self._create_replica_table("//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA)
 
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
@@ -2068,9 +1797,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows)
         assert_items_equal(select_rows("key, value1 from [//tmp/t]"), rows)
-        assert_items_equal(
-            select_rows("sum(key) from [//tmp/t] group by 0"), [{"sum(key)": 45}]
-        )
+        assert_items_equal(select_rows("sum(key) from [//tmp/t] group by 0"), [{"sum(key)": 45}])
 
         create(
             "table",
@@ -2078,9 +1805,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             attributes={"dynamic": True, "schema": self.SIMPLE_SCHEMA_SORTED},
         )
         with pytest.raises(YtError):
-            select_rows(
-                "* from [//tmp/t] as t1 join [//tmp/z] as t2 on t1.key = t2.key"
-            )
+            select_rows("* from [//tmp/t] as t1 join [//tmp/z] as t2 on t1.key = t2.key")
 
         sync_alter_table_replica_mode(replica_id2, "async")
         sleep(1.0)
@@ -2091,54 +1816,35 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_local_sync_replica_yt_7571(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", "primary", "//tmp/r", attributes={"mode": "sync"}
-        )
-        self._create_replica_table(
-            "//tmp/r", replica_id, replica_driver=self.primary_driver
-        )
+        replica_id = create_table_replica("//tmp/t", "primary", "//tmp/r", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r", replica_id, replica_driver=self.primary_driver)
         sync_enable_table_replica(replica_id)
 
         rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows)
 
-        assert_items_equal(
-            select_rows("key, value1 from [//tmp/t]", driver=self.primary_driver), rows
-        )
-        assert_items_equal(
-            select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver), rows
-        )
+        assert_items_equal(select_rows("key, value1 from [//tmp/t]", driver=self.primary_driver), rows)
+        assert_items_equal(select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver), rows)
 
     @authors("babenko")
     def test_local_async_replica_yt_12906(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", "primary", "//tmp/r", attributes={"mode": "async"}
-        )
-        self._create_replica_table(
-            "//tmp/r", replica_id, replica_driver=self.primary_driver
-        )
+        replica_id = create_table_replica("//tmp/t", "primary", "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", replica_id, replica_driver=self.primary_driver)
         sync_enable_table_replica(replica_id)
 
         rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
         insert_rows("//tmp/t", rows, require_sync_replica=False)
 
-        wait(
-            lambda: select_rows(
-                "key, value1 from [//tmp/r]", driver=self.primary_driver
-            )
-            == rows
-        )
+        wait(lambda: select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver) == rows)
 
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_inverted_schema(self, mode):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode}
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
         self._create_replica_table("//tmp/r", replica_id, schema=self.PERTURBED_SCHEMA)
         sync_enable_table_replica(replica_id)
 
@@ -2173,9 +1879,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             )
 
         set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
-        replica_id = create_table_replica(
-            "//tmp/dir/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u"
-        )
+        replica_id = create_table_replica("//tmp/dir/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
         with pytest.raises(YtError):
@@ -2215,9 +1919,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_required_columns(self, mode):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.REQUIRED_SCHEMA)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode}
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
         self._create_replica_table("//tmp/r", replica_id, schema=self.REQUIRED_SCHEMA)
         sync_enable_table_replica(replica_id)
 
@@ -2255,12 +1957,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     def test_required_columns_schema_mismatch_1(self, mode):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.REQUIRED_SCHEMA)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode}
-        )
-        self._create_replica_table(
-            "//tmp/r", replica_id, schema=self.REQUIREDLESS_SCHEMA
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
+        self._create_replica_table("//tmp/r", replica_id, schema=self.REQUIREDLESS_SCHEMA)
         sync_enable_table_replica(replica_id)
 
         with pytest.raises(YtError):
@@ -2277,18 +1975,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             )
         full_row = {"key1": 3, "key2": 3, "value1": 3, "value2": 3}
         insert_rows("//tmp/t", [full_row], require_sync_replica=False)
-        wait(
-            lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
-            == [full_row]
-        )
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [full_row])
 
     @authors("ifsmirnov")
     def test_required_columns_schema_mismatch_2_sync(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.REQUIREDLESS_SCHEMA)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"}
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": "sync"})
         self._create_replica_table("//tmp/r", replica_id, schema=self.REQUIRED_SCHEMA)
         sync_enable_table_replica(replica_id)
 
@@ -2306,10 +1999,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             )
         full_row = {"key1": 3, "key2": 3, "value1": 3, "value2": 3}
         insert_rows("//tmp/t", [full_row], require_sync_replica=False)
-        wait(
-            lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
-            == [full_row]
-        )
+        wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [full_row])
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("failure_type", ["key", "value"])
@@ -2342,9 +2032,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("avmatrosov")
     def test_copy(self):
         self._create_cells()
-        self._create_replicated_table(
-            "//tmp/t_original", schema=self.REQUIREDLESS_SCHEMA
-        )
+        self._create_replicated_table("//tmp/t_original", schema=self.REQUIREDLESS_SCHEMA)
         replica_id = create_table_replica(
             "//tmp/t_original",
             self.REPLICA_CLUSTER_NAME,
@@ -2369,9 +2057,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("avmatrosov")
     def test_replication_via_copied_table(self):
         self._create_cells()
-        self._create_replicated_table(
-            "//tmp/t_original", schema=self.SIMPLE_SCHEMA_SORTED
-        )
+        self._create_replicated_table("//tmp/t_original", schema=self.SIMPLE_SCHEMA_SORTED)
         replica_id = create_table_replica(
             "//tmp/t_original",
             self.REPLICA_CLUSTER_NAME,
@@ -2391,20 +2077,13 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         for table in ["t_original", "t_copy"]:
             rows = [{"key": 1, "value1": table, "value2": 0}]
-            insert_rows(
-                "//tmp/{}".format(table), rows, update=True, require_sync_replica=False
-            )
-            wait(
-                lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver)
-                == rows
-            )
+            insert_rows("//tmp/{}".format(table), rows, update=True, require_sync_replica=False)
+            wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows)
 
     @authors("savrus")
     def test_replication_row_indexes(self):
         self._create_cells()
-        self._create_replicated_table(
-            "//tmp/t_original", schema=self.SIMPLE_SCHEMA_SORTED
-        )
+        self._create_replicated_table("//tmp/t_original", schema=self.SIMPLE_SCHEMA_SORTED)
         replica_id = create_table_replica(
             "//tmp/t_original",
             self.REPLICA_CLUSTER_NAME,
@@ -2416,38 +2095,25 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         rows = [{"key": 0, "value1": "0", "value2": 0}]
         insert_rows("//tmp/t_original", rows, require_sync_replica=False)
-        wait(
-            lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver)
-            == rows
-        )
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == rows)
 
         sync_freeze_table("//tmp/t_original")
         copy("//tmp/t_original", "//tmp/t_copy")
         sync_unfreeze_table("//tmp/t_original")
 
         copy_id = get("//tmp/t_copy/@replicas").keys()[0]
-        original_row_index = get(
-            "#{}/@tablets/0/current_replication_row_index".format(replica_id)
-        )
-        copy_row_index = get(
-            "#{}/@tablets/0/current_replication_row_index".format(copy_id)
-        )
+        original_row_index = get("#{}/@tablets/0/current_replication_row_index".format(replica_id))
+        copy_row_index = get("#{}/@tablets/0/current_replication_row_index".format(copy_id))
 
         sync_enable_table_replica(get("//tmp/t_copy/@replicas").keys()[0])
 
         delete_rows("//tmp/t_original", [{"key": 0}], require_sync_replica=False)
-        wait(
-            lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver)
-            == []
-        )
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=self.replica_driver) == [])
 
         sync_mount_table("//tmp/t_copy")
         rows = [{"key": 1, "value1": "1", "value2": 1}]
         insert_rows("//tmp/t_copy", rows, require_sync_replica=False)
-        wait(
-            lambda: lookup_rows("//tmp/r", [{"key": 1}], driver=self.replica_driver)
-            == rows
-        )
+        wait(lambda: lookup_rows("//tmp/r", [{"key": 1}], driver=self.replica_driver) == rows)
 
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows
 
@@ -2467,12 +2133,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             "//tmp/r2",
             attributes={"mode": "sync"},
         )
-        self._create_replica_table(
-            "//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA
-        )
-        self._create_replica_table(
-            "//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA
-        )
+        self._create_replica_table("//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA)
 
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
@@ -2481,9 +2143,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             insert_rows("//tmp/t", [{"key": i, "value1": "test" + str(i)}])
 
         for i in xrange(2):
-            assert lookup_rows(
-                "//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]
-            ) == [
+            assert lookup_rows("//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]) == [
                 {"key": i, "value1": "test" + str(i)},
                 {"key": i + 1, "value1": "test" + str(i + 1)},
             ]
@@ -2492,9 +2152,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         def _check():
             tablet_infos = get_tablet_infos("//tmp/t", [0])
-            assert (
-                tablet_infos.keys() == ["tablets"] and len(tablet_infos["tablets"]) == 1
-            )
+            assert tablet_infos.keys() == ["tablets"] and len(tablet_infos["tablets"]) == 1
             tablet_info.update(tablet_infos["tablets"][0])
 
             return tablet_info["total_row_count"] == 3
@@ -2524,9 +2182,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @authors("ifsmirnov")
     def test_reshard_non_empty_replicated_table(self):
         self._create_cells()
-        self._create_replicated_table(
-            "//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, min_replication_log_ttl=0
-        )
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, min_replication_log_ttl=0)
         replica_id1 = create_table_replica(
             "//tmp/t",
             self.REPLICA_CLUSTER_NAME,
@@ -2539,12 +2195,8 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             "//tmp/r2",
             attributes={"mode": "sync"},
         )
-        self._create_replica_table(
-            "//tmp/r1", replica_id1, schema=self.SIMPLE_SCHEMA_SORTED
-        )
-        self._create_replica_table(
-            "//tmp/r2", replica_id2, schema=self.SIMPLE_SCHEMA_SORTED
-        )
+        self._create_replica_table("//tmp/r1", replica_id1, schema=self.SIMPLE_SCHEMA_SORTED)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=self.SIMPLE_SCHEMA_SORTED)
 
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
@@ -2555,9 +2207,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(
             lambda: all(
                 replica["current_replication_row_index"] == 1
-                for replica in get_tablet_infos("//tmp/t", [0])["tablets"][0][
-                    "replica_infos"
-                ]
+                for replica in get_tablet_infos("//tmp/t", [0])["tablets"][0]["replica_infos"]
             )
         )
 
@@ -2586,9 +2236,7 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
     def test_safe_mode(self, mode):
         self._create_cells()
         self._create_replicated_table("//tmp/t")
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode}
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
         self._create_replica_table("//tmp/r", replica_id)
         sync_enable_table_replica(replica_id)
         create_user("u")
@@ -2624,9 +2272,7 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
             assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [
                 {"key": 1, "value1": "test", "value2": 10}
             ]
-            wait(
-                lambda: get("//tmp/t/@replicas/{}/error_count".format(replica_id)) == 1
-            )
+            wait(lambda: get("//tmp/t/@replicas/{}/error_count".format(replica_id)) == 1)
 
             tablet_id = get("//tmp/t/@tablets/0/tablet_id")
             address = get_tablet_leader_address(tablet_id)
@@ -2667,13 +2313,9 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
             "//tmp/r1",
             attributes={"mode": "sync"},
         )
-        replica_id2 = create_table_replica(
-            "//tmp/t", "primary", "//tmp/r2", attributes={"mode": "async"}
-        )
+        replica_id2 = create_table_replica("//tmp/t", "primary", "//tmp/r2", attributes={"mode": "async"})
         self._create_replica_table("//tmp/r1", replica_id1)
-        self._create_replica_table(
-            "//tmp/r2", replica_id2, replica_driver=self.primary_driver
-        )
+        self._create_replica_table("//tmp/r2", replica_id2, replica_driver=self.primary_driver)
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
@@ -2710,9 +2352,7 @@ class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
     def test_external_replicated_table(self, mode, external):
         self._create_cells()
         self._create_replicated_table("//tmp/t", external=external)
-        replica_id = create_table_replica(
-            "//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode}
-        )
+        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r", attributes={"mode": mode})
         self._create_replica_table("//tmp/r", replica_id, external=external)
 
         if external:

@@ -23,4 +23,3 @@ if __name__ == "__main__":
         if subkey != "":
             key, subkey = subkey, key
         sys.stdout.write("%s\t%s\t%.8g\n" % (key, subkey, value))
-

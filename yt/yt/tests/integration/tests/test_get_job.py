@@ -40,9 +40,7 @@ def _update_job_in_archive(op_id, job_id, attributes):
             "job_id_lo": job_id_lo,
         }
     )
-    insert_rows(
-        OPERATION_JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none"
-    )
+    insert_rows(OPERATION_JOB_ARCHIVE_TABLE, [attributes], update=True, atomicity="none")
 
 
 def _get_job_from_archive(op_id, job_id):
@@ -125,12 +123,8 @@ class _TestGetJobBase(YTEnvSetup):
         attributes = ["job_id", "state", "start_time"]
         job_info = retry(lambda: get_job(op_id, job_id, attributes=attributes))
         assert __builtin__.set(attributes).issubset(__builtin__.set(job_info.keys()))
-        attribute_difference = __builtin__.set(job_info.keys()) - __builtin__.set(
-            attributes
-        )
-        assert attribute_difference.issubset(
-            __builtin__.set(["archive_state", "controller_agent_state", "is_stale"])
-        )
+        attribute_difference = __builtin__.set(job_info.keys()) - __builtin__.set(attributes)
+        assert attribute_difference.issubset(__builtin__.set(["archive_state", "controller_agent_state", "is_stale"]))
         assert job_info.get("is_stale") == is_stale
 
         def check_has_spec():
@@ -166,9 +160,7 @@ class _TestGetJobCommon(_TestGetJobBase):
         )
         (job_id,) = wait_breakpoint()
 
-        self._check_get_job(
-            op.id, job_id, before_start_time, state="running", has_spec=None
-        )
+        self._check_get_job(op.id, job_id, before_start_time, state="running", has_spec=None)
 
         def correct_stderr_size():
             job_info = retry(lambda: get_job(op.id, job_id))
@@ -179,17 +171,13 @@ class _TestGetJobCommon(_TestGetJobBase):
         release_breakpoint()
         op.track()
 
-        self._check_get_job(
-            op.id, job_id, before_start_time, state="failed", has_spec=True
-        )
+        self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=True)
 
         _delete_job_from_archive(op.id, job_id)
 
         # Controller agent must be able to respond as it stores
         # zombie operation orchids.
-        self._check_get_job(
-            op.id, job_id, before_start_time, state="failed", has_spec=None
-        )
+        self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=None)
 
 
 class TestGetJob(_TestGetJobCommon):
@@ -201,15 +189,11 @@ class TestGetJob(_TestGetJobCommon):
                 "tasks": {
                     "master": {
                         "job_count": 1,
-                        "command": with_breakpoint(
-                            "BREAKPOINT", breakpoint_name="master"
-                        ),
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="master"),
                     },
                     "slave": {
                         "job_count": 2,
-                        "command": with_breakpoint(
-                            "BREAKPOINT", breakpoint_name="slave"
-                        ),
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="slave"),
                     },
                 },
             },
@@ -260,9 +244,7 @@ class TestGetJob(_TestGetJobCommon):
         del job_from_archive["operation_id_hash"]
         _update_job_in_archive(op.id, job_id, job_from_archive)
 
-        self._check_get_job(
-            op.id, job_id, before_start_time, archive_state="running", has_spec=None
-        )
+        self._check_get_job(op.id, job_id, before_start_time, archive_state="running", has_spec=None)
 
         _delete_job_from_archive(op.id, job_id)
 
@@ -316,9 +298,7 @@ class TestGetJobIsStale(_TestGetJobBase):
 
         # We emulate the situation when aborted (in CA's opinion) job
         # still reports "running" to archive.
-        _update_job_in_archive(
-            op.id, job_id, {"state": "running", "transient_state": "running"}
-        )
+        _update_job_in_archive(op.id, job_id, {"state": "running", "transient_state": "running"})
 
         def is_job_removed_from_controller_agent():
             job_info = retry(lambda: get_job(op.id, job_id))

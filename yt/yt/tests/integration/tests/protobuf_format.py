@@ -66,9 +66,7 @@ WIRE_TYPE_LENGTH_DELIMITED = 2
 WIRE_TYPE_32_BIT = 5
 
 
-TypeInfo = collections.namedtuple(
-    "TypeInfo", ["name", "writer_function", "reader_function", "wire_type"]
-)
+TypeInfo = collections.namedtuple("TypeInfo", ["name", "writer_function", "reader_function", "wire_type"])
 
 
 def get_wire_type(type_info, is_packed):
@@ -101,11 +99,7 @@ def create_type_name_to_type_info():
         )
 
     def raise_not_implemented(type_name):
-        raise NotImplementedError(
-            "Reader and writer functions for type {} are not implemented".format(
-                type_name
-            )
-        )
+        raise NotImplementedError("Reader and writer functions for type {} are not implemented".format(type_name))
 
     def create_type_info_without_io_functions(type_name, wire_type):
         return TypeInfo(
@@ -118,9 +112,7 @@ def create_type_name_to_type_info():
     def create_int_type_info(original_type):
         return TypeInfo(
             name="varint",
-            writer_function=lambda writer, value: writer.write_varint(
-                ctypes.c_uint64(value).value
-            ),
+            writer_function=lambda writer, value: writer.write_varint(ctypes.c_uint64(value).value),
             reader_function=lambda reader: original_type(reader.read_varint()).value,
             wire_type=WIRE_TYPE_VARINT,
         )
@@ -138,23 +130,13 @@ def create_type_name_to_type_info():
         "enum_int": create_int_type_info(ctypes.c_int32),
         # Reader and writer functions for the following types will raise an error,
         # so they must be handled explicitly.
-        "enum_string": create_type_info_without_io_functions(
-            "enum_string", WIRE_TYPE_VARINT
-        ),
-        "other_columns": create_type_info_without_io_functions(
-            "other_columns", WIRE_TYPE_LENGTH_DELIMITED
-        ),
-        "structured_message": create_type_info_without_io_functions(
-            "structured_message", WIRE_TYPE_LENGTH_DELIMITED
-        ),
+        "enum_string": create_type_info_without_io_functions("enum_string", WIRE_TYPE_VARINT),
+        "other_columns": create_type_info_without_io_functions("other_columns", WIRE_TYPE_LENGTH_DELIMITED),
+        "structured_message": create_type_info_without_io_functions("structured_message", WIRE_TYPE_LENGTH_DELIMITED),
         "any": TypeInfo(
             name="any",
-            writer_function=lambda writer, value: writer.write_length_delimited(
-                yt.yson.dumps(value)
-            ),
-            reader_function=lambda reader: yt.yson.loads(
-                reader.read_length_delimited()
-            ),
+            writer_function=lambda writer, value: writer.write_length_delimited(yt.yson.dumps(value)),
+            reader_function=lambda reader: yt.yson.loads(reader.read_length_delimited()),
             wire_type=WIRE_TYPE_LENGTH_DELIMITED,
         ),
     }
@@ -285,9 +267,7 @@ def parse_protobuf_message(message, field_configs, enumerations):
                 assert subfield_config["proto_type"] != "oneof"
                 subfield_config_copy = copy.deepcopy(subfield_config)
                 subfield_config_copy["oneof_name"] = field_config["name"]
-                field_number_to_field_config[
-                    subfield_config["field_number"]
-                ] = subfield_config_copy
+                field_number_to_field_config[subfield_config["field_number"]] = subfield_config_copy
         else:
             field_number_to_field_config[field_config["field_number"]] = field_config
 
@@ -308,9 +288,7 @@ def parse_protobuf_message(message, field_configs, enumerations):
         value = parse(reader, field_config, type_info)
         if "oneof_name" in field_config:
             result[field_config["oneof_name"]] = [field_config["name"], value]
-        elif field_config.get("repeated", False) and not field_config.get(
-            "packed", False
-        ):
+        elif field_config.get("repeated", False) and not field_config.get("packed", False):
             result.setdefault(field_name, []).append(value)
         elif field_type == "other_columns":
             result.update(value)
@@ -393,9 +371,7 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
         field_type = field_config["proto_type"]
         writer.write_varint(tag)
         if field_type == "structured_message":
-            serizalized_submessage = write_protobuf_message(
-                value, field_config["fields"], enumerations
-            )
+            serizalized_submessage = write_protobuf_message(value, field_config["fields"], enumerations)
             writer.write_length_delimited(serizalized_submessage)
         elif field_type == "enum_string":
             enumeration = enumerations[field_config["enumeration_name"]]
@@ -408,9 +384,7 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
         for field_config in field_configs
         if field_config["proto_type"] != "other_columns"
     }
-    other_columns_configs = [
-        c for c in field_configs if c["proto_type"] == "other_columns"
-    ]
+    other_columns_configs = [c for c in field_configs if c["proto_type"] == "other_columns"]
     assert len(other_columns_configs) <= 1
     other_columns_config = None
     other_columns = None
@@ -430,9 +404,7 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
         field_config = field_name_to_field_config[name]
         if field_config["proto_type"] == "oneof":
             alternative_name, value = value[0], value[1]
-            subfields = [
-                sf for sf in field_config["fields"] if sf["name"] == alternative_name
-            ]
+            subfields = [sf for sf in field_config["fields"] if sf["name"] == alternative_name]
             assert len(subfields) == 1
             field_config = subfields[0]
         field_type = field_config["proto_type"]
@@ -478,8 +450,6 @@ def write_lenval_protobuf(message_dicts, format):
     proto_config = format.attributes["tables"][0]
     enumerations = create_enumerations(format.attributes.get("enumerations", {}))
     for message_dict in message_dicts:
-        serizalized_message = write_protobuf_message(
-            message_dict, proto_config["columns"], enumerations
-        )
+        serizalized_message = write_protobuf_message(message_dict, proto_config["columns"], enumerations)
         writer.write_data(serizalized_message)
     return bufio.getvalue()

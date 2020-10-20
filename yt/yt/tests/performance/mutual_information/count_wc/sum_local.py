@@ -9,5 +9,3 @@ if __name__ == "__main__":
         for i in xrage(2):
             sum[i] += current[i]
     print "%d %d" % (sum[0], sum[1])
-
-
