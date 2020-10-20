@@ -27,6 +27,9 @@ def fix_argspec(argspec, is_init_method):
         modified_defaults.pop(defaults_index)
         defaults = tuple(modified_defaults)
 
+    if not defaults:
+        defaults = None
+
     # NOTE: In Python 3 argspec is namedtuple and forbids mutations so new instance is created.
     if PY3:
         new_argspec_args = {}
@@ -88,6 +91,15 @@ def create_class_method(func):
         undecorated=func,
         __wrapped__=func,
         argspec_transformer=lambda args: fix_argspec(args, is_class))
+
+def are_signatures_equal(lhs, rhs):
+    def get_arg_spec(func):
+        if PY3:
+            return inspect.getfullargspec(func)
+        else:
+            return inspect.getargspec(func)
+
+    return get_arg_spec(lhs) == get_arg_spec(rhs)
 
 def initialize_client(client, proxy, token, config):
     client.config = get_default_config()

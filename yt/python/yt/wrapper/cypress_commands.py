@@ -31,6 +31,15 @@ class _KwargSentinelClass(object):
         return cls.__instance
 _KWARG_SENTINEL = _KwargSentinelClass()
 
+class _MapOrderSorted(object):
+    __instance = None
+    def __new__(cls):
+        if cls.__instance is None:
+            cls.__instance = object.__new__(cls)
+            cls.__instance.name = "_MapOrderSorted"
+        return cls.__instance
+MAP_ORDER_SORTED = _MapOrderSorted()
+
 def get(path, max_size=None, attributes=None, format=None, read_from=None, cache_sticky_group_size=None, client=None):
     """Gets Cypress node content (attribute tree).
 
@@ -466,7 +475,7 @@ def find_free_subpath(path, client=None):
             return name
 
 def search(root="", node_type=None, path_filter=None, object_filter=None, subtree_filter=None,
-           map_node_order=lambda path, obj: sorted(obj), list_node_order=None, attributes=None,
+           map_node_order=MAP_ORDER_SORTED, list_node_order=None, attributes=None,
            exclude=None, depth_bound=None, follow_links=False, read_from=None, cache_sticky_group_size=None,
            enable_batch_mode=None, client=None):
     """Searches for some nodes in Cypress subtree.
@@ -492,6 +501,9 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
 
     # TODO(ostyakov): Remove local import
     from .batch_helpers import create_batch_client
+
+    if map_node_order is MAP_ORDER_SORTED:
+        map_node_order = lambda path, obj: sorted(obj)
 
     encoding = get_structured_format(format=None, client=client)._encoding
 
