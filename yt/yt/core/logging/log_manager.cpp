@@ -403,7 +403,9 @@ public:
 
         PushEvent(std::move(event));
 
-        DequeueExecutor_->ScheduleOutOfBand();
+        if (ExecutorsInitialized_) {
+            DequeueExecutor_->ScheduleOutOfBand();
+        }
 
         future.Get();
     }
@@ -531,7 +533,7 @@ public:
                     LowBacklogWatermark_);
             }
         } else {
-            if (backlogEvents >= LowBacklogWatermark_ && !ScheduledOutOfBand_.test_and_set()) {
+            if (backlogEvents >= LowBacklogWatermark_ && !ScheduledOutOfBand_.test_and_set() && ExecutorsInitialized_) {
                 DequeueExecutor_->ScheduleOutOfBand();
             }
 
@@ -653,6 +655,8 @@ private:
                 BIND(&TImpl::OnDequeue, MakeStrong(this)),
                 DequeuePeriod);
             DequeueExecutor_->Start();
+
+            ExecutorsInitialized_.store(true);
         });
     }
 
@@ -1223,6 +1227,7 @@ private:
 
     std::atomic<bool> Suspended_ = false;
     std::once_flag Started_;
+    std::atomic<bool> ExecutorsInitialized_ = false;
     std::atomic_flag ScheduledOutOfBand_ = false;
 
     THashSet<TThreadLocalQueue*> LocalQueues_;
