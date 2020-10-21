@@ -323,8 +323,11 @@ protected:
             i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + static_cast<i64>(unreadRows.Size()));
             rowCount = std::min(rowCount, upperRowIndex - rowIndex);
             chunk.set_row_count_override(rowCount);
+            i64 chunkDataWeight = misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size();
+            // NB(gritukan): Some old chunks might have zero data weight.
+            chunkDataWeight = std::max<i64>(chunkDataWeight, 1);
             i64 dataWeight = DivCeil(
-                misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size(),
+                chunkDataWeight,
                 misc.row_count()) * rowCount;
             YT_VERIFY(dataWeight > 0);
             chunk.set_data_weight_override(dataWeight);
