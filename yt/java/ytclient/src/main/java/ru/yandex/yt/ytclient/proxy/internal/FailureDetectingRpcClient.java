@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.util.List;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -15,15 +14,13 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
-import ru.yandex.yt.ytclient.rpc.RpcCompression;
-import ru.yandex.yt.ytclient.rpc.RpcCredentials;
+import ru.yandex.yt.ytclient.rpc.RpcClientWrapper;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 // TODO: move closer to user an make package private
-public class FailureDetectingRpcClient implements RpcClient {
+public class FailureDetectingRpcClient extends RpcClientWrapper {
     private static final Logger logger = LoggerFactory.getLogger(FailureDetectingRpcClient.class);
 
-    private RpcClient innerClient;
     private final Function<Throwable, Boolean> isError;
     private final Consumer<Throwable> errorHandler;
 
@@ -32,14 +29,9 @@ public class FailureDetectingRpcClient implements RpcClient {
             Function<Throwable, Boolean> isError,
             Consumer<Throwable> errorHandler)
     {
-        this.innerClient = innerClient;
+        super(innerClient);
         this.isError = isError;
         this.errorHandler = errorHandler;
-    }
-
-    @Override
-    public void close() {
-        innerClient.close();
     }
 
     private RpcClientResponseHandler wrapHandler(RpcClientResponseHandler handler) {
@@ -70,48 +62,16 @@ public class FailureDetectingRpcClient implements RpcClient {
 
     @Override
     public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
-        return innerClient.send(sender, request, wrapHandler(handler));
+        return super.send(sender, request, wrapHandler(handler));
     }
 
     @Override
     public RpcClientRequestControl send(RpcClientRequest request, RpcClientResponseHandler handler) {
-        return innerClient.send(this, request, wrapHandler(handler));
+        return super.send(this, request, wrapHandler(handler));
     }
 
     @Override
     public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
-        return innerClient.startStream(sender, request, consumer);
-    }
-
-    @Override
-    public String destinationName() {
-        return innerClient.destinationName();
-    }
-
-    @Override
-    public ScheduledExecutorService executor() {
-        return innerClient.executor();
-    }
-
-    @Override
-    public RpcClientStreamControl startStream(RpcClientRequest request, RpcStreamConsumer consumer) {
-        return innerClient.startStream(this, request, consumer);
-    }
-
-    @Override
-    public RpcClient withTokenAuthentication(RpcCredentials credentials) {
-        this.innerClient = innerClient.withTokenAuthentication(credentials);
-        return this;
-    }
-
-    @Override
-    public RpcClient withCompression(RpcCompression compression) {
-        this.innerClient = innerClient.withCompression(compression);
-        return this;
-    }
-
-    @Override
-    public String toString() {
-        return innerClient.toString();
+        return super.startStream(sender, request, consumer);
     }
 }

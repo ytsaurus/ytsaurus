@@ -32,6 +32,10 @@ public class TableSchema implements YTreeConvertible {
     private final String lock;
     private final String group;
 
+    static public Builder builder() {
+        return new Builder();
+    }
+
     private TableSchema(List<ColumnSchema> columns, boolean strict, boolean uniqueKeys, String lock, String group) {
         this.columns = Objects.requireNonNull(columns);
         this.strict = strict;

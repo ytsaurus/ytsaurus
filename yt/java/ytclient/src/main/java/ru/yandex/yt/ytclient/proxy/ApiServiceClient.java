@@ -287,13 +287,19 @@ public class ApiServiceClient implements TransactionalClient {
             GUID id = RpcUtil.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
             RpcClient sender = response.sender();
+            ApiServiceTransaction result;
             if (rpcClient != null && rpcClient.equals(sender)) {
-                return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod,
+                result = new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod,
                         sender.executor());
             } else {
-                return new ApiServiceTransaction(sender, rpcOptions, id, startTimestamp, ping, pingAncestors, sticky,
+                result = new ApiServiceTransaction(sender, rpcOptions, id, startTimestamp, ping, pingAncestors, sticky,
                         pingPeriod, sender.executor());
             }
+
+            sender.ref();
+            result.getTransactionCompleteFuture().whenComplete((ignored, ex) -> sender.unref());
+
+            return result;
         });
     }
 
@@ -1608,5 +1614,13 @@ public class ApiServiceClient implements TransactionalClient {
     @Override
     public String toString() {
         return rpcClient != null ? rpcClient.toString() : super.toString();
+    }
+
+    @Nullable
+    String getRpcProxyAddress() {
+        if (rpcClient == null) {
+            return null;
+        }
+        return rpcClient.getAddressString();
     }
 }

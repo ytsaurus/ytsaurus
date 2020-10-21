@@ -43,6 +43,7 @@ import static org.asynchttpclient.Dsl.asyncHttpClient;
 
 interface DataCenterRpcClientPool extends RpcClientPool {
     String getDataCenterName();
+    CompletableFuture<Integer> banClient(String address);
 }
 
 /**
@@ -139,6 +140,23 @@ class MultiDcClientPool implements RpcClientPool {
             resultFuture.whenComplete((client, error) -> future.cancel(true));
         }
         return resultFuture;
+    }
+
+    CompletableFuture<Integer> banClient(String address) {
+        AtomicInteger total = new AtomicInteger(0);
+        List<CompletableFuture<Integer>> bannedCountList = new ArrayList<>(clientPools.length);
+
+        for (DataCenterRpcClientPool pool : clientPools) {
+            bannedCountList.add(pool.banClient(address));
+        }
+
+        CompletableFuture<Void> accumulator = CompletableFuture.completedFuture(null);
+        for (CompletableFuture<Integer> cur : bannedCountList) {
+            cur.whenComplete((value, throwable) -> total.addAndGet(value));
+            accumulator = CompletableFuture.allOf(accumulator, cur);
+        }
+
+        return accumulator.thenApply((ignored) -> total.get());
     }
 
     @Nullable
@@ -507,14 +525,24 @@ class ClientPool implements DataCenterRpcClientPool {
         return false;
     }
 
-    CompletableFuture<Void> banErrorClient(HostPort hostPort) {
+    @Override
+    public CompletableFuture<Integer> banClient(String address) {
+        return banErrorClient(HostPort.parse(address));
+    }
+
+    CompletableFuture<Integer> banErrorClient(HostPort hostPort) {
         return safeExecutorService.submit(
                 () -> {
+                    List<PooledRpcClient> toBan = new ArrayList<>();
                     for (PooledRpcClient client : activeClients.values()) {
                         if (client.hostPort.equals(hostPort)) {
-                            banClientUnsafe(client, true);
+                            toBan.add(client);
                         }
                     }
+                    for (PooledRpcClient client : toBan) {
+                        banClientUnsafe(client, true);
+                    }
+                    return toBan.size();
                 }
         );
     }
@@ -591,7 +619,6 @@ class ClientPool implements DataCenterRpcClientPool {
     @NonNullApi
     class PooledRpcClient {
         final HostPort hostPort;
-        final RpcClient internalClient;
         final RpcClient publicClient;
         final GUID guid;
 
@@ -601,9 +628,8 @@ class ClientPool implements DataCenterRpcClientPool {
 
         PooledRpcClient(HostPort hostPort, RpcClient client, GUID guid) {
             this.hostPort = hostPort;
-            this.internalClient = client;
             this.publicClient = new FailureDetectingRpcClient(
-                    internalClient,
+                    client,
                     RpcError::isUnrecoverable,
                     e -> {
                         logger.debug("Banning rpc-proxy connection {} due to error:", this, e);
@@ -621,8 +647,8 @@ class ClientPool implements DataCenterRpcClientPool {
         void unref() {
             int ref = referenceCounter.decrementAndGet();
             if (ref == 0) {
-                logger.debug("Closing rpc-proxy connection {}", this);
-                internalClient.close();
+                logger.debug("Releasing rpc-proxy connection {}", this);
+                publicClient.unref();
             }
         }
 

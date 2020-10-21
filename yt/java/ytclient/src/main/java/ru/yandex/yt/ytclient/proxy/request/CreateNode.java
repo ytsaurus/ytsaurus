@@ -28,6 +28,11 @@ public class CreateNode extends MutateNode<CreateNode> {
         this.type = type.value();
     }
 
+    public CreateNode(YPath path, ObjectType type) {
+        this.path = path.toString();
+        this.type = type.value();
+    }
+
     public CreateNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
         this(path, type);
         setAttributes(attributes);

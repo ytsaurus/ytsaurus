@@ -33,17 +33,12 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 public class BalancingRpcClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(BalancingRpcClient.class);
 
-    final private Duration failoverTimeout;
-    final private Duration pingTimeout;
-    final private Duration globalTimeout;
     final private String dataCenterName;
     final private DataCenter[] dataCenters;
     private DataCenter localDataCenter;
     final private Random rnd = new Random();
     final private ScheduledExecutorService executorService;
     final private RpcFailoverPolicy failoverPolicy;
-
-    final private BalancingResponseHandlerMetricsHolder balancingResponseHandlerMetricsHolder;
 
     public BalancingRpcClient(
         Duration failoverTimeout,
@@ -110,13 +105,8 @@ public class BalancingRpcClient implements RpcClient {
     {
         assert failoverTimeout.compareTo(globalTimeout) <= 0;
 
-        this.balancingResponseHandlerMetricsHolder = balancingResponseHandlerMetricsHolder;
-
         this.dataCenterName = dataCenter;
         this.failoverPolicy = failoverPolicy;
-        this.failoverTimeout = failoverTimeout;
-        this.pingTimeout = pingTimeout;
-        this.globalTimeout = globalTimeout;
         this.executorService = connector.eventLoopGroup();
         this.dataCenters = new DataCenter[dataCenters.size()];
         this.localDataCenter = null;
@@ -141,6 +131,16 @@ public class BalancingRpcClient implements RpcClient {
             }
             i++;
         }
+    }
+
+    @Override
+    public void ref() {
+        throw new IllegalStateException("Not implemented for deprecated BalancingRpcClient");
+    }
+
+    @Override
+    public void unref() {
+        throw new IllegalStateException("Not implemented for deprecated BalancingRpcClient");
     }
 
     @Override
@@ -183,6 +183,11 @@ public class BalancingRpcClient implements RpcClient {
 
     public String destinationName() {
         return "multidestination";
+    }
+
+    @Override
+    public String getAddressString() {
+        return null;
     }
 
     @Override

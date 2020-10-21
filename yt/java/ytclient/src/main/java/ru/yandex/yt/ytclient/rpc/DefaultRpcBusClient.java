@@ -59,8 +59,8 @@ public class DefaultRpcBusClient implements RpcClient {
     // TODO: we should remove destinationName and name and use only addressString
     private final String destinationName; // for debug
     private final String name; // output in user log
-
     private final DefaultRpcBusClientMetricsHolder metricsHolder;
+    private final AtomicInteger referenceCounter = new AtomicInteger(1);
 
     private final class Statistics {
         private final String name;
@@ -857,6 +857,11 @@ public class DefaultRpcBusClient implements RpcClient {
     }
 
     @Override
+    public String getAddressString() {
+        return addressString;
+    }
+
+    @Override
     public String toString() {
         return this.name;
     }
@@ -881,7 +886,27 @@ public class DefaultRpcBusClient implements RpcClient {
     }
 
     @Override
+    public void ref() {
+        int oldValue = referenceCounter.getAndIncrement();
+        if (oldValue <= 0) {
+            throw new IllegalStateException("Trying to ref dead object");
+        }
+    }
+
+    @Override
+    public void unref() {
+        int newValue = referenceCounter.decrementAndGet();
+        if (newValue < 0) {
+            throw new IllegalStateException("Trying to unref dead object");
+        }
+        if (newValue == 0) {
+           close();
+        }
+    }
+
+    @Override
     public void close() {
+        logger.debug("Closing RpcClient: {}", this);
         sessionLock.lock();
         try {
             closed = true;
