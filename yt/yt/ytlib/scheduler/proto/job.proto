@@ -303,6 +303,8 @@ message TSchedulerJobSpecExt
     // Index of partition job belongs to. This field is set only in
     // Sort and MapReduce jobs.
     optional int32 partition_tag = 26;
+
+    optional string tree_id = 27;
 }
 
 message TSchedulerJobResultExt

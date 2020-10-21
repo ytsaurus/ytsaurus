@@ -377,7 +377,7 @@ def _initialize_archive(client, archive_path, version=INITIAL_VERSION, tablet_ce
     one_month = one_day * 30
     two_years = one_month * 12 * 2
 
-    for name in ["jobs", "stderrs", "job_specs", "fail_contexts"]:
+    for name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids"]:
         table = ypath_join(archive_path, name)
         set_table_ttl(client, table, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
     for name in ["ordered_by_id", "ordered_by_start_time"]:

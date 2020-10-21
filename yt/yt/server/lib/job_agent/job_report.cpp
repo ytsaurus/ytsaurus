@@ -407,6 +407,12 @@ TNodeJobReport TNodeJobReport::ExecAttributes(const TYsonString& execAttributes)
     return std::move(*this);
 }
 
+TNodeJobReport TNodeJobReport::TreeId(TString treeId)
+{
+    TreeId_ = std::move(treeId);
+    return std::move(*this);
+}
+
 void TNodeJobReport::SetStatistics(const TYsonString& statistics)
 {
     Statistics_ = StripAttributes(statistics).GetData();

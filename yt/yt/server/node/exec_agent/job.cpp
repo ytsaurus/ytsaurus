@@ -144,6 +144,9 @@ public:
                 ResolvedNodeAddresses_.emplace_back(addressName, resolvedAddress.ToIP6Address());
             }
         }
+
+        ReportStatistics(MakeDefaultJobStatistics()
+            .TreeId(SchedulerJobSpecExt_->tree_id()));
     }
 
     ~TJob()

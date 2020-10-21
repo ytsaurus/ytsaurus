@@ -2049,6 +2049,8 @@ message TJob
     optional bool is_stale = 20;
     optional bytes exec_attributes = 21; // YSON
     optional string task_name = 22;
+    optional string pool_tree = 23;
+    optional string pool = 24;
 }
 
 message TListJobsStatistics

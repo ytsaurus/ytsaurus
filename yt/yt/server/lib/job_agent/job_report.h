@@ -78,6 +78,7 @@ struct TJobReport
     DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasCompetitors)
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ExecAttributes);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TaskName);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TreeId);
 
 protected:
     TJobReport() = default;
@@ -111,6 +112,7 @@ struct TNodeJobReport
     TNodeJobReport Profile(const TJobProfile& profile);
     TNodeJobReport CoreInfos(NCoreDump::TCoreInfos coreInfos);
     TNodeJobReport ExecAttributes(const NYson::TYsonString& execAttributes);
+    TNodeJobReport TreeId(TString treeId);
 
     void SetStatistics(const NYson::TYsonString& statistics);
     void SetStartTime(TInstant startTime);

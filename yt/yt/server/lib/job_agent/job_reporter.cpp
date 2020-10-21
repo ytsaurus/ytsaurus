@@ -512,6 +512,10 @@ private:
             if (GetSharedData()->GetOperationArchiveVersion() >= 35 && statistics.TaskName()) {
                 builder.AddValue(MakeUnversionedStringValue(*statistics.TaskName(), Table_.Index.TaskName));
             }
+            // COMPAT(levysotsky)
+            if (GetSharedData()->GetOperationArchiveVersion() >= 37 && statistics.TreeId()) {
+                builder.AddValue(MakeUnversionedStringValue(*statistics.TreeId(), Table_.Index.PoolTree));
+            }
 
             if (!IsValueWeightViolated(builder.GetRow(), statistics.OperationId(), statistics.JobId(), Table_.NameTable)) {
                 rows.push_back(rowBuffer->Capture(builder.GetRow()));

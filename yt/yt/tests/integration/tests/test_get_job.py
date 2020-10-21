@@ -103,6 +103,8 @@ class _TestGetJobBase(YTEnvSetup):
         is_stale=False,
         archive_state=None,
         controller_agent_state=None,
+        pool=None,
+        pool_tree=None,
     ):
         """None arguments mean do not check corresponding field in job"""
 
@@ -117,6 +119,10 @@ class _TestGetJobBase(YTEnvSetup):
             assert job_info["archive_state"] == archive_state
         if controller_agent_state is not None:
             assert job_info["controller_agent_state"] == controller_agent_state
+        if pool is not None:
+            assert job_info["pool"] == pool
+        if pool_tree is not None:
+            assert job_info["pool_tree"] == pool_tree
         start_time = date_string_to_datetime(job_info["start_time"])
         assert before_start_time < start_time < datetime.datetime.utcnow()
         assert job_info.get("is_stale") == is_stale
@@ -139,6 +145,7 @@ class _TestGetJobBase(YTEnvSetup):
 class _TestGetJobCommon(_TestGetJobBase):
     @authors("levysotsky")
     def test_get_job(self):
+        create_pool("my_pool")
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
@@ -148,6 +155,11 @@ class _TestGetJobCommon(_TestGetJobBase):
             label="get_job",
             in_="//tmp/t1",
             out="//tmp/t2",
+            spec={
+                "scheduling_options_per_pool_tree": {
+                    "default": {"pool": "my_pool"},
+                },
+            },
             command=with_breakpoint(
                 """
                 echo SOME-STDERR >&2 ;
@@ -161,7 +173,8 @@ class _TestGetJobCommon(_TestGetJobBase):
         )
         (job_id,) = wait_breakpoint()
 
-        self._check_get_job(op.id, job_id, before_start_time, state="running", has_spec=None)
+        self._check_get_job(op.id, job_id, before_start_time, state="running", has_spec=None,
+                            pool="my_pool", pool_tree="default")
 
         def correct_stderr_size():
             job_info = retry(lambda: get_job(op.id, job_id))
@@ -172,7 +185,8 @@ class _TestGetJobCommon(_TestGetJobBase):
         release_breakpoint()
         op.track()
 
-        self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=True)
+        self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=True,
+                            pool="my_pool", pool_tree="default")
 
         _delete_job_from_archive(op.id, job_id)
 

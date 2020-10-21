@@ -783,6 +783,12 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.TaskName) {
         protoJob->set_task_name(*job.TaskName);
     }
+    if (job.PoolTree) {
+        protoJob->set_pool_tree(*job.PoolTree);
+    }
+    if (job.Pool) {
+        protoJob->set_pool(*job.Pool);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -891,6 +897,16 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->TaskName = protoJob.task_name();
     } else {
         job->TaskName.reset();
+    }
+    if (protoJob.has_pool_tree()) {
+        job->PoolTree = protoJob.pool_tree();
+    } else {
+        job->PoolTree.reset();
+    }
+    if (protoJob.has_pool()) {
+        job->Pool = protoJob.pool();
+    } else {
+        job->Pool.reset();
     }
 }
 

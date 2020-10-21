@@ -90,6 +90,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     , HasCompetitors(nameTable->RegisterName("has_competitors"))
     , ExecAttributes(nameTable->RegisterName("exec_attributes"))
     , TaskName(nameTable->RegisterName("task_name"))
+    , PoolTree(nameTable->RegisterName("pool_tree"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
