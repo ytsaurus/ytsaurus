@@ -65,7 +65,13 @@ public class YtCluster {
 
     static @Nullable
     String normalizeName(@Nullable String name) {
-        if (name == null || name.equals("")) {
+        if (name == null) {
+            return null;
+        }
+        if (normalizationLowersHostName) {
+            name = name.toLowerCase();
+        }
+        if (name.equals("")) {
             return null;
         } else if (name.contains(":")) {
             return name;
@@ -77,4 +83,7 @@ public class YtCluster {
             return name + ".yt.yandex.net";
         }
     }
+
+    // This option is set to true only in tests.
+    static boolean normalizationLowersHostName = false;
 }

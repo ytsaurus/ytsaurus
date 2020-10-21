@@ -286,7 +286,8 @@ public class RpcOptions {
      * <p> This option is temporary and we are going to move all clients to new discovery service.
      * Once we are sure our new service is pretty stable this option will be removed.
      */
-    public void setNewDiscoveryServiceEnabled(boolean newDiscoveryServiceEnabled) {
+    public RpcOptions setNewDiscoveryServiceEnabled(boolean newDiscoveryServiceEnabled) {
         this.newDiscoveryServiceEnabled = newDiscoveryServiceEnabled;
+        return this;
     }
 }
