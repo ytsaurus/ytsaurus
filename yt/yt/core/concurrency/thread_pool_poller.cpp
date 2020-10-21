@@ -128,7 +128,7 @@ public:
             thread->Shutdown();
         }
 
-        Invoker_->DrainQueue();
+        YT_VERIFY(Invoker_->DrainQueue());
 
         {
             auto guard = Guard(SpinLock_);
@@ -453,13 +453,13 @@ private:
             return callback;
         }
 
-        void DrainQueue()
+        bool DrainQueue()
         {
             TClosure callback;
             while (Callbacks_.Dequeue(&callback)) {
                 callback.Reset();
             }
-            YT_VERIFY(Callbacks_.IsEmpty()); // As a side effect, this releases free lists.
+            return Callbacks_.IsEmpty(); // As a side effect, this releases free lists.
         }
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
