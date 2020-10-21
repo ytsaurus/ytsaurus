@@ -63,9 +63,9 @@ public:
         return Impl<TYsonParserAdapter>::getReturnType(Name::name, arguments);
     }
 
-    virtual void executeImpl(ColumnsWithTypeAndName& columns, const ColumnNumbers& arguments, size_t result_pos, size_t input_rows_count) const override
+    virtual ColumnPtr executeImpl(ColumnsWithTypeAndName& arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
     {
-        FunctionJSONHelpers::Executor<Name, Impl, TYsonParserAdapter>::run(columns, arguments, result_pos, input_rows_count);
+        return FunctionJSONHelpers::Executor<Name, Impl, TYsonParserAdapter>::run(arguments, result_type, input_rows_count);
     }
 
 private:
@@ -85,7 +85,7 @@ public:
         return std::make_shared<DataTypeString>();
     }
 
-    static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName &, const ColumnNumbers & arguments) { return arguments.size() - 1; }
+    static size_t getNumberOfIndexArguments(const ColumnsWithTypeAndName & arguments) { return arguments.size() - 1; }
 
     static bool insertResultToColumn(IColumn & dest, const Element & element, const std::string_view &)
     {
