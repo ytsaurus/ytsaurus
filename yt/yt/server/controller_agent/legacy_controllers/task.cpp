@@ -1153,6 +1153,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
         schedulerJobSpecExt->set_task_name(taskName);
     }
 
+    schedulerJobSpecExt->set_tree_id(joblet->TreeId);
+
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }
 

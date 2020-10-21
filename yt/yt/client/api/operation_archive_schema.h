@@ -104,6 +104,7 @@ struct TJobTableDescriptor
         const int HasCompetitors;
         const int ExecAttributes;
         const int TaskName;
+        const int PoolTree;
     };
 
     const NTableClient::TNameTablePtr NameTable;

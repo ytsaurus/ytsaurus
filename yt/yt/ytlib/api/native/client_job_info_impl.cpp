@@ -87,6 +87,8 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "job_competition_id",
     "has_competitors",
     "task_name",
+    "pool",
+    "pool_tree",
 };
 
 static const auto DefaultGetJobAttributes = [] {
@@ -1215,6 +1217,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto execAttributesIndex = findColumnIndex("exec_attributes");
     auto taskNameIndex = findColumnIndex("task_name");
     auto coreInfosIndex = findColumnIndex("core_infos");
+    auto poolTreeIndex = findColumnIndex("pool_tree");
 
     std::vector<TJob> jobs;
     auto rows = rowset->GetRows();
@@ -1339,6 +1342,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.TaskName = FromUnversionedValue<TString>(row[*taskNameIndex]);
         }
 
+        if (poolTreeIndex && row[*poolTreeIndex].Type != EValueType::Null) {
+            job.PoolTree = FromUnversionedValue<TString>(row[*poolTreeIndex]);
+        }
+
         // We intentionally mark stderr as missing if job has no spec since
         // it is impossible to check permissions without spec.
         if (job.GetState() && NJobTrackerClient::IsJobFinished(*job.GetState()) && !job.HasSpec) {
@@ -1374,6 +1381,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("has_competitors");
     builder.AddSelectExpression("exec_attributes");
     builder.AddSelectExpression("task_name");
+    builder.AddSelectExpression("pool_tree");
     if (constexpr int requiredVersion = 31; DoGetOperationsArchiveVersion() >= requiredVersion) {
         builder.AddSelectExpression("core_infos");
     }
@@ -1783,6 +1791,7 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::HasCompetitors);
     mergeNullableField(&TJob::ExecAttributes);
     mergeNullableField(&TJob::TaskName);
+    mergeNullableField(&TJob::PoolTree);
     if (controllerAgentJob.StderrSize && archiveJob->StderrSize.value_or(0) < controllerAgentJob.StderrSize) {
         archiveJob->StderrSize = controllerAgentJob.StderrSize;
     }
@@ -1813,6 +1822,53 @@ static void UpdateJobsAndAddMissing(std::vector<std::vector<TJob>>&& controllerA
 static bool IsJobStale(std::optional<EJobState> controllerAgentState, std::optional<EJobState> archiveState)
 {
     return !controllerAgentState && archiveState && IsJobInProgress(*archiveState);
+}
+
+static TError TryFillJobPools(
+    const IClientPtr& client,
+    TOperationId operationId,
+    TMutableRange<TJob> jobs,
+    NLogging::TLogger Logger)
+{
+    TGetOperationOptions getOperationOptions;
+    getOperationOptions.Attributes = {TString("runtime_parameters")};
+
+    auto operationYsonOrError = WaitFor(client->GetOperation(operationId, getOperationOptions));
+    if (!operationYsonOrError.IsOK()) {
+        YT_LOG_DEBUG(operationYsonOrError, "Failed to fetch operation to extract pools (OperationId: %v)",
+            operationId);
+        return operationYsonOrError;
+    }
+
+    auto path = "/runtime_parameters/scheduling_options_per_pool_tree";
+    auto schedulingOptionsPerPoolTreeYson = TryGetAny(operationYsonOrError.Value().GetData(), path);
+    if (!schedulingOptionsPerPoolTreeYson) {
+        YT_LOG_DEBUG("Operation runtime_parameters miss scheduling_options_per_pool_tree (OperationId: %v)",
+            operationId);
+        return TError("Operation %v runtime_parameters miss scheduling_options_per_pool_tree",
+            operationId);
+    }
+
+    auto schedulingOptionPerPoolTree = ConvertTo<THashMap<TString, INodePtr>>(
+        TYsonStringBuf(*schedulingOptionsPerPoolTreeYson));
+
+    for (auto& job : jobs) {
+        if (!job.PoolTree) {
+            return TError(Format("Pool tree is missing in job %v", job.Id));
+        }
+        auto optionsIt = schedulingOptionPerPoolTree.find(*job.PoolTree);
+        if (optionsIt == schedulingOptionPerPoolTree.end()) {
+            return TError(Format("Pool tree %Qv is not found in scheduling_options_per_pool_tree", *job.PoolTree));
+        }
+        const auto& optionsNode = optionsIt->second;
+        auto poolNode = optionsNode->AsMap()->FindChild("pool");
+        if (!poolNode) {
+            return TError(Format("%Qv field is missing in scheduling_options_per_pool_tree for tree %Qv", "pool", *job.PoolTree));
+        }
+        job.Pool = ConvertTo<TString>(poolNode);
+    }
+
+    return TError();
 }
 
 TListJobsResult TClient::DoListJobs(
@@ -1904,6 +1960,13 @@ TListJobsResult TClient::DoListJobs(
         }
     }
 
+    // Compute pools.
+    auto error = TryFillJobPools(this, operationId, TMutableRange(result.Jobs), Logger);
+    if (!error.IsOK()) {
+        YT_LOG_DEBUG(error, "Failed to fill job pools (OperationId: %v)",
+            operationId);
+    }
+
     // Compute job staleness.
     for (auto& job : result.Jobs) {
         job.IsStale = IsJobStale(job.ControllerAgentState, job.ArchiveState);
@@ -1936,8 +1999,8 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         } else if (attribute == "statistics") {
             result.emplace_back("statistics");
             result.emplace_back("statistics_lz4");
-        } else if (attribute == "progress") {
-            // Progress is missing from job archive.
+        } else if (attribute == "progress" || attribute == "pool") {
+            // Progress and pool are missing from job archive.
         } else {
             result.push_back(attribute);
         }
@@ -1990,7 +2053,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
 
     auto jobs = ParseJobsFromArchiveResponse(operationId, rowset, /* needFullStatistics */ true);
     YT_VERIFY(!jobs.empty());
-    return jobs.front();
+    return std::move(jobs.front());
 }
 
 std::optional<TJob> TClient::DoGetJobFromControllerAgent(
@@ -2078,6 +2141,15 @@ TYsonString TClient::DoGetJob(
     }
 
     job.IsStale = IsJobStale(job.ControllerAgentState, job.ArchiveState);
+
+    if (attributes.contains("pool")) {
+        auto error = TryFillJobPools(this, operationId, TMutableRange(&job, 1), Logger);
+        if (!error.IsOK()) {
+            YT_LOG_DEBUG(error, "Failed to fill job pools (OperationId: %v, JobId: %v)",
+                operationId,
+                jobId);
+        }
+    }
 
     return BuildYsonStringFluently()
         .Do([&] (TFluentAny fluent) {

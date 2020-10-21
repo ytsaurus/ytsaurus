@@ -415,7 +415,7 @@ class TestListJobsBase(YTEnvSetup):
         assert get_stderr_from_table(op.id, job_id) == "STDERR-OUTPUT\n"
         assert get_profile_from_table(op.id, job_id) == ("test", "foobar")
 
-    def _run_op_and_wait_mapper_breakpoint(self):
+    def _run_op_and_wait_mapper_breakpoint(self, spec_patch={}):
         input_table, output_table = self._create_tables()
         # Write stderrs in jobs to ensure they will be saved.
         mapper_command = with_breakpoint(
@@ -428,6 +428,16 @@ class TestListJobsBase(YTEnvSetup):
             """echo STDERR-OUTPUT >&2 ; cat; printf 'test\\nfoobar' >&8; BREAKPOINT""",
             breakpoint_name="reducer",
         )
+        spec={
+            "enable_profiling": True,
+            "mapper": {
+                "input_format": "json",
+                "output_format": "json",
+            },
+            "map_job_count": 3,
+            "partition_count": 1,
+        }
+        spec.update(spec_patch)
         op = map_reduce(
             track=False,
             label="list_jobs",
@@ -437,15 +447,7 @@ class TestListJobsBase(YTEnvSetup):
             reducer_command=reducer_command,
             sort_by="foo",
             reduce_by="foo",
-            spec={
-                "enable_profiling": True,
-                "mapper": {
-                    "input_format": "json",
-                    "output_format": "json",
-                },
-                "map_job_count": 3,
-                "partition_count": 1,
-            },
+            spec=spec,
         )
 
         job_ids = {}
@@ -480,8 +482,15 @@ class TestListJobsBase(YTEnvSetup):
     @authors("levysotsky")
     @add_failed_operation_stderrs_to_error_message
     def test_list_jobs_attributes(self):
+        create_pool("my_pool")
         before_start_time = datetime.utcnow()
-        op, job_ids = self._run_op_and_wait_mapper_breakpoint()
+        op, job_ids = self._run_op_and_wait_mapper_breakpoint(
+            spec_patch={
+                "scheduling_options_per_pool_tree": {
+                    "default": {"pool": "my_pool"},
+                },
+            },
+        )
 
         wait(op.get_running_jobs)
         aborted_map_job_id = job_ids["completed_map"].pop()
@@ -521,6 +530,8 @@ class TestListJobsBase(YTEnvSetup):
         assert completed_map_job["type"] == "partition_map"
         assert "slot_index" in completed_map_job["exec_attributes"]
         assert len(completed_map_job["exec_attributes"]["sandbox_path"]) > 0
+        assert completed_map_job["pool"] == "my_pool"
+        assert completed_map_job["pool_tree"] == "default"
 
         stderr_size = len("STDERR-OUTPUT\n")
         assert completed_map_job["stderr_size"] == stderr_size

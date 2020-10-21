@@ -1071,6 +1071,8 @@ struct TJob
     NYson::TYsonString Events;
     NYson::TYsonString ExecAttributes;
     std::optional<TString> TaskName;
+    std::optional<TString> PoolTree;
+    std::optional<TString> Pool;
     std::optional<bool> IsStale;
 
     std::optional<NJobTrackerClient::EJobState> GetState() const;
