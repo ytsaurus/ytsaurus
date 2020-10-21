@@ -153,8 +153,15 @@ public:
                     traceContext->SetSampled(*tracingOverride);
                 }
             } else {
-                // For non-datalens queries, force sampling.
-                traceContext->SetSampled(true);
+                if (CgiParameters_.Has("chyt.enable_tracing")) {
+                    auto enableTracing = CgiParameters_.Get("chyt.enable_tracing");
+                    traceContext->SetSampled(enableTracing == "1");
+                } else {
+                    auto* sampler = Bootstrap_->GetCoordinator()->GetTraceSampler();
+                    if (sampler->IsTraceSampled(User_)) {
+                        traceContext->SetSampled(true);
+                    }
+                }
             }
 
             // COMPAT(max42): remove this, name is misleading.
