@@ -97,6 +97,9 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
      */
     CompletableFuture<ResponseType> invoke(RpcClient client);
 
+    /**
+     * Make asynchronous request. RpcClient is taken from given pool.
+     */
     CompletableFuture<ResponseType> invokeVia(ScheduledExecutorService executor, RpcClientPool clientPool);
 
     RpcClientStreamControl startStream(RpcClient client, RpcStreamConsumer consumer);

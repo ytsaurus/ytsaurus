@@ -2,6 +2,8 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.util.concurrent.ScheduledExecutorService;
 
+import javax.annotation.Nullable;
+
 import ru.yandex.yt.ytclient.rpc.internal.RpcClientWithCompression;
 import ru.yandex.yt.ytclient.rpc.internal.TokenAuthentication;
 
@@ -9,6 +11,9 @@ import ru.yandex.yt.ytclient.rpc.internal.TokenAuthentication;
  * Клиент через который можно делать запросы и получать на них ответы
  */
 public interface RpcClient extends AutoCloseable {
+    void ref();
+    void unref();
+
     /**
      * Асинхронно закрывает rpc клиент
      */
@@ -51,7 +56,15 @@ public interface RpcClient extends AutoCloseable {
         return new RpcClientWithCompression(this, compression);
     }
 
+    @Deprecated
     String destinationName();
+
+    /**
+     * Get address string of proxy that client is connected to if known.
+     * Might be null, if proxy is not known for some reason (e.g. client wraps several connections).
+     */
+    @Nullable
+    String getAddressString();
 
     ScheduledExecutorService executor();
 }

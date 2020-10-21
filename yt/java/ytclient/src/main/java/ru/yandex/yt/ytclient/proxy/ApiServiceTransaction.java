@@ -10,6 +10,8 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
@@ -50,6 +52,7 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
     private final TransactionalOptions transactionalOptions;
     private final Duration pingPeriod;
     private final ScheduledExecutorService executor;
+    private final CompletableFuture<Void> transactionCompleteFuture = new CompletableFuture<>();
 
     enum State {
         ACTIVE,
@@ -85,7 +88,6 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
     public boolean isSticky() {
         return sticky;
     }
-
 
     ApiServiceTransaction(
             ApiServiceClient client,
@@ -133,6 +135,10 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
                 pingPeriod,
                 executor
         );
+    }
+
+    CompletableFuture<Void> getTransactionCompleteFuture() {
+        return transactionCompleteFuture;
     }
 
     private State getState() {
@@ -207,6 +213,8 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
             } else {
                 setAborted();
             }
+
+            transactionCompleteFuture.complete(null);
         });
     }
 
@@ -221,7 +229,9 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         }
 
         // dont wait for answer
-        return client.abortTransaction(id, sticky);
+        return client.abortTransaction(id, sticky).whenComplete((result, error) -> {
+            transactionCompleteFuture.complete(null);
+        });
     }
 
     @Override
@@ -421,5 +431,13 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
     @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         return client.checkPermission(req.setTransactionalOptions(transactionalOptions));
+    }
+
+    /**
+     * Return address of a proxy that is used for this transaction.
+     */
+    @Nullable
+    String getRpcProxyAddress() {
+        return client.getRpcProxyAddress();
     }
 }

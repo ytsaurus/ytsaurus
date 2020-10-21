@@ -1,28 +1,21 @@
 package ru.yandex.yt.ytclient.rpc.internal;
 
-import java.util.concurrent.ScheduledExecutorService;
-
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequest;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
+import ru.yandex.yt.ytclient.rpc.RpcClientWrapper;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
-public class RpcClientWithCompression implements RpcClient {
-    private final RpcClient client;
+public class RpcClientWithCompression extends RpcClientWrapper {
     private final RpcCompression compression;
 
     public RpcClientWithCompression(RpcClient client, RpcCompression compression) {
-        this.client = client;
+        super(client);
         this.compression = compression;
-    }
-
-    @Override
-    public void close() {
-        client.close();
     }
 
     private void patchHeader(RpcClientRequest request) {
@@ -37,23 +30,13 @@ public class RpcClientWithCompression implements RpcClient {
     @Override
     public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
         patchHeader(request);
-        return client.send(sender, request, handler);
+        return super.send(sender, request, handler);
     }
 
     @Override
     public RpcClientStreamControl startStream(RpcClient sender, RpcClientRequest request, RpcStreamConsumer consumer) {
         patchHeader(request);
-        return client.startStream(sender, request, consumer);
-    }
-
-    @Override
-    public String destinationName() {
-        return client.destinationName();
-    }
-
-    @Override
-    public ScheduledExecutorService executor() {
-        return client.executor();
+        return super.startStream(sender, request, consumer);
     }
 
     @Override
@@ -62,12 +45,12 @@ public class RpcClientWithCompression implements RpcClient {
         final Compression out = compression.getResponseCodecId();
         if (in == out) {
             if (in == Compression.None) {
-                return client.toString();
+                return super.toString();
             } else {
-                return in + "@" + client.toString();
+                return in + "@" + super.toString();
             }
         } else {
-            return in + "/" + out + "@" + client.toString();
+            return in + "/" + out + "@" + super.toString();
         }
     }
 }

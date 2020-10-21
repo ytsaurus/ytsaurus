@@ -177,6 +177,14 @@ public class FailoverRpcExecutorTest {
         RpcClientRequestControl control = mock(RpcClientRequestControl.class);
         return new RpcClient() {
             @Override
+            public void ref() {
+            }
+
+            @Override
+            public void unref() {
+            }
+
+            @Override
             public void close() {
             }
 
@@ -194,6 +202,11 @@ public class FailoverRpcExecutorTest {
 
             @Override
             public String destinationName() {
+                return null;
+            }
+
+            @Override
+            public String getAddressString() {
                 return null;
             }
 

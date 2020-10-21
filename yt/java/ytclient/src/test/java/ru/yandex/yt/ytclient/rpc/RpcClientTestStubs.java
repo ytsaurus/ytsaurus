@@ -20,6 +20,16 @@ public class RpcClientTestStubs {
         }
 
         @Override
+        public void ref() {
+            throw new IllegalStateException("not implemented");
+        }
+
+        @Override
+        public void unref() {
+            throw new IllegalStateException("not implemented");
+        }
+
+        @Override
         public void close() {
             System.out.println("Close client!");
         }
@@ -31,6 +41,11 @@ public class RpcClientTestStubs {
 
         @Override
         public String destinationName() {
+            return null;
+        }
+
+        @Override
+        public String getAddressString() {
             return null;
         }
 

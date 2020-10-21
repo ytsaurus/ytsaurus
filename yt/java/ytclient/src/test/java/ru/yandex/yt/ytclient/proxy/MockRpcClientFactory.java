@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
@@ -28,6 +29,25 @@ class MockRpcClientFactory implements RpcClientFactory {
         openedConnections.add(hostPort);
 
         return new RpcClient() {
+            final AtomicInteger refCounter = new AtomicInteger(1);
+            @Override
+            public void ref() {
+                int oldValue = refCounter.getAndIncrement();
+                if (oldValue <= 0) {
+                    throw new IllegalStateException();
+                }
+            }
+
+            @Override
+            public void unref() {
+                int newValue = refCounter.decrementAndGet();
+                if (newValue == 0) {
+                    close();
+                } else if (newValue < 0) {
+                    throw new IllegalStateException();
+                }
+            }
+
             @Override
             public void close() {
                 openedConnections.remove(hostPort);
@@ -46,6 +66,11 @@ class MockRpcClientFactory implements RpcClientFactory {
             @Override
             public String destinationName() {
                 return hostPort.toString();
+            }
+
+            @Override
+            public String getAddressString() {
+                return null;
             }
 
             @Override

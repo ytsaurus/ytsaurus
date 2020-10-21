@@ -41,8 +41,15 @@ public class RpcServiceClientTest {
         }
 
         @Override
+        public void ref() {
+        }
+
+        @Override
+        public void unref() {
+        }
+
+        @Override
         public void close() {
-            // nothing
         }
 
         @Override
@@ -63,6 +70,11 @@ public class RpcServiceClientTest {
         }
 
         @Override
+        public String getAddressString() {
+            return null;
+        }
+
+        @Override
         public ScheduledExecutorService executor() {
             throw new IllegalArgumentException("unreachable");
         }
@@ -76,8 +88,15 @@ public class RpcServiceClientTest {
         }
 
         @Override
-        public void close() {
+        public void ref() {
+        }
 
+        @Override
+        public void unref() {
+        }
+
+        @Override
+        public void close() {
         }
 
         @Override
@@ -95,6 +114,11 @@ public class RpcServiceClientTest {
         @Override
         public String destinationName() {
             return "FailingClient";
+        }
+
+        @Override
+        public String getAddressString() {
+            return null;
         }
 
         @Override

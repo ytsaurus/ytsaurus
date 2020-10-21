@@ -63,6 +63,12 @@ public class BalancingDestination {
             public void close() { }
 
             @Override
+            public void ref() { }
+
+            @Override
+            public void unref() { }
+
+            @Override
             public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
                 return null;
             }
@@ -74,6 +80,11 @@ public class BalancingDestination {
 
             @Override
             public String destinationName() {
+                return null;
+            }
+
+            @Override
+            public String getAddressString() {
                 return null;
             }
 

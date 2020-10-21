@@ -323,5 +323,10 @@ public class MultiDcClientPoolTest {
         public String getDataCenterName() {
             return dataCenterName;
         }
+
+        @Override
+        public CompletableFuture<Integer> banClient(String address) {
+            throw new RuntimeException("not implemented");
+        }
     }
 }

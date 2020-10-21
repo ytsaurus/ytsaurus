@@ -158,6 +158,15 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         return poolProvider.oldSelectDestinations();
     }
 
+    /**
+     * Method useful in tests. Allows to asynchronously ban client.
+     *
+     * @return future on number of banned proxies.
+     */
+    CompletableFuture<Integer> banProxy(String address) {
+        return poolProvider.banClient(address);
+    }
+
     @Override
     protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType> invoke(
             RpcClientRequestBuilder<RequestType, ResponseType> builder)
@@ -221,6 +230,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         Map<String, List<ApiServiceClient>> getAliveDestinations();
         List<RpcClient> oldSelectDestinations();
         RpcClientPool getClientPool();
+        CompletableFuture<Integer> banClient(String address);
     }
 
     @NonNullApi
@@ -381,6 +391,11 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         public RpcClientPool getClientPool() {
             return multiDcClientPool;
         }
+
+        @Override
+        public CompletableFuture<Integer> banClient(String address) {
+            return multiDcClientPool.banClient(address);
+        }
     }
 
     @NonNullApi
@@ -518,6 +533,11 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             return waitProxiesImpl().thenRun(clientsCache != null ?
                     clientsCache::invalidateAll : () -> {
             });
+        }
+
+        @Override
+        public CompletableFuture<Integer> banClient(String address) {
+            throw new RuntimeException("not implemented");
         }
 
         private CompletableFuture<Void> waitProxiesImpl() {
