@@ -1,15 +1,9 @@
-import pytest
-import __builtin__
-
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_env_setup import wait
 from yt_commands import *
 
-import random
 from time import sleep, time
-
-from yt.environment.helpers import assert_items_equal
 
 ################################################################################
 

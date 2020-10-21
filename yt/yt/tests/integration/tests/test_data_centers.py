@@ -66,7 +66,7 @@ class TestDataCenters(YTEnvSetup):
         created_indexes = __builtin__.set()
         for node in nodes:
             rack = "r" + str(index)
-            if not index in created_indexes:
+            if index not in created_indexes:
                 create_rack(rack)
                 created_indexes.add(index)
             self._set_rack(node, rack)
@@ -81,7 +81,7 @@ class TestDataCenters(YTEnvSetup):
         created_indexes = __builtin__.set()
         for rack in racks:
             dc = "d" + str(index)
-            if not index in created_indexes:
+            if index not in created_indexes:
                 create_data_center(dc)
                 created_indexes.add(index)
             self._set_data_center(rack, dc)

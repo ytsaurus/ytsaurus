@@ -229,7 +229,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key")
 
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
-        assert get("//tmp/t_out/@sorted") == True
+        assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["key"]
 
     @authors("psushin")
@@ -349,7 +349,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
 
         assert read_table("//tmp/t_out") == [v3, v2]
-        assert get("//tmp/t_out/@sorted") == True
+        assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["value"]
 
     @authors("psushin")
@@ -403,7 +403,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         )
 
         assert read_table("//tmp/t_out") == [v2, v1]
-        assert get("//tmp/t_out/@sorted") == True
+        assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["key", "subkey"]
 
     # the same as test_simple but within transaction
@@ -427,7 +427,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         commit_transaction(tx)
 
         assert read_table("//tmp/t_out") == [v1, v2, v3, v4, v5]
-        assert get("//tmp/t_out/@sorted") == True
+        assert get("//tmp/t_out/@sorted")
         assert get("//tmp/t_out/@sorted_by") == ["key"]
 
     @authors("ignat")
@@ -1149,7 +1149,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             # Oh Yson
             for row in actual:
                 for k in row.iterkeys():
-                    if row[k] == None:
+                    if row[k] == None:  # noqa
                         row[k] = None
 
             key = lambda r: [r[k] for k in sort_by]

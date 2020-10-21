@@ -8,7 +8,6 @@ from yt_env_setup import YTEnvSetup, find_ut_file, skip_if_rpc_driver_backend
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
-from yt.yson import YsonList
 
 from flaky import flaky
 
@@ -1259,9 +1258,9 @@ class TestQuery(YTEnvSetup):
         with pytest.raises(YtError):
             select_rows("if(true, {}, 0) > 1 from [//tmp/t]".format(str_nan))
 
-        assert select_rows("is_nan({}) from [//tmp/t]".format(str_nan))[0].values()[0] == True
-        assert select_rows("is_nan({}) from [//tmp/t]".format("123"))[0].values()[0] == False
-        assert select_rows("is_nan({}) from [//tmp/t]".format("#"))[0].values()[0] == False
+        assert select_rows("is_nan({}) from [//tmp/t]".format(str_nan))[0].values()[0]
+        assert not select_rows("is_nan({}) from [//tmp/t]".format("123"))[0].values()[0]
+        assert not select_rows("is_nan({}) from [//tmp/t]".format("#"))[0].values()[0]
 
     @authors("lukyan")
     def test_bad_limits(self):

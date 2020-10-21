@@ -2,7 +2,6 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, is_asan_build
 from yt_commands import *
-import yt.yson
 import random
 
 ##################################################################

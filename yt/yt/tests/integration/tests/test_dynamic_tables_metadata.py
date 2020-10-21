@@ -1,23 +1,9 @@
 import pytest
-import __builtin__
 
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt_env_setup import (
-    wait,
-    skip_if_rpc_driver_backend,
-    parametrize_external,
-    Restarter,
-    NODES_SERVICE,
-)
+from yt_env_setup import skip_if_rpc_driver_backend
 from yt_commands import *
-from yt.yson import YsonEntity, loads, dumps
-
-from time import sleep
-from random import randint, choice, sample
-from string import ascii_lowercase
-
-import random
 
 from yt.environment.helpers import assert_items_equal
 

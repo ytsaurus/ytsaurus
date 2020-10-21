@@ -2,8 +2,6 @@ from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE
 from yt_commands import *
 from yt.yson import YsonEntity
 
-import time
-
 #################################################################
 
 

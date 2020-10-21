@@ -1911,19 +1911,19 @@ class TestNewLivePreview(YTEnvSetup):
                     for upper_chunk_index in range(4) + [None]:
                         lower_limit = dict()
                         real_lower_index = 0
-                        if not lower_row_index is None:
+                        if lower_row_index is not None:
                             lower_limit["row_index"] = lower_row_index
                             real_lower_index = max(real_lower_index, lower_row_index)
-                        if not lower_chunk_index is None:
+                        if lower_chunk_index is not None:
                             lower_limit["chunk_index"] = lower_chunk_index
                             real_lower_index = max(real_lower_index, lower_chunk_index * 3)
 
                         upper_limit = dict()
                         real_upper_index = 9
-                        if not upper_row_index is None:
+                        if upper_row_index is not None:
                             upper_limit["row_index"] = upper_row_index
                             real_upper_index = min(real_upper_index, upper_row_index)
-                        if not upper_chunk_index is None:
+                        if upper_chunk_index is not None:
                             upper_limit["chunk_index"] = upper_chunk_index
                             real_upper_index = min(real_upper_index, upper_chunk_index * 3)
 

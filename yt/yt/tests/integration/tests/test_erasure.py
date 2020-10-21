@@ -189,7 +189,7 @@ class TestErasure(YTEnvSetup):
     @authors("astiunov")
     def test_repair_works(self):
         has_failed = self._test_fetching_specs("restore")
-        assert has_failed == False, "Expected successful read"
+        assert not has_failed, "Expected successful read"
 
     def _test_repair_on_spot(self, allow_repair):
         replicas, content = self._prepare_table()

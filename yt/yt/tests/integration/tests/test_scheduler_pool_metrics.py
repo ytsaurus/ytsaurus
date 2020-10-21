@@ -7,7 +7,6 @@ from yt_env_setup import (
 from yt_commands import *
 from yt_helpers import *
 
-import yt.common
 from yt.yson import *
 
 from flaky import flaky
@@ -110,9 +109,15 @@ class TestPoolMetrics(YTEnvSetup):
         # - writes (and syncs) something to disk
         # - works for some time (to ensure that it sends several heartbeats
         # - writes something to stderr because we want to find our jobs in //sys/operations later
-        map_cmd = """for i in $(seq 10) ; do python -c "import os; os.write(5, '{{value=$i}};')"; dd if=/dev/urandom of={}/foo$i bs=1M count=1 oflag=direct; sync; sleep 0.5 ; done ; cat ; sleep 10; echo done > /dev/stderr""".format(
-            self.default_disk_path
+        map_cmd = (
+            """for i in $(seq 10); do"""
+            """    python -c "import os; os.write(5, '{{value=$i}};')";"""
+            """    dd if=/dev/urandom of={}/foo$i bs=1M count=1 oflag=direct;"""
+            """    sync; sleep 0.5;"""
+            """done;"""
+            """cat; sleep 10; echo done > /dev/stderr"""
         )
+        map_cmd = map_cmd.format(self.default_disk_path)
 
         metric_name = "user_job_bytes_written"
         statistics_name = "user_job.block_io.bytes_written"

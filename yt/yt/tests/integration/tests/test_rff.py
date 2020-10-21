@@ -1,11 +1,8 @@
-import pytest
 import time
-import datetime
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt_helpers import get_current_time, parse_yt_time
-from yt.yson import to_yson_type
 
 
 ##################################################################

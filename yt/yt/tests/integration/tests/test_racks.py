@@ -44,7 +44,7 @@ class TestRacks(YTEnvSetup):
         created_indexes = __builtin__.set()
         for node in nodes:
             rack = "r" + str(index)
-            if not index in created_indexes:
+            if index not in created_indexes:
                 create_rack(rack)
                 created_indexes.add(index)
             self._set_rack(node, rack)
@@ -216,7 +216,7 @@ class TestRacks(YTEnvSetup):
         nodes = get_nodes()
         replicas_plus_nodes = replicas
         for node in nodes:
-            if not node in replicas:
+            if node not in replicas:
                 replicas_plus_nodes.append(node)
 
         assert len(replicas_plus_nodes) == TestRacks.NUM_NODES

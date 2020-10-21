@@ -4,7 +4,6 @@ from yt.common import date_string_to_datetime
 import yt.yson as yson
 
 from copy import deepcopy
-import time
 import os
 import subprocess
 import csv

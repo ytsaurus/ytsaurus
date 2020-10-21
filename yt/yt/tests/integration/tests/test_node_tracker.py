@@ -2,7 +2,6 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import *
-from time import sleep
 
 ##################################################################
 

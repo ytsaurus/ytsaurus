@@ -3,8 +3,6 @@ import pytest
 from yt_env_setup import YTEnvSetup, is_asan_build
 from yt_commands import *
 
-from flaky import flaky
-
 import socket
 import __builtin__
 
@@ -150,7 +148,7 @@ time.sleep(5.0)
                     event["statistics"]["user_job"]["max_memory"]["sum"],
                 )
                 last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
-        assert not last_memory_reserve is None
+        assert last_memory_reserve is not None
         assert 1e8 <= last_memory_reserve <= 2e8
 
 
@@ -173,7 +171,7 @@ class TestContainerCpuLimit(YTEnvSetup):
     }
 
     def get_job_container_cpu_limit(self):
-        from porto import Connection, exceptions
+        from porto import Connection
 
         conn = Connection()
 
@@ -533,7 +531,7 @@ class TestPorts(YTEnvSetup):
         jobs = wait_breakpoint()
         assert len(jobs) == 1
 
-        ## Not enough ports
+        # Not enough ports
         with pytest.raises(YtError):
             map(
                 in_="//tmp/t_in",

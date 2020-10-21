@@ -1093,7 +1093,7 @@ echo {v = 2} >&7
         command = with_breakpoint(
             """
 if [ "$YT_JOB_INDEX" == 0 ]; then
-    BREAKPOINT        
+    BREAKPOINT
 fi
 while read ROW; do
     if [ "$YT_JOB_INDEX" == 0 ]; then

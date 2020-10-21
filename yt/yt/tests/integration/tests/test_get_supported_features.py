@@ -1,7 +1,6 @@
 import __builtin__
-import pytest
 
-from yt_env_setup import YTEnvSetup, wait
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 ##################################################################

@@ -5,7 +5,6 @@ from yt_env_setup import (
     wait,
     parametrize_external,
     Restarter,
-    NODES_SERVICE,
     MASTERS_SERVICE,
     is_asan_build,
 )
@@ -911,8 +910,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         acl = [make_ace("allow", "u", "read")]
         create_tablet_cell_bundle("b", attributes={"options": {"snapshot_acl": acl, "changelog_acl": acl}})
         cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
-        assert get("//sys/tablet_cells/{0}/changelogs/@inherit_acl".format(cell_id)) == False
-        assert get("//sys/tablet_cells/{0}/snapshots/@inherit_acl".format(cell_id)) == False
+        assert not get("//sys/tablet_cells/{0}/changelogs/@inherit_acl".format(cell_id))
+        assert not get("//sys/tablet_cells/{0}/snapshots/@inherit_acl".format(cell_id))
         assert get("//sys/tablet_cells/{0}/changelogs/@effective_acl".format(cell_id)) == acl
         assert get("//sys/tablet_cells/{0}/snapshots/@effective_acl".format(cell_id)) == acl
 
@@ -2313,7 +2312,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         write_table("//tmp/t", [{"key": 0, "value": 1}])
         alter_table("//tmp/t", dynamic=True, schema=schema)
-        assert get("//tmp/t/@dynamic") == True
+        assert get("//tmp/t/@dynamic")
         table_reader_options = {"sampling_mode": "block", "sampling_rate": 0.5}
         with pytest.raises(YtError):
             read_table("//tmp/t", table_reader=table_reader_options)

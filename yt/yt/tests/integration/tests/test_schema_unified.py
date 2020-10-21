@@ -57,7 +57,7 @@ UNIFIED_TYPES_YSON = [
                 };
             ];
           }
-        };   
+        };
       ]
     }
     """,

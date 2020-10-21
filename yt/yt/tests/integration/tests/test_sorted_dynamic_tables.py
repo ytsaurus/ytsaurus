@@ -947,7 +947,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", keys, keep_missing_rows=True)
         assert len(actual) == 2
         assert_items_equal(rows[0], actual[0])
-        assert actual[1] == None
+        assert actual[1] == YsonEntity()
 
     @authors("savrus", "levysotsky")
     def test_chunk_statistics(self):
@@ -1833,14 +1833,15 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
                 False,
             )
             node = ls("//sys/nodes")[0]
-            wait(
-                lambda: get(
-                    "//sys/nodes/{}/orchid/tablet_cells/{}/dynamic_options/enable_tablet_dynamic_memory_limit".format(
-                        node, cell1
-                    )
+
+            def limit_applied():
+                orchid_path = "//sys/nodes/{}/orchid/tablet_cells/{}/dynamic_options/enable_tablet_dynamic_memory_limit".format(
+                    node, cell1
                 )
-                == False
-            )
+
+                return not get(orchid_path)
+
+            wait(limit_applied)
         else:
             assert False
 

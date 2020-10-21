@@ -604,7 +604,7 @@ class _TestListOperationsBase(ListOperationsSetup):
         if self.check_failed_jobs_count:
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
-        assert res["incomplete"] == True
+        assert res["incomplete"]
 
         res = list_operations(
             include_archive=self.include_archive,
@@ -618,7 +618,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             self.op2.id,
             self.op1.id,
         ]
-        assert res["incomplete"] == False
+        assert not res["incomplete"]
 
     @authors("levysotsky")
     def test_attribute_filter(self, read_from):

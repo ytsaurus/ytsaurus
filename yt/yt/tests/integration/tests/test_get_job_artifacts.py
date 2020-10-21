@@ -6,7 +6,6 @@ from yt.wrapper.common import uuid_hash_pair
 from yt.common import parts_to_uuid
 
 import pytest
-from flaky import flaky
 
 import __builtin__
 
@@ -14,8 +13,6 @@ import datetime
 import json
 import pytest
 import shutil
-import sys
-import time
 
 FORMAT_LIST = [
     "yson",

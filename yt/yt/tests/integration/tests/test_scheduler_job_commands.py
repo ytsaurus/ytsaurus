@@ -4,10 +4,6 @@ from yt_env_setup import (
 )
 from yt_commands import *
 
-from flaky import flaky
-
-import yt.common
-
 import pytest
 import time
 

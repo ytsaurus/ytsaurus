@@ -8,7 +8,6 @@ import pytest
 import __builtin__
 import base64
 import collections
-import copy
 import json
 
 Column = collections.namedtuple("Column", ["name", "type", "values", "expected", "complex"])
@@ -191,6 +190,7 @@ DYNAMIC_ORDERED_TABLE_SYSTEM_COLUMN_NAMES = [
 
 FIELD_WEIGHT_LIMIT = 20
 STRING_WEIGHT_LIMIT = 5
+
 
 # Instead of type indices this function returns types.
 # Later they will be matched with actual rows using yql_type_registry.

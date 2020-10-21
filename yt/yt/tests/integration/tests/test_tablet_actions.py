@@ -85,7 +85,7 @@ class TabletActionsBase(DynamicTablesBase):
         if cells is None:
             return sorted(tablet_count.values())
         else:
-            return [tablet_count.get(cell_id, 0) for cell_id in cells]
+            return [tablet_count.get(cell, 0) for cell in cells]
 
     def _validate_state(self, tablets, state=None, expected_state=None):
         if state is not None:
@@ -978,7 +978,7 @@ class TestTabletBalancer(TabletActionsBase):
         set("//tmp/t/@tablet_balancer_config/enable_auto_tablet_move", True)
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
-        assert get("//tmp/t/@enable_tablet_balancer") == False
+        assert not get("//tmp/t/@enable_tablet_balancer")
         remove("//tmp/t/@enable_tablet_balancer")
         assert get("//tmp/t/@tablet_balancer_config") == {
             "enable_auto_tablet_move": True,
@@ -1025,7 +1025,7 @@ class TestTabletBalancer(TabletActionsBase):
 
         assert not exists("//tmp/t/@enable_tablet_balancer")
         set("//tmp/t/@tablet_balancer_config/enable_auto_reshard", False)
-        assert get("//tmp/t/@enable_tablet_balancer") == False
+        assert not get("//tmp/t/@enable_tablet_balancer")
 
     @authors("ifsmirnov")
     def test_sync_reshard(self):

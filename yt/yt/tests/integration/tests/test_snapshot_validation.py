@@ -1,8 +1,6 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
-import pytest
-
 from distutils.spawn import find_executable
 
 import subprocess

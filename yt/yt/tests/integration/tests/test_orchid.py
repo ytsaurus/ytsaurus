@@ -2,7 +2,6 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 

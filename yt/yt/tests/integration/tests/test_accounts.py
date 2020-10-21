@@ -9,8 +9,6 @@ from yt_commands import *
 
 from yt.yson import to_yson_type, YsonEntity
 
-import __builtin__
-
 ##################################################################
 
 
@@ -3286,7 +3284,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create("map_node", "//tmp/yt-dev", attributes={"account": "yt-dev"})
         create("map_node", "//tmp/yt-prod", attributes={"account": "yt-prod"})
 
-        ###### yt-dyntables ######
+        # yt-dyntables
         sync_create_cells(1)
         create_dynamic_table(
             "//tmp/yt-dev/dynamic",
@@ -3317,7 +3315,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             "master_memory": 0,
         }
 
-        ###### yt-dev ######
+        # yt-dev
 
         # violate node, chunk and default medium disk space limits for yt-dev
         create("table", "//tmp/yt-dev/table")
@@ -3341,7 +3339,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             }
         )
 
-        ###### yt-prod ######
+        # yt-prod
 
         create("file", "//tmp/yt-prod/file")
         write_file("//tmp/yt-prod/file", "abacaba")
@@ -3362,7 +3360,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             }
         )
 
-        ###### yt ######
+        # yt
 
         # violate hdd7 disk space limit for yt
         copy("//tmp/yt-prod/file", "//tmp/yt/file", pessimistic_quota_check=False)
