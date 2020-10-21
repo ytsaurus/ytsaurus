@@ -109,6 +109,22 @@ def clickhouse_execute_handler(**kwargs):
         def read_rows(self):
             return (row + b"\n" for row in self.stream)
 
+    settings = kwargs.pop("setting")
+    if settings is not None:
+        parsed_settings = {}
+        for setting in settings:
+            if '=' not in setting:
+                raise ValueError("Invalid setting '" + setting + "'. " +
+                                 "Setting is expected to be in format <key>=<value>")
+
+            setting_key, setting_value = setting.split('=', 1)
+
+            if setting_key in parsed_settings:
+                raise ValueError("Setting with key '" + setting_key + "' occurs multiple times")
+
+            parsed_settings[setting_key] = setting_value
+        kwargs["settings"] = parsed_settings
+
     iterator = chunk_iter_rows(FakeStream(chyt.execute(**kwargs)), yt.config["read_buffer_size"])
     write_silently(iterator)
 
@@ -121,6 +137,7 @@ def add_clickhouse_execute_parser(add_parser):
                         help="ClickHouse data format; refer to https://clickhouse.tech/docs/ru/interfaces/formats/; "
                              "default is TabSeparated",
                         default="TabSeparated")
+    parser.add_argument("--setting", action="append", help="Add ClickHouse setting to query in format <key>=<value>.")
 
 def main():
     config_parser = ArgumentParser(add_help=False)
