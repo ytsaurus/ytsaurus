@@ -114,6 +114,31 @@ class TestClickhouseFromHost(ClickhouseTestBase):
                      '{"a":2,"multiply(a, a)":4}',
                      '{"a":3,"multiply(a, a)":9}'])
 
+    @authors("dakovalkov")
+    def test_settings_in_execute(self):
+        chyt.start_clique(1, alias="*d")
+        # String ClickHouse setting.
+        check(chyt.execute("select getSetting('distributed_product_mode') as s", "*d",
+                                 settings={"distributed_product_mode": "global"}),
+                    [{"s": "global"}])
+        # Int ClickHouse setting.
+        check(chyt.execute("select getSetting('http_zlib_compression_level') as s", "*d",
+                                 settings={"http_zlib_compression_level": 8}),
+                    [{"s": 8}])
+        # String CHYT setting.
+        check(chyt.execute("select getSetting('chyt.random_string_setting') as s", "*d",
+                                 settings={"chyt.random_string_setting": "random_string"}),
+                    [{"s": "random_string"}])
+        # Int CHYT setting.
+        # ClickHouse does not know the type of custom settings, so string is expected.
+        check(chyt.execute("select getSetting('chyt.random_int_setting') as s", "*d",
+                                 settings={"chyt.random_int_setting": 123}),
+                    [{"s": "123"}])
+        # Binary string setting.
+        check(chyt.execute("select getSetting('chyt.binary_string_setting') as s", "*d",
+                                 settings={"chyt.binary_string_setting": "\x00\x01\x02\x03\x04"}),
+                    [{"s": "\x00\x01\x02\x03\x04"}])
+        
 
 @pytest.mark.usefixtures("yt_env")
 class TestNonTrivialClient(ClickhouseTestBase):
@@ -127,7 +152,7 @@ class TestNonTrivialClient(ClickhouseTestBase):
         client = yt.YtClient(config=copy.deepcopy(yt.config.config))
         print("Patching global config", file=sys.stderr)
         with set_config_option("proxy/url", "invalid_url_due_to_forgotten_client", final_action=lambda: print("Reverting global config")):
-            chyt.start_clique(1, alias="*d", client=client)
+            chyt.start_clique(1, alias="*e", client=client)
             print("Clique succesfully started", file=sys.stderr)
 
 
