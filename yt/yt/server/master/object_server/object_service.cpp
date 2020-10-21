@@ -178,8 +178,8 @@ public:
         configManager->SubscribeConfigChanged(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        hydraManager->SubscribeFollowerRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this), /*oldConfig*/ nullptr));
-        hydraManager->SubscribeLeaderRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this), /*oldConfig*/ nullptr));
+        hydraManager->SubscribeAutomatonFollowerRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this), /*oldConfig*/ nullptr));
+        hydraManager->SubscribeAutomatonLeaderRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this), /*oldConfig*/ nullptr));
     }
 
 private:
