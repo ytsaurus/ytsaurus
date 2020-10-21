@@ -155,7 +155,9 @@ struct IHydraManager
     DECLARE_INTERFACE_SIGNAL(void(), StartLeading);
     //! Raised within the automaton thread when the leader recovery is complete.
     //! The leader may now serve read requests.
-    DECLARE_INTERFACE_SIGNAL(void(), LeaderRecoveryComplete);
+    DECLARE_INTERFACE_SIGNAL(void(), AutomatonLeaderRecoveryComplete);
+    //! Raised within the control thread when the leader recovery is complete.
+    DECLARE_INTERFACE_SIGNAL(void(), ControlLeaderRecoveryComplete);
     //! Raised within the automaton thread when an active quorum is established.
     //! The leader may now serve read-write requests.
     DECLARE_INTERFACE_SIGNAL(void(), LeaderActive);
@@ -167,7 +169,9 @@ struct IHydraManager
     DECLARE_INTERFACE_SIGNAL(void(), StartFollowing);
     //! Raised within the automaton thread when the follower recovery is complete.
     //! The follower may now serve read requests.
-    DECLARE_INTERFACE_SIGNAL(void(), FollowerRecoveryComplete);
+    DECLARE_INTERFACE_SIGNAL(void(), AutomatonFollowerRecoveryComplete);
+    //! Raised within the automaton thread when the follower recovery is complete.
+    DECLARE_INTERFACE_SIGNAL(void(), ControlFollowerRecoveryComplete);
     //! Raised within the automaton thread when the peer has stopped following.
     DECLARE_INTERFACE_SIGNAL(void(), StopFollowing);
 

@@ -510,8 +510,8 @@ public:
             hydraManager->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
             hydraManager->SubscribeStopFollowing(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));
 
-            hydraManager->SubscribeLeaderRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
-            hydraManager->SubscribeFollowerRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
+            hydraManager->SubscribeControlLeaderRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
+            hydraManager->SubscribeControlFollowerRecoveryComplete(BIND(&TImpl::OnRecoveryComplete, MakeWeak(this)));
 
             hydraManager->SubscribeLeaderLeaseCheck(
                 BIND(&TImpl::OnLeaderLeaseCheckThunk, MakeWeak(this))
@@ -836,7 +836,7 @@ private:
 
     void OnRecoveryComplete()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         // Notify master about recovery completion as soon as possible via out-of-order heartbeat.
         auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());

@@ -512,12 +512,14 @@ public:
     }
 
     DEFINE_SIGNAL(void(), StartLeading);
-    DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
+    DEFINE_SIGNAL(void(), AutomatonLeaderRecoveryComplete);
+    DEFINE_SIGNAL(void(), ControlLeaderRecoveryComplete);
     DEFINE_SIGNAL(void(), LeaderActive);
     DEFINE_SIGNAL(void(), StopLeading);
 
     DEFINE_SIGNAL(void(), StartFollowing);
-    DEFINE_SIGNAL(void(), FollowerRecoveryComplete);
+    DEFINE_SIGNAL(void(), AutomatonFollowerRecoveryComplete);
+    DEFINE_SIGNAL(void(), ControlFollowerRecoveryComplete);
     DEFINE_SIGNAL(void(), StopFollowing);
 
     DEFINE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
@@ -1409,13 +1411,14 @@ private:
                 .ThrowOnError();
 
             DecoratedAutomaton_->OnLeaderRecoveryComplete();
-            LeaderRecoveryComplete_.Fire();
+            AutomatonLeaderRecoveryComplete_.Fire();
 
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
 
             YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
+            ControlLeaderRecoveryComplete_.Fire();
 
             YT_LOG_INFO("Leader recovery completed");
 
@@ -1548,6 +1551,7 @@ private:
 
             YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
             ControlState_ = EPeerState::Following;
+            ControlLeaderRecoveryComplete_.Fire();
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1555,7 +1559,7 @@ private:
             YT_LOG_INFO("Follower recovery completed");
 
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
-            FollowerRecoveryComplete_.Fire();
+            AutomatonFollowerRecoveryComplete_.Fire();
 
             ApplyFinalRecoveryAction(false);
 
