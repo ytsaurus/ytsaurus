@@ -10,7 +10,6 @@ from flaky import flaky
 
 from time import sleep
 from datetime import datetime, timedelta
-import calendar
 
 ##################################################################
 

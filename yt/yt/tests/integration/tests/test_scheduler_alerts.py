@@ -1,7 +1,6 @@
 import pytest
 from flaky import flaky
 
-import yt.common
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 

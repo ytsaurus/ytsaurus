@@ -63,7 +63,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
         for entry in get(controller_agent_orchid + "/tagged_memory_statistics", verbose=False):
             assert entry["operation_id"] == YsonEntity()
-            assert entry["alive"] == False
+            assert not entry["alive"]
 
         op_small = map(
             track=False,
@@ -117,7 +117,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
                 assert entry["operation_id"] in (op_small.id, op_large.id)
             else:
                 assert entry["operation_id"] == YsonEntity()
-            assert entry["alive"] == False
+            assert not entry["alive"]
 
 
 class TestControllerAgentMemoryPickStrategy(YTEnvSetup):

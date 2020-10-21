@@ -322,7 +322,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         merge(mode="unordered", in_=["//tmp/t_in"], out="<append=true>//tmp/t_out")
 
-        assert get("//tmp/t_out/@sorted") == False
+        assert not get("//tmp/t_out/@sorted")
 
     @authors("ignat")
     def test_sorted_with_same_chunks(self):

@@ -5,16 +5,10 @@ from yt_env_setup import (
 )
 from yt_commands import *
 
-from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
-
-from yt.test_helpers import assert_items_equal, are_almost_equal
-from yt.yson import loads, YsonEntity, YsonInt64
-
-from flaky import flaky
+from yt.test_helpers import assert_items_equal
+from yt.yson import YsonEntity, YsonInt64
 
 import pytest
-import random
-import string
 import time
 import base64
 

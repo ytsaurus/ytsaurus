@@ -4,7 +4,6 @@ from test_replicated_dynamic_tables import (
     TestReplicatedDynamicTablesBase,
     SIMPLE_SCHEMA_SORTED,
     SIMPLE_SCHEMA_ORDERED,
-    AGGREGATE_SCHEMA,
 )
 
 from yt_env_setup import parametrize_external
@@ -183,8 +182,8 @@ class TestReplicatedDynamicTablesProfilingMulticell(TestReplicatedDynamicTablesP
         self._create_replica_table("//tmp/r", replica_id, external=external)
 
         if external:
-            assert get("//tmp/t/@external") == True
-            assert get("//tmp/r/@external", driver=self.replica_driver) == True
+            assert get("//tmp/t/@external")
+            assert get("//tmp/r/@external", driver=self.replica_driver)
 
         assert get("#" + replica_id + "/@table_path") == "//tmp/t"
 

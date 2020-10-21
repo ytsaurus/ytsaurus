@@ -31,7 +31,6 @@ from yt.wire_format import (
 
 import pytest
 import grpc
-import sys
 from datetime import datetime
 from copy import deepcopy
 from functools import partial

@@ -1,11 +1,9 @@
 import pytest
 import time
-import datetime
 from string import printable
 from copy import deepcopy
 from cStringIO import StringIO
 from datetime import timedelta
-from dateutil.tz import tzlocal
 from flaky import flaky
 
 from yt_driver_bindings import Driver
@@ -17,8 +15,6 @@ from yt_commands import *
 from yt_helpers import get_current_time
 
 from contextlib import contextmanager
-
-import __builtin__
 
 ##################################################################
 
@@ -173,7 +169,7 @@ class TestCypress(YTEnvSetup):
         set("//tmp/map", {"a": 1, "b": 2, "c": 3})
         assert ls("//tmp/map") == ["a", "b", "c"]
 
-        set("//tmp/map", {"a": 1, "a": 2})
+        set("//tmp/map", {"a": 1})
         assert ls("//tmp/map", max_size=1) == ["a"]
 
         ls("//sys/chunks")
@@ -2391,7 +2387,7 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/dir1/dir2/t1/@replication_factor") == 5
         assert get("//tmp/dir1/dir2/t1/@commit_ordering") == "strong"
         assert get("//tmp/dir1/dir2/t1/@erasure_codec") == "reed_solomon_6_3"
-        assert get("//tmp/dir1/dir2/t1/@vital") == False
+        assert not get("//tmp/dir1/dir2/t1/@vital")
         assert get("//tmp/dir1/dir2/t1/@in_memory_mode") == "uncompressed"
         assert get("//tmp/dir1/dir2/t1/@primary_medium") == "hdd"
         assert get("//tmp/dir1/dir2/t1/@tablet_cell_bundle") == "b"
@@ -2878,17 +2874,17 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/empty_node/@annotation_path") == "//tmp"
 
         remove("//tmp/@annotation")
-        assert get("//tmp/empty_node/@annotation") == None
+        assert get("//tmp/empty_node/@annotation") == YsonEntity()
 
         set("//tmp/@annotation", "test")
         set("//tmp/@annotation", None)
-        assert get("//tmp/@annotation") == None
+        assert get("//tmp/@annotation") == YsonEntity()
 
     @authors("avmatrosov")
     def test_annotation_errors(self):
         create("map_node", "//tmp/test_node")
-        assert get("//tmp/test_node/@annotation") == None
-        assert get("//tmp/test_node/@annotation_path") == None
+        assert get("//tmp/test_node/@annotation") == YsonEntity()
+        assert get("//tmp/test_node/@annotation_path") == YsonEntity()
         with pytest.raises(YtError):
             set("//tmp/test_node/@annotation", "a" * 1025)
         with pytest.raises(YtError):
@@ -3107,7 +3103,7 @@ class TestCypress(YTEnvSetup):
         multiset_attributes("//tmp/@", {"a": {"b": 2}, "a/b": 3})
         assert get("//tmp/@a/b") == 2 or get("//tmp/@a/b") == 3
 
-        multiset_attributes("//tmp/@", {"a": 4, "a": 5})
+        multiset_attributes("//tmp/@", {"a": 5})
         assert get("//tmp/@a") == 4 or get("//tmp/@a") == 5
 
     @authors("gritukan")

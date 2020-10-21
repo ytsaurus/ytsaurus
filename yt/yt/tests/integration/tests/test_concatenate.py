@@ -475,7 +475,7 @@ class TestConcatenate(YTEnvSetup):
 
         concatenate(["//tmp/in"], "//tmp/out2")
         assert read_table("//tmp/out2") == make_rows([1, 3, 2, 4])
-        assert get("//tmp/out2/@sorted") == False
+        assert not get("//tmp/out2/@sorted")
 
     @authors("gritukan")
     def test_sorted_concatenation_schema(self):
@@ -566,7 +566,7 @@ class TestConcatenate(YTEnvSetup):
 
         create("table", "//tmp/out3")
         concatenate(["//tmp/in2", "//tmp/in3"], "//tmp/out3")
-        assert get("//tmp/out3/@sorted") == False
+        assert not get("//tmp/out3/@sorted")
         assert read_table("//tmp/out3") == [{"a": 1}, {"a": 3}, {"a": 2}, {"a": 4}]
 
     @authors("gritukan")

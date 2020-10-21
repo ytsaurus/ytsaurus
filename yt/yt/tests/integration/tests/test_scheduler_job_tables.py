@@ -892,7 +892,7 @@ class TestCoreTable(YTEnvSetup):
         core_info = core_infos[job_ids[0]][0]
         assert core_info["executable_name"] == "user_process"
         assert core_info["process_id"] == 42
-        assert not "size" in core_info
+        assert "size" not in core_info
         assert "error" in core_info
 
     @authors("max42", "gritukan")
@@ -915,7 +915,7 @@ class TestCoreTable(YTEnvSetup):
         core_info = core_infos[job_ids[0]][0]
         assert core_info["executable_name"] == "user_process"
         assert core_info["process_id"] == 42
-        assert not "size" in core_info
+        assert "size" not in core_info
         assert "error" in core_info
 
     @authors("gritukan")
@@ -945,7 +945,7 @@ class TestCoreTable(YTEnvSetup):
         core_info = core_infos[job_ids[0]][0]
         assert core_info["executable_name"] == "n/a"
         assert core_info["process_id"] == -1
-        assert not "size" in core_info
+        assert "size" not in core_info
         assert core_info["error"]["message"] == "Cores processing timed out"
 
     @authors("gritukan")
@@ -966,7 +966,7 @@ class TestCoreTable(YTEnvSetup):
         core_info = core_infos[job_ids[0]][0]
         assert core_info["executable_name"] == "user_process"
         assert core_info["process_id"] == 42
-        assert not "size" in core_info
+        assert "size" not in core_info
         assert "error" in core_info
 
     @authors("max42", "gritukan")
@@ -1009,7 +1009,7 @@ class TestCoreTable(YTEnvSetup):
         core_info = core_infos[job_ids[0]][0]
         assert core_info["executable_name"] == "n/a"
         assert core_info["process_id"] == -1
-        assert not "size" in core_info
+        assert "size" not in core_info
         assert core_info["error"]["message"] == "Timeout while waiting for a core dump"
 
     @authors("ignat", "gritukan")
@@ -1067,7 +1067,7 @@ class TestCoreTable(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        assert get(self.CORE_TABLE + "/@sparse") == True
+        assert get(self.CORE_TABLE + "/@sparse")
         assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
@@ -1083,7 +1083,7 @@ class TestCoreTable(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-        assert get(self.CORE_TABLE + "/@sparse") == True
+        assert get(self.CORE_TABLE + "/@sparse")
         assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
         sparse_core_dump = self._get_core_table_content(decompress_sparse_core_dump=False)[job_ids[0]][0]
         assert len(sparse_core_dump) == 65537

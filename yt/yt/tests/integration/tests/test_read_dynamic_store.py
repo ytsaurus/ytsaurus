@@ -1,15 +1,12 @@
 import pytest
-import __builtin__
 
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_env_setup import wait, Restarter, NODES_SERVICE
 from yt_commands import *
-from yt.yson import YsonEntity, loads, dumps
+from yt.yson import YsonEntity
 
 from time import sleep
-from random import choice
-from string import ascii_lowercase
 
 from yt.environment.helpers import assert_items_equal
 

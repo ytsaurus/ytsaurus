@@ -2,12 +2,9 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 
 import pytest
-import inspect
 import os
 import time
 from functools import partial
-
-from flaky import flaky
 
 from collections import Counter
 

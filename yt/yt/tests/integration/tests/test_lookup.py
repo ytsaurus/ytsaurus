@@ -1,5 +1,4 @@
 import pytest
-import __builtin__
 
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 

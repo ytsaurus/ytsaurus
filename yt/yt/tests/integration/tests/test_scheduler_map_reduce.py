@@ -1,15 +1,12 @@
 import pytest
-from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 
-from yt_env_setup import YTEnvSetup, wait, parametrize_external
+from yt_env_setup import YTEnvSetup, wait
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
 from collections import defaultdict
 from random import shuffle
 import datetime
-
-import base64
 
 ##################################################################
 
@@ -1282,7 +1279,7 @@ for l in sys.stdin:
             },
         )
         # Controller is always switched to legacy for schemaful map_reduce.
-        assert get(op.get_path() + "/@progress/legacy_controller") == True
+        assert get(op.get_path() + "/@progress/legacy_controller")
 
         result_rows = read_table("//tmp/t2")
         expected_rows = [{"a": r["a"], "struct": {"a": r["a"], "b": r["b"], "c": True}} for r in rows]
@@ -1356,7 +1353,7 @@ for l in sys.stdin:
             },
         )
         # Controller is always switched to legacy for schemaful map_reduce.
-        assert get(op.get_path() + "/@progress/legacy_controller") == True
+        assert get(op.get_path() + "/@progress/legacy_controller")
 
         result_rows = read_table("//tmp/out")
         expected_rows = []

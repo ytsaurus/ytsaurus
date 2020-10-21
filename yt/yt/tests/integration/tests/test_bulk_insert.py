@@ -2,13 +2,7 @@ import pytest
 
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import (
-    YTEnvSetup,
-    wait,
-    parametrize_external,
-    Restarter,
-    NODES_SERVICE,
-)
+from yt_env_setup import wait, parametrize_external
 from yt_commands import *
 import yt.yson as yson
 
@@ -16,13 +10,9 @@ from yt.environment.helpers import assert_items_equal
 
 from yt.test_helpers import assert_items_equal
 
-from flaky import flaky
-
 from time import sleep
 
 from copy import deepcopy
-
-import __builtin__
 
 ##################################################################
 

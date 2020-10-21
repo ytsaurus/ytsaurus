@@ -6,9 +6,7 @@ from yt_helpers import get_current_time
 
 from yt.common import YtError
 
-from yt.test_helpers import assert_items_equal, are_almost_equal
-
-from dateutil.tz import tzlocal
+from yt.test_helpers import assert_items_equal
 
 ##################################################################
 

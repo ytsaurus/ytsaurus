@@ -352,7 +352,7 @@ class TestGetJobIsStale(_TestGetJobBase):
         job_info = retry(lambda: get_job(op.id, job_id))
         assert job_info.get("controller_agent_state") is None
         assert job_info.get("archive_state") == "running"
-        assert job_info.get("is_stale") == True
+        assert job_info.get("is_stale")
 
 
 ##################################################################

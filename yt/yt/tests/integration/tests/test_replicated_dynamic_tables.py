@@ -5,7 +5,7 @@ from test_dynamic_tables import DynamicTablesBase
 from yt_env_setup import parametrize_external
 from yt_commands import *
 from yt_helpers import *
-from time import sleep, time
+from time import sleep
 from yt.yson import YsonEntity
 from yt.environment.helpers import assert_items_equal, wait
 from yt.wrapper import YtResponseError
@@ -2356,8 +2356,8 @@ class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
         self._create_replica_table("//tmp/r", replica_id, external=external)
 
         if external:
-            assert get("//tmp/t/@external") == True
-            assert get("//tmp/r/@external", driver=self.replica_driver) == True
+            assert get("//tmp/t/@external")
+            assert get("//tmp/r/@external", driver=self.replica_driver)
 
         assert get("#" + replica_id + "/@table_path") == "//tmp/t"
 

@@ -7,8 +7,6 @@ from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
 
-from flaky import flaky
-
 from time import sleep
 
 ##################################################################
@@ -85,7 +83,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert len(tablets) == 1
 
         tablet = tablets[0]
-        assert not "pivot_key" in tablet
+        assert "pivot_key" not in tablet
         tablet_id = tablet["tablet_id"]
         cell_id = tablet["cell_id"]
 

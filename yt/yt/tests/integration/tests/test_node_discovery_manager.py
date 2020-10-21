@@ -1,10 +1,9 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup
 from yt_commands import *
 from yt_helpers import Metric
 
 from flaky import flaky
 
-import os.path
 import time
 
 from sys import stderr

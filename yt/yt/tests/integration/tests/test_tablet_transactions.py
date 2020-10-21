@@ -2,11 +2,6 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
-from yt.yson import YsonEntity
-
-from time import sleep
-
-from yt.environment.helpers import assert_items_equal
 
 ##################################################################
 

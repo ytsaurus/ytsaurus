@@ -760,7 +760,7 @@ class TestListJobs(TestListJobsBase):
 
         assert res_job.get("controller_agent_state") is None
         assert res_job["archive_state"] == "running"
-        assert res_job.get("is_stale") == True
+        assert res_job.get("is_stale")
 
     @authors("gritukan")
     def test_task_name(self):

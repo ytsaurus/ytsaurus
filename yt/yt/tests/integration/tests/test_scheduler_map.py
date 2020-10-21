@@ -2,13 +2,12 @@ from yt_env_setup import (
     YTEnvSetup,
     wait,
     skip_if_porto,
-    parametrize_external,
     is_asan_build,
 )
 
 from yt_commands import *
 
-from yt.test_helpers import assert_items_equal, are_almost_equal
+from yt.test_helpers import assert_items_equal
 from yt.yson import loads
 
 from flaky import flaky
@@ -121,7 +120,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert len(res) == 3
         assert res[0] == {"a": "b"}
         assert res[1] == {"v1": "Some data"}
-        assert res[2].has_key("v2")
+        assert "v2" in res[2]
         assert res[2]["v2"].endswith("/mytmp")
         assert res[2]["v2"].startswith("/")
 

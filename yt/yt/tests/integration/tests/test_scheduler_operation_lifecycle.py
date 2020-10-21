@@ -489,7 +489,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         ] == [event["state"] for event in events]
 
         def event_contains_agent_address(event):
-            if not "controller_agent_address" in event["attributes"]:
+            if "controller_agent_address" not in event["attributes"]:
                 return False
             return len(event["attributes"]["controller_agent_address"]) > 0
 

@@ -230,7 +230,7 @@ class TestComplexTypes(YTEnvSetup):
     def test_null_type(self, optimize_for, null_type):
         def check_schema():
             column_schema = get("//tmp/table/@schema/0")
-            assert column_schema["required"] == False
+            assert not column_schema["required"]
             assert column_schema["type"] == null_type
             assert column_schema["type_v3"] == null_type
 
@@ -364,7 +364,7 @@ class TestComplexTypes(YTEnvSetup):
             },
         )
         assert get("//tmp/table/@schema/0/type") == "any"
-        assert get("//tmp/table/@schema/0/required") == True
+        assert get("//tmp/table/@schema/0/required")
 
         tx_write_table(
             "//tmp/table",
@@ -515,7 +515,7 @@ class TestComplexTypesMisc(YTEnvSetup):
         )
 
         assert get("//tmp/table/@schema/0/type") == "int8"
-        assert get("//tmp/table/@schema/0/required") == False
+        assert not get("//tmp/table/@schema/0/required")
 
         create(
             "table",
@@ -536,7 +536,7 @@ class TestComplexTypesMisc(YTEnvSetup):
         )
 
         assert get("//tmp/table/@schema/0/type") == "string"
-        assert get("//tmp/table/@schema/0/required") == True
+        assert get("//tmp/table/@schema/0/required")
 
     @authors("ermolovd")
     def test_set_both_schemas(self):
@@ -548,7 +548,7 @@ class TestComplexTypesMisc(YTEnvSetup):
         )
 
         assert get("//tmp/table/@schema/0/type") == "uint32"
-        assert get("//tmp/table/@schema/0/required") == True
+        assert get("//tmp/table/@schema/0/required")
         assert get("//tmp/table/@schema/0/type_v3") == "uint32"
 
         create(
@@ -570,7 +570,7 @@ class TestComplexTypesMisc(YTEnvSetup):
         )
 
         assert get("//tmp/table/@schema/0/type") == "double"
-        assert get("//tmp/table/@schema/0/required") == False
+        assert not get("//tmp/table/@schema/0/required")
         assert get("//tmp/table/@schema/0/type_v3") == optional_type("double")
 
         create(
@@ -592,7 +592,7 @@ class TestComplexTypesMisc(YTEnvSetup):
         )
 
         assert get("//tmp/table/@schema/0/type") == "boolean"
-        assert get("//tmp/table/@schema/0/required") == True
+        assert get("//tmp/table/@schema/0/required")
         assert get("//tmp/table/@schema/0/type_v3") == "bool"
 
         with raises_yt_error("Error validating column"):
