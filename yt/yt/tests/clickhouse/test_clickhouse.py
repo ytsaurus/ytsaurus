@@ -4178,20 +4178,28 @@ class TestTracing(ClickHouseTestBase):
         self._setup()
 
     @authors("max42")
-    @pytest.mark.parametrize("trace_method", ["x-yt-sampled", "traceparent"])
+    @pytest.mark.parametrize("trace_method", ["x-yt-sampled", "traceparent", "chyt.enable_tracing"])
     def test_tracing_via_http_proxy(self, trace_method):
         with Clique(1) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
             for i in range(5):
                 write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
 
+            settings = None
             headers = {}
             if trace_method == "x-yt-sampled":
                 headers["X-Yt-Sampled"] = "1"
-            else:
+            elif trace_method == "traceparent":
                 headers["traceparent"] = "11111111222222223333333344444444-5555555566666666-01"
+            else:
+                settings = {"chyt.enable_tracing": 1}
 
-            result = clique.make_query_via_proxy('select avg(a) from "//tmp/t"', headers=headers, full_response=True)
+            result = clique.make_query_via_proxy(
+                'select avg(a) from "//tmp/t"',
+                headers=headers,
+                full_response=True,
+                settings=settings,
+            )
             assert abs(result.json()["data"][0]["avg(a)"] - 4.5) < 1e-6
             query_id = result.headers["X-ClickHouse-Query-Id"]
             print_debug("Query id =", query_id)
