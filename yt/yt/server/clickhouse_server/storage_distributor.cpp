@@ -375,7 +375,7 @@ public:
             samplingRate = rate;
         }
 
-        bool canUseBlockSampling = QueryContext_->Host->GetConfig()->QuerySettings->UseBlockSampling;
+        bool canUseBlockSampling = StorageContext_->Settings->UseBlockSampling;
         for (const auto& tables : queryAnalysisResult.Tables) {
             for (const auto& table : tables) {
                 if (table->Dynamic) {
