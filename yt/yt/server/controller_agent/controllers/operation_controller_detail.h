@@ -448,6 +448,9 @@ protected:
 
     bool CommitFinished = false;
 
+    //! If this flag is set, operation clean start is done instead of revive.
+    bool CleanStart = false;
+
     TOperationSnapshot Snapshot;
     struct TRowBufferTag { };
     NTableClient::TRowBufferPtr RowBuffer;

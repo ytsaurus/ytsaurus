@@ -399,8 +399,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         }
     }
 
-    bool cleanStart = false;
-
     // Check transactions.
     {
         std::vector<std::pair<ITransactionPtr, TFuture<void>>> asyncCheckResults;
@@ -411,12 +409,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             ETransactionType transactionType,
             TTransactionId transactionId)
         {
-            if (cleanStart) {
-                return;
-            }
-
             if (!transaction) {
-                cleanStart = true;
+                CleanStart = true;
                 YT_LOG_INFO("Operation transaction is missing, will use clean start "
                     "(TransactionType: %v, TransactionId: %v)",
                     transactionType,
@@ -446,7 +440,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         for (const auto& [transaction, asyncCheckResult] : asyncCheckResults) {
             auto error = WaitFor(asyncCheckResult);
             if (!error.IsOK()) {
-                cleanStart = true;
+                CleanStart = true;
                 YT_LOG_INFO(error,
                     "Error renewing operation transaction, will use clean start (TransactionId: %v)",
                     transaction->GetId());
@@ -455,17 +449,21 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     }
 
     // Downloading snapshot.
-    if (!cleanStart) {
+    if (!CleanStart) {
         auto snapshotOrError = WaitFor(Host->DownloadSnapshot());
         if (!snapshotOrError.IsOK()) {
             YT_LOG_INFO(snapshotOrError, "Failed to download snapshot, will use clean start");
-            cleanStart = true;
+            CleanStart = true;
         } else {
             YT_LOG_INFO("Snapshot successfully downloaded");
             Snapshot = snapshotOrError.Value();
             if (Snapshot.IsLegacy) {
                 YT_LOG_INFO("Snapshot is legacy, will use clean start");
-                cleanStart = true;
+                CleanStart = true;
+            }
+            if (Snapshot.Blocks.empty()) {
+                YT_LOG_WARNING("Snapshot is empty, will use clean start");
+                CleanStart = true;
             }
         }
     }
@@ -486,7 +484,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         scheduleAbort(outputCompletionTransaction, OutputClient);
         scheduleAbort(debugCompletionTransaction, Client);
 
-        if (cleanStart) {
+        if (CleanStart) {
             YT_LOG_INFO("Aborting operation transactions");
             // NB: Don't touch user transaction.
             scheduleAbort(inputTransaction, InputClient);
@@ -510,7 +508,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     }
 
 
-    if (cleanStart) {
+    if (CleanStart) {
         if (Spec_->FailOnJobRestart) {
             THROW_ERROR_EXCEPTION("Cannot use clean restart when spec option fail_on_job_restart is set");
         }
@@ -1073,8 +1071,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // this is not a vanilla operation.
     ValidateRevivalAllowed();
 
-    if (Snapshot.Blocks.empty()) {
-        YT_LOG_INFO("Snapshot data is missing, preparing operation from scratch");
+    if (CleanStart) {
         TOperationControllerReviveResult result;
         result.RevivedFromSnapshot = false;
         static_cast<TOperationControllerPrepareResult&>(result) = Prepare();
