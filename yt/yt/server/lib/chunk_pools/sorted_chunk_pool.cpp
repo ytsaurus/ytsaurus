@@ -151,6 +151,10 @@ public:
 
     virtual void Finish() override
     {
+        if (IsFinished()) {
+            return;
+        }
+
         TChunkPoolInputBase::Finish();
 
         // NB: this method accounts all the stripes that were suspended before
