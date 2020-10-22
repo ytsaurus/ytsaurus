@@ -55,6 +55,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NChunkPools;
 using namespace NTableClient;
+using namespace NLogging;
 using namespace NJobProxy;
 using namespace NObjectClient;
 using namespace NCypressClient;
@@ -264,6 +265,7 @@ protected:
             : Controller(controller)
             , Level(level)
             , Index(index)
+            , Logger(controller->Logger)
         { }
 
         TSortControllerBase* Controller = nullptr;
@@ -283,6 +285,9 @@ protected:
         //! Is partition completed?
         bool Completed = false;
 
+        //! Is all data corresponding to this partition in chunk pool output?
+        bool PartitioningCompleted = false;
+
         //! Do we need to run merge tasks for this partition?
         //! Cached value, updated by #IsSortedMergeNeeded.
         bool CachedSortedMergeNeeded = false;
@@ -301,6 +306,8 @@ protected:
         //! For root partition it is either partition pool or simple sort pool.
         //! For non-root partitions it's an output of parent partition's shuffle pool. 
         IChunkPoolOutputPtr ChunkPoolOutput;
+
+        TLogger Logger;
 
         void SetAssignedNodeId(TNodeId nodeId)
         {
@@ -331,6 +338,11 @@ protected:
             }
         }
 
+        bool IsRoot() const
+        {
+            return Level == 0;
+        }
+
         bool IsFinal() const
         {
             return Level == Controller->PartitionTreeDepth;
@@ -339,6 +351,47 @@ protected:
         bool IsIntermediate() const
         {
             return !IsFinal();
+        }
+
+        //! Called when all of the partition data is in the
+        //! chunk pool output.
+        void OnPartitioningCompleted()
+        {
+            // This function can be called multiple times due the lost jobs
+            // regeneration. We are interested in the first call only.
+            if (PartitioningCompleted) {
+                return;
+            }
+
+            PartitioningCompleted = true;
+
+            if (IsIntermediate()) {
+                ShuffleChunkPoolInput->Finish();
+
+                i64 dataWeight = ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
+
+                YT_LOG_DEBUG("Intermediate partition data weight collected (PartitionLevel: %v, PartitionIndex: %v, PartitionDataWeight: %v)",
+                    Level,
+                    Index,
+                    dataWeight);
+            } else {
+                i64 dataWeight = ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
+                if (dataWeight == 0) {
+                    YT_LOG_DEBUG("Final partition is empty (FinalPartitionIndex: %v)", Index);
+                    Controller->OnFinalPartitionCompleted(this);
+                } else {
+                    YT_LOG_DEBUG("Final partition is ready for processing (FinalPartitionIndex: %v, DataWeight: %v)",
+                        Index,
+                        dataWeight);
+                    if (!Maniac && !Controller->IsSortedMergeNeeded(this)) {
+                        Controller->FinalSortTask->RegisterPartition(this);
+                    }
+
+                    if (Maniac) {
+                        Controller->UnorderedMergeTask->RegisterPartition(this);
+                    }
+                }
+            }
         }
 
         void Persist(const TPersistenceContext& context)
@@ -357,6 +410,8 @@ protected:
 
             Persist(context, Completed);
 
+            Persist(context, PartitioningCompleted);
+
             Persist(context, CachedSortedMergeNeeded);
 
             Persist(context, Maniac);
@@ -366,6 +421,8 @@ protected:
             Persist(context, ShuffleChunkPool);
             Persist(context, ShuffleChunkPoolInput);
             Persist(context, ChunkPoolOutput);
+
+            Persist(context, Logger);
         }
 
     private:
@@ -765,6 +822,18 @@ protected:
                     << TErrorAttribute("max_shuffle_job_count", Controller_->Spec->MaxShuffleJobCount));
             }
 
+            const auto& partitionPool = partition->IsRoot()
+                ? Controller_->RootPartitionPool
+                : partition->ChunkPoolOutput;
+            if (partitionPool->IsCompleted()) {
+                for (const auto& child : partition->Children) {
+                    if (child->IsFinal()) {
+                        child->OnPartitioningCompleted();
+                    }
+                }
+                partition->ShuffleChunkPoolInput->Finish();
+            }
+
             return result;
         }
 
@@ -816,37 +885,7 @@ protected:
                 const auto& nextPartitionTask = GetNextPartitionTask();
                 nextPartitionTask->FinishInput();
                 Controller_->UpdateTask(nextPartitionTask);
-                for (const auto& partition : GetOutputPartitions()) {
-                    i64 dataWeight = partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
-                    YT_LOG_DEBUG("Intermediate partition data weight collected (PartitionLevel: %v, PartitionIndex: %v, PartitionDataWeight: %v)",
-                        partition->Level,
-                        partition->Index,
-                        dataWeight);
-                }
             } else {
-                // Dump totals.
-                // Mark empty partitions are completed.
-                YT_LOG_DEBUG("Final partition sizes collected");
-                for (const auto& partition : GetOutputPartitions()) {
-                    i64 dataWeight = partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
-                    if (dataWeight == 0) {
-                        YT_LOG_DEBUG("Final partition %v is empty", partition->Index);
-                        Controller_->OnFinalPartitionCompleted(partition);
-                    } else {
-                        YT_LOG_DEBUG("Final partition[%v] = %v",
-                            partition->Index,
-                            dataWeight);
-
-                        if (!partition->Maniac && !Controller_->IsSortedMergeNeeded(partition)) {
-                            Controller_->FinalSortTask->RegisterPartition(partition);
-                        }
-
-                        if (partition->Maniac) {
-                            Controller_->UnorderedMergeTask->RegisterPartition(partition);
-                        }
-                    }
-                }
-
                 if (Controller_->FinalSortTask) {
                     Controller_->FinalSortTask->Finalize();
                     Controller_->FinalSortTask->FinishInput();
@@ -1211,6 +1250,7 @@ protected:
 
             MultiChunkPoolOutput_->AddPoolOutput(partition->ChunkPoolOutput, partition->Index);
             Partitions_.push_back(std::move(partition));
+            Controller_->UpdateTask(this);
         }
 
         void Finalize()
@@ -1236,7 +1276,7 @@ protected:
 
         virtual bool IsActive() const override
         {
-            return Controller_->SortStartThresholdReached;
+            return Controller_->SortStartThresholdReached || IsFinalSort_;
         }
 
         virtual bool HasInputLocality() const override
@@ -1287,6 +1327,15 @@ protected:
                     Controller_->GetFinalPartitionTask()->GetVertexDescriptor(),
                     GetVertexDescriptor(),
                     totalInputStatistics);
+            }
+
+            if (!IsFinalSort_) {
+                auto partitionIndex = *joblet->InputStripeList->PartitionTag;
+                const auto& partition = Controller_->GetFinalPartition(partitionIndex);
+                if (partition->ChunkPoolOutput->IsCompleted()) {
+                    Controller_->SortedMergeTask->OnPartitioningCompleted(partitionIndex);
+                }
+
             }
 
             return result;
@@ -1469,6 +1518,7 @@ protected:
             Persist(context, Partitions_);
             Persist(context, MultiChunkPool_);
             Persist(context, ChunkPoolInput_);
+            Persist(context, SortedMergeChunkPools_);
             Persist<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>(context, ActiveJoblets_);
             Persist<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>(context, InvalidatedJoblets_);
             Persist(context, JobOutputs_);
@@ -1523,8 +1573,9 @@ protected:
             YT_VERIFY(partition->IsFinal());
 
             auto partitionIndex = partition->Index;
-            auto partitionChunkPool = Controller_->CreateSortedMergeChunkPool(Format("%v(%v)", GetTitle(), partitionIndex));
-            MultiChunkPool_->AddPool(std::move(partitionChunkPool), partitionIndex);
+            auto sortedMergeChunkPool = Controller_->CreateSortedMergeChunkPool(Format("%v(%v)", GetTitle(), partitionIndex));
+            YT_VERIFY(SortedMergeChunkPools_.emplace(partitionIndex, sortedMergeChunkPool).second);;
+            MultiChunkPool_->AddPool(std::move(sortedMergeChunkPool), partitionIndex);
 
             Partitions_.push_back(std::move(partition));
 
@@ -1533,6 +1584,14 @@ protected:
                 InvalidatedJoblets_.resize(partitionIndex + 1);
                 JobOutputs_.resize(partitionIndex + 1);
             }
+
+            Controller_->UpdateTask(this);
+        }
+
+        void OnPartitioningCompleted(int partitionIndex)
+        {
+            const auto& chunkPool = GetOrCrash(SortedMergeChunkPools_, partitionIndex);
+            chunkPool->Finish();
         }
 
         void Finalize()
@@ -1566,6 +1625,8 @@ protected:
         IMultiChunkPoolPtr MultiChunkPool_;
         IChunkPoolInputPtr ChunkPoolInput_;
 
+        THashMap<int, IChunkPoolPtr> SortedMergeChunkPools_;
+
         //! Partition index -> list of active joblets.
         std::vector<THashSet<TJobletPtr>> ActiveJoblets_;
 
@@ -1597,11 +1658,6 @@ protected:
                     RegisterOutput(&jobOutput.JobSummary.Result, jobOutput.Joblet->ChunkListIds, jobOutput.Joblet);
                 }
             }
-        }
-
-        virtual bool IsActive() const override
-        {
-            return Controller_->MergeStartThresholdReached;
         }
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
@@ -1865,6 +1921,11 @@ protected:
 
         YT_VERIFY(PartitionsByLevels.size() == PartitionTreeDepth + 1);
         return PartitionsByLevels.back();
+    }
+
+    const TPartitionPtr& GetRootPartition() const
+    {
+        return PartitionsByLevels[0][0];
     }
 
     const TPartitionPtr& GetFinalPartition(int partitionIndex) const

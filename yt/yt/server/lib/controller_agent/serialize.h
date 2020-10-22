@@ -54,6 +54,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PerTaskInputDataSizeHistograms)       (300421))
     ((ForeignDataSliceWeight)               (300422))
     ((JobSplitterInTask)                    (300423))
+    ((BarrierlessSort)                      (300424))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
