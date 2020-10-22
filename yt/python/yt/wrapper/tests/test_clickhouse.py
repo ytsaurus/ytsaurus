@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 from __future__ import print_function
 
 from .conftest import authors
@@ -138,7 +140,12 @@ class TestClickhouseFromHost(ClickhouseTestBase):
         check(chyt.execute("select getSetting('chyt.binary_string_setting') as s", "*d",
                                  settings={"chyt.binary_string_setting": "\x00\x01\x02\x03\x04"}),
                     [{"s": "\x00\x01\x02\x03\x04"}])
-        
+       
+    @authors("max42")
+    def test_unicode_in_query(self):
+        chyt.start_clique(1, alias="*f")
+        assert list(chyt.execute("select 'юникод' as s", "*f")) == [{"s": u"юникод"}]
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestNonTrivialClient(ClickhouseTestBase):

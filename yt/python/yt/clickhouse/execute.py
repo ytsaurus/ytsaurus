@@ -110,7 +110,7 @@ def execute(query, alias=None, raw=None, format=None, settings=None, client=None
 
     with requests.post(
             url,
-            data=query,
+            data=query.encode('utf-8'),
             params=params,
             headers=headers,
             auth=auth,
