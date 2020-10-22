@@ -766,7 +766,7 @@ void TOperationControllerBase::InitializeOrchid()
         );
     };
 
-    // Methods like BuildProgress, BuildBriefProgress, buildJobsYson and BuildJobSplitterInfo build map fragment,
+    // Methods like BuildProgress, BuildBriefProgress and buildJobsYson build map fragment,
     // so we have to enclose them with a map in order to pass into createService helper.
     // TODO(max42): get rid of this when GetOperationInfo is not stopping us from changing Build* signatures any more.
     auto wrapWithMap = [=] (auto fluentMethod) {
@@ -790,7 +790,6 @@ void TOperationControllerBase::InitializeOrchid()
         ->AddChild("brief_progress", createCachedMapService(BIND(&TOperationControllerBase::BuildBriefProgress, Unretained(this))))
         ->AddChild("running_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildJobsYson, Unretained(this))))
         ->AddChild("retained_finished_jobs", createCachedMapService(BIND(&TOperationControllerBase::BuildRetainedFinishedJobsYson, Unretained(this))))
-        ->AddChild("job_splitter", createCachedMapService(BIND(&TOperationControllerBase::BuildJobSplitterInfo, Unretained(this))))
         ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
         ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
         ->AddChild("data_flow_graph", DataFlowGraph_->GetService()
@@ -1012,12 +1011,6 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         MaxAvailableExecNodeResourcesUpdateExecutor->Start();
         CheckTentativeTreeEligibilityExecutor_->Start();
 
-        auto jobSplitterConfig = GetJobSplitterConfig();
-        if (jobSplitterConfig) {
-            JobSplitter_ = CreateJobSplitter(std::move(jobSplitterConfig), OperationId);
-            YT_LOG_DEBUG("Job splitter created");
-        }
-
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
         }
@@ -1158,9 +1151,6 @@ void TOperationControllerBase::AbortAllJoblets()
     for (const auto& [jobId, joblet] : JobletMap) {
         auto jobSummary = TAbortedJobSummary(jobId, EAbortReason::Scheduler);
         joblet->Task->OnJobAborted(joblet, jobSummary);
-        if (JobSplitter_) {
-            JobSplitter_->OnJobAborted(jobSummary);
-        }
     }
     JobletMap.clear();
 }
@@ -2587,26 +2577,9 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     UpdateJobStatistics(joblet, *jobSummary);
     UpdateJobMetrics(joblet, *jobSummary);
 
-    if (jobSummary->InterruptReason != EInterruptReason::None) {
-        jobSummary->SplitJobCount = EstimateSplitJobCount(*jobSummary, joblet);
-        if (jobSummary->InterruptReason == EInterruptReason::JobSplit) {
-            // If we interrupted job on our own decision, (from JobSplitter), we should at least try to split it into 2 pieces.
-            // Otherwise, the whole splitting thing makes to sense.
-            jobSummary->SplitJobCount = std::max(2, jobSummary->SplitJobCount);
-        }
-        YT_LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
-            jobSummary->Id,
-            jobSummary->InterruptReason,
-            jobSummary->UnreadInputDataSlices.size(),
-            jobSummary->SplitJobCount);
-    }
     auto taskResult = joblet->Task->OnJobCompleted(joblet, *jobSummary);
     for (const auto& treeId : taskResult.NewlyBannedTrees) {
         MaybeBanInTentativeTree(treeId);
-    }
-
-    if (JobSplitter_) {
-        JobSplitter_->OnJobCompleted(*jobSummary);
     }
 
     if (!abandoned) {
@@ -2691,10 +2664,6 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     auto taskResult = joblet->Task->OnJobFailed(joblet, *jobSummary);
     for (const auto& treeId : taskResult.NewlyBannedTrees) {
         MaybeBanInTentativeTree(treeId);
-    }
-
-    if (JobSplitter_) {
-        JobSplitter_->OnJobFailed(*jobSummary);
     }
 
     jobSummary->ReleaseFlags.ArchiveJobSpec = true;
@@ -2802,10 +2771,6 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
         MaybeBanInTentativeTree(treeId);
     }
 
-    if (JobSplitter_) {
-        JobSplitter_->OnJobAborted(*jobSummary);
-    }
-
     bool requestJobNodeCreation = (abortReason == EAbortReason::UserRequest);
     ProcessFinishedJobResult(std::move(jobSummary), requestJobNodeCreation);
 
@@ -2853,39 +2818,16 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     joblet->Progress = jobSummary->Progress;
     joblet->StderrSize = jobSummary->StderrSize;
 
-    bool canLaunchSpeculativeJob = (static_cast<bool>(JobSplitter_) || Spec_->TestingOperationOptions->TestJobSpeculationTimeout);
-    if (canLaunchSpeculativeJob &&
-        joblet->JobSpeculationTimeout &&
-        jobSummary->PrepareDuration.value_or(TDuration()) + jobSummary->ExecDuration.value_or(TDuration()) >= joblet->JobSpeculationTimeout)
-    {
-        YT_LOG_DEBUG("Speculation timeout expired; trying to launch speculative job (ExpiredJobId: %v)", jobId);
-        if (joblet->Task->TryRegisterSpeculativeJob(joblet)) {
-            UpdateTask(joblet->Task);
-        }
-    }
-
     if (jobSummary->StatisticsYson) {
         joblet->StatisticsYson = jobSummary->StatisticsYson;
         ParseStatistics(jobSummary.get(), joblet->StartTime);
 
         UpdateJobMetrics(joblet, *jobSummary);
+    }
 
-        if (JobSplitter_) {
-            JobSplitter_->OnJobRunning(*jobSummary);
-            if (GetPendingJobCount() == 0) {
-                auto verdict = JobSplitter_->ExamineJob(jobId);
-                if (verdict == EJobSplitterVerdict::Split) {
-                    YT_LOG_DEBUG("Job is going to be split (JobId: %v)", jobId);
-                    Host->InterruptJob(jobId, EInterruptReason::JobSplit);
-                } else if (verdict == EJobSplitterVerdict::LaunchSpeculative) {
-                    YT_LOG_DEBUG("Job can be speculated (JobId: %v)", jobId);
-                    if (joblet->Task->TryRegisterSpeculativeJob(joblet)) {
-                        UpdateTask(joblet->Task);
-                    }
-                }
-            }
-        }
+    joblet->Task->OnJobRunning(joblet, *jobSummary);
 
+    if (jobSummary->StatisticsYson) {
         auto asyncResult = BIND(&BuildBriefStatistics, Passed(std::move(jobSummary)))
             .AsyncVia(Host->GetControllerThreadPoolInvoker())
             .Run();
@@ -4161,6 +4103,7 @@ void TOperationControllerBase::RegisterTask(TTaskPtr task)
 {
     task->Prepare();
     task->Initialize();
+    task->Prepare();
     Tasks.emplace_back(std::move(task));
 }
 
@@ -6670,11 +6613,6 @@ TString TOperationControllerBase::GetLoggingProgress() const
         GetUnavailableInputChunkCount());
 }
 
-bool TOperationControllerBase::IsJobInterruptible() const
-{
-    return true;
-}
-
 void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
 {
     std::vector<TInputDataSlicePtr> dataSliceList;
@@ -6732,28 +6670,6 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
     for (const auto& dataSliceDescriptor : readDataSliceDescriptors) {
         jobSummary.ReadInputDataSlices.emplace_back(extractDataSlice(dataSliceDescriptor));
     }
-}
-
-int TOperationControllerBase::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)
-{
-    if (!JobSplitter_ || GetPendingJobCount() > 0) {
-        return 1;
-    }
-
-    auto inputDataStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
-
-    // We don't estimate unread row count based on unread slices,
-    // because foreign slices are not passed back to scheduler.
-    // Instead, we take the difference between estimated row count and actual read row count.
-    i64 unreadRowCount = joblet->InputStripeList->TotalRowCount - inputDataStatistics.row_count();
-
-    if (unreadRowCount <= 0) {
-        // This is almost impossible, still we don't want to fail operation in this case.
-        YT_LOG_WARNING("Estimated unread row count is negative (JobId: %v, UnreadRowCount: %v)", jobSummary.Id, unreadRowCount);
-        unreadRowCount = 1;
-    }
-
-    return JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
 }
 
 TKeyColumns TOperationControllerBase::CheckInputTablesSorted(
@@ -7243,11 +7159,6 @@ TOperationInfo TOperationControllerBase::BuildOperationInfo()
     result.RunningJobs =
         BuildYsonStringFluently<EYsonType::MapFragment>()
             .Do(std::bind(&TOperationControllerBase::BuildJobsYson, this, _1))
-        .Finish();
-
-    result.JobSplitter =
-        BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Do(std::bind(&TOperationControllerBase::BuildJobSplitterInfo, this, _1))
         .Finish();
 
     result.MemoryUsage = GetMemoryUsage();
@@ -7859,15 +7770,6 @@ void TOperationControllerBase::LogProgress(bool force)
     }
 }
 
-void TOperationControllerBase::BuildJobSplitterInfo(TFluentMap fluent) const
-{
-    VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
-
-    if (IsPrepared() && JobSplitter_) {
-        JobSplitter_->BuildJobSplitterInfo(fluent);
-    }
-}
-
 ui64 TOperationControllerBase::NextJobIndex()
 {
     return JobIndexGenerator.Next();
@@ -7911,11 +7813,6 @@ const TOutputTablePtr& TOperationControllerBase::StderrTable() const
 const TOutputTablePtr& TOperationControllerBase::CoreTable() const
 {
     return CoreTable_;
-}
-
-IJobSplitter* TOperationControllerBase::GetJobSplitter()
-{
-    return JobSplitter_.get();
 }
 
 const std::optional<TJobResources>& TOperationControllerBase::CachedMaxAvailableExecNodeResources() const
@@ -8475,11 +8372,6 @@ void TOperationControllerBase::ValidateOutputSchemaComputedColumnsCompatibility(
     }
 }
 
-TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfig() const
-{
-    return nullptr;
-}
-
 void TOperationControllerBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -8526,7 +8418,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, AutoMergeTask_);
     Persist(context, AutoMergeJobSpecTemplates_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
-    Persist(context, JobSplitter_);
     Persist(context, DataFlowGraph_);
     Persist(context, AvailableExecNodesObserved_);
     Persist(context, BannedNodeIds_);
@@ -8823,6 +8714,11 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
         TError("Job is aborted by controller") << TErrorAttribute("abort_reason", abortReason));
 }
 
+void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reason)
+{
+    Host->InterruptJob(jobId, reason);
+}
+
 void TOperationControllerBase::OnSpeculativeJobScheduled(const TJobletPtr& joblet)
 {
     MarkJobHasCompetitors(joblet);
@@ -8990,6 +8886,24 @@ const NChunkClient::TMediumDirectoryPtr& TOperationControllerBase::GetMediumDire
 bool TOperationControllerBase::IsLegacy() const
 {
     return false;
+}
+
+TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() const
+{
+    auto config = CloneYsonSerializable(Options->JobSplitter);
+
+    if (!Spec_->EnableJobSplitting || !Config->EnableJobSplitting) {
+        config->EnableJobSplitting = false;
+    }
+
+    if (!Spec_->JobSplitter->EnableJobSplitting) {
+        config->EnableJobSplitting = false;
+    }
+    if (!Spec_->JobSplitter->EnableJobSpeculation) {
+        config->EnableJobSpeculation = false;
+    }
+
+    return config;
 }
 
 std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() const

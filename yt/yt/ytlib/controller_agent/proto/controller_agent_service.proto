@@ -41,7 +41,10 @@ message TRspGetOperationInfo
     required bytes progress = 1;       // YSON
     required bytes brief_progress = 2; // YSON
     required bytes running_jobs = 3;   // YSON
+    // TODO(gritukan): Drop this field when all controllers
+    // will be new.
     required bytes job_splitter = 4;   // YSON
+
     required int64 controller_memory_usage = 5;
     required int32 controller_state = 6;
     required bytes alerts = 7; // YSON

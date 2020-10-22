@@ -208,6 +208,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
                     "max_input_table_count": 5,
                     "exec_to_prepare_time_ratio": 1,
                     "split_timeout_before_speculate": 100,
+                    "job_logging_period": 0,
                 },
                 "spec_template": {"max_failed_job_count": 1},
             },

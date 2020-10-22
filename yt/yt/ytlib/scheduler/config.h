@@ -531,6 +531,22 @@ DEFINE_REFCOUNTED_TYPE(TTestingOperationOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(gritukan): Move some of the heuristics options from NControllerAgent::TJobSplitterConfig here.
+class TJobSplitterConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableJobSplitting;
+
+    bool EnableJobSpeculation;
+
+    TJobSplitterConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobSplitterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAutoMergeConfig
     : public NYTree::TYsonSerializable
 {
@@ -697,6 +713,7 @@ public:
     //! If set to true, any aborted/failed job will result in operation fail.
     bool FailOnJobRestart;
 
+    // TODO(gritukan): Deprecate.
     bool EnableJobSplitting;
 
     //! If set to true, erasure chunks are forcefully sliced into data parts,
@@ -770,6 +787,8 @@ public:
 
     //! Description of possible shells for operation jobs.
     std::vector<TJobShellPtr> JobShells;
+
+    TJobSplitterConfigPtr JobSplitter;
 
     TOperationSpecBase();
 

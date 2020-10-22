@@ -4,6 +4,7 @@
 
 #include "competitive_job_manager.h"
 #include "data_flow_graph.h"
+#include "job_splitter.h"
 
 #include <yt/server/controller_agent/tentative_tree_eligibility.h>
 
@@ -40,13 +41,13 @@ public:
     TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescriptors);
     explicit TTask(ITaskHostPtr taskHost);
 
-    //! This method is called on task object creation at clean creation but not at revival.
-    //! It may be used when calling virtual method is needed, but not allowed.
-    virtual void Prepare();
-
     //! This method is called on task object creation (both at clean creation and at revival).
     //! It may be used when calling virtual method is needed, but not allowed.
     virtual void Initialize();
+
+    //! This method is called on task object creation (at clean creation only).
+    //! It may be used when calling virtual method is needed, but not allowed.
+    virtual void Prepare();
 
     //! Title of a data flow graph vertex that appears in a web interface and coincides with the job type
     //! for builtin tasks. For example, "SortedReduce" or "PartitionMap".
@@ -110,7 +111,7 @@ public:
     virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary);
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
-
+    virtual void OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary);
     virtual void OnJobLost(TCompletedJobPtr completedJob);
 
     virtual void OnStripeRegistrationFailed(
@@ -170,7 +171,7 @@ public:
 
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 
-    virtual bool IsJobInterruptible() const;
+    virtual bool IsJobInterruptible() const = 0;
 
     void BuildTaskYson(NYTree::TFluentMap fluent) const;
 
@@ -197,6 +198,8 @@ protected:
 
     mutable std::unique_ptr<IDigest> JobProxyMemoryDigest_;
     mutable std::unique_ptr<IDigest> UserJobMemoryDigest_;
+
+    std::unique_ptr<IJobSplitter> JobSplitter_;
 
     virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
 
@@ -278,6 +281,8 @@ protected:
 
     virtual bool IsInputDataWeightHistogramSupported() const;
 
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const = 0;
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);
 
@@ -323,6 +328,8 @@ private:
 
     double GetJobProxyMemoryReserveFactor() const;
     double GetUserJobMemoryReserveFactor() const;
+
+    int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

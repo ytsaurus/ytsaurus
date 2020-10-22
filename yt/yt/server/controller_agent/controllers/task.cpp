@@ -78,14 +78,6 @@ TTask::TTask(ITaskHostPtr taskHost)
     : TTask(taskHost, taskHost->GetStandardStreamDescriptors())
 { }
 
-void TTask::Prepare()
-{
-    if (IsInputDataWeightHistogramSupported()) {
-        EstimatedInputDataWeightHistogram_ = CreateHistogram();
-        InputDataWeightHistogram_ = CreateHistogram();
-    }
-}
-
 void TTask::Initialize()
 {
     auto operationId = TaskHost_->GetOperationId();
@@ -103,6 +95,18 @@ void TTask::Initialize()
             MaximumUsedTmpfsSizes_.resize(userJobSpec->TmpfsVolumes.size());
         }
     }
+}
+
+void TTask::Prepare()
+{
+    if (IsInputDataWeightHistogramSupported()) {
+        EstimatedInputDataWeightHistogram_ = CreateHistogram();
+        InputDataWeightHistogram_ = CreateHistogram();
+    }
+
+    JobSplitter_ = CreateJobSplitter(
+        GetJobSplitterConfig(),
+        TaskHost_->GetOperationId());
 }
 
 TString TTask::GetTitle() const
@@ -511,9 +515,7 @@ void TTask::ScheduleJob(
 
     OnJobStarted(joblet);
 
-    if (TaskHost_->GetJobSplitter()) {
-        TaskHost_->GetJobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList, IsJobInterruptible());
-    }
+    JobSplitter_->OnJobStarted(joblet->JobId, joblet->InputStripeList, IsJobInterruptible());
 
     if (!StartTime_) {
         StartTime_ = TInstant::Now();
@@ -525,11 +527,6 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
     return CompetitiveJobManager_.TryRegisterSpeculativeCandidate(joblet);
 }
 
-bool TTask::IsJobInterruptible() const
-{
-    return TaskHost_->IsJobInterruptible();
-}
-
 void TTask::BuildTaskYson(TFluentMap fluent) const
 {
     fluent
@@ -537,6 +534,7 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         .Item("job_type").Value(GetJobType())
         .Item("has_user_job").Value(HasUserJob())
         .Item("job_counter").Value(GetJobCounter())
+        .Item("speculative_job_counter").Value(CompetitiveJobManager_.GetProgressCounter())
         .Item("input_finished").Value(GetChunkPoolInput() && GetChunkPoolInput()->IsFinished())
         .Item("completed").Value(IsCompleted())
         .Item("min_needed_resources").Value(GetMinNeededResources())
@@ -557,6 +555,12 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         .DoIf(static_cast<bool>(InputDataWeightHistogram_), [&] (TFluentMap fluent) {
             InputDataWeightHistogram_->BuildHistogramView();
             fluent.Item("input_data_weight_histogram").Value(*InputDataWeightHistogram_);
+         })
+        .DoIf(static_cast<bool>(JobSplitter_), [&] (TFluentMap fluent) {
+            fluent.Item("job_splitter")
+                .BeginMap()
+                    .Do(BIND(&IJobSplitter::BuildJobSplitterInfo, JobSplitter_.get()))
+                .EndMap();
         });
 }
 
@@ -639,6 +643,8 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, UserJobMemoryDigest_);
     Persist(context, JobProxyMemoryDigest_);
+
+    Persist(context, JobSplitter_);
 
     Persist(context, InputChunkMapping_);
 
@@ -766,6 +772,16 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         }
     }
 
+    if (jobSummary.InterruptReason != EInterruptReason::None) {
+        jobSummary.SplitJobCount = EstimateSplitJobCount(jobSummary, joblet);
+        YT_LOG_DEBUG("Job interrupted (JobId: %v, InterruptReason: %v, UnreadDataSliceCount: %v, SplitJobCount: %v)",
+            jobSummary.Id,
+            jobSummary.InterruptReason,
+            jobSummary.UnreadInputDataSlices.size(),
+            jobSummary.SplitJobCount);
+    }
+    JobSplitter_->OnJobCompleted(jobSummary);
+
     return result;
 }
 
@@ -801,6 +817,8 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
         ReinstallJob(BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
     }
 
+    JobSplitter_->OnJobFailed(jobSummary);
+
     return result;
 }
 
@@ -827,7 +845,39 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
         ReinstallJob(BIND([=] { GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason); }));
     }
 
+    JobSplitter_->OnJobAborted(jobSummary);
+
     return result;
+}
+
+void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary)
+{
+    auto jobId = joblet->JobId;
+
+    if (joblet->JobSpeculationTimeout &&
+        jobSummary.PrepareDuration.value_or(TDuration()) + jobSummary.ExecDuration.value_or(TDuration()) >= joblet->JobSpeculationTimeout)
+    {
+        YT_LOG_DEBUG("Speculation timeout expired; trying to launch speculative job (ExpiredJobId: %v)", jobId);
+        if (TryRegisterSpeculativeJob(joblet)) {
+            UpdateTask();
+        }
+    }
+
+    if (jobSummary.Statistics) {
+        JobSplitter_->OnJobRunning(jobSummary);
+        if (GetPendingJobCount() == 0) {
+            auto verdict = JobSplitter_->ExamineJob(jobId);
+            if (verdict == EJobSplitterVerdict::Split) {
+                YT_LOG_DEBUG("Job is going to be split (JobId: %v)", jobId);
+                TaskHost_->InterruptJob(jobId, EInterruptReason::JobSplit);
+            } else if (verdict == EJobSplitterVerdict::LaunchSpeculative) {
+                YT_LOG_DEBUG("Job can be speculated (JobId: %v)", jobId);    
+                if (TryRegisterSpeculativeJob(joblet)) {
+                    UpdateTask();
+                }
+            }
+        }
+    }
 }
 
 void TTask::OnJobLost(TCompletedJobPtr completedJob)
@@ -1404,6 +1454,35 @@ double TTask::GetUserJobMemoryReserveFactor() const
     YT_VERIFY(HasUserJob());
 
     return GetUserJobMemoryDigest()->GetQuantile(TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
+}
+
+int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)
+{
+    if (GetPendingJobCount() > 0) {
+        return 1;
+    }
+
+    auto inputDataStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
+
+    // We don't estimate unread row count based on unread slices,
+    // because foreign slices are not passed back to scheduler.
+    // Instead, we take the difference between estimated row count and actual read row count.
+    i64 unreadRowCount = joblet->InputStripeList->TotalRowCount - inputDataStatistics.row_count();
+
+    if (unreadRowCount <= 0) {
+        // This is almost impossible, still we don't want to fail operation in this case.
+        YT_LOG_WARNING("Estimated unread row count is negative (JobId: %v, UnreadRowCount: %v)", jobSummary.Id, unreadRowCount);
+        unreadRowCount = 1;
+    }
+
+    auto splitJobCount = JobSplitter_->EstimateJobCount(jobSummary, unreadRowCount);
+    if (jobSummary.InterruptReason == EInterruptReason::JobSplit) {
+        // If we interrupted job on our own decision, (from JobSplitter), we should at least try to split it into 2 pieces.
+        // Otherwise, the whole splitting thing makes to sense.
+        splitJobCount = std::max(2, splitJobCount);
+    }
+
+    return splitJobCount;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

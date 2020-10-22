@@ -17,10 +17,20 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "sort_operation_options": {"min_uncompressed_block_size": 1},
-            "map_reduce_operation_options": {
-                "min_uncompressed_block_size": 1,
+        "controller_agent" : {
+            "sort_operation_options" : {
+                "min_uncompressed_block_size" : 1
+            },
+            "map_reduce_operation_options" : {
+                "min_uncompressed_block_size" : 1,
+                "job_splitter": {
+                    "min_job_time": 3000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                    "job_logging_period": 0,
+                },
             },
             "enable_partition_map_job_size_adjustment": True,
         }
@@ -1362,6 +1372,93 @@ for l in sys.stdin:
             expected_rows.append(row)
         assert sorted(expected_rows) == sorted(result_rows)
 
+    @authors("gritukan")
+    def test_job_splitting(self):
+        if self.USE_LEGACY_CONTROLLERS:
+            return
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        expected = []
+        for i in range(20):
+            row = {"a": str(i), "b": "x" * 10**6}
+            write_table("<append=%true>//tmp/t_in", row)
+            expected.append({"a": str(i)})
+
+        slow_cat = """
+while read ROW; do
+    if [ "$YT_JOB_COOKIE" == 0 ]; then
+        sleep 5
+    else
+        sleep 0.1
+    fi
+    echo "$ROW"
+done
+"""
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            mapper_command=slow_cat,
+            reducer_command="cat",
+            sort_by=["key"],
+            spec={
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+                "data_size_per_map_job": 14 * 1024 * 1024,
+                "partition_count": 2,
+                "map_job_io": {
+                    "buffer_row_count": 1,
+                },
+            })
+
+        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
+        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/job_counter/completed/interrupted/job_split") == 1
+
+        assert sorted(read_table("//tmp/t_out{a}", verbose=False)) == sorted(expected)
+
+    @authors("gritukan")
+    def test_job_speculation(self):
+        if self.USE_LEGACY_CONTROLLERS:
+            return
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        expected = []
+        for i in range(20):
+            row = {"a": str(i), "b": "x" * 10**6}
+            write_table("<append=%true>//tmp/t_in", row)
+            expected.append({"a": str(i)})
+
+        mapper = """
+while read ROW; do
+    if [ "$YT_JOB_INDEX" == 0 ]; then
+        sleep 5
+    else
+        sleep 0.1
+    fi
+    echo "$ROW"
+done
+"""
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            mapper_command=mapper,
+            reducer_command="cat",
+            sort_by=["a"],
+            spec={
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+                "data_size_per_map_job": 14 * 1024 * 1024,
+                "partition_count": 2,
+                "enable_job_splitting": False,
+                "reduce_job_io": {
+                    "testing_options": {"pipe_delay": 1000},
+                    "buffer_row_count": 1,
+                }
+            })
+
+        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
+        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won") == 1
 
 ##################################################################
 

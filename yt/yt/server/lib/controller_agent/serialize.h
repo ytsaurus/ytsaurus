@@ -53,6 +53,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FailedJobCount)                       (300420))
     ((PerTaskInputDataSizeHistograms)       (300421))
     ((ForeignDataSliceWeight)               (300422))
+    ((JobSplitterInTask)                    (300423))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

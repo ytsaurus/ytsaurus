@@ -5,6 +5,7 @@
 #include "job_info.h"
 #include "task_host.h"
 
+#include <yt/server/controller_agent/config.h>
 #include <yt/server/controller_agent/job_size_constraints.h>
 
 #include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
@@ -288,6 +289,16 @@ void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const
 int TAutoMergeTask::GetTableIndex(int poolIndex) const
 {
     return *StreamDescriptors_[poolIndex].PartitionTag;
+}
+
+TJobSplitterConfigPtr TAutoMergeTask::GetJobSplitterConfig() const
+{
+    auto config = TaskHost_->GetJobSplitterConfigTemplate();
+
+    // TODO(gritukan): YT-13646.
+    config->EnableJobSplitting = false;
+
+    return config;
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);

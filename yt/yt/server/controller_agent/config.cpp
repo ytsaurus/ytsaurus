@@ -163,6 +163,12 @@ TJobSplitterConfig::TJobSplitterConfig()
 
     RegisterParameter("job_logging_period", JobLoggingPeriod)
         .Default(TDuration::Minutes(3));
+
+    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+        .Default(true);
+
+    RegisterParameter("enable_job_speculation", EnableJobSpeculation)
+        .Default(true);
 }
 
 TSuspiciousJobsOptions::TSuspiciousJobsOptions()

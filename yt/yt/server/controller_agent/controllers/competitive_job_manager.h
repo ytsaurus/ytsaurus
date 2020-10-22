@@ -48,7 +48,7 @@ public:
 
     bool IsFinished() const;
 
-    TProgressCounterPtr GetProgressCounter();
+    TProgressCounterPtr GetProgressCounter() const;
 
     void Persist(const TPersistenceContext& context);
 

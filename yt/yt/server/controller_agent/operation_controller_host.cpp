@@ -168,7 +168,7 @@ void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reaso
         reason,
         {},
     });
-    YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobCount: %v)",
+    YT_LOG_DEBUG("Job interrupt request enqueued (OperationId: %v, JobId: %v)",
         OperationId_,
         jobId);
 }

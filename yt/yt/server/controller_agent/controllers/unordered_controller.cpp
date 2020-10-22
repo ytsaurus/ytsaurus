@@ -146,6 +146,39 @@ public:
             }
         }
 
+        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        {
+            auto config = TaskHost_->GetJobSplitterConfigTemplate();
+
+            if (Controller_->GetOperationType() == EOperationType::Map) {
+                config->EnableJobSplitting &=
+                    (IsJobInterruptible() &&
+                    Controller_->InputTables_.size() <= Controller_->Options->JobSplitter->MaxInputTableCount);
+            } else {
+                YT_VERIFY(Controller_->GetOperationType() == EOperationType::Merge);
+                // TODO(gritukan): YT-13646.
+                config->EnableJobSplitting = false;
+            }
+
+            return config;
+        }
+
+        virtual bool IsJobInterruptible() const override
+        {
+            // TODO(gritukan): YT-13646.
+            if (Controller_->GetOperationType() == EOperationType::Merge) {
+                return false;
+            }
+            YT_VERIFY(Controller_->GetOperationType() == EOperationType::Map);
+
+            // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+            auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
+            return
+                !Controller_->JobSizeConstraints_->IsExplicitJobCount() &&
+                2 * Controller_->Options->MaxOutputTablesTimesJobsCount > totalJobCount * Controller_->GetOutputTablePaths().size() &&
+                2 * Controller_->Options->MaxJobCount > totalJobCount;
+        }
+
         i64 GetTotalOutputRowCount() const
         {
             return TotalOutputRowCount_;
@@ -527,17 +560,6 @@ private:
         return options;
     }
 
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
-    {
-        return
-            IsJobInterruptible() &&
-            Config->EnableJobSplitting &&
-            Spec->EnableJobSplitting &&
-            InputTables_.size() <= Options->JobSplitter->MaxInputTableCount
-            ? Options->JobSplitter
-            : nullptr;
-    }
-
     virtual TUserJobSpecPtr GetUserJobSpec() const override
     {
         return Spec->Mapper;
@@ -621,17 +643,6 @@ private:
     virtual bool IsInputDataSizeHistogramSupported() const override
     {
         return true;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        auto totalJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
-        return
-            !JobSizeConstraints_->IsExplicitJobCount() &&
-            2 * Options->MaxOutputTablesTimesJobsCount > totalJobCount * GetOutputTablePaths().size() &&
-            2 * Options->MaxJobCount > totalJobCount &&
-            TOperationControllerBase::IsJobInterruptible();
     }
 
     virtual TYsonSerializablePtr GetTypedSpec() const override
@@ -785,11 +796,6 @@ private:
     virtual TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        return false;
     }
 
     virtual void OnOperationCompleted(bool interrupted) override
