@@ -39,9 +39,13 @@ object YsonableConfig {
   }
 
   def toYson(value: Any): String = {
+    YTreeTextSerializer.serialize(toYTree(value))
+  }
+
+  def toYTree(value: Any): YTreeNode = {
     val builder = new YTreeBuilder()
     toYson(value, builder)
-    YTreeTextSerializer.serialize(builder.build())
+    builder.build()
   }
 }
 
@@ -66,7 +70,9 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
                                "ARROW_ENABLE_NULL_CHECK_FOR_GET" -> "false",
                                "ARROW_ENABLE_UNSAFE_MEMORY_ACCESS" -> "true"
                              ),
-                             operation_spec: Map[String, String] = Map(),
+                             operation_spec: Map[String, YTreeNode] = Map(
+                               "job_cpu_monitor" -> YsonableConfig.toYTree(Map("enable_cpu_reclaim" -> "false"))
+                             ),
                              ytserver_proxy_path: String = SparkLaunchConfig.defaultYtServerProxyPath) extends YsonableConfig
 
 case class SparkLaunchConfig(spark_yt_base_path: String,
