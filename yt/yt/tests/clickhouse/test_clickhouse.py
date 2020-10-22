@@ -146,8 +146,8 @@ class Clique(object):
     def get_active_instance_count(self):
         return len(self.get_active_instances())
 
-    def make_query_and_validate_row_count(self, query, exact=None, min=None, max=None, verbose=True):
-        result = self.make_query(query, verbose=verbose, only_rows=False)
+    def make_query_and_validate_row_count(self, query, exact=None, min=None, max=None, verbose=True, **kwargs):
+        result = self.make_query(query, verbose=verbose, only_rows=False, **kwargs)
         assert (exact is not None) ^ (min is not None and max is not None)
         if exact is not None:
             assert result["statistics"]["rows_read"] == exact
@@ -1999,28 +1999,26 @@ class TestJobInput(ClickHouseTestBase):
             },
         )
         write_table("//tmp/t", [{"a": i, "b": "A" * 1500} for i in range(1000)], verbose=False)
-        with Clique(1, config_patch={"yt": {"settings": {"use_block_sampling": use_block_sampling}}}) as clique:
-            clique.make_query_and_validate_row_count(
-                'select a from "//tmp/t" sample 0.1', min=60, max=170, verbose=False
-            )
-            clique.make_query_and_validate_row_count(
-                'select a from "//tmp/t" sample 100', min=60, max=170, verbose=False
-            )
-            clique.make_query_and_validate_row_count(
-                'select a from "//tmp/t" sample 2/20', min=60, max=170, verbose=False
-            )
-            clique.make_query_and_validate_row_count(
-                'select a from "//tmp/t" sample 0.1 offset 42', min=60, max=170, verbose=False
-            )
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0', exact=0, verbose=False)
-            clique.make_query_and_validate_row_count(
-                'select a from "//tmp/t" sample 0.000000000001', exact=0, verbose=False
-            )
-            clique.make_query_and_validate_row_count(
-                'select a from "//tmp/t" sample 1/100000000000', exact=0, verbose=False
-            )
+        with Clique(1) as clique:
+            settings = {"chyt.use_block_sampling": int(use_block_sampling)}
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1', min=60, max=170,
+                                                     verbose=False, settings=settings)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 100', min=60, max=170,
+                                                     verbose=False, settings=settings)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 2/20', min=60, max=170,
+                                                     verbose=False, settings=settings)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=60, max=170,
+                                                     verbose=False, settings=settings)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False,
+                                                     settings=settings)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False,
+                                                     settings=settings)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0', exact=0, verbose=False,
+                                                     settings=settings)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.000000000001', exact=0,
+                                                     verbose=False, settings=settings)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 1/100000000000', exact=0,
+                                                     verbose=False, settings=settings)
 
     @authors("max42")
     def test_CHYT_143(self):
