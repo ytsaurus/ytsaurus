@@ -157,6 +157,7 @@ public:
         Persist(context, SortedMergeJobIOConfig);
         Persist(context, UnorderedMergeJobIOConfig);
 
+        Persist(context, RootPartitionPoolJobSizeConstraints);
         Persist(context, RootPartitionPool);
         Persist(context, SimpleSortPool);
 
@@ -415,6 +416,7 @@ protected:
     TJobIOConfigPtr SortedMergeJobIOConfig;
     TJobIOConfigPtr UnorderedMergeJobIOConfig;
 
+    IJobSizeConstraintsPtr RootPartitionPoolJobSizeConstraints;
     IChunkPoolPtr RootPartitionPool;
     IChunkPoolPtr SimpleSortPool;
 
@@ -661,10 +663,14 @@ protected:
         virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context) override
         {
             // We don't have a job at hand here, let's make a guess.
-            auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics()[0];
+            auto approximateStatistics = GetChunkPoolOutput()->GetApproximateStripeStatistics();
+            if (approximateStatistics.empty()) {
+                return std::nullopt;
+            }
+
             const auto& node = context->GetNodeDescriptor();
 
-            if (DataBalancer_ && !DataBalancer_->CanScheduleJob(node, approximateStatistics.DataWeight)) {
+            if (DataBalancer_ && !DataBalancer_->CanScheduleJob(node, approximateStatistics.front().DataWeight)) {
                 return EScheduleJobFailReason::DataBalancingViolation;
             }
 
@@ -874,6 +880,27 @@ protected:
                 Controller_->CheckMergeStartThreshold();
             }
         }
+
+        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        {
+            auto config = TaskHost_->GetJobSplitterConfigTemplate();
+
+            config->EnableJobSplitting &=
+                (IsJobInterruptible() &&
+                Controller_->InputTables_.size() <= Controller_->Options->JobSplitter->MaxInputTableCount);
+
+            return config;
+        }
+
+        virtual bool IsJobInterruptible() const override
+        {
+            // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+            auto partitionJobCount = Controller_->GetPartitionJobCounter()->GetTotal();
+            return
+                !Controller_->RootPartitionPoolJobSizeConstraints->IsExplicitJobCount() &&
+                2 * Controller_->Options->MaxOutputTablesTimesJobsCount > partitionJobCount * Controller_->GetOutputTablePaths().size() &&
+                2 * Controller_->Options->MaxPartitionJobCount > partitionJobCount;
+        }
     };
 
     //! Base class implementing sort phase for sort operations
@@ -953,6 +980,21 @@ protected:
             // Let's live like this a bit, and then maybe move it inside pool.
             descriptor.DestinationPool->Reset(cookie, stripe, descriptor.ChunkMapping);
             descriptor.ChunkMapping->Reset(cookie, stripe);
+        }
+
+        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        {
+            auto config = TaskHost_->GetJobSplitterConfigTemplate();
+
+            // Sort jobs are unsplittable.
+            config->EnableJobSplitting = false;
+
+            return config;
+        }
+
+        virtual bool IsJobInterruptible() const override
+        {
+            return false;
         }
 
     protected:
@@ -1498,6 +1540,22 @@ protected:
             MultiChunkPool_->Finalize();
         }
 
+        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        {
+            auto config = TaskHost_->GetJobSplitterConfigTemplate();
+
+            // TODO(gritukan): In case of many sort jobs per partition job specs may
+            // become huge because of job splitting.
+            config->EnableJobSplitting = false;
+
+            return config;
+        }
+
+        virtual bool IsJobInterruptible() const override
+        {
+            return false;
+        }
+
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
@@ -1765,6 +1823,22 @@ protected:
             for (const auto& partition : Partitions_) {
                 Controller_->OnFinalPartitionCompleted(partition);
             }
+        }
+
+        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        {
+            auto config = TaskHost_->GetJobSplitterConfigTemplate();
+
+            // TODO(gritukan): In case of many sort jobs per partition job specs may
+            // become huge because of job splitting.
+            config->EnableJobSplitting = false;
+
+            return config;
+        }
+
+        virtual bool IsJobInterruptible() const override
+        {
+            return false;
         }
     };
 
@@ -2680,11 +2754,6 @@ protected:
         }
     }
 
-    virtual bool IsJobInterruptible() const override
-    {
-        return false;
-    }
-
     virtual EJobType GetPartitionJobType(bool isRoot) const = 0;
     virtual EJobType GetIntermediateSortJobType() const = 0;
     virtual EJobType GetFinalSortJobType() const = 0;
@@ -2915,7 +2984,7 @@ private:
             return;
         }
 
-        auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
+        RootPartitionPoolJobSizeConstraints = CreatePartitionJobSizeConstraints(
             Spec,
             Options,
             Logger,
@@ -2923,7 +2992,7 @@ private:
             TotalEstimatedInputDataWeight,
             TotalEstimatedInputRowCount,
             InputCompressionRatio);
-        InitPartitionPool(partitionJobSizeConstraints, nullptr, false /* ordered */);
+        InitPartitionPool(RootPartitionPoolJobSizeConstraints, nullptr, false /* ordered */);
 
         PartitionTasks.resize(PartitionTreeDepth);
         for (int partitionTaskLevel = PartitionTreeDepth - 1; partitionTaskLevel >= 0; --partitionTaskLevel) {
@@ -2945,13 +3014,13 @@ private:
             partitionTask->RegisterInGraph();
         }
 
-        ProcessInputs(PartitionTasks.front(), partitionJobSizeConstraints);
+        ProcessInputs(PartitionTasks.front(), RootPartitionPoolJobSizeConstraints);
         FinishTaskInput(PartitionTasks.front());
 
         YT_LOG_INFO("Sorting with partitioning (PartitionCount: %v, PartitionJobCount: %v, DataWeightPerPartitionJob: %v)",
             GetFinalPartitions().size(),
-            partitionJobSizeConstraints->GetJobCount(),
-            partitionJobSizeConstraints->GetDataWeightPerJob());
+            RootPartitionPoolJobSizeConstraints->GetJobCount(),
+            RootPartitionPoolJobSizeConstraints->GetDataWeightPerJob());
     }
 
     void PrepareSimpleSortTask()
@@ -3590,7 +3659,7 @@ private:
 
         Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
-        auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
+        RootPartitionPoolJobSizeConstraints = CreatePartitionJobSizeConstraints(
             Spec,
             Options,
             Logger,
@@ -3601,7 +3670,7 @@ private:
 
         partitionCount = AdjustPartitionCountToWriterBufferSize(
             partitionCount,
-            partitionJobSizeConstraints->GetJobCount(),
+            RootPartitionPoolJobSizeConstraints->GetJobCount(),
             PartitionJobIOConfig->TableWriter);
 
         std::vector<TPartitionKey> partitionKeys;
@@ -3634,7 +3703,7 @@ private:
         CreateSortedMergeTask();
 
         // NB: Here we register tasks in order of descending priority.
-        PreparePartitionTasks(partitionJobSizeConstraints);
+        PreparePartitionTasks(RootPartitionPoolJobSizeConstraints);
 
         PrepareSortTasks();
 

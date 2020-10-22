@@ -31,8 +31,12 @@ public:
     //! Used only for persistence.
     TJobSplitter() = default;
 
-    TJobSplitter(TJobSplitterConfigPtr config, TOperationId operationId)
+    TJobSplitter(
+        TJobSplitterConfigPtr config,
+        TOperationId operationId)
         : Config_(config)
+        , CanSplitJobs_(config->EnableJobSplitting)
+        , CanLaunchSpeculativeJobs_(config->EnableJobSpeculation)
         , JobTimeTracker_(std::move(config))
         , OperationId_(operationId)
         , Logger(NLogging::TLogger("JobSplitter")
@@ -53,7 +57,7 @@ public:
         auto isResidual = IsResidual();
 
         auto now = GetInstant();
-        if (job.GetSplitDeadline() && now >= job.GetSplitDeadline().value()) {
+        if (CanLaunchSpeculativeJobs_ && job.GetSplitDeadline() && now >= job.GetSplitDeadline().value()) {
             YT_LOG_DEBUG("Split timeout expired, requesting speculative launch (JobId: %v)", jobId);
             return EJobSplitterVerdict::LaunchSpeculative;
         }
@@ -64,10 +68,10 @@ public:
                 isLongAmongRunning)
             {
                 YT_LOG_DEBUG("Job splitter detected long job among running (JobId: %v)", jobId);
-                if (job.GetIsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
+                if (CanSplitJobs_ && job.GetIsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
                     job.OnSplitRequested(Config_->SplitTimeoutBeforeSpeculate);
                     return EJobSplitterVerdict::Split;
-                } else {
+                } else if (CanLaunchSpeculativeJobs_) {
                     return EJobSplitterVerdict::LaunchSpeculative;
                 }
             }
@@ -77,10 +81,10 @@ public:
                 isResidual)
             {
                 YT_LOG_DEBUG("Job splitter detected residual job (JobId: %v)", jobId);
-                if (job.GetIsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
+                if (CanSplitJobs_ && job.GetIsSplittable() && job.GetTotalDataWeight() > Config_->MinTotalDataWeight) {
                     job.OnSplitRequested(Config_->SplitTimeoutBeforeSpeculate);
                     return EJobSplitterVerdict::Split;
-                } else {
+                } else if (CanLaunchSpeculativeJobs_) {
                     return EJobSplitterVerdict::LaunchSpeculative;
                 }
             }
@@ -89,7 +93,8 @@ public:
         auto noProgressJobTimeLimit = GetAverageSuccessJobPrepareDuration() * Config_->NoProgressJobTimeToAveragePrepareTimeRatio;
         auto minJobTotalTime = std::max(noProgressJobTimeLimit, Config_->MinJobTime);
         TDuration totalDuration = job.GetPrepareDuration() + job.GetExecDuration();
-        if (totalDuration > minJobTotalTime &&
+        if (CanLaunchSpeculativeJobs_ &&
+            totalDuration > minJobTotalTime &&
             job.GetRowCount() == 0 &&
             isResidual &&
             noProgressJobTimeLimit > TDuration::Zero())
@@ -219,7 +224,9 @@ public:
             .Item("statistics").BeginMap()
                 .Do(BIND(&TJobTimeTracker::BuildStatistics, &JobTimeTracker_))
             .EndMap()
-            .Item("config").Value(Config_);
+            .Item("config").Value(Config_)
+            .Item("can_split_jobs").Value(CanSplitJobs_)
+            .Item("can_launch_speculative_jobs").Value(CanLaunchSpeculativeJobs_);
     }
 
     virtual void Persist(const TPersistenceContext& context) override
@@ -227,6 +234,8 @@ public:
         using NYT::Persist;
 
         Persist(context, Config_);
+        Persist(context, CanSplitJobs_);
+        Persist(context, CanLaunchSpeculativeJobs_);
         Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, RunningJobs_);
         Persist(context, JobTimeTracker_);
         Persist(context, MaxRunningJobCount_);
@@ -437,6 +446,9 @@ private:
 
     TJobSplitterConfigPtr Config_;
 
+    bool CanSplitJobs_ = false;
+    bool CanLaunchSpeculativeJobs_ = false;
+
     THashMap<TJobId, TRunningJob> RunningJobs_;
     TJobTimeTracker JobTimeTracker_;
     i64 MaxRunningJobCount_ = 0;
@@ -475,7 +487,9 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IJobSplitter> CreateJobSplitter(TJobSplitterConfigPtr config, TOperationId operationId)
+std::unique_ptr<IJobSplitter> CreateJobSplitter(
+    TJobSplitterConfigPtr config,
+    TOperationId operationId)
 {
     return std::make_unique<TJobSplitter>(std::move(config), operationId);
 }

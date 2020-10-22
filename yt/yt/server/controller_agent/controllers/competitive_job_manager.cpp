@@ -191,7 +191,7 @@ bool TCompetitiveJobManager::IsFinished() const
     return SpeculativeCandidates_.empty() && CookieToCompetition_.empty();
 }
 
-TProgressCounterPtr TCompetitiveJobManager::GetProgressCounter()
+TProgressCounterPtr TCompetitiveJobManager::GetProgressCounter() const
 {
     return JobCounter_;
 }

@@ -97,6 +97,8 @@ protected:
 
     virtual void SetStreamDescriptors(TJobletPtr joblet) const override;
 
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override;
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);
 

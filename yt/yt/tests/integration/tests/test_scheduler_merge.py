@@ -1504,7 +1504,10 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        wait(lambda: exists(op.get_path() + "/controller_orchid/job_splitter"))
+        if self.USE_LEGACY_CONTROLLERS:
+            wait(lambda: exists(op.get_path() + "/controller_orchid/job_splitter"))
+        else:
+            wait(lambda: exists(op.get_path() + "/controller_orchid/progress/tasks/0/job_splitter"))
 
         op.track()
 

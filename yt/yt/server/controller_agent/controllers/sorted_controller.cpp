@@ -258,6 +258,26 @@ protected:
             Controller_->RegisterTeleportChunk(
                 std::move(teleportChunk), /*key=*/0, /*tableIndex=*/*Controller_->GetOutputTeleportTableIndex());
         }
+
+        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        {
+            auto config = TaskHost_->GetJobSplitterConfigTemplate();
+
+            config->EnableJobSplitting =
+                (IsJobInterruptible() &&
+                Controller_->InputTables_.size() <= Controller_->Options_->JobSplitter->MaxInputTableCount);
+
+            return config;
+        }
+
+        virtual bool IsJobInterruptible() const override
+        {
+            auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
+            return
+                !Controller_->HasStaticJobDistribution() &&
+                2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * Controller_->GetOutputTablePaths().size() &&
+                2 * Controller_->Options_->MaxJobCount > totalJobCount;
+        }
     };
 
     INHERIT_DYNAMIC_PHOENIX_TYPE(TSortedTaskBase, TSortedTask, 0xbbe534a7);
@@ -524,6 +544,11 @@ protected:
         return true;
     }
 
+    virtual bool HasStaticJobDistribution() const
+    {
+        return false;
+    }
+
     class TChunkSliceFetcherFactory
         : public IChunkSliceFetcherFactory
     {
@@ -582,28 +607,6 @@ protected:
         chunkPoolOptions.OperationId = OperationId;
         return chunkPoolOptions;
     }
-
-
-    virtual bool IsJobInterruptible() const override
-    {
-        auto totalJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
-        return
-            2 * Options_->MaxOutputTablesTimesJobsCount > totalJobCount * GetOutputTablePaths().size() &&
-            2 * Options_->MaxJobCount > totalJobCount &&
-            TOperationControllerBase::IsJobInterruptible();
-    }
-
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
-    {
-        return
-            IsJobInterruptible() &&
-            Config->EnableJobSplitting &&
-            Spec_->EnableJobSplitting &&
-             InputTables_.size() <= Options_->JobSplitter->MaxInputTableCount
-            ? Options_->JobSplitter
-            : nullptr;
-    }
-
 
     virtual void OnChunksReleased(int chunkCount) override
     {
@@ -1167,6 +1170,13 @@ public:
             SortKeyColumns_);
     }
 
+    virtual bool HasStaticJobDistribution() const override
+    {
+        return
+            TSortedControllerBase::HasStaticJobDistribution() ||
+            !Spec_->PivotKeys.empty();
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0x4fc44a45);
 
@@ -1187,11 +1197,6 @@ private:
     virtual std::vector<EJobType> GetSupportedJobTypesForJobsDurationAnalyzer() const override
     {
         return {GetJobType()};
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        return Spec_->PivotKeys.empty() && TSortedControllerBase::IsJobInterruptible();
     }
 
     virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory() override

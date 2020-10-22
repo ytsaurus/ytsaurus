@@ -197,6 +197,40 @@ TEST(TJobSplitterTest, SpeculateWhenInterruptTimeoutExpired)
     EXPECT_EQ(EJobSplitterVerdict::LaunchSpeculative, jobSplitter->ExamineJob(residualJobId));
 }
 
+TEST(TJobSplitterTest, JobSplitIsDisabled)
+{
+    auto config = CreateSplitterConfig();
+    config->EnableJobSplitting = false;
+    auto jobSplitter = CreateJobSplitter(config, TOperationId());
+
+    TJobId residualJobId = MakeResidualSplittableJob(jobSplitter);
+    EXPECT_EQ(EJobSplitterVerdict::LaunchSpeculative, jobSplitter->ExamineJob(residualJobId));
+}
+
+TEST(TJobSplitterTest, JobSpeculationIsDisabled)
+{
+    auto config = CreateSplitterConfig();
+    config->SplitTimeoutBeforeSpeculate = TDuration::Zero();
+    config->EnableJobSpeculation = false;
+    auto jobSplitter = CreateJobSplitter(config, TOperationId());
+
+    TJobId residualJobId = MakeResidualSplittableJob(jobSplitter);
+    EXPECT_EQ(EJobSplitterVerdict::Split, jobSplitter->ExamineJob(residualJobId));
+    EXPECT_EQ(EJobSplitterVerdict::Split, jobSplitter->ExamineJob(residualJobId));
+}
+
+TEST(TJobSplitterTest, EverythingIsDiabled)
+{
+    auto config = CreateSplitterConfig();
+    config->SplitTimeoutBeforeSpeculate = TDuration::Zero();
+    config->EnableJobSplitting = false;
+    config->EnableJobSpeculation = false;
+    auto jobSplitter = CreateJobSplitter(config, TOperationId());
+
+    TJobId residualJobId = MakeResidualSplittableJob(jobSplitter);
+    EXPECT_EQ(EJobSplitterVerdict::DoNothing, jobSplitter->ExamineJob(residualJobId));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace

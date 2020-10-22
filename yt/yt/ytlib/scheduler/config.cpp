@@ -216,6 +216,17 @@ TTestingOperationOptions::TTestingOperationOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobSplitterConfig::TJobSplitterConfig()
+{
+    RegisterParameter("enable_job_splitting", EnableJobSplitting)
+        .Default(true);
+
+    RegisterParameter("enable_job_speculation", EnableJobSpeculation)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAutoMergeConfig::TAutoMergeConfig()
 {
     RegisterParameter("job_io", JobIO)
@@ -537,6 +548,9 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("job_shells", JobShells)
         .Default();
+
+    RegisterParameter("job_splitter", JobSplitter)
+        .DefaultNew();
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&

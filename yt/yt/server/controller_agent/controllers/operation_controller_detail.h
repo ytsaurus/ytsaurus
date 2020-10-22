@@ -240,7 +240,6 @@ public:
 
     virtual void BuildProgress(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefProgress(NYTree::TFluentMap fluent) const;
-    virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
     virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
 
@@ -299,7 +298,6 @@ public:
     void OnOperationAborted(const TError& error);
 
     virtual bool IsRowCountPreserved() const override;
-    virtual bool IsJobInterruptible() const override;
     virtual bool ShouldSkipSanityCheck() override;
 
     virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
@@ -328,8 +326,6 @@ public:
     virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) override;
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) override;
-
-    virtual IJobSplitter* GetJobSplitter() override;
 
     virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const override;
 
@@ -372,11 +368,16 @@ public:
     virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) override;
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
+
+    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) override;
+
     virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) override;
 
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const override;
 
     virtual bool IsLegacy() const override;
+
+    virtual TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const override;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -712,7 +713,6 @@ protected:
     //! `TOperationSpecBase::Spec`.
     virtual NYTree::TYsonSerializablePtr GetTypedSpec() const = 0;
 
-    int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
     void ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const;
 
     struct TStripeDescriptor
@@ -890,8 +890,6 @@ protected:
     virtual void BuildInitializeMutableAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildPrepareAttributes(NYTree::TFluentMap fluent) const;
     virtual void BuildBriefSpec(NYTree::TFluentMap fluent) const;
-
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const;
 
     void CheckFailedJobsStatusReceived();
 
@@ -1108,8 +1106,6 @@ private:
 
     TAdaptiveLock AlertsLock_;
     TOperationAlertMap Alerts_;
-
-    std::unique_ptr<IJobSplitter> JobSplitter_;
 
     bool IsLegacyLivePreviewSuppressed = false;
 

@@ -156,6 +156,10 @@ public:
     TDuration SplitTimeoutBeforeSpeculate;
     TDuration JobLoggingPeriod;
 
+    bool EnableJobSplitting;
+
+    bool EnableJobSpeculation;
+
     TJobSplitterConfig();
 };
 
@@ -679,6 +683,7 @@ public:
     bool EnableMapJobSizeAdjustment;
 
     //! Enables splitting of long jobs.
+    // TODO(gritukan): Remove it.
     bool EnableJobSplitting;
 
     double UserJobMemoryDigestPrecision;

@@ -121,6 +121,7 @@ public:
         switch (GetJobType()) {
             case NScheduler::EJobType::Map:
             case NScheduler::EJobType::OrderedMap:
+            case NScheduler::EJobType::PartitionMap:
             case NScheduler::EJobType::SortedReduce:
             case NScheduler::EJobType::JoinReduce:
             case NScheduler::EJobType::ReduceCombiner:
@@ -128,6 +129,7 @@ public:
             case NScheduler::EJobType::SortedMerge:
             case NScheduler::EJobType::OrderedMerge:
             case NScheduler::EJobType::UnorderedMerge:
+            case NScheduler::EJobType::Partition:
                 return true;
             default:
                 return false;

@@ -147,6 +147,16 @@ protected:
         return false;
     }
 
+    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+    {
+        // In vanilla operations we don't want neither job splitting nor job speculation.
+        auto config = TaskHost_->GetJobSplitterConfigTemplate();
+        config->EnableJobSplitting = false;
+        config->EnableJobSpeculation = false;
+
+        return config;
+    }
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaTask, 0x55e9aacd);
 
@@ -333,12 +343,6 @@ public:
             specs.emplace_back(taskSpec);
         }
         return specs;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        // Every task has its own IsJobInterruptible. We will never be here.
-        YT_ABORT();
     }
 
     virtual void ValidateRevivalAllowed() const override

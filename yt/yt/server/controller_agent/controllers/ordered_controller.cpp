@@ -262,6 +262,31 @@ protected:
                 Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key=*/0, /*tableIndex=*/0);
             }
         }
+
+        virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
+        {
+            auto config = TaskHost_->GetJobSplitterConfigTemplate();
+
+            config->EnableJobSplitting &=
+                (IsJobInterruptible() &&
+                Controller_->InputTables_.size() <= Controller_->Options_->JobSplitter->MaxInputTableCount);
+
+            return config;
+        }
+
+        virtual bool IsJobInterruptible() const override
+        {
+            // Remote copy jobs works with chunks as blobs and therfore are unsplittable.
+            if (Controller_->GetOperationType() == EOperationType::RemoteCopy) {
+                return false;
+            }
+
+            // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
+            auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
+            return !Controller_->IsExplicitJobCount_ &&
+                2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * Controller_->GetOutputTablePaths().size() &&
+                2 * Controller_->Options_->MaxJobCount > totalJobCount;
+        }
     };
 
     typedef TIntrusivePtr<TOrderedTask> TOrderedTaskPtr;
@@ -448,27 +473,6 @@ protected:
         chunkPoolOptions.KeepOutputOrder = OrderedOutputRequired_;
         chunkPoolOptions.ShouldSliceByRowIndices = GetJobType() != EJobType::RemoteCopy;
         return chunkPoolOptions;
-    }
-
-    virtual TJobSplitterConfigPtr GetJobSplitterConfig() const override
-    {
-        return
-            IsJobInterruptible() &&
-            Config->EnableJobSplitting &&
-            Spec_->EnableJobSplitting &&
-            InputTables_.size() <= Options_->JobSplitter->MaxInputTableCount
-            ? Options_->JobSplitter
-            : nullptr;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-        auto totalJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
-        return !IsExplicitJobCount_ &&
-               2 * Options_->MaxOutputTablesTimesJobsCount > totalJobCount * GetOutputTablePaths().size() &&
-               2 * Options_->MaxJobCount > totalJobCount &&
-               TOperationControllerBase::IsJobInterruptible();
     }
 };
 
@@ -1082,11 +1086,6 @@ public:
         Persist<TAttributeDictionarySerializer>(context, InputTableAttributes_);
     }
 
-    virtual IJobSplitter* GetJobSplitter() override
-    {
-        return nullptr;
-    }
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController, 0xaa8829a9);
 
@@ -1324,11 +1323,6 @@ private:
     virtual TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
-    }
-
-    virtual bool IsJobInterruptible() const override
-    {
-        return false;
     }
 
     virtual TCpuResource GetCpuLimit() const

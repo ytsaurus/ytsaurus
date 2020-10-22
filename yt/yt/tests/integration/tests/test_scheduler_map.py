@@ -15,7 +15,6 @@ from flaky import flaky
 import pytest
 import random
 import string
-import time
 import base64
 
 ##################################################################
@@ -1383,10 +1382,15 @@ done
         output = "//tmp/output"
         create("table", output)
 
-        op = map(in_=[input_] * 10, out=output, command="sleep 5; echo '{a=1}'", track=False)
-        time.sleep(2.0)
-        assert len(get(op.get_path() + "/controller_orchid/job_splitter")) == 0
+        op = map(
+            in_=[input_] * 10,
+            out=output,
+            command="sleep 5; echo '{a=1}'")
         op.track()
+
+        completed = get(op.get_path() + "/@progress/jobs/completed")
+        interrupted = completed["interrupted"]
+        assert interrupted["job_split"] == 0
 
     @authors("ifsmirnov")
     def test_disallow_partially_sorted_output(self):

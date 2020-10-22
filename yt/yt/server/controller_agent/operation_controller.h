@@ -400,7 +400,9 @@ struct TOperationInfo
     NYson::TYsonString BriefProgress;
     NYson::TYsonString Alerts;
     NYson::TYsonString RunningJobs;
+    // TODO(gritukan): Drop this field when all controllers will be new.
     NYson::TYsonString JobSplitter;
+
     ssize_t MemoryUsage;
     EControllerState ControllerState;
 };

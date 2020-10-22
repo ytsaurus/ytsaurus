@@ -75,7 +75,6 @@ struct ITaskHost
     //! preserve row count. This invariant is checked for each completed job.
     //! Should a violation be discovered, the operation fails.
     virtual bool IsRowCountPreserved() const = 0;
-    virtual bool IsJobInterruptible() const = 0;
     virtual bool ShouldSkipSanityCheck() = 0;
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const = 0;
@@ -99,8 +98,6 @@ struct ITaskHost
     virtual void RegisterCores(const TJobletPtr& joblet, const TJobSummary& summary) = 0;
 
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
-
-    virtual IJobSplitter* GetJobSplitter() = 0;
 
     virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
 
@@ -143,9 +140,15 @@ struct ITaskHost
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) = 0;
 
+    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
+
     virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) = 0;
 
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const = 0;
+
+    //! Joins job splitter config from the job spec with job splitter config
+    //! from the controller agent config and returns the result.
+    virtual TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

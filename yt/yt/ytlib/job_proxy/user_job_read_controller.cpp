@@ -132,9 +132,9 @@ public:
 
         if (JobSpecHelper_->IsReaderInterruptionSupported() && !Interrupted_) {
             YT_VERIFY(Reader_);
-            Interrupted_ = true;
 
             if (Reader_->GetDataStatistics().row_count() > 0) {
+                Interrupted_ = true;
                 Reader_->Interrupt();
             } else {
                 THROW_ERROR_EXCEPTION(EErrorCode::JobNotPrepared, "Cannot interrupt reader that didn't start reading");
@@ -199,7 +199,6 @@ private:
 
         TPipeReaderToWriterOptions options;
         options.BufferRowCount = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
-
         options.PipeDelay = JobSpecHelper_->GetJobIOConfig()->Testing->PipeDelay;
         return BIND([=, this_ = MakeStrong(this)] {
             PipeReaderToWriter(
