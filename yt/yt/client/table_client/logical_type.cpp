@@ -26,7 +26,7 @@ struct TWalkContext
 static void WalkImpl(
     TWalkContext* walkContext,
     const TComplexTypeFieldDescriptor& descriptor,
-    std::function<void(const TWalkContext&, const TComplexTypeFieldDescriptor&)> onElement)
+    const std::function<void(const TWalkContext&, const TComplexTypeFieldDescriptor&)>& onElement)
 {
     onElement(*walkContext, descriptor);
     walkContext->Stack.push_back(descriptor);
@@ -75,7 +75,7 @@ static void WalkImpl(
     YT_ABORT();
 }
 
-static void Walk(const TComplexTypeFieldDescriptor& descriptor, std::function<void(const TWalkContext&, const TComplexTypeFieldDescriptor&)> onElement)
+static void Walk(const TComplexTypeFieldDescriptor& descriptor, const std::function<void(const TWalkContext&, const TComplexTypeFieldDescriptor&)>& onElement)
 {
     TWalkContext walkContext;
     WalkImpl(&walkContext, descriptor, onElement);
@@ -268,7 +268,7 @@ TString ToString(const TLogicalType& logicalType)
 
 TOptionalLogicalType::TOptionalLogicalType(TLogicalTypePtr element)
     : TLogicalType(ELogicalMetatype::Optional)
-    , Element_(element)
+    , Element_(std::move(element))
     , ElementIsNullable_(Element_->IsNullable())
 { }
 
@@ -345,7 +345,7 @@ bool TSimpleLogicalType::IsNullable() const
 
 TListLogicalType::TListLogicalType(TLogicalTypePtr element)
     : TLogicalType(ELogicalMetatype::List)
-    , Element_(element)
+    , Element_(std::move(element))
 { }
 
 size_t TListLogicalType::GetMemoryUsage() const
@@ -699,8 +699,8 @@ TVariantTupleLogicalType::TVariantTupleLogicalType(std::vector<NYT::NTableClient
 
 TDictLogicalType::TDictLogicalType(TLogicalTypePtr key, TLogicalTypePtr value)
     : TLogicalType(ELogicalMetatype::Dict)
-    , Key_(key)
-    , Value_(value)
+    , Key_(std::move(key))
+    , Value_(std::move(value))
 { }
 
 size_t TDictLogicalType::GetMemoryUsage() const
@@ -1708,7 +1708,7 @@ TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType element, bool required)
 
 TLogicalTypePtr ListLogicalType(TLogicalTypePtr element)
 {
-    return New<TListLogicalType>(element);
+    return New<TListLogicalType>(std::move(element));
 }
 
 TLogicalTypePtr StructLogicalType(std::vector<TStructField> fields)
