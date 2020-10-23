@@ -23,6 +23,8 @@ using namespace NYT::NTesting;
     UNIT_TEST(NetworkProblemsFullOutage); \
     UNIT_TEST(NetworkProblemsRetriableOutage); \
     UNIT_TEST(WithColumnSelector); \
+    UNIT_TEST(LargeSingleTable); \
+    UNIT_TEST(LargeSeveralTables); \
     UNIT_TEST_SUITE_END()
 
 bool operator==(const TTestMessage& left, const TTestMessage& right)
@@ -124,7 +126,8 @@ public:
         TestWithOutage(3, 2);
     }
 
-    void WithColumnSelector() {
+    void WithColumnSelector()
+    {
         TVector<TNode> rows{
             TNode()("x", 1)("y", 4)("z", 7),
             TNode()("x", 2)("y", 5)("z", 8),
@@ -145,6 +148,16 @@ public:
             correctResult,
             {{0, rows.size()}},
             TParallelTableReaderOptions().Ordered(Ordered));
+    }
+
+    void LargeSingleTable()
+    {
+        TestLarge(1);
+    }
+
+    void LargeSeveralTables()
+    {
+        TestLarge(3);
     }
 
 private:
@@ -207,8 +220,6 @@ private:
         const TVector<std::pair<size_t, size_t>>& ranges,
         const TParallelTableReaderOptions& options)
     {
-        Y_ENSURE(!ranges.empty());
-
         auto client = CreateTestClient();
         WriteRows(client, paths, rows);
 
@@ -366,6 +377,36 @@ private:
             UNIT_ASSERT_VALUES_EQUAL(i, result[i].first);
             UNIT_ASSERT_VALUES_EQUAL(TNode()("x", i), result[i].second);
         }
+    }
+
+    void TestLarge(int tableCount)
+    {
+        constexpr int RowCount = 12343;
+
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TVector<TRichYPath> paths;
+        TVector<TVector<TNode>> allRows;
+        for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
+            paths.push_back(workingDir + "/table_" + ToString(tableIndex));
+            auto& rows = allRows.emplace_back();
+            for (int i = 0; i < RowCount; ++i) {
+                rows.push_back(TNode()("a", i));
+            };
+        }
+
+        TestReader(
+            paths,
+            allRows,
+            allRows,
+            {},
+            TParallelTableReaderOptions()
+                .Ordered(Ordered)
+                .BufferedRowCountLimit(10)
+                .ThreadCount(5)
+                .RangeCount(10));
     }
 };
 
