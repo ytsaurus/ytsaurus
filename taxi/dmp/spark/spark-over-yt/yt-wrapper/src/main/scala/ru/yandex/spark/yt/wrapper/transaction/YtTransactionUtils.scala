@@ -19,10 +19,11 @@ trait YtTransactionUtils {
 
   private val log = Logger.getLogger(getClass)
 
-  def createTransaction(parent: Option[String], timeout: Duration)(implicit yt: YtClient): ApiServiceTransaction = {
+  def createTransaction(parent: Option[String], timeout: Duration, sticky: Boolean = false)
+                       (implicit yt: YtClient): ApiServiceTransaction = {
     val options = new ApiServiceTransactionOptions(TT_MASTER)
       .setTimeout(toJavaDuration(timeout))
-      .setSticky(false)
+      .setSticky(sticky)
       .setPing(true)
       .setPingPeriod(toJavaDuration(30 seconds))
     parent.foreach(p => options.setParentId(GUID.valueOf(p)))
