@@ -113,6 +113,11 @@ inline TLogicalTypePtr Dict(const TLogicalTypePtr& key, const TLogicalTypePtr& v
     return DictLogicalType(key, value);
 }
 
+inline TLogicalTypePtr Tagged(TString tag, const TLogicalTypePtr& element)
+{
+    return TaggedLogicalType(std::move(tag), element);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient::NLogicalTypeShortcuts

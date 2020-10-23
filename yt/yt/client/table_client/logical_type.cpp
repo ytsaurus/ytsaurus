@@ -475,45 +475,103 @@ const TLogicalTypePtr& TComplexTypeFieldDescriptor::GetType() const
     return Type_;
 }
 
-TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& type) {
-    const auto& detagFields = [] (const std::vector<TStructField>& fields) {
-        std::vector<TStructField> result;
-        for (const auto& field : fields) {
-            result.emplace_back();
-            result.back().Name = field.Name;
-            result.back().Type = DetagLogicalType(field.Type);
+static std::pair<std::vector<TStructField>, bool> DetagFields(const std::vector<TStructField>& fields)
+{
+    bool changed = false;
+    std::vector<TStructField> result;
+    for (const auto& field : fields) {
+        result.emplace_back();
+        result.back().Name = field.Name;
+        result.back().Type = DetagLogicalType(field.Type);
+        if (result.back().Type.Get() != field.Type.Get()) {
+            changed = true;
         }
-        return result;
-    };
+    }
+    return std::pair(result, changed);
+}
 
-    const auto& detagElements = [] (const std::vector<TLogicalTypePtr>& elements) {
-        std::vector<TLogicalTypePtr> result;
-        for (const auto& element : elements) {
-            result.emplace_back(DetagLogicalType(element));
+static std::pair<std::vector<TLogicalTypePtr>, bool> DetagElements(const std::vector<TLogicalTypePtr>& elements)
+{
+    std::vector<TLogicalTypePtr> result;
+    bool changed = false;
+    for (const auto& element : elements) {
+        result.emplace_back(DetagLogicalType(element));
+        if (result.back().Get() != element.Get()) {
+            changed = true;
         }
-        return result;
-    };
+    }
+    return std::pair(result, changed);
+}
 
+TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& type)
+{
     switch (type->GetMetatype()) {
         case ELogicalMetatype::Simple:
             return type;
-        case ELogicalMetatype::Optional:
-            return OptionalLogicalType(DetagLogicalType(type->AsOptionalTypeRef().GetElement()));
-        case ELogicalMetatype::List:
-            return ListLogicalType(DetagLogicalType(type->AsListTypeRef().GetElement()));
-        case ELogicalMetatype::Struct:
-            return StructLogicalType(detagFields(type->AsStructTypeRef().GetFields()));
-        case ELogicalMetatype::Tuple:
-            return TupleLogicalType(detagElements(type->AsTupleTypeRef().GetElements()));
-        case ELogicalMetatype::VariantStruct:
-            return VariantStructLogicalType(detagFields(type->AsVariantStructTypeRef().GetFields()));
-        case ELogicalMetatype::VariantTuple:
-            return VariantTupleLogicalType(detagElements(type->AsVariantTupleTypeRef().GetElements()));
-        case ELogicalMetatype::Dict:
-            return DictLogicalType(
-                DetagLogicalType(type->AsDictTypeRef().GetKey()),
-                DetagLogicalType(type->AsDictTypeRef().GetValue())
-            );
+        case ELogicalMetatype::Optional: {
+            const auto& element = type->AsOptionalTypeRef().GetElement();
+            auto detaggedElement = DetagLogicalType(element);
+            if (element.Get() != detaggedElement.Get()) {
+                return OptionalLogicalType(detaggedElement);
+            } else {
+                return type;
+            }
+        }
+        case ELogicalMetatype::List: {
+            const auto& element = type->AsListTypeRef().GetElement();
+            auto detaggedElement = DetagLogicalType(element);
+            if (element.Get() != detaggedElement.Get()) {
+                return ListLogicalType(detaggedElement);
+            } else {
+                return type;
+            }
+        }
+        case ELogicalMetatype::Struct: {
+            const auto [fields, changed] = DetagFields(type->AsStructTypeRef().GetFields());
+            if (changed) {
+                return StructLogicalType(fields);
+            } else {
+                return type;
+            }
+        }
+        case ELogicalMetatype::Tuple: {
+            const auto [elements, changed] = DetagElements(type->AsTupleTypeRef().GetElements());
+            if (changed) {
+                return TupleLogicalType(elements);
+            } else {
+                return type;
+            }
+        }
+        case ELogicalMetatype::VariantStruct: {
+            const auto [fields, changed] = DetagFields(type->AsVariantStructTypeRef().GetFields());
+            if (changed) {
+                return VariantStructLogicalType(fields);
+            } else {
+                return type;
+            }
+        }
+        case ELogicalMetatype::VariantTuple: {
+            const auto [elements, changed] = DetagElements(type->AsVariantTupleTypeRef().GetElements());
+            if (changed) {
+                return VariantTupleLogicalType(elements);
+            } else {
+                return type;
+            }
+        }
+        case ELogicalMetatype::Dict: {
+            const auto& dictType = type->AsDictTypeRef();
+            const auto& key = dictType.GetKey();
+            const auto& value = dictType.GetValue();
+            const auto detaggedKey = DetagLogicalType(key);
+            const auto detaggedValue = DetagLogicalType(value);
+            if (detaggedKey.Get() != key.Get() || detaggedValue.Get() != value.Get()) {
+                return DictLogicalType(
+                    detaggedKey,
+                    detaggedValue);
+            } else {
+                return type;
+            }
+        }
         case ELogicalMetatype::Tagged:
             return DetagLogicalType(type->AsTaggedTypeRef().GetElement());
     }

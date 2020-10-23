@@ -1,4 +1,5 @@
 #include "logical_type_helpers.h"
+#include "logical_type_shortcuts.h"
 
 #include <yt/core/test_framework/framework.h>
 
@@ -749,6 +750,12 @@ std::vector<std::pair<TString, TCombineTypeFunc>> CombineFunctions = {
     {
         "dict-value",
         [](const TLogicalTypePtr& type) {
+            return DictLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String), type);
+        }
+    },
+    {
+        "tagged",
+        [](const TLogicalTypePtr& type) {
             return TaggedLogicalType("foo", type);
         }
     }
@@ -770,6 +777,11 @@ TEST(TLogicalTypeTest, TestAllTypesInCombineFunctions)
 class TCombineLogicalMetatypeTests
     : public ::testing::TestWithParam<std::pair<TString,TCombineTypeFunc>>
 { };
+
+INSTANTIATE_TEST_SUITE_P(
+    CombineFunctions,
+    TCombineLogicalMetatypeTests,
+    ::testing::ValuesIn(CombineFunctions));
 
 TEST_P(TCombineLogicalMetatypeTests, TestValidateStruct)
 {
@@ -815,14 +827,53 @@ TEST_P(TCombineLogicalMetatypeTests, TestValidateAny)
     EXPECT_NO_THROW(ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", combineFunc(goodType))));
 }
 
-INSTANTIATE_TEST_SUITE_P(
-    CombineFunctions,
-    TCombineLogicalMetatypeTests,
-    ::testing::ValuesIn(CombineFunctions));
+TEST_P(TCombineLogicalMetatypeTests, TestTrivialDetag)
+{
+    using namespace NLogicalTypeShortcuts;
+
+    const auto& [combineName, combineFunc] = GetParam();
+    if (combineName == "tagged") {
+        // Skip test for this combiner.
+        return;
+    }
+    const auto& logicalType = Utf8();
+
+    const auto combinedType = combineFunc(logicalType);
+
+    const auto detaggedType = DetagLogicalType(combinedType);
+    EXPECT_EQ(*detaggedType, *combinedType);
+    EXPECT_EQ(detaggedType.Get(), combinedType.Get());
+}
+
+TEST_P(TCombineLogicalMetatypeTests, TestNonTrivialDetag)
+{
+    using namespace NLogicalTypeShortcuts;
+
+    const auto& [combineName, combineFunc] = GetParam();
+    if (combineName == "tagged") {
+        // Skip test for this combiner.
+        return;
+    }
+    const auto& logicalType = TaggedLogicalType("foo", Utf8());
+
+    const auto combinedType = combineFunc(logicalType);
+
+    const auto detaggedType = DetagLogicalType(combinedType);
+    const auto expectedDetaggedType = combineFunc(Utf8());
+
+    EXPECT_EQ(*expectedDetaggedType, *detaggedType);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TStructValidationTest
     : public ::testing::TestWithParam<ELogicalMetatype>
 { };
+
+INSTANTIATE_TEST_SUITE_P(
+    Tests,
+    TStructValidationTest,
+    ::testing::ValuesIn({ELogicalMetatype::Struct, ELogicalMetatype::VariantStruct}));
 
 TEST_P(TStructValidationTest, Test)
 {
@@ -862,11 +913,6 @@ TEST_P(TStructValidationTest, Test)
         }),
         "Name of struct field #0 is not valid utf8");
 }
-
-INSTANTIATE_TEST_SUITE_P(
-    Tests,
-    TStructValidationTest,
-    ::testing::ValuesIn({ELogicalMetatype::Struct, ELogicalMetatype::VariantStruct}));
 
 ////////////////////////////////////////////////////////////////////////////////
 
