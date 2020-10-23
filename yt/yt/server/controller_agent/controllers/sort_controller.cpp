@@ -71,7 +71,7 @@ using namespace NScheduler;
 using NYT::FromProto;
 using NYT::ToProto;
 
-using NTableClient::TKey;
+using NTableClient::TLegacyKey;
 using NNodeTrackerClient::TNodeId;
 
 using NScheduler::NProto::TPartitionJobSpecExt;
@@ -280,7 +280,7 @@ protected:
 
         //! Starting key of this partition.
         //! Always null for map-reduce operation.
-        TKey Key;
+        TLegacyKey Key;
 
         //! Is partition completed?
         bool Completed = false;
@@ -304,7 +304,7 @@ protected:
 
         //! Chunk pool containing data of this partition.
         //! For root partition it is either partition pool or simple sort pool.
-        //! For non-root partitions it's an output of parent partition's shuffle pool. 
+        //! For non-root partitions it's an output of parent partition's shuffle pool.
         IChunkPoolOutputPtr ChunkPoolOutput;
 
         TLogger Logger;
@@ -3746,7 +3746,7 @@ private:
             maxPartitionFactor = *Spec->MaxPartitionFactor;
         } else {
             // Build a flat tree by default.
-            maxPartitionFactor = partitionCount;            
+            maxPartitionFactor = partitionCount;
         }
 
         YT_LOG_INFO("Adjusted partition count %v", partitionCount);

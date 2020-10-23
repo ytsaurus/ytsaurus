@@ -60,7 +60,7 @@ using NYT::ToProto;
 
 using NChunkClient::TReadRange;
 using NChunkClient::TReadLimit;
-using NTableClient::TKey;
+using NTableClient::TLegacyKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1016,7 +1016,7 @@ public:
                 THROW_ERROR_EXCEPTION("Pivot keys are not supported in disabled key guarantee mode.");
             }
 
-            TKey previousKey;
+            TLegacyKey previousKey;
             for (const auto& key : Spec_->PivotKeys) {
                 if (key < previousKey) {
                     THROW_ERROR_EXCEPTION("Pivot keys should be sorted")
@@ -1215,7 +1215,7 @@ private:
     virtual TSortedChunkPoolOptions GetSortedChunkPoolOptions() override
     {
         auto options = TSortedControllerBase::GetSortedChunkPoolOptions();
-        options.SortedJobOptions.PivotKeys = std::vector<TKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
+        options.SortedJobOptions.PivotKeys = std::vector<TLegacyKey>(Spec_->PivotKeys.begin(), Spec_->PivotKeys.end());
         options.SliceForeignChunks = Spec_->SliceForeignChunks;
         return options;
     }

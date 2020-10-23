@@ -69,7 +69,7 @@ using namespace NScheduler;
 using NYT::FromProto;
 using NYT::ToProto;
 
-using NTableClient::TKey;
+using NTableClient::TLegacyKey;
 using NNodeTrackerClient::TNodeId;
 
 using NScheduler::NProto::TPartitionJobSpecExt;
@@ -219,7 +219,7 @@ protected:
         TPartition(
             TSortControllerBase* controller,
             int index,
-            TKey key = TKey())
+            TLegacyKey key = TLegacyKey())
             : Index(index)
             , Key(key)
             , Completed(false)
@@ -250,7 +250,7 @@ protected:
 
         //! Starting key of this partition.
         //! Always null for map-reduce operation.
-        TKey Key;
+        TLegacyKey Key;
 
         //! Is partition completed?
         bool Completed;

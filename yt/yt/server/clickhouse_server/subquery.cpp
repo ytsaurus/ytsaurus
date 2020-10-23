@@ -359,13 +359,13 @@ private:
 
             const auto& tablets = inputTable->TableMountInfo->Tablets;
 
-            std::optional<TKey> beginKey;
+            std::optional<TLegacyKey> beginKey;
 
-            auto flushRange = [&] (TKey key) {
+            auto flushRange = [&] (TLegacyKey key) {
                 YT_VERIFY(beginKey);
                 auto& range = ranges.emplace_back();
-                range.LowerLimit().SetKey(TOwningKey(*beginKey));
-                range.UpperLimit().SetKey(TOwningKey(key));
+                range.LowerLimit().SetKey(TLegacyOwningKey(*beginKey));
+                range.UpperLimit().SetKey(TLegacyOwningKey(key));
                 beginKey = std::nullopt;
             };
 
@@ -505,7 +505,7 @@ private:
         WaitFor(harvester->Prepare())
             .ThrowOnError();
         // Filter partitions.
-        harvester->FilterPartitions([&] (TKey lowerKey, TKey upperKey) {
+        harvester->FilterPartitions([&] (TLegacyKey lowerKey, TLegacyKey upperKey) {
             return GetRangeMask(EKeyConditionScale::Partition, lowerKey, upperKey, operandIndex).can_be_true;
         });
         auto nameTable = TNameTable::FromKeyColumns(ColumnNames_);
@@ -540,7 +540,7 @@ private:
         InputDataSlices_[tableIndex].emplace_back(std::move(dataSlice));
     }
 
-    BoolMask GetRangeMask(EKeyConditionScale scale, TKey lowerKey, TKey upperKey, int operandIndex)
+    BoolMask GetRangeMask(EKeyConditionScale scale, TLegacyKey lowerKey, TLegacyKey upperKey, int operandIndex)
     {
         YT_LOG_TRACE(
             "Checking range mask (Scale: %v, LowerKey: %v, UpperKey: %v, OperandIndex: %v, KeyCondition: %v)",

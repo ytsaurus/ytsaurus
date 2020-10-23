@@ -154,8 +154,8 @@ public:
 
     typedef TTabletList::const_iterator TTabletListIterator;
     std::pair<TTabletListIterator, TTabletListIterator> GetIntersectingTablets(
-        const NTableClient::TOwningKey& minKey,
-        const NTableClient::TOwningKey& maxKey);
+        const NTableClient::TLegacyOwningKey& minKey,
+        const NTableClient::TLegacyOwningKey& maxKey);
 
     bool IsDynamic() const;
     bool IsEmpty() const;

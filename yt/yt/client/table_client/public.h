@@ -190,15 +190,15 @@ class TVersionedRow;
 class TMutableVersionedRow;
 class TVersionedOwningRow;
 
-using TKey = TUnversionedRow;
-using TMutableKey = TMutableUnversionedRow;
-using TOwningKey = TUnversionedOwningRow;
+using TLegacyKey = TUnversionedRow;
+using TLegacyMutableKey = TMutableUnversionedRow;
+using TLegacyOwningKey = TUnversionedOwningRow;
 using TRowRange = std::pair<TUnversionedRow, TUnversionedRow>;
 
 class TUnversionedRowBuilder;
 class TUnversionedOwningRowBuilder;
 
-using TKeyComparer = std::function<int(TKey, TKey)>;
+using TKeyComparer = std::function<int(TLegacyKey, TLegacyKey)>;
 
 struct TColumnRenameDescriptor;
 using TColumnRenameDescriptors = std::vector<TColumnRenameDescriptor>;

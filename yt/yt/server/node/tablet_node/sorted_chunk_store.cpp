@@ -183,8 +183,8 @@ TSortedChunkStore::TSortedChunkStore(
         localDescriptor)
     , KeyComparer_(tablet->GetRowKeyComparer())
 {
-    TKey lowerBound;
-    TKey upperBound;
+    TLegacyKey lowerBound;
+    TLegacyKey upperBound;
 
     if (readRange.LowerLimit().HasKey()) {
         lowerBound = readRange.LowerLimit().GetKey();
@@ -228,12 +228,12 @@ void TSortedChunkStore::BuildOrchidYson(TFluentMap fluent)
         .Item("upper_bound_key").Value(GetUpperBoundKey());
 }
 
-TOwningKey TSortedChunkStore::GetMinKey() const
+TLegacyOwningKey TSortedChunkStore::GetMinKey() const
 {
     return MinKey_;
 }
 
-TOwningKey TSortedChunkStore::GetUpperBoundKey() const
+TLegacyOwningKey TSortedChunkStore::GetUpperBoundKey() const
 {
     return UpperBoundKey_;
 }
@@ -330,7 +330,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
@@ -408,8 +408,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         produceAllVersions));
 }
 
-TSharedRange<TKey> TSortedChunkStore::FilterKeysByReadRange(
-    const TSharedRange<TKey>& keys,
+TSharedRange<TLegacyKey> TSortedChunkStore::FilterKeysByReadRange(
+    const TSharedRange<TLegacyKey>& keys,
     int* skippedBefore,
     int* skippedAfter) const
 {
@@ -423,7 +423,7 @@ TSharedRange<TRowRange> TSortedChunkStore::FilterRowRangesByReadRange(
 }
 
 IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
@@ -478,8 +478,8 @@ void TSortedChunkStore::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, ChunkId_);
-    Save(context, TOwningKey(ReadRange_[0].first));
-    Save(context, TOwningKey(ReadRange_[0].second));
+    Save(context, TLegacyOwningKey(ReadRange_[0].first));
+    Save(context, TLegacyOwningKey(ReadRange_[0].second));
 }
 
 void TSortedChunkStore::Load(TLoadContext& context)
@@ -488,8 +488,8 @@ void TSortedChunkStore::Load(TLoadContext& context)
 
     using NYT::Load;
     Load(context, ChunkId_);
-    auto lowerBound = Load<TOwningKey>(context);
-    auto upperBound = Load<TOwningKey>(context);
+    auto lowerBound = Load<TLegacyOwningKey>(context);
+    auto upperBound = Load<TLegacyOwningKey>(context);
     ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
 }
 
@@ -569,17 +569,17 @@ void TSortedChunkStore::PrecacheProperties()
 
     auto boundaryKeysExt = GetProtoExtension<TBoundaryKeysExt>(ChunkMeta_->extensions());
 
-    MinKey_ = FromProto<TOwningKey>(boundaryKeysExt.min());
+    MinKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.min());
     const auto& chunkViewLowerBound = ReadRange_.Front().first;
     if (chunkViewLowerBound && chunkViewLowerBound > MinKey_) {
-        MinKey_ = TOwningKey(chunkViewLowerBound);
+        MinKey_ = TLegacyOwningKey(chunkViewLowerBound);
     }
     MinKey_ = WidenKey(MinKey_, KeyColumnCount_);
 
-    UpperBoundKey_ = FromProto<TOwningKey>(boundaryKeysExt.max());
+    UpperBoundKey_ = FromProto<TLegacyOwningKey>(boundaryKeysExt.max());
     const auto& chunkViewUpperBound = ReadRange_.Front().second;
     if (chunkViewUpperBound && chunkViewUpperBound <= UpperBoundKey_) {
-        UpperBoundKey_ = TOwningKey(chunkViewUpperBound);
+        UpperBoundKey_ = TLegacyOwningKey(chunkViewUpperBound);
     } else {
         UpperBoundKey_ = WidenKeySuccessor(UpperBoundKey_, KeyColumnCount_);
     }
@@ -598,9 +598,9 @@ bool TSortedChunkStore::HasNontrivialReadRange() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRange<TKey> FilterKeysByReadRange(
+TSharedRange<TLegacyKey> FilterKeysByReadRange(
     const NTableClient::TRowRange& readRange,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     int* skippedBefore,
     int* skippedAfter)
 {

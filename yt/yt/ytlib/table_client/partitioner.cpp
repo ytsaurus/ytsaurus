@@ -36,7 +36,7 @@ public:
             Keys_.Begin(),
             Keys_.End(),
             row,
-            [=] (TUnversionedRow row, const TKey& element) {
+            [=] (TUnversionedRow row, const TLegacyKey& element) {
                 // We consider only key prefix of the row; note that remaining
                 // values of the row may be incomparable at all (like double NaN).
                 return CompareRows(
@@ -50,7 +50,7 @@ public:
 
 private:
     const TKeySetReader KeySetReader_;
-    const TRange<TKey> Keys_;
+    const TRange<TLegacyKey> Keys_;
     const int KeyColumnCount_;
 };
 

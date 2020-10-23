@@ -325,7 +325,7 @@ public:
         TRange<TUnversionedRow> unreadRows) const override;
 
 private:
-    TOwningKey LastKey_;
+    TLegacyOwningKey LastKey_;
 
     std::vector<int> LastReadRowSessionIndexes_;
 };
@@ -486,7 +486,7 @@ private:
     const bool InterruptAtKeyEdge_;
 
     TSession* PrimarySession_;
-    TOwningKey LastPrimaryKey_;
+    TLegacyOwningKey LastPrimaryKey_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -568,8 +568,8 @@ IUnversionedRowBatchPtr TSchemalessJoiningReader::Read(const TRowBatchReadOption
     std::vector<TUnversionedRow> rows;
     rows.reserve(options.MaxRowsPerRead);
     i64 dataWeight = 0;
-    auto lastPrimaryRow = TKey(LastPrimaryKey_);
-    auto nextPrimaryRow = TKey();
+    auto lastPrimaryRow = TLegacyKey(LastPrimaryKey_);
+    auto nextPrimaryRow = TLegacyKey();
     while (rows.size() < options.MaxRowsPerRead &&
            dataWeight < options.MaxDataWeightPerRead)
     {
@@ -599,7 +599,7 @@ IUnversionedRowBatchPtr TSchemalessJoiningReader::Read(const TRowBatchReadOption
         // Skip rows that are not present in PrimarySession_.
         if (session == PrimarySession_) {
             lastPrimaryRow = row;
-            nextPrimaryRow = TKey();
+            nextPrimaryRow = TLegacyKey();
             shouldJoinRow = true;
         } else {
             if (!nextPrimaryRow && PrimarySession_->CurrentRowIndex < PrimarySession_->Rows.size()) {

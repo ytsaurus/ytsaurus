@@ -393,13 +393,13 @@ public:
     DELEGATE_TIMESTAMPED_METHOD(TFuture<IUnversionedRowsetPtr>, LookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options),
         (path, nameTable, keys, options))
     DELEGATE_TIMESTAMPED_METHOD(TFuture<IVersionedRowsetPtr>, VersionedLookupRows, (
         const TYPath& path,
         TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options),
         (path, nameTable, keys, options))
 
@@ -1422,7 +1422,7 @@ private:
         return transaction;
     }
 
-    
+
     void DoEnqueueModificationRequest(TModificationRequest* request)
     {
         PendingRequests_.push_back(request);
@@ -1447,7 +1447,7 @@ private:
         Requests_.push_back(std::move(request));
     }
 
-    
+
     TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, TTableReplicaId upstreamReplicaId)
     {
         auto it = TablePathToSession_.find(path);
@@ -1508,7 +1508,7 @@ private:
     TFuture<void> DoAbort(TGuard<TAdaptiveLock>* guard, const TTransactionAbortOptions& options = {})
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-        
+
         if (State_ == ETransactionState::Aborted) {
             return AbortPromise_.ToFuture();
         }
@@ -1728,7 +1728,7 @@ private:
         }
     }
 
-    
+
     void DoRegisterAlienTransaction(const NApi::ITransactionPtr& transaction, ETransactionState expectedState)
     {
         {
@@ -1775,7 +1775,7 @@ private:
     void ValidateActive()
     {
         auto guard = Guard(SpinLock_);
-        
+
     }
 };
 

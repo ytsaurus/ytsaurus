@@ -72,7 +72,7 @@ TBlobTableWriter::TBlobTableWriter(
         tableWriterOptions,
         nameTable,
         tableSchema,
-        TOwningKey(),
+        TLegacyOwningKey(),
         client,
         NObjectClient::CellTagFromId(chunkListId),
         transactionId,

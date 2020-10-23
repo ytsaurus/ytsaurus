@@ -322,17 +322,17 @@ private:
     size_t RangeIndex_ = 0;
     TSharedRange<TRowRange> ClippingRange_;
 
-    const TKey& GetCurrentRangeLowerKey() const
+    const TLegacyKey& GetCurrentRangeLowerKey() const
     {
         return GetRangeLowerKey(RangeIndex_);
     }
 
-    const TKey& GetCurrentRangeUpperKey() const
+    const TLegacyKey& GetCurrentRangeUpperKey() const
     {
         return GetRangeUpperKey(RangeIndex_);
     }
 
-    const TKey& GetRangeLowerKey(int rangeIndex) const
+    const TLegacyKey& GetRangeLowerKey(int rangeIndex) const
     {
         if (rangeIndex == 0 && ClippingRange_) {
             if (const auto& clippingLowerBound = ClippingRange_.Front().first) {
@@ -342,7 +342,7 @@ private:
         return Ranges_[rangeIndex].first;
     }
 
-    const TKey& GetRangeUpperKey(int rangeIndex) const
+    const TLegacyKey& GetRangeUpperKey(int rangeIndex) const
     {
         if (rangeIndex + 1 == Ranges_.Size() && ClippingRange_) {
             if (const auto& clippingUpperBound = ClippingRange_.Front().second) {
@@ -450,7 +450,7 @@ public:
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientBlockReadOptions& blockReadOptions,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TKeyComparer keyComparer,
@@ -561,7 +561,7 @@ public:
     }
 
 private:
-    const TSharedRange<TKey> Keys_;
+    const TSharedRange<TLegacyKey> Keys_;
     std::vector<bool> KeyFilterTest_;
     std::vector<int> BlockIndexes_;
 
@@ -1029,8 +1029,8 @@ public:
         , RowBuilder_(chunkMeta, ValueColumnReaders_, SchemaIdMapping_, timestamp)
     {
         YT_VERIFY(ranges.Size() == 1);
-        LowerLimit_.SetKey(TOwningKey(ranges[0].first));
-        UpperLimit_.SetKey(TOwningKey(ranges[0].second));
+        LowerLimit_.SetKey(TLegacyOwningKey(ranges[0].first));
+        UpperLimit_.SetKey(TLegacyOwningKey(ranges[0].second));
 
         int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta()->columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
@@ -1391,7 +1391,7 @@ public:
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientBlockReadOptions& blockReadOptions,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         const TColumnFilter& columnFilter,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
@@ -1638,13 +1638,13 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const auto& performanceCounters = chunkState->PerformanceCounters;
 
     auto getCappedBounds = [&ranges, &singletonClippingRange] {
-        TKey lowerBound = ranges.Front().first;
-        TKey upperBound = ranges.Back().second;
+        TLegacyKey lowerBound = ranges.Front().first;
+        TLegacyKey upperBound = ranges.Back().second;
 
         YT_VERIFY(singletonClippingRange.Size() <= 1);
         if (singletonClippingRange.Size() > 0) {
-            TKey clippedLowerBound = singletonClippingRange.Front().first;
-            TKey clippedUpperBound = singletonClippingRange.Front().second;
+            TLegacyKey clippedLowerBound = singletonClippingRange.Front().first;
+            TLegacyKey clippedUpperBound = singletonClippingRange.Front().second;
             if (clippedLowerBound && clippedLowerBound > lowerBound) {
                 lowerBound = clippedLowerBound;
             }
@@ -1736,8 +1736,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 auto cappedBounds = getCappedBounds();
 
                 TReadRange readRange(
-                    TReadLimit(TOwningKey(cappedBounds.Front().first)),
-                    TReadLimit(TOwningKey(cappedBounds.Front().second)));
+                    TReadLimit(TLegacyOwningKey(cappedBounds.Front().first)),
+                    TReadLimit(TLegacyOwningKey(cappedBounds.Front().second)));
 
                 return CreateSchemalessChunkReader(
                     chunkState,
@@ -1785,8 +1785,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TClientBlockReadOptions& blockReadOptions,
-    TOwningKey lowerLimit,
-    TOwningKey upperLimit,
+    TLegacyOwningKey lowerLimit,
+    TLegacyOwningKey upperLimit,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
@@ -1814,7 +1814,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TClientBlockReadOptions& blockReadOptions,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
@@ -1944,7 +1944,7 @@ TRowReaderAdapter::TRowReaderAdapter(
     const TChunkStatePtr& chunkState,
     const TCachedVersionedChunkMetaPtr& chunkMeta,
     const TClientBlockReadOptions& blockReadOptions,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions)

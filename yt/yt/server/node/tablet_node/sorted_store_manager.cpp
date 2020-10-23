@@ -60,7 +60,7 @@ using namespace NTabletNode::NProto;
 using namespace NHydra;
 using namespace NYTAlloc;
 
-using NTableClient::TKey;
+using NTableClient::TLegacyKey;
 
 struct TMergeRowsOnFlushTag
 { };
@@ -292,7 +292,7 @@ bool TSortedStoreManager::CheckInactiveStoresLocks(
 }
 
 void TSortedStoreManager::BuildPivotKeysBeforeGiantTabletProblem(
-    std::vector<TOwningKey>* pivotKeys,
+    std::vector<TLegacyOwningKey>* pivotKeys,
     const std::vector<TBoundaryDescriptor>& chunkBoundaries)
 {
     int depth = 0;
@@ -305,7 +305,7 @@ void TSortedStoreManager::BuildPivotKeysBeforeGiantTabletProblem(
 }
 
 void TSortedStoreManager::BuildPivotKeysBeforeChunkViewsForPivots(
-    std::vector<TOwningKey>* pivotKeys,
+    std::vector<TLegacyOwningKey>* pivotKeys,
     const std::vector<TBoundaryDescriptor>& chunkBoundaries)
 {
     int depth = 0;
@@ -327,7 +327,7 @@ void TSortedStoreManager::BuildPivotKeysBeforeChunkViewsForPivots(
 }
 
 void TSortedStoreManager::BuildPivotKeys(
-    std::vector<TOwningKey>* pivotKeys,
+    std::vector<TLegacyOwningKey>* pivotKeys,
     const std::vector<TBoundaryDescriptor>& chunkBoundaries)
 {
     const std::array<int, 3> depthChange = {-1, 1, -1};
@@ -386,8 +386,8 @@ void TSortedStoreManager::Mount(
         }
 
         auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
-        auto minBoundaryKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
-        auto maxBoundaryKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
+        auto minBoundaryKey = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
+        auto maxBoundaryKey = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
 
         // COMPAT(akozhikhov)
         if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewsForPivots))  {
@@ -401,13 +401,13 @@ void TSortedStoreManager::Mount(
             // 0 - )
             // 1 - [
             // 2 - ]
-            TOwningKey minKey;
+            TLegacyOwningKey minKey;
             if (descriptor.has_chunk_view_descriptor()
                 && chunkView.has_read_range()
                 && chunkView.read_range().has_lower_limit()
                 && chunkView.read_range().lower_limit().has_key())
             {
-                auto chunkViewLimit = FromProto<TOwningKey>(chunkView.read_range().lower_limit().key());
+                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkView.read_range().lower_limit().key());
 
                 // COMPAT(ifsmirnov)
                 if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {
@@ -420,13 +420,13 @@ void TSortedStoreManager::Mount(
             }
 
             int maxKeyType;
-            TOwningKey maxKey;
+            TLegacyOwningKey maxKey;
             if (descriptor.has_chunk_view_descriptor()
                 && chunkView.has_read_range()
                 && chunkView.read_range().has_upper_limit()
                 && chunkView.read_range().upper_limit().has_key())
             {
-                auto chunkViewLimit = FromProto<TOwningKey>(chunkView.read_range().upper_limit().key());
+                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkView.read_range().upper_limit().key());
 
                 // COMPAT(ifsmirnov)
                 if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {
@@ -469,7 +469,7 @@ void TSortedStoreManager::Mount(
             }
         }
 
-        std::vector<TOwningKey> pivotKeys{Tablet_->GetPivotKey()};
+        std::vector<TLegacyOwningKey> pivotKeys{Tablet_->GetPivotKey()};
 
         // COMPAT(akozhikhov)
         if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::GiantTabletProblem)) {
@@ -858,7 +858,7 @@ ISortedStoreManagerPtr TSortedStoreManager::AsSorted()
 
 bool TSortedStoreManager::SplitPartition(
     int partitionIndex,
-    const std::vector<TOwningKey>& pivotKeys)
+    const std::vector<TLegacyOwningKey>& pivotKeys)
 {
     auto* partition = Tablet_->PartitionList()[partitionIndex].get();
 
@@ -899,7 +899,7 @@ void TSortedStoreManager::MergePartitions(
 
 void TSortedStoreManager::UpdatePartitionSampleKeys(
     TPartition* partition,
-    const TSharedRange<TKey>& keys)
+    const TSharedRange<TLegacyKey>& keys)
 {
     YT_VERIFY(keys.Empty() || keys[0] > partition->GetPivotKey());
 
@@ -956,10 +956,10 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
 
     int formerPartitionStoreCount = partition->Stores().size() - addedStores.size();
 
-    std::vector<TOwningKey> proposedPivots{partition->GetPivotKey()};
+    std::vector<TLegacyOwningKey> proposedPivots{partition->GetPivotKey()};
     i64 cumulativeDataSize = 0;
     int cumulativeStoreCount = 0;
-    TOwningKey lastKey = MinKey();
+    TLegacyOwningKey lastKey = MinKey();
 
     for (int storeIndex = 0; storeIndex < addedStores.size(); ++storeIndex) {
         const auto& store = addedStores[storeIndex];
@@ -997,7 +997,7 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
     }
 }
 
-void TSortedStoreManager::DoSplitPartition(int partitionIndex, const std::vector<TOwningKey>& pivotKeys)
+void TSortedStoreManager::DoSplitPartition(int partitionIndex, const std::vector<TLegacyOwningKey>& pivotKeys)
 {
     Tablet_->SplitPartition(partitionIndex, pivotKeys);
     if (!IsRecovery()) {

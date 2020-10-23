@@ -71,7 +71,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(options),
         std::move(nameTable),
         std::move(tableSchema),
-        TOwningKey(),
+        TLegacyOwningKey(),
         std::move(client),
         CellTagFromId(chunkListId),
         transactionId,

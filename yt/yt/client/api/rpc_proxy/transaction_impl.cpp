@@ -490,7 +490,7 @@ TFuture<ITransactionPtr> TTransaction::StartTransaction(
 TFuture<IUnversionedRowsetPtr> TTransaction::LookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TLookupRowsOptions& options)
 {
     ValidateActive();
@@ -504,7 +504,7 @@ TFuture<IUnversionedRowsetPtr> TTransaction::LookupRows(
 TFuture<IVersionedRowsetPtr> TTransaction::VersionedLookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TVersionedLookupRowsOptions& options)
 {
     ValidateActive();

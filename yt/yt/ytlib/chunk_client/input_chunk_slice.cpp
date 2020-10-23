@@ -36,7 +36,7 @@ TInputSliceLimit::TInputSliceLimit(const TReadLimit& other)
 TInputSliceLimit::TInputSliceLimit(
     const NProto::TReadLimit& other,
     const TRowBufferPtr& rowBuffer,
-    TRange<TKey> keySet)
+    TRange<TLegacyKey> keySet)
 {
     YT_VERIFY(!other.has_chunk_index());
     YT_VERIFY(!other.has_offset());
@@ -65,14 +65,14 @@ void TInputSliceLimit::MergeUpperRowIndex(i64 rowIndex)
     }
 }
 
-void TInputSliceLimit::MergeLowerKey(NTableClient::TKey key)
+void TInputSliceLimit::MergeLowerKey(NTableClient::TLegacyKey key)
 {
     if (!Key || Key < key) {
         Key = key;
     }
 }
 
-void TInputSliceLimit::MergeUpperKey(NTableClient::TKey key)
+void TInputSliceLimit::MergeUpperKey(NTableClient::TLegacyKey key)
 {
     if (!Key || Key > key) {
         Key = key;
@@ -143,8 +143,8 @@ void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit)
 
 TInputChunkSlice::TInputChunkSlice(
     const TInputChunkPtr& inputChunk,
-    TKey lowerKey,
-    TKey upperKey)
+    TLegacyKey lowerKey,
+    TLegacyKey upperKey)
     : InputChunk_(inputChunk)
     , DataWeight_(inputChunk->GetDataWeight())
     , RowCount_(inputChunk->GetRowCount())
@@ -166,8 +166,8 @@ TInputChunkSlice::TInputChunkSlice(
 
 TInputChunkSlice::TInputChunkSlice(
     const TInputChunkSlice& inputSlice,
-    TKey lowerKey,
-    TKey upperKey)
+    TLegacyKey lowerKey,
+    TLegacyKey upperKey)
     : InputChunk_(inputSlice.GetInputChunk())
     , LowerLimit_(inputSlice.LowerLimit())
     , UpperLimit_(inputSlice.UpperLimit())
@@ -224,7 +224,7 @@ TInputChunkSlice::TInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     const TRowBufferPtr& rowBuffer,
     const NProto::TChunkSlice& protoChunkSlice,
-    TRange<TKey> keySet)
+    TRange<TLegacyKey> keySet)
     : TInputChunkSlice(inputChunk)
 {
     LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet));
@@ -243,7 +243,7 @@ TInputChunkSlice::TInputChunkSlice(
     const NProto::TChunkSpec& protoChunkSpec)
     : TInputChunkSlice(inputChunk)
 {
-    static TRange<TKey> DummyKeys;
+    static TRange<TLegacyKey> DummyKeys;
     LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSpec.lower_limit(), rowBuffer, DummyKeys));
     UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSpec.upper_limit(), rowBuffer, DummyKeys));
     PartIndex_ = DefaultPartIndex;
@@ -396,16 +396,16 @@ TString ToString(const TInputChunkSlicePtr& slice)
 
 TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkPtr& inputChunk,
-    TKey lowerKey,
-    TKey upperKey)
+    TLegacyKey lowerKey,
+    TLegacyKey upperKey)
 {
     return New<TInputChunkSlice>(inputChunk, lowerKey, upperKey);
 }
 
 TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkSlice& inputSlice,
-    TKey lowerKey,
-    TKey upperKey)
+    TLegacyKey lowerKey,
+    TLegacyKey upperKey)
 {
     return New<TInputChunkSlice>(inputSlice, lowerKey, upperKey);
 }

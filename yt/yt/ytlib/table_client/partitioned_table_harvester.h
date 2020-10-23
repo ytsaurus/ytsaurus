@@ -44,7 +44,7 @@ public:
     TFuture<void> Prepare();
 
     //! Leave only partitions satisfying given predicate.
-    void FilterPartitions(std::function<bool(TKey, TKey)> predicate);
+    void FilterPartitions(std::function<bool(TLegacyKey, TLegacyKey)> predicate);
 
     //! Fetch chunk specs and return table read spec.
     TFuture<TTableReadSpec> Fetch(const TFetchSingleTableReadSpecOptions& options);

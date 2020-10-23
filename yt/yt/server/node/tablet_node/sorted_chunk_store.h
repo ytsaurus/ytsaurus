@@ -44,8 +44,8 @@ public:
     virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     // ISortedStore implementation.
-    virtual TOwningKey GetMinKey() const override;
-    virtual TOwningKey GetUpperBoundKey() const override;
+    virtual TLegacyOwningKey GetMinKey() const override;
+    virtual TLegacyOwningKey GetUpperBoundKey() const override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -58,7 +58,7 @@ public:
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
@@ -75,15 +75,15 @@ public:
 
 private:
     // Cached for fast retrieval from ChunkMeta_.
-    TOwningKey MinKey_;
-    TOwningKey UpperBoundKey_;
+    TLegacyOwningKey MinKey_;
+    TLegacyOwningKey UpperBoundKey_;
 
     TSharedRange<NTableClient::TRowRange> ReadRange_;
 
     const NTableClient::TKeyComparer KeyComparer_;
 
-    TSharedRange<TKey> FilterKeysByReadRange(
-        const TSharedRange<TKey>& keys,
+    TSharedRange<TLegacyKey> FilterKeysByReadRange(
+        const TSharedRange<TLegacyKey>& keys,
         int* skippedBefore,
         int* skippedAfter) const;
 
@@ -91,7 +91,7 @@ private:
         const TSharedRange<NTableClient::TRowRange>& ranges) const;
 
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
@@ -128,9 +128,9 @@ DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)
 
 //! Returns the slice of |keys| falling into the half-interval |readRange|
 //! and the number of skipped keys at the beginning and at the end.
-TSharedRange<TKey> FilterKeysByReadRange(
+TSharedRange<TLegacyKey> FilterKeysByReadRange(
     const NTableClient::TRowRange& readRange,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     int* skippedBefore,
     int* skippedAfter);
 

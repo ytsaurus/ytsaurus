@@ -114,11 +114,11 @@ public:
     virtual i64 GetTimestampCount() const override;
 
     // ISortedStore implementation.
-    virtual TOwningKey GetMinKey() const override;
-    virtual TOwningKey GetUpperBoundKey() const override;
+    virtual TLegacyOwningKey GetMinKey() const override;
+    virtual TLegacyOwningKey GetUpperBoundKey() const override;
 
     i64 GetMaxDataWeight() const;
-    TOwningKey GetMaxDataWeightWitnessKey() const;
+    TLegacyOwningKey GetMaxDataWeightWitnessKey() const;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -131,7 +131,7 @@ public:
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,

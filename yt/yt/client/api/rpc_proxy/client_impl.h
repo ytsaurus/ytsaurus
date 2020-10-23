@@ -54,7 +54,7 @@ public:
 
     virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const NApi::TReshardTableOptions& options) override;
 
     virtual TFuture<void> ReshardTable(
@@ -87,7 +87,7 @@ public:
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const NApi::TGetInSyncReplicasOptions& options) override;
 
     virtual TFuture<std::vector<NApi::TTabletInfo>> GetTabletInfos(

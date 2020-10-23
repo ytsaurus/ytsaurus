@@ -11,8 +11,8 @@ namespace NYT::NChunkPools {
 
 struct TBoundaryKeys
 {
-    NTableClient::TKey MinKey;
-    NTableClient::TKey MaxKey;
+    NTableClient::TLegacyKey MinKey;
+    NTableClient::TLegacyKey MaxKey;
 
     void Persist(const TPersistenceContext& context);
 

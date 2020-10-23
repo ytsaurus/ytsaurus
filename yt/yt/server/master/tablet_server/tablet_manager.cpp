@@ -615,7 +615,7 @@ public:
         ETabletActionKind kind,
         const std::vector<TTablet*>& tablets,
         const std::vector<TTabletCell*>& cells,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::optional<int>& tabletCount,
         bool skipFreezing,
         TGuid correlationId,
@@ -1322,7 +1322,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TOwningKey>& pivotKeys,
+        const std::vector<TLegacyOwningKey>& pivotKeys,
         bool create = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1477,7 +1477,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TOwningKey>& pivotKeys)
+        const std::vector<TLegacyOwningKey>& pivotKeys)
     {
         if (table->IsExternal()) {
             UpdateTabletState(table);
@@ -2530,7 +2530,7 @@ private:
         ETabletActionState state,
         const std::vector<TTablet*>& tablets,
         const std::vector<TTabletCell*>& cells,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::optional<int>& tabletCount,
         bool freeze,
         bool skipFreezing,
@@ -2613,7 +2613,7 @@ private:
     }
 
 
-    std::vector<TOwningKey> CalculatePivotKeys(
+    std::vector<TLegacyOwningKey> CalculatePivotKeys(
         TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
@@ -2627,8 +2627,8 @@ private:
 
         struct TEntry
         {
-            TOwningKey MinKey;
-            TOwningKey MaxKey;
+            TLegacyOwningKey MinKey;
+            TLegacyOwningKey MaxKey;
             i64 Size;
 
             bool operator<(const TEntry& other) const
@@ -2669,8 +2669,8 @@ private:
         std::sort(entries.begin(), entries.end());
 
         i64 desired = totalSize / newTabletCount;
-        std::vector<TOwningKey> pivotKeys{table->Tablets()[firstTabletIndex]->GetPivotKey()};
-        TOwningKey lastKey;
+        std::vector<TLegacyOwningKey> pivotKeys{table->Tablets()[firstTabletIndex]->GetPivotKey()};
+        TLegacyOwningKey lastKey;
         i64 current = 0;
 
         for (const auto& entry : entries) {
@@ -3196,7 +3196,7 @@ private:
                     ETabletActionState::Orphaned,
                     std::vector<TTablet*>{tablet},
                     std::vector<TTabletCell*>{},
-                    std::vector<NTableClient::TOwningKey>{},
+                    std::vector<NTableClient::TLegacyOwningKey>{},
                     std::optional<int>(),
                     freeze,
                     false,
@@ -3479,7 +3479,7 @@ private:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TOwningKey>& pivotKeys)
+        const std::vector<TLegacyOwningKey>& pivotKeys)
     {
         if (!pivotKeys.empty() || !table->IsPhysicallySorted()) {
             ReshardTableImpl(
@@ -3506,8 +3506,8 @@ private:
     // we merge them into one chunk view with the joint range.
     std::vector<TChunkTree*> MergeChunkViewRanges(
         std::vector<NChunkServer::TChunkView*> chunkViews,
-        const TOwningKey& lowerPivot,
-        const TOwningKey& upperPivot)
+        const TLegacyOwningKey& lowerPivot,
+        const TLegacyOwningKey& upperPivot)
     {
         auto mergeResults = MergeAdjacentChunkViewRanges(std::move(chunkViews));
         std::vector<TChunkTree*> result;
@@ -3553,7 +3553,7 @@ private:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<TOwningKey>& pivotKeys)
+        const std::vector<TLegacyOwningKey>& pivotKeys)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -3621,7 +3621,7 @@ private:
             }
         }
 
-        std::vector<TOwningKey> oldPivotKeys;
+        std::vector<TLegacyOwningKey> oldPivotKeys;
 
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -4384,7 +4384,7 @@ private:
             auto mountRevision = tabletInfo.mount_revision();
 
             auto* tablet = FindTablet(tabletId);
-            if (!IsObjectAlive(tablet) || 
+            if (!IsObjectAlive(tablet) ||
                 tablet->GetState() == ETabletState::Unmounted ||
                 mountRevision != tablet->GetMountRevision())
             {
@@ -5669,7 +5669,7 @@ private:
         auto kind = ETabletActionKind(request->kind());
         auto tabletIds = FromProto<std::vector<TTabletId>>(request->tablet_ids());
         auto cellIds = FromProto<std::vector<TTabletId>>(request->cell_ids());
-        auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
+        auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         TInstant expirationTime = TInstant::Zero();
         if (request->has_expiration_time()) {
             expirationTime = FromProto<TInstant>(request->expiration_time());
@@ -6197,7 +6197,7 @@ private:
             tablets.begin(),
             tablets.end(),
             minKey,
-            [] (const TOwningKey& key, const TTablet* tablet) {
+            [] (const TLegacyOwningKey& key, const TTablet* tablet) {
                 return key < tablet->GetPivotKey();
             });
 
@@ -6414,7 +6414,7 @@ void TTabletManager::PrepareReshardTable(
     int firstTabletIndex,
     int lastTabletIndex,
     int newTabletCount,
-    const std::vector<TOwningKey>& pivotKeys,
+    const std::vector<TLegacyOwningKey>& pivotKeys,
     bool create)
 {
     Impl_->PrepareReshardTable(
@@ -6513,7 +6513,7 @@ void TTabletManager::ReshardTable(
     int firstTabletIndex,
     int lastTabletIndex,
     int newTabletCount,
-    const std::vector<TOwningKey>& pivotKeys)
+    const std::vector<TLegacyOwningKey>& pivotKeys)
 {
     Impl_->ReshardTable(
         table,
@@ -6694,7 +6694,7 @@ TTabletAction* TTabletManager::CreateTabletAction(
     ETabletActionKind kind,
     const std::vector<TTablet*>& tablets,
     const std::vector<TTabletCell*>& cells,
-    const std::vector<NTableClient::TOwningKey>& pivotKeys,
+    const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
     const std::optional<int>& tabletCount,
     bool skipFreezing,
     TGuid correlationId,

@@ -176,7 +176,7 @@ public:
     TReshardTableCommand();
 
 private:
-    std::optional<std::vector<NTableClient::TOwningKey>> PivotKeys;
+    std::optional<std::vector<NTableClient::TLegacyOwningKey>> PivotKeys;
     std::optional<int> TabletCount;
 
     virtual void DoExecute(ICommandContextPtr context) override;

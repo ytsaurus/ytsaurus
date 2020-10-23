@@ -28,8 +28,8 @@ TChunk* TChunkGeneratorBase::CreateChunk(
     i64 compressedDataSize,
     i64 uncompressedDataSize,
     i64 dataWeight,
-    NTableClient::TOwningKey minKey,
-    NTableClient::TOwningKey maxKey,
+    NTableClient::TLegacyOwningKey minKey,
+    NTableClient::TLegacyOwningKey maxKey,
     EChunkType chunkType)
 {
     auto chunk = std::make_unique<TChunk>(GenerateId(NCypressClient::EObjectType::Chunk));
@@ -82,8 +82,8 @@ TChunkList* TChunkGeneratorBase::CreateChunkList(EChunkListKind kind)
 
 TChunkView* TChunkGeneratorBase::CreateChunkView(
     TChunk* underlyingChunk,
-    NTableClient::TOwningKey lowerLimit,
-    NTableClient::TOwningKey upperLimit)
+    NTableClient::TLegacyOwningKey lowerLimit,
+    NTableClient::TLegacyOwningKey upperLimit)
 {
     NChunkClient::TReadRange readRange{
         NChunkClient::TReadLimit(lowerLimit), NChunkClient::TReadLimit(upperLimit)};
@@ -106,8 +106,8 @@ void TChunkGeneratorBase::ConfirmChunk(
     i64 compressedDataSize,
     i64 uncompressedDataSize,
     i64 dataWeight,
-    NTableClient::TOwningKey minKey,
-    NTableClient::TOwningKey maxKey)
+    NTableClient::TLegacyOwningKey minKey,
+    NTableClient::TLegacyOwningKey maxKey)
 {
     auto* donorChunk = CreateChunk(
         rowCount,

@@ -25,7 +25,7 @@ DEFINE_ENUM(ESamplingPolicy,
 struct TSample
 {
     //! The key is stored in row buffer.
-    TKey Key;
+    TLegacyKey Key;
 
     //! |true| if the sample is trimmed to obey max sample size limit.
     bool Incomplete;

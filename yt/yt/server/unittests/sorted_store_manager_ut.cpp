@@ -83,7 +83,7 @@ protected:
         return StoreManager_->ModifyRow(row, ERowModificationType::Delete, TLockMask(), &context);
     }
 
-    void DeleteRow(const TOwningKey& key)
+    void DeleteRow(const TLegacyOwningKey& key)
     {
         auto transaction = StartTransaction();
 
@@ -121,7 +121,7 @@ protected:
 
     using TSortedDynamicStoreTestBase::LookupRow;
 
-    TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
+    TUnversionedOwningRow LookupRow(const TLegacyOwningKey& key, TTimestamp timestamp)
     {
         TSharedRef request;
         {

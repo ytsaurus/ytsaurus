@@ -216,7 +216,7 @@ private:
     {
         EEndpointType Type;
         TInputDataSlicePtr DataSlice;
-        TKey Key;
+        TLegacyKey Key;
         i64 RowIndex;
     };
 
@@ -360,7 +360,7 @@ private:
 
         Jobs_.emplace_back(std::make_unique<TJobStub>());
 
-        THashMap<TInputDataSlicePtr, TKey> openedSlicesLowerLimits;
+        THashMap<TInputDataSlicePtr, TLegacyKey> openedSlicesLowerLimits;
 
         auto yielder = CreatePeriodicYielder();
 
@@ -371,8 +371,8 @@ private:
 
         i64 totalDataWeight = 0;
 
-        auto endJob = [&] (TKey lastKey, bool inclusive) {
-            TKey upperLimit = (inclusive) ? GetKeyPrefixSuccessor(lastKey, Options_.PrimaryPrefixLength, RowBuffer_) : lastKey;
+        auto endJob = [&] (TLegacyKey lastKey, bool inclusive) {
+            TLegacyKey upperLimit = (inclusive) ? GetKeyPrefixSuccessor(lastKey, Options_.PrimaryPrefixLength, RowBuffer_) : lastKey;
             for (auto iterator = openedSlicesLowerLimits.begin(); iterator != openedSlicesLowerLimits.end(); ) {
                 // Save the iterator to the next element because we may possibly erase current iterator.
                 auto nextIterator = std::next(iterator);
@@ -449,7 +449,7 @@ private:
                 ++nextKeyIndex;
             }
 
-            auto nextKey = (nextKeyIndex == Endpoints_.size()) ? TKey() : Endpoints_[nextKeyIndex].Key;
+            auto nextKey = (nextKeyIndex == Endpoints_.size()) ? TLegacyKey() : Endpoints_[nextKeyIndex].Key;
             bool nextKeyIsLeft = (nextKeyIndex == Endpoints_.size()) ? false : Endpoints_[nextKeyIndex].Type == EEndpointType::Left;
 
             while (nextTeleportChunk < TeleportChunks_.size() &&
@@ -459,7 +459,7 @@ private:
             }
 
             if (Endpoints_[index].Type == EEndpointType::Left) {
-                openedSlicesLowerLimits[Endpoints_[index].DataSlice] = TKey();
+                openedSlicesLowerLimits[Endpoints_[index].DataSlice] = TLegacyKey();
             } else if (Endpoints_[index].Type == EEndpointType::Right) {
                 const auto& dataSlice = Endpoints_[index].DataSlice;
                 auto it = openedSlicesLowerLimits.find(dataSlice);

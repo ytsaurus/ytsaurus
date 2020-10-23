@@ -23,9 +23,9 @@ struct IVersionedBlockReader
     virtual bool NextRow() = 0;
 
     virtual bool SkipToRowIndex(i64 rowIndex) = 0;
-    virtual bool SkipToKey(TKey key) = 0;
+    virtual bool SkipToKey(TLegacyKey key) = 0;
 
-    virtual TKey GetKey() const = 0;
+    virtual TLegacyKey GetKey() const = 0;
     virtual TVersionedRow GetRow(TChunkedMemoryPool* memoryPool) = 0;
 
     virtual i64 GetRowIndex() const = 0;
@@ -52,9 +52,9 @@ public:
     virtual bool NextRow() override;
 
     virtual bool SkipToRowIndex(i64 rowIndex) override;
-    virtual bool SkipToKey(TKey key) override;
+    virtual bool SkipToKey(TLegacyKey key) override;
 
-    virtual TKey GetKey() const override;
+    virtual TLegacyKey GetKey() const override;
     virtual TVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
 
     virtual i64 GetRowIndex() const override;
@@ -91,7 +91,7 @@ private:
 
     const static size_t DefaultKeyBufferCapacity = 256;
     SmallVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
-    TMutableKey Key_;
+    TLegacyMutableKey Key_;
 
     const char* KeyDataPtr_;
     i64 TimestampOffset_;
@@ -135,9 +135,9 @@ public:
     virtual bool NextRow() override;
 
     virtual bool SkipToRowIndex(i64 rowIndex) override;
-    virtual bool SkipToKey(TKey key) override;
+    virtual bool SkipToKey(TLegacyKey key) override;
 
-    virtual TKey GetKey() const override;
+    virtual TLegacyKey GetKey() const override;
     virtual TVersionedRow GetRow(TChunkedMemoryPool* memoryPool) override;
 
     virtual i64 GetRowIndex() const override;

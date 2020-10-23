@@ -98,14 +98,14 @@ ELegacyLivePreviewMode ToLegacyLivePreviewMode(std::optional<bool> enableLegacyL
 
 struct TPartitionKey
 {
-    NTableClient::TKey Key;
+    NTableClient::TLegacyKey Key;
 
     //! Whether partition starting with this key is maniac.
     bool Maniac = false;
 
     TPartitionKey() = default;
 
-    explicit TPartitionKey(NTableClient::TKey key)
+    explicit TPartitionKey(NTableClient::TLegacyKey key)
         : Key(std::move(key))
     { }
 };

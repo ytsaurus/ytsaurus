@@ -75,7 +75,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         bool create = false);
 
     void ValidateMakeTableDynamic(NTableServer::TTableNode* table);
@@ -120,7 +120,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex,
         int newTabletCount,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys);
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys);
     void CloneTable(
         NTableServer::TTableNode* sourceTable,
         NTableServer::TTableNode* clonedTable,
@@ -226,7 +226,7 @@ private:
         ETabletActionKind kind,
         const std::vector<TTablet*>& tablets,
         const std::vector<TTabletCell*>& cells,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::optional<int>& tabletCount,
         bool skipFreezing,
         TGuid correlationId,

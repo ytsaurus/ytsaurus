@@ -184,8 +184,8 @@ TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSl
 TInputDataSlicePtr CreateInputDataSlice(
     EDataSourceType type,
     const std::vector<TInputChunkSlicePtr>& inputChunks,
-    TKey lowerKey,
-    TKey upperKey)
+    TLegacyKey lowerKey,
+    TLegacyKey upperKey)
 {
     TInputDataSlice::TChunkSliceList chunkSlices;
     std::optional<int> tableIndex;
@@ -213,8 +213,8 @@ TInputDataSlicePtr CreateInputDataSlice(
 
 TInputDataSlicePtr CreateInputDataSlice(
     const TInputDataSlicePtr& dataSlice,
-    TKey lowerKey,
-    TKey upperKey)
+    TLegacyKey lowerKey,
+    TLegacyKey upperKey)
 {
     auto lowerLimit = dataSlice->LowerLimit();
     auto upperLimit = dataSlice->UpperLimit();
@@ -248,8 +248,8 @@ void InferLimitsFromBoundaryKeys(
     const TRowBufferPtr& rowBuffer,
     const TVirtualValueDirectoryPtr& virtualValueDirectory)
 {
-    TKey minKey;
-    TKey maxKey;
+    TLegacyKey minKey;
+    TLegacyKey maxKey;
     for (const auto& chunkSlice : dataSlice->ChunkSlices) {
         if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
             if (!minKey || minKey > boundaryKeys->MinKey) {
@@ -338,7 +338,7 @@ std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(const std::vector<TI
 {
     std::vector<TInputDataSlicePtr> dataSlices;
 
-    std::vector<std::tuple<TKey, bool, int>> boundaries;
+    std::vector<std::tuple<TLegacyKey, bool, int>> boundaries;
     boundaries.reserve(chunkSlices.size() * 2);
     for (int index = 0; index < chunkSlices.size(); ++index) {
         if (chunkSlices[index]->LowerLimit().Key < chunkSlices[index]->UpperLimit().Key) {

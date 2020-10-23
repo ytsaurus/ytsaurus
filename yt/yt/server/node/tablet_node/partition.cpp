@@ -45,8 +45,8 @@ TPartition::TPartition(
     TTablet* tablet,
     TPartitionId id,
     int index,
-    TOwningKey pivotKey,
-    TOwningKey nextPivotKey)
+    TLegacyOwningKey pivotKey,
+    TLegacyOwningKey nextPivotKey)
     : TObjectBase(id)
     , Tablet_(tablet)
     , Index_(index)
@@ -173,7 +173,7 @@ void TPartition::StopEpoch()
     State_ = EPartitionState::Normal;
 }
 
-void TPartition::RequestImmediateSplit(std::vector<TOwningKey> pivotKeys)
+void TPartition::RequestImmediateSplit(std::vector<TLegacyOwningKey> pivotKeys)
 {
     PivotKeysForImmediateSplit_ = std::move(pivotKeys);
 }

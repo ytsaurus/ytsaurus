@@ -25,8 +25,8 @@ using NYT::FromProto;
 TChunkSlice::TChunkSlice(
     const NProto::TSliceRequest& sliceReq,
     const NProto::TChunkMeta& meta,
-    const TOwningKey& lowerKey,
-    const TOwningKey& upperKey,
+    const TLegacyOwningKey& lowerKey,
+    const TLegacyOwningKey& upperKey,
     std::optional<i64> dataWeight,
     std::optional<i64> rowCount)
 {
@@ -122,7 +122,7 @@ void TChunkSlice::SliceEvenly(
     }
 }
 
-void TChunkSlice::SetKeys(const NTableClient::TOwningKey& lowerKey, const NTableClient::TOwningKey& upperKey)
+void TChunkSlice::SetKeys(const NTableClient::TLegacyOwningKey& lowerKey, const NTableClient::TLegacyOwningKey& upperKey)
 {
     LowerLimit_.MergeLowerKey(lowerKey);
     UpperLimit_.MergeUpperKey(upperKey);
@@ -183,7 +183,7 @@ public:
         IndexKeys_.reserve(blockMetaExt.blocks_size() + 0);
         for (int i = 0; i < blockMetaExt.blocks_size(); ++i) {
             YT_VERIFY(i == blockMetaExt.blocks(i).block_index());
-            auto indexKey = FromProto<TOwningKey>(blockMetaExt.blocks(i).last_key());
+            auto indexKey = FromProto<TLegacyOwningKey>(blockMetaExt.blocks(i).last_key());
             i64 chunkRowCount = blockMetaExt.blocks(i).chunk_row_count();
             i64 rowCount = IndexKeys_.empty()
                 ? chunkRowCount
@@ -350,7 +350,7 @@ public:
 private:
     struct TIndexKey
     {
-        TOwningKey Key;
+        TLegacyOwningKey Key;
         i64 RowCount;
         i64 ChunkRowCount;
         i64 DataWeight;
@@ -361,8 +361,8 @@ private:
     NChunkClient::TReadLimit LowerLimit_;
     NChunkClient::TReadLimit UpperLimit_;
 
-    TOwningKey MinKey_;
-    TOwningKey MaxKey_;
+    TLegacyOwningKey MinKey_;
+    TLegacyOwningKey MaxKey_;
     std::vector<TIndexKey> IndexKeys_;
     i64 BeginIndex_ = 0;
     i64 EndIndex_ = 0;

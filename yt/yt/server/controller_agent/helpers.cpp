@@ -274,7 +274,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
     int sampleIndex = 0;
     while (sampleIndex < selectedSamples.size()) {
-        TKey lastKey = MinKey();
+        TLegacyKey lastKey = MinKey();
         if (!partitionKeys.empty()) {
             lastKey = partitionKeys.back().Key;
         }

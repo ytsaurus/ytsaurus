@@ -53,7 +53,7 @@ void ITransaction::WriteRows(
 void ITransaction::DeleteRows(
     const NYPath::TYPath& path,
     TNameTablePtr nameTable,
-    TSharedRange<TKey> keys,
+    TSharedRange<TLegacyKey> keys,
     const TModifyRowsOptions& options)
 {
     std::vector<TRowModification> modifications;
@@ -74,7 +74,7 @@ void ITransaction::DeleteRows(
 void ITransaction::LockRows(
     const NYPath::TYPath& path,
     TNameTablePtr nameTable,
-    TSharedRange<TKey> keys,
+    TSharedRange<TLegacyKey> keys,
     TLockMask lockMask)
 {
     std::vector<TRowModification> modifications;
@@ -98,7 +98,7 @@ void ITransaction::LockRows(
 void ITransaction::LockRows(
     const NYPath::TYPath& path,
     TNameTablePtr nameTable,
-    TSharedRange<TKey> keys,
+    TSharedRange<TLegacyKey> keys,
     ELockType lockType)
 {
     TLockMask lockMask;
@@ -109,7 +109,7 @@ void ITransaction::LockRows(
 void ITransaction::LockRows(
     const NYPath::TYPath& path,
     TNameTablePtr nameTable,
-    TSharedRange<TKey> keys,
+    TSharedRange<TLegacyKey> keys,
     const std::vector<TString>& locks,
     ELockType lockType)
 {

@@ -290,7 +290,7 @@ IOrderedStoreManagerPtr TReplicatedStoreManager::AsOrdered()
 
 bool TReplicatedStoreManager::SplitPartition(
     int /*partitionIndex*/,
-    const std::vector<TOwningKey>& /*pivotKeys*/)
+    const std::vector<TLegacyOwningKey>& /*pivotKeys*/)
 {
     YT_ABORT();
 }
@@ -304,7 +304,7 @@ void TReplicatedStoreManager::MergePartitions(
 
 void TReplicatedStoreManager::UpdatePartitionSampleKeys(
     TPartition* /*partition*/,
-    const TSharedRange<TKey>& /*keys*/)
+    const TSharedRange<TLegacyKey>& /*keys*/)
 {
     YT_ABORT();
 }

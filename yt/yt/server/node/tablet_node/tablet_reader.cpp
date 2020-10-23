@@ -133,7 +133,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
-    std::vector<TOwningKey> boundaries;
+    std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(stores.size());
     for (const auto& store : stores) {
         boundaries.push_back(store->GetMinKey());
@@ -166,8 +166,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
 ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
+    TLegacyOwningKey lowerBound,
+    TLegacyOwningKey upperBound,
     TTimestamp /*timestamp*/,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NConcurrency::IThroughputThrottlerPtr throttler)
@@ -283,8 +283,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
 ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
+    TLegacyOwningKey lowerBound,
+    TLegacyOwningKey upperBound,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NConcurrency::IThroughputThrottlerPtr throttler)
@@ -317,7 +317,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TPartitionSnapshotPtr partitionSnapshot,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRowBufferPtr rowBuffer,
@@ -379,7 +379,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
 ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NConcurrency::IThroughputThrottlerPtr throttler)
@@ -394,14 +394,14 @@ ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     }
 
     std::vector<TPartitionSnapshotPtr> partitions;
-    std::vector<TSharedRange<TKey>> partitionedKeys;
+    std::vector<TSharedRange<TLegacyKey>> partitionedKeys;
     auto currentIt = keys.Begin();
     while (currentIt != keys.End()) {
         auto nextPartitionIt = std::upper_bound(
             tabletSnapshot->PartitionList.begin(),
             tabletSnapshot->PartitionList.end(),
             *currentIt,
-            [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
+            [] (TLegacyKey lhs, const TPartitionSnapshotPtr& rhs) {
                 return lhs < rhs->PivotKey;
             });
         YT_VERIFY(nextPartitionIt != tabletSnapshot->PartitionList.begin());
@@ -449,8 +449,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
 IVersionedReaderPtr CreateVersionedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     std::vector<ISortedStorePtr> stores,
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
+    TLegacyOwningKey lowerBound,
+    TLegacyOwningKey upperBound,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
@@ -491,7 +491,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         false,
         false);
 
-    std::vector<TOwningKey> boundaries;
+    std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(stores.size());
     for (const auto& store : stores) {
         boundaries.push_back(store->GetMinKey());

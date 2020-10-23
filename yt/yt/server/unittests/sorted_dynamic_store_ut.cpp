@@ -166,7 +166,7 @@ protected:
 
     TSortedDynamicRowWithLock DeleteRow(
         TTransaction* transaction,
-        const TOwningKey& key,
+        const TLegacyOwningKey& key,
         bool prelock)
     {
         TWriteContext context;
@@ -179,7 +179,7 @@ protected:
         return TSortedDynamicRowWithLock(dynamicRow, lockMask);
     }
 
-    TTimestamp DeleteRow(const TOwningKey& key)
+    TTimestamp DeleteRow(const TLegacyOwningKey& key)
     {
         auto transaction = StartTransaction();
         auto row = DeleteRow(transaction.get(), key, true);
@@ -193,7 +193,7 @@ protected:
         return ts;
     }
 
-    TSortedDynamicRowWithLock DeleteRowNonAtomic(const TOwningKey& key, TTimestamp timestamp)
+    TSortedDynamicRowWithLock DeleteRowNonAtomic(const TLegacyOwningKey& key, TTimestamp timestamp)
     {
         TWriteContext context;
         context.Phase = EWritePhase::Commit;
@@ -203,12 +203,12 @@ protected:
         return Store_->ModifyRow(key, lockMask, true, &context);
     }
 
-    TUnversionedOwningRow LookupRow(const TOwningKey& key, TTimestamp timestamp)
+    TUnversionedOwningRow LookupRow(const TLegacyOwningKey& key, TTimestamp timestamp)
     {
         return TSortedDynamicStoreTestBase::LookupRow(Store_, key, timestamp);
     }
 
-    TSortedDynamicRowWithLock LookupDynamicRow(const TOwningKey& key)
+    TSortedDynamicRowWithLock LookupDynamicRow(const TLegacyOwningKey& key)
     {
         return Store_->FindRow(key);
     }
@@ -220,7 +220,7 @@ protected:
             Store_->GetLastWriteTimestamp(row, lockIndex));
     }
 
-    TTimestamp GetLastCommitTimestamp(const TOwningKey& key, int lockIndex = PrimaryLockIndex)
+    TTimestamp GetLastCommitTimestamp(const TLegacyOwningKey& key, int lockIndex = PrimaryLockIndex)
     {
         auto row = LookupDynamicRow(key);
         EXPECT_TRUE(row);

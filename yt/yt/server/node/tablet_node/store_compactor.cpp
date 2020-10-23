@@ -1125,7 +1125,7 @@ private:
             stores.push_back(std::move(typedStore));
         }
 
-        std::vector<TOwningKey> pivotKeys;
+        std::vector<TLegacyOwningKey> pivotKeys;
         for (const auto& partition : tablet->PartitionList()) {
             if (!partition->GetTablet()->GetConfig()->EnablePartitionSplitWhileEdenPartitioning &&
                 partition->GetState() == EPartitionState::Splitting)
@@ -1285,8 +1285,8 @@ private:
         const IVersionedReaderPtr& reader,
         const TTabletSnapshotPtr& tabletSnapshot,
         const ITransactionPtr& transaction,
-        const std::vector<TOwningKey>& pivotKeys,
-        const TOwningKey& nextTabletPivotKey,
+        const std::vector<TLegacyOwningKey>& pivotKeys,
+        const TLegacyOwningKey& nextTabletPivotKey,
         NLogging::TLogger Logger)
     {
         auto writerConfig = CloneYsonSerializable(tabletSnapshot->WriterConfig);
@@ -1299,8 +1299,8 @@ private:
         writeRows.reserve(MaxRowsPerWrite);
 
         int currentPartitionIndex = 0;
-        TOwningKey currentPivotKey;
-        TOwningKey nextPivotKey;
+        TLegacyOwningKey currentPivotKey;
+        TLegacyOwningKey nextPivotKey;
 
         int currentPartitionRowCount = 0;
         int readRowCount = 0;

@@ -689,7 +689,7 @@ protected:
     }
 
     ISchemalessChunkReaderPtr LookupRows(
-        TSharedRange<TKey> keys,
+        TSharedRange<TLegacyKey> keys,
         const TKeyColumns& keyColumns)
     {
         auto options = New<TChunkReaderOptions>();

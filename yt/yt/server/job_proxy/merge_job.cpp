@@ -125,7 +125,7 @@ public:
                 options,
                 nameTable,
                 schema,
-                TOwningKey(),
+                TLegacyOwningKey(),
                 Host_->GetClient(),
                 CellTagFromId(chunkListId),
                 transactionId,

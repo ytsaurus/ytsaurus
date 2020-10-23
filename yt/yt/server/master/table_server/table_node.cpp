@@ -377,8 +377,8 @@ void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
 }
 
 std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTableNode::GetIntersectingTablets(
-    const TOwningKey& minKey,
-    const TOwningKey& maxKey)
+    const TLegacyOwningKey& minKey,
+    const TLegacyOwningKey& maxKey)
 {
     auto* trunkNode = GetTrunkNode();
 
@@ -386,7 +386,7 @@ std::pair<TTableNode::TTabletListIterator, TTableNode::TTabletListIterator> TTab
         trunkNode->Tablets().cbegin(),
         trunkNode->Tablets().cend(),
         minKey,
-        [] (const TOwningKey& key, const TTablet* tablet) {
+        [] (const TLegacyOwningKey& key, const TTablet* tablet) {
             return key < tablet->GetPivotKey();
         });
 

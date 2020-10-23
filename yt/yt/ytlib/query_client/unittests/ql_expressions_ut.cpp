@@ -216,7 +216,7 @@ protected:
     { }
 
     TConstExpressionPtr Eliminate(
-        std::vector<TOwningKey>& lookupKeys,
+        std::vector<TLegacyOwningKey>& lookupKeys,
         TConstExpressionPtr expr,
         const TKeyColumns& keyColumns)
     {
@@ -245,7 +245,7 @@ TEST_P(TEliminateLookupPredicateTest, Simple)
     Deserialize(tableSchema, ConvertToNode(TYsonString(schemaString)));
     Deserialize(keyColumns, ConvertToNode(TYsonString(keyString)));
 
-    std::vector<TOwningKey> keys;
+    std::vector<TLegacyOwningKey> keys;
     TString keysString;
     for (const auto& keyString : keyStrings) {
         keys.push_back(YsonToKey(keyString));

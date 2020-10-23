@@ -18,7 +18,7 @@ struct TSampleKeyListTag
 struct TSampleKeyList
     : public TRefCounted
 {
-    TSharedRange<TKey> Keys;
+    TSharedRange<TLegacyKey> Keys;
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -32,8 +32,8 @@ struct TPartitionSnapshot
     : public TRefCounted
 {
     TPartitionId Id;
-    TOwningKey PivotKey;
-    TOwningKey NextPivotKey;
+    TLegacyOwningKey PivotKey;
+    TLegacyOwningKey NextPivotKey;
     TSampleKeyListPtr SampleKeys;
     std::vector<ISortedStorePtr> Stores;
 };
@@ -50,8 +50,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTablet*, Tablet);
     DEFINE_BYVAL_RW_PROPERTY(int, Index);
 
-    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
-    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, PivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, NextPivotKey);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<ISortedStorePtr>, Stores);
 
@@ -65,15 +65,15 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CompactionTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AllowedSplitTime);
 
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TOwningKey>, PivotKeysForImmediateSplit);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TLegacyOwningKey>, PivotKeysForImmediateSplit);
 
 public:
     TPartition(
         TTablet* tablet,
         TPartitionId id,
         int index,
-        TOwningKey pivotKey = TOwningKey(),
-        TOwningKey nextPivotKey = TOwningKey());
+        TLegacyOwningKey pivotKey = TLegacyOwningKey(),
+        TLegacyOwningKey nextPivotKey = TLegacyOwningKey());
 
     void CheckedSetState(EPartitionState oldState, EPartitionState newState);
 
@@ -94,7 +94,7 @@ public:
     void StartEpoch();
     void StopEpoch();
 
-    void RequestImmediateSplit(std::vector<TOwningKey> pivotKeys);
+    void RequestImmediateSplit(std::vector<TLegacyOwningKey> pivotKeys);
     bool IsImmediateSplitRequested() const;
 };
 

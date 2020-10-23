@@ -99,13 +99,13 @@ public:
     // ISortedStoreManager overrides.
     virtual bool SplitPartition(
         int partitionIndex,
-        const std::vector<TOwningKey>& pivotKeys) override;
+        const std::vector<TLegacyOwningKey>& pivotKeys) override;
     virtual void MergePartitions(
         int firstPartitionIndex,
         int lastPartitionIndex) override;
     virtual void UpdatePartitionSampleKeys(
         TPartition* partition,
-        const TSharedRange<TKey>& keys) override;
+        const TSharedRange<TLegacyKey>& keys) override;
 
 private:
     const TTabletManagerConfigPtr Config_;

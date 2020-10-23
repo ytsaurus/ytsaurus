@@ -80,7 +80,7 @@ public:
 private:
     const TPartitionBalancerConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
-    
+
     const TAsyncSemaphorePtr Semaphore_;
     const TThrottlerManagerPtr ThrottlerManager_;
 
@@ -413,7 +413,7 @@ private:
                     sampleCount);
             }
 
-            std::vector<TKey> pivotKeys;
+            std::vector<TLegacyKey> pivotKeys;
             // Take the pivot of the partition.
             pivotKeys.push_back(partition->GetPivotKey());
             // And add |splitFactor - 1| more keys from samples.
@@ -454,7 +454,7 @@ private:
 
         auto* tablet = partition->GetTablet();
 
-        std::vector<TOwningKey> pivotKeys;
+        std::vector<TLegacyOwningKey> pivotKeys;
         pivotKeys.swap(partition->PivotKeysForImmediateSplit());
 
         const auto& hydraManager = slot->GetHydraManager();
@@ -605,7 +605,7 @@ private:
     }
 
 
-    std::vector<TKey> GetPartitionSamples(
+    std::vector<TLegacyKey> GetPartitionSamples(
         const TRowBufferPtr& rowBuffer,
         TTabletSlotPtr slot,
         TPartition* partition,
@@ -614,7 +614,7 @@ private:
         YT_VERIFY(!partition->IsEden());
 
         if (maxSampleCount == 0) {
-            return std::vector<TKey>();
+            return std::vector<TLegacyKey>();
         }
 
         auto Logger = BuildLogger(slot, partition);
@@ -680,7 +680,7 @@ private:
             addStores(tablet->GetEden()->Stores());
 
             if (req->subrequests_size() == 0) {
-                return std::vector<TKey>();
+                return std::vector<TLegacyKey>();
             }
 
             YT_LOG_INFO("Locating partition chunks (ChunkCount: %v)",
@@ -720,7 +720,7 @@ private:
 
         YT_LOG_DEBUG("Samples fetched");
 
-        std::vector<TKey> samples;
+        std::vector<TLegacyKey> samples;
         for (const auto& sample : samplesFetcher->GetSamples()) {
             YT_VERIFY(!sample.Incomplete);
             samples.push_back(sample.Key);
@@ -732,7 +732,7 @@ private:
             std::remove_if(
                 samples.begin(),
                 samples.end(),
-                [&] (TKey key) {
+                [&] (TLegacyKey key) {
                     return key <= partition->GetPivotKey() || key >= partition->GetNextPivotKey();
                 }),
             samples.end());

@@ -37,12 +37,12 @@ TReadLimit::TReadLimit(const std::unique_ptr<NProto::TReadLimit>& protoLimit)
     }
 }
 
-TReadLimit::TReadLimit(const TOwningKey& key)
+TReadLimit::TReadLimit(const TLegacyOwningKey& key)
 {
     SetKey(key);
 }
 
-TReadLimit::TReadLimit(TOwningKey&& key)
+TReadLimit::TReadLimit(TLegacyOwningKey&& key)
 {
     SetKey(std::move(key));
 }
@@ -84,7 +84,7 @@ const NProto::TReadLimit& TReadLimit::AsProto() const
     return ReadLimit_;
 }
 
-const TOwningKey& TReadLimit::GetKey() const
+const TLegacyOwningKey& TReadLimit::GetKey() const
 {
     YT_ASSERT(HasKey());
     return Key_;
@@ -95,14 +95,14 @@ bool TReadLimit::HasKey() const
     return ReadLimit_.has_key();
 }
 
-TReadLimit& TReadLimit::SetKey(const TOwningKey& key)
+TReadLimit& TReadLimit::SetKey(const TLegacyOwningKey& key)
 {
     Key_ = key;
     ToProto(ReadLimit_.mutable_key(), Key_);
     return *this;
 }
 
-TReadLimit& TReadLimit::SetKey(TOwningKey&& key)
+TReadLimit& TReadLimit::SetKey(TLegacyOwningKey&& key)
 {
     swap(Key_, key);
     ToProto(ReadLimit_.mutable_key(), Key_);
@@ -189,14 +189,14 @@ void TReadLimit::Persist(const TStreamPersistenceContext& context)
     Persist(context, Key_);
 }
 
-void TReadLimit::MergeLowerKey(const TOwningKey& key)
+void TReadLimit::MergeLowerKey(const TLegacyOwningKey& key)
 {
     if (!HasKey() || GetKey() < key) {
         SetKey(key);
     }
 }
 
-void TReadLimit::MergeUpperKey(const TOwningKey& key)
+void TReadLimit::MergeUpperKey(const TLegacyOwningKey& key)
 {
     if (!HasKey() || GetKey() > key) {
         SetKey(key);
@@ -364,7 +364,7 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
     readLimit = TReadLimit();
     auto attributes = ConvertToAttributes(node);
 
-    auto optionalKey = FindReadLimitComponent<TOwningKey>(attributes, "key");
+    auto optionalKey = FindReadLimitComponent<TLegacyOwningKey>(attributes, "key");
     if (optionalKey) {
         readLimit.SetKey(*optionalKey);
     }

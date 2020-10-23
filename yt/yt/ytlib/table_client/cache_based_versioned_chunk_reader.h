@@ -27,7 +27,7 @@ namespace NYT::NTableClient {
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& state,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions);

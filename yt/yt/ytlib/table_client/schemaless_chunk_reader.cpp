@@ -297,10 +297,10 @@ protected:
             YT_VERIFY(rowIndex <= upperRowIndex);
         }
 
-        auto lowerKey = lowerLimit.HasKey() ? lowerLimit.GetKey() : TOwningKey();
-        auto lastChunkKey = FromProto<TOwningKey>(blockMeta.blocks().rbegin()->last_key());
+        auto lowerKey = lowerLimit.HasKey() ? lowerLimit.GetKey() : TLegacyOwningKey();
+        auto lastChunkKey = FromProto<TLegacyOwningKey>(blockMeta.blocks().rbegin()->last_key());
         auto upperKey = upperLimit.HasKey() ? upperLimit.GetKey() : lastChunkKey;
-        TOwningKey firstUnreadKey;
+        TLegacyOwningKey firstUnreadKey;
         if (!unreadRows.Empty()) {
             firstUnreadKey = GetKeyPrefix(unreadRows[0], keyColumns.size());
         }
@@ -725,7 +725,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     int keyColumnCount = std::max(ChunkKeyColumnCount_, static_cast<int>(KeyColumns_.size()));
     CheckBlockUpperLimits(
         BlockMetaExt_->blocks(blockIndex).chunk_row_count(),
-        ChunkMeta_->BlockLastKeys() ? ChunkMeta_->BlockLastKeys()[blockIndex] : TKey(),
+        ChunkMeta_->BlockLastKeys() ? ChunkMeta_->BlockLastKeys()[blockIndex] : TLegacyKey(),
         ReadRange_.UpperLimit(),
         keyColumnCount);
 
@@ -839,7 +839,7 @@ public:
         const TKeyColumns& keyColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         std::optional<int> partitionTag = std::nullopt,
         const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
@@ -847,7 +847,7 @@ public:
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
 private:
-    const TSharedRange<TKey> Keys_;
+    const TSharedRange<TLegacyKey> Keys_;
     const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
     std::vector<bool> KeyFilterTest_;
 
@@ -873,7 +873,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     const TKeyColumns& keyColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager)
@@ -931,7 +931,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 
     for (const auto& key : Keys_) {
         TReadLimit readLimit;
-        readLimit.SetKey(TOwningKey(key));
+        readLimit.SetKey(TLegacyOwningKey(key));
 
         int index = ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), readLimit, KeyColumns_.size());
         if (index == BlockMetaExt_->blocks_size()) {
@@ -1604,20 +1604,20 @@ private:
         }
     }
 
-    std::vector<TKey> ReadKeys(i64 rowCount)
+    std::vector<TLegacyKey> ReadKeys(i64 rowCount)
     {
-        std::vector<TKey> keys;
+        std::vector<TLegacyKey> keys;
         for (i64 index = 0; index < rowCount; ++index) {
-            auto key = TMutableKey::Allocate(
+            auto key = TLegacyMutableKey::Allocate(
                 &Pool_,
                 KeyColumnReaders_.size());
             key.SetCount(KeyColumnReaders_.size());
             keys.push_back(key);
         }
 
-        auto keyRange = TMutableRange<TMutableKey>(
-            static_cast<TMutableKey*>(keys.data()),
-            static_cast<TMutableKey*>(keys.data() + rowCount));
+        auto keyRange = TMutableRange<TLegacyMutableKey>(
+            static_cast<TLegacyMutableKey*>(keys.data()),
+            static_cast<TLegacyMutableKey*>(keys.data() + rowCount));
 
         for (const auto& columnReader : KeyColumnReaders_) {
             columnReader->ReadValues(keyRange);
@@ -1695,7 +1695,7 @@ public:
         const TKeyColumns& keyColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         const TChunkReaderMemoryManagerPtr& memoryManager)
         : TSchemalessChunkReaderBase(
@@ -2042,7 +2042,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TKeyColumns& keyColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager)

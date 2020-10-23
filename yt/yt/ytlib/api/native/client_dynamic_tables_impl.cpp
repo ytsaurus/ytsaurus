@@ -314,7 +314,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
 IUnversionedRowsetPtr TClient::DoLookupRows(
     const TYPath& path,
     const TNameTablePtr& nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
+    const TSharedRange<NTableClient::TLegacyKey>& keys,
     const TLookupRowsOptions& options)
 {
     TEncoderWithMapping encoder = [] (
@@ -364,7 +364,7 @@ IUnversionedRowsetPtr TClient::DoLookupRows(
 IVersionedRowsetPtr TClient::DoVersionedLookupRows(
     const TYPath& path,
     const TNameTablePtr& nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
+    const TSharedRange<NTableClient::TLegacyKey>& keys,
     const TVersionedLookupRowsOptions& options)
 {
     TEncoderWithMapping encoder = [] (
@@ -420,7 +420,7 @@ template <class TRowset, class TRow>
 TRowset TClient::DoLookupRowsOnce(
     const TYPath& path,
     const TNameTablePtr& nameTable,
-    const TSharedRange<NTableClient::TKey>& keys,
+    const TSharedRange<NTableClient::TLegacyKey>& keys,
     const TLookupRowsOptionsBase& options,
     const std::optional<TString>& retentionConfig,
     TEncoderWithMapping encoderWithMapping,
@@ -459,7 +459,7 @@ TRowset TClient::DoLookupRowsOnce(
     }
 
     // NB: The server-side requires the keys to be sorted.
-    std::vector<std::pair<NTableClient::TKey, int>> sortedKeys;
+    std::vector<std::pair<NTableClient::TLegacyKey, int>> sortedKeys;
     sortedKeys.reserve(keys.Size());
 
     struct TLookupRowsInputBufferTag
@@ -506,7 +506,7 @@ TRowset TClient::DoLookupRowsOnce(
     {
         NObjectClient::TObjectId TabletId;
         NHydra::TRevision MountRevision = NHydra::NullRevision;
-        std::vector<TKey> Keys;
+        std::vector<TLegacyKey> Keys;
         size_t OffsetInResult;
 
         TQueryServiceProxy::TRspMultireadPtr Response;
@@ -527,7 +527,7 @@ TRowset TClient::DoLookupRowsOnce(
             itemsBegin,
             itemsEnd,
             tableInfo->LowerCapBound.Get(),
-            [&] (const auto& item, TKey pivot) {
+            [&] (const auto& item, TLegacyKey pivot) {
                 return CompareRows(item.first, pivot, keySize) < 0;
             });
 
@@ -535,7 +535,7 @@ TRowset TClient::DoLookupRowsOnce(
             itemsBegin,
             itemsEnd,
             tableInfo->UpperCapBound.Get(),
-            [&] (TKey pivot, const auto& item) {
+            [&] (TLegacyKey pivot, const auto& item) {
                 return CompareRows(pivot, item.first, keySize) < 0;
             });
 
@@ -548,7 +548,7 @@ TRowset TClient::DoLookupRowsOnce(
                 nextShardIt,
                 tableInfo->Tablets.end(),
                 itemsIt->first,
-                [&] (TKey key, const TTabletInfoPtr& tabletInfo) {
+                [&] (TLegacyKey key, const TTabletInfoPtr& tabletInfo) {
                     return CompareRows(key, tabletInfo->PivotKey.Get(), keySize) < 0;
                 });
 
@@ -562,7 +562,7 @@ TRowset TClient::DoLookupRowsOnce(
                 itemsIt,
                 itemsEnd,
                 nextPivotKey.Get(),
-                [&] (const auto& item, TKey pivot) {
+                [&] (const auto& item, TLegacyKey pivot) {
                     return CompareRows(item.first, pivot) < 0;
                 });
 
@@ -583,7 +583,7 @@ TRowset TClient::DoLookupRowsOnce(
                 inMemory = startShard->IsInMemory();
             }
 
-            std::vector<TKey> rows;
+            std::vector<TLegacyKey> rows;
             rows.reserve(endItemsIt - itemsIt);
 
             while (itemsIt != endItemsIt) {
@@ -1165,7 +1165,7 @@ TTableYPathProxy::TReqReshardPtr TClient::MakeYPathReshardRequest(
 
 void TClient::DoReshardTableWithPivotKeys(
     const TYPath& path,
-    const std::vector<TOwningKey>& pivotKeys,
+    const std::vector<TLegacyOwningKey>& pivotKeys,
     const TReshardTableOptions& options)
 {
     auto req = MakeReshardRequest(options);

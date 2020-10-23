@@ -37,7 +37,7 @@ TTableSchemaPtr GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
         dataSplit.chunk_meta().extensions()));
 }
 
-TOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
+TLegacyOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
 {
     if (dataSplit.has_lower_limit()) {
         auto readLimit = FromProto<TReadLimit>(dataSplit.lower_limit());
@@ -47,7 +47,7 @@ TOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
     }
 }
 
-TOwningKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
+TLegacyOwningKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
 {
     if (dataSplit.has_upper_limit()) {
         auto readLimit = FromProto<TReadLimit>(dataSplit.upper_limit());
@@ -88,7 +88,7 @@ void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema)
         ToProto<TTableSchemaExt>(tableSchema));
 }
 
-void SetLowerBound(TDataSplit* dataSplit, const TOwningKey & lowerBound)
+void SetLowerBound(TDataSplit* dataSplit, const TLegacyOwningKey & lowerBound)
 {
     if (lowerBound == MinKey()) {
         dataSplit->clear_lower_limit();
@@ -99,7 +99,7 @@ void SetLowerBound(TDataSplit* dataSplit, const TOwningKey & lowerBound)
     ToProto(dataSplit->mutable_lower_limit(), readLimit);
 }
 
-void SetUpperBound(TDataSplit* dataSplit, const TOwningKey & upperBound)
+void SetUpperBound(TDataSplit* dataSplit, const TLegacyOwningKey & upperBound)
 {
     if (upperBound == MaxKey()) {
         dataSplit->clear_upper_limit();

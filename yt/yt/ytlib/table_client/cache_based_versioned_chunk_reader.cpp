@@ -54,8 +54,8 @@ class TChunkLookupHashTable
 {
 public:
     explicit TChunkLookupHashTable(size_t size);
-    virtual void Insert(TKey key, std::pair<ui16, ui32> index) override;
-    virtual SmallVector<std::pair<ui16, ui32>, 1> Find(TKey key) const override;
+    virtual void Insert(TLegacyKey key, std::pair<ui16, ui32> index) override;
+    virtual SmallVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
     virtual size_t GetByteSize() const override;
 
 private:
@@ -196,7 +196,7 @@ protected:
     //! Returns |false| on EOF.
     virtual bool DoRead(std::vector<TVersionedRow>* rows) = 0;
 
-    int GetBlockIndex(TKey key)
+    int GetBlockIndex(TLegacyKey key)
     {
         const auto& blockIndexKeys = ChunkState_->ChunkMeta->BlockLastKeys();
 
@@ -207,7 +207,7 @@ protected:
             rbegin,
             rend,
             key,
-            [&] (TKey pivot, TKey indexKey) {
+            [&] (TLegacyKey pivot, TLegacyKey indexKey) {
                 return ChunkState_->KeyComparer(pivot, indexKey) > 0;
             });
 
@@ -392,7 +392,7 @@ class TCacheBasedSimpleVersionedLookupChunkReader
 public:
     TCacheBasedSimpleVersionedLookupChunkReader(
         const TChunkStatePtr& chunkState,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions)
@@ -405,7 +405,7 @@ public:
     { }
 
 private:
-    const TSharedRange<TKey> Keys_;
+    const TSharedRange<TLegacyKey> Keys_;
 
     int KeyIndex_ = 0;
 
@@ -430,7 +430,7 @@ private:
         return KeyIndex_ < Keys_.Size();
     }
 
-    TVersionedRow Lookup(TKey key)
+    TVersionedRow Lookup(TLegacyKey key)
     {
         if (this->ChunkState_->LookupHashTable) {
             return LookupWithHashTable(key);
@@ -439,7 +439,7 @@ private:
         }
     }
 
-    TVersionedRow LookupWithHashTable(TKey key)
+    TVersionedRow LookupWithHashTable(TLegacyKey key)
     {
         auto indices = this->ChunkState_->LookupHashTable->Find(key);
         for (auto index : indices) {
@@ -461,7 +461,7 @@ private:
         return TVersionedRow();
     }
 
-    TVersionedRow LookupWithoutHashTable(TKey key)
+    TVersionedRow LookupWithoutHashTable(TLegacyKey key)
     {
         // FIXME(savrus): Use bloom filter here.
         auto cmpMinKey = this->ChunkState_->KeyComparer(key, this->ChunkState_->ChunkMeta->MinKey());
@@ -490,7 +490,7 @@ private:
 IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     const TChunkStatePtr& chunkState,
     const TClientBlockReadOptions& blockReadOptions,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions)
@@ -576,8 +576,8 @@ public:
     { }
 
 private:
-    TKey LowerBound_;
-    TKey UpperBound_;
+    TLegacyKey LowerBound_;
+    TLegacyKey UpperBound_;
 
     TSharedRange<TRowRange> Ranges_;
     size_t RangeIndex_ = 0;

@@ -174,7 +174,7 @@ i64 TColumnarChunkReaderBase::GetSegmentIndex(const TColumn& column, i64 rowInde
     return std::distance(columnMeta.segments().begin(), it);
 }
 
-i64 TColumnarChunkReaderBase::GetLowerRowIndex(TKey key) const
+i64 TColumnarChunkReaderBase::GetLowerRowIndex(TLegacyKey key) const
 {
     YT_VERIFY(ChunkMeta_);
     auto it = std::lower_bound(
@@ -322,7 +322,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
                 nextBlockSegmentIndex < columnMeta.segments_size() &&
                 columnMeta.segments(nextBlockSegmentIndex).block_index() == blockIndex)
             {
-                ++nextBlockSegmentIndex;    
+                ++nextBlockSegmentIndex;
             }
 
             const auto& lastBlockSegment = columnMeta.segments(nextBlockSegmentIndex - 1);

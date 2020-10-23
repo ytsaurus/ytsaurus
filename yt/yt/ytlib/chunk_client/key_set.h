@@ -16,7 +16,7 @@ class TKeySetWriter
     : public TRefCounted
 {
 public:
-    int WriteKey(const NTableClient::TKey& key);
+    int WriteKey(const NTableClient::TLegacyKey& key);
     int WriteValueRange(TRange<NTableClient::TUnversionedValue> key);
 
     TSharedRef Finish();
@@ -35,11 +35,11 @@ class TKeySetReader
 public:
     TKeySetReader(const TSharedRef& compressedData);
 
-    TRange<NTableClient::TKey> GetKeys() const;
+    TRange<NTableClient::TLegacyKey> GetKeys() const;
 
 private:
     NTableClient::TWireProtocolReader WireProtocolReader_;
-    std::vector<NTableClient::TKey> Keys_;
+    std::vector<NTableClient::TLegacyKey> Keys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

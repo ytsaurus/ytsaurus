@@ -75,13 +75,13 @@ public:
     // ISortedStoreManager overrides.
     virtual bool SplitPartition(
         int partitionIndex,
-        const std::vector<TOwningKey>& pivotKeys) override;
+        const std::vector<TLegacyOwningKey>& pivotKeys) override;
     virtual void MergePartitions(
         int firstPartitionIndex,
         int lastPartitionIndex) override;
     virtual void UpdatePartitionSampleKeys(
         TPartition* partition,
-        const TSharedRange<TKey>& keys) override;
+        const TSharedRange<TLegacyKey>& keys) override;
 
     virtual bool IsOverflowRotationNeeded() const override;
     virtual TError CheckOverflow() const override;
@@ -89,7 +89,7 @@ public:
 private:
     struct TBoundaryDescriptor
     {
-        TOwningKey Key;
+        TLegacyOwningKey Key;
         int Type;
         int DescriptorIndex;
         i64 DataSize;
@@ -124,7 +124,7 @@ private:
         std::vector<ISortedStorePtr> addedStores);
     void DoSplitPartition(
         int partitionIndex,
-        const std::vector<TOwningKey>& pivotKeys);
+        const std::vector<TLegacyOwningKey>& pivotKeys);
     void DoMergePartitions(
         int firstPartitionIndex,
         int lastPartitionIndex);
@@ -143,13 +143,13 @@ private:
 
     // COMPAT(akozhikhov)
     void BuildPivotKeysBeforeGiantTabletProblem(
-        std::vector<TOwningKey>* pivotKeys,
+        std::vector<TLegacyOwningKey>* pivotKeys,
         const std::vector<TBoundaryDescriptor>& chunkBoundaries);
     void BuildPivotKeysBeforeChunkViewsForPivots(
-        std::vector<TOwningKey>* pivotKeys,
+        std::vector<TLegacyOwningKey>* pivotKeys,
         const std::vector<TBoundaryDescriptor>& chunkBoundaries);
     void BuildPivotKeys(
-        std::vector<TOwningKey>* pivotKeys,
+        std::vector<TLegacyOwningKey>* pivotKeys,
         const std::vector<TBoundaryDescriptor>& chunkBoundaries);
 };
 

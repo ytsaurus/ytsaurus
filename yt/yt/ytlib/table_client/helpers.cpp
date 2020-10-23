@@ -259,13 +259,13 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
     return result;
 }
 
-std::pair<TOwningKey, TOwningKey> GetChunkBoundaryKeys(
+std::pair<TLegacyOwningKey, TLegacyOwningKey> GetChunkBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     int keyColumnCount)
 {
     auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkMeta.extensions());
-    auto minKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), keyColumnCount);
-    auto maxKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), keyColumnCount);
+    auto minKey = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt.min()), keyColumnCount);
+    auto maxKey = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt.max()), keyColumnCount);
     return std::make_pair(minKey, maxKey);
 }
 

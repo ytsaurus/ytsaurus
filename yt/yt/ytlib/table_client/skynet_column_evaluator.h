@@ -43,7 +43,7 @@ private:
     i64 NextPartIndex_ = 0;
 
     TUnversionedRow LastKey_;
-    TOwningKey LastKeyHolder_;
+    TLegacyOwningKey LastKeyHolder_;
 
     std::unique_ptr<TSkynetHashState> HashState_;
 

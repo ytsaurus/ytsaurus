@@ -295,7 +295,7 @@ TFuture<void> TClient::UnfreezeTable(
 
 TFuture<void> TClient::ReshardTable(
     const TYPath& path,
-    const std::vector<TOwningKey>& pivotKeys,
+    const std::vector<TLegacyOwningKey>& pivotKeys,
     const TReshardTableOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -454,7 +454,7 @@ TFuture<TYsonString> TClient::GetTablePivotKeys(
 TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TGetInSyncReplicasOptions& options)
 {
     auto proxy = CreateApiServiceProxy();

@@ -288,7 +288,7 @@ void ValidateDuplicateAndRequiredValueColumns(
     const TTimestamp* writeTimestamps,
     int writeTimestampCount);
 
-TOwningKey RowToKey(TVersionedRow row);
+TLegacyOwningKey RowToKey(TVersionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 

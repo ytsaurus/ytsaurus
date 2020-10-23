@@ -128,7 +128,7 @@ protected:
         return Format("%05d", key);
     }
 
-    TOwningKey KeyWithValue(i64 key)
+    TLegacyOwningKey KeyWithValue(i64 key)
     {
         TUnversionedOwningRowBuilder builder;
         builder.AddValue(MakeUnversionedStringValue(FormatKey(key)));

@@ -87,7 +87,7 @@ protected:
 
     NChunkClient::TBlockFetcher::TBlockInfo CreateBlockInfo(int blockIndex) const;
     i64 GetSegmentIndex(const TColumn& column, i64 rowIndex) const;
-    i64 GetLowerRowIndex(TKey key) const;
+    i64 GetLowerRowIndex(TLegacyKey key) const;
 
     //! Returns |true| if block sampling is enabled and all sampling ranges have been read.
     bool IsSamplingCompleted() const;
@@ -137,7 +137,7 @@ public:
     using TColumnarChunkReaderBase::TColumnarChunkReaderBase;
 
 protected:
-    TSharedRange<TKey> Keys_;
+    TSharedRange<TLegacyKey> Keys_;
     std::vector<i64> RowIndexes_;
     i64 NextKeyIndex_ = 0;
 

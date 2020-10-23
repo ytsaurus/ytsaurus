@@ -681,7 +681,7 @@ bool IsEmpty(const TChunkTree* chunkTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
+TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
 {
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
@@ -690,7 +690,7 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyCo
             chunk->GetId());
     }
 
-    auto key = FromProto<TOwningKey>(optionalBoundaryKeysExt->max());
+    auto key = FromProto<TLegacyOwningKey>(optionalBoundaryKeysExt->max());
     if (!keyColumnCount || *keyColumnCount == key.GetCount()) {
         return GetKeySuccessor(key);
     } else if (*keyColumnCount < key.GetCount()) {
@@ -702,7 +702,7 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyCo
     }
 }
 
-TOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView, std::optional<int> keyColumnCount)
+TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView, std::optional<int> keyColumnCount)
 {
     auto chunkUpperBound = GetUpperBoundKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
     const auto& upperLimit = chunkView->ReadRange().UpperLimit();
@@ -724,7 +724,7 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView, std::optional<in
     }
 }
 
-TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount)
+TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute upper bound key in chunk list %v since it contains no chunks",
@@ -766,7 +766,7 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optional<in
     }
 }
 
-TOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
+TLegacyOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
 {
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
@@ -775,7 +775,7 @@ TOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCou
             chunk->GetId());
     }
 
-    auto minKey = FromProto<TOwningKey>(optionalBoundaryKeysExt->min());
+    auto minKey = FromProto<TLegacyOwningKey>(optionalBoundaryKeysExt->min());
     if (!keyColumnCount || *keyColumnCount == minKey.GetCount()) {
         return minKey;
     } else if (*keyColumnCount < minKey.GetCount()) {
@@ -785,7 +785,7 @@ TOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCou
     }
 }
 
-TOwningKey GetMinKey(const TChunkView* chunkView, std::optional<int> keyColumnCount)
+TLegacyOwningKey GetMinKey(const TChunkView* chunkView, std::optional<int> keyColumnCount)
 {
     auto chunkMinKey = GetMinKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
     const auto& lowerLimit = chunkView->ReadRange().LowerLimit();
@@ -807,7 +807,7 @@ TOwningKey GetMinKey(const TChunkView* chunkView, std::optional<int> keyColumnCo
     }
 }
 
-TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount)
+TLegacyOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute min key in chunk list %v since it contains no chunks",
@@ -849,7 +849,7 @@ TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyC
     }
 }
 
-TOwningKey GetMaxKeyOrThrow(const TChunk* chunk)
+TLegacyOwningKey GetMaxKeyOrThrow(const TChunk* chunk)
 {
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
@@ -858,10 +858,10 @@ TOwningKey GetMaxKeyOrThrow(const TChunk* chunk)
             chunk->GetId());
     }
 
-    return FromProto<TOwningKey>(optionalBoundaryKeysExt->max());
+    return FromProto<TLegacyOwningKey>(optionalBoundaryKeysExt->max());
 }
 
-TOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree)
+TLegacyOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute max key in chunk list %v since it contains no chunks",

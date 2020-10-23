@@ -86,7 +86,7 @@ void Deserialize(TOwningBoundaryKeys& keys, const INodePtr& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FindBoundaryKeys(const TChunkMeta& chunkMeta, TOwningKey* minKey, TOwningKey* maxKey)
+bool FindBoundaryKeys(const TChunkMeta& chunkMeta, TLegacyOwningKey* minKey, TLegacyOwningKey* maxKey)
 {
     auto boundaryKeys = FindProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
     if (!boundaryKeys) {

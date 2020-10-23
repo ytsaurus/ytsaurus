@@ -44,7 +44,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);
-    Key_ = TMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
+    Key_ = TLegacyMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
 
     for (int index = 0; index < KeyColumnCount_; ++index) {
         auto& value = Key_[index];
@@ -107,7 +107,7 @@ bool TSimpleVersionedBlockReader::SkipToRowIndex(i64 rowIndex)
     return JumpToRowIndex(rowIndex);
 }
 
-bool TSimpleVersionedBlockReader::SkipToKey(TKey key)
+bool TSimpleVersionedBlockReader::SkipToKey(TLegacyKey key)
 {
     YT_VERIFY(!Closed_);
 
@@ -453,7 +453,7 @@ TTimestamp TSimpleVersionedBlockReader::ReadValueTimestamp(int valueIndex)
     return *reinterpret_cast<const TTimestamp*>(ptr + 8);
 }
 
-TKey TSimpleVersionedBlockReader::GetKey() const
+TLegacyKey TSimpleVersionedBlockReader::GetKey() const
 {
     return Key_;
 }
@@ -500,12 +500,12 @@ bool THorizontalSchemalessVersionedBlockReader::SkipToRowIndex(i64 rowIndex)
     return UnderlyingReader_->JumpToRowIndex(rowIndex);
 }
 
-bool THorizontalSchemalessVersionedBlockReader::SkipToKey(TKey key)
+bool THorizontalSchemalessVersionedBlockReader::SkipToKey(TLegacyKey key)
 {
     return UnderlyingReader_->SkipToKey(key);
 }
 
-TKey THorizontalSchemalessVersionedBlockReader::GetKey() const
+TLegacyKey THorizontalSchemalessVersionedBlockReader::GetKey() const
 {
     return UnderlyingReader_->GetKey();
 }

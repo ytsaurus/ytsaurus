@@ -490,7 +490,7 @@ void FromProto(NTabletClient::TTabletInfo* tabletInfo, const NProto::TTabletInfo
         FromProto<TTabletId>(protoTabletInfo.tablet_id());
     tabletInfo->MountRevision = protoTabletInfo.mount_revision();
     tabletInfo->State = CheckedEnumCast<ETabletState>(protoTabletInfo.state());
-    tabletInfo->PivotKey = FromProto<NTableClient::TOwningKey>(protoTabletInfo.pivot_key());
+    tabletInfo->PivotKey = FromProto<NTableClient::TLegacyOwningKey>(protoTabletInfo.pivot_key());
     if (protoTabletInfo.has_cell_id()) {
         tabletInfo->CellId = FromProto<TTabletCellId>(protoTabletInfo.cell_id());
     }
@@ -1455,7 +1455,7 @@ TTableSchemaPtr DeserializeRowsetSchema(
             columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
         }
     }
-    
+
     auto schema = New<TTableSchema>(std::move(columns));
     ValidateColumnUniqueness(*schema);
     return schema;

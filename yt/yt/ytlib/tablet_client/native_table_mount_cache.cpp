@@ -322,7 +322,7 @@ private:
 
                 if (tableInfo->IsSorted()) {
                     // Take the actual pivot from master response.
-                    tabletInfo->PivotKey = FromProto<TOwningKey>(protoTabletInfo.pivot_key());
+                    tabletInfo->PivotKey = FromProto<TLegacyOwningKey>(protoTabletInfo.pivot_key());
                 } else {
                     // Synthesize a fake pivot key.
                     TUnversionedOwningRowBuilder builder(1);

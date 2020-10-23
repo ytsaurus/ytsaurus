@@ -14,9 +14,9 @@ NObjectClient::TObjectId GetObjectIdFromDataSplit(const TDataSplit& dataSplit);
 
 TTableSchemaPtr GetTableSchemaFromDataSplit(const TDataSplit& dataSplit);
 
-TOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit);
+TLegacyOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit);
 
-TOwningKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit);
+TLegacyOwningKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit);
 
 TKeyRange GetBothBoundsFromDataSplit(const TDataSplit& dataSplit);
 
@@ -28,9 +28,9 @@ void SetObjectId(TDataSplit* dataSplit, NObjectClient::TObjectId objectId);
 
 void SetTableSchema(TDataSplit* dataSplit, const TTableSchema& tableSchema);
 
-void SetLowerBound(TDataSplit* dataSplit, const TOwningKey & lowerBound);
+void SetLowerBound(TDataSplit* dataSplit, const TLegacyOwningKey & lowerBound);
 
-void SetUpperBound(TDataSplit* dataSplit, const TOwningKey & upperBound);
+void SetUpperBound(TDataSplit* dataSplit, const TLegacyOwningKey & upperBound);
 
 void SetBothBounds(TDataSplit* dataSplit, const TKeyRange& keyRange);
 

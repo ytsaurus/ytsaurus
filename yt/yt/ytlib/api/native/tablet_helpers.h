@@ -62,7 +62,7 @@ NTabletClient::TTabletInfoPtr GetOrderedTabletForRow(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     const NTabletClient::TTabletInfoPtr& randomTabletInfo,
     std::optional<int> tabletIndexColumnId,
-    NTableClient::TKey key,
+    NTableClient::TLegacyKey key,
     bool validateWrite = false);
 
 ////////////////////////////////////////////////////////////////////////////////

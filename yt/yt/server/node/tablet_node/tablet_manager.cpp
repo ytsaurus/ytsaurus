@@ -912,8 +912,8 @@ private:
         auto tableId = FromProto<TObjectId>(request->table_id());
         const auto& path = request->path();
         auto schema = FromProto<TTableSchemaPtr>(request->schema());
-        auto pivotKey = request->has_pivot_key() ? FromProto<TOwningKey>(request->pivot_key()) : TOwningKey();
-        auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TOwningKey>(request->next_pivot_key()) : TOwningKey();
+        auto pivotKey = request->has_pivot_key() ? FromProto<TLegacyOwningKey>(request->pivot_key()) : TLegacyOwningKey();
+        auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TLegacyOwningKey>(request->next_pivot_key()) : TLegacyOwningKey();
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);
         auto readerConfig = DeserializeTabletChunkReaderConfig(TYsonString(request->reader_config()), tabletId);
         auto writerConfig = DeserializeTabletChunkWriterConfig(TYsonString(request->writer_config()), tabletId);
@@ -1896,7 +1896,7 @@ private:
         auto partitionId = FromProto<TPartitionId>(request->partition_id());
         auto* partition = tablet->GetPartition(partitionId);
 
-        auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
+        auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
 
         int partitionIndex = partition->GetIndex();
         i64 partitionDataSize = partition->GetCompressedDataSize();
@@ -3283,7 +3283,7 @@ private:
                 fluent
                     .Item("immediate_split_keys").DoListFor(
                         partition->PivotKeysForImmediateSplit(),
-                        [&] (TFluentList fluent, const TOwningKey& key)
+                        [&] (TFluentList fluent, const TLegacyOwningKey& key)
                     {
                         fluent
                             .Item().Value(key);

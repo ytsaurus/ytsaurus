@@ -47,7 +47,7 @@ protected:
     // all the logic inside sorted chunk pool does not depend on
     // actual type of values in keys.
     // TODO(max42): extract to common helper base.
-    TKey BuildRow(std::vector<i64> values)
+    TLegacyKey BuildRow(std::vector<i64> values)
     {
         auto row = RowBuffer_->AllocateUnversioned(values.size());
         for (int index = 0; index < values.size(); ++index) {
@@ -58,8 +58,8 @@ protected:
 
     // TODO(max42): extract to common helper base.
     TInputChunkPtr CreateChunk(
-        const TKey& minBoundaryKey = TKey(),
-        const TKey& maxBoundaryKey = TKey(),
+        const TLegacyKey& minBoundaryKey = TLegacyKey(),
+        const TLegacyKey& maxBoundaryKey = TLegacyKey(),
         i64 rowCount = 1000,
         i64 size = 1_KB)
     {
@@ -69,8 +69,8 @@ protected:
         inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);
         inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys {
-            TOwningKey(minBoundaryKey),
-            TOwningKey(maxBoundaryKey)
+            TLegacyOwningKey(minBoundaryKey),
+            TLegacyOwningKey(maxBoundaryKey)
         });
         inputChunk->SetTotalRowCount(rowCount);
         return inputChunk;

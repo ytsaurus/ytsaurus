@@ -128,14 +128,14 @@ using TTabletInternalProfilerTrait = TTagListProfilerTrait<TTabletCounters>;
 
 std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
 TTabletSnapshot::GetIntersectingPartitions(
-    const TKey& lowerBound,
-    const TKey& upperBound)
+    const TLegacyKey& lowerBound,
+    const TLegacyKey& upperBound)
 {
     auto beginIt = std::upper_bound(
         PartitionList.begin(),
         PartitionList.end(),
         lowerBound,
-        [] (const TKey& key, const TPartitionSnapshotPtr& partition) {
+        [] (const TLegacyKey& key, const TPartitionSnapshotPtr& partition) {
             return key < partition->PivotKey;
         });
 
@@ -151,13 +151,13 @@ TTabletSnapshot::GetIntersectingPartitions(
     return std::make_pair(beginIt, endIt);
 }
 
-TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TKey key)
+TPartitionSnapshotPtr TTabletSnapshot::FindContainingPartition(TLegacyKey key)
 {
     auto it = std::upper_bound(
         PartitionList.begin(),
         PartitionList.end(),
         key,
-        [] (TKey key, const TPartitionSnapshotPtr& partition) {
+        [] (TLegacyKey key, const TPartitionSnapshotPtr& partition) {
             return key < partition->PivotKey;
         });
 
@@ -418,8 +418,8 @@ TTablet::TTablet(
     const TYPath& path,
     ITabletContext* context,
     TTableSchemaPtr schema,
-    TOwningKey pivotKey,
-    TOwningKey nextPivotKey,
+    TLegacyOwningKey pivotKey,
+    TLegacyOwningKey nextPivotKey,
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
     TTableReplicaId upstreamReplicaId,
@@ -824,10 +824,10 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
         PartitionList_[firstIndex]->GetPivotKey(),
         PartitionList_[lastIndex]->GetNextPivotKey());
 
-    std::vector<TKey> mergedSampleKeys;
+    std::vector<TLegacyKey> mergedSampleKeys;
     auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
 
-    std::vector<TOwningKey> immediateSplitKeys;
+    std::vector<TLegacyOwningKey> immediateSplitKeys;
     int immediateSplitKeyCount = 0;
     for (int index = firstIndex; index <= lastIndex; ++index) {
         immediateSplitKeyCount += PartitionList_[index]->PivotKeysForImmediateSplit().size();
@@ -874,7 +874,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     UpdateOverlappingStoreCount();
 }
 
-void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys)
+void TTablet::SplitPartition(int index, const std::vector<TLegacyOwningKey>& pivotKeys)
 {
     YT_VERIFY(IsPhysicallySorted());
 
@@ -913,7 +913,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
 
         YT_VERIFY(sampleKeyIndex >= existingSampleKeys.Size() || existingSampleKeys[sampleKeyIndex] > thisPivotKey);
 
-        std::vector<TKey> sampleKeys;
+        std::vector<TLegacyKey> sampleKeys;
         auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
 
         while (sampleKeyIndex < existingSampleKeys.Size() && existingSampleKeys[sampleKeyIndex] < nextPivotKey) {
@@ -934,7 +934,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
             }
 
             if (lastKeyIndex != immediateSplitKeyIndex) {
-                std::vector<TOwningKey> immediateSplitKeys;
+                std::vector<TLegacyOwningKey> immediateSplitKeys;
                 immediateSplitKeys.reserve(lastKeyIndex - immediateSplitKeyIndex + 1);
 
                 immediateSplitKeys.push_back(thisPivotKey);
@@ -973,8 +973,8 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
 }
 
 TPartition* TTablet::GetContainingPartition(
-    const TOwningKey& minKey,
-    const TOwningKey& upperBoundKey)
+    const TLegacyOwningKey& minKey,
+    const TLegacyOwningKey& upperBoundKey)
 {
     YT_VERIFY(IsPhysicallySorted());
 
@@ -982,7 +982,7 @@ TPartition* TTablet::GetContainingPartition(
         PartitionList_.begin(),
         PartitionList_.end(),
         minKey,
-        [] (const TOwningKey& key, const std::unique_ptr<TPartition>& partition) {
+        [] (const TLegacyOwningKey& key, const std::unique_ptr<TPartition>& partition) {
             return key < partition->GetPivotKey();
         });
 
@@ -1469,7 +1469,7 @@ void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
 
 int TTablet::ComputeEdenOverlappingStoreCount() const
 {
-    std::map<TOwningKey, int> keyMap;
+    std::map<TLegacyOwningKey, int> keyMap;
     for (const auto& store : Eden_->Stores()) {
         ++keyMap[store->GetMinKey()];
         --keyMap[store->GetUpperBoundKey()];

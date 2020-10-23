@@ -1175,7 +1175,7 @@ public:
 
     std::optional<bool> EnableKeyGuarantee;
 
-    std::vector<NTableClient::TOwningKey> PivotKeys;
+    std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
 
     bool ValidateKeyColumnTypes;
 
@@ -1266,7 +1266,7 @@ public:
 
     std::optional<i64> DataWeightPerSortedJob;
 
-    std::vector<NTableClient::TOwningKey> PivotKeys;
+    std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
 
     TSortOperationSpecBase();
 

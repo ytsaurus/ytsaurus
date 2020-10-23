@@ -287,7 +287,7 @@ void ToAny(TRowBuffer* context, TUnversionedValue* result, TUnversionedValue* va
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintTo(const TOwningKey& key, ::std::ostream* os);
+void PrintTo(const TLegacyOwningKey& key, ::std::ostream* os);
 void PrintTo(const TUnversionedValue& value, ::std::ostream* os);
 void PrintTo(const TUnversionedRow& value, ::std::ostream* os);
 

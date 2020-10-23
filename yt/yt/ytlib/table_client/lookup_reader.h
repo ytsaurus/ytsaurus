@@ -24,7 +24,7 @@ struct ILookupReader
         // TODO(akozhikhov): change TClientBlockReadOptions type name,
         // because now it also provides options for lookups.
         const NChunkClient::TClientBlockReadOptions& options,
-        TSharedRange<TKey> lookupKeys,
+        TSharedRange<TLegacyKey> lookupKeys,
         NCypressClient::TObjectId tableId,
         NHydra::TRevision revision,
         NTableClient::TTableSchemaPtr tableSchema,
@@ -45,7 +45,7 @@ DEFINE_REFCOUNTED_TYPE(ILookupReader)
 IVersionedReaderPtr CreateRowLookupReader(
     ILookupReaderPtr underlyingReader,
     NChunkClient::TClientBlockReadOptions blockReadOptions,
-    TSharedRange<TKey> lookupKeys,
+    TSharedRange<TLegacyKey> lookupKeys,
     TTabletSnapshotPtr tabletSnapshot,
     TColumnFilter columnFilter,
     TTimestamp timestamp,

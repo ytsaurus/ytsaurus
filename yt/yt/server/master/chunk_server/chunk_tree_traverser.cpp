@@ -733,7 +733,7 @@ protected:
                 rend,
                 lowerBound.GetKey(),
                 // isLess
-                [keyColumnCount = KeyColumnCount_] (const TOwningKey& key, const TChunkTree* chunkTree) {
+                [keyColumnCount = KeyColumnCount_] (const TLegacyOwningKey& key, const TChunkTree* chunkTree) {
                     return key > GetUpperBoundKeyOrThrow(chunkTree, keyColumnCount);
                 },
                 // isMissing
@@ -815,7 +815,7 @@ protected:
                 chunkList->Children().begin(),
                 chunkList->Children().end(),
                 lowerBound.GetKey(),
-                [] (const TOwningKey& key, const TChunkTree* chunkTree) {
+                [] (const TLegacyOwningKey& key, const TChunkTree* chunkTree) {
                     // NB: It's OK here without key widening: even in case of key_column_count=2 and pivot_key=[0],
                     // widening to [0, Null] will have no effect as there are no real keys between [0] and [0, Null].
                     return key < chunkTree->AsChunkList()->GetPivotKey();

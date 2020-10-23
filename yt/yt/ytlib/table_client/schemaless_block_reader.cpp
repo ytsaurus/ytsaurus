@@ -30,7 +30,7 @@ THorizontalBlockReader::THorizontalBlockReader(
     keyColumnCount = std::max(KeyColumnCount_, ChunkKeyColumnCount_);
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);
-    Key_ = TMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
+    Key_ = TLegacyMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
 
     for (int index = 0; index < KeyColumnCount_; ++index) {
         Key_[index] = MakeUnversionedSentinelValue(EValueType::Null, index);
@@ -64,7 +64,7 @@ bool THorizontalBlockReader::SkipToRowIndex(i64 rowIndex)
     return JumpToRowIndex(rowIndex);
 }
 
-bool THorizontalBlockReader::SkipToKey(const TKey key)
+bool THorizontalBlockReader::SkipToKey(const TLegacyKey key)
 {
     if (GetKey() >= key) {
         // We are already further than pivot key.
@@ -82,7 +82,7 @@ bool THorizontalBlockReader::SkipToKey(const TKey key)
     return JumpToRowIndex(index);
 }
 
-TKey THorizontalBlockReader::GetKey() const
+TLegacyKey THorizontalBlockReader::GetKey() const
 {
     return Key_;
 }

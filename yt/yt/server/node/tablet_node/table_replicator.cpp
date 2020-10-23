@@ -880,7 +880,7 @@ private:
         *result = replicationRow.ToTypeErasedRow();
     }
 
-    static TOwningKey MakeRowBound(i64 rowIndex)
+    static TLegacyOwningKey MakeRowBound(i64 rowIndex)
     {
         return MakeUnversionedOwningRow(
             -1, // tablet id, fake

@@ -916,7 +916,7 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
     auto rowBuffer = New<TRowBuffer>(TDeleteRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
     auto keyRange = MakeSharedRange(
-        std::vector<TKey>(capturedKeys.begin(), capturedKeys.end()),
+        std::vector<TLegacyKey>(capturedKeys.begin(), capturedKeys.end()),
         std::move(rowBuffer));
 
     // Run deletes.
@@ -975,7 +975,7 @@ void TLockRowsCommand::DoExecute(ICommandContextPtr context)
     auto rowBuffer = New<TRowBuffer>(TLockRowsBufferTag());
     auto capturedKeys = rowBuffer->Capture(keys);
     auto keyRange = MakeSharedRange(
-        std::vector<TKey>(capturedKeys.begin(), capturedKeys.end()),
+        std::vector<TLegacyKey>(capturedKeys.begin(), capturedKeys.end()),
         std::move(rowBuffer));
 
     // Run locks.

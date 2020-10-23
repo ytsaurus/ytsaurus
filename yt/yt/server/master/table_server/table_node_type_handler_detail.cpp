@@ -119,7 +119,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     auto optionalTabletCount = combinedAttributes->FindAndRemove<int>("tablet_count");
-    auto optionalPivotKeys = combinedAttributes->FindAndRemove<std::vector<TOwningKey>>("pivot_keys");
+    auto optionalPivotKeys = combinedAttributes->FindAndRemove<std::vector<TLegacyOwningKey>>("pivot_keys");
     if (optionalTabletCount && optionalPivotKeys) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"tablet_count\" and \"pivot_keys\"");
     }

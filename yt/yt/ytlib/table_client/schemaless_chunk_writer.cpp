@@ -264,7 +264,7 @@ protected:
     i64 DataWeightSinceLastBlockFlush_ = 0;
 
     const TEncodingChunkWriterPtr EncodingChunkWriter_;
-    TOwningKey LastKey_;
+    TLegacyOwningKey LastKey_;
 
     NProto::TBlockMetaExt BlockMetaExt_;
 
@@ -447,7 +447,7 @@ private:
         }
 
         auto lastRow = rows.Back();
-        LastKey_ = TOwningKey(lastRow.Begin(), lastRow.Begin() + Schema_->GetKeyColumnCount());
+        LastKey_ = TLegacyOwningKey(lastRow.Begin(), lastRow.Begin() + Schema_->GetKeyColumnCount());
     }
 
     void EmitSample(TUnversionedRow row)
@@ -988,7 +988,7 @@ public:
         TChunkListId parentChunkListId,
         TNameTablePtr nameTable,
         TTableSchemaPtr schema,
-        TOwningKey lastKey,
+        TLegacyOwningKey lastKey,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
@@ -1138,7 +1138,7 @@ protected:
 
 private:
     TUnversionedOwningRowBuilder KeyBuilder_;
-    TOwningKey LastKey_;
+    TLegacyOwningKey LastKey_;
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
 
@@ -1290,18 +1290,18 @@ public:
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
         : TSchemalessMultiChunkWriterBase(
-            config,
-            options,
-            client,
-            cellTag,
-            transactionId,
-            parentChunkListId,
-            nameTable,
-            schema,
-            TOwningKey(),
-            trafficMeter,
-            throttler,
-            blockCache)
+        config,
+        options,
+        client,
+        cellTag,
+        transactionId,
+        parentChunkListId,
+        nameTable,
+        schema,
+        TLegacyOwningKey(),
+        trafficMeter,
+        throttler,
+        blockCache)
         , Partitioner_(partitioner)
         , BlockReserveSize_(std::max(Config_->MaxBufferSize / Partitioner_->GetPartitionCount() / 2, i64(1)))
     {
@@ -1535,7 +1535,7 @@ public:
         std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
         TTableSchemaPtr schema,
-        TOwningKey lastKey,
+        TLegacyOwningKey lastKey,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
@@ -1609,7 +1609,7 @@ public:
         std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
         TTableSchemaPtr schema,
-        TOwningKey lastKey,
+        TLegacyOwningKey lastKey,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache)
@@ -1847,7 +1847,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
     TTableSchemaPtr schema,
-    TOwningKey lastKey,
+    TLegacyOwningKey lastKey,
     NNative::IClientPtr client,
     TCellTag cellTag,
     TTransactionId transactionId,
@@ -2205,7 +2205,7 @@ private:
 
         StartListenTransaction(UploadTransaction_);
 
-        TOwningKey writerLastKey;
+        TLegacyOwningKey writerLastKey;
         TChunkListId chunkListId;
 
         {
@@ -2227,10 +2227,10 @@ private:
 
             const auto& rsp = rspOrError.Value();
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-            auto lastKey = FromProto<TOwningKey>(rsp->last_key());
+            auto lastKey = FromProto<TLegacyOwningKey>(rsp->last_key());
             if (lastKey) {
                 YT_VERIFY(lastKey.GetCount() >= TableUploadOptions_.TableSchema->GetKeyColumnCount());
-                writerLastKey = TOwningKey(
+                writerLastKey = TLegacyOwningKey(
                     lastKey.Begin(),
                     lastKey.Begin() + TableUploadOptions_.TableSchema->GetKeyColumnCount());
             }

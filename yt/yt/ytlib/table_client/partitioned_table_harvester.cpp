@@ -116,7 +116,7 @@ public:
             .Run();
     }
 
-    void FilterPartitions(std::function<bool(TKey, TKey)> predicate)
+    void FilterPartitions(std::function<bool(TLegacyKey, TLegacyKey)> predicate)
     {
         for (auto& partitionState : GetValidPartitionStates()) {
             if (!predicate(partitionState.ExtendedMinKey, partitionState.ExtendedMaxKey)) {
@@ -604,7 +604,7 @@ TFuture<void> TPartitionedTableHarvester::Prepare()
     return Impl_->Prepare();
 }
 
-void TPartitionedTableHarvester::FilterPartitions(std::function<bool(TKey, TKey)> predicate)
+void TPartitionedTableHarvester::FilterPartitions(std::function<bool(TLegacyKey, TLegacyKey)> predicate)
 {
     return Impl_->FilterPartitions(std::move(predicate));
 }
