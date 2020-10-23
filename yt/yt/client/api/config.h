@@ -196,7 +196,7 @@ public:
     TJournalWriterConfig()
     {
         RegisterParameter("max_batch_delay", MaxBatchDelay)
-            .Default(TDuration::MilliSeconds(10));
+            .Default(TDuration::MilliSeconds(5));
         RegisterParameter("max_batch_data_size", MaxBatchDataSize)
             .Default(16_MB);
         RegisterParameter("max_batch_row_count", MaxBatchRowCount)

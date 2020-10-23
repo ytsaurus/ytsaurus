@@ -841,6 +841,10 @@ public:
 
         RegisterParameter("tablet_snapshot_eviction_timeout", TabletSnapshotEvictionTimeout)
             .Default(TDuration::Seconds(5));
+
+        RegisterPreprocessor([&] {
+            HydraManager->MaxCommitBatchDelay = TDuration::MilliSeconds(5);
+        });
     }
 };
 
