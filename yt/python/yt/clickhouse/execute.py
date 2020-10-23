@@ -95,7 +95,7 @@ def execute(query, alias=None, raw=None, format=None, settings=None, client=None
     logging_params = {
         "headers": hide_auth_headers(headers),
         "request_id": request_id,
-        "query": query,
+        "query": query.encode("utf-8"),
     }
 
     logger.debug("Perform HTTP post request %s (%s)",
