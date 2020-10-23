@@ -46,6 +46,9 @@ struct TReaderBuffer
     ui32 TableIndex = 0;
     ui64 FirstRowIndex = 0;
     i64 SeqNum = 0;
+
+    // Currently used only in ordered reader.
+    int ThreadIndex = -1;
 };
 
 template <typename T>
@@ -284,14 +287,24 @@ template <typename TRow>
 class TReadManagerBase
 {
 public:
+    struct TThreadData
+    {
+        TReadManagerBase* Self;
+        int ThreadIndex;
+    };
+
     TReadManagerBase(ITableReaderFactoryPtr<TRow> factory, int threadCount)
         : Factory_(std::move(factory))
         , RunningThreadCount_(threadCount)
     {
+        ThreadData_.reserve(threadCount);
         for (int i = 0; i < threadCount; ++i) {
             TString threadName = ::TStringBuilder() << "par_reader_" << i;
+            auto& data = ThreadData_.emplace_back();
+            data.Self = this;
+            data.ThreadIndex = i;
             Threads_.push_back(::MakeHolder<TThread>(
-                TThread::TParams(ReaderThread, this).SetName(threadName)));
+                TThread::TParams(ReaderThread, &data).SetName(threadName)));
         }
     }
 
@@ -328,14 +341,14 @@ public:
 
 private:
     virtual TReaderBufferPtr<TRow> DoGetNextFilledBuffer() = 0;
-    virtual bool ProcessEntry(TReaderEntry<TRow> entry) = 0;
+    virtual bool ProcessEntry(TReaderEntry<TRow> entry, int threadIndex) = 0;
     virtual void DoStop() = 0;
 
-    void ReaderThread()
+    void ReaderThread(int threadIndex)
     {
         try {
             while (auto entry = Factory_->GetNextEntry()) {
-                if (!ProcessEntry(std::move(*entry))) {
+                if (!ProcessEntry(std::move(*entry), threadIndex)) {
                     break;
                 }
             }
@@ -360,13 +373,15 @@ private:
 
     static void* ReaderThread(void* opaque)
     {
-        static_cast<TReadManagerBase<TRow>*>(opaque)->ReaderThread();
+        auto& data = *static_cast<TThreadData*>(opaque);
+        data.Self->ReaderThread(data.ThreadIndex);
         return nullptr;
     }
 
 private:
     const ITableReaderFactoryPtr<TRow> Factory_;
 
+    TVector<TThreadData> ThreadData_;
     TVector<THolder<TThread>> Threads_;
 
     TMutex Lock_;
@@ -407,7 +422,7 @@ public:
     }
 
 private:
-    bool ProcessEntry(TReaderEntry<TRow> entry) override
+    bool ProcessEntry(TReaderEntry<TRow> entry, int /* threadIndex */) override
     {
         const auto& reader = entry.Reader;
         while (reader->IsValid()) {
@@ -461,30 +476,25 @@ public:
                 options),
             config.ThreadCount)
         , Config_(config)
-        , BucketCount_(config.ThreadCount)
         , FilledBuffers_(0)
     {
-        auto batchCountPerBucket = Config_.BatchCount / BucketCount_ + 1;
-        for (int bucketIndex = 0; bucketIndex < BucketCount_; ++bucketIndex) {
+        auto batchCountPerThread = Config_.BatchCount / Config_.ThreadCount + 1;
+        for (int threadIndex = 0; threadIndex < Config_.ThreadCount; ++threadIndex) {
             auto& bufferQueue = EmptyBuffers_.emplace_back(::MakeHolder<TQueue>(0));
-            for (int j = 0; j < batchCountPerBucket; ++j) {
-                bufferQueue->Push(MakeIntrusive<TReaderBuffer<TRow>>());
+            for (int j = 0; j < batchCountPerThread; ++j) {
+                auto buffer = MakeIntrusive<TReaderBuffer<TRow>>();
+                buffer->ThreadIndex = threadIndex;
+                bufferQueue->Push(std::move(buffer));
             }
         }
     }
 
     void OnBufferDrained(TReaderBufferPtr<TRow> buffer) override
     {
-        auto bucketIndex = GetBucketIndex(buffer->SeqNum);
-        EmptyBuffers_[bucketIndex]->Push(std::move(buffer));
+        EmptyBuffers_[buffer->ThreadIndex]->Push(std::move(buffer));
     }
 
 private:
-    int GetBucketIndex(i64 seqNum) const
-    {
-        return seqNum % EmptyBuffers_.size();
-    }
-
     TReaderBufferPtr<TRow> DoGetNextFilledBuffer() override
     {
         while (FilledBuffersOrdered_.empty() || FilledBuffersOrdered_.top()->SeqNum != CurrentSeqNum_) {
@@ -502,13 +512,12 @@ private:
         return buffer;
     }
 
-    bool ProcessEntry(TReaderEntry<TRow> entry) override
+    bool ProcessEntry(TReaderEntry<TRow> entry, int threadIndex) override
     {
         const auto& reader = entry.Reader;
         auto seqNum = entry.SeqNum;
-        auto bucketIndex = GetBucketIndex(seqNum);
         while (reader->IsValid()) {
-            auto buffer = EmptyBuffers_[bucketIndex]->Pop().GetOrElse(nullptr);
+            auto buffer = EmptyBuffers_[threadIndex]->Pop().GetOrElse(nullptr);
             if (!buffer) {
                 return false;
             }
@@ -516,7 +525,7 @@ private:
             buffer->TableIndex = entry.TableIndex;
             buffer->FirstRowIndex = reader->GetRowIndex();
             ReadRows(reader, Config_.BatchSize, buffer->Rows);
-            seqNum += BucketCount_;
+            seqNum += Config_.ThreadCount;
             if (!FilledBuffers_.Push(std::move(buffer))) {
                 return false;
             }
@@ -536,7 +545,6 @@ private:
 
 private:
     const TOrderedReadManagerConfig Config_;
-    const int BucketCount_;
 
     TDuration WaitTime_;
 
