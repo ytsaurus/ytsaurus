@@ -143,7 +143,7 @@ public:
                 ENodeRole::TimestampProvider,
                 BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
             CreateTimestampProviderChannel(timestampProviderConfig, ChannelFactory_);
-        TimestampProvider_ = CreateRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
+        TimestampProvider_ = CreateBatchingRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
