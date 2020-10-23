@@ -157,11 +157,22 @@ def _set_none_safe(conf, key, value):
         conf.set(key, value)
 
 
-def _configure_python(python_cluster_paths):
-    python_version = "%d.%d" % sys.version_info[:2]
-    if python_version not in python_cluster_paths:
-        raise RuntimeError("Python version {} is not supported".format(python_version))
-    os.environ["PYSPARK_PYTHON"] = python_cluster_paths[python_version]
+class Environment(object):
+    IS_CLUSTER_PYTHON_PATH = False
+
+    @staticmethod
+    def configure_python_path(python_cluster_paths):
+        python_version = "%d.%d" % sys.version_info[:2]
+        if python_version not in python_cluster_paths:
+            raise RuntimeError("Python version {} is not supported".format(python_version))
+        os.environ["PYSPARK_PYTHON"] = python_cluster_paths[python_version]
+        Environment.IS_CLUSTER_PYTHON_PATH = True
+
+    @staticmethod
+    def unset_python_path():
+        if Environment.IS_CLUSTER_PYTHON_PATH:
+            del(os.environ["PYSPARK_PYTHON"])
+            Environment.IS_CLUSTER_PYTHON_PATH = False
 
 
 def _read_local_conf(conf_path):
@@ -237,7 +248,7 @@ def _build_spark_conf(num_executors=None,
     set_conf(spark_conf, remote_conf["spark_conf"])
 
     if is_client_mode:
-        _configure_python(remote_conf["python_cluster_paths"])
+        Environment.configure_python_path(remote_conf["python_cluster_paths"])
 
     spark_cluster_conf = read_cluster_conf(spark_cluster_conf_path, client=client).get("spark_conf") or {}
     enablers = get_enablers_list(spark_cluster_conf)
@@ -293,7 +304,10 @@ def stop(spark, exception=None):
         lambda:  spark.stop(),
         lambda e1: _try_with_safe_finally(
             lambda: _shutdown_jvm(spark) if is_client_mode else _close_yt_client(spark),
-            lambda e2: _raise_first(exception, e1, e2),
+            lambda e2: _try_with_safe_finally(
+                lambda: Environment.unset_python_path(),
+                lambda e3: _raise_first(exception, e1, e2, e3)
+            )
         )
     )
 
