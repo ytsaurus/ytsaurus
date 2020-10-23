@@ -103,6 +103,11 @@ public:
                 return Table_;
             }
 
+            virtual void reset() override
+            {
+                Table_.reset();
+            }
+
         private:
             const std::vector<String> Paths_;
 
