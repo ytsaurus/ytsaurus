@@ -144,7 +144,7 @@ class TestClickhouseFromHost(ClickhouseTestBase):
     @authors("max42")
     def test_unicode_in_query(self):
         chyt.start_clique(1, alias="*f")
-        assert list(chyt.execute("select 'юникод' as s", "*f")) == [{"s": u"юникод"}]
+        assert list(chyt.execute(u"select 'юникод' as s", "*f")) == [{"s": u"юникод"}]
 
 
 @pytest.mark.usefixtures("yt_env")
