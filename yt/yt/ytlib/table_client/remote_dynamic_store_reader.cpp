@@ -453,7 +453,7 @@ public:
                 if (!rows->empty()) {
                     auto lastKey = rows->back();
                     YT_VERIFY(lastKey);
-                    LastKey_ = TOwningKey(lastKey.BeginKeys(), lastKey.EndKeys());
+                    LastKey_ = TLegacyOwningKey(lastKey.BeginKeys(), lastKey.EndKeys());
                 }
                 if (result) {
                     CurrentReader_->GetReadyEvent().Subscribe(
@@ -528,7 +528,7 @@ private:
     int RetryCount_ = 0;
     TInstant LastLocateRequestTimestamp_;
 
-    TOwningKey LastKey_;
+    TLegacyOwningKey LastKey_;
 
     TReadSessionId ReadSessionId_;
     NLogging::TLogger Logger;

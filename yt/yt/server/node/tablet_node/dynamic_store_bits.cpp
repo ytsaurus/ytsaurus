@@ -8,12 +8,12 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey RowToKey(
+TLegacyOwningKey RowToKey(
     const TTableSchema& schema,
     TSortedDynamicRow row)
 {
     if (!row) {
-        return TOwningKey();
+        return TLegacyOwningKey();
     }
 
     TUnversionedOwningRowBuilder builder;

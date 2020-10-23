@@ -209,7 +209,7 @@ public:
 
     virtual TFuture<TSharedRef> LookupRows(
         const TClientBlockReadOptions& options,
-        TSharedRange<TKey> lookupKeys,
+        TSharedRange<TLegacyKey> lookupKeys,
         TObjectId tableId,
         TRevision revision,
         TTableSchemaPtr tableSchema,
@@ -2069,7 +2069,7 @@ public:
     TLookupRowsSession(
         TReplicationReader* reader,
         const TClientBlockReadOptions& options,
-        TSharedRange<TKey> lookupKeys,
+        TSharedRange<TLegacyKey> lookupKeys,
         TObjectId tableId,
         TRevision revision,
         TTableSchemaPtr tableSchema,
@@ -2124,7 +2124,7 @@ public:
 private:
     using TLookupResponse = TIntrusivePtr<NRpc::TTypedClientResponse<NChunkClient::NProto::TRspLookupRows>>;
 
-    const TSharedRange<TKey> LookupKeys_;
+    const TSharedRange<TLegacyKey> LookupKeys_;
     const TObjectId TableId_;
     const TRevision Revision_;
     const TTableSchemaPtr TableSchema_;
@@ -2540,7 +2540,7 @@ private:
 
 TFuture<TSharedRef> TReplicationReader::LookupRows(
     const TClientBlockReadOptions& options,
-    TSharedRange<TKey> lookupKeys,
+    TSharedRange<TLegacyKey> lookupKeys,
     TObjectId tableId,
     TRevision revision,
     TTableSchemaPtr tableSchema,

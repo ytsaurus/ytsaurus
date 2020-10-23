@@ -31,10 +31,10 @@ protected:
 
     TUnversionedOwningRow LookupRow(
         ISortedStorePtr store,
-        const TOwningKey& key,
+        const TLegacyOwningKey& key,
         TTimestamp timestamp)
     {
-        std::vector<TKey> lookupKeys(1, key.Get());
+        std::vector<TLegacyKey> lookupKeys(1, key.Get());
         auto sharedLookupKeys = MakeSharedRange(std::move(lookupKeys), key);
         auto lookupReader = store->CreateReader(
             Tablet_->BuildSnapshot(nullptr),

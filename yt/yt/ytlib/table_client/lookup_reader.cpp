@@ -36,7 +36,7 @@ public:
     TRowLookupReader(
         ILookupReaderPtr underlyingReader,
         TClientBlockReadOptions blockReadOptions,
-        TSharedRange<TKey> lookupKeys,
+        TSharedRange<TLegacyKey> lookupKeys,
         TTabletSnapshotPtr tabletSnapshot,
         TColumnFilter columnFilter,
         TTimestamp timestamp,
@@ -129,7 +129,7 @@ public:
 private:
     const ILookupReaderPtr UnderlyingReader_;
     const TClientBlockReadOptions RowsReadOptions_;
-    const TSharedRange<TKey> LookupKeys_;
+    const TSharedRange<TLegacyKey> LookupKeys_;
     const TTabletSnapshotPtr TabletSnapshot_;
     const TColumnFilter ColumnFilter_;
     const TTimestamp Timestamp_;
@@ -200,7 +200,7 @@ private:
     void ProcessFetchedRowset(const TSharedRef& fetchedRowset)
     {
         CompressedDataSize_ += fetchedRowset.Size();
-        
+
         TWallTimer timer;
         auto uncompressedFetchedRowset = Codec_->Decompress(fetchedRowset);
         DecompressionTime_ += timer.GetElapsedValue();
@@ -234,7 +234,7 @@ private:
 IVersionedReaderPtr CreateRowLookupReader(
     ILookupReaderPtr underlyingReader,
     TClientBlockReadOptions blockReadOptions,
-    TSharedRange<TKey> lookupKeys,
+    TSharedRange<TLegacyKey> lookupKeys,
     TTabletSnapshotPtr tabletSnapshot,
     TColumnFilter columnFilter,
     TTimestamp timestamp,

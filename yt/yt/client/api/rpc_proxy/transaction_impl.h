@@ -76,12 +76,12 @@ public:
 
     virtual TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         const NYPath::TYPath& path, NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const NApi::TLookupRowsOptions& options) override;
 
     virtual TFuture<NApi::IVersionedRowsetPtr> VersionedLookupRows(
         const NYPath::TYPath& path, NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const NApi::TVersionedLookupRowsOptions& options) override;
 
     virtual TFuture<NApi::TSelectRowsResult> SelectRows(

@@ -23,14 +23,14 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingLookupReader(
     std::function<IVersionedReaderPtr()> readerFactory);
 
 ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingRangeReader(
-    const std::vector<TOwningKey>& boundaries,
+    const std::vector<TLegacyOwningKey>& boundaries,
     std::unique_ptr<TSchemafulRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
     int minConcurrency = DefaultMinConcurrency);
 
 IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
-    const std::vector<TOwningKey>& boundaries,
+    const std::vector<TLegacyOwningKey>& boundaries,
     std::unique_ptr<TVersionedRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,

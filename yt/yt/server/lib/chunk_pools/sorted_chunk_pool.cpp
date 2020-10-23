@@ -481,8 +481,8 @@ private:
             return;
         }
 
-        std::vector<TKey> lowerLimits, upperLimits;
-        THashMap<TKey, int> singleKeySliceNumber;
+        std::vector<TLegacyKey> lowerLimits, upperLimits;
+        THashMap<TLegacyKey, int> singleKeySliceNumber;
         std::vector<std::pair<TInputChunkPtr, IChunkPoolInput::TCookie>> teleportCandidates;
 
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {

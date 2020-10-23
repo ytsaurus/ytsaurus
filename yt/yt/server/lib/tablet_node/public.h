@@ -68,8 +68,8 @@ using NTransactionClient::AllCommittedTimestamp;
 using NTransactionClient::TTransactionActionData;
 
 using NTableClient::EValueType;
-using NTableClient::TKey;
-using NTableClient::TOwningKey;
+using NTableClient::TLegacyKey;
+using NTableClient::TLegacyOwningKey;
 using NTableClient::TUnversionedValue;
 using NTableClient::TVersionedValue;
 using NTableClient::TUnversionedRow;

@@ -52,9 +52,9 @@ public:
         auto cellIds = attributes->GetAndRemove<std::vector<TTabletCellId>>(
             "cell_ids",
             std::vector<TTabletCellId>());
-        auto pivotKeys = attributes->GetAndRemove<std::vector<TOwningKey>>(
+        auto pivotKeys = attributes->GetAndRemove<std::vector<TLegacyOwningKey>>(
             "pivot_keys",
-            std::vector<TOwningKey>());
+            std::vector<TLegacyOwningKey>());
         auto correlationId = attributes->GetAndRemove<TGuid>("correlation_id", TGuid{});
 
         TInstant expirationTime = TInstant::Zero();

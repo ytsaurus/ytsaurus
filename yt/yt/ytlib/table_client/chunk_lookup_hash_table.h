@@ -16,8 +16,8 @@ struct IChunkLookupHashTable
     : public virtual TRefCounted
 {
 public:
-    virtual void Insert(TKey key, std::pair<ui16, ui32> index) = 0;
-    virtual SmallVector<std::pair<ui16, ui32>, 1> Find(TKey key) const = 0;
+    virtual void Insert(TLegacyKey key, std::pair<ui16, ui32> index) = 0;
+    virtual SmallVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const = 0;
     virtual size_t GetByteSize() const = 0;
 };
 

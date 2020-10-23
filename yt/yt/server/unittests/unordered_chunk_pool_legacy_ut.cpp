@@ -253,16 +253,16 @@ protected:
             if (teleportChunksSet.contains(inputChunk)) {
                 continue;
             }
-            TKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasKey()
+            TLegacyKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasKey()
                 ? inputChunk->LowerLimit()->GetKey()
                 : inputChunk->BoundaryKeys()
                 ? inputChunk->BoundaryKeys()->MinKey
-                : TKey();
-            TKey chunkUpperKey = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasKey()
+                : TLegacyKey();
+            TLegacyKey chunkUpperKey = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasKey()
                 ? inputChunk->UpperLimit()->GetKey()
                 : inputChunk->BoundaryKeys()
                 ? GetKeySuccessor(inputChunk->BoundaryKeys()->MaxKey, RowBuffer_)
-                : TKey();
+                : TLegacyKey();
             i64 chunkLowerRowIndex = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasRowIndex()
                 ? inputChunk->LowerLimit()->GetRowIndex()
                 : 0;
@@ -270,8 +270,8 @@ protected:
                 ? inputChunk->UpperLimit()->GetRowIndex()
                 : inputChunk->GetRowCount();
 
-            TKey lastLowerKey;
-            TKey lastUpperKey = chunkLowerKey;
+            TLegacyKey lastLowerKey;
+            TLegacyKey lastUpperKey = chunkLowerKey;
             i64 lastLeftRowIndex = -1;
             i64 lastRightRowIndex = chunkLowerRowIndex;
             auto it = chunkSlicesByInputChunk.find(inputChunk);
@@ -281,8 +281,8 @@ protected:
             std::sort(chunkSlices.begin(), chunkSlices.end(), CompareChunkSlicesByLowerLimit);
 
             for (const auto& chunkSlice : chunkSlices) {
-                TKey chunkSliceLowerKey = chunkSlice->LowerLimit().Key;
-                TKey chunkSliceUpperKey = chunkSlice->UpperLimit().Key;
+                TLegacyKey chunkSliceLowerKey = chunkSlice->LowerLimit().Key;
+                TLegacyKey chunkSliceUpperKey = chunkSlice->UpperLimit().Key;
                 i64 chunkSliceLowerRowIndex = chunkSlice->LowerLimit().RowIndex
                     ? *chunkSlice->LowerLimit().RowIndex
                     : chunkLowerRowIndex;

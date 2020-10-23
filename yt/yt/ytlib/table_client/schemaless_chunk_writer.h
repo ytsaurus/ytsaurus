@@ -65,7 +65,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
     TTableSchemaPtr schema,
-    NTableClient::TOwningKey lastKey,
+    NTableClient::TLegacyOwningKey lastKey,
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,

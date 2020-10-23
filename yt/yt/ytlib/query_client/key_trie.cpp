@@ -215,7 +215,7 @@ TKeyTriePtr UniteKeyTrie(const std::vector<TKeyTriePtr>& tries)
     return result;
 }
 
-TKeyTriePtr TKeyTrie::FromLowerBound(const TOwningKey& bound)
+TKeyTriePtr TKeyTrie::FromLowerBound(const TLegacyOwningKey& bound)
 {
     auto result = TKeyTrie::Universal();
 
@@ -245,7 +245,7 @@ TKeyTriePtr TKeyTrie::FromLowerBound(const TOwningKey& bound)
     return result;
 }
 
-TKeyTriePtr TKeyTrie::FromUpperBound(const TOwningKey& bound)
+TKeyTriePtr TKeyTrie::FromUpperBound(const TLegacyOwningKey& bound)
 {
     auto result = TKeyTrie::Universal();
 

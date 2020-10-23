@@ -8,7 +8,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TKeySetWriter::WriteKey(const TKey& key)
+int TKeySetWriter::WriteKey(const TLegacyKey& key)
 {
     WireProtocolWriter_.WriteUnversionedRow(key);
     return Index_++;
@@ -36,7 +36,7 @@ TKeySetReader::TKeySetReader(const TSharedRef& compressedData)
     }
 }
 
-TRange<TKey> TKeySetReader::GetKeys() const
+TRange<TLegacyKey> TKeySetReader::GetKeys() const
 {
     return MakeRange(Keys_);
 }

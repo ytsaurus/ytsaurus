@@ -126,7 +126,7 @@ public:
         Insert(row.Begin(), dynamicRow);
     }
 
-    TSortedDynamicRow Find(TKey key) const
+    TSortedDynamicRow Find(TLegacyKey key) const
     {
         auto fingerprint = GetFarmFingerprint(key);
         SmallVector<ui64, 1> items;
@@ -646,8 +646,8 @@ public:
     }
 
 private:
-    TKey LowerBound_;
-    TKey UpperBound_;
+    TLegacyKey LowerBound_;
+    TLegacyKey UpperBound_;
     TSharedRange<TRowRange> Ranges_;
     size_t RangeIndex_ = 0;
     i64 RowCount_  = 0;
@@ -703,7 +703,7 @@ public:
     TLookupReader(
         TSortedDynamicStorePtr store,
         TTabletSnapshotPtr tabletSnapshot,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter)
@@ -797,7 +797,7 @@ public:
     }
 
 private:
-    const TSharedRange<TKey> Keys_;
+    const TSharedRange<TLegacyKey> Keys_;
     i64 RowCount_  = 0;
     i64 DataWeight_ = 0;
     bool Finished_ = false;
@@ -1342,7 +1342,7 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
     Unlock();
 }
 
-TSortedDynamicRow TSortedDynamicStore::FindRow(TKey key)
+TSortedDynamicRow TSortedDynamicStore::FindRow(TLegacyKey key)
 {
     auto it = Rows_->FindEqualTo(TKeyWrapper{key});
     return it.IsValid() ? it.GetCurrent() : TSortedDynamicRow();
@@ -1824,12 +1824,12 @@ i64 TSortedDynamicStore::GetTimestampCount() const
     return RevisionToTimestamp_.Size();
 }
 
-TOwningKey TSortedDynamicStore::GetMinKey() const
+TLegacyOwningKey TSortedDynamicStore::GetMinKey() const
 {
     return MinKey();
 }
 
-TOwningKey TSortedDynamicStore::GetUpperBoundKey() const
+TLegacyOwningKey TSortedDynamicStore::GetUpperBoundKey() const
 {
     return MaxKey();
 }
@@ -1855,7 +1855,7 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
 
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
@@ -2116,7 +2116,7 @@ i64 TSortedDynamicStore::GetMaxDataWeight() const
     return MaxDataWeight_;
 }
 
-TOwningKey TSortedDynamicStore::GetMaxDataWeightWitnessKey() const
+TLegacyOwningKey TSortedDynamicStore::GetMaxDataWeightWitnessKey() const
 {
     return RowToKey(MaxDataWeightWitness_);
 }

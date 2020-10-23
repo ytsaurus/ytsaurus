@@ -1138,13 +1138,13 @@ struct IClientBase
     virtual TFuture<IUnversionedRowsetPtr> LookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options = {}) = 0;
 
     virtual TFuture<IVersionedRowsetPtr> VersionedLookupRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options = {}) = 0;
 
     virtual TFuture<TSelectRowsResult> SelectRows(
@@ -1312,7 +1312,7 @@ struct IClient
 
     virtual TFuture<void> ReshardTable(
         const NYPath::TYPath& path,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const TReshardTableOptions& options = {}) = 0;
 
     virtual TFuture<void> ReshardTable(
@@ -1345,7 +1345,7 @@ struct IClient
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TGetInSyncReplicasOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<TTabletInfo>> GetTabletInfos(

@@ -247,15 +247,15 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FromBytes(std::vector<TOwningKey>* keys, TStringBuf bytes)
+void FromBytes(std::vector<TLegacyOwningKey>* keys, TStringBuf bytes)
 {
     TKeySetReader reader(TSharedRef::FromString(TString(bytes)));
     for (auto key : reader.GetKeys()) {
-        keys->push_back(TOwningKey(key));
+        keys->push_back(TLegacyOwningKey(key));
     }
 }
 
-void ToBytes(TString* bytes, const std::vector<TOwningKey>& keys)
+void ToBytes(TString* bytes, const std::vector<TLegacyOwningKey>& keys)
 {
     auto keySetWriter = New<TKeySetWriter>();
     for (const auto& key : keys) {
@@ -266,24 +266,24 @@ void ToBytes(TString* bytes, const std::vector<TOwningKey>& keys)
 }
 
 // TODO(gritukan): Why does not it compile without these helpers?
-void Serialize(const std::vector<TOwningKey>& keys, IYsonConsumer* consumer)
+void Serialize(const std::vector<TLegacyOwningKey>& keys, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
-        .DoListFor(keys, [] (TFluentList fluent, const TOwningKey& key) {
+        .DoListFor(keys, [] (TFluentList fluent, const TLegacyOwningKey& key) {
             Serialize(key, fluent.GetConsumer());
         });
 }
 
-void Deserialize(std::vector<TOwningKey>& keys, INodePtr node)
+void Deserialize(std::vector<TLegacyOwningKey>& keys, INodePtr node)
 {
     for (const auto& child : node->AsList()->GetChildren()) {
-        TOwningKey key;
+        TLegacyOwningKey key;
         Deserialize(key, child);
         keys.push_back(key);
     }
 }
 
-REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TPartitionJobSpecExt, /*wire_partition_keys*/8, std::vector<TOwningKey>)
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TPartitionJobSpecExt, /*wire_partition_keys*/8, std::vector<TLegacyOwningKey>)
 
 ////////////////////////////////////////////////////////////////////////////////
 

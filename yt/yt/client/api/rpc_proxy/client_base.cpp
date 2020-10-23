@@ -692,7 +692,7 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
 TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TLookupRowsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -729,7 +729,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
 TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TVersionedLookupRowsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();

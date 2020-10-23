@@ -139,8 +139,8 @@ struct TTabletSnapshot
     TTableMountConfigPtr Config;
     TTabletChunkWriterConfigPtr WriterConfig;
     TTabletWriterOptionsPtr WriterOptions;
-    TOwningKey PivotKey;
-    TOwningKey NextPivotKey;
+    TLegacyOwningKey PivotKey;
+    TLegacyOwningKey NextPivotKey;
     NTableClient::TTableSchemaPtr PhysicalSchema;
     NTableClient::TTableSchemaPtr QuerySchema;
     NTableClient::TSchemaData PhysicalSchemaData;
@@ -194,12 +194,12 @@ struct TTabletSnapshot
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
-        const TKey& lowerBound,
-        const TKey& upperBound);
+        const TLegacyKey& lowerBound,
+        const TLegacyKey& upperBound);
 
     //! Returns a partition possibly containing a given #key or
     //! |nullptr| is there's none.
-    TPartitionSnapshotPtr FindContainingPartition(TKey key);
+    TPartitionSnapshotPtr FindContainingPartition(TLegacyKey key);
 
     //! For sorted tablets only.
     //! This includes both regular and locked Eden stores.
@@ -360,8 +360,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<int>, ColumnIndexToLockIndex);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, LockIndexToName);
 
-    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, PivotKey);
-    DEFINE_BYVAL_RO_PROPERTY(TOwningKey, NextPivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, PivotKey);
+    DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, NextPivotKey);
 
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
 
@@ -414,8 +414,8 @@ public:
         const NYPath::TYPath& path,
         ITabletContext* context,
         NTableClient::TTableSchemaPtr schema,
-        TOwningKey pivotKey,
-        TOwningKey nextPivotKey,
+        TLegacyOwningKey pivotKey,
+        TLegacyOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::ECommitOrdering commitOrdering,
         NTabletClient::TTableReplicaId upstreamReplicaId,
@@ -447,10 +447,10 @@ public:
     TPartition* FindPartition(TPartitionId partitionId);
     TPartition* GetPartition(TPartitionId partitionId);
     void MergePartitions(int firstIndex, int lastIndex);
-    void SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys);
+    void SplitPartition(int index, const std::vector<TLegacyOwningKey>& pivotKeys);
     //! Finds a partition fully containing the range |[minKey, maxKey]|.
     //! Returns the Eden if no such partition exists.
-    TPartition* GetContainingPartition(const TOwningKey& minKey, const TOwningKey& maxKey);
+    TPartition* GetContainingPartition(const TLegacyOwningKey& minKey, const TLegacyOwningKey& maxKey);
 
     const THashMap<TStoreId, IStorePtr>& StoreIdMap() const;
     const std::map<i64, IOrderedStorePtr>& StoreRowIndexMap() const;

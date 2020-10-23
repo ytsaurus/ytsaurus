@@ -378,7 +378,7 @@ private:
     std::vector<TFuture<void>> CreateReadSessions(
         TReadSessionList* sessions,
         const std::vector<ISortedStorePtr>& stores,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         bool produceAllValues)
     {
         sessions->clear();
@@ -419,7 +419,7 @@ private:
             TabletSnapshot_->PartitionList.begin(),
             TabletSnapshot_->PartitionList.end(),
             **currentIt,
-            [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
+            [] (TLegacyKey lhs, const TPartitionSnapshotPtr& rhs) {
                 return lhs < rhs->PivotKey;
             });
         YT_VERIFY(nextPartitionIt != TabletSnapshot_->PartitionList.begin());

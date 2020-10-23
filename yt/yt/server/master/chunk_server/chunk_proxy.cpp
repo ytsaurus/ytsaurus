@@ -653,7 +653,7 @@ private:
                 auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
                 if (boundaryKeysExt) {
                     BuildYsonFluently(consumer)
-                        .Value(FromProto<TOwningKey>(boundaryKeysExt->min()));
+                        .Value(FromProto<TLegacyOwningKey>(boundaryKeysExt->min()));
                     return true;
                 }
                 break;
@@ -663,7 +663,7 @@ private:
                 auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunk->ChunkMeta().extensions());
                 if (boundaryKeysExt) {
                     BuildYsonFluently(consumer)
-                        .Value(FromProto<TOwningKey>(boundaryKeysExt->max()));
+                        .Value(FromProto<TLegacyOwningKey>(boundaryKeysExt->max()));
                     return true;
                 }
                 break;

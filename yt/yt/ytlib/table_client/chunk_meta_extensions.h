@@ -36,8 +36,8 @@ namespace NYT::NTableClient {
 
 struct TOwningBoundaryKeys
 {
-    TOwningKey MinKey;
-    TOwningKey MaxKey;
+    TLegacyOwningKey MinKey;
+    TLegacyOwningKey MaxKey;
 
     void Persist(const TStreamPersistenceContext& context);
 
@@ -56,8 +56,8 @@ void Deserialize(TOwningBoundaryKeys& key, const NYTree::INodePtr& node);
 
 bool FindBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    TOwningKey* minKey,
-    TOwningKey* maxKey);
+    TLegacyOwningKey* minKey,
+    TLegacyOwningKey* maxKey);
 
 std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta);

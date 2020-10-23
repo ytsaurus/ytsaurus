@@ -87,8 +87,8 @@ void TCachedVersionedChunkMeta::Init(
 
     auto boundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
     if (boundaryKeysExt) {
-        MinKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt->min()), GetKeyColumnCount());
-        MaxKey_ = WidenKey(FromProto<TOwningKey>(boundaryKeysExt->max()), GetKeyColumnCount());
+        MinKey_ = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt->min()), GetKeyColumnCount());
+        MaxKey_ = WidenKey(FromProto<TLegacyOwningKey>(boundaryKeysExt->max()), GetKeyColumnCount());
     }
 
     if (memoryTracker) {

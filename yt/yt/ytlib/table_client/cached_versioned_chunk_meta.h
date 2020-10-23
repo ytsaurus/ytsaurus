@@ -31,8 +31,8 @@ class TCachedVersionedChunkMeta
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::TChunkId, ChunkId);
-    DEFINE_BYREF_RO_PROPERTY(TOwningKey, MinKey);
-    DEFINE_BYREF_RO_PROPERTY(TOwningKey, MaxKey);
+    DEFINE_BYREF_RO_PROPERTY(TLegacyOwningKey, MinKey);
+    DEFINE_BYREF_RO_PROPERTY(TLegacyOwningKey, MaxKey);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
     DEFINE_BYVAL_RO_PROPERTY(int, ChunkKeyColumnCount);
     DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);

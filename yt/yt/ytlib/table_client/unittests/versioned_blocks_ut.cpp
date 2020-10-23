@@ -90,7 +90,7 @@ protected:
         Meta = block.Meta;
     }
 
-    TKeyComparer KeyComparer_ = [] (TKey lhs, TKey rhs) {
+    TKeyComparer KeyComparer_ = [] (TLegacyKey lhs, TLegacyKey rhs) {
         return CompareRows(lhs, rhs);
     };
 };

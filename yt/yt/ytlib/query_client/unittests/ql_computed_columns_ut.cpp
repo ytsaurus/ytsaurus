@@ -145,7 +145,7 @@ private:
         std::vector<TKeyRange> ranges;
 
         for (const auto& range : rowRanges) {
-            ranges.push_back(TKeyRange(TOwningKey(range.first), TOwningKey(range.second)));
+            ranges.push_back(TKeyRange(TLegacyOwningKey(range.first), TLegacyOwningKey(range.second)));
         }
 
         std::sort(ranges.begin(), ranges.end());

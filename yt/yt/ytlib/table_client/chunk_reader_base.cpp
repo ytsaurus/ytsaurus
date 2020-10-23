@@ -117,8 +117,8 @@ bool TChunkReaderBase::OnBlockEnded()
 }
 
 int TChunkReaderBase::GetBlockIndexByKey(
-    TKey pivotKey,
-    const TSharedRange<TKey>& blockIndexKeys,
+    TLegacyKey pivotKey,
+    const TSharedRange<TLegacyKey>& blockIndexKeys,
     std::optional<int> keyColumnCount) const
 {
     YT_VERIFY(!blockIndexKeys.Empty());
@@ -137,7 +137,7 @@ int TChunkReaderBase::GetBlockIndexByKey(
         rbegin,
         rend,
         pivotKey,
-        [=, &pool] (TKey pivot, TKey key) {
+        [=, &pool] (TLegacyKey pivot, TLegacyKey key) {
             auto wideKey = WidenKey(key, keyColumnCount, &pool);
             return CompareRows(pivot, wideKey) > 0;
         });
@@ -146,8 +146,8 @@ int TChunkReaderBase::GetBlockIndexByKey(
 }
 
 void TChunkReaderBase::CheckBlockUpperKeyLimit(
-    TKey blockLastKey,
-    TKey upperLimit,
+    TLegacyKey blockLastKey,
+    TLegacyKey upperLimit,
     std::optional<int> keyColumnCount)
 {
     TChunkedMemoryPool pool;
@@ -159,7 +159,7 @@ void TChunkReaderBase::CheckBlockUpperKeyLimit(
 
 void TChunkReaderBase::CheckBlockUpperLimits(
     i64 blockChunkRowCount,
-    TKey blockLastKey,
+    TLegacyKey blockLastKey,
     const TReadLimit& upperLimit,
     std::optional<int> keyColumnCount)
 {
@@ -206,7 +206,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
     return (it != rend) ? std::distance(it, rend) : 0;
 }
 
-int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const TReadLimit& lowerLimit, std::optional<int> keyColumnCount) const
+int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TReadLimit& lowerLimit, std::optional<int> keyColumnCount) const
 {
     if (!lowerLimit.HasKey()) {
         return 0;
@@ -241,7 +241,7 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const T
     return  (it != end) ? std::distance(begin, it) + 1 : blockMeta.blocks_size();
 }
 
-int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const TReadLimit& upperLimit, std::optional<int> keyColumnCount) const
+int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TReadLimit& upperLimit, std::optional<int> keyColumnCount) const
 {
     YT_VERIFY(!blockIndexKeys.Empty());
     if (!upperLimit.HasKey()) {
@@ -255,7 +255,7 @@ int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKey
         begin,
         end,
         upperLimit.GetKey(),
-        [=, &pool] (TKey key, TKey pivot) {
+        [=, &pool] (TLegacyKey key, TLegacyKey pivot) {
             auto wideKey = WidenKey(key, keyColumnCount, &pool);
             return CompareRows(pivot, wideKey) > 0;
         });
@@ -302,8 +302,8 @@ std::vector<TChunkId> TChunkReaderBase::GetFailedChunkIds() const
     }
 }
 
-TKey TChunkReaderBase::WidenKey(
-    const TKey& key,
+TLegacyKey TChunkReaderBase::WidenKey(
+    const TLegacyKey& key,
     std::optional<int> nullableKeyColumnCount,
     TChunkedMemoryPool* pool) const
 {

@@ -34,11 +34,11 @@ public:
     bool NextRow();
 
     bool SkipToRowIndex(i64 rowIndex);
-    bool SkipToKey(const TKey key);
+    bool SkipToKey(const TLegacyKey key);
 
     bool JumpToRowIndex(i64 rowIndex);
 
-    TKey GetKey() const;
+    TLegacyKey GetKey() const;
     TMutableUnversionedRow GetRow(TChunkedMemoryPool* memoryPool);
     TMutableVersionedRow GetVersionedRow(TChunkedMemoryPool* memoryPool, TTimestamp timestamp);
 
@@ -72,7 +72,7 @@ private:
     constexpr static size_t DefaultKeyBufferCapacity = 512;
 
     SmallVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
-    TMutableKey Key_;
+    TLegacyMutableKey Key_;
 
     NYson::TStatelessLexer Lexer_;
 };

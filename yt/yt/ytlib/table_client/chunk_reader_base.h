@@ -62,28 +62,28 @@ protected:
         const NChunkClient::NProto::TMiscExt& miscExt);
 
     int GetBlockIndexByKey(
-        TKey key,
-        const TSharedRange<TKey>& blockIndexKeys,
+        TLegacyKey key,
+        const TSharedRange<TLegacyKey>& blockIndexKeys,
         std::optional<int> keyColumnCount) const;
 
     void CheckBlockUpperKeyLimit(
-        TKey blockLastKey,
-        TKey upperLimit,
+        TLegacyKey blockLastKey,
+        TLegacyKey upperLimit,
         std::optional<int> keyColumnCount = std::nullopt);
 
     void CheckBlockUpperLimits(
         i64 blockChunkRowCount,
-        TKey blockLastKey,
+        TLegacyKey blockLastKey,
         const NChunkClient::TReadLimit& upperLimit,
         std::optional<int> keyColumnCount = std::nullopt);
 
     // These methods return min block index, satisfying the lower limit.
     int ApplyLowerRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& lowerLimit) const;
-    int ApplyLowerKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit, std::optional<int> keyColumnCount = std::nullopt) const;
+    int ApplyLowerKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const NChunkClient::TReadLimit& lowerLimit, std::optional<int> keyColumnCount = std::nullopt) const;
 
     // These methods return max block index, satisfying the upper limit.
     int ApplyUpperRowLimit(const NProto::TBlockMetaExt& blockMeta, const NChunkClient::TReadLimit& upperLimit) const;
-    int ApplyUpperKeyLimit(const TSharedRange<TKey>& blockIndexKeys, const NChunkClient::TReadLimit& upperLimit, std::optional<int> keyColumnCount = std::nullopt) const;
+    int ApplyUpperKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const NChunkClient::TReadLimit& upperLimit, std::optional<int> keyColumnCount = std::nullopt) const;
 
     virtual void InitFirstBlock() = 0;
     virtual void InitNextBlock() = 0;
@@ -91,7 +91,7 @@ protected:
 private:
     NLogging::TLogger Logger;
 
-    TKey WidenKey(const TKey& key, std::optional<int> keyColumnCount, TChunkedMemoryPool* pool) const;
+    TLegacyKey WidenKey(const TLegacyKey& key, std::optional<int> keyColumnCount, TChunkedMemoryPool* pool) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

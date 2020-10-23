@@ -30,13 +30,13 @@ public:
     MOCK_METHOD4(LookupRows, TFuture<IUnversionedRowsetPtr>(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options));
 
     MOCK_METHOD4(VersionedLookupRows, TFuture<IVersionedRowsetPtr>(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options));
 
     MOCK_METHOD2(SelectRows, TFuture<TSelectRowsResult>(

@@ -432,7 +432,7 @@ void ValidateDuplicateAndRequiredValueColumns(
 
 //! Checks that #key is a valid client-side key. Throws on failure.
 /*! The components must pass #ValidateKeyValue check. */
-void ValidateClientKey(TKey key);
+void ValidateClientKey(TLegacyKey key);
 
 //! Checks that #key is a valid client-side key. Throws on failure.
 /*! The key must obey the following properties:
@@ -442,7 +442,7 @@ void ValidateClientKey(TKey key);
  *  4. Value types must either be null of match those given in schema.
  */
 void ValidateClientKey(
-    TKey key,
+    TLegacyKey key,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable);
@@ -467,52 +467,52 @@ int ApplyIdMapping(
 
 //! Returns the successor of |key|, i.e. the key obtained from |key|
 //! by appending a |EValueType::Min| sentinel.
-TOwningKey GetKeySuccessor(TKey key);
-TKey GetKeySuccessor(TKey key, const TRowBufferPtr& rowBuffer);
+TLegacyOwningKey GetKeySuccessor(TLegacyKey key);
+TLegacyKey GetKeySuccessor(TLegacyKey key, const TRowBufferPtr& rowBuffer);
 
 //! Returns the successor of |key| trimmed to a given length, i.e. the key
 //! obtained by trimming |key| to |prefixLength| and appending
 //! a |EValueType::Max| sentinel.
-TOwningKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength);
-TKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
+TLegacyOwningKey GetKeyPrefixSuccessor(TLegacyKey key, ui32 prefixLength);
+TLegacyKey GetKeyPrefixSuccessor(TLegacyKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 
 //! Returns key of a strict length (either trimmed key or widened key)
-TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
-TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+TLegacyKey GetStrictKey(TLegacyKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+TLegacyKey GetStrictKeySuccessor(TLegacyKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! If #key has more than #prefixLength values then trims it this limit.
-TOwningKey GetKeyPrefix(TKey key, ui32 prefixLength);
-TKey GetKeyPrefix(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
+TLegacyOwningKey GetKeyPrefix(TLegacyKey key, ui32 prefixLength);
+TLegacyKey GetKeyPrefix(TLegacyKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer);
 
 //! Makes a new, wider key padded with given sentinel values.
-TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
-TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+TLegacyOwningKey WidenKey(const TLegacyOwningKey& key, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
+TLegacyKey WidenKey(const TLegacyKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! Makes the key wider by appending given sentinel values up to |keyColumnCount| length
 //! and then appends a |EValueType::Max| sentinel.
-TOwningKey WidenKeySuccessor(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
-TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+TLegacyOwningKey WidenKeySuccessor(const TLegacyOwningKey& key, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
+TLegacyKey WidenKeySuccessor(const TLegacyKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! Takes prefix of a key and makes it wider.
-TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
-TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
+TLegacyOwningKey WidenKeyPrefix(const TLegacyOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType = EValueType::Null);
+TLegacyKey WidenKeyPrefix(TLegacyKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType = EValueType::Null);
 
 //! Returns the key with no components.
-const TOwningKey EmptyKey();
+const TLegacyOwningKey EmptyKey();
 
 //! Returns the key with a single |Min| component.
-const TOwningKey MinKey();
+const TLegacyOwningKey MinKey();
 
 //! Returns the key with a single |Max| component.
-const TOwningKey MaxKey();
+const TLegacyOwningKey MaxKey();
 
 //! Compares two keys, |a| and |b|, and returns a smaller one.
 //! Ties are broken in favour of the first argument.
-const TOwningKey& ChooseMinKey(const TOwningKey& a, const TOwningKey& b);
+const TLegacyOwningKey& ChooseMinKey(const TLegacyOwningKey& a, const TLegacyOwningKey& b);
 
 //! Compares two keys, |a| and |b|, and returns a bigger one.
 //! Ties are broken in favour of the first argument.
-const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b);
+const TLegacyOwningKey& ChooseMaxKey(const TLegacyOwningKey& a, const TLegacyOwningKey& b);
 
 TString SerializeToString(TUnversionedRow row);
 TString SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end);
@@ -529,10 +529,10 @@ void ToBytes(TString* bytes, const TUnversionedOwningRow& row);
 void FromBytes(TUnversionedOwningRow* row, TStringBuf bytes);
 
 void Serialize(const TUnversionedValue& value, NYson::IYsonConsumer* consumer, bool anyAsRaw = false);
-void Serialize(TKey key, NYson::IYsonConsumer* consumer);
-void Serialize(const TOwningKey& key, NYson::IYsonConsumer* consumer);
+void Serialize(TLegacyKey key, NYson::IYsonConsumer* consumer);
+void Serialize(const TLegacyOwningKey& key, NYson::IYsonConsumer* consumer);
 
-void Deserialize(TOwningKey& key, NYTree::INodePtr node);
+void Deserialize(TLegacyOwningKey& key, NYTree::INodePtr node);
 
 size_t GetYsonSize(const TUnversionedValue& value);
 size_t WriteYson(char* buffer, const TUnversionedValue& unversionedValue);
@@ -541,7 +541,7 @@ TString ToString(TUnversionedRow row);
 TString ToString(TMutableUnversionedRow row);
 TString ToString(const TUnversionedOwningRow& row);
 
-TOwningKey RowToKey(
+TLegacyOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
     TUnversionedRow row);
 
@@ -770,7 +770,7 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    friend TOwningKey GetKeySuccessorImpl(const TOwningKey& key, int prefixLength, EValueType sentinelType);
+    friend TLegacyOwningKey GetKeySuccessorImpl(const TLegacyOwningKey& key, int prefixLength, EValueType sentinelType);
     friend TUnversionedOwningRow DeserializeFromString(const TString& data);
 
     friend class TUnversionedOwningRowBuilder;
@@ -861,7 +861,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRange<TRowRange> MakeSingletonRowRange(TKey lowerBound, TKey upperBound);
+TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey upperBound);
 
 ////////////////////////////////////////////////////////////////////////////////
 

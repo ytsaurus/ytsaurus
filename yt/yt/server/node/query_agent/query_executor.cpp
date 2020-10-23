@@ -1008,8 +1008,8 @@ private:
 
                 const auto& range = bounds[index++];
 
-                TOwningKey lowerBound(range.first);
-                TOwningKey upperBound(range.second);
+                TLegacyOwningKey lowerBound(range.first);
+                TLegacyOwningKey upperBound(range.second);
 
                 return CreateSchemafulOrderedTabletReader(
                     tabletSnapshot,

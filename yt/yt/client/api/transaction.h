@@ -94,25 +94,25 @@ struct ITransaction
     void DeleteRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TKey> keys,
+        TSharedRange<NTableClient::TLegacyKey> keys,
         const TModifyRowsOptions& options = TModifyRowsOptions());
 
     void LockRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TKey> keys,
+        TSharedRange<NTableClient::TLegacyKey> keys,
         NTableClient::TLockMask lockMask);
 
     void LockRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TKey> keys,
+        TSharedRange<NTableClient::TLegacyKey> keys,
         NTableClient::ELockType lockType = NTableClient::ELockType::SharedStrong);
 
     void LockRows(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        TSharedRange<NTableClient::TKey> keys,
+        TSharedRange<NTableClient::TLegacyKey> keys,
         const std::vector<TString>& locks,
         NTableClient::ELockType lockType = NTableClient::ELockType::SharedStrong);
 

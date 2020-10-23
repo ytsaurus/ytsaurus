@@ -277,7 +277,7 @@ TServiceDescriptor GetServiceDescriptor()
 
 IRowStreamEncoderPtr CreateRowStreamEncoder(
     NApi::NRpcProxy::NProto::ERowsetFormat format,
-    TTableSchemaPtr schema, 
+    TTableSchemaPtr schema,
     TNameTablePtr nameTable)
 {
     switch (format) {
@@ -295,7 +295,7 @@ IRowStreamEncoderPtr CreateRowStreamEncoder(
 
 IRowStreamDecoderPtr CreateRowStreamDecoder(
     NApi::NRpcProxy::NProto::ERowsetFormat format,
-    TTableSchemaPtr schema, 
+    TTableSchemaPtr schema,
     TNameTablePtr nameTable)
 {
     switch (format) {
@@ -459,7 +459,7 @@ private:
     TBootstrap* const Bootstrap_;
     const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
-    
+
     TSecurityManager SecurityManager_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
@@ -478,7 +478,7 @@ private:
         if (!traceContext) {
             return;
         }
-        
+
         if (Config_->ForceTracing) {
             traceContext->SetSampled();
         }
@@ -1702,7 +1702,7 @@ private:
         } else {
             TWireProtocolReader reader(MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
             auto keyRange = reader.ReadUnversionedRowset(false);
-            std::vector<TOwningKey> keys;
+            std::vector<TLegacyOwningKey> keys;
             keys.reserve(keyRange.Size());
             for (const auto& key : keyRange) {
                 keys.emplace_back(key);
@@ -2451,7 +2451,7 @@ private:
         auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
-        
+
         *nameTable = rowset->GetNameTable();
         *keys = MakeSharedRange(rowset->GetRows(), rowset);
 
@@ -3367,7 +3367,7 @@ private:
             .ThrowOnError();
 
         bool finished = false;
-        
+
         HandleInputStreamingRequest(
             context,
             [&] {
@@ -3456,7 +3456,7 @@ private:
                 auto rows = batch->MaterializeRows();
 
                 tableWriter->Write(rows);
-                
+
                 WaitFor(tableWriter->GetReadyEvent())
                     .ThrowOnError();
             },

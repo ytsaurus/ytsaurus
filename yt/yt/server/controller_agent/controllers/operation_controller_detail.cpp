@@ -5081,8 +5081,8 @@ void TOperationControllerBase::FetchInputTables()
                 auto result = rangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
                 for (const auto& inferred : result) {
                     auto inferredRange = range;
-                    inferredRange.LowerLimit().SetKey(TOwningKey(inferred.first));
-                    inferredRange.UpperLimit().SetKey(TOwningKey(inferred.second));
+                    inferredRange.LowerLimit().SetKey(TLegacyOwningKey(inferred.first));
+                    inferredRange.UpperLimit().SetKey(TLegacyOwningKey(inferred.second));
                     inferredRanges.push_back(inferredRange);
                 }
             }
@@ -5782,12 +5782,12 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 auto table = std::any_cast<TOutputTablePtr>(rsp->Tag());
 
                 if (table->Dynamic) {
-                    table->PivotKeys = FromProto<std::vector<TOwningKey>>(rsp->pivot_keys());
+                    table->PivotKeys = FromProto<std::vector<TLegacyOwningKey>>(rsp->pivot_keys());
                     table->TabletChunkListIds = FromProto<std::vector<TChunkListId>>(rsp->tablet_chunk_list_ids());
                 } else {
                     table->OutputChunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
                     if (table->TableUploadOptions.TableSchema->IsSorted() && table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
-                        table->LastKey = FromProto<TOwningKey>(rsp->last_key());
+                        table->LastKey = FromProto<TLegacyOwningKey>(rsp->last_key());
                     }
                 }
 

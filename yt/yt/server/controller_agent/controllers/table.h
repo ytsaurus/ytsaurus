@@ -85,7 +85,7 @@ struct TOutputTable
     NChunkClient::TChunkListId OutputChunkListId;
 
     // Last key of the table for checking sort order.
-    NTableClient::TOwningKey LastKey;
+    NTableClient::TLegacyOwningKey LastKey;
 
     // Statistics returned by EndUpload call.
     NChunkClient::NProto::TDataStatistics DataStatistics;
@@ -104,7 +104,7 @@ struct TOutputTable
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 
     bool Dynamic = false;
-    std::vector<NTableClient::TOwningKey> PivotKeys;
+    std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
     std::vector<NChunkClient::TChunkListId> TabletChunkListIds;
 
     std::vector<NChunkClient::TInputChunkPtr> OutputChunks;

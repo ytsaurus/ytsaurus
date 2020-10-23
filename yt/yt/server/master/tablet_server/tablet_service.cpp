@@ -703,7 +703,7 @@ private:
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
         int tabletCount = request->tablet_count();
-        auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
+        auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -750,7 +750,7 @@ private:
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
         int tabletCount = request->tablet_count();
-        auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
+        auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Committing table reshard (TableId: %v, TransactionId: %v, %v, "
@@ -790,7 +790,7 @@ private:
         int firstTabletIndex = request->first_tablet_index();
         int lastTabletIndex = request->last_tablet_index();
         int tabletCount = request->tablet_count();
-        auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
+        auto pivotKeys = FromProto<std::vector<TLegacyOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Aborting table reshard (TableId: %v, TransactionId: %v, %v, "

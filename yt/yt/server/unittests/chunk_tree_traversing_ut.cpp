@@ -243,12 +243,12 @@ private:
         return UpperLimit_.HasRowIndex() ? UpperLimit_.GetRowIndex() : std::numeric_limits<i64>::max();
     }
 
-    TOwningKey LowerKeyLimit() const
+    TLegacyOwningKey LowerKeyLimit() const
     {
         return LowerLimit_.HasKey() ? LowerLimit_.GetKey() : MinKey();
     }
 
-    TOwningKey UpperKeyLimit() const
+    TLegacyOwningKey UpperKeyLimit() const
     {
         return UpperLimit_.HasKey() ? UpperLimit_.GetKey() : MaxKey();
     }
@@ -263,7 +263,7 @@ private:
         return UpperLimit_.HasTabletIndex() ? UpperLimit_.GetTabletIndex() : std::numeric_limits<i32>::max();
     }
 
-    TOwningKey GetNextPivotKey(TChunkList* tabletChunkList)
+    TLegacyOwningKey GetNextPivotKey(TChunkList* tabletChunkList)
     {
         auto* parent = GetUniqueParent(tabletChunkList);
         int index = parent->ChildToIndex()[tabletChunkList];
@@ -283,8 +283,8 @@ private:
 
     bool TraverseChunkList(
         TChunkList* chunkList,
-        TOwningKey lowerKeyLimit = MinKey(),
-        TOwningKey upperKeyLimit = MaxKey())
+        TLegacyOwningKey lowerKeyLimit = MinKey(),
+        TLegacyOwningKey upperKeyLimit = MaxKey())
     {
         auto updateTabletIndex = [&] () {
             if (chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot) {
@@ -338,8 +338,8 @@ private:
 
     bool OnChunk(
         TChunk* chunk,
-        const TOwningKey& lowerKeyLimit = MinKey(),
-        const TOwningKey& upperKeyLimit = MaxKey())
+        const TLegacyOwningKey& lowerKeyLimit = MinKey(),
+        const TLegacyOwningKey& upperKeyLimit = MaxKey())
     {
         int newChunkCount = ChunkCount_ + 1;
         int newRowCount = RowCount_ + GetChunkTreeStatistics(chunk).LogicalRowCount;
@@ -446,8 +446,8 @@ TChunkTree* GenerateChunkTree(
         int rowCount = randomGenerator() % 10 + 1;
         int dataSize = randomGenerator() % 100 + 1;
         int dataWeight = randomGenerator() % 100 + 1;
-        TOwningKey minKey;
-        TOwningKey maxKey;
+        TLegacyOwningKey minKey;
+        TLegacyOwningKey maxKey;
         if (keyYielder) {
             minKey = BuildKey(ToString(keyYielder()));
             maxKey = BuildKey(ToString(keyYielder()));

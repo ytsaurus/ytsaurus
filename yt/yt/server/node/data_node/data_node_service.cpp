@@ -248,7 +248,7 @@ private:
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
         const auto& location = session->GetStoreLocation();
-        
+
         session->Ping();
 
         response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
@@ -835,7 +835,7 @@ private:
                     if (netThrottling) {
                         // NB: Flow of lookups may be dense enough, so upon start of throttling
                         // we will come up with few throttled lookups on the data node. We would like to avoid this.
-                        // This may be even more painful when peer probing is disabled. 
+                        // This may be even more painful when peer probing is disabled.
                         YT_LOG_DEBUG("Lookup session rejects to finish due to throttling "
                             "(ChunkId: %v, ReadSessionId: %v, NetThrottling: %v, NetQueueSize: %v)",
                             chunkId,
@@ -1227,19 +1227,19 @@ private:
         }
 
         auto lowerKey = sampleRequest.has_lower_key()
-            ? FromProto<TOwningKey>(sampleRequest.lower_key())
+            ? FromProto<TLegacyOwningKey>(sampleRequest.lower_key())
             : MinKey();
 
         auto upperKey = sampleRequest.has_upper_key()
-            ? FromProto<TOwningKey>(sampleRequest.upper_key())
+            ? FromProto<TLegacyOwningKey>(sampleRequest.upper_key())
             : MaxKey();
 
         auto blocksExt = GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions());
 
-        std::vector<TOwningKey> samples;
+        std::vector<TLegacyOwningKey> samples;
         for (const auto& block : blocksExt.blocks()) {
             YT_VERIFY(block.has_last_key());
-            auto key = FromProto<TOwningKey>(block.last_key());
+            auto key = FromProto<TLegacyOwningKey>(block.last_key());
             if (key >= lowerKey && key < upperKey) {
                 samples.push_back(WidenKey(key, keyColumns.size()));
             }

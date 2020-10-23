@@ -740,7 +740,7 @@ public:
         std::vector<TDataSliceDescriptor> unreadDescriptors;
         std::vector<TDataSliceDescriptor> readDescriptors;
 
-        TOwningKey firstUnreadKey;
+        TLegacyOwningKey firstUnreadKey;
         if (!unreadRows.Empty()) {
             auto firstSchemafulUnreadRow = SchemafulRows_[SchemafulRows_.size() - unreadRows.Size()];
             firstUnreadKey = GetKeyPrefix(firstSchemafulUnreadRow, Schema_->GetKeyColumnCount());
@@ -845,7 +845,7 @@ private:
 
     // We must assume that there is more data if we read nothing to the moment.
     std::atomic<bool> HasMore_ = true;
-    TOwningKey LastKey_;
+    TLegacyOwningKey LastKey_;
 
     i64 RowIndex_ = 0;
 
@@ -1025,7 +1025,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             << ex;
     }
 
-    std::vector<TOwningKey> boundaries;
+    std::vector<TLegacyOwningKey> boundaries;
     boundaries.reserve(chunkSpecs.size());
 
     auto extractMinKey = [] (const TChunkSpec& chunkSpec) {
@@ -1040,14 +1040,14 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             YT_VERIFY(chunkSpec.has_chunk_meta());
             if (FindProtoExtension<NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions())) {
                 auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
-                return FromProto<TOwningKey>(boundaryKeysExt.min());
+                return FromProto<TLegacyOwningKey>(boundaryKeysExt.min());
             }
         }
-        return TOwningKey();
+        return TLegacyOwningKey();
     };
 
     for (const auto& chunkSpec : chunkSpecs) {
-        TOwningKey minKey = extractMinKey(chunkSpec);
+        TLegacyOwningKey minKey = extractMinKey(chunkSpec);
         boundaries.push_back(minKey);
     }
 

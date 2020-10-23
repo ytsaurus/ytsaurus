@@ -396,7 +396,7 @@ void ValidateDuplicateAndRequiredValueColumns(
     }
 }
 
-TOwningKey RowToKey(TVersionedRow row)
+TLegacyOwningKey RowToKey(TVersionedRow row)
 {
     TUnversionedOwningRowBuilder builder;
     for (int index = 0; index < row.GetKeyCount(); ++index) {

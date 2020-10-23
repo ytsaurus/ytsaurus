@@ -118,13 +118,13 @@ struct ISortedStoreManager
 {
     virtual bool SplitPartition(
         int partitionIndex,
-        const std::vector<TOwningKey>& pivotKeys) = 0;
+        const std::vector<TLegacyOwningKey>& pivotKeys) = 0;
     virtual void MergePartitions(
         int firstPartitionIndex,
         int lastPartitionIndex) = 0;
     virtual void UpdatePartitionSampleKeys(
         TPartition* partition,
-        const TSharedRange<TKey>& keys) = 0;
+        const TSharedRange<TLegacyKey>& keys) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortedStoreManager)

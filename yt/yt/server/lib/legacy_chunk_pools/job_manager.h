@@ -22,8 +22,8 @@ public:
     //! that adjacent jobs may not be joined together.
     DEFINE_BYVAL_RW_PROPERTY(bool, IsBarrier, false);
 
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::TKey, LowerPrimaryKey, NTableClient::MaxKey().Get());
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::TKey, UpperPrimaryKey, NTableClient::MinKey().Get());
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TLegacyKey, LowerPrimaryKey, NTableClient::MaxKey().Get());
+    DEFINE_BYREF_RO_PROPERTY(NTableClient::TLegacyKey, UpperPrimaryKey, NTableClient::MinKey().Get());
 
     DEFINE_BYVAL_RO_PROPERTY(int, PrimarySliceCount, 0);
     DEFINE_BYVAL_RO_PROPERTY(int, ForeignSliceCount, 0);

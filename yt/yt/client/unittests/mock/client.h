@@ -40,13 +40,13 @@ public:
     MOCK_METHOD4(LookupRows, TFuture<IUnversionedRowsetPtr>(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options));
 
     MOCK_METHOD4(VersionedLookupRows, TFuture<IVersionedRowsetPtr>(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options));
 
     MOCK_METHOD2(SelectRows, TFuture<TSelectRowsResult>(
@@ -195,7 +195,7 @@ public:
 
     MOCK_METHOD3(ReshardTable, TFuture<void>(
         const NYPath::TYPath& path,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const TReshardTableOptions& options));
 
     MOCK_METHOD3(ReshardTable, TFuture<void>(
@@ -228,7 +228,7 @@ public:
     MOCK_METHOD4(GetInSyncReplicas, TFuture<std::vector<NTabletClient::TTableReplicaId>>(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TGetInSyncReplicasOptions& options));
 
     MOCK_METHOD3(GetTabletInfos, TFuture<std::vector<TTabletInfo>>(

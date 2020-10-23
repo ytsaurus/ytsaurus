@@ -108,14 +108,14 @@ public:
             auto firstRow = rows.Front();
             ToProto(
                 BoundaryKeysExt_.mutable_min(),
-                TOwningKey(firstRow.BeginKeys(), firstRow.EndKeys()));
+                TLegacyOwningKey(firstRow.BeginKeys(), firstRow.EndKeys()));
             EmitSample(firstRow);
         }
 
         DoWriteRows(rows);
 
         auto lastRow = rows.Back();
-        LastKey_ = TOwningKey(lastRow.BeginKeys(), lastRow.EndKeys());
+        LastKey_ = TLegacyOwningKey(lastRow.BeginKeys(), lastRow.EndKeys());
 
         return EncodingChunkWriter_->IsReady();
     }
@@ -179,7 +179,7 @@ protected:
 
     TEncodingChunkWriterPtr EncodingChunkWriter_;
 
-    TOwningKey LastKey_;
+    TLegacyOwningKey LastKey_;
 
     TBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_ = 0;

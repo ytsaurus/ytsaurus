@@ -133,12 +133,12 @@ i64 TStoreBase::GetDynamicMemoryUsage() const
     return DynamicMemoryUsage_;
 }
 
-TOwningKey TStoreBase::RowToKey(TUnversionedRow row) const
+TLegacyOwningKey TStoreBase::RowToKey(TUnversionedRow row) const
 {
     return NTableClient::RowToKey(*Schema_, row);
 }
 
-TOwningKey TStoreBase::RowToKey(TSortedDynamicRow row) const
+TLegacyOwningKey TStoreBase::RowToKey(TSortedDynamicRow row) const
 {
     return NTabletNode::RowToKey(*Schema_, row);
 }

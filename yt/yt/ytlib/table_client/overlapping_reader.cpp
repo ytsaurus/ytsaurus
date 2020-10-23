@@ -269,7 +269,7 @@ class TSchemafulOverlappingRangeReaderBase
 {
 protected:
     TSchemafulOverlappingRangeReaderBase(
-        const std::vector<TOwningKey>& boundaries,
+        const std::vector<TLegacyOwningKey>& boundaries,
         std::unique_ptr<TRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
@@ -316,14 +316,14 @@ private:
 
     struct TSession
     {
-        TOwningKey Key;
+        TLegacyOwningKey Key;
         int Index;
         IVersionedReaderPtr Reader;
         TFuture<void> ReadyEvent;
         std::vector<TVersionedRow> Rows;
         std::vector<TVersionedRow>::iterator CurrentRow;
 
-        TSession(TOwningKey key, int index)
+        TSession(TLegacyOwningKey key, int index)
             : Key(std::move(key))
             , Index(index)
         { }
@@ -361,7 +361,7 @@ private:
 
 template <class TRowMerger>
 TSchemafulOverlappingRangeReaderBase<TRowMerger>::TSchemafulOverlappingRangeReaderBase(
-    const std::vector<TOwningKey>& boundaries,
+    const std::vector<TLegacyOwningKey>& boundaries,
     std::unique_ptr<TRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
@@ -679,7 +679,7 @@ class TSchemafulOverlappingRangeReader
 {
 public:
     static ISchemafulUnversionedReaderPtr Create(
-        const std::vector<TOwningKey>& boundaries,
+        const std::vector<TLegacyOwningKey>& boundaries,
         std::unique_ptr<TSchemafulRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
@@ -734,7 +734,7 @@ public:
 
 private:
     TSchemafulOverlappingRangeReader(
-        const std::vector<TOwningKey>& boundaries,
+        const std::vector<TLegacyOwningKey>& boundaries,
         std::unique_ptr<TSchemafulRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
@@ -753,7 +753,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingRangeReader(
-    const std::vector<TOwningKey>& boundaries,
+    const std::vector<TLegacyOwningKey>& boundaries,
     std::unique_ptr<TSchemafulRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,
@@ -775,7 +775,7 @@ class TVersionedOverlappingRangeReader
 {
 public:
     TVersionedOverlappingRangeReader(
-        const std::vector<TOwningKey>& boundaries,
+        const std::vector<TLegacyOwningKey>& boundaries,
         std::unique_ptr<TVersionedRowMerger> rowMerger,
         std::function<IVersionedReaderPtr(int index)> readerFactory,
         TOverlappingReaderKeyComparer keyComparer,
@@ -830,7 +830,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateVersionedOverlappingRangeReader(
-    const std::vector<TOwningKey>& boundaries,
+    const std::vector<TLegacyOwningKey>& boundaries,
     std::unique_ptr<TVersionedRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,
     TOverlappingReaderKeyComparer keyComparer,

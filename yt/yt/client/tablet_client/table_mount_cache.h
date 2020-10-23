@@ -33,7 +33,7 @@ struct TTabletInfo
     NHydra::TRevision MountRevision = NHydra::NullRevision;
     ETabletState State;
     std::optional<EInMemoryMode> InMemoryMode;
-    NTableClient::TOwningKey PivotKey;
+    NTableClient::TLegacyOwningKey PivotKey;
     TTabletCellId CellId;
     NObjectClient::TObjectId TableId;
     TInstant UpdateTime;
@@ -96,8 +96,8 @@ struct TTableMountInfo
 
     //! For sorted tables, these are -infinity and +infinity.
     //! For ordered tablets, these are |[0]| and |[tablet_count]| resp.
-    NTableClient::TOwningKey LowerCapBound;
-    NTableClient::TOwningKey UpperCapBound;
+    NTableClient::TLegacyOwningKey LowerCapBound;
+    NTableClient::TLegacyOwningKey UpperCapBound;
 
     // Master reply revision for master service cache invalidation.
     NHydra::TRevision PrimaryRevision;

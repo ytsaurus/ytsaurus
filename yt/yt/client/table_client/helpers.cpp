@@ -1202,7 +1202,7 @@ void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintTo(const TOwningKey& key, ::std::ostream* os)
+void PrintTo(const TLegacyOwningKey& key, ::std::ostream* os)
 {
     *os << KeyToYson(key);
 }

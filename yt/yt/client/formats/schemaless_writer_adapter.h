@@ -43,8 +43,8 @@ protected:
 
     const std::unique_ptr<NTableClient::TNameTableReader> NameTableReader_;
 
-    NTableClient::TOwningKey LastKey_;
-    NTableClient::TKey CurrentKey_;
+    NTableClient::TLegacyOwningKey LastKey_;
+    NTableClient::TLegacyKey CurrentKey_;
 
     TSchemalessFormatWriterBase(
         NTableClient::TNameTablePtr nameTable,

@@ -171,7 +171,7 @@ protected:
         GetRowAndResetWriter();
     }
 
-    TKeyComparer KeyComparer_ = [] (TKey lhs, TKey rhs) {
+    TKeyComparer KeyComparer_ = [] (TLegacyKey lhs, TLegacyKey rhs) {
         return CompareRows(lhs, rhs);
     };
 
@@ -201,7 +201,7 @@ protected:
             TChunkedMemoryPool pool;
             TUnversionedOwningRowBuilder builder;
 
-            std::vector<TOwningKey> owningKeys;
+            std::vector<TLegacyOwningKey> owningKeys;
 
             expected.clear();
 
@@ -253,7 +253,7 @@ protected:
             owningKeys.push_back(builder.FinishRow());
             expected.push_back(TVersionedRow());
 
-            std::vector<TKey> keys;
+            std::vector<TLegacyKey> keys;
             for (const auto& owningKey : owningKeys) {
                 keys.push_back(owningKey);
             }
@@ -362,8 +362,8 @@ protected:
         EOptimizeFor optimizeFor,
         TTableSchemaPtr writeSchema,
         TTableSchemaPtr readSchema,
-        TOwningKey lowerKey,
-        TOwningKey upperKey,
+        TLegacyOwningKey lowerKey,
+        TLegacyOwningKey upperKey,
         TTimestamp timestamp,
         bool produceAllVersions)
     {
@@ -509,8 +509,8 @@ protected:
         const std::vector<TVersionedRow>& rows,
         TTableSchemaPtr writeSchema,
         TTableSchemaPtr readSchema,
-        TOwningKey lowerKey,
-        TOwningKey upperKey,
+        TLegacyOwningKey lowerKey,
+        TLegacyOwningKey upperKey,
         TTimestamp timestamp,
         bool produceAllVersions)
     {
@@ -759,9 +759,9 @@ TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
 
     int lowerIndex = InitialRows_.size() / 3;
 
-    auto lowerKey = TOwningKey(InitialRows_[lowerIndex].BeginKeys(), InitialRows_[lowerIndex].EndKeys());
+    auto lowerKey = TLegacyOwningKey(InitialRows_[lowerIndex].BeginKeys(), InitialRows_[lowerIndex].EndKeys());
     auto upperRowIndex = InitialRows_.size() - 1;
-    auto upperKey = TOwningKey(
+    auto upperKey = TLegacyOwningKey(
         InitialRows_[upperRowIndex].BeginKeys(),
         InitialRows_[upperRowIndex].EndKeys());
 

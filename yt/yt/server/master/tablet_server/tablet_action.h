@@ -36,7 +36,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTabletCell*>, TabletCells);
 
     //! Pivot keys for reshard (if present).
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NTableClient::TOwningKey>, PivotKeys);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NTableClient::TLegacyOwningKey>, PivotKeys);
 
     //! Desired number of tablets (for reshard).
     DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, TabletCount);

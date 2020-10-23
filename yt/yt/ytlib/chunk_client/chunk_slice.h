@@ -35,8 +35,8 @@ public:
     TChunkSlice(
         const NProto::TSliceRequest& sliceReq,
         const NProto::TChunkMeta& meta,
-        const NTableClient::TOwningKey& lowerKey,
-        const NTableClient::TOwningKey& upperKey,
+        const NTableClient::TLegacyOwningKey& lowerKey,
+        const NTableClient::TLegacyOwningKey& upperKey,
         std::optional<i64> dataWeight = std::nullopt,
         std::optional<i64> rowCount = std::nullopt);
 
@@ -56,7 +56,7 @@ public:
     //! Tries to split chunk slice into parts of almost equal size, about #sliceDataSize.
     void SliceEvenly(std::vector<TChunkSlice>& result, i64 sliceDataWeight) const;
 
-    void SetKeys(const NTableClient::TOwningKey& lowerKey, const NTableClient::TOwningKey& upperKey);
+    void SetKeys(const NTableClient::TLegacyOwningKey& lowerKey, const NTableClient::TLegacyOwningKey& upperKey);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

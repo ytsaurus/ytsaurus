@@ -75,28 +75,28 @@ bool IsEmpty(const TChunkTree* chunkTree);
 
 //! Returns the upper boundary key of a chunk. Throws if the chunk contains no
 //! boundary info (i.e. it's not sorted).
-NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount = std::nullopt);
+NTableClient::TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the upper boundary key of a chunk tree. Throws if the tree is empty
 //! or the last chunk in it contains no boundary info (i.e. it's not sorted).
-NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount = std::nullopt);
+NTableClient::TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the minimum key of a chunk. Throws if the chunk contains no boundary
 //! info (i.e. it's not sorted).
-NTableClient::TOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount = std::nullopt);
+NTableClient::TLegacyOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the minimum key of a chunk tree. Throws if the tree is empty or the
 //! first chunk in it contains no boundary info (i.e. it's not sorted).
-NTableClient::TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount = std::nullopt);
+NTableClient::TLegacyOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the maximum key of a chunk. Throws if the chunk contains no boundary
 //! info (i.e. it's not sorted).
-NTableClient::TOwningKey GetMaxKeyOrThrow(const TChunk* chunk);
+NTableClient::TLegacyOwningKey GetMaxKeyOrThrow(const TChunk* chunk);
 
 //! Returns the maximum key of a chunk tree. Throws if the tree is empty or the
 //! last chunk in it contains no boundary info (i.e. it's not sorted).
 //! Doesn't support chunk views.
-NTableClient::TOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree);
+NTableClient::TLegacyOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree);
 
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews);
 

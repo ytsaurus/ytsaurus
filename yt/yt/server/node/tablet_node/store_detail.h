@@ -78,8 +78,8 @@ protected:
     NNodeTrackerClient::TNodeMemoryTrackerGuard DynamicMemoryTrackerGuard_;
 
 
-    TOwningKey RowToKey(TUnversionedRow row) const;
-    TOwningKey RowToKey(TSortedDynamicRow row) const;
+    TLegacyOwningKey RowToKey(TUnversionedRow row) const;
+    TLegacyOwningKey RowToKey(TSortedDynamicRow row) const;
 
     virtual NNodeTrackerClient::EMemoryCategory GetMemoryCategory() const = 0;
 

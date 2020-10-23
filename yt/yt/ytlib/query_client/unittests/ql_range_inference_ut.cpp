@@ -20,7 +20,7 @@ TEST(TKeyRangeTest, Unite)
 {
     auto k1 = YsonToKey("1"); auto k2 = YsonToKey("2");
     auto k3 = YsonToKey("3"); auto k4 = YsonToKey("4");
-    auto mp = [] (const TOwningKey& a, const TOwningKey& b) {
+    auto mp = [] (const TLegacyOwningKey& a, const TLegacyOwningKey& b) {
         return std::make_pair(a, b);
     };
 
@@ -36,7 +36,7 @@ TEST(TKeyRangeTest, Intersect)
 {
     auto k1 = YsonToKey("1"); auto k2 = YsonToKey("2");
     auto k3 = YsonToKey("3"); auto k4 = YsonToKey("4");
-    auto mp = [] (const TOwningKey& a, const TOwningKey& b) {
+    auto mp = [] (const TLegacyOwningKey& a, const TLegacyOwningKey& b) {
         return std::make_pair(a, b);
     };
 
@@ -59,7 +59,7 @@ TEST(TKeyRangeTest, Intersect)
 TEST(TKeyRangeTest, IsEmpty)
 {
     auto k1 = YsonToKey("1"); auto k2 = YsonToKey("2");
-    auto mp = [] (const TOwningKey& a, const TOwningKey& b) {
+    auto mp = [] (const TLegacyOwningKey& a, const TLegacyOwningKey& b) {
         return std::make_pair(a, b);
     };
 
@@ -95,7 +95,7 @@ TKeyRange RefineKeyRange(
     if (result.empty()) {
         return std::make_pair(EmptyKey(), EmptyKey());
     } else if (result.size() == 1) {
-        return TKeyRange(TOwningKey(result[0].first), TOwningKey(result[0].second));
+        return TKeyRange(TLegacyOwningKey(result[0].first), TLegacyOwningKey(result[0].second));
     } else {
         return keyRange;
     }
@@ -114,22 +114,22 @@ struct TRefineKeyRangeTestCase
     const char* ResultingLeftBoundAsYson;
     const char* ResultingRightBoundAsYson;
 
-    TOwningKey GetInitialLeftBound() const
+    TLegacyOwningKey GetInitialLeftBound() const
     {
         return YsonToKey(InitialLeftBoundAsYson);
     }
 
-    TOwningKey GetInitialRightBound() const
+    TLegacyOwningKey GetInitialRightBound() const
     {
         return YsonToKey(InitialRightBoundAsYson);
     }
 
-    TOwningKey GetResultingLeftBound() const
+    TLegacyOwningKey GetResultingLeftBound() const
     {
         return YsonToKey(ResultingLeftBoundAsYson);
     }
 
-    TOwningKey GetResultingRightBound() const
+    TLegacyOwningKey GetResultingRightBound() const
     {
         return YsonToKey(ResultingRightBoundAsYson);
     }

@@ -18,7 +18,7 @@ struct TSortedJobOptions
     bool EnablePeriodicYielder = true;
     bool ShouldSlicePrimaryTableByKeys = false;
 
-    std::vector<NTableClient::TKey> PivotKeys;
+    std::vector<NTableClient::TLegacyKey> PivotKeys;
 
     //! An upper bound for a total number of slices that is allowed. If this value
     //! is exceeded, an exception is thrown.

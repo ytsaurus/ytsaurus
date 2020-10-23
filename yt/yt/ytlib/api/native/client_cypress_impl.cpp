@@ -1385,8 +1385,8 @@ private:
                     FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(lhs.chunk_meta().extensions());
                 auto rhsBoundaryKeysExt =
                     FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(rhs.chunk_meta().extensions());
-                auto lhsMinKey = FromProto<TOwningKey>(lhsBoundaryKeysExt->min());
-                auto rhsMinKey = FromProto<TOwningKey>(rhsBoundaryKeysExt->min());
+                auto lhsMinKey = FromProto<TLegacyOwningKey>(lhsBoundaryKeysExt->min());
+                auto rhsMinKey = FromProto<TLegacyOwningKey>(rhsBoundaryKeysExt->min());
 
                 int compareResult = CompareRows(lhsMinKey, rhsMinKey, OutputTableSchema_->GetKeyColumnCount());
                 if (compareResult < 0) {
@@ -1394,8 +1394,8 @@ private:
                 } else if (compareResult > 0) {
                     return false;
                 } else {
-                    auto lhsMaxKey = FromProto<TOwningKey>(lhsBoundaryKeysExt->max());
-                    auto rhsMaxKey = FromProto<TOwningKey>(rhsBoundaryKeysExt->max());
+                    auto lhsMaxKey = FromProto<TLegacyOwningKey>(lhsBoundaryKeysExt->max());
+                    auto rhsMaxKey = FromProto<TLegacyOwningKey>(rhsBoundaryKeysExt->max());
 
                     return CompareRows(lhsMaxKey, rhsMaxKey, OutputTableSchema_->GetKeyColumnCount()) < 0;
                 }
@@ -1410,10 +1410,10 @@ private:
             const auto& currentChunkSpec = ChunkSpecs_[chunkIndex];
             const auto& nextChunkSpec = ChunkSpecs_[chunkIndex + 1];
 
-            auto currentChunkMaxKey = FromProto<TOwningKey>(
+            auto currentChunkMaxKey = FromProto<TLegacyOwningKey>(
                 FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
                     currentChunkSpec.chunk_meta().extensions())->max());
-            auto nextChunkMinKey = FromProto<TOwningKey>(
+            auto nextChunkMinKey = FromProto<TLegacyOwningKey>(
                 FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
                     nextChunkSpec.chunk_meta().extensions())->min());
 
@@ -1460,9 +1460,9 @@ private:
         auto maxKeyNode = boundaryKeysMap->FindChild("max_key");
 
         if (maxKeyNode && !ChunkSpecs_.empty()) {
-            auto maxKey = ConvertTo<TOwningKey>(maxKeyNode);
+            auto maxKey = ConvertTo<TLegacyOwningKey>(maxKeyNode);
 
-            auto firstChunkMinKey = FromProto<TOwningKey>(
+            auto firstChunkMinKey = FromProto<TLegacyOwningKey>(
                 FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
                 ChunkSpecs_[0].chunk_meta().extensions())->min());
 

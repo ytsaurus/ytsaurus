@@ -1227,7 +1227,7 @@ void ValidateDuplicateAndRequiredValueColumns(
     }
 }
 
-void ValidateClientKey(TKey key)
+void ValidateClientKey(TLegacyKey key)
 {
     for (const auto& value : key) {
         ValidateKeyValue(value);
@@ -1235,7 +1235,7 @@ void ValidateClientKey(TKey key)
 }
 
 void ValidateClientKey(
-    TKey key,
+    TLegacyKey key,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable)
@@ -1287,7 +1287,7 @@ int ApplyIdMapping(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetKeySuccessorImpl(TKey key, ui32 prefixLength, EValueType sentinelType)
+TLegacyOwningKey GetKeySuccessorImpl(TLegacyKey key, ui32 prefixLength, EValueType sentinelType)
 {
     auto length = std::min(prefixLength, key.GetCount());
     TUnversionedOwningRowBuilder builder(length + 1);
@@ -1298,7 +1298,7 @@ TOwningKey GetKeySuccessorImpl(TKey key, ui32 prefixLength, EValueType sentinelT
     return builder.FinishRow();
 }
 
-TKey GetKeySuccessorImpl(TKey key, ui32 prefixLength, EValueType sentinelType, const TRowBufferPtr& rowBuffer)
+TLegacyKey GetKeySuccessorImpl(TLegacyKey key, ui32 prefixLength, EValueType sentinelType, const TRowBufferPtr& rowBuffer)
 {
     auto length = std::min(prefixLength, key.GetCount());
     auto result = rowBuffer->AllocateUnversioned(length + 1);
@@ -1309,7 +1309,7 @@ TKey GetKeySuccessorImpl(TKey key, ui32 prefixLength, EValueType sentinelType, c
     return result;
 }
 
-TOwningKey GetKeySuccessor(TKey key)
+TLegacyOwningKey GetKeySuccessor(TLegacyKey key)
 {
     return GetKeySuccessorImpl(
         key,
@@ -1317,7 +1317,7 @@ TOwningKey GetKeySuccessor(TKey key)
         EValueType::Min);
 }
 
-TKey GetKeySuccessor(TKey key, const TRowBufferPtr& rowBuffer)
+TLegacyKey GetKeySuccessor(TLegacyKey key, const TRowBufferPtr& rowBuffer)
 {
     return GetKeySuccessorImpl(
         key,
@@ -1326,7 +1326,7 @@ TKey GetKeySuccessor(TKey key, const TRowBufferPtr& rowBuffer)
         rowBuffer);
 }
 
-TOwningKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength)
+TLegacyOwningKey GetKeyPrefixSuccessor(TLegacyKey key, ui32 prefixLength)
 {
     return GetKeySuccessorImpl(
         key,
@@ -1334,7 +1334,7 @@ TOwningKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength)
         EValueType::Max);
 }
 
-TKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
+TLegacyKey GetKeyPrefixSuccessor(TLegacyKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
 {
     return GetKeySuccessorImpl(
         key,
@@ -1343,21 +1343,21 @@ TKey GetKeyPrefixSuccessor(TKey key, ui32 prefixLength, const TRowBufferPtr& row
         rowBuffer);
 }
 
-TOwningKey GetKeyPrefix(TKey key, ui32 prefixLength)
+TLegacyOwningKey GetKeyPrefix(TLegacyKey key, ui32 prefixLength)
 {
-    return TOwningKey(
+    return TLegacyOwningKey(
         key.Begin(),
         key.Begin() + std::min(key.GetCount(), prefixLength));
 }
 
-TKey GetKeyPrefix(TKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
+TLegacyKey GetKeyPrefix(TLegacyKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
 {
     return rowBuffer->Capture(
         key.Begin(),
         std::min(key.GetCount(), prefixLength));
 }
 
-TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
+TLegacyKey GetStrictKey(TLegacyKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     if (key.GetCount() > keyColumnCount) {
         return GetKeyPrefix(key, keyColumnCount, rowBuffer);
@@ -1366,7 +1366,7 @@ TKey GetStrictKey(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer,
     }
 }
 
-TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
+TLegacyKey GetStrictKeySuccessor(TLegacyKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     if (key.GetCount() >= keyColumnCount) {
         return GetKeyPrefixSuccessor(key, keyColumnCount, rowBuffer);
@@ -1377,46 +1377,46 @@ TKey GetStrictKeySuccessor(TKey key, ui32 keyColumnCount, const TRowBufferPtr& r
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TOwningKey MakeSentinelKey(EValueType type)
+static TLegacyOwningKey MakeSentinelKey(EValueType type)
 {
     TUnversionedOwningRowBuilder builder;
     builder.AddValue(MakeUnversionedSentinelValue(type));
     return builder.FinishRow();
 }
 
-static const TOwningKey CachedMinKey = MakeSentinelKey(EValueType::Min);
-static const TOwningKey CachedMaxKey = MakeSentinelKey(EValueType::Max);
+static const TLegacyOwningKey CachedMinKey = MakeSentinelKey(EValueType::Min);
+static const TLegacyOwningKey CachedMaxKey = MakeSentinelKey(EValueType::Max);
 
-const TOwningKey MinKey()
+const TLegacyOwningKey MinKey()
 {
     return CachedMinKey;
 }
 
-const TOwningKey MaxKey()
+const TLegacyOwningKey MaxKey()
 {
     return CachedMaxKey;
 }
 
-static TOwningKey MakeEmptyKey()
+static TLegacyOwningKey MakeEmptyKey()
 {
     TUnversionedOwningRowBuilder builder;
     return builder.FinishRow();
 }
 
-static const TOwningKey CachedEmptyKey = MakeEmptyKey();
+static const TLegacyOwningKey CachedEmptyKey = MakeEmptyKey();
 
-const TOwningKey EmptyKey()
+const TLegacyOwningKey EmptyKey()
 {
     return CachedEmptyKey;
 }
 
-const TOwningKey& ChooseMinKey(const TOwningKey& a, const TOwningKey& b)
+const TLegacyOwningKey& ChooseMinKey(const TLegacyOwningKey& a, const TLegacyOwningKey& b)
 {
     int result = CompareRows(a, b);
     return result <= 0 ? a : b;
 }
 
-const TOwningKey& ChooseMaxKey(const TOwningKey& a, const TOwningKey& b)
+const TLegacyOwningKey& ChooseMaxKey(const TLegacyOwningKey& a, const TLegacyOwningKey& b)
 {
     int result = CompareRows(a, b);
     return result >= 0 ? a : b;
@@ -1494,7 +1494,7 @@ TString ToString(const TUnversionedOwningRow& row)
     return ToString(row.Get());
 }
 
-TOwningKey RowToKey(
+TLegacyOwningKey RowToKey(
     const TTableSchema& schema,
     TUnversionedRow row)
 {
@@ -1635,7 +1635,7 @@ void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer, bool any
     }
 }
 
-void Serialize(TKey key, IYsonConsumer* consumer)
+void Serialize(TLegacyKey key, IYsonConsumer* consumer)
 {
     consumer->OnBeginList();
     for (const auto& value : key) {
@@ -1645,12 +1645,12 @@ void Serialize(TKey key, IYsonConsumer* consumer)
     consumer->OnEndList();
 }
 
-void Serialize(const TOwningKey& key, IYsonConsumer* consumer)
+void Serialize(const TLegacyOwningKey& key, IYsonConsumer* consumer)
 {
     return Serialize(key.Get(), consumer);
 }
 
-void Deserialize(TOwningKey& key, INodePtr node)
+void Deserialize(TLegacyOwningKey& key, INodePtr node)
 {
     if (node->GetType() != ENodeType::List) {
         THROW_ERROR_EXCEPTION("Key cannot be parsed from %Qlv",
@@ -1882,17 +1882,17 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey WidenKey(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
+TLegacyOwningKey WidenKey(const TLegacyOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
 {
     return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, sentinelType);
 }
 
-TKey WidenKey(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
+TLegacyKey WidenKey(const TLegacyKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     return WidenKeyPrefix(key, key.GetCount(), keyColumnCount, rowBuffer, sentinelType);
 }
 
-TOwningKey WidenKeySuccessor(const TOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
+TLegacyOwningKey WidenKeySuccessor(const TLegacyOwningKey& key, ui32 keyColumnCount, EValueType sentinelType)
 {
     YT_VERIFY(keyColumnCount >= key.GetCount());
 
@@ -1910,7 +1910,7 @@ TOwningKey WidenKeySuccessor(const TOwningKey& key, ui32 keyColumnCount, EValueT
     return builder.FinishRow();
 }
 
-TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
+TLegacyKey WidenKeySuccessor(const TLegacyKey& key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     YT_VERIFY(keyColumnCount >= key.GetCount());
 
@@ -1929,7 +1929,7 @@ TKey WidenKeySuccessor(const TKey& key, ui32 keyColumnCount, const TRowBufferPtr
     return wideKey;
 }
 
-TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType)
+TLegacyOwningKey WidenKeyPrefix(const TLegacyOwningKey& key, ui32 prefixLength, ui32 keyColumnCount, EValueType sentinelType)
 {
     YT_VERIFY(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
@@ -1949,7 +1949,7 @@ TOwningKey WidenKeyPrefix(const TOwningKey& key, ui32 prefixLength, ui32 keyColu
     return builder.FinishRow();
 }
 
-TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
+TLegacyKey WidenKeyPrefix(TLegacyKey key, ui32 prefixLength, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
 {
     YT_VERIFY(prefixLength <= key.GetCount() && prefixLength <= keyColumnCount);
 
@@ -1972,7 +1972,7 @@ TKey WidenKeyPrefix(TKey key, ui32 prefixLength, ui32 keyColumnCount, const TRow
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRange<TRowRange> MakeSingletonRowRange(TKey lowerBound, TKey upperBound)
+TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey upperBound)
 {
     auto rowBuffer = New<TRowBuffer>();
     SmallVector<TRowRange, 1> ranges(1, TRowRange(

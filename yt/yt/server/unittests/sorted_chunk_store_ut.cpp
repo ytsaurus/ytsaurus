@@ -33,14 +33,14 @@ TEST_P(TSortedChunkStoreTestKeysFiltering, Test)
     TString upperString = std::get<1>(args);
     const auto& keyStrings = std::get<2>(args);
 
-    TOwningKey lowerKey = lowerString.Empty() ? TOwningKey{} : YsonToKey(lowerString);
-    TOwningKey upperKey = upperString.Empty() ? TOwningKey{} : YsonToKey(upperString);
+    TLegacyOwningKey lowerKey = lowerString.Empty() ? TLegacyOwningKey{} : YsonToKey(lowerString);
+    TLegacyOwningKey upperKey = upperString.Empty() ? TLegacyOwningKey{} : YsonToKey(upperString);
     TRowRange readRange(lowerKey.Get(), upperKey.Get());
 
     TRowBufferPtr rowBuffer = New<TRowBuffer>();
 
-    std::vector<TOwningKey> owningKeys;
-    std::vector<TKey> keys;
+    std::vector<TLegacyOwningKey> owningKeys;
+    std::vector<TLegacyKey> keys;
     for (const auto& str : keyStrings) {
         owningKeys.push_back(YsonToKey(str));
         keys.push_back(owningKeys.back().Get());
@@ -53,7 +53,7 @@ TEST_P(TSortedChunkStoreTestKeysFiltering, Test)
 
     int expectedSkippedBefore = 0;
     int expectedSkippedAfter = 0;
-    std::vector<TKey> expectedFiltered;
+    std::vector<TLegacyKey> expectedFiltered;
 
     for (const auto& key : keyRange) {
         if (key < lowerKey) {
@@ -109,13 +109,13 @@ TEST_P(TSortedChunkStoreTestRangesFiltering, Test)
     TString upperString = std::get<1>(args);
     const auto& keyStrings = std::get<2>(args);
 
-    TOwningKey lowerKey = lowerString.Empty() ? TOwningKey{} : YsonToKey(lowerString);
-    TOwningKey upperKey = upperString.Empty() ? TOwningKey{} : YsonToKey(upperString);
+    TLegacyOwningKey lowerKey = lowerString.Empty() ? TLegacyOwningKey{} : YsonToKey(lowerString);
+    TLegacyOwningKey upperKey = upperString.Empty() ? TLegacyOwningKey{} : YsonToKey(upperString);
     TRowRange readRange(lowerKey.Get(), upperKey.Get());
 
     TRowBufferPtr rowBuffer = New<TRowBuffer>();
 
-    std::vector<std::pair<TOwningKey, TOwningKey>> owningRanges;
+    std::vector<std::pair<TLegacyOwningKey, TLegacyOwningKey>> owningRanges;
     std::vector<TRowRange> ranges;
     for (const auto& pair : keyStrings) {
         owningRanges.emplace_back(YsonToKey(pair.first), YsonToKey(pair.second));

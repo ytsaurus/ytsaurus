@@ -1298,7 +1298,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         ToProto(response->mutable_chunk_list_id(), uploadChunkListId);
 
         if (fetchLastKey) {
-            TOwningKey lastKey;
+            TLegacyOwningKey lastKey;
             if (!IsEmpty(snapshotChunkList)) {
                 lastKey = GetUpperBoundKeyOrThrow(snapshotChunkList);
             }

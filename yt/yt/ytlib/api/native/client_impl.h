@@ -106,13 +106,13 @@ public:
     IMPLEMENT_METHOD(IUnversionedRowsetPtr, LookupRows, (
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options),
         (path, std::move(nameTable), std::move(keys), options))
     IMPLEMENT_METHOD(IVersionedRowsetPtr, VersionedLookupRows, (
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options),
         (path, std::move(nameTable), std::move(keys), options))
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
@@ -126,7 +126,7 @@ public:
     IMPLEMENT_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, (
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TGetInSyncReplicasOptions& options),
         (path, nameTable, keys, options))
     IMPLEMENT_METHOD(std::vector<TTabletInfo>, GetTabletInfos, (
@@ -156,7 +156,7 @@ public:
         (path, options))
     IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithPivotKeys, (
         const NYPath::TYPath& path,
-        const std::vector<NTableClient::TOwningKey>& pivotKeys,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const TReshardTableOptions& options),
         (path, pivotKeys, options))
     IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithTabletCount, (
@@ -515,18 +515,18 @@ private:
     IUnversionedRowsetPtr DoLookupRows(
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptions& options);
     IVersionedRowsetPtr DoVersionedLookupRows(
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options);
 
     TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const TTabletReadOptions& options,
-        const std::vector<std::pair<NTableClient::TKey, int>>& keys);
+        const std::vector<std::pair<NTableClient::TLegacyKey, int>>& keys);
     TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const TTabletReadOptions& options);
@@ -545,7 +545,7 @@ private:
     TRowset DoLookupRowsOnce(
         const NYPath::TYPath& path,
         const NTableClient::TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TLookupRowsOptionsBase& options,
         const std::optional<TString>& retentionConfig,
         TEncoderWithMapping encoderWithMapping,
@@ -574,7 +574,7 @@ private:
     std::vector<NTabletClient::TTableReplicaId> DoGetInSyncReplicas(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,
-        const TSharedRange<NTableClient::TKey>& keys,
+        const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TGetInSyncReplicasOptions& options);
 
     std::vector<NTableClient::TColumnarStatistics> DoGetColumnarStatistics(
@@ -631,7 +631,7 @@ private:
 
     void DoReshardTableWithPivotKeys(
         const NYPath::TYPath& path,
-        const std::vector<NTableClient::TOwningKey>& pivotTKeys,
+        const std::vector<NTableClient::TLegacyOwningKey>& pivotTKeys,
         const TReshardTableOptions& options);
     void DoReshardTableWithTabletCount(
         const NYPath::TYPath& path,

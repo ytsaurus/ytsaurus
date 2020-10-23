@@ -151,7 +151,7 @@ struct ISortedStore
 
     //! Returns the minimum key in the store, inclusive.
     //! Result is guaranteed to have the same width as schema key columns.
-    virtual TOwningKey GetMinKey() const = 0;
+    virtual TLegacyOwningKey GetMinKey() const = 0;
 
     //! Returns the maximum key in the store, exclusive.
     //! Result is NOT guaranteed to have the same width as schema key columns,
@@ -160,7 +160,7 @@ struct ISortedStore
     //! Motivation: it is impossible to get exclusive upper bound of chunk keys
     //! having the same width as schema key columns, and it is necessary to have
     //! the upper bound exclusive because such bounds come from chunk view.
-    virtual TOwningKey GetUpperBoundKey() const = 0;
+    virtual TLegacyOwningKey GetUpperBoundKey() const = 0;
 
     //! Creates a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
     /*!
@@ -201,7 +201,7 @@ struct ISortedStore
     */
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
-        const TSharedRange<TKey>& keys,
+        const TSharedRange<TLegacyKey>& keys,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,

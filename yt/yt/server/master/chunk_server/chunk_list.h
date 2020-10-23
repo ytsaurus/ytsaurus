@@ -49,7 +49,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
 
     // Min key for sorted dynamic tablet chunk lists.
-    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TOwningKey, PivotKey);
+    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TLegacyOwningKey, PivotKey);
 
     // Increases each time the list changes.
     // Enables optimistic locking during chunk tree traversing.

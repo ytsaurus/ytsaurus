@@ -34,8 +34,8 @@ public:
         i64 compressedDataSize,
         i64 uncompressedDataSize,
         i64 dataWeight,
-        NTableClient::TOwningKey minKey = {},
-        NTableClient::TOwningKey maxKey = {},
+        NTableClient::TLegacyOwningKey minKey = {},
+        NTableClient::TLegacyOwningKey maxKey = {},
         EChunkType chunkType = EChunkType::Table);
 
     TChunk* CreateUnconfirmedChunk(EChunkType chunkType = EChunkType::Table);
@@ -44,8 +44,8 @@ public:
 
     TChunkView* CreateChunkView(
         TChunk* underlyingChunk,
-        NTableClient::TOwningKey lowerLimit,
-        NTableClient::TOwningKey upperLimit);
+        NTableClient::TLegacyOwningKey lowerLimit,
+        NTableClient::TLegacyOwningKey upperLimit);
 
     void ConfirmChunk(
         TChunk* chunk,
@@ -53,8 +53,8 @@ public:
         i64 compressedDataSize,
         i64 uncompressedDataSize,
         i64 dataWeight,
-        NTableClient::TOwningKey minKey = {},
-        NTableClient::TOwningKey maxKey = {});
+        NTableClient::TLegacyOwningKey minKey = {},
+        NTableClient::TLegacyOwningKey maxKey = {});
 
 private:
     std::vector<std::unique_ptr<TChunkTree>> CreatedObjects_;

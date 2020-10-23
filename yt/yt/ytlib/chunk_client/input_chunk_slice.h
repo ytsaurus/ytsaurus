@@ -25,16 +25,16 @@ struct TInputSliceLimit
     TInputSliceLimit(
         const NProto::TReadLimit& other,
         const NTableClient::TRowBufferPtr& rowBuffer,
-        TRange<NTableClient::TKey> keySet);
+        TRange<NTableClient::TLegacyKey> keySet);
 
     std::optional<i64> RowIndex;
-    NTableClient::TKey Key;
+    NTableClient::TLegacyKey Key;
 
     void MergeLowerRowIndex(i64 rowIndex);
     void MergeUpperRowIndex(i64 rowIndex);
 
-    void MergeLowerKey(NTableClient::TKey key);
-    void MergeUpperKey(NTableClient::TKey key);
+    void MergeLowerKey(NTableClient::TLegacyKey key);
+    void MergeUpperKey(NTableClient::TLegacyKey key);
 
     void MergeLowerLimit(const TInputSliceLimit& limit);
     void MergeUpperLimit(const TInputSliceLimit& limit);
@@ -73,13 +73,13 @@ public:
 
     explicit TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
-        NTableClient::TKey lowerKey = NTableClient::TKey(),
-        NTableClient::TKey upperKey = NTableClient::TKey());
+        NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
+        NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
 
     explicit TInputChunkSlice(
         const TInputChunkSlice& inputSlice,
-        NTableClient::TKey lowerKey = NTableClient::TKey(),
-        NTableClient::TKey upperKey = NTableClient::TKey());
+        NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
+        NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
 
     TInputChunkSlice(
         const TInputChunkSlice& inputSlice,
@@ -98,7 +98,7 @@ public:
         const TInputChunkPtr& inputChunk,
         const NTableClient::TRowBufferPtr& rowBuffer,
         const NProto::TChunkSlice& protoChunkSlice,
-        TRange<NTableClient::TKey> keySet);
+        TRange<NTableClient::TLegacyKey> keySet);
 
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
@@ -141,15 +141,15 @@ TString ToString(const TInputChunkSlicePtr& slice);
 //! it to a given range. The original chunk may already contain non-trivial limits.
 TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkPtr& inputChunk,
-    NTableClient::TKey lowerKey = NTableClient::TKey(),
-    NTableClient::TKey upperKey = NTableClient::TKey());
+    NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
+    NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
 
 //! Constructs a new chunk slice from another slice, restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
 TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkSlice& inputSlice,
-    NTableClient::TKey lowerKey = NTableClient::TKey(),
-    NTableClient::TKey upperKey = NTableClient::TKey());
+    NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
+    NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
 
 //! Constructs a new chunk slice based on inputChunk with limits from protoChunkSpec.
 TInputChunkSlicePtr CreateInputChunkSlice(

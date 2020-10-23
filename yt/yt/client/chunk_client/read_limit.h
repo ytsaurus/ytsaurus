@@ -24,8 +24,8 @@ public:
     explicit TReadLimit(NProto::TReadLimit&& readLimit);
     explicit TReadLimit(const std::unique_ptr<NProto::TReadLimit>& protoLimit);
 
-    explicit TReadLimit(const NTableClient::TOwningKey& key);
-    explicit TReadLimit(NTableClient::TOwningKey&& key);
+    explicit TReadLimit(const NTableClient::TLegacyOwningKey& key);
+    explicit TReadLimit(NTableClient::TLegacyOwningKey&& key);
 
     TReadLimit& operator= (const NProto::TReadLimit& protoLimit);
     TReadLimit& operator= (NProto::TReadLimit&& protoLimit);
@@ -34,10 +34,10 @@ public:
 
     const NProto::TReadLimit& AsProto() const;
 
-    const NTableClient::TOwningKey& GetKey() const;
+    const NTableClient::TLegacyOwningKey& GetKey() const;
     bool HasKey() const;
-    TReadLimit& SetKey(const NTableClient::TOwningKey& key);
-    TReadLimit& SetKey(NTableClient::TOwningKey&& key);
+    TReadLimit& SetKey(const NTableClient::TLegacyOwningKey& key);
+    TReadLimit& SetKey(NTableClient::TLegacyOwningKey&& key);
 
     i64 GetRowIndex() const;
     bool HasRowIndex() const;
@@ -57,8 +57,8 @@ public:
 
     bool IsTrivial() const;
 
-    void MergeLowerKey(const NTableClient::TOwningKey& key);
-    void MergeUpperKey(const NTableClient::TOwningKey& key);
+    void MergeLowerKey(const NTableClient::TLegacyOwningKey& key);
+    void MergeUpperKey(const NTableClient::TLegacyOwningKey& key);
 
     void MergeLowerRowIndex(i64 rowIndex);
     void MergeUpperRowIndex(i64 rowIndex);
@@ -69,7 +69,7 @@ public:
 
 private:
     NProto::TReadLimit ReadLimit_;
-    NTableClient::TOwningKey Key_;
+    NTableClient::TLegacyOwningKey Key_;
 
     void InitKey();
     void InitCopy(const NProto::TReadLimit& readLimit);

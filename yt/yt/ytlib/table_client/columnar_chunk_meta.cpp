@@ -74,13 +74,13 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
     struct TBlockLastKeysBufferTag { };
     auto tempBuffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
 
-    std::vector<TKey> blockLastKeys;
+    std::vector<TLegacyKey> blockLastKeys;
     blockLastKeys.reserve(BlockMeta_->blocks_size());
     for (const auto& block : BlockMeta_->blocks()) {
-        TKey key;
+        TLegacyKey key;
         if (ChunkSchema_->GetKeyColumnCount() > 0) {
             YT_VERIFY(block.has_last_key());
-            key = FromProto<TKey>(block.last_key(), tempBuffer);
+            key = FromProto<TLegacyKey>(block.last_key(), tempBuffer);
         } else {
             key = tempBuffer->AllocateUnversioned(0);
         }

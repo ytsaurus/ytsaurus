@@ -82,13 +82,13 @@ TString ToString(const TInputDataSlicePtr& dataSlice);
 TInputDataSlicePtr CreateInputDataSlice(
     NChunkClient::EDataSourceType type,
     const std::vector<TInputChunkSlicePtr>& inputChunks,
-    NTableClient::TKey lowerKey,
-    NTableClient::TKey upperKey);
+    NTableClient::TLegacyKey lowerKey,
+    NTableClient::TLegacyKey upperKey);
 
 TInputDataSlicePtr CreateInputDataSlice(
     const TInputDataSlicePtr& dataSlice,
-    NTableClient::TKey lowerKey = NTableClient::TKey(),
-    NTableClient::TKey upperKey = NTableClient::TKey());
+    NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
+    NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
 
 TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice);
 

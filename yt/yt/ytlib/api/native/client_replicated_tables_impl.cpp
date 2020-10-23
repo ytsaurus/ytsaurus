@@ -48,7 +48,7 @@ bool TClient::IsReplicaInSync(
 std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     const TYPath& path,
     TNameTablePtr nameTable,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     const TGetInSyncReplicasOptions& options)
 {
     ValidateSyncTimestamp(options.Timestamp);
@@ -139,7 +139,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
 TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
     const TTableMountInfoPtr& tableInfo,
     const TTabletReadOptions& options,
-    const std::vector<std::pair<NTableClient::TKey, int>>& keys)
+    const std::vector<std::pair<NTableClient::TLegacyKey, int>>& keys)
 {
     THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
     THashSet<TTabletId> tabletIds;

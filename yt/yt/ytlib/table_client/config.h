@@ -77,7 +77,7 @@ class TPartitionConfig
 {
 public:
     NYPath::TYPath Path;
-    NTableClient::TOwningKey Key;
+    NTableClient::TLegacyOwningKey Key;
 
     TPartitionConfig()
     {

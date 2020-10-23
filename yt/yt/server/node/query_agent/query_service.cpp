@@ -448,10 +448,10 @@ private:
 
         if (sorted) {
             auto lowerBound = request->has_lower_bound()
-                ? FromProto<TOwningKey>(request->lower_bound())
+                ? FromProto<TLegacyOwningKey>(request->lower_bound())
                 : MinKey();
             auto upperBound = request->has_upper_bound()
-                ? FromProto<TOwningKey>(request->upper_bound())
+                ? FromProto<TLegacyOwningKey>(request->upper_bound())
                 : MaxKey();
             TTimestamp timestamp = request->timestamp();
 

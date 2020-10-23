@@ -21,8 +21,8 @@ class TChunkLookupHashTable
 {
 public:
     explicit TChunkLookupHashTable(size_t size);
-    virtual void Insert(TKey key, std::pair<ui16, ui32> index) override;
-    virtual SmallVector<std::pair<ui16, ui32>, 1> Find(TKey key) const override;
+    virtual void Insert(TLegacyKey key, std::pair<ui16, ui32> index) override;
+    virtual SmallVector<std::pair<ui16, ui32>, 1> Find(TLegacyKey key) const override;
     virtual size_t GetByteSize() const override;
 
 private:
@@ -39,12 +39,12 @@ TChunkLookupHashTable::TChunkLookupHashTable(size_t size)
     : HashTable_(size)
 { }
 
-void TChunkLookupHashTable::Insert(TKey key, std::pair<ui16, ui32> index)
+void TChunkLookupHashTable::Insert(TLegacyKey key, std::pair<ui16, ui32> index)
 {
     YT_VERIFY(HashTable_.Insert(GetFarmFingerprint(key), (static_cast<ui64>(index.first) << 32) | index.second));
 }
 
-SmallVector<std::pair<ui16, ui32>, 1> TChunkLookupHashTable::Find(TKey key) const
+SmallVector<std::pair<ui16, ui32>, 1> TChunkLookupHashTable::Find(TLegacyKey key) const
 {
     SmallVector<std::pair<ui16, ui32>, 1> result;
     SmallVector<ui64, 1> items;

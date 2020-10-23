@@ -23,7 +23,7 @@ TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     YT_VERIFY(boundaryKeys.sorted());
     YT_VERIFY(!streamDescriptor.TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
 
-    auto trimAndCaptureKey = [&] (const TOwningKey& key) {
+    auto trimAndCaptureKey = [&] (const TLegacyOwningKey& key) {
         int limit = streamDescriptor.TableUploadOptions.TableSchema->GetKeyColumnCount();
         if (key.GetCount() > limit) {
             // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
@@ -35,8 +35,8 @@ TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     };
 
     return TBoundaryKeys {
-        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.min())),
-        trimAndCaptureKey(FromProto<TOwningKey>(boundaryKeys.max())),
+        trimAndCaptureKey(FromProto<TLegacyOwningKey>(boundaryKeys.min())),
+        trimAndCaptureKey(FromProto<TLegacyOwningKey>(boundaryKeys.max())),
     };
 }
 

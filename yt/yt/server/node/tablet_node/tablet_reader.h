@@ -29,8 +29,8 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
+    TLegacyOwningKey lowerBound,
+    TLegacyOwningKey upperBound,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
@@ -41,8 +41,8 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
+    TLegacyOwningKey lowerBound,
+    TLegacyOwningKey upperBound,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
@@ -55,7 +55,7 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
 NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
-    const TSharedRange<TKey>& keys,
+    const TSharedRange<TLegacyKey>& keys,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
@@ -68,8 +68,8 @@ NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
 NTableClient::IVersionedReaderPtr CreateVersionedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     std::vector<ISortedStorePtr> stores,
-    TOwningKey lowerBound,
-    TOwningKey upperBound,
+    TLegacyOwningKey lowerBound,
+    TLegacyOwningKey upperBound,
     TTimestamp currentTimestamp,
     TTimestamp majorTimestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,

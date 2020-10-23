@@ -605,7 +605,7 @@ struct TWriteContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey RowToKey(
+TLegacyOwningKey RowToKey(
     const NTableClient::TTableSchema& schema,
     TSortedDynamicRow row);
 

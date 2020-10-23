@@ -119,7 +119,7 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .DoListFor(action->PivotKeys(), [] (TFluentList fluent, TOwningKey key) {
+                    .DoListFor(action->PivotKeys(), [] (TFluentList fluent, TLegacyOwningKey key) {
                         fluent
                             .Item().Value(key);
                     });
