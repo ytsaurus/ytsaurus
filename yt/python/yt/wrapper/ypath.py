@@ -150,7 +150,7 @@ def escape_ypath_literal(literal, encoding=_ENCODING_SENTINEL):
 
         assert isinstance(ch, binary_type)
 
-        if ch in [b"\\", b"/", b"@", b"&", b"[", b"{"]:
+        if ch in [b"\\", b"/", b"@", b"&", b"[", b"{", b"*"]:
             return b"\\" + ch
         num = ord(ch)
         if num < 32 or num >= 128:
