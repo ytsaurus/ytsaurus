@@ -657,9 +657,6 @@ private:
 
             std::vector<bool> columnPresenceBuffer(modificationSchema->GetColumnCount());
 
-            // FLS slots are reused, so we need to manually reset the reporter.
-            EntityInAnyReporter.Reset();
-
             for (const auto& modification : Modifications_) {
                 switch (modification.Type) {
                     case ERowModificationType::Write:

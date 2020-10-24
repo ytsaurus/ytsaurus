@@ -717,11 +717,7 @@ public:
     { }
 
     virtual void OnEntity() override
-    {
-        if (Depth_ == 0) {
-            EntityInAnyReporter.Report();
-        }
-    }
+    { }
 
     virtual void OnBeginList() override
     {
@@ -1980,24 +1976,6 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey 
         rowBuffer->Capture(upperBound)));
     return MakeSharedRange(std::move(ranges), std::move(rowBuffer));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TEntityInAnyReporter::Report()
-{
-    if (*Reported_) {
-        return;
-    }
-    YT_LOG_WARNING("Top-level entity encountered in value of type \"any\"");
-    *Reported_ = true;
-}
-
-void TEntityInAnyReporter::Reset()
-{
-    *Reported_ = false;
-}
-
-TEntityInAnyReporter EntityInAnyReporter;
 
 ////////////////////////////////////////////////////////////////////////////////
 

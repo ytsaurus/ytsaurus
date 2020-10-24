@@ -449,7 +449,7 @@ class TestSchedulerAcls(YTEnvSetup):
             self._validate_access(self.manage_and_read_user, True, _abort_op, operation_id=op.id)
 
     @authors("levysotsky")
-    def test_invalid_acl_alert(self):
+    def test_invalid_acl(self):
         spec = {
             "acl": [
                 {
@@ -460,9 +460,9 @@ class TestSchedulerAcls(YTEnvSetup):
                 }
             ],
         }
-        with self._run_op_context_manager(spec=spec) as (op, job_id):
-            wait(lambda: op.get_alerts().keys() == ["invalid_acl_in_spec_ignored"])
-            self._validate_access(self.manage_and_read_user, False, _abort_op, operation_id=op.id)
+        with pytest.raises(YtError):
+            with self._run_op_context_manager(spec=spec) as (op, job_id):
+                pass
 
     @authors("levysotsky")
     def test_acl_errors(self):

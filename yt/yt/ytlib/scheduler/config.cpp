@@ -444,7 +444,7 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("owners", Owners)
         .Default();
 
-    RegisterParameter("acl", AclNode)
+    RegisterParameter("acl", Acl)
         .Default();
 
     RegisterParameter("add_authenticated_user_to_acl", AddAuthenticatedUserToAcl)
@@ -574,14 +574,6 @@ TOperationSpecBase::TOperationSpecBase()
         if (ConvertToYsonString(Annotations, EYsonFormat::Text).GetData().size() > MaxAnnotationsYsonTextLength) {
             THROW_ERROR_EXCEPTION("Length of annotations YSON text representation should not exceed %v",
                 MaxAnnotationsYsonTextLength);
-        }
-
-        if (AclNode) {
-            try {
-                Acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(AclNode);
-            } catch (const TErrorException& error) {
-                // Intentionally do nothing for backward compatibility.
-            }
         }
 
         ValidateOperationAcl(Acl);
