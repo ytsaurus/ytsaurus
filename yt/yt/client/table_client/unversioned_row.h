@@ -865,25 +865,6 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// YT-11183
-// This is a hack to log entities in any values only once per write session
-// (crudely approximated by a fiber).
-// TODO(levysotsky): Get rid of this after ticket closing.
-class TEntityInAnyReporter
-{
-public:
-    void Report();
-    void Reset();
-
-private:
-    NConcurrency::TFls<bool> Reported_;
-    NLogging::TLogger Logger{"EntityInAnyReporter"};
-};
-
-extern TEntityInAnyReporter EntityInAnyReporter;
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NTableClient
 
 //! A hasher for TUnversionedValue.

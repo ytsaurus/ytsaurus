@@ -642,17 +642,6 @@ public:
 
         IdToStartingOperation_.insert(std::make_pair(operationId, operation));
 
-        if (spec->AclNode) {
-            try {
-                ConvertTo<TSerializableAccessControlList>(spec->AclNode);
-            } catch (const TErrorException& error) {
-                operation->SetAlert(
-                    EOperationAlertType::InvalidAclInSpecIgnored,
-                    TError("Failed to parse \"acl\" field in spec, ignoring it")
-                        << error);
-            }
-        }
-
         if (!spec->Owners.empty()) {
             operation->SetAlert(
                 EOperationAlertType::OwnersInSpecIgnored,
