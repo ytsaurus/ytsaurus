@@ -152,7 +152,7 @@ void SplitByPivots(
     }
 }
 
-// GroupByPivots does not repeat shards in callbacks.
+// GroupByShards does not repeat shards in callbacks.
 
 // For input:  [..|..|..|..) [..) [..) |
 // OnShards    [..|..|..|  )
@@ -163,13 +163,12 @@ void SplitByPivots(
 // OnShards         [   ..|..|  )
 // OnItems          [         ..) [..) |
 
-template <class TItem, class TShard, class TPredicate, class TOnItemsFunctor, class TOnShardsFunctor>
-void GroupByPivots(
+template <class TItem, class TShard, class TPredicate, class TGroupFunctor>
+void GroupByShards(
     TRange<TItem> items,
     TRange<TShard> shards,
     TPredicate pred,
-    TOnItemsFunctor onItemsFunctor,
-    TOnShardsFunctor onShardsFunctor)
+    TGroupFunctor onGroupFunctor)
 {
     auto shardIt = shards.begin();
     auto itemIt = items.begin();
@@ -184,6 +183,11 @@ void GroupByPivots(
             return pred(it, itemIt); // item FOLLOWS shard
         });
 
+        // pred(shardIt, itemIt)
+        // !pred(itemIt, shardIt)
+        // pred(itemIt, shardIt)
+        // !pred(shardIt, itemIt)
+
         // For interval: itemIt->upper <= *shardIt
         // For points: *itemIt < shardIt is allways true: *shardIt <= *itemIt ~ shardIt > *itemIt
 
@@ -194,68 +198,65 @@ void GroupByPivots(
             return !pred(itemIt, it); // item PRECEDES shard
         });
 
-        if (shardItStart != shardIt) {
-            onShardsFunctor(shardItStart, shardIt, itemIt);
-        }
-
-        if (shardIt == shards.end()) {
-            onItemsFunctor(itemIt, items.end(), shardIt);
-            return;
-        }
-
-        // First item: item NOT PRECEDES shard
-        auto itemsItNext = ExponentialSearch(itemIt, items.end(), [&] (auto it) {
-            // For interval: itemIt->upper <= *shardIt
-            // For points: *itemIt < shardIt
-            return pred(it, shardIt); // item PRECEDES shard
-        });
+        if (shardIt != shards.end()) {
+            // First item: item NOT PRECEDES shard
+            auto itemsItNext = ExponentialSearch(itemIt, items.end(), [&] (auto it) {
+                // For interval: itemIt->upper <= *shardIt
+                // For points: *itemIt < shardIt
+                return pred(it, shardIt); // item PRECEDES shard
+            });
 
 #if 0
-        auto itemsItEnd = ExponentialSearch(itemsItNext, items.end(), [&] (auto it) {
-            return !pred(shardIt, it); // item FOLLOWS shard
-        });
+            auto itemsItEnd = ExponentialSearch(itemsItNext, items.end(), [&] (auto it) {
+                return !pred(shardIt, it); // item FOLLOWS shard
+            });
 
-        YT_VERIFY(itemsItNext == itemsItEnd || itemsItNext + 1 == itemsItEnd);
+            YT_VERIFY(itemsItNext == itemsItEnd || itemsItNext + 1 == itemsItEnd);
 #else
-
-        auto itemsItEnd = itemsItNext;
-        if (itemsItEnd != items.end() && !pred(shardIt, itemsItEnd)) { // item FOLLOWS shard
-            ++itemsItEnd;
-        }
+            auto itemsItEnd = itemsItNext;
+            if (itemsItEnd != items.end() && !pred(shardIt, itemsItEnd)) { // item FOLLOWS shard
+                ++itemsItEnd;
+            }
 #endif
 
-        onItemsFunctor(itemIt, itemsItEnd, shardIt);
+            onGroupFunctor(itemIt, itemsItEnd, shardItStart, shardIt);
 
-        itemIt = itemsItNext;
-        ++shardIt;
+            itemIt = itemsItNext;
+            ++shardIt;
 
-        // TODO(lukyan): Reduce comparisons.
-        // There are three cases for the next iteration:
-        // 0. [ ) [ | | | ) [ )    // itemsItNext != itemsItEnd
-        // 1. [ ) [ | ) [ ) [ ) |  // itemsItNext != itemsItEnd
-        // 2. [ ) | | | [ )        // itemsItNext == itemsItEnd
-        // In cases 0 and 1 no need to call `auto shardItStart = ExponentialSearch`.
+            // TODO(lukyan): Reduce comparisons.
+            // There are three cases for the next iteration:
+            // 0. [ ) [ | | | ) [ )    // itemsItNext != itemsItEnd
+            // 1. [ ) [ | ) [ ) [ ) |  // itemsItNext != itemsItEnd
+            // 2. [ ) | | | [ )        // itemsItNext == itemsItEnd
+            // In cases 0 and 1 no need to call `auto shardItStart = ExponentialSearch`.
+
+        } else {
+            onGroupFunctor(itemIt, items.end(), shardItStart, shards.end());
+            return;
+        }
     }
 }
 
 template <class TItem, class TShard, class TPredicate, class TOnItemsFunctor>
-void GroupByPivots(
+void GroupItemsByShards(
     TRange<TItem> items,
     TRange<TShard> shards,
     TPredicate pred,
     TOnItemsFunctor onItemsFunctor)
 {
-    GroupByPivots(
+    GroupByShards(
         items,
         shards,
         pred,
-        [&] (auto rangesIt, auto rangesItEnd, auto shardIt) {
-            onItemsFunctor(shardIt, rangesIt, rangesItEnd);
-        },
-        [&] (auto shardIt, auto shardItEnd, auto rangesIt) {
-            for (auto it = shardIt; it != shardItEnd; ++it) {
-                onItemsFunctor(it, rangesIt, rangesIt + 1);
+        [&] (auto rangesIt, auto rangesItEnd, auto shardIt, auto shardItEnd) {
+            YT_VERIFY(rangesIt != rangesItEnd);
+            // shardItEnd can invalid.
+            while (shardIt != shardItEnd) {
+                onItemsFunctor(shardIt++, rangesIt, rangesIt + 1);
             }
+
+            onItemsFunctor(shardIt, rangesIt, rangesItEnd);
         });
 }
 
@@ -313,7 +314,7 @@ void SplitRangesByTablets(
 
     YT_VERIFY(!tablets.Empty());
 
-    GroupByPivots(
+    GroupItemsByShards(
         croppedRanges,
         tablets.Slice(1, tablets.size()),
         TPredicate{},
@@ -377,7 +378,7 @@ void SplitKeysByTablets(
 
     YT_VERIFY(!tablets.Empty());
 
-    GroupByPivots(
+    GroupItemsByShards(
         croppedKeys,
         tablets.Slice(1, tablets.size()),
         TPredicate{keyWidth, keyWidth == fullKeySize},
@@ -419,7 +420,7 @@ void GroupRangesByPartition(TRange<TRowRange> ranges, TRange<T> partitions, cons
         }
     };
 
-    GroupByPivots(ranges, partitions, TPredicate{}, onGroup);
+    GroupItemsByShards(ranges, partitions, TPredicate{}, onGroup);
 }
 
 template <class T>
@@ -455,98 +456,38 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
         groupedByPartitions.push_back(TGroup{shardIt, itemIt, itemItEnd});
     });
 
-    auto iterate = [&] (auto onRanges, auto onSamples) {
-        for (const auto& partitionInfo : groupedByPartitions) {
-            auto [partitionIt, beginIt, endIt] = partitionInfo;
-            const auto& partition = *partitionIt;
+    struct TPredicate
+    {
+        TRow GetKey(const TRow* shardIt) const
+        {
+            return *shardIt;
+        }
 
-            TRowRange partitionBounds(GetPivotKey(partition), GetNextPivotKey(partition));
+        // itemIt PRECEDES shardIt
+        bool operator() (const TRowRange* itemIt, const TRow* shardIt) const
+        {
+            return itemIt->second <= GetKey(shardIt);
+        }
 
-            YT_LOG_DEBUG_IF(verboseLogging, "Iterating over partition %v: [%v .. %v]",
-                partitionBounds,
-                beginIt - begin(ranges),
-                endIt - begin(ranges));
-
-            struct TPredicate
-            {
-                TRow GetKey(const TRow* shardIt) const
-                {
-                    return *shardIt;
-                }
-
-                // itemIt PRECEDES shardIt
-                bool operator() (const TRowRange* itemIt, const TRow* shardIt) const
-                {
-                    return itemIt->second <= GetKey(shardIt);
-                }
-
-                // itemIt FOLLOWS shardIt
-                bool operator() (const TRow* shardIt, const TRowRange* itemIt) const
-                {
-                    return GetKey(shardIt) <= itemIt->first;
-                }
-            };
-
-            auto slice = MakeRange(beginIt, endIt);
-
-            // Do not need to crop. Already cropped in GroupRangesByPartition.
-
-            auto minBound = std::max<TRow>(slice.Front().first, rowBuffer->Capture(GetPivotKey(partition)));
-            auto maxBound = std::min<TRow>(slice.Back().second, rowBuffer->Capture(GetNextPivotKey(partition)));
-
-            auto samples = GetSampleKeys(partition);
-
-            TRangeIt rangesItLast = nullptr;
-
-            GroupByPivots(
-                slice,
-                samples,
-                TPredicate{},
-                [&] (TRangeIt rangesIt, TRangeIt rangesItEnd, TSampleIt samplesIt) {
-                    auto lower = samplesIt == samples.begin() ? minBound : *(samplesIt - 1);
-                    auto upper = samplesIt == samples.end() ? maxBound : *samplesIt;
-
-                    lower = std::max<TRow>(lower, rangesIt->first);
-                    upper = std::min<TRow>(upper, (rangesItEnd - 1)->second);
-
-                    // Used values of *samplesIt are Captured in onRanges.
-                    onRanges(rangesIt, rangesItEnd, lower, upper);
-
-                    rangesItLast = rangesItEnd - 1;
-                },
-                [&] (TSampleIt samplesIt, TSampleIt samplesItEnd, TRangeIt rangesIt) {
-                    TRow start = minBound;
-                    if (rangesIt == rangesItLast) {
-                        if (samplesIt != samples.begin()) {
-                            start = *(samplesIt - 1);
-                        }
-                    } else {
-                        if (rangesIt != slice.begin()) {
-                            start = rangesIt->first;
-                        }
-                    }
-
-                    {
-                        auto upper = rangesIt + 1 == slice.end() ? maxBound : rangesIt->second;
-                        YT_QL_CHECK(*(samplesItEnd - 1) <= upper);
-                    }
-
-                    onSamples(samplesIt, samplesItEnd, start);
-                });
+        // itemIt FOLLOWS shardIt
+        bool operator() (const TRow* shardIt, const TRowRange* itemIt) const
+        {
+            return GetKey(shardIt) <= itemIt->first;
         }
     };
 
     size_t allShardCount = 0;
 
     // Calculate touched shards (partitions an) count.
-    iterate(
-        [&] (TRangeIt rangesIt, TRangeIt rangesItEnd, TRow lower, TRow upper) {
-            ++allShardCount;
-        },
-        [&] (TSampleIt samplesIt, TSampleIt samplesItEnd, TRow start) {
-            allShardCount += std::distance(samplesIt, samplesItEnd);
-        });
-
+    for (auto [partitionIt, beginIt, endIt] : groupedByPartitions) {
+        GroupByShards(
+            MakeRange(beginIt, endIt),
+            GetSampleKeys(*partitionIt),
+            TPredicate{},
+            [&] (TRangeIt rangesIt, TRangeIt rangesItEnd, TSampleIt sampleIt, TSampleIt sampleItEnd) {
+                allShardCount += 1 + std::distance(sampleIt, sampleItEnd);
+            });
+    }
     size_t targetSplitCount = std::min(maxSubsplitsPerTablet, allShardCount);
 
     YT_VERIFY(targetSplitCount > 0);
@@ -593,35 +534,87 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
         }
     };
 
-    iterate(
-        [&] (TRangeIt rangesIt, TRangeIt rangesItEnd, TRow lower, TRow upper) {
-            ForEachRange(MakeRange(rangesIt, rangesItEnd), TRowRange(lower, upper), [&] (auto item) {
-                group.push_back(item);
+    for (auto [partitionIt, beginIt, endIt] : groupedByPartitions) {
+        const auto& partition = *partitionIt;
+        TRowRange partitionBounds(GetPivotKey(partition), GetNextPivotKey(partition));
+
+        YT_LOG_DEBUG_IF(verboseLogging, "Iterating over partition %v: [%v .. %v]",
+            partitionBounds,
+            beginIt - begin(ranges),
+            endIt - begin(ranges));
+
+
+        auto slice = MakeRange(beginIt, endIt);
+
+        // Do not need to crop. Already cropped in GroupRangesByPartition.
+
+        auto minBound = std::max<TRow>(slice.Front().first, rowBuffer->Capture(GetPivotKey(partition)));
+        auto maxBound = std::min<TRow>(slice.Back().second, rowBuffer->Capture(GetNextPivotKey(partition)));
+
+        auto samples = GetSampleKeys(partition);
+
+        TRangeIt rangesItLast = nullptr;
+
+        GroupByShards(
+            slice,
+            samples,
+            TPredicate{},
+            [&] (TRangeIt rangesIt, TRangeIt rangesItEnd, TSampleIt sampleIt, TSampleIt sampleItEnd) {
+                YT_VERIFY(rangesIt != rangesItEnd);
+
+                if (sampleIt != sampleItEnd) {
+                    TRow start = minBound;
+                    if (rangesIt == rangesItLast) {
+                        if (sampleIt != samples.begin()) {
+                            start = *(sampleIt - 1);
+                        }
+                    } else {
+                        if (rangesIt != slice.begin()) {
+                            start = rangesIt->first;
+                        }
+                    }
+
+                    {
+                        auto upper = rangesIt + 1 == slice.end() ? maxBound : rangesIt->second;
+                        YT_QL_CHECK(*(sampleItEnd - 1) <= upper);
+                    }
+
+                    auto currentBound = start;
+
+                    while (sampleIt != sampleItEnd) {
+                        size_t nextStep = std::min<size_t>(
+                            Step(currentShardCount, allShardCount, targetSplitCount),
+                            sampleItEnd - sampleIt);
+                        YT_VERIFY(nextStep > 0);
+
+                        sampleIt += nextStep - 1;
+
+                        auto nextBound = rowBuffer->Capture(*sampleIt);
+                        YT_QL_CHECK(currentBound < nextBound);
+                        group.emplace_back(currentBound, nextBound);
+
+                        addGroup(nextStep);
+                        currentBound = nextBound;
+                        ++sampleIt;
+                    }
+                }
+
+                // TODO: Capture *sampleIt ?
+                auto lower = sampleIt == samples.begin() ? minBound : *(sampleIt - 1);
+                auto upper = sampleIt == samples.end() ? maxBound : *sampleIt;
+
+                lower = std::max<TRow>(lower, rangesIt->first);
+                upper = std::min<TRow>(upper, (rangesItEnd - 1)->second);
+
+                ForEachRange(MakeRange(rangesIt, rangesItEnd), TRowRange(lower, upper), [&] (auto item) {
+                    group.push_back(item);
+                });
+
+                addGroup(1);
+
+                rangesItLast = rangesItEnd - 1;
             });
-
-            addGroup(1);
-        },
-        [&] (TSampleIt sampleIt, TSampleIt sampleItEnd, TRow start) {
-            auto currentBound = start;
-
-            auto it = sampleIt;
-            while (it != sampleItEnd) {
-                size_t nextStep = std::min<size_t>(
-                    Step(currentShardCount, allShardCount, targetSplitCount),
-                    sampleItEnd - it);
-                YT_VERIFY(nextStep > 0);
-
-                it += nextStep - 1;
-
-                auto nextBound = rowBuffer->Capture(*it);
-                YT_QL_CHECK(currentBound < nextBound);
-                group.emplace_back(currentBound, nextBound);
-
-                addGroup(nextStep);
-                currentBound = nextBound;
-                ++it;
-            }
-        });
+    }
 
     YT_VERIFY(currentShardCount == allShardCount);
 
