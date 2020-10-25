@@ -4,6 +4,7 @@
 #include "lock_free_stack.h"
 #endif
 
+#include "finally.h"
 
 namespace NYT {
 
@@ -129,13 +130,15 @@ template <typename TCallback>
 void TLockFreeStack<T>::DequeueAll(TCallback callback)
 {
     auto* head = Impl_.ExtractAll();
+    auto cleanup = Finally([this, head] {
+        EraseList(head);
+    });
 
     auto* ptr = head;
     while (ptr) {
         callback(ptr->Value);
         ptr = ptr->Next;
     }
-    EraseList(head);
 }
 
 template <class T>
