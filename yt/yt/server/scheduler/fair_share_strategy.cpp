@@ -1260,6 +1260,15 @@ private:
         }
     }
 
+    TFairShareStrategyTreeConfigPtr ParsePoolTreeConfig(const INodePtr& poolTreeNode) const
+    {
+        const auto& attributes = poolTreeNode->Attributes();
+        auto ysonConfig = attributes.FindYson(TreeConfigAttributeName);
+        return ysonConfig
+            ? ConvertTo<TFairShareStrategyTreeConfigPtr>(ysonConfig)
+            : ConvertTo<TFairShareStrategyTreeConfigPtr>(attributes.ToMap());
+    }
+
     void CollectTreeChanges(
         const IMapNodePtr& poolsMap,
         THashSet<TString>* treesToAdd,
@@ -1271,9 +1280,7 @@ private:
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treesToAdd->insert(key);
                 try {
-                    auto child = poolsMap->FindChild(key);
-                    auto configMap = child->Attributes().ToMap();
-                    auto config = ConvertTo<TFairShareStrategyTreeConfigPtr>(configMap);
+                    auto config = ParsePoolTreeConfig(poolsMap->FindChild(key));
                     treeIdToFilter->emplace(key, config->NodesFilter);
                 } catch (const std::exception&) {
                     // Do nothing, alert will be set later.
@@ -1290,8 +1297,7 @@ private:
             }
 
             try {
-                auto configMap = child->Attributes().ToMap();
-                auto config = ConvertTo<TFairShareStrategyTreeConfigPtr>(configMap);
+                auto config = ParsePoolTreeConfig(child);
                 treeIdToFilter->emplace(treeId, config->NodesFilter);
 
                 if (config->NodesFilter != tree->GetNodesFilter()) {
@@ -1305,7 +1311,7 @@ private:
     }
 
     TFairShareTreeMap ConstructUpdatedTreeMap(
-        const IMapNodePtr& poolsMap,
+        const IMapNodePtr& poolTreesMap,
         const THashSet<TString>& treesToAdd,
         const THashSet<TString>& treesToRemove,
         std::vector<TError>* errors)
@@ -1315,8 +1321,7 @@ private:
         for (const auto& treeId : treesToAdd) {
             TFairShareStrategyTreeConfigPtr treeConfig;
             try {
-                auto configMap = poolsMap->GetChildOrThrow(treeId)->Attributes().ToMap();
-                treeConfig = ConvertTo<TFairShareStrategyTreeConfigPtr>(configMap);
+                treeConfig = ParsePoolTreeConfig(poolTreesMap->GetChildOrThrow(treeId));
             } catch (const std::exception& ex) {
                 auto error = TError("Error parsing configuration of tree %Qv", treeId)
                     << ex;
@@ -1369,18 +1374,16 @@ private:
     }
 
     void UpdateTreesConfigs(
-        const IMapNodePtr& poolsMap,
+        const IMapNodePtr& poolTreesMap,
         const TFairShareTreeMap& trees,
         std::vector<TError>* errors,
         std::vector<TString>* updatedTreeIds) const
     {
         for (const auto& [treeId, tree] : trees) {
-            auto child = poolsMap->GetChildOrThrow(treeId);
+            auto child = poolTreesMap->GetChildOrThrow(treeId);
 
             try {
-                auto configMap = child->Attributes().ToMap();
-                auto config = ConvertTo<TFairShareStrategyTreeConfigPtr>(configMap);
-                tree->UpdateConfig(config);
+                tree->UpdateConfig(ParsePoolTreeConfig(child));
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to configure tree %Qv, defaults will be used", treeId)
                     << ex;

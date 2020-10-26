@@ -157,12 +157,12 @@ class ListOperationsSetup(YTEnvSetup):
             sync_unmount_table(self._input_path)
 
         # Setup pool trees.
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
 
         nodes = ls("//sys/cluster_nodes")
         set("//sys/cluster_nodes/" + nodes[0] + "/@user_tags/end", "other")
 
-        create_pool_tree("other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
+        create_pool_tree("other", config={"nodes_filter": "tag"}, ignore_existing=True)
         create_pool("some_pool", pool_tree="other", ignore_existing=True)
         create_pool("pool_no_running", pool_tree="other", ignore_existing=True)
         set("//sys/pool_trees/other/pool_no_running/@max_running_operation_count", 0)

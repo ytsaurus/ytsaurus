@@ -2022,6 +2022,12 @@ class TestConnectToMaster(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 0
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 1000
+        }
+    }
+
     @authors("max42")
     def test_scheduler_doesnt_connect_to_master_in_safe_mode(self):
         set("//sys/@config/enable_safe_mode", True)
@@ -2043,6 +2049,7 @@ class TestConnectToMaster(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE, sync=False):
             move("//sys/pool_trees", "//sys/pool_trees_bak")
             set("//sys/pool_trees", {"default": {"invalid_pool": 1}})
+            set("//sys/pool_trees/default/@config", {})
 
         wait(lambda: get("//sys/scheduler/@alerts"))
         alerts = get("//sys/scheduler/@alerts")
@@ -2261,8 +2268,8 @@ class TestResourceMetering(YTEnvSetup):
         write_table("//tmp/t1", [{"a": "b"}])
 
         create_pool_tree("yggdrasil", wait_for_orchid=False)
-        set("//sys/pool_trees/default/@nodes_filter", "!other")
-        set("//sys/pool_trees/yggdrasil/@nodes_filter", "other")
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        set("//sys/pool_trees/yggdrasil/@config/nodes_filter", "other")
 
         nodes = ls("//sys/cluster_nodes")
         for node in nodes[:3]:

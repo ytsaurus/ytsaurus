@@ -231,9 +231,9 @@ class TestSchedulingTags(YTEnvSetup):
         )
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[1]), ["tagC"])
 
-        set("//sys/pool_trees/default/@nodes_filter", "default")
+        set("//sys/pool_trees/default/@config/nodes_filter", "default")
 
-        create_pool_tree("other", attributes={"nodes_filter": "tagC"})
+        create_pool_tree("other", config={"nodes_filter": "tagC"})
 
         wait(lambda: self._get_slots_by_filter("default") == 1)
         wait(lambda: self._get_slots_by_filter("tagC") == 1)

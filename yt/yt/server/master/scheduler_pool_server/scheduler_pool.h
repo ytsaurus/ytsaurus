@@ -22,8 +22,8 @@ class TSchedulerPool
 public:
     explicit TSchedulerPool(NCypressClient::TObjectId id, bool isRoot = false);
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
 
     // NB: exception is raised upon validation fails. Caller is obliged to restore correct state.
     void ValidateAll();
@@ -62,8 +62,8 @@ class TSchedulerPoolTree
 public:
     explicit TSchedulerPoolTree(NCypressClient::TObjectId id);
 
-    TString GetLowercaseObjectName() const override;
-    TString GetCapitalizedObjectName() const override;
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -71,9 +71,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TString, TreeName);
     DEFINE_BYVAL_RW_PROPERTY(TSchedulerPool*, RootPool, nullptr);
 
-    DEFINE_BYREF_RW_PROPERTY(NScheduler::TFairShareStrategyTreeConfigPtr, FullConfig);
-
-    DEFINE_BYREF_RW_PROPERTY(TSpecifiedAttributesMap, SpecifiedAttributes);
+    DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, SpecifiedConfig);
 
 private:
     using TBase = NObjectServer::TNonversionedObjectBase;

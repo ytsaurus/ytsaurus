@@ -273,7 +273,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         with pytest.raises(YtError):
             set("//sys/pool_trees/my_tree/@parent_name", "nirvana")
 
-    def test_standard_move_of_pool_trees_is_forbidden2(self):
+    def test_standard_move_of_pool_trees_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool_tree("another_tree", wait_for_orchid=False)
 
@@ -297,7 +297,6 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("another_tree", wait_for_orchid=False)
         create_pool("logfeller", pool_tree="another_tree", wait_for_orchid=False)
 
-        # with pytest.raises(YtError):
         move(
             "//sys/pool_trees/my_tree/nirvana",
             "//sys/pool_trees/another_tree/logfeller/nirvana",
@@ -461,11 +460,11 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 10)
         assert get("//sys/pool_trees/my_tree/nirvana/@max_operation_count") == 10
 
-    def test_set_and_get_pooltree_attribute(self):
+    def test_set_and_get_pooltree_config_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/@default_parent_pool", "research")
-        assert get("//sys/pool_trees/my_tree/@default_parent_pool") == "research"
+        set("//sys/pool_trees/my_tree/@config/default_parent_pool", "research")
+        assert get("//sys/pool_trees/my_tree/@config/default_parent_pool") == "research"
 
     def test_set_and_get_unknown_pool_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -474,11 +473,11 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@some_unknown_attribute", 10)
         assert get("//sys/pool_trees/my_tree/nirvana/@some_unknown_attribute") == 10
 
-    def test_set_and_get_unknown_pooltree_attribute(self):
+    def test_set_and_get_unknown_pooltree_config_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/@some_unknown_attribute", 10)
-        assert get("//sys/pool_trees/my_tree/@some_unknown_attribute") == 10
+        set("//sys/pool_trees/my_tree/@config/some_unknown_attribute", 10)
+        assert get("//sys/pool_trees/my_tree/@config/some_unknown_attribute") == 10
 
     def test_get_pool_with_attributes_returns_only_specified_attributes(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -492,16 +491,13 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert result.attributes["max_operation_count"] == 2
         assert "max_running_operation_count" not in result.attributes
 
-    def test_get_pooltree_with_attributes_returns_only_specified_attributes(self):
+    def test_get_pooltree_with_config_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/@max_operation_count", 2)
-        result = get(
-            "//sys/pool_trees/my_tree",
-            attributes=["max_operation_count", "max_running_operation_count"],
-        )
-        assert result.attributes["max_operation_count"] == 2
-        assert "max_running_operation_count" not in result.attributes
+        set("//sys/pool_trees/my_tree/@config/max_operation_count", 2)
+        result = get("//sys/pool_trees/my_tree", attributes=["config"])
+        assert result.attributes["config"]["max_operation_count"] == 2
+        assert "max_running_operation_count" not in result.attributes["config"]
 
     def test_invalid_type_pool_attribute_is_refused_on_set(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -512,12 +508,13 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", True)
         assert get("//sys/pool_trees/my_tree/nirvana/@max_operation_count") == 10
 
-    def test_invalid_type_pooltree_attribute_is_refused_on_set(self):
+    def test_invalid_type_pooltree_config_attribute_is_refused_on_set(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
-        set("//sys/pool_trees/my_tree/@default_parent_pool", "research")
+
+        set("//sys/pool_trees/my_tree/@config/default_parent_pool", "research")
         with pytest.raises(YtError):
-            set("//sys/pool_trees/my_tree/@default_parent_pool", True)
-        assert get("//sys/pool_trees/my_tree/@default_parent_pool") == "research"
+            set("//sys/pool_trees/my_tree/@config/default_parent_pool", True)
+        assert get("//sys/pool_trees/my_tree/@config/default_parent_pool") == "research"
 
     def test_pool_attribute_constraints_are_enforced_on_set(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -528,12 +525,12 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", -1)
         assert get("//sys/pool_trees/my_tree/nirvana/@max_operation_count") == 10
 
-    def test_pooltree_attribute_constraints_are_enforced_on_set(self):
+    def test_pooltree_config_attribute_constraints_are_enforced_on_set(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
-        set("//sys/pool_trees/my_tree/@max_ephemeral_pools_per_user", 10)
+        set("//sys/pool_trees/my_tree/@config/max_ephemeral_pools_per_user", 10)
         with pytest.raises(YtError):
-            set("//sys/pool_trees/my_tree/@max_ephemeral_pools_per_user", -1)
-        assert get("//sys/pool_trees/my_tree/@max_ephemeral_pools_per_user") == 10
+            set("//sys/pool_trees/my_tree/@config/max_ephemeral_pools_per_user", -1)
+        assert get("//sys/pool_trees/my_tree/@config/max_ephemeral_pools_per_user") == 10
 
     def test_remove_builtin_pool_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -544,14 +541,14 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         with pytest.raises(YtError):
             get("//sys/pool_trees/my_tree/nirvana/@max_operation_count")
 
-    def test_remove_builtin_pooltree_attribute(self):
+    def test_remove_known_pooltree_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/@default_parent_pool", "research")
-        remove("//sys/pool_trees/my_tree/@default_parent_pool")
+        set("//sys/pool_trees/my_tree/@config/default_parent_pool", "research")
+        remove("//sys/pool_trees/my_tree/@config/default_parent_pool")
         with pytest.raises(YtError):
-            get("//sys/pool_trees/my_tree/@default_parent_pool")
+            get("//sys/pool_trees/my_tree/@config/default_parent_pool")
 
     def test_remove_composite_builtin_pool_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -686,16 +683,16 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@custom_attr", 10)
         assert exists("//sys/pool_trees/my_tree/nirvana/@custom_attr")
 
-    def test_exist_pool_tree_attribute2(self):
+    def test_exist_pool_tree_config_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
 
-        assert not exists("//sys/pool_trees/my_tree/@nodes_filter")
-        set("//sys/pool_trees/my_tree/@nodes_filter", "filter")
-        assert exists("//sys/pool_trees/my_tree/@nodes_filter")
+        assert not exists("//sys/pool_trees/my_tree/@config/nodes_filter")
+        set("//sys/pool_trees/my_tree/@config/nodes_filter", "filter")
+        assert exists("//sys/pool_trees/my_tree/@config/nodes_filter")
 
-        assert not exists("//sys/pool_trees/my_tree/@custom_attr")
-        set("//sys/pool_trees/my_tree/@custom_attr", 10)
-        assert exists("//sys/pool_trees/my_tree/@custom_attr")
+        assert not exists("//sys/pool_trees/my_tree/@config/custom_attr")
+        set("//sys/pool_trees/my_tree/@config/custom_attr", 10)
+        assert exists("//sys/pool_trees/my_tree/@config/custom_attr")
 
     def test_set_using_different_attribute_aliases_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -723,20 +720,21 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
-        set("//sys/pool_trees/my_tree/@fair_share_preemption_timeout", 1)
-        assert get("//sys/pool_trees/my_tree/@fair_share_preemption_timeout") == 1
+        set("//sys/pool_trees/my_tree/@config/fair_share_preemption_timeout", 1)
+        assert get("//sys/pool_trees/my_tree/@config/fair_share_preemption_timeout") == 1
 
         set("//sys/pool_trees/my_tree/nirvana/@fair_share_preemption_timeout", 2)
         assert get("//sys/pool_trees/my_tree/nirvana/@fair_share_preemption_timeout") == 2
 
-    def test_access_to_pooltree_attribute_on_pool_is_forbidden(self):
+    def test_access_to_pool_tree_config_attribute_on_pool_tree_object_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
-        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
         with pytest.raises(YtError):
-            set("//sys/pool_trees/my_tree/nirvana/@default_parent_pool", "research")
+            set("//sys/pool_trees/my_tree/@default_parent_pool", "research")
         with pytest.raises(YtError):
-            get("//sys/pool_trees/my_tree/nirvana/@default_parent_pool")
+            get("//sys/pool_trees/my_tree/@default_parent_pool")
+        with pytest.raises(YtError):
+            remove("//sys/pool_trees/my_tree/@default_parent_pool")
 
     def test_access_to_pool_attribute_on_pooltree_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -768,7 +766,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     #     create_pool_tree("my_tree", wait_for_orchid=False)
     #     create_pool("nirvana", pool_tree="my_tree", attributes={"mode": "fifo"}, wait_for_orchid=False)
     #     # Exception was thrown here
-    #     create_pool_tree("other_tree", wait_for_orchid=False, attributes={"mode": "trash_value"})
+    #     create_pool_tree("other_tree", wait_for_orchid=False, config={"mode": "trash_value"})
 
     def test_create_doesnt_set_unwanted_attributes(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -785,13 +783,9 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         )
         assert get("//sys/pool_trees/my_tree/nirvana/@mode") == "fifo"
 
-    def test_create_pool_tree_with_attributes(self):
-        create_pool_tree(
-            "my_tree",
-            wait_for_orchid=False,
-            attributes={"default_parent_pool": "research"},
-        )
-        assert get("//sys/pool_trees/my_tree/@default_parent_pool") == "research"
+    def test_create_pool_tree_with_config_attributes(self):
+        create_pool_tree("my_tree", wait_for_orchid=False, config={"default_parent_pool": "research"})
+        assert get("//sys/pool_trees/my_tree/@config/default_parent_pool") == "research"
 
     def test_fail_on_create_pool_with_attributes(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
@@ -807,17 +801,45 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
     def test_fail_on_create_pool_tree_with_attributes(self):
         with pytest.raises(YtError):
-            create_pool_tree(
-                "my_tree",
-                wait_for_orchid=False,
-                attributes={"max_operation_count": "trash"},
-            )
+            create_pool_tree("my_tree", wait_for_orchid=False, config={"max_operation_count": "trash"})
         assert not exists("//sys/pool_trees/my_tree")
+
+    def test_get_set_remove_empty_pooltree_config(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        assert exists("//sys/pool_trees/my_tree/@config")
+        assert get("//sys/pool_trees/my_tree/@config") == {}
+
+        remove("//sys/pool_trees/my_tree/@config")
+        assert exists("//sys/pool_trees/my_tree/@config")
+        assert get("//sys/pool_trees/my_tree/@config") == {}
+
+    def test_set_pooltree_config_overwriting(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+
+        set("//sys/pool_trees/my_tree/@config", {"nodes_filter": "filter"})
+        assert get("//sys/pool_trees/my_tree/@config") == {"nodes_filter": "filter"}
+
+        set("//sys/pool_trees/my_tree/@config", {"inexistent": "value"})
+        assert get("//sys/pool_trees/my_tree/@config") == {"inexistent": "value"}
+
+        set("//sys/pool_trees/my_tree/@config", {"max_operation_count": 1})
+        assert get("//sys/pool_trees/my_tree/@config") == {"max_operation_count": 1}
+
+    def test_remove_pooltree_config(self):
+        create_pool_tree("my_tree", wait_for_orchid=False, config={
+            "nodes_filter": "filter",
+            "inexistent": "value"
+        })
+        remove("//sys/pool_trees/my_tree/@config")
+
+        assert get("//sys/pool_trees/my_tree/@config") == {}
 
     def test_attributes_load_from_snapshot(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
-        set("//sys/pool_trees/my_tree/@default_parent_pool", "research")
-        set("//sys/pool_trees/my_tree/@some_unknown_attribute", 1)
+        set("//sys/pool_trees/my_tree/@config/default_parent_pool", "research")
+        set("//sys/pool_trees/my_tree/@config/unknown_config_attribute", 1)
+        set("//sys/pool_trees/my_tree/@unknown_object_attribute", 2)
+
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 10)
         set("//sys/pool_trees/my_tree/nirvana/@some_unknown_attribute", "xxx")
@@ -826,8 +848,9 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        assert get("//sys/pool_trees/my_tree/@default_parent_pool") == "research"
-        assert get("//sys/pool_trees/my_tree/@some_unknown_attribute") == 1
+        assert get("//sys/pool_trees/my_tree/@config/default_parent_pool") == "research"
+        assert get("//sys/pool_trees/my_tree/@config/unknown_config_attribute") == 1
+        assert get("//sys/pool_trees/my_tree/@unknown_object_attribute") == 2
         assert get("//sys/pool_trees/my_tree/nirvana/@max_operation_count") == 10
         assert get("//sys/pool_trees/my_tree/nirvana/@some_unknown_attribute") == "xxx"
 

@@ -965,22 +965,13 @@ class YTEnvSetup(object):
         ):
             assert not yt_commands.get_batch_error(response)
 
-        if not yt_commands.exists(scheduler_pool_trees_root, driver=driver):
-            yt_commands.create("map_node", scheduler_pool_trees_root, driver=driver)
-
         restore_pool_trees_requests = []
         if yt_commands.exists(scheduler_pool_trees_root + "/default", driver=driver):
-            restore_pool_trees_requests.extend(
-                [
-                    yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"),
-                    # TODO(eshcherbin): Clear default tree's config when it is moved to a separate attribute.
-                    yt_commands.make_batch_request(
-                        "set",
-                        path=scheduler_pool_trees_root + "/default/@nodes_filter",
-                        input="",
-                    ),
-                ]
-            )
+            restore_pool_trees_requests.extend([
+                yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"),
+                # TODO(eshcherbin): Clear default tree's config when it is moved to a separate attribute.
+                yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@config/nodes_filter", input=""),
+            ])
         else:
             # XXX(eshcherbin, renadeen): Remove when map_node pool trees are not a thing.
             if yt_commands.get(scheduler_pool_trees_root + "/@type") == "map_node":
@@ -1005,7 +996,7 @@ class YTEnvSetup(object):
                     yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/" + pool_tree)
                 )
         for response in yt_commands.execute_batch(restore_pool_trees_requests, driver=driver):
-            assert not yt_commands.get_batch_error(response)
+            yt_commands.raise_batch_error(response)
 
         # Could not add this to the batch request because of possible races at scheduler.
         yt_commands.set(scheduler_pool_trees_root + "/@default_tree", "default", driver=driver)
