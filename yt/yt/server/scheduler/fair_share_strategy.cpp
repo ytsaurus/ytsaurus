@@ -409,7 +409,7 @@ public:
         return result;
     }
 
-    virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() override
+    virtual std::vector<std::pair<TOperationId, TError>> GetHangedOperations() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -420,27 +420,27 @@ public:
                 continue;
             }
 
-            bool hasSchedulableTree = false;
-            TError operationError("Operation is unschedulable in all trees");
+            bool hasNonHangedTree = false;
+            TError operationError("Operation scheduling is hanged in all trees");
 
             for (const auto& treePoolPair : operationState->TreeIdToPoolNameMap()) {
                 const auto& treeName = treePoolPair.first;
-                auto error = GetTree(treeName)->CheckOperationUnschedulable(
+                auto error = GetTree(treeName)->CheckOperationIsHanged(
                     operationId,
-                    Config->OperationUnschedulableSafeTimeout,
-                    Config->OperationUnschedulableMinScheduleJobAttempts,
-                    Config->OperationUnschedulableDeactivationReasons,
-                    Config->OperationUnschedulableDueToLimitingAncestorSafeTimeout,
+                    Config->OperationHangupSafeTimeout,
+                    Config->OperationHangupMinScheduleJobAttempts,
+                    Config->OperationHangupDeactivationReasons,
+                    Config->OperationHangupDueToLimitingAncestorSafeTimeout,
                     operationState->GetController()->GetAggregatedMinNeededJobResources());
                 if (error.IsOK()) {
-                    hasSchedulableTree = true;
+                    hasNonHangedTree = true;
                     break;
                 } else {
                     operationError.InnerErrors().push_back(error);
                 }
             }
 
-            if (!hasSchedulableTree) {
+            if (!hasNonHangedTree) {
                 result.emplace_back(operationId, operationError);
             }
         }

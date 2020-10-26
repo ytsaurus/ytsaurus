@@ -300,19 +300,19 @@ public:
     int MaxOperationCount;
 
     //! Unschedulable operations check period.
-    TDuration OperationUnschedulableCheckPeriod;
+    TDuration OperationHangupCheckPeriod;
 
     //! During this timeout after activation operation can not be considered as unschedulable.
-    TDuration OperationUnschedulableSafeTimeout;
+    TDuration OperationHangupSafeTimeout;
 
     //! Operation that has less than this number of schedule job calls can not be considered as unschedulable.
-    int OperationUnschedulableMinScheduleJobAttempts;
+    int OperationHangupMinScheduleJobAttempts;
 
     //! Reasons that consider as unsuccessfull in schedule job attempts.
-    THashSet<EDeactivationReason> OperationUnschedulableDeactivationReasons;
+    THashSet<EDeactivationReason> OperationHangupDeactivationReasons;
 
     //! During this timeout after activation operation can not be considered as unschedulable due to limiting ancestor.
-    TDuration OperationUnschedulableDueToLimitingAncestorSafeTimeout;
+    TDuration OperationHangupDueToLimitingAncestorSafeTimeout;
 
     //! List of operation types which should be disabled in tentative tree by default.
     THashSet<EOperationType> OperationsWithoutTentativePoolTrees;

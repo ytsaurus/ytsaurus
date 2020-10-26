@@ -3213,7 +3213,6 @@ void TOperationElement::UpdateCumulativeAttributes(TDynamicAttributesList* dynam
     PendingJobCount_ = ComputePendingJobCount();
 
     if (!IsSchedulable()) {
-        (*dynamicAttributesList)[GetTreeIndex()].Active = false;
         ++context->UnschedulableReasons[*UnschedulableReason_];
     }
 }

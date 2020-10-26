@@ -274,19 +274,24 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("resource_metering_period", ResourceMeteringPeriod)
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("operation_unschedulable_check_period", OperationUnschedulableCheckPeriod)
+    RegisterParameter("operation_hangup_check_period", OperationHangupCheckPeriod)
+        .Alias("operation_unschedulable_check_period")
         .Default(TDuration::Minutes(1));
 
-    RegisterParameter("operation_unschedulable_safe_timeout", OperationUnschedulableSafeTimeout)
+    RegisterParameter("operation_hangup_safe_timeout", OperationHangupSafeTimeout)
+        .Alias("operation_unschedulable_safe_timeout")
         .Default(TDuration::Minutes(60));
 
-    RegisterParameter("operation_unschedulable_min_schedule_job_attempts", OperationUnschedulableMinScheduleJobAttempts)
+    RegisterParameter("operation_hangup_min_schedule_job_attempts", OperationHangupMinScheduleJobAttempts)
+        .Alias("operation_unschedulable_min_schedule_job_attempts")
         .Default(1000);
 
-    RegisterParameter("operation_unschedulable_deactivation_reasons", OperationUnschedulableDeactivationReasons)
+    RegisterParameter("operation_hangup_deactivation_reasons", OperationHangupDeactivationReasons)
+        .Alias("operation_unschedulable_deactivation_reasons")
         .Default({EDeactivationReason::ScheduleJobFailed, EDeactivationReason::MinNeededResourcesUnsatisfied});
 
-    RegisterParameter("operation_unschedulable_due_to_limiting_ancestor_safe_timeout", OperationUnschedulableDueToLimitingAncestorSafeTimeout)
+    RegisterParameter("operation_hangup_due_to_limiting_ancestor_safe_timeout", OperationHangupDueToLimitingAncestorSafeTimeout)
+        .Alias("operation_unschedulable_due_to_limiting_ancestor_safe_timeout")
         .Default(TDuration::Minutes(5));
 
     RegisterParameter("max_operation_count", MaxOperationCount)
