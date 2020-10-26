@@ -1006,6 +1006,11 @@ def get_batch_output(result):
     return None
 
 
+def raise_batch_error(result):
+    if "error" in result:
+        raise YtResponseError(result["error"])
+
+
 def check_permission(user, permission, path, **kwargs):
     kwargs["user"] = user
     kwargs["permission"] = permission
@@ -1535,10 +1540,12 @@ def remove_account(name, **kwargs):
         wait(lambda: not exists(account_path, driver=driver))
 
 
-def create_pool_tree(name, wait_for_orchid=True, **kwargs):
+def create_pool_tree(name, config=None, wait_for_orchid=True, **kwargs):
     kwargs["type"] = "scheduler_pool_tree"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
+    if config:
+        kwargs["attributes"]["config"] = config
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs, parse_yson=True)
     if wait_for_orchid:

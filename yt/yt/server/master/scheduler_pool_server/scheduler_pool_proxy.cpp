@@ -8,6 +8,8 @@
 
 #include <yt/server/master/object_server/type_handler.h>
 
+#include <yt/server/lib/misc/interned_attributes.h>
+
 #include <yt/server/lib/scheduler/helpers.h>
 
 namespace NYT::NSchedulerPoolServer {
@@ -58,20 +60,31 @@ void TSchedulerPoolProxy::ListSystemAttributes(std::vector<ISystemAttributeProvi
 {
     TNonversionedMapObjectProxyBase::ListSystemAttributes(descriptors);
     const auto& schedulerPoolManager = Bootstrap_->GetSchedulerPoolManager();
-    auto allAttributes = schedulerPoolManager->GetKnownPoolAttributes();
+    const auto& poolAttributes = schedulerPoolManager->GetKnownPoolAttributes();
     const auto& poolTreeAttributes = schedulerPoolManager->GetKnownPoolTreeAttributes();
-    allAttributes.insert(poolTreeAttributes.begin(), poolTreeAttributes.end());
-
     auto schedulerPool = GetThisImpl();
-    auto specifiedAttributes = schedulerPool->IsRoot()
-        ? schedulerPool->GetMaybePoolTree()->SpecifiedAttributes()
-        : schedulerPool->SpecifiedAttributes();
 
-    for (auto internedAttributeKey : allAttributes) {
-        descriptors->push_back(TAttributeDescriptor(internedAttributeKey)
+    for (auto poolAttributeKey : poolAttributes) {
+        auto isPresent = !schedulerPool->IsRoot() && schedulerPool->SpecifiedAttributes().contains(poolAttributeKey);
+        descriptors->push_back(TAttributeDescriptor(poolAttributeKey)
             .SetWritable(true)
             .SetRemovable(true)
-            .SetPresent(specifiedAttributes.contains(internedAttributeKey)));
+            .SetPresent(isPresent));
+    }
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetPresent(schedulerPool->IsRoot()));
+
+    // COMPAT(renadeen): we want custom handling of pool tree attributes to show specific error message.
+    // It will be removed in 20.4.
+    for (auto poolTreeAttribute : poolTreeAttributes) {
+        if (!poolAttributes.contains(poolTreeAttribute)) {
+            descriptors->push_back(TAttributeDescriptor(poolTreeAttribute)
+                .SetWritable(true)
+                .SetRemovable(true)
+                .SetPresent(false));
+        }
     }
 }
 
@@ -79,17 +92,12 @@ bool TSchedulerPoolProxy::GetBuiltinAttribute(NYTree::TInternedAttributeKey key,
 {
     auto* schedulerPool = GetThisImpl();
 
-    if (schedulerPool->IsRoot() && IsKnownPoolTreeAttribute(key)) {
-        auto* schedulerPoolTree = schedulerPool->GetMaybePoolTree();
-        auto it = schedulerPoolTree->SpecifiedAttributes().find(key);
-        if (it == schedulerPoolTree->SpecifiedAttributes().end()) {
-            return false;
+    if (schedulerPool->IsRoot()) {
+        if (key == EInternedAttributeKey::Config) {
+            consumer->OnRaw(schedulerPool->GetMaybePoolTree()->SpecifiedConfig());
+            return true;
         }
-        consumer->OnRaw(it->second);
-        return true;
-    }
-
-    if (!schedulerPool->IsRoot() && IsKnownPoolAttribute(key)) {
+    } else if (IsKnownPoolAttribute(key)) {
         auto it = schedulerPool->SpecifiedAttributes().find(key);
         if (it == schedulerPool->SpecifiedAttributes().end()) {
             return false;
@@ -105,37 +113,24 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
 {
     auto* schedulerPool = GetThisImpl();
 
-    if (IsKnownPoolTreeAttribute(key)) {
-        if (schedulerPool->IsRoot()) {
+    if (schedulerPool->IsRoot()) {
+        if (key == EInternedAttributeKey::Config) {
             auto* schedulerPoolTree = schedulerPool->GetMaybePoolTree();
-            const auto& config = schedulerPoolTree->FullConfig();
-            ValidateNoAliasClash(config, schedulerPoolTree->SpecifiedAttributes(), key);
-
-            // NB: the order matters; first statement can throw exception.
-            config->LoadParameter(key.Unintern(), ConvertToNode(value), EMergeStrategy::Overwrite);
-            schedulerPoolTree->SpecifiedAttributes()[key] = value;
+            auto dummy = New<NScheduler::TFairShareStrategyTreeConfig>();
+            dummy->Load(ConvertToNode(value));
+            schedulerPoolTree->SpecifiedConfig() = value;
             return true;
-        } else if (!IsKnownPoolAttribute(key)){
-            THROW_ERROR_EXCEPTION("Cannot set known pool tree attribute %Qv on pool %Qv", key.Unintern(), schedulerPool->GetName())
-                << TErrorAttribute("attribute_name", key.Unintern())
-                << TErrorAttribute("pool_name", schedulerPool->GetName());
+        } else if (IsKnownPoolTreeAttribute(key)) {
+            THROW_ERROR_EXCEPTION("All pool tree attributes have been moved into \"config\" attribute");
         }
-    }
+    } else if (IsKnownPoolAttribute(key)) {
+        ValidateNoAliasClash(schedulerPool->FullConfig(), schedulerPool->SpecifiedAttributes(), key);
+        GuardedUpdateBuiltinPoolAttribute(key, [&value] (const TPoolConfigPtr& config, const TString& uninternedKey) {
+            config->LoadParameter(uninternedKey, ConvertToNode(value), EMergeStrategy::Overwrite);
+        });
 
-    if (IsKnownPoolAttribute(key)) {
-        if (!schedulerPool->IsRoot()) {
-            ValidateNoAliasClash(schedulerPool->FullConfig(), schedulerPool->SpecifiedAttributes(), key);
-            GuardedUpdateBuiltinPoolAttribute(key, [&value] (const TPoolConfigPtr& config, const TString& uninternedKey) {
-                config->LoadParameter(uninternedKey, ConvertToNode(value), EMergeStrategy::Overwrite);
-            });
-
-            schedulerPool->SpecifiedAttributes()[key] = value;
-            return true;
-        } else if (!IsKnownPoolTreeAttribute(key)){
-            THROW_ERROR_EXCEPTION("Cannot set known pool attribute %Qv on pool tree %Qv", key.Unintern(), schedulerPool->GetMaybePoolTree()->GetTreeName())
-                << TErrorAttribute("attribute_name", key.Unintern())
-                << TErrorAttribute("pool_tree_name", schedulerPool->GetMaybePoolTree()->GetTreeName());
-        }
+        schedulerPool->SpecifiedAttributes()[key] = value;
+        return true;
     }
     return TNonversionedMapObjectProxyBase::SetBuiltinAttribute(key, value);
 }
@@ -143,19 +138,14 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
 bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key)
 {
     auto schedulerPool = GetThisImpl();
-    if (schedulerPool->IsRoot() && IsKnownPoolTreeAttribute(key)) {
-        auto* schedulerPoolTree = schedulerPool->GetMaybePoolTree();
-        auto it = schedulerPoolTree->SpecifiedAttributes().find(key);
-        if (it == schedulerPoolTree->SpecifiedAttributes().end()) {
-            return false;
+    if (schedulerPool->IsRoot()) {
+        if (key == EInternedAttributeKey::Config) {
+            schedulerPool->GetMaybePoolTree()->SpecifiedConfig() = ConvertToYsonString(EmptyAttributes());
+            return true;
+        } else if (IsKnownPoolTreeAttribute(key)) {
+            THROW_ERROR_EXCEPTION("All pool tree attributes have been moved into \"config\" attribute");
         }
-
-        schedulerPoolTree->FullConfig()->ResetParameter(key.Unintern());
-        schedulerPoolTree->SpecifiedAttributes().erase(it);
-        return true;
-    }
-
-    if (!schedulerPool->IsRoot() && IsKnownPoolAttribute(key)) {
+    } else if (IsKnownPoolAttribute(key)) {
         auto it = schedulerPool->SpecifiedAttributes().find(key);
         if (it == schedulerPool->SpecifiedAttributes().end()) {
             return false;

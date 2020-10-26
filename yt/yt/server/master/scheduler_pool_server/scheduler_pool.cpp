@@ -6,6 +6,8 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/core/ytree/convert.h>
+
 namespace NYT::NSchedulerPoolServer {
 
 using namespace NCellMaster;
@@ -201,7 +203,7 @@ void TSchedulerPool::GuardedUpdatePoolAttribute(
 
 TSchedulerPoolTree::TSchedulerPoolTree(NCypressClient::TObjectId id)
     : TBase(id)
-    , FullConfig_(New<TFairShareStrategyTreeConfig>())
+    , SpecifiedConfig_(ConvertToYsonString(EmptyAttributes()))
 { }
 
 TString TSchedulerPoolTree::GetLowercaseObjectName() const
@@ -221,7 +223,7 @@ void TSchedulerPoolTree::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, TreeName_);
     Save(context, RootPool_);
-    Save(context, SpecifiedAttributes_);
+    Save(context, SpecifiedConfig_);
 }
 
 void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
@@ -235,52 +237,44 @@ void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
     // COMPAT(shakurov)
     if (context.GetVersion() < EMasterReign::SpecifiedAttributeFix) {
         auto oldSpecifiedAttributes = Load<THashMap<int, NYson::TYsonString>>(context);
-        SpecifiedAttributes_.reserve(oldSpecifiedAttributes.size());
+        auto attributes = CreateEphemeralAttributes();
         for (auto& [k, v] : oldSpecifiedAttributes) {
-            YT_VERIFY(SpecifiedAttributes_.emplace(TInternedAttributeKey(k), std::move(v)).second);
+            attributes->SetYson(TInternedAttributeKey(k).Unintern(), std::move(v));
         }
-    } else {
-        Load(context, SpecifiedAttributes_);
-    }
+        SpecifiedConfig_ = ConvertToYsonString(attributes);
 
-    FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
+    // COMPAT(renadeen)
+    } else if (context.GetVersion() < EMasterReign::NestPoolTreeConfig) {
+        auto oldSpecifiedAttributes = Load<TSpecifiedAttributesMap>(context);
+        auto attributes = CreateEphemeralAttributes();
+        for (auto& [k, v] : oldSpecifiedAttributes) {
+            attributes->SetYson(k.Unintern(), v);
+        }
 
-    // TODO(renadeen): kill after move attributes into subconfig.
-    if (context.GetVersion() != NCellMaster::GetCurrentReign() && Attributes_) {
-        const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
-        for (const auto& [key, value] : Attributes_->Attributes()) {
-            auto internedKey = TInternedAttributeKey::Lookup(key);
-            if (internedKey == InvalidInternedAttribute) {
-                continue;
-            }
-            if (schedulerPoolManager->GetKnownPoolTreeAttributes().contains(internedKey)) {
-                if (SpecifiedAttributes_.contains(internedKey)) {
+        if (Attributes_) {
+            for (const auto& [key, value] : Attributes_->Attributes()) {
+                if (attributes->Contains(key)) {
                     YT_LOG_ERROR("Found pool tree attribute that is stored in both SpecifiedAttributes map and common attributes map "
                         "(ObjectId: %v, AttributeName: %v, CommonAttributeValue: %v, SpecifiedAttributeValue: %v)",
                         TreeName_,
                         key,
                         value,
-                        SpecifiedAttributes_[internedKey]);
+                        attributes->GetYson(key));
                 } else {
-                    try {
-                        YT_LOG_INFO("Moving pool tree attribute from common attributes map to SpecifiedAttributes map "
-                            "(PoolTreeName: %v, AttributeName: %v, AttributeValue: %v)",
-                            TreeName_,
-                            key,
-                            value);
-                        FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value), EMergeStrategy::Overwrite);
-                        YT_VERIFY(SpecifiedAttributes_.emplace(internedKey, std::move(value)).second);
-                        YT_VERIFY(Attributes_->Remove(key));
-                    } catch (const std::exception& e) {
-                        YT_LOG_ERROR(e, "Cannot parse value of pool tree attribute "
-                            "(PoolTreeName: %v, AttributeName: %v, AttributeValue: %v)",
-                            TreeName_,
-                            key,
-                            value);
-                    }
+                    YT_LOG_INFO("Moving pool tree attribute from common attributes map to specified config "
+                        "(PoolTreeName: %v, AttributeName: %v, AttributeValue: %v)",
+                        TreeName_,
+                        key,
+                        value);
+
+                    attributes->SetYson(key, value);
+                    YT_VERIFY(Attributes_->Remove(key));
                 }
             }
+            SpecifiedConfig_ = ConvertToYsonString(attributes);
         }
+    } else {
+        Load(context, SpecifiedConfig_);
     }
 }
 

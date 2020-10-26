@@ -7,6 +7,7 @@ from yt_env_setup import (
 )
 from yt.test_helpers import are_almost_equal
 from yt_commands import *
+from yt_helpers import create_custom_pool_tree_with_one_node
 
 import pytest
 import gzip
@@ -28,14 +29,6 @@ class TestRuntimeParameters(YTEnvSetup):
     }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"snapshot_period": 1000}}
-
-    def _create_custom_pool_tree_with_one_node(self, pool_tree):
-        tag = pool_tree
-        node = ls("//sys/cluster_nodes")[0]
-        set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
-        set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
-        create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
-        return node
 
     @authors("renadeen")
     def test_update_runtime_parameters(self):
@@ -124,7 +117,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen")
     def test_change_pool_of_multitree_operation(self):
-        self._create_custom_pool_tree_with_one_node(pool_tree="custom")
+        create_custom_pool_tree_with_one_node("custom")
         create_pool("default_pool")
         create_pool("custom_pool1", pool_tree="custom")
         create_pool("custom_pool2", pool_tree="custom")
@@ -235,7 +228,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_schedule_in_single_tree(self):
-        self._create_custom_pool_tree_with_one_node("other")
+        create_custom_pool_tree_with_one_node("other")
         create_pool("pool1", pool_tree="other")
         create_pool("pool2", pool_tree="other")
         create_pool("pool1")
@@ -309,7 +302,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("ignat")
     def test_tree_removal(self):
-        self._create_custom_pool_tree_with_one_node("other")
+        create_custom_pool_tree_with_one_node("other")
         create_pool("my_pool", pool_tree="other")
         create_pool("my_pool")
         create_pool("other_pool")
@@ -340,7 +333,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_initial_resource_limits_per_tree(self):
-        self._create_custom_pool_tree_with_one_node("other")
+        create_custom_pool_tree_with_one_node("other")
         op = run_sleeping_vanilla(
             job_count=4,
             task_patch={

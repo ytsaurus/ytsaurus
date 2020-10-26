@@ -133,10 +133,11 @@ struct TPoolTreeKeysHolder
         auto poolConfigTemplate = New<TPoolConfig>();
         auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
 
-        Keys.reserve(treeConfigKeys.size() + poolConfigKeys.size() + 1);
+        Keys.reserve(treeConfigKeys.size() + poolConfigKeys.size() + 2);
         Keys.insert(Keys.end(), treeConfigKeys.begin(), treeConfigKeys.end());
         Keys.insert(Keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
         Keys.insert(Keys.end(), DefaultTreeAttributeName);
+        Keys.insert(Keys.end(), TreeConfigAttributeName);
     }
 
     std::vector<TString> Keys;

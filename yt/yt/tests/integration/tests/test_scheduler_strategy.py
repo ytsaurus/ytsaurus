@@ -67,8 +67,8 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
 
     def setup_method(self, method):
         super(BaseTestResourceUsage, self).setup_method(method)
-        set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
+        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
         time.sleep(0.5)
 
     def _check_running_jobs(self, op, desired_running_jobs):
@@ -609,8 +609,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulerOperationLimits, self).setup_method(method)
-        set("//sys/pool_trees/default/@max_running_operation_count_per_pool", 1)
-        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
+        set("//sys/pool_trees/default/@config/max_running_operation_count_per_pool", 1)
+        set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
 
     def _run_operations(self):
         create("table", "//tmp/in")
@@ -1001,18 +1001,18 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
 
     def setup_method(self, method):
         super(BaseTestSchedulerPreemption, self).setup_method(method)
-        set("//sys/pool_trees/default/@preemption_satisfaction_threshold", 0.99)
-        set("//sys/pool_trees/default/@fair_share_starvation_tolerance", 0.7)
-        set("//sys/pool_trees/default/@fair_share_starvation_tolerance_limit", 0.9)
-        set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
-        set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@job_graceful_interrupt_timeout", 10000)
+        set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.99)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.7)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.9)
+        set("//sys/pool_trees/default/@config/min_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
+        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@config/job_graceful_interrupt_timeout", 10000)
         time.sleep(0.5)
 
     @authors("ignat")
     def test_preemption(self):
-        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
+        set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
         for i in xrange(3):
             write_table("<append=true>//tmp/t_in", {"foo": "bar"})
@@ -1049,8 +1049,8 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
     @authors("ignat")
     @pytest.mark.parametrize("interruptible", [False, True])
     def test_interrupt_job_on_preemption(self, interruptible):
-        set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
+        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
         write_table(
             "//tmp/t_in",
@@ -1293,7 +1293,7 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
 
     @authors("mrkastep")
     def test_preemptor_event_log(self):
-        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
+        set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
         create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
 
@@ -1361,7 +1361,7 @@ class TestInferWeightFromMinShare(YTEnvSetup):
     @authors("ignat")
     def test_infer_weight_from_min_share(self):
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        set("//sys/pool_trees/default/@infer_weight_from_min_share_ratio_multiplier", 10)
+        set("//sys/pool_trees/default/@config/infer_weight_from_min_share_ratio_multiplier", 10)
 
         create_pool(
             "test_pool1",
@@ -1415,15 +1415,15 @@ class BaseTestResourceLimitsOverdraftPreemption(YTEnvSetup):
     DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 2, "user_slots": 2}}}}
 
     def setup(self):
-        set("//sys/pool_trees/default/@job_graceful_interrupt_timeout", 10000)
-        set("//sys/pool_trees/default/@job_interrupt_timeout", 600000)
+        set("//sys/pool_trees/default/@config/job_graceful_interrupt_timeout", 10000)
+        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 600000)
 
     def teardown(self):
         remove("//sys/scheduler/config", force=True)
 
     @authors("ignat")
     def test_scheduler_preempt_overdraft_resources(self):
-        set("//sys/pool_trees/default/@job_interrupt_timeout", 1000)
+        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 1000)
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) > 0
@@ -1580,7 +1580,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
     def setup_method(self, method):
         super(TestSchedulerHangingOperations, self).setup_method(method)
         # TODO(eshcherbin): Remove this after tree config is reset correctly in yt_env_setup.
-        set("//sys/pool_trees/default/@enable_limiting_ancestor_check", True)
+        set("//sys/pool_trees/default/@config/enable_limiting_ancestor_check", True)
         wait(lambda: get(scheduler_orchid_pool_tree_config_path("default") + "/enable_limiting_ancestor_check"))
 
     @authors("ignat")
@@ -1657,7 +1657,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_disable_limiting_ancestor_check_for_tree(self):
-        set("//sys/pool_trees/default/@enable_limiting_ancestor_check", False)
+        set("//sys/pool_trees/default/@config/enable_limiting_ancestor_check", False)
         wait(lambda: not get(scheduler_orchid_pool_tree_config_path("default") + "/enable_limiting_ancestor_check"))
 
         create_pool("limiting_pool", attributes={"resource_limits": {"cpu": 1.0}})
@@ -1699,8 +1699,8 @@ class TestSchedulerHangingOperations(YTEnvSetup):
             100000000,
         )
 
-        set("//sys/pool_trees/default/@nodes_filter", "!custom")
-        create_pool_tree("custom_tree", attributes={"nodes_filter": "custom"})
+        set("//sys/pool_trees/default/@config/nodes_filter", "!custom")
+        create_pool_tree("custom_tree", config={"nodes_filter": "custom"})
         create_pool("research", pool_tree="custom_tree")
 
         node = ls("//sys/cluster_nodes")[0]
@@ -1760,19 +1760,16 @@ class BaseTestSchedulerAggressivePreemption(YTEnvSetup):
 
     def setup_method(self, method):
         super(BaseTestSchedulerAggressivePreemption, self).setup_method(method)
-        set(
-            "//sys/pool_trees/default/@aggressive_preemption_satisfaction_threshold",
-            0.2,
-        )
-        set("//sys/pool_trees/default/@preemption_satisfaction_threshold", 1.0)
-        set("//sys/pool_trees/default/@fair_share_starvation_tolerance", 0.9)
-        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
-        set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@fair_share_preemption_timeout_limit", 100)
-        set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@min_share_preemption_timeout_limit", 100)
-        set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 5)
+        set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.2)
+        set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 1.0)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.9)
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
+        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout_limit", 100)
+        set("//sys/pool_trees/default/@config/min_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/min_share_preemption_timeout_limit", 100)
+        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 5)
         time.sleep(0.5)
 
     @classmethod
@@ -1905,17 +1902,14 @@ class BaseTestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
 
     def setup_method(self, method):
         super(BaseTestSchedulerAggressiveStarvationPreemption, self).setup_method(method)
-        set(
-            "//sys/pool_trees/default/@aggressive_preemption_satisfaction_threshold",
-            0.2,
-        )
-        set("//sys/pool_trees/default/@preemption_satisfaction_threshold", 0.75)
-        set("//sys/pool_trees/default/@preemption_check_starvation", False)
-        set("//sys/pool_trees/default/@preemption_check_satisfaction", False)
-        set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 2)
-        set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.2)
+        set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.75)
+        set("//sys/pool_trees/default/@config/preemption_check_starvation", False)
+        set("//sys/pool_trees/default/@config/preemption_check_satisfaction", False)
+        set("//sys/pool_trees/default/@config/min_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 2)
+        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         time.sleep(0.5)
 
     @classmethod
@@ -2105,8 +2099,8 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             set(output + "/@replication_factor", 1)
 
         create_pool("default_pool")
-        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
-        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
+        set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
+        set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         time.sleep(0.2)
 
         command = with_breakpoint("cat ; BREAKPOINT")
@@ -2266,8 +2260,8 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             set(output + "/@replication_factor", 1)
 
         create_pool("default_pool")
-        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
-        set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 3)
+        set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
+        set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 3)
         time.sleep(0.2)
 
         ops = []
@@ -2303,8 +2297,8 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             )
 
         remove("//sys/pools/default_pool")
-        remove("//sys/pool_trees/default/@default_parent_pool")
-        remove("//sys/pool_trees/default/@max_ephemeral_pools_per_user")
+        remove("//sys/pool_trees/default/@config/default_parent_pool")
+        remove("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user")
 
         for breakpoint_name in breakpoints:
             release_breakpoint(breakpoint_name)
@@ -2486,7 +2480,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
     @authors("renadeen", "ignat")
     def test_ephemeral_to_explicit_pool_transformation(self):
         create_pool("default_pool", wait_for_orchid=False)
-        set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
+        set("//sys/pool_trees/default/@config/default_parent_pool", "default_pool")
         self.wait_pool_exists("default_pool")
 
         run_sleeping_vanilla(spec={"pool": "test_pool"})
@@ -2872,13 +2866,10 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         create_pool("cpu", wait_for_orchid=False)
         create_pool("small_gpu", wait_for_orchid=False)
         create_pool("large_gpu")
-        set(
-            "//sys/pool_trees/default/@scheduling_segments",
-            {
-                "mode": "large_gpu",
-                "unsatisfied_segments_rebalancing_timeout": 1000,
-            },
-        )
+        set("//sys/pool_trees/default/@config/scheduling_segments", {
+            "mode": "large_gpu",
+            "unsatisfied_segments_rebalancing_timeout": 1000,
+        })
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
         wait(
             lambda: get(
@@ -2888,15 +2879,13 @@ class BaseTestSchedulingSegments(YTEnvSetup):
             == 1000
         )
         # Not to let preemption abort the jobs instead of segments manager.
-        set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@fair_share_preemption_timeout_limit", 100)
-        set("//sys/pool_trees/default/@fair_share_starvation_tolerance", 0.95)
-        set("//sys/pool_trees/default/@fair_share_starvation_tolerance_limit", 0.95)
-        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 80)
-        wait(
-            lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80
-        )
+        set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout_limit", 100)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.95)
+        set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.95)
+        set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 80)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
 
     @authors("eshcherbin")
     def test_large_gpu_segment_extended(self):
@@ -3007,10 +2996,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 72)
 
         # Tweak satisfaction margin, but still fair resource of the default segment is positive, so nothing happens.
-        set(
-            "//sys/pool_trees/default/@scheduling_segments/satisfaction_margins",
-            {"default": -3.0},
-        )
+        set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"default": -3.0})
 
         wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 1)
         wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 76)
@@ -3018,10 +3004,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 72)
 
         # Finally, change satisfaction margin to be able to satisfy the large gpu segment.
-        set(
-            "//sys/pool_trees/default/@scheduling_segments/satisfaction_margins",
-            {"default": -4.0},
-        )
+        set("//sys/pool_trees/default/@config/scheduling_segments/satisfaction_margins", {"default": -4.0})
 
         wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 0)
         wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 76)
@@ -3151,7 +3134,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_disabled(self):
-        set("//sys/pool_trees/default/@scheduling_segments/mode", "disabled")
+        set("//sys/pool_trees/default/@config/scheduling_segments/mode", "disabled")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "disabled")
 
         blocking_op = run_sleeping_vanilla(
@@ -3183,17 +3166,9 @@ class BaseTestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_rebalancing_timeout_changed(self):
-        set(
-            "//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout",
-            1000000000,
-        )
-        wait(
-            lambda: get(
-                scheduler_orchid_default_pool_tree_config_path()
-                + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
-            )
-            == 1000000000
-        )
+        timeout_attribute_path = "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
+        set("//sys/pool_trees/default/@config" + timeout_attribute_path, 1000000000)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + timeout_attribute_path) == 1000000000)
 
         blocking_op = run_sleeping_vanilla(
             job_count=80,
@@ -3222,10 +3197,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         time.sleep(3.0)
         wait(lambda: op_usage_ratio_max.update().get(verbose=True) == 0)
 
-        set(
-            "//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout",
-            1000,
-        )
+        set("//sys/pool_trees/default/@config" + timeout_attribute_path, 1000)
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
 
     @authors("eshcherbin")
@@ -3256,7 +3228,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_update_operation_segment_on_reconfiguration(self):
-        set("//sys/pool_trees/default/@scheduling_segments/mode", "disabled")
+        set("//sys/pool_trees/default/@config/scheduling_segments/mode", "disabled")
         wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "disabled")
 
         blocking_op = run_sleeping_vanilla(
@@ -3279,55 +3251,22 @@ class BaseTestSchedulingSegments(YTEnvSetup):
             == "default"
         )
 
-        set("//sys/pool_trees/default/@scheduling_segments/mode", "large_gpu")
-        wait(
-            lambda: get(
-                scheduler_orchid_operation_path(op.id) + "/scheduling_segment",
-                default="",
-            )
-            == "large_gpu"
-        )
-        wait(
-            lambda: get(
-                scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment",
-                default="",
-            )
-            == "default"
-        )
+        set("//sys/pool_trees/default/@config/scheduling_segments/mode", "large_gpu")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default="") == "large_gpu")
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment", default="") == "default")
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
 
-        set("//sys/pool_trees/default/@scheduling_segments/mode", "disabled")
-        wait(
-            lambda: get(
-                scheduler_orchid_operation_path(op.id) + "/scheduling_segment",
-                default="",
-            )
-            == "default"
-        )
-        wait(
-            lambda: get(
-                scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment",
-                default="",
-            )
-            == "default"
-        )
+        set("//sys/pool_trees/default/@config/scheduling_segments/mode", "disabled")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default="") == "default")
+        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/scheduling_segment", default="") == "default")
 
         time.sleep(3.0)
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
 
     @authors("eshcherbin")
     def test_profiling(self):
-        set(
-            "//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout",
-            1000000000,
-        )
-        wait(
-            lambda: get(
-                scheduler_orchid_default_pool_tree_config_path()
-                + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
-            )
-            == 1000000000
-        )
+        set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
         fair_resource_amount_last = Metric.at_scheduler(
             "scheduler/segments/fair_resource_amount",
@@ -3370,10 +3309,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 80)
         wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
 
-        set(
-            "//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout",
-            1000,
-        )
+        set("//sys/pool_trees/default/@config/scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000)
 
         wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 72)
         wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 8)
@@ -3726,7 +3662,7 @@ class TestIntegralGuaranteesClassic(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestIntegralGuaranteesClassic, self).setup_method(method)
-        set("//sys/pool_trees/default/@integral_guarantees", {"smooth_period": 500})
+        set("//sys/pool_trees/default/@config/integral_guarantees", {"smooth_period": 500})
 
     def test_simple_burst_integral_guarantee(self):
         create_pool(
@@ -4165,7 +4101,7 @@ class TestIntegralGuaranteesVector(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestIntegralGuaranteesVector, self).setup_method(method)
-        set("//sys/pool_trees/default/@integral_guarantees", {"smooth_period": 500})
+        set("//sys/pool_trees/default/@config/integral_guarantees", {"smooth_period": 500})
 
     def test_simple_burst_integral_guarantee(self):
         create_pool(
