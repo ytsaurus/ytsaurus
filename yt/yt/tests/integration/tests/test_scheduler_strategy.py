@@ -1550,7 +1550,7 @@ class TestResourceLimitsOverdraftPreemptionVector(BaseTestResourceLimitsOverdraf
 ##################################################################
 
 
-class TestSchedulerUnschedulableOperations(YTEnvSetup):
+class TestSchedulerHangingOperations(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1558,10 +1558,10 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
-            "operation_unschedulable_check_period": 100,
-            "operation_unschedulable_safe_timeout": 5000,
-            "operation_unschedulable_min_schedule_job_attempts": 10,
-            "operation_unschedulable_due_to_limiting_ancestor_safe_timeout": 5000,
+            "operation_hangup_check_period": 100,
+            "operation_hangup_safe_timeout": 5000,
+            "operation_hangup_min_schedule_job_attempts": 10,
+            "operation_hangup_due_to_limiting_ancestor_safe_timeout": 5000,
         }
     }
 
@@ -1578,13 +1578,13 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
         config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 2
 
     def setup_method(self, method):
-        super(TestSchedulerUnschedulableOperations, self).setup_method(method)
+        super(TestSchedulerHangingOperations, self).setup_method(method)
         # TODO(eshcherbin): Remove this after tree config is reset correctly in yt_env_setup.
         set("//sys/pool_trees/default/@enable_limiting_ancestor_check", True)
         wait(lambda: get(scheduler_orchid_pool_tree_config_path("default") + "/enable_limiting_ancestor_check"))
 
     @authors("ignat")
-    def test_unschedulable_operations(self):
+    def test_hanging_operations(self):
         create("table", "//tmp/t_in")
         write_table("<append=true>//tmp/t_in", {"foo": "bar"})
 
@@ -1625,7 +1625,7 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
         wait(lambda: op.get_state() == "failed")
 
         result = str(get(op.get_path() + "/@result"))
-        assert "unschedulable" in result
+        assert "scheduling is hanged" in result
         assert "no successful scheduled jobs" in result
 
     @authors("eshcherbin")
@@ -1688,14 +1688,14 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
         wait(lambda: op.get_state() == "failed")
 
         result = str(get(op.get_path() + "/@result"))
-        assert "unschedulable" in result
+        assert "scheduling is hanged" in result
         assert "limiting_ancestor" in result and "limiting_pool" in result
 
     @authors("eshcherbin")
     def test_skip_limiting_ancestor_check_on_node_shortage(self):
-        set("//sys/scheduler/config/operation_unschedulable_safe_timeout", 100000000)
+        set("//sys/scheduler/config/operation_hangup_safe_timeout", 100000000)
         wait(
-            lambda: get(scheduler_orchid_path() + "/scheduler/config/operation_unschedulable_safe_timeout"),
+            lambda: get(scheduler_orchid_path() + "/scheduler/config/operation_hangup_safe_timeout"),
             100000000,
         )
 

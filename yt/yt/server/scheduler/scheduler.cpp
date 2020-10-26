@@ -288,11 +288,11 @@ public:
             Config_->SchedulingTagFilterExpireTimeout,
             GetControlInvoker(EControlQueue::PeriodicActivity));
 
-        StrategyUnschedulableOperationsChecker_ = New<TPeriodicExecutor>(
+        StrategyHangedOperationsChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::CheckUnschedulableOperations, MakeWeak(this)),
-            Config_->OperationUnschedulableCheckPeriod);
-        StrategyUnschedulableOperationsChecker_->Start();
+            BIND(&TImpl::CheckHangedOperations, MakeWeak(this)),
+            Config_->OperationHangupCheckPeriod);
+        StrategyHangedOperationsChecker_->Start();
 
         OperationsDestroyerExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
@@ -1740,7 +1740,7 @@ private:
     TPeriodicExecutorPtr NodesInfoLoggingExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
-    TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
+    TPeriodicExecutorPtr StrategyHangedOperationsChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr WaitingForPoolOperationScanPeriodExecutor_;
     TPeriodicExecutorPtr OperationsDestroyerExecutor_;
@@ -2493,7 +2493,7 @@ private:
             NodesInfoLoggingExecutor_->SetPeriod(Config_->NodesInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
-            StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
+            StrategyHangedOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
             OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
             SchedulingSegmentsManagerExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
@@ -2621,11 +2621,11 @@ private:
         SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, resultError);
     }
 
-    void CheckUnschedulableOperations()
+    void CheckHangedOperations()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (const auto& [operationId, error] : Strategy_->GetUnschedulableOperations()) {
+        for (const auto& [operationId, error] : Strategy_->GetHangedOperations()) {
             if (auto operation = FindOperation(operationId)) {
                 OnOperationFailed(operation, error);
             }

@@ -439,7 +439,7 @@ public:
         }
     }
 
-    virtual TError CheckOperationUnschedulable(
+    virtual TError CheckOperationIsHanged(
         TOperationId operationId,
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,
@@ -474,7 +474,7 @@ public:
             }
         }
 
-        // We only want to find the operations that are unschedulable due to poorly configured resource limits or a custom
+        // We only want to find the operations that are hanged due to poorly configured resource limits or a custom
         // scheduling tag filter. Node shortage, e.g. due to a bulk restart, shouldn't fail the operation. See: YT-13329.
         bool canFitIntoTotalResources = RootElementSnapshot_ &&
             Dominates(RootElementSnapshot_->RootElement->GetTotalResourceLimits(), minNeededResources);
