@@ -107,6 +107,7 @@ TReplicaCounters::TReplicaCounters(const TTagIdList& list)
     , ReplicationBatchDataWeight("/replica/replication_batch_data_weight", list, EAggregateMode::All)
     , ReplicationRowCount("/replica/replication_row_count", list)
     , ReplicationDataWeight("/replica/replication_data_weight", list)
+    , ReplicationErrorCount("/replica/error_count", list, TDuration::Seconds(1))
     , Tags(list)
 { }
 
