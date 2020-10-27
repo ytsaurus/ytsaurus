@@ -77,10 +77,6 @@ protected:
         std::vector<TTransactionId> transactionIds,
         const TInitiatorRequestLogInfo& logInfo);
 
-    void InitRemoteTransactions();
-    bool IsTransactionRemote(TTransactionId transactionId) const;
-    void InitReplicationRequestCellTags();
-
     [[noreturn]] void LogAndThrowUnknownTransactionPresenceError(TTransactionId transactionId) const;
 
     NObjectClient::TCellTagList GetCellTagsToSyncWithBeforeInvocation() const;
@@ -89,6 +85,12 @@ protected:
 
     virtual void ConstructReplicationRequests() = 0;
     std::vector<NRpc::TRequestId> DoConstructReplicationRequests();
+
+private:
+    void InitRemoteTransactions();
+    void ValidateTransactionCellTags() const;
+    bool IsTransactionRemote(TTransactionId transactionId) const;
+    void InitReplicationRequestCellTags();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
