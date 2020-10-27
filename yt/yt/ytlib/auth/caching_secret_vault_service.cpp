@@ -23,7 +23,11 @@ public:
         TCachingSecretVaultServiceConfigPtr config,
         ISecretVaultServicePtr underlying,
         NProfiling::TProfiler profiler)
-        : TAsyncExpiringCache(config->Cache, std::move(profiler))
+        : TAsyncExpiringCache(
+            config->Cache,
+            NLogging::TLogger(AuthLogger)
+                .AddTag("Cache: SecretVault"),
+            std::move(profiler))
         , Underlying_(std::move(underlying))
     { }
 

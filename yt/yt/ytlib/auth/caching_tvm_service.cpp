@@ -1,5 +1,6 @@
 #include "caching_tvm_service.h"
 #include "tvm_service.h"
+#include "private.h"
 
 #include <yt/core/misc/async_expiring_cache.h>
 
@@ -16,6 +17,7 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         NProfiling::TProfiler profiler)
         : TicketCache_(New<TTicketCache>(config, underlying, profiler))
+        , Underlying_(std::move(underlying))
     { }
 
     virtual TFuture<TString> GetTicket(const TString& serviceId) override
@@ -25,7 +27,7 @@ public:
 
     virtual TErrorOr<TParsedTicket> ParseUserTicket(const TString& ticket) override
     {
-        return TicketCache_->Underlying_->ParseUserTicket(ticket);
+        return Underlying_->ParseUserTicket(ticket);
     }
 
 private:
@@ -37,13 +39,17 @@ private:
             TAsyncExpiringCacheConfigPtr config,
             ITvmServicePtr underlying,
             NProfiling::TProfiler profiler)
-            : TAsyncExpiringCache(std::move(config), std::move(profiler))
+            : TAsyncExpiringCache(
+                std::move(config),
+                NLogging::TLogger(AuthLogger)
+                    .AddTag("Cache: TvmTicket"),
+                std::move(profiler))
             , Underlying_(std::move(underlying))
         { }
 
+    private:
         const ITvmServicePtr Underlying_;
 
-    private:
         virtual TFuture<TString> DoGet(const TString& serviceId, bool /*isPeriodicUpdate*/) noexcept override
         {
             return Underlying_->GetTicket(serviceId);
@@ -52,6 +58,7 @@ private:
 
 private:
     const TIntrusivePtr<TTicketCache> TicketCache_;
+    const ITvmServicePtr Underlying_;
 
 };
 
@@ -65,7 +72,6 @@ ITvmServicePtr CreateCachingTvmService(
         std::move(config),
         std::move(profiler));
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

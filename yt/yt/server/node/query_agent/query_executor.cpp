@@ -1064,9 +1064,12 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         TWeakPtr<NApi::NNative::IClient> client,
         IInvokerPtr invoker)
-        : TAsyncExpiringCache(std::move(config))
-        , Client_(client)
-        , Invoker_(invoker)
+        : TAsyncExpiringCache(
+            std::move(config),
+            NLogging::TLogger(QueryClientLogger)
+                .AddTag("Cache: PoolWeight"))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
     { }
 
 private:

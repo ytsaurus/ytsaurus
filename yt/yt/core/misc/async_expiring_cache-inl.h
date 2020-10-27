@@ -32,8 +32,10 @@ bool TAsyncExpiringCache<TKey, TValue>::TEntry::IsExpired(NProfiling::TCpuInstan
 template <class TKey, class TValue>
 TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
     TAsyncExpiringCacheConfigPtr config,
+    NLogging::TLogger logger,
     NProfiling::TProfiler profiler)
     : Config_(std::move(config))
+    , Logger_(std::move(logger))
     , Profiler_(std::move(profiler))
 {
     if (Config_->BatchUpdate && Config_->RefreshTime) {
@@ -47,6 +49,7 @@ template <class TKey, class TValue>
 typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCache<TKey, TValue>::GetExtended(
     const TKey& key)
 {
+    const auto& Logger = Logger_;
     auto now = NProfiling::GetCpuInstant();
 
     // Fast path.
@@ -78,6 +81,10 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
                 Profiler_.Increment(HitCounter_);
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                 OnHit(key);
+                if (!entry->Future.IsSet()) {
+                    YT_LOG_DEBUG("Waiting for cache entry (Key: %v)",
+                        key);
+                }
                 return {entry->Future, false};
             }
         }
@@ -92,6 +99,8 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
         OnAdded(key);
         Profiler_.Update(SizeCounter_, Map_.size());
         guard.Release();
+        YT_LOG_DEBUG("Populating cache entry (Key: %v)",
+            key);
         InvokeGet(weakEntry, key, /* isPeriodicUpdate */ false);
         return {future, true};
     }
@@ -107,10 +116,24 @@ template <class TKey, class TValue>
 TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
     const std::vector<TKey>& keys)
 {
+    const auto& Logger = Logger_;
     auto now = NProfiling::GetCpuInstant();
 
     std::vector<TFuture<TValue>> results(keys.size());
-    std::vector<size_t> fetchIndexes;
+    std::vector<TKey> keysToWaitFor;
+
+    auto handleHit = [&] (size_t index, const TEntryPtr& entry) {
+        const auto& key = keys[index];
+        Profiler_.Increment(HitCounter_);
+        results[index] = entry->Future;
+        if (!entry->Future.IsSet()) {
+            keysToWaitFor.push_back(key);
+        }
+        entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
+        OnHit(key);
+    };
+
+    std::vector<size_t> preliminaryIndexesToPopulate;
 
     // Fast path.
     {
@@ -121,25 +144,22 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
             if (auto it = Map_.find(key); it != Map_.end()) {
                 const auto& entry = it->second;
                 if (!entry->IsExpired(now)) {
-                    Profiler_.Increment(HitCounter_);
-                    results[index] = entry->Future;
-                    entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
-                    OnHit(key);
+                    handleHit(index, entry);
                     continue;
                 }
             }
-            fetchIndexes.push_back(index);
+            preliminaryIndexesToPopulate.push_back(index);
         }
     }
 
     // Slow path.
-    if (!fetchIndexes.empty()) {
-        std::vector<size_t> invokeIndexes;
-        std::vector<TWeakPtr<TEntry>> invokeEntries;
+    if (!preliminaryIndexesToPopulate.empty()) {
+        std::vector<size_t> finalIndexesToPopulate;
+        std::vector<TWeakPtr<TEntry>> entriesToPopulate;
 
         NConcurrency::TWriterGuard guard(SpinLock_);
 
-        for (auto index : fetchIndexes) {
+        for (auto index : preliminaryIndexesToPopulate) {
             const auto& key = keys[index];
             if (auto it = Map_.find(keys[index]); it != Map_.end()) {
                 auto& entry = it->second;
@@ -148,10 +168,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
                     Map_.erase(it);
                     OnRemoved(key);
                 } else {
-                    Profiler_.Increment(HitCounter_);
-                    results[index] = entry->Future;
-                    entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
-                    OnHit(key);
+                    handleHit(index, entry);
                     continue;
                 }
             }
@@ -161,8 +178,8 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
             auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
             auto entry = New<TEntry>(accessDeadline);
 
-            invokeIndexes.push_back(index);
-            invokeEntries.push_back(entry);
+            finalIndexesToPopulate.push_back(index);
+            entriesToPopulate.push_back(entry);
             results[index] = entry->Future;
 
             YT_VERIFY(Map_.emplace(key, std::move(entry)).second);
@@ -171,13 +188,24 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
 
         Profiler_.Update(SizeCounter_, Map_.size());
 
-        std::vector<TKey> invokeKeys;
-        for (auto index : invokeIndexes) {
-            invokeKeys.push_back(keys[index]);
+        std::vector<TKey> keysToPopulate;
+        for (auto index : finalIndexesToPopulate) {
+            keysToPopulate.push_back(keys[index]);
         }
 
         guard.Release();
-        InvokeGetMany(invokeEntries, invokeKeys, /* isPeriodicUpdate */ false);
+
+        if (!keysToWaitFor.empty()) {
+            YT_LOG_DEBUG("Waiting for cache entries (Keys: %v)",
+                keysToWaitFor);
+        }
+
+        if (!keysToPopulate.empty()) {
+            YT_LOG_DEBUG("Populating cache entries (Keys: %v)",
+                keysToPopulate);
+        }
+
+        InvokeGetMany(entriesToPopulate, keysToPopulate, /* isPeriodicUpdate */ false);
     }
 
     return AllSet(results);
@@ -211,7 +239,7 @@ std::vector<std::optional<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::
     auto now = NProfiling::GetCpuInstant();
 
     std::vector<std::optional<TErrorOr<TValue>>> results(keys.size());
-    std::vector<size_t> fetchIndexes;
+    std::vector<size_t> indexesToPopulate;
 
     NConcurrency::TReaderGuard guard(SpinLock_);
 

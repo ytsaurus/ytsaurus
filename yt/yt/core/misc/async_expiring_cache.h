@@ -6,6 +6,8 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
+#include <yt/core/logging/log.h>
+
 #include <yt/core/profiling/profiler.h>
 
 #include <atomic>
@@ -27,6 +29,7 @@ public:
 
     explicit TAsyncExpiringCache(
         TAsyncExpiringCacheConfigPtr config,
+        NLogging::TLogger logger = {},
         NProfiling::TProfiler profiler = {});
 
     TFuture<TValue> Get(const TKey& key);
@@ -61,6 +64,7 @@ protected:
     virtual void OnHit(const TKey& key) noexcept;
 
 private:
+    const NLogging::TLogger Logger_;
     const NProfiling::TProfiler Profiler_;
 
     struct TEntry
@@ -89,8 +93,10 @@ private:
 
     };
 
+    using TEntryPtr = TIntrusivePtr<TEntry>;
+
     NConcurrency::TReaderWriterSpinLock SpinLock_;
-    THashMap<TKey, TIntrusivePtr<TEntry>> Map_;
+    THashMap<TKey, TEntryPtr> Map_;
 
     NProfiling::TShardedMonotonicCounter HitCounter_{"/hit"};
     NProfiling::TShardedMonotonicCounter MissedCounter_{"/missed"};

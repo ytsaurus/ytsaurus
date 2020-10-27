@@ -75,23 +75,61 @@ static const auto& Profiler = TabletServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBundleHealthKey
+{
+    NApi::IClientPtr Client;
+    TString ClusterName; // for diagnostics only
+    TString BundleName;
+
+    bool operator==(const TBundleHealthKey& other) const
+    {
+        return
+            Client == other.Client &&
+            BundleName == other.BundleName;
+    }
+
+    operator size_t() const
+    {
+        size_t result = 0;
+        HashCombine(result, Client);
+        HashCombine(result, BundleName);
+        return result;
+    }
+};
+
+void FormatValue(TStringBuilderBase* builder, const TBundleHealthKey& key, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v@%v",
+        key.BundleName,
+        key.ClusterName);
+}
+
+TString ToString(const TBundleHealthKey& key)
+{
+    return ToStringViaBuilder(key);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TBundleHealthCache)
 
 class TBundleHealthCache
-    : public TAsyncExpiringCache<std::pair<NApi::IClientPtr, TString>, ETabletCellHealth>
+    : public TAsyncExpiringCache<TBundleHealthKey, ETabletCellHealth>
 {
 public:
     explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
-        : TAsyncExpiringCache(std::move(config))
+        : TAsyncExpiringCache(
+            std::move(config),
+            NLogging::TLogger(TabletServerLogger)
+                .AddTag("Cache: BundleHealth"))
     { }
 
 protected:
     virtual TFuture<ETabletCellHealth> DoGet(
-        const std::pair<NApi::IClientPtr, TString>& key,
+        const TBundleHealthKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        const auto& [client, bundleName] = key;
-        return client->GetNode("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundleName) + "/@health").ToUncancelable()
+        return key.Client->GetNode("//sys/tablet_cell_bundles/" + ToYPathLiteral(key.BundleName) + "/@health").ToUncancelable()
             .Apply(BIND([] (const TErrorOr<TYsonString>& error) {
                 return ConvertTo<ETabletCellHealth>(error.ValueOrThrow());
             }));
@@ -295,10 +333,10 @@ private:
         TFuture<void> CheckBundleHealth()
         {
             return GetAsyncTabletCellBundleName()
-                .Apply(BIND([client = Client_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<TString>& bundleNameOrError) {
+                .Apply(BIND([client = Client_, clusterName = ClusterName_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<TString>& bundleNameOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
                     const auto& bundleName = bundleNameOrError.Value();
-                    return bundleHealthCache->Get({client, bundleName});
+                    return bundleHealthCache->Get({client, clusterName, bundleName});
                 })).Apply(BIND([] (const TErrorOr<ETabletCellHealth>& healthOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(healthOrError, "Error getting tablet cell bundle health");
                     auto health = healthOrError.Value();

@@ -109,10 +109,13 @@ TString ToString(const TTableMountCacheKey& key)
 
 TTableMountCacheBase::TTableMountCacheBase(
     TTableMountCacheConfigPtr config,
-    const NLogging::TLogger& logger)
-    : TAsyncExpiringCache(config)
+    NLogging::TLogger logger)
+    : TAsyncExpiringCache(
+        config,
+        NLogging::TLogger(logger)
+            .AddTag("Cache: TableMount"))
     , Config_(std::move(config))
-    , Logger(logger)
+    , Logger(std::move(logger))
 { }
 
 TFuture<TTableMountInfoPtr> TTableMountCacheBase::GetTableInfo(const NYPath::TYPath& path)

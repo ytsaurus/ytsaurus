@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/async_expiring_cache.h>
 
+#include <yt/core/logging/log.h>
+
 namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,7 +53,9 @@ class TTableMountCacheBase
     , public TAsyncExpiringCache<TTableMountCacheKey, TTableMountInfoPtr>
 {
 public:
-    TTableMountCacheBase(TTableMountCacheConfigPtr config, const NLogging::TLogger& logger);
+    TTableMountCacheBase(
+        TTableMountCacheConfigPtr config,
+        NLogging::TLogger logger);
 
     virtual TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path) override;
     virtual TTabletInfoPtr FindTablet(TTabletId tabletId) override;

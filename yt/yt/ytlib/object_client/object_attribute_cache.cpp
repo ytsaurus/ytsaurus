@@ -1,4 +1,5 @@
 #include "object_attribute_cache.h"
+#include "private.h"
 
 #include <yt/ytlib/cypress_client/batch_attribute_fetcher.h>
 
@@ -20,7 +21,11 @@ TObjectAttributeCache::TObjectAttributeCache(
     IInvokerPtr invoker,
     const NLogging::TLogger& logger,
     NProfiling::TProfiler profiler)
-    : TAsyncExpiringCache(config, std::move(profiler))
+    : TAsyncExpiringCache(
+        config,
+        NLogging::TLogger(ObjectClientLogger)
+            .AddTag("Cache: ObjectAttribute"),
+        std::move(profiler))
     , AttributeNames_(std::move(attributeNames))
     , Config_(std::move(config))
     , Logger(TLogger(logger).AddTag("ObjectAttributeCacheId: %v", TGuid::Create()))
