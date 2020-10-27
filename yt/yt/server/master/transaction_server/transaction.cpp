@@ -36,12 +36,23 @@ void TTransaction::TExportEntry::Persist(NCellMaster::TPersistenceContext& conte
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(TTransactionId id)
+TTransaction::TTransaction(TTransactionId id, bool upload)
     : TTransactionBase(id)
     , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
     , Acd_(this)
-{ }
+    , Upload_(upload)
+{
+    YT_VERIFY(
+        TypeFromId(id) != EObjectType::UploadTransaction &&
+        TypeFromId(id) != EObjectType::UploadNestedTransaction ||
+        Upload_);
+}
+
+bool TTransaction::IsUpload() const
+{
+    return Upload_;
+}
 
 TString TTransaction::GetLowercaseObjectName() const
 {
@@ -81,6 +92,7 @@ void TTransaction::Save(NCellMaster::TSaveContext& context) const
     Save(context, Deadline_);
     Save(context, LockedDynamicTables_);
     Save(context, Depth_);
+    Save(context, Upload_);
 }
 
 void TTransaction::Load(NCellMaster::TLoadContext& context)
@@ -119,6 +131,14 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= EMasterReign::TransactionDepth) {
         Load(context, Depth_);
+    }
+    // COMPAT(shakurov)
+    if (context.GetVersion() < EMasterReign::OptionalDedicatedUploadTxObjectTypes) {
+        auto type = TypeFromId(Id_);
+        Upload_ = type == EObjectType::UploadTransaction ||
+            type == EObjectType::UploadNestedTransaction;
+    } else {
+        Load(context, Upload_);
     }
 }
 

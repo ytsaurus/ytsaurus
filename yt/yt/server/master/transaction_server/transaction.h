@@ -74,7 +74,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
 public:
-    explicit TTransaction(TTransactionId id);
+    explicit TTransaction(TTransactionId id, bool upload = false);
+
+    bool IsUpload() const;
 
     virtual TString GetLowercaseObjectName() const override;
     virtual TString GetCapitalizedObjectName() const override;
@@ -103,6 +105,8 @@ public:
     //! For externalized transactions only; returns the original transaction id.
     TTransactionId GetOriginalTransactionId() const;
 
+private:
+    bool Upload_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
