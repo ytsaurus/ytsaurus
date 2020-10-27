@@ -64,9 +64,12 @@ TPermissionCache::TPermissionCache(
     TPermissionCacheConfigPtr config,
     NApi::NNative::IConnectionPtr connection,
     NProfiling::TProfiler profiler)
-    : TAsyncExpiringCache(config, std::move(profiler))
+    : TAsyncExpiringCache(
+        config,
+        NLogging::TLogger("Cache: Permission"),
+        std::move(profiler))
     , Config_(std::move(config))
-    , Connection_(connection)
+    , Connection_(std::move(connection))
 { }
 
 TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodicUpdate) noexcept

@@ -373,9 +373,12 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         TWeakPtr<NNative::IClient> client,
         IInvokerPtr invoker)
-        : TAsyncExpiringCache(config)
-        , Client_(client)
-        , Invoker_(invoker)
+        : TAsyncExpiringCache(
+            config,
+            NLogging::TLogger(QueryClientLogger)
+                .AddTag("Cache: CypressFunctionRegistry"))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
     { }
 
     virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(

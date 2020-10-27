@@ -35,7 +35,10 @@ public:
     TUserCache(
         TAsyncExpiringCacheConfigPtr config,
         TBootstrap* bootstrap)
-        : TAsyncExpiringCache(std::move(config))
+        : TAsyncExpiringCache(
+            std::move(config),
+            NLogging::TLogger(RpcProxyLogger)
+                .AddTag("Cache: User"))
         , Bootstrap_(bootstrap)
     { }
 

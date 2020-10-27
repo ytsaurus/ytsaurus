@@ -1,4 +1,5 @@
 #include "operation_cache.h"
+#include "private.h"
 
 #include <yt/client/api/client.h>
 
@@ -14,7 +15,11 @@ TOperationCache::TOperationCache(
     THashSet<TString> attributes,
     NApi::IClientPtr client,
     NProfiling::TProfiler profiler)
-    : TAsyncExpiringCache(std::move(config), std::move(profiler))
+    : TAsyncExpiringCache(
+        std::move(config),
+        NLogging::TLogger(SchedulerLogger)
+            .AddTag("Cache: Operation"),
+        std::move(profiler))
     , Attributes_(std::move(attributes))
     , Client_(std::move(client))
 { }

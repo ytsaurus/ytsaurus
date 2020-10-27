@@ -10,9 +10,10 @@ namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPermissionCacheConfig
-    : TAsyncExpiringCacheConfig
+class TPermissionCacheConfig
+    : public TAsyncExpiringCacheConfig
 {
+public:
     NApi::EMasterChannelKind ReadFrom;
     TString RefreshUser;
     bool AlwaysUseRefreshUser;

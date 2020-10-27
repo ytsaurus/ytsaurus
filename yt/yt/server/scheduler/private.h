@@ -9,6 +9,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/client/scheduler/private.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,7 +74,6 @@ DEFINE_ENUM(EResourceTreeIncreaseResult,
     (ResourceLimitExceeded)
 );
 
-extern const NLogging::TLogger SchedulerLogger;
 extern const NLogging::TLogger SchedulerEventLogger;
 extern const NLogging::TLogger SchedulerResourceMeteringLogger;
 
