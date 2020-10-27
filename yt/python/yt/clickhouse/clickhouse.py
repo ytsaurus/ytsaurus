@@ -7,7 +7,7 @@ from .helpers import get_alias_from_env_or_raise
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.common import YtError, require, update, update_inplace
 from yt.wrapper.run_operation_commands import run_operation
-from yt.wrapper.cypress_commands import get, exists, copy, create
+from yt.wrapper.cypress_commands import get, exists, copy, create, list
 from yt.wrapper.transaction_commands import _make_transactional_request
 from yt.wrapper.operation_commands import get_operation_url, abort_operation
 from yt.wrapper.http_helpers import get_cluster_name
@@ -259,12 +259,20 @@ def upload_configs(configs, client=None):
 
 
 def do_wait_for_instances(op, instance_count, operation_alias, client=None):
+    def is_active(instance):
+        if not instance.attributes["locks"]:
+            return False
+        for lock in instance.attributes["locks"]:
+            if lock["child_key"] and lock["child_key"] == "lock":
+                return True
+        return False
+
     for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
-        if state.is_running() and \
-                exists("//sys/clickhouse/cliques/{0}".format(op.id), client=client) and \
-                get("//sys/clickhouse/cliques/{0}/@count".format(op.id), client=client) == instance_count:
-            logger.info("Clique started and ready for serving under alias %s", operation_alias)
-            return op
+        if state.is_running() and exists("//sys/clickhouse/cliques/{0}".format(op.id), client=client):
+            instances = list("//sys/clickhouse/cliques/{0}".format(op.id), attributes=["locks"], client=client)
+            if sum(1 for instance in instances if is_active(instance)) == instance_count:
+                logger.info("Clique started and ready for serving under alias %s", operation_alias)
+                return op
         elif state.is_unsuccessfully_finished():
             process_operation_unsuccesful_finish_state(op, op.get_error(state))
         else:
