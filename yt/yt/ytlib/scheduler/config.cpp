@@ -1146,6 +1146,12 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(true);
     RegisterParameter("pivot_keys", PivotKeys)
         .Default();
+    RegisterParameter("use_new_partitions_heuristic", UseNewPartitionsHeuristic)
+        .Default(false);
+    RegisterParameter("partition_size_factor", PartitionSizeFactor)
+        .GreaterThan(0)
+        .LessThanOrEqual(1)
+        .Default(0.7);
 
     RegisterPostprocessor([&] () {
         NTableClient::ValidateKeyColumns(SortBy);

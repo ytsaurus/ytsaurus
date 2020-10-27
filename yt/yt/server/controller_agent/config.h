@@ -361,6 +361,7 @@ private:
 public:
     int MaxPartitionJobCount;
     int MaxPartitionCount;
+    int MaxPartitionFactor;
     i32 MaxSampleSize;
     i64 CompressedBlockSize;
     i64 MinPartitionWeight;

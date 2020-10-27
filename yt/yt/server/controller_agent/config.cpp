@@ -307,6 +307,10 @@ TSortOperationOptionsBase::TSortOperationOptionsBase()
         .Default(200000)
         .GreaterThan(0);
 
+    RegisterParameter("max_partition_factor", MaxPartitionFactor)
+        .Default(500)
+        .GreaterThan(1);
+
     RegisterParameter("max_sample_size", MaxSampleSize)
         .Default(10_KB)
         .GreaterThanOrEqual(1_KB)

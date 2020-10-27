@@ -55,6 +55,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ForeignDataSliceWeight)               (300422))
     ((JobSplitterInTask)                    (300423))
     ((BarrierlessSort)                      (300424))
+    ((NewPartitionCountHeuristic)           (300425))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
