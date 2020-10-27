@@ -11,6 +11,8 @@
 
 #include <yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/ytlib/api/native/connection.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/range_formatters.h>
@@ -89,6 +91,8 @@ void TTransactionReplicationSessionBase::InitRemoteTransactions()
         std::remove(TransactionIds_.begin(), TransactionIds_.end(), TTransactionId{}),
         TransactionIds_.end());
 
+    ValidateTransactionCellTags();
+
     // Stability isn't really a requirement, but it's nice to keep remote transactions sorted.
     auto localTransactionBegin = std::stable_partition(
         TransactionIds_.begin(),
@@ -105,6 +109,34 @@ void TTransactionReplicationSessionBase::InitRemoteTransactions()
         UnsyncedLocalTransactionCells_.push_back(CellTagFromId(localTransactionId));
     }
     SortUnique(UnsyncedLocalTransactionCells_);
+}
+
+void TTransactionReplicationSessionBase::ValidateTransactionCellTags() const
+{
+    const auto& connection = Bootstrap_->GetClusterConnection();
+    const auto primaryCellTag = connection->GetPrimaryMasterCellTag();
+    const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
+
+    auto isKnownCellTag = [&] (TCellTag cellTag) {
+        if (cellTag == primaryCellTag) {
+            return true;
+        }
+
+        if (std::find(secondaryCellTags.begin(), secondaryCellTags.end(), cellTag) != secondaryCellTags.end()) {
+            return true;
+        }
+
+        return false;
+    };
+
+    for (auto transactionId : TransactionIds_) {
+        auto cellTag = CellTagFromId(transactionId);
+        if (!isKnownCellTag(cellTag)) {
+            THROW_ERROR_EXCEPTION("Unknown transaction cell tag")
+                << TErrorAttribute("transaction_id", transactionId)
+                << TErrorAttribute("cell_tag", cellTag);
+        }
+    }
 }
 
 void TTransactionReplicationSessionBase::InitReplicationRequestCellTags()

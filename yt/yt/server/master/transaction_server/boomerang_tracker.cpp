@@ -127,8 +127,10 @@ void TBoomerangTracker::Stop()
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
 
-    CheckExecutor_->Stop();
-    CheckExecutor_.Reset();
+    if (CheckExecutor_) {
+        CheckExecutor_->Stop();
+        CheckExecutor_.Reset();
+    }
 }
 
 void TBoomerangTracker::Clear()
