@@ -88,6 +88,7 @@ struct TReplicaCounters
     NProfiling::TShardedAggregateGauge ReplicationBatchDataWeight;
     NProfiling::TShardedMonotonicCounter ReplicationRowCount;
     NProfiling::TShardedMonotonicCounter ReplicationDataWeight;
+    NProfiling::TShardedMonotonicCounter ReplicationErrorCount;
 
     const NProfiling::TTagIdList Tags;
 };

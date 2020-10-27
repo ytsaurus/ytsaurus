@@ -191,6 +191,11 @@ private:
             const auto& tabletRuntimeData = tabletSnapshot->TabletRuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
             auto* counters = replicaSnapshot->Counters;
+            auto countError = Finally([&] {
+                if (std::uncaught_exception()) {
+                    Profiler.Increment(counters->ReplicationErrorCount);
+                }
+            });
 
             // YT-8542: Fetch the last barrier timestamp _first_ to ensure proper serialization between
             // replicator and tablet slot threads.
