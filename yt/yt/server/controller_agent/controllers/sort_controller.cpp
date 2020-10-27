@@ -140,6 +140,8 @@ public:
         Persist(context, SimpleSort);
         Persist(context, PartitionsByLevels);
         Persist(context, PartitionTreeDepth);
+        Persist(context, PartitionCount);
+        Persist(context, MaxPartitionFactor);
 
         Persist(context, AssignedPartitionsByNodeId);
         Persist(context, PartitionsLocalityByNodeId);
@@ -441,6 +443,10 @@ protected:
     std::vector<std::vector<TPartitionPtr>> PartitionsByLevels;
 
     int PartitionTreeDepth = 0;
+
+    int PartitionCount = 0;
+
+    int MaxPartitionFactor = 0;
 
     // Locality stuff.
 
@@ -917,6 +923,24 @@ protected:
                 // This couldn't have been done earlier since we've just finished populating shuffle pool.
                 Controller_->CheckSortStartThreshold();
                 Controller_->CheckMergeStartThreshold();
+
+                {
+                    int twoPhasePartitionCount = 0;
+                    int threePhasePartitionCount = 0;
+                    for (const auto& partition : GetOutputPartitions()) {
+                        if (Controller_->IsSortedMergeNeeded(partition)) {
+                            ++threePhasePartitionCount;
+                        } else {
+                            ++twoPhasePartitionCount;
+                        }
+                    }
+
+                    YT_LOG_DEBUG("Partitioning completed "
+                        "(PartitionCount: %v, TwoPhasePartitionCount: %v, ThreePhasePartitionCount: %v)",
+                        GetOutputPartitions().size(),
+                        twoPhasePartitionCount,
+                        threePhasePartitionCount);
+                }
             }
         }
 
@@ -2531,6 +2555,37 @@ protected:
         return static_cast<int>(Clamp<i64>(result, 1, Options->MaxPartitionCount));
     }
 
+    void SuggestPartitionCountAndMaxPartitionFactor(std::optional<int> forcedPartitionCount)
+    {
+        YT_VERIFY(TotalEstimatedInputDataWeight > 0);
+        i64 dataWeightAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataWeight * Spec->MapSelectivityFactor);
+
+        if (forcedPartitionCount) {
+            PartitionCount = *forcedPartitionCount;
+        } else if (Spec->PartitionCount) {
+            PartitionCount = *Spec->PartitionCount;
+        } else if (Spec->PartitionDataWeight) {
+            PartitionCount = DivCeil(dataWeightAfterPartition, *Spec->PartitionDataWeight);
+        } else {
+            i64 partitionSize = Spec->DataWeightPerShuffleJob * Spec->PartitionSizeFactor;
+            PartitionCount = DivCeil(dataWeightAfterPartition, partitionSize);
+        }
+
+        PartitionCount = Clamp(PartitionCount, 1, Options->MaxPartitionCount);
+
+        if (Spec->MaxPartitionFactor) {
+            MaxPartitionFactor = *Spec->MaxPartitionFactor;
+        } else {
+            MaxPartitionFactor = DivCeil(GetMaxPartitionJobBufferSize(), Options->MinUncompressedBlockSize);
+        }
+
+        MaxPartitionFactor = Clamp(MaxPartitionFactor, 2, Options->MaxPartitionFactor);
+
+        YT_LOG_DEBUG("Suggesting partition count and max partition factor (PartitionCount: %v, MaxPartitionFactor: %v)",
+            PartitionCount,
+            MaxPartitionFactor);
+    }
+
     // Partition progress.
 
     struct TPartitionProgress
@@ -2966,14 +3021,11 @@ private:
         if (Spec->PivotKeys.empty()) {
             auto samples = FetchSamples();
 
-            // Use partition count provided by user, if given.
-            // Otherwise use size estimates.
-            int partitionCount = SuggestPartitionCount();
-            YT_LOG_INFO("Suggested partition count %v, samples count %v", partitionCount, samples.size());
+            YT_LOG_INFO("Suggested partition count (PartitionCount: %v, SampleCount: %v)", PartitionCount, samples.size());
 
             // Don't create more partitions than we have samples (plus one).
-            partitionCount = std::min(partitionCount, static_cast<int>(samples.size()) + 1);
-            SimpleSort = (partitionCount == 1);
+            PartitionCount = std::min(PartitionCount, static_cast<int>(samples.size()) + 1);
+            SimpleSort = (PartitionCount == 1);
 
             auto partitionJobSizeConstraints = CreatePartitionJobSizeConstraints(
                 Spec,
@@ -2984,13 +3036,15 @@ private:
                 TotalEstimatedInputRowCount,
                 InputCompressionRatio);
 
-            // Finally adjust partition count wrt block size constraints.
-            partitionCount = AdjustPartitionCountToWriterBufferSize(
-                partitionCount,
-                partitionJobSizeConstraints->GetJobCount(),
-                PartitionJobIOConfig->TableWriter);
+            if (!Spec->UseNewPartitionsHeuristic) {
+                // Finally adjust partition count wrt block size constraints.
+                PartitionCount = AdjustPartitionCountToWriterBufferSize(
+                    PartitionCount,
+                    partitionJobSizeConstraints->GetJobCount(),
+                    PartitionJobIOConfig->TableWriter);
 
-            YT_LOG_INFO("Adjusted partition count %v", partitionCount);
+                YT_LOG_INFO("Adjusted partition count (PartitionCount: %v)", PartitionCount);
+            }
 
             YT_LOG_INFO("Building partition keys");
 
@@ -2998,7 +3052,7 @@ private:
                 if (!SimpleSort) {
                     partitionKeys = BuildPartitionKeysBySamples(
                         samples,
-                        partitionCount,
+                        PartitionCount,
                         partitionJobSizeConstraints,
                         static_cast<int>(Spec->SortBy.size()),
                         RowBuffer);
@@ -3008,16 +3062,19 @@ private:
             partitionKeys = BuildPartitionKeysByPivotKeys();
         }
 
-        int finalPartitionCount = partitionKeys.size() + 1;
-        int maxPartitionFactor;
-        if (Spec->MaxPartitionFactor) {
-            maxPartitionFactor = *Spec->MaxPartitionFactor;
+        if (Spec->UseNewPartitionsHeuristic) {
+            SuggestPartitionCountAndMaxPartitionFactor(partitionKeys.size() + 1);
         } else {
-            // Build a flat tree by default.
-            maxPartitionFactor = finalPartitionCount;
+            PartitionCount = partitionKeys.size() + 1;
+            if (Spec->MaxPartitionFactor) {
+                MaxPartitionFactor = *Spec->MaxPartitionFactor;
+            } else {
+                // Build a flat tree by default.
+                MaxPartitionFactor = PartitionCount;
+            }
         }
 
-        BuildPartitionTree(finalPartitionCount, maxPartitionFactor);
+        BuildPartitionTree(PartitionCount, MaxPartitionFactor);
 
         AssignPartitionKeysToPartitions(partitionKeys);
 
@@ -3140,7 +3197,13 @@ private:
     {
         TFuture<void> asyncSamplesResult;
         PROFILE_TIMING ("/input_processing_time") {
-            int sampleCount = SuggestPartitionCount() * Spec->SamplesPerPartition;
+            // TODO(gritukan): Should we do it here?
+            if (Spec->UseNewPartitionsHeuristic) {
+                SuggestPartitionCountAndMaxPartitionFactor(std::nullopt);
+            } else {
+                PartitionCount = SuggestPartitionCount();
+            }
+            i64 sampleCount = static_cast<i64>(PartitionCount) * Spec->SamplesPerPartition;
 
             FetcherChunkScraper = CreateFetcherChunkScraper();
 
@@ -3713,10 +3776,22 @@ private:
         InitJobIOConfigs();
         InitStreamDescriptors();
 
-        // Use partition count provided by user, if given.
-        // Otherwise use size estimates.
-        int partitionCount = SuggestPartitionCount();
-        YT_LOG_INFO("Suggested partition count %v", partitionCount);
+        std::vector<TPartitionKey> partitionKeys;
+        bool usePivotKeys = !Spec->PivotKeys.empty();
+        if (usePivotKeys) {
+            partitionKeys = BuildPartitionKeysByPivotKeys();
+        }
+
+        if (Spec->UseNewPartitionsHeuristic) {
+            std::optional<int> forcedPartitionCount;
+            if (usePivotKeys) {
+                forcedPartitionCount = partitionKeys.size() + 1;
+            }
+            SuggestPartitionCountAndMaxPartitionFactor(forcedPartitionCount);
+        } else {
+            PartitionCount = SuggestPartitionCount();
+            YT_LOG_INFO("Suggested partition count %v (PartitionCount: %v)", PartitionCount);
+        }
 
         Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
 
@@ -3729,16 +3804,21 @@ private:
             TotalEstimatedInputRowCount,
             InputCompressionRatio);
 
-        partitionCount = AdjustPartitionCountToWriterBufferSize(
-            partitionCount,
-            RootPartitionPoolJobSizeConstraints->GetJobCount(),
-            PartitionJobIOConfig->TableWriter);
+        if (!Spec->UseNewPartitionsHeuristic) {
+            PartitionCount = AdjustPartitionCountToWriterBufferSize(
+                PartitionCount,
+                RootPartitionPoolJobSizeConstraints->GetJobCount(),
+                PartitionJobIOConfig->TableWriter);
+            if (usePivotKeys) {
+                PartitionCount = partitionKeys.size() + 1;
+            }
 
-        std::vector<TPartitionKey> partitionKeys;
-        bool usePivotKeys = !Spec->PivotKeys.empty();
-        if (usePivotKeys) {
-            partitionKeys = BuildPartitionKeysByPivotKeys();
-            partitionCount = partitionKeys.size() + 1;
+            if (Spec->MaxPartitionFactor) {
+                MaxPartitionFactor = *Spec->MaxPartitionFactor;
+            } else {
+                // Build a flat tree by default.
+                MaxPartitionFactor = PartitionCount;
+            }
         }
 
         int maxPartitionFactor;
@@ -3746,12 +3826,12 @@ private:
             maxPartitionFactor = *Spec->MaxPartitionFactor;
         } else {
             // Build a flat tree by default.
-            maxPartitionFactor = partitionCount;
+            maxPartitionFactor = PartitionCount;
         }
 
-        YT_LOG_INFO("Adjusted partition count %v", partitionCount);
+        YT_LOG_INFO("Adjusted partition count %v", PartitionCount);
 
-        BuildPartitionTree(partitionCount, maxPartitionFactor);
+        BuildPartitionTree(PartitionCount, MaxPartitionFactor);
 
         PROFILE_TIMING ("/input_processing_time") {
             if (usePivotKeys) {
