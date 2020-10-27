@@ -8,6 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.annotation.Nullable;
 
@@ -36,11 +37,19 @@ import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcError;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
 public class ApiServiceTransaction extends TransactionalClient implements AutoCloseable {
+    enum State {
+        ACTIVE,
+        COMMITTING,
+        COMMITTED,
+        CLOSED,
+    }
+
     private final ApiServiceClient client;
     private final GUID id;
     private final YtTimestamp startTimestamp;
@@ -50,21 +59,12 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
     private final Duration pingPeriod;
     private final ScheduledExecutorService executor;
     private final CompletableFuture<Void> transactionCompleteFuture = new CompletableFuture<>();
-
-    enum State {
-        ACTIVE,
-        COMMITTING,
-        COMMITTED,
-        ABORTED
-    }
+    private final AtomicReference<State> state = new AtomicReference<>(State.ACTIVE);
 
     @Override
     public String toString() {
         return "Transaction(" + client + ")@" + id;
     }
-
-    private final Object stateLock = new Object();
-    private State state;
 
     public ApiServiceClient getClient() {
         return client;
@@ -102,12 +102,11 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         this.ping = ping;
         this.sticky = sticky;
         this.transactionalOptions = new TransactionalOptions(id, ping, pingAncestors, sticky);
-        this.state = State.ACTIVE;
         this.pingPeriod = pingPeriod;
         this.executor = executor;
 
         if (ping && ! pingPeriod.isZero() && ! pingPeriod.isNegative()) {
-            runPeriodicPings();
+            executor.schedule(this::runPeriodicPings, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
         }
     }
 
@@ -138,15 +137,9 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         return transactionCompleteFuture;
     }
 
-    private State getState() {
-        synchronized (stateLock) {
-            return state;
-        }
-    }
-
     private boolean isPingableState() {
-        State state = getState();
-        return state == State.ACTIVE /*|| state == State.COMMITTING*/;
+        State currentState = state.get();
+        return currentState == State.ACTIVE || currentState == State.COMMITTING;
     }
 
     private void runPeriodicPings() {
@@ -154,18 +147,17 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
             return;
         }
 
-        ping().thenAccept((unused) -> {
+        ping().whenComplete((unused, ex) -> {
+            final int noSuchTransactionCode = 11000;
+            if (ex instanceof RpcError) {
+                if (((RpcError) ex).matches(noSuchTransactionCode)) {
+                    return;
+                }
+            }
             if (!isPingableState()) {
                 return;
             }
-
-            executor.schedule(() -> {
-                runPeriodicPings();
-                return null;
-            }, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
-        }).exceptionally((ex) -> {
-            // TODO check timeout here?
-            return null;
+            executor.schedule(this::runPeriodicPings, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
         });
     }
 
@@ -173,42 +165,34 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         return client.pingTransaction(id, sticky);
     }
 
-    private void setCommitted() {
-        synchronized (stateLock) {
-            if (state != State.COMMITTING) {
-                throw new IllegalStateException(String.format("Transaction '%s' is already being committed", id));
-            }
-
-            state = State.COMMITTED;
-        }
+    private void throwWrongState(State expectedOldState, State newState) {
+        // Yep, this state is a little bit outdated but Java8 doesn't have compareAndExchange,
+        // so we do our best here. In any case it's a bug.
+        State currentState = state.get();
+        throw new IllegalStateException(
+                String.format(
+                        "Failed to set transaction into '%s' state; expected state: '%s'; current state (maybe outdated): '%s'",
+                        newState,
+                        expectedOldState,
+                        currentState
+                ));
     }
 
-    private void setAborted() {
-        synchronized (stateLock) {
-            state = State.ABORTED;
+    private void updateState(State expectedOldState, State newState) {
+        boolean set = state.compareAndSet(expectedOldState, newState);
+        if (!set) {
+            throwWrongState(expectedOldState, newState);
         }
     }
 
     public CompletableFuture<Void> commit() {
-        synchronized (stateLock) {
-            switch (state) {
-                case COMMITTED:
-                    throw new IllegalStateException(String.format("Transaction '%s' is already committed", id));
-                case COMMITTING:
-                    throw new IllegalStateException(String.format("Transaction '%s' is already being committed", id));
-                case ABORTED:
-                    throw new IllegalStateException(String.format("Transaction '%s' is already aborted", id));
-                default:
-                    state = State.COMMITTING;
-                    break;
-            }
-        }
+        updateState(State.ACTIVE, State.COMMITTING);
 
         return client.commitTransaction(id, sticky).whenComplete((result, error) -> {
             if (error == null) {
-                setCommitted();
+                updateState(State.COMMITTING, State.COMMITTED);
             } else {
-                setAborted();
+                state.set(State.CLOSED);
             }
 
             transactionCompleteFuture.complete(null);
@@ -216,38 +200,31 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
     }
 
     public CompletableFuture<Void> abort() {
-        State state = getState();
-        if (state != State.ACTIVE) {
-            throw new IllegalStateException(String.format("Transaction '%s' is closed", id));
+        return abortImpl(true);
+    }
+
+    private CompletableFuture<Void> abortImpl(boolean complainWrongState) {
+        State oldState = state.getAndSet(State.CLOSED);
+        if (oldState == State.ACTIVE) {
+            // dont wait for answer
+            return client.abortTransaction(id, sticky)
+                    .whenComplete((result, error) -> transactionCompleteFuture.complete(null));
+        } else if (complainWrongState) {
+            throwWrongState(State.ACTIVE, State.CLOSED);
         }
 
-        synchronized (stateLock) {
-            this.state = State.ABORTED;
-        }
-
-        // dont wait for answer
-        return client.abortTransaction(id, sticky).whenComplete((result, error) -> {
-            transactionCompleteFuture.complete(null);
-        });
+        return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void close() {
-        CompletableFuture<Void> future;
-        try {
-            future = abort();
-        } catch (IllegalStateException ignored) {
-            // транзакция уже закрыта
-            return;
-        }
+        CompletableFuture<Void> future = abortImpl(false);
         try {
             future.join();
         } catch (CancellationException | CompletionException ignored) {
             // игнорируем ошибки abort'а
         } finally {
-            synchronized (stateLock) {
-                this.state = State.ABORTED;
-            }
+            this.state.set(State.CLOSED);
         }
     }
 
