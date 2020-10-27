@@ -48,6 +48,10 @@ public class WireProtocolTest {
 
     private static final boolean[] AGGREGATE_TYPES = new boolean[]{true, false};
 
+    public static byte[] makeByteArray(String value) {
+        return Hex.decode(value);
+    }
+
     public static byte[] makeByteArray(int... bytes) {
         byte[] result = new byte[bytes.length];
         for (int i = 0; i < bytes.length; i++) {
@@ -436,6 +440,7 @@ public class WireProtocolTest {
         return rowset.build();
     }
 
+
     public static byte[] makeUnversionedRowsetCanonicalBlob_For_RowSample() {
         return ArrayUtils.addAll(makeByteArray(
                 // row count
@@ -467,6 +472,31 @@ public class WireProtocolTest {
                 0x0B, 0x00, 0x10, 0x00, 0x01, 0x00, 0x00, 0x00, 0x73, 0xcf, 0xcf, 0xcf, 0xcf, 0xcf, 0xcf, 0xcf,
                 0x0C, 0x00, 0x11, AGGR, 0x04, 0x00, 0x00, 0x00, 0x01, 0x04, 0x7b, 0x7d, 0x00, 0x00, 0x00, 0x00,
                 0x0D, 0x00, 0x11, 0x00, 0x04, 0x00, 0x00, 0x00, 0x01, 0x04, 0x7b, 0x7d, 0x00, 0x00, 0x00, 0x00);
+    }
+
+    public static TRowsetDescriptor makeDescriptor_For_RowSampleNoVInt64NoVString() {
+        final TRowsetDescriptor.Builder rowset = TRowsetDescriptor.newBuilder();
+        rowset.addNameTableEntriesBuilder().setName("vNull").setType(ColumnValueType.NULL.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vNullAggr").setType(ColumnValueType.NULL.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vInt64Aggr").setType(ColumnValueType.INT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vUint64").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vUint64Aggr").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vDouble").setType(ColumnValueType.DOUBLE.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vDoubleAggr").setType(ColumnValueType.DOUBLE.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vBoolean").setType(ColumnValueType.BOOLEAN.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vBooleanAggr").setType(ColumnValueType.BOOLEAN.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vStringAggr").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vAny").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vAnyAggr").setType(ColumnValueType.ANY.getValue());
+        return rowset.build();
+    }
+
+    public static byte[] makeUnversionedRowCanonicalBlob_For_RowSampleNoVInt64NoVString() {
+        return WireProtocolTest.makeByteArray("0c00000000000000000002000000000001000200000000000200030000000000" +
+                "efcdab896745230103000400000000001032547698badcfe04000400000000001032547698badcfe0500050000000000182d" +
+                "4454fb2109400600050000000000182d4454fb21094007000600000000000000000000000000080006000000000000000000" +
+                "00000000090010000100000073000000000000000a0011000400000001047b7d000000000b0011000400000001047b7d0000" +
+                "0000");
     }
 
     public static TRowsetDescriptor makeSchemafulRowCanonicalDescriptor_For_RowSample() {
