@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
@@ -25,11 +24,9 @@ import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
-import ru.yandex.yt.ytclient.proxy.request.LockMode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
-import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
@@ -43,7 +40,7 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
-public class ApiServiceTransaction implements AutoCloseable, TransactionalClient {
+public class ApiServiceTransaction extends TransactionalClient implements AutoCloseable {
     private final ApiServiceClient client;
     private final GUID id;
     private final YtTimestamp startTimestamp;
@@ -301,21 +298,9 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return client.createNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<GUID> createNode(String path, ObjectType type) {
-        return createNode(new CreateNode(path, type));
-    }
-
-    public CompletableFuture<GUID> createNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
-        return createNode(new CreateNode(path, type, attributes));
-    }
-
     @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         return client.existsNode(req.setTransactionalOptions(transactionalOptions));
-    }
-
-    public CompletableFuture<Boolean> existsNode(String path) {
-        return existsNode(new ExistsNode(path));
     }
 
     @Override
@@ -323,17 +308,9 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return client.getNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<YTreeNode> getNode(String path) {
-        return getNode(new GetNode(path));
-    }
-
     @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         return client.listNode(req.setTransactionalOptions(transactionalOptions));
-    }
-
-    public CompletableFuture<YTreeNode> listNode(String path) {
-        return listNode(new ListNode(path));
     }
 
     @Override
@@ -341,29 +318,13 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return client.removeNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<Void> removeNode(String path) {
-        return removeNode(new RemoveNode(path));
-    }
-
     @Override
     public CompletableFuture<Void> setNode(SetNode req) {
         return client.setNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<Void> setNode(String path, byte[] data) {
-        return setNode(new SetNode(path, data));
-    }
-
-    public CompletableFuture<Void> setNode(String path, YTreeNode data) {
-        return setNode(path, data.toBinary());
-    }
-
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
         return client.lockNode(req.setTransactionalOptions(transactionalOptions));
-    }
-
-    public CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode) {
-        return lockNode(new LockNode(path, mode));
     }
 
     @Override
@@ -371,26 +332,14 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
         return client.copyNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<GUID> copyNode(String src, String dst) {
-        return copyNode(new CopyNode(src, dst));
-    }
-
     @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
         return client.moveNode(req.setTransactionalOptions(transactionalOptions));
     }
 
-    public CompletableFuture<GUID> moveNode(String from, String to) {
-        return moveNode(new MoveNode(from, to));
-    }
-
     @Override
     public CompletableFuture<GUID> linkNode(LinkNode req) {
         return client.linkNode(req.setTransactionalOptions(transactionalOptions));
-    }
-
-    public CompletableFuture<GUID> linkNode(String src, String dst) {
-        return linkNode(new LinkNode(src, dst));
     }
 
     @Override
@@ -416,11 +365,6 @@ public class ApiServiceTransaction implements AutoCloseable, TransactionalClient
     @Override
     public CompletableFuture<FileWriter> writeFile(WriteFile req) {
         return client.writeFile(req.setTransactionalOptions(transactionalOptions));
-    }
-
-    @Override
-    public CompletableFuture<Void> concatenateNodes(String [] from, String to) {
-        return concatenateNodes(new ConcatenateNodes(from, to));
     }
 
     @Override

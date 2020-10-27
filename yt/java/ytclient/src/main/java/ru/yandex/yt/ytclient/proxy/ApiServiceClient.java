@@ -159,7 +159,6 @@ import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
-import ru.yandex.yt.ytclient.proxy.request.LockMode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
@@ -194,7 +193,7 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
 /**
  * Клиент для высокоуровневой работы с ApiService
  */
-public class ApiServiceClient implements TransactionalClient {
+public class ApiServiceClient extends TransactionalClient {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
 
     private final ApiService service;
@@ -232,10 +231,6 @@ public class ApiServiceClient implements TransactionalClient {
 
     public ApiService getService() {
         return service;
-    }
-
-    private YTreeNode parseByteString(ByteString byteString) {
-        return YTreeBinarySerializer.deserialize(byteString.newInput());
     }
 
     public CompletableFuture<ApiServiceTransaction> startTransaction(ApiServiceTransactionOptions options) {
@@ -353,27 +348,11 @@ public class ApiServiceClient implements TransactionalClient {
                 response -> parseByteString(response.body().getValue()));
     }
 
-    public CompletableFuture<YTreeNode> getNode(String path) {
-        return getNode(path, null);
-    }
-
-    public CompletableFuture<YTreeNode> getNode(String path, @Nullable Duration requestTimeout) {
-        return getNode(new GetNode(path).setTimeout(requestTimeout));
-    }
-
     @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         return RpcUtil.apply(
                 sendRequest(req, service.listNode()),
                 response -> parseByteString(response.body().getValue()));
-    }
-
-    public CompletableFuture<YTreeNode> listNode(String path) {
-        return listNode(path, null);
-    }
-
-    public CompletableFuture<YTreeNode> listNode(String path, @Nullable Duration requestTimeout) {
-        return listNode(new ListNode(path).setTimeout(requestTimeout));
     }
 
     @Override
@@ -383,35 +362,11 @@ public class ApiServiceClient implements TransactionalClient {
                 response -> null);
     }
 
-    public CompletableFuture<Void> setNode(String path, byte[] data) {
-        return setNode(path, data, null);
-    }
-
-    public CompletableFuture<Void> setNode(String path, byte[] data, @Nullable Duration requestTimeout) {
-        return setNode(new SetNode(path, data).setTimeout(requestTimeout));
-    }
-
-    public CompletableFuture<Void> setNode(String path, YTreeNode data) {
-        return setNode(path, data.toBinary());
-    }
-
-    public CompletableFuture<Void> setNode(String path, YTreeNode data, @Nullable Duration requestTimeout) {
-        return setNode(path, data.toBinary(), requestTimeout);
-    }
-
     @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         return RpcUtil.apply(
                 sendRequest(req, service.existsNode()),
                 response -> response.body().getExists());
-    }
-
-    public CompletableFuture<Boolean> existsNode(String path) {
-        return existsNode(path, null);
-    }
-
-    public CompletableFuture<Boolean> existsNode(String path, @Nullable Duration requestTimeout) {
-        return existsNode(new ExistsNode(path).setTimeout(requestTimeout));
     }
 
     public CompletableFuture<TRspGetTableMountInfo> getMountInfo(String path) {
@@ -472,6 +427,7 @@ public class ApiServiceClient implements TransactionalClient {
                         RpcUtil.fromProto(response.body().getObjectId()));
     }
 
+    @Override
     public CompletableFuture<GUID> createNode(CreateNode req) {
         RpcClientRequestBuilder<TReqCreateNode.Builder, RpcClientResponse<TRspCreateNode>> builder =
                 service.createNode();
@@ -483,25 +439,6 @@ public class ApiServiceClient implements TransactionalClient {
                         RpcUtil.fromProto(response.body().getNodeId()));
     }
 
-    public CompletableFuture<GUID> createNode(String path, ObjectType type) {
-        return createNode(new CreateNode(path, type));
-    }
-
-    public CompletableFuture<GUID> createNode(String path, ObjectType type, @Nullable Duration requestTimeout) {
-        return createNode(new CreateNode(path, type).setTimeout(requestTimeout));
-    }
-
-    public CompletableFuture<GUID> createNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
-        return createNode(path, type, attributes, null);
-    }
-
-    public CompletableFuture<GUID> createNode(String path,
-                                              ObjectType type,
-                                              Map<String, YTreeNode> attributes,
-                                              @Nullable Duration requestTimeout) {
-        return createNode(new CreateNode(path, type, attributes).setTimeout(requestTimeout));
-    }
-
     @Override
     public CompletableFuture<Void> removeNode(RemoveNode req) {
         RpcClientRequestBuilder<TReqRemoveNode.Builder, RpcClientResponse<TRspRemoveNode>> builder =
@@ -511,10 +448,7 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
-    public CompletableFuture<Void> removeNode(String path) {
-        return removeNode(new RemoveNode(path));
-    }
-
+    @Override
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
         RpcClientRequestBuilder<TReqLockNode.Builder, RpcClientResponse<TRspLockNode>> builder = service.lockNode();
         req.writeHeaderTo(builder.header());
@@ -524,14 +458,7 @@ public class ApiServiceClient implements TransactionalClient {
                 RpcUtil.fromProto(response.body().getLockId())));
     }
 
-    public CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode) {
-        return lockNode(path, mode, null);
-    }
-
-    public CompletableFuture<LockNodeResult> lockNode(String path, LockMode mode, @Nullable Duration requestTimeout) {
-        return lockNode(new LockNode(path, mode).setTimeout(requestTimeout));
-    }
-
+    @Override
     public CompletableFuture<GUID> copyNode(CopyNode req) {
         RpcClientRequestBuilder<TReqCopyNode.Builder, RpcClientResponse<TRspCopyNode>> builder = service.copyNode();
         req.writeHeaderTo(builder.header());
@@ -540,14 +467,6 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder),
                 response ->
                         RpcUtil.fromProto(response.body().getNodeId()));
-    }
-
-    public CompletableFuture<GUID> copyNode(String src, String dst) {
-        return copyNode(src, dst, null);
-    }
-
-    public CompletableFuture<GUID> copyNode(String src, String dst, @Nullable Duration requestTimeout) {
-        return copyNode(new CopyNode(src, dst).setTimeout(requestTimeout));
     }
 
     @Override
@@ -561,14 +480,7 @@ public class ApiServiceClient implements TransactionalClient {
                         RpcUtil.fromProto(response.body().getNodeId()));
     }
 
-    public CompletableFuture<GUID> moveNode(String from, String to) {
-        return moveNode(from, to, null);
-    }
-
-    public CompletableFuture<GUID> moveNode(String from, String to, @Nullable Duration requestTimeout) {
-        return moveNode(new MoveNode(from, to).setTimeout(requestTimeout));
-    }
-
+    @Override
     public CompletableFuture<GUID> linkNode(LinkNode req) {
         RpcClientRequestBuilder<TReqLinkNode.Builder, RpcClientResponse<TRspLinkNode>> builder = service.linkNode();
         req.writeHeaderTo(builder.header());
@@ -579,10 +491,6 @@ public class ApiServiceClient implements TransactionalClient {
                         RpcUtil.fromProto(response.body().getNodeId()));
     }
 
-    public CompletableFuture<GUID> linkNode(String src, String dst) {
-        return linkNode(new LinkNode(src, dst));
-    }
-
     @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         RpcClientRequestBuilder<TReqConcatenateNodes.Builder, RpcClientResponse<TRspConcatenateNodes>> builder =
@@ -590,15 +498,6 @@ public class ApiServiceClient implements TransactionalClient {
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    @Override
-    public CompletableFuture<Void> concatenateNodes(String[] from, String to) {
-        return concatenateNodes(from, to, null);
-    }
-
-    public CompletableFuture<Void> concatenateNodes(String[] from, String to, @Nullable Duration requestTimeout) {
-        return concatenateNodes(new ConcatenateNodes(from, to).setTimeout(requestTimeout));
     }
 
     // TODO: TReqAttachTransaction
@@ -735,7 +634,6 @@ public class ApiServiceClient implements TransactionalClient {
                 });
     }
 
-
     public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request) {
         RpcClientRequestBuilder<TReqModifyRows.Builder, RpcClientResponse<TRspModifyRows>> builder =
                 service.modifyRows();
@@ -806,7 +704,8 @@ public class ApiServiceClient implements TransactionalClient {
             String path,
             YtTimestamp timestamp,
             TableSchema schema,
-            Iterable<? extends List<?>> keys) {
+            Iterable<? extends List<?>> keys)
+    {
         return getInSyncReplicas(new GetInSyncReplicas(path, schema, keys), timestamp);
     }
 
@@ -1622,5 +1521,9 @@ public class ApiServiceClient implements TransactionalClient {
             return null;
         }
         return rpcClient.getAddressString();
+    }
+
+    static private YTreeNode parseByteString(ByteString byteString) {
+        return YTreeBinarySerializer.deserialize(byteString.newInput());
     }
 }
