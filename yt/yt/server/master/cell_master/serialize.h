@@ -140,6 +140,7 @@ DEFINE_ENUM(EMasterReign,
     ((DegradedCellsAreHealthy)                                      (1413))  // babenko
     ((FixTrunkNodeInvalidDeltaStatistics)                           (1414))  // shakurov
     ((NestPoolTreeConfig)                                           (1415))  // renadeen
+    ((OptionalDedicatedUploadTxObjectTypes)                         (1416))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -47,8 +47,9 @@ EAtomicity AtomicityFromTransactionId(TTransactionId id);
 void ValidateTabletTransactionId(TTransactionId id);
 
 //! Checks if #id represents a valid transaction accepted by masters:
-//! the type of #id must be either
-//! #EObjectType::Transaction or #EObjectType::NestedTransaction.
+//! the type of #id must be one of
+//! #EObjectType::Transaction, #EObjectType::NestedTransaction,
+//! #EObjectType::UploadTransaction, or #EObjectType::UploadNestedTransaction.
 void ValidateMasterTransactionId(TTransactionId id);
 
 ////////////////////////////////////////////////////////////////////////////////

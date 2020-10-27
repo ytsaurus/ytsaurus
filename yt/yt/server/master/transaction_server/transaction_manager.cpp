@@ -258,9 +258,7 @@ public:
             return;
         }
 
-        if (parent->GetType() == EObjectType::UploadTransaction ||
-            parent->GetType() == EObjectType::UploadNestedTransaction)
-        {
+        if (parent->IsUpload()) {
             THROW_ERROR_EXCEPTION(
                 NTransactionClient::EErrorCode::UploadTransactionCannotHaveNested,
                 "Failed to start a transaction nested in an upload transaction")
@@ -302,7 +300,8 @@ public:
     {
         YT_VERIFY(!hintId ||
             TypeFromId(hintId) == EObjectType::UploadTransaction ||
-            TypeFromId(hintId) == EObjectType::UploadNestedTransaction);
+            TypeFromId(hintId) == EObjectType::UploadNestedTransaction ||
+            !GetDynamicConfig()->EnableDedicatedUploadTransactionObjectTypes);
 
         ValidateGenericTransactionStart(parent);
     }
@@ -322,11 +321,11 @@ public:
 
         NProfiling::TWallTimer timer;
 
-        auto transactionObjectType = upload
+        const auto& dynamicConfig = GetDynamicConfig();
+
+        auto transactionObjectType = upload && dynamicConfig->EnableDedicatedUploadTransactionObjectTypes
             ? (parent ? EObjectType::UploadNestedTransaction : EObjectType::UploadTransaction)
             : (parent ? EObjectType::NestedTransaction : EObjectType::Transaction);
-
-        const auto& dynamicConfig = GetDynamicConfig();
 
         if (parent) {
             if (parent->GetPersistentState() != ETransactionState::Active) {
@@ -344,7 +343,7 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto transactionId = objectManager->GenerateId(transactionObjectType, hintId);
 
-        auto transactionHolder = std::make_unique<TTransaction>(transactionId);
+        auto transactionHolder = std::make_unique<TTransaction>(transactionId, upload);
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
 
         // Every active transaction has a fake reference to itself.
@@ -669,9 +668,7 @@ public:
             return {};
         }
 
-        if (transaction->GetType() == EObjectType::UploadTransaction ||
-            transaction->GetType() == EObjectType::UploadNestedTransaction)
-        {
+        if (transaction->IsUpload()) {
             return transaction->GetId();
         }
 
@@ -773,9 +770,7 @@ public:
             return {};
         }
 
-        if (transaction->GetType() == EObjectType::UploadTransaction ||
-            transaction->GetType() == EObjectType::UploadNestedTransaction)
-        {
+        if (transaction->IsUpload()) {
             return transaction->GetId();
         }
 
@@ -1195,6 +1190,7 @@ private:
         auto hintId = FromProto<TTransactionId>(request->id());
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto* parent = parentId ? FindTransaction(parentId) : nullptr;
+        auto isUpload = request->upload();
         if (parentId && !parent) {
             THROW_ERROR_EXCEPTION("Failed to start foreign transaction: parent transaction not found")
                 << TErrorAttribute("transaction_id", hintId)
@@ -1203,9 +1199,11 @@ private:
 
         auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
 
-        auto isUpload =
-            TypeFromId(hintId) == EObjectType::UploadTransaction ||
-            TypeFromId(hintId) == EObjectType::UploadNestedTransaction;
+        YT_VERIFY(
+            !GetDynamicConfig()->EnableDedicatedUploadTransactionObjectTypes ||
+            isUpload == (
+                TypeFromId(hintId) == EObjectType::UploadTransaction ||
+                TypeFromId(hintId) == EObjectType::UploadNestedTransaction));
 
         auto* transaction = DoStartTransaction(
             isUpload,
@@ -1468,6 +1466,8 @@ private:
     bool ShouldCacheTransactionPresence(TTransactionId transactionId)
     {
         auto transactionType = TypeFromId(transactionId);
+        // NB: if enable_dedicated_upload_transaction_object_types is false,
+        // upload transactions *will* be cached.
         if (transactionType == EObjectType::UploadTransaction ||
             transactionType == EObjectType::UploadNestedTransaction)
         {

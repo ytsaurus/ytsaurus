@@ -67,6 +67,8 @@ public:
     // writing) problems with lazy tx replication have been ironed out.
     bool EnableLazyTransactionReplication;
 
+    bool EnableDedicatedUploadTransactionObjectTypes;
+
     TTransactionPresenceCacheConfigPtr TransactionPresenceCache;
     TBoomerangTrackerConfigPtr BoomerangTracker;
 
@@ -83,6 +85,9 @@ public:
             .DefaultNew();
         RegisterParameter("boomerang_tracker", BoomerangTracker)
             .DefaultNew();
+
+        RegisterParameter("enable_dedicated_upload_transaction_object_types", EnableDedicatedUploadTransactionObjectTypes)
+            .Default(false);
     }
 };
 
