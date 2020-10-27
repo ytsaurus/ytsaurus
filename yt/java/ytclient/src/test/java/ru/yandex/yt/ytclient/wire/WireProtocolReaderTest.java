@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -14,6 +15,7 @@ import org.junit.Test;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.misc.codec.Hex;
+import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
@@ -40,22 +42,31 @@ public class WireProtocolReaderTest extends WireProtocolTest {
         assertFalse("reader still readable after the test", reader.readable());
     }
 
-    private static <T> void process(List<byte[]> data, TRowsetDescriptor descriptor, Class<T> clazz,
-            Consumer<T> consumer)
-    {
+    private static <T> void process(
+            List<byte[]> data, TRowsetDescriptor descriptor, Class<T> clazz, Consumer<T> consumer) {
         process(data, descriptor, clazz, consumer, WireProtocolReader::readUnversionedRow);
     }
 
+    private static <T> void process(
+            List<byte[]> data, TRowsetDescriptor descriptor, YTreeObjectSerializer<T> serializer,
+            Consumer<T> consumer) {
+        process(data, descriptor, serializer, consumer, WireProtocolReader::readUnversionedRow);
+    }
 
-    private static <T> void process(List<byte[]> data, TRowsetDescriptor descriptor, Class<T> clazz,
-            Consumer<T> consumer, BiConsumer<WireProtocolReader, MappedRowsetDeserializer<T>> readFunction)
-    {
+    private static <T> void process(
+            List<byte[]> data, TRowsetDescriptor descriptor, Class<T> clazz,
+            Consumer<T> consumer, BiConsumer<WireProtocolReader, MappedRowsetDeserializer<T>> readFunction) {
+        final YTreeObjectSerializer<T> serializer =
+                (YTreeObjectSerializer<T>) YTreeObjectSerializerFactory.forClass(clazz);
+        process(data, descriptor, serializer, consumer, readFunction);
+    }
+
+    private static <T> void process(
+            List<byte[]> data, TRowsetDescriptor descriptor, YTreeObjectSerializer<T> serializer,
+            Consumer<T> consumer, BiConsumer<WireProtocolReader, MappedRowsetDeserializer<T>> readFunction) {
         final WireProtocolReader reader = new WireProtocolReader(data);
 
         final TableSchema tableSchema = tableSchema(descriptor);
-
-        final YTreeObjectSerializer<T> serializer =
-                (YTreeObjectSerializer<T>) YTreeObjectSerializerFactory.forClass(clazz);
 
         final ConsumerSourceRet<T> source = ConsumerSource.list();
         final MappedRowsetDeserializer<T> rowBuilder =
@@ -104,6 +115,22 @@ public class WireProtocolReaderTest extends WireProtocolTest {
         process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSample()),
                 makeDescriptor_For_RowSample(), RowSampleObject.class, value -> {
                     final RowSampleObject sample = makeSample_For_RowSampleObject();
+                    assertThat(value, is(sample));
+                });
+    }
+
+    @Test
+    public void readUnversionedRowMappedWithoutFewFields() {
+        // Исключаем поля vInt64 из списка вставляемых vString
+        var exclude = Set.of("vInt64", "vString");
+        var serializer = new YTreeObjectSerializer<>(ClassX.wrap(RowSampleObject.class),
+                field -> !exclude.contains(field.getName()));
+
+        process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSampleNoVInt64NoVString()),
+                makeDescriptor_For_RowSampleNoVInt64NoVString(), serializer, value -> {
+                    final RowSampleObject sample = makeSample_For_RowSampleObject();
+                    sample.setvInt64(0);
+                    sample.setvString(null);
                     assertThat(value, is(sample));
                 });
     }

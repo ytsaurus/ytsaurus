@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 import org.apache.commons.lang3.ArrayUtils;
@@ -15,6 +16,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.misc.lang.number.UnsignedLong;
+import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
@@ -41,11 +43,20 @@ public class WireProtocolWriterTest extends WireProtocolTest {
                 writer.writeUnversionedRow(sample, serializer));
     }
 
+    private static <T> void process(List<byte[]> expect, YTreeObjectSerializer<T> serializer, T sample) {
+        process(expect, serializer, (BiConsumer<WireProtocolWriter, WireRowSerializer<T>>) (writer, s) ->
+                writer.writeUnversionedRow(sample, s));
+    }
+
     private static <T> void process(List<byte[]> expect, Class<T> clazz,
                                     BiConsumer<WireProtocolWriter, WireRowSerializer<T>> writeFunction) {
         final YTreeObjectSerializer<T> serializer =
                 (YTreeObjectSerializer<T>) YTreeObjectSerializerFactory.forClass(clazz);
+        process(expect, serializer, writeFunction);
+    }
 
+    private static <T> void process(List<byte[]> expect, YTreeObjectSerializer<T> serializer,
+                                    BiConsumer<WireProtocolWriter, WireRowSerializer<T>> writeFunction) {
         final MappedRowSerializer<T> rowSerializer = MappedRowSerializer.forClass(serializer);
 
         WireProtocolWriter writer = new WireProtocolWriter();
@@ -77,6 +88,16 @@ public class WireProtocolWriterTest extends WireProtocolTest {
         // Пока не поддерживаем простановку признака "aggregated"
         process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSample(false)),
                 makeSample_For_RowSampleObject());
+    }
+
+    @Test
+    public void writeUnversionedRowMappedWithoutFewFields() {
+        // Исключаем поля vInt64 из списка вставляемых vString
+        var exclude = Set.of("vInt64", "vString");
+        var serializer = new YTreeObjectSerializer<>(ClassX.wrap(RowSampleObject.class),
+                field -> !exclude.contains(field.getName()));
+        process(Collections.singletonList(makeUnversionedRowCanonicalBlob_For_RowSampleNoVInt64NoVString()),
+                serializer, makeSample_For_RowSampleObject());
     }
 
     @Test

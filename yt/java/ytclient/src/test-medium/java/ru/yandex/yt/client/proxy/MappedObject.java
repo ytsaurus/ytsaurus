@@ -10,6 +10,7 @@ public class MappedObject {
     @YTreeKeyField
     private int k1;
     private String v1;
+    private long l1;
 
     public MappedObject() {
         //
@@ -18,6 +19,12 @@ public class MappedObject {
     public MappedObject(int k1, String v1) {
         this.k1 = k1;
         this.v1 = v1;
+    }
+
+    public MappedObject(int k1, String v1, long l1) {
+        this.k1 = k1;
+        this.v1 = v1;
+        this.l1 = l1;
     }
 
     public int getK1() {
@@ -36,22 +43,31 @@ public class MappedObject {
         this.v1 = v1;
     }
 
+    public long getL1() {
+        return l1;
+    }
+
+    public void setL1(long l1) {
+        this.l1 = l1;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (!(o instanceof MappedObject)) {
             return false;
         }
         MappedObject that = (MappedObject) o;
         return k1 == that.k1 &&
+                l1 == that.l1 &&
                 Objects.equals(v1, that.v1);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(k1, v1);
+        return Objects.hash(k1, v1, l1);
     }
 
     @Override
@@ -59,6 +75,7 @@ public class MappedObject {
         return "MappedObject{" +
                 "k1=" + k1 +
                 ", v1='" + v1 + '\'' +
+                ", l1=" + l1 +
                 '}';
     }
 }

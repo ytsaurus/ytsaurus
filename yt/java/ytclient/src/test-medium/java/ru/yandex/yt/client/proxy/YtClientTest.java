@@ -35,6 +35,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
@@ -159,8 +160,8 @@ public class YtClientTest {
         Assert.assertEquals(0, client.selectRows(query).join().getRows().size());
 
         final Collection<MappedObject> objects = Arrays.asList(
-                new MappedObject(1, "test1"),
-                new MappedObject(2, "test2"));
+                new MappedObject(1, "test1", 100),
+                new MappedObject(2, "test2", 200));
 
         insertData(client, table, objects, serializer);
 
@@ -172,10 +173,12 @@ public class YtClientTest {
         Assert.assertEquals(Arrays.asList(
                 new UnversionedRow(Arrays.asList(
                         new UnversionedValue(0, ColumnValueType.INT64, false, 1L),
-                        new UnversionedValue(1, ColumnValueType.STRING, false, "test1".getBytes(Charsets.UTF_8)))),
+                        new UnversionedValue(1, ColumnValueType.STRING, false, "test1".getBytes(Charsets.UTF_8)),
+                        new UnversionedValue(2, ColumnValueType.INT64, false, 100L))),
                 new UnversionedRow(Arrays.asList(
                         new UnversionedValue(0, ColumnValueType.INT64, false, 2L),
-                        new UnversionedValue(1, ColumnValueType.STRING, false, "test2".getBytes(Charsets.UTF_8))))
+                        new UnversionedValue(1, ColumnValueType.STRING, false, "test2".getBytes(Charsets.UTF_8)),
+                        new UnversionedValue(2, ColumnValueType.INT64, false, 200L)))
         ), rows);
     }
 
@@ -362,6 +365,55 @@ public class YtClientTest {
         }
     }
 
+    @Test
+    public void testInsertWithFieldFilter() {
+        String table = path + "/table8";
+        createDynamicTable(client, table);
+
+        final String query = String.format("* from [%s]", table);
+
+        final YTreeObjectSerializer<MappedObject> limitedSerializer =
+                new YTreeObjectSerializer<>(ClassX.wrap(MappedObject.class), field -> !field.getName().equals("v1"));
+
+        insertData(client, table, Arrays.asList(
+                new MappedObject(1, "test1", 100),
+                new MappedObject(2, "test2", 200)), limitedSerializer);
+
+        final YTreeObjectSerializer<MappedObject> serializer =
+                (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class);
+
+        List<MappedObject> expect = Arrays.asList(
+                new MappedObject(1, "", 100),
+                new MappedObject(2, "", 200));
+        Assert.assertEquals(expect, client.selectRows(SelectRowsRequest.of(query), serializer).join());
+    }
+
+    @Test
+    public void testSelectWithFieldFilter() {
+        String table = path + "/table8";
+        createDynamicTable(client, table);
+
+        final String query = String.format("* from [%s]", table);
+
+        final YTreeObjectSerializer<MappedObject> serializer =
+                (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class);
+
+        insertData(client, table, Arrays.asList(
+                new MappedObject(1, "test1", 100),
+                new MappedObject(2, "test2", 200)), serializer);
+
+
+        final YTreeObjectSerializer<MappedObject> limitedSerializer =
+                new YTreeObjectSerializer<>(ClassX.wrap(MappedObject.class), field -> !field.getName().equals("v1"));
+
+        // Поле полностью игнорируется десериализатором - оно не будет заполнено пустой строкой
+        List<MappedObject> expect = Arrays.asList(
+                new MappedObject(1, null, 100),
+                new MappedObject(2, null, 200));
+        Assert.assertEquals(expect, client.selectRows(SelectRowsRequest.of(query), limitedSerializer).join());
+
+    }
+
     private void readWriteImpl(String table, String path, MappedObject... expect) throws Exception {
         createStaticTable(client, table);
 
@@ -420,6 +472,11 @@ public class YtClientTest {
                 .beginMap()
                 .key("name").value("v1")
                 .key("type").value("string")
+                .endMap()
+
+                .beginMap()
+                .key("name").value("l1")
+                .key("type").value("int64")
                 .endMap();
 
         additionalColumns.accept(builder);
