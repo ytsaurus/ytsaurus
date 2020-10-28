@@ -60,9 +60,13 @@ public class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T> {
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
-         if (transactionalOptions != null) {
+        if (transactionalOptions != null) {
             transactionalOptions.writeArgumentsLogString(sb);
-         }
+        }
+        sb.append("Path: ").append(path).append("; ");
+        if (attributes != null) {
+            sb.append("Attributes: ").append(attributes).append("; ");
+        }
         super.writeArgumentsLogString(sb);
     }
 }

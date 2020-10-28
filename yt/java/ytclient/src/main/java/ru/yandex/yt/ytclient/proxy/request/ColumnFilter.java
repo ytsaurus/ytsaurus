@@ -39,4 +39,9 @@ public class ColumnFilter {
         builder.addAllColumns(columns);
         return builder;
     }
+
+    @Override
+    public String toString() {
+        return columns.toString();
+    }
 }
