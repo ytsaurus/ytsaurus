@@ -187,7 +187,12 @@ func (j *Job) spawnPorto(
 	if j.OperationConfig.RunAsRoot {
 		setProperty("user", "root")
 	}
-	setProperty("net", "none")
+
+	if !j.OperationConfig.EnableNetwork {
+		setProperty("net", "none")
+		setProperty("hostname", "localhost")
+	}
+
 	setProperty("cwd", j.Cmd.Cwd)
 	setProperty("env", strings.Join(j.Cmd.Environ, ";"))
 	setProperty("stdout_path", fmt.Sprintf("/dev/fd/%d", stdoutW.Fd()))
