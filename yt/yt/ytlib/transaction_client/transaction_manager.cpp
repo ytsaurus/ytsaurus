@@ -202,52 +202,12 @@ public:
                 auto syncFuture = connection->GetMasterCellDirectorySynchronizer()->RecentSync();
                 if (!syncFuture.IsSet()) { // True most of the time.
                     return syncFuture.Apply(
-                        BIND(&TImpl::DoStart, MakeStrong(this), options));
+                        BIND(&TImpl::DoStart, MakeStrong(this), type, options));
                 }
             }
         }
 
-        return DoStart(options);
-    }
-
-    TFuture<void> DoStart(const TTransactionStartOptions& options)
-    {
-        auto connectionOrError = TryLockConnection();
-        if (!connectionOrError.IsOK()) {
-            return MakeFuture(TError(connectionOrError));
-        }
-        auto connection = connectionOrError.Value();
-        if (CoordinatorMasterCellTag_ == InvalidCellTag) {
-            CoordinatorMasterCellId_ = connection->GetMasterCellDirectory()->PickRandomMasterCellWithRole(EMasterCellRoles::TransactionCoordinator);
-            CoordinatorMasterCellTag_ = CellTagFromId(CoordinatorMasterCellId_);
-        } else {
-            CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);
-        }
-
-        AutoAbort_ = options.AutoAbort;
-        PingPeriod_ = options.PingPeriod;
-        Ping_ = options.Ping;
-        PingAncestors_ = options.PingAncestors;
-        Timeout_ = options.Timeout;
-        Atomicity_ = options.Atomicity;
-        Durability_ = options.Durability;
-
-        switch (Atomicity_) {
-            case EAtomicity::Full:
-                if (options.StartTimestamp != NullTimestamp) {
-                    return OnGotStartTimestamp(options, options.StartTimestamp);
-                } else {
-                    YT_LOG_DEBUG("Generating transaction start timestamp");
-                    return Owner_->TimestampProvider_->GenerateTimestamps()
-                        .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
-                }
-
-            case EAtomicity::None:
-                return StartNonAtomicTabletTransaction();
-
-            default:
-                YT_ABORT();
-        }
+        return DoStart(type, options);
     }
 
     void Attach(
@@ -676,6 +636,51 @@ private:
         }
     }
 
+
+    TFuture<void> DoStart(
+        ETransactionType type,
+        const TTransactionStartOptions& options)
+    {
+        auto connectionOrError = TryLockConnection();
+        if (!connectionOrError.IsOK()) {
+            return MakeFuture(TError(connectionOrError));
+        }
+        auto connection = connectionOrError.Value();
+
+        if (type == ETransactionType::Master) {
+            if (CoordinatorMasterCellTag_ == InvalidCellTag) {
+                CoordinatorMasterCellId_ = connection->GetMasterCellDirectory()->GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles::TransactionCoordinator);
+                CoordinatorMasterCellTag_ = CellTagFromId(CoordinatorMasterCellId_);
+            } else {
+                CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);
+            }
+        }
+
+        AutoAbort_ = options.AutoAbort;
+        PingPeriod_ = options.PingPeriod;
+        Ping_ = options.Ping;
+        PingAncestors_ = options.PingAncestors;
+        Timeout_ = options.Timeout;
+        Atomicity_ = options.Atomicity;
+        Durability_ = options.Durability;
+
+        switch (Atomicity_) {
+            case EAtomicity::Full:
+                if (options.StartTimestamp != NullTimestamp) {
+                    return OnGotStartTimestamp(options, options.StartTimestamp);
+                } else {
+                    YT_LOG_DEBUG("Generating transaction start timestamp");
+                    return Owner_->TimestampProvider_->GenerateTimestamps()
+                        .Apply(BIND(&TImpl::OnGotStartTimestamp, MakeStrong(this), options));
+                }
+
+            case EAtomicity::None:
+                return StartNonAtomicTabletTransaction();
+
+            default:
+                YT_ABORT();
+        }
+    }
 
     TFuture<void> OnGotStartTimestamp(const TTransactionStartOptions& options, TTimestamp timestamp)
     {

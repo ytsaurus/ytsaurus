@@ -52,7 +52,7 @@ public:
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellId cellId);
 
-    NObjectClient::TCellId PickRandomMasterCellWithRole(EMasterCellRoles role) const;
+    NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles role) const;
 
 private:
     class TImpl;

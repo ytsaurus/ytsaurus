@@ -114,11 +114,12 @@ public:
         return GetMasterChannelOrThrow(kind, CellTagFromId(cellId));
     }
 
-    TCellId PickRandomMasterCellWithRole(EMasterCellRoles role)
+    TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles role)
     {
         auto candidateCellTags = GetMasterCellTagsWithRole(role);
         if (candidateCellTags.empty()) {
-            return {};
+            THROW_ERROR_EXCEPTION("No master cell with %Qlv role is known",
+                role);
         }
 
         size_t randomIndex = 0;
@@ -459,9 +460,9 @@ IChannelPtr TCellDirectory::GetMasterChannelOrThrow(EMasterChannelKind kind, TCe
     return Impl_->GetMasterChannelOrThrow(kind, cellId);
 }
 
-TCellId TCellDirectory::PickRandomMasterCellWithRole(EMasterCellRoles role) const
+TCellId TCellDirectory::GetRandomMasterCellWithRoleOrThrow(EMasterCellRoles role) const
 {
-    return Impl_->PickRandomMasterCellWithRole(role);
+    return Impl_->GetRandomMasterCellWithRoleOrThrow(role);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
