@@ -13,7 +13,6 @@
         "yt/python/yt/wrapper/ytrecipe/py2_yt-python-yt-wrapper-ytrecipe";
         
         "yt/yt/server/all/ytserver-all";
-        "yt/yt/server/all/stripped/ytserver-all-stripped";
         "yt/yt/tools/yt_sudo_fixup/yt-sudo-fixup";
         
         "infra/nanny/logrotate/logrotate";

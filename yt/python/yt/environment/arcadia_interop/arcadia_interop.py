@@ -90,13 +90,7 @@ def prepare_yt_binaries(destination,
         if use_from_package:
             ytserver_all = search_binary_path("ytserver-all")
         else:
-            ytserver_all = None
-            try:
-                ytserver_all = get_binary_path("ytserver-all-stripped")
-            except Exception:  # TestMisconfigurationException
-                pass
-            if ytserver_all is None or not os.path.exists(ytserver_all):
-                ytserver_all = get_binary_path("ytserver-all")
+            ytserver_all = get_binary_path("ytserver-all")
         if copy_ytserver_all:
             shutil.copy(ytserver_all, os.path.join(destination, "ytserver-all"))
             ytserver_all = os.path.join(destination, "ytserver-all")
