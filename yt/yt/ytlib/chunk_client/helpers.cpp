@@ -91,12 +91,7 @@ TCellTag PickChunkHostingCell(
     YT_LOG_DEBUG("Master cell directory synchronized successfully");
 
     const auto& cellDirectory = connection->GetMasterCellDirectory();
-    auto cellId = cellDirectory->PickRandomMasterCellWithRole(NCellMasterClient::EMasterCellRoles::ChunkHost);
-
-    if (!cellId) {
-        THROW_ERROR_EXCEPTION("No master cells capable of hosting chunks are known");
-    }
-
+    auto cellId = cellDirectory->GetRandomMasterCellWithRoleOrThrow(NCellMasterClient::EMasterCellRoles::ChunkHost);
     return CellTagFromId(cellId);
 }
 
