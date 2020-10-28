@@ -16,6 +16,8 @@
 #include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/name_table.h>
 
+#include <yt/core/ytree/yson_serializable.h>
+
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnVector.h>
 
@@ -30,6 +32,7 @@ using namespace NLogging;
 using namespace NConcurrency;
 using namespace NTracing;
 using namespace NChunkClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -55,14 +58,6 @@ TClientBlockReadOptions CreateBlockReadOptions(const TString& user)
     blockReadOptions.WorkloadDescriptor.CompressionFairShareTag = user;
     blockReadOptions.ReadSessionId = NChunkClient::TReadSessionId::Create();
     return blockReadOptions;
-}
-
-TTableReaderConfigPtr CreateTableReaderConfig()
-{
-    auto config = New<TTableReaderConfig>();
-    config->GroupSize = 150_MB;
-    config->WindowSize = 200_MB;
-    return config;
 }
 
 // Analog of the method from MergeTreeBaseSelectBlockInputStream::executePrewhereActions from CH.
@@ -331,7 +326,10 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         queryContext->Host->GetConfig()->ReaderMemoryRequirement,
         {queryContext->UserTagId});
 
-    auto tableReaderConfig = CreateTableReaderConfig();
+    auto defaultTableReaderConfig = queryContext->Host->GetConfig()->TableReader;
+    auto tableReaderConfig = storageContext->Settings->TableReader;
+    tableReaderConfig = UpdateYsonSerializable(defaultTableReaderConfig, ConvertToNode(tableReaderConfig));
+
     tableReaderConfig->SamplingMode = subquerySpec.TableReaderConfig->SamplingMode;
     tableReaderConfig->SamplingRate = subquerySpec.TableReaderConfig->SamplingRate;
     tableReaderConfig->SamplingSeed = subquerySpec.TableReaderConfig->SamplingSeed;

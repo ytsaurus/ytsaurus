@@ -18,6 +18,8 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/client/table_client/config.h>
+
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -92,6 +94,8 @@ public:
     TCompositeSettingsPtr Composite;
 
     TDynamicTableSettingsPtr DynamicTable;
+
+    NTableClient::TTableReaderConfigPtr TableReader;
 
     TQuerySettings();
 };
@@ -269,6 +273,8 @@ public:
     TDuration TotalMemoryTrackerUpdatePeriod;
 
     TQuerySettingsPtr QuerySettings;
+
+    NTableClient::TTableReaderConfigPtr TableReader;
 
     TYtConfig();
 };
