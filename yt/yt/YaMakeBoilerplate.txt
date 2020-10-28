@@ -1,6 +1,3 @@
-SET(YT_VERSION_MAJOR 20)
-SET(YT_VERSION_MINOR 3)
-
 SET(YT_ARCADIA_CXXFLAGS
     -Wno-sign-compare
     -Wno-unused-function
@@ -19,9 +16,3 @@ IF(GCC)
         -Wno-maybe-uninitialized
     )
 ENDIF()
-
-SET(YT_ABI_VERSION "${YT_VERSION_MAJOR}_${YT_VERSION_MINOR}")
-
-DEFAULT(YT_VERSION_PATCH 0)
-DEFAULT(YT_VERSION_BRANCH "local")
-
