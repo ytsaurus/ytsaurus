@@ -28,7 +28,7 @@ TDynamicTableSettings::TDynamicTableSettings()
 
     RegisterParameter("max_rows_per_write", MaxRowsPerWrite)
         .Default(100'000);
-    
+
     RegisterParameter("transaction_atomicity", TransactionAtomicity)
         .Default(NTransactionClient::EAtomicity::Full);
 }
@@ -67,6 +67,9 @@ TQuerySettings::TQuerySettings()
         .DefaultNew();
 
     RegisterParameter("dynamic_table", DynamicTable)
+        .DefaultNew();
+
+    RegisterParameter("table_reader", TableReader)
         .DefaultNew();
 }
 
@@ -244,10 +247,8 @@ TYtConfig::TYtConfig()
         .Alias("settings")
         .DefaultNew();
 
-    RegisterPreprocessor([&] {
-        PermissionCache->RefreshUser = CacheUserName;
-        PermissionCache->AlwaysUseRefreshUser = false;
-    });
+    RegisterParameter("table_reader", TableReader)
+        .DefaultNew();
 
     RegisterParameter("table_attribute_cache", TableAttributeCache)
         .DefaultNew();
@@ -258,6 +259,16 @@ TYtConfig::TYtConfig()
         TableAttributeCache->ExpireAfterFailedUpdateTime = TDuration::Zero();
         TableAttributeCache->RefreshTime = TDuration::Seconds(15);
         TableAttributeCache->BatchUpdate = true;
+
+        PermissionCache->RefreshUser = CacheUserName;
+        PermissionCache->AlwaysUseRefreshUser = false;
+
+        TableReader->GroupSize = 20_MB;
+        TableReader->WindowSize = 70_MB;
+        TableReader->MaxBufferSize = 200_MB;
+        TableReader->BlockRpcHedgingDelay = TDuration::MilliSeconds(50);
+        TableReader->MetaRpcHedgingDelay = TDuration::MilliSeconds(10);
+        TableReader->CancelPrimaryBlockRpcRequestOnHedging = true;
     });
 
     RegisterPostprocessor([&] {
