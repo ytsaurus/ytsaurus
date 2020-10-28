@@ -1487,14 +1487,18 @@ private:
                     return;
                 }
 
-                switch (eventType) {
-                    case ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources:
-                        operation->GetController()->UpdateMinNeededJobResources();
-                        break;
+                auto controller = operation->GetController();
+                controller->GetCancelableInvoker(EOperationControllerQueue::Default)->Invoke(
+                    BIND([controller, eventType] {
+                        switch (eventType) {
+                            case ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources:
+                                controller->UpdateMinNeededJobResources();
+                                break;
 
-                    default:
-                        YT_ABORT();
-                }
+                            default:
+                                YT_ABORT();
+                        }
+                    }));
             });
     }
 

@@ -455,7 +455,7 @@ struct IOperationController
     //! Initiates updating min needed resources estimates.
     //! Note that the actual update may happen in background.
     /*!
-     *  \note Thread affinity: any
+     *  \note Thread affinity: Controller invoker.
      */
     virtual void UpdateMinNeededJobResources() = 0;
 

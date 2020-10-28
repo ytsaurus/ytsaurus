@@ -998,7 +998,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InitInputChunkScraper();
         InitIntermediateChunkScraper();
 
-        DoUpdateMinNeededJobResources();
+        UpdateMinNeededJobResources();
         // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
         UpdateAllTasks();
 
@@ -4410,7 +4410,7 @@ TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededJobResources() 
     return CachedMinNeededJobResources.Load();
 }
 
-void TOperationControllerBase::DoUpdateMinNeededJobResources()
+void TOperationControllerBase::SafeUpdateMinNeededJobResources()
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
@@ -4450,14 +4450,6 @@ void TOperationControllerBase::DoUpdateMinNeededJobResources()
     }
 
     CachedMinNeededJobResources.Exchange(result);
-}
-
-void TOperationControllerBase::UpdateMinNeededJobResources()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default)->Invoke(
-        BIND(&TOperationControllerBase::DoUpdateMinNeededJobResources, MakeStrong(this)));
 }
 
 TJobResources TOperationControllerBase::GetAggregatedMinNeededJobResources() const
