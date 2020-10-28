@@ -9,6 +9,7 @@
 namespace NYT::NApi::NRpcProxy {
 
 using namespace NConcurrency;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,8 +19,10 @@ class TFileReader
 public:
     TFileReader(
         IAsyncZeroCopyInputStreamPtr underlying,
+        TObjectId id,
         NHydra::TRevision revision)
         : Underlying_(std::move(underlying))
+        , Id_(id)
         , Revision_(revision)
     {
         YT_VERIFY(Underlying_);
@@ -30,6 +33,11 @@ public:
         return Underlying_->Read();
     }
 
+    virtual NObjectClient::TObjectId GetId() const override
+    {
+        return Id_;
+    }
+
     virtual NHydra::TRevision GetRevision() const override
     {
         return Revision_;
@@ -37,6 +45,7 @@ public:
 
 private:
     const IAsyncZeroCopyInputStreamPtr Underlying_;
+    const TObjectId Id_;
     const NHydra::TRevision Revision_;
 };
 
@@ -51,7 +60,7 @@ TFuture<IFileReaderPtr> CreateFileReader(
                     THROW_ERROR_EXCEPTION("Failed to deserialize file stream header");
                 }
 
-                return New<TFileReader>(inputStream, meta.revision());
+                return New<TFileReader>(inputStream, FromProto<TObjectId>(meta.id()), meta.revision());
             })).As<IFileReaderPtr>();
         }));
 }

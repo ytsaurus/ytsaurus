@@ -3142,6 +3142,7 @@ private:
         auto outputStream = context->GetResponseAttachmentsStream();
 
         NApi::NRpcProxy::NProto::TReadFileMeta meta;
+        ToProto(meta.mutable_id(), fileReader->GetId());
         meta.set_revision(fileReader->GetRevision());
 
         auto metaRef = SerializeProtoToRef(meta);

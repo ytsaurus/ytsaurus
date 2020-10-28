@@ -41,6 +41,7 @@ using namespace NHttp;
 using namespace NDriver;
 using namespace NFormats;
 using namespace NLogging;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -462,8 +463,16 @@ void TContext::SetETagRevision()
 {
     auto etagHeader = Request_->GetHeaders()->Find("If-None-Match");
     if (etagHeader) {
-        IfNoneMatch_ = FromString<ui64>(*etagHeader);
-        DriverRequest_.Parameters->AsMap()->AddChild("etag_revision", ConvertToNode(*etagHeader));
+        IfNoneMatch_.emplace();
+
+        // COMPAT(shakurov)
+        if (TryFromString(*etagHeader, IfNoneMatch_->Revision)) {
+            DriverRequest_.Parameters->AsMap()->AddChild("etag_revision", ConvertToNode(*etagHeader));
+        } else {
+            IfNoneMatch_ = ParseEtag(*etagHeader)
+                .ValueOrThrow();
+            DriverRequest_.Parameters->AsMap()->AddChild("etag", ConvertToNode(*etagHeader));
+        }
     }
 }
 
@@ -902,9 +911,14 @@ void TContext::ReplyFakeError(const TString& message)
 
 void TContext::OnOutputParameters()
 {
-    if (auto revision = OutputParameters_->FindChild("revision")) {
-        Response_->GetHeaders()->Add("ETag", ToString(revision->GetValue<NHydra::TRevision>()));
-        if (IfNoneMatch_ && *IfNoneMatch_ == revision->GetValue<NHydra::TRevision>()) {
+    auto id = OutputParameters_->FindChild("id");
+    auto revision = OutputParameters_->FindChild("revision");
+    if (id && revision) {
+        TEtag etag{
+            TObjectId::FromString(id->GetValue<TString>()),
+            revision->GetValue<NHydra::TRevision>()};
+        Response_->GetHeaders()->Add("ETag", ToString(etag));
+        if (IfNoneMatch_ && *IfNoneMatch_ == etag) {
             Response_->SetStatus(EStatusCode::NotModified);
         }
     }

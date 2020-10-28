@@ -12,6 +12,7 @@ DECLARE_REFCOUNTED_CLASS(TDriverConfig)
 
 struct TCommandDescriptor;
 struct TDriverRequest;
+struct TEtag;
 
 ////////////////////////////////////////////////////////////////////////////////
 

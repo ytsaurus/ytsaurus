@@ -8,6 +8,7 @@
 #include <yt/ytlib/auth/public.h>
 
 #include <yt/client/driver/driver.h>
+#include <yt/client/driver/helpers.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -93,7 +94,7 @@ private:
     std::optional<TString> ContentType_;
     std::optional<TContentEncoding> OutputContentEncoding_;
 
-    std::optional<ui64> IfNoneMatch_;
+    std::optional<NDriver::TEtag> IfNoneMatch_;
 
     bool PrepareFinished_ = false;
 

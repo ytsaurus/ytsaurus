@@ -1696,6 +1696,8 @@ message TReqReadFile
 message TReadFileMeta
 {
     required uint64 revision = 1;
+    // COMPAT(shakurov): optional for old proxy compatibility.
+    optional NYT.NProto.TGuid id = 2;
 }
 
 message TRspReadFile

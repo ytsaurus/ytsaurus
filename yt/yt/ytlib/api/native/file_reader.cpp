@@ -104,6 +104,11 @@ public:
             BIND(&TFileReader::Read, MakeStrong(this)));
     }
 
+    virtual TObjectId GetId() const override
+    {
+        return Id_;
+    }
+
     virtual NHydra::TRevision GetRevision() const override
     {
         return Revision_;
@@ -119,6 +124,7 @@ private:
     const NLogging::TLogger Logger;
 
     NApi::ITransactionPtr Transaction_;
+    TObjectId Id_ = NullObjectId;
     NHydra::TRevision Revision_ = NHydra::NullRevision;
     NFileClient::IFileReaderPtr Reader_;
 
@@ -146,6 +152,8 @@ private:
                 EObjectType::File,
                 userObject.Type);
         }
+
+        Id_ = userObject.ObjectId;
 
         {
             YT_LOG_INFO("Requesting extended file attributes");
