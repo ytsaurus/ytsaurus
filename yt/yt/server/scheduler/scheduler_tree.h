@@ -61,7 +61,7 @@ struct ISchedulerTree
 
     virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) = 0;
 
-    virtual TError CheckOperationIsHanged(
+    virtual TError CheckOperationIsHung(
         TOperationId operationId,
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,

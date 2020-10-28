@@ -439,7 +439,7 @@ public:
         }
     }
 
-    virtual TError CheckOperationIsHanged(
+    virtual TError CheckOperationIsHung(
         TOperationId operationId,
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,

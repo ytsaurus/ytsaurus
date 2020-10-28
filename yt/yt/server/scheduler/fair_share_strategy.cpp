@@ -409,7 +409,7 @@ public:
         return result;
     }
 
-    virtual std::vector<std::pair<TOperationId, TError>> GetHangedOperations() override
+    virtual std::vector<std::pair<TOperationId, TError>> GetHungOperations() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -420,12 +420,12 @@ public:
                 continue;
             }
 
-            bool hasNonHangedTree = false;
+            bool hasNonHungTree = false;
             TError operationError("Operation scheduling is hanged in all trees");
 
             for (const auto& treePoolPair : operationState->TreeIdToPoolNameMap()) {
                 const auto& treeName = treePoolPair.first;
-                auto error = GetTree(treeName)->CheckOperationIsHanged(
+                auto error = GetTree(treeName)->CheckOperationIsHung(
                     operationId,
                     Config->OperationHangupSafeTimeout,
                     Config->OperationHangupMinScheduleJobAttempts,
@@ -433,14 +433,14 @@ public:
                     Config->OperationHangupDueToLimitingAncestorSafeTimeout,
                     operationState->GetController()->GetAggregatedMinNeededJobResources());
                 if (error.IsOK()) {
-                    hasNonHangedTree = true;
+                    hasNonHungTree = true;
                     break;
                 } else {
                     operationError.InnerErrors().push_back(error);
                 }
             }
 
-            if (!hasNonHangedTree) {
+            if (!hasNonHungTree) {
                 result.emplace_back(operationId, operationError);
             }
         }

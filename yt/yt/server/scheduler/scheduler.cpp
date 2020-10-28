@@ -289,11 +289,11 @@ public:
             Config_->SchedulingTagFilterExpireTimeout,
             GetControlInvoker(EControlQueue::PeriodicActivity));
 
-        StrategyHangedOperationsChecker_ = New<TPeriodicExecutor>(
+        StrategyHungOperationsChecker_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::CheckHangedOperations, MakeWeak(this)),
+            BIND(&TImpl::CheckHungOperations, MakeWeak(this)),
             Config_->OperationHangupCheckPeriod);
-        StrategyHangedOperationsChecker_->Start();
+        StrategyHungOperationsChecker_->Start();
 
         OperationsDestroyerExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
@@ -1741,7 +1741,7 @@ private:
     TPeriodicExecutorPtr NodesInfoLoggingExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
-    TPeriodicExecutorPtr StrategyHangedOperationsChecker_;
+    TPeriodicExecutorPtr StrategyHungOperationsChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr WaitingForPoolOperationScanPeriodExecutor_;
     TPeriodicExecutorPtr OperationsDestroyerExecutor_;
@@ -2494,7 +2494,7 @@ private:
             NodesInfoLoggingExecutor_->SetPeriod(Config_->NodesInfoLoggingPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
-            StrategyHangedOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
+            StrategyHungOperationsChecker_->SetPeriod(Config_->OperationHangupCheckPeriod);
             OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
             SchedulingSegmentsManagerExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
@@ -2622,11 +2622,11 @@ private:
         SetSchedulerAlert(ESchedulerAlertType::JobsArchivation, resultError);
     }
 
-    void CheckHangedOperations()
+    void CheckHungOperations()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (const auto& [operationId, error] : Strategy_->GetHangedOperations()) {
+        for (const auto& [operationId, error] : Strategy_->GetHungOperations()) {
             if (auto operation = FindOperation(operationId)) {
                 OnOperationFailed(operation, error);
             }
