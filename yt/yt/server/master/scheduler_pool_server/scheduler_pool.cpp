@@ -271,8 +271,8 @@ void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
                     YT_VERIFY(Attributes_->Remove(key));
                 }
             }
-            SpecifiedConfig_ = ConvertToYsonString(attributes);
         }
+        SpecifiedConfig_ = ConvertToYsonString(attributes);
     } else {
         Load(context, SpecifiedConfig_);
     }
