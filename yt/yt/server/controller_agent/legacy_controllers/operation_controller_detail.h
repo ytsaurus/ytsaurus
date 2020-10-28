@@ -157,6 +157,8 @@ private: \
     IMPLEMENT_SAFE_METHOD(void, OnJobAborted, (std::unique_ptr<TAbortedJobSummary> jobSummary, bool byScheduler), (std::move(jobSummary), byScheduler), true)
     IMPLEMENT_SAFE_METHOD(void, OnJobRunning, (std::unique_ptr<TRunningJobSummary> jobSummary), (std::move(jobSummary)), true)
 
+    IMPLEMENT_SAFE_METHOD(void, UpdateMinNeededJobResources, (), (), true)
+
     IMPLEMENT_SAFE_METHOD(void, Commit, (), (), false)
     IMPLEMENT_SAFE_METHOD(void, Terminate, (EControllerState finalState), (finalState), false)
 
@@ -223,7 +225,6 @@ public:
     virtual int GetPendingJobCount() const override;
     virtual TJobResources GetNeededResources() const override;
 
-    virtual void UpdateMinNeededJobResources() override;
     virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
 
     virtual bool IsRunning() const override;
@@ -1180,7 +1181,6 @@ private:
 
     void UpdateAllTasksIfNeeded();
 
-    void DoUpdateMinNeededJobResources();
     TJobResources GetAggregatedMinNeededJobResources() const;
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
