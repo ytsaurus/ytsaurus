@@ -412,7 +412,7 @@ protected:
 
 //! Provides a base for implementing IService.
 class TServiceBase
-    : public IService
+    : public virtual IService
 {
 public:
     void Configure(TServiceConfigPtr config);
