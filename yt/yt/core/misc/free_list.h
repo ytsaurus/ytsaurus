@@ -9,7 +9,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-struct TIntrusiveStackItem
+struct TFreeListItemBase
 {
     T* Next = nullptr;
 };
@@ -45,7 +45,7 @@ Y_FORCE_INLINE bool CompareAndSet(
 }
 
 template <class TItem>
-class TIntrusiveLockFreeStack
+class TFreeList
 {
 private:
     struct THead
@@ -69,11 +69,11 @@ private:
     char Padding[CacheLineSize - sizeof(TAtomicUint128)];
 
 public:
-    TIntrusiveLockFreeStack();
+    TFreeList();
 
-    TIntrusiveLockFreeStack(TIntrusiveLockFreeStack&& other);
+    TFreeList(TFreeList&& other);
 
-    ~TIntrusiveLockFreeStack();
+    ~TFreeList();
 
     void Put(TItem* head, TItem* tail);
 
@@ -85,48 +85,13 @@ public:
 
     bool IsEmpty() const;
 
-    void Append(TIntrusiveLockFreeStack& other);
-};
-
-template <class T>
-class TLockFreeStack
-{
-private:
-    struct TNode
-        : public TIntrusiveStackItem<TNode>
-    {
-        T Value;
-
-        TNode() = default;
-
-        explicit TNode(T&& value);
-    };
-
-    TIntrusiveLockFreeStack<TNode> Impl_;
-
-    void EraseList(TNode* node);
-
-public:
-    TLockFreeStack() = default;
-
-    ~TLockFreeStack();
-
-    template <typename TCallback>
-    void DequeueAll(TCallback callback);
-
-    void Append(TLockFreeStack& other);
-
-    void Enqueue(T&& value);
-
-    bool Dequeue(T* value);
-
-    bool IsEmpty() const;
+    void Append(TFreeList& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
 
-#define LOCK_FREE_STACK_INL_H_
-#include "lock_free_stack-inl.h"
-#undef LOCK_FREE_STACK_INL_H_
+#define FREE_LIST_INL_H_
+#include "free_list-inl.h"
+#undef FREE_LIST_INL_H_

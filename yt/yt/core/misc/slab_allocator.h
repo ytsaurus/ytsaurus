@@ -1,7 +1,7 @@
 #pragma once
 
 #include "common.h"
-#include "lock_free_stack.h"
+#include "free_list.h"
 #include "format.h"
 #include "error.h"
 #include "memory_usage_tracker.h"
@@ -18,10 +18,10 @@ class TArenaPool
 {
 public:
     struct TFreeListItem
-        : public TIntrusiveStackItem<TFreeListItem>
+        : public TFreeListItemBase<TFreeListItem>
     { };
 
-    using TFreeList = TIntrusiveLockFreeStack<TFreeListItem>;
+    using TSimpleFreeList = TFreeList<TFreeListItem>;
 
     TArenaPool(
         size_t rank,
@@ -45,8 +45,8 @@ private:
     const TRefCountedTypeCookie Cookie_;
 #endif
 
-    TFreeList FreeList_;
-    TFreeList Segments_;
+    TSimpleFreeList FreeList_;
+    TSimpleFreeList Segments_;
     std::atomic<size_t> RefCount_ = {1};
     std::atomic<size_t> SegmentsCount_ = {0};
 

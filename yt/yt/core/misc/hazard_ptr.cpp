@@ -1,9 +1,10 @@
 #include "hazard_ptr.h"
 
-#include <yt/core/misc/lock_free_stack.h>
+#include <yt/core/misc/free_list.h>
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/intrusive_linked_list.h>
 #include <yt/core/misc/ring_queue.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/fiber_api.h>
@@ -25,6 +26,70 @@ using NConcurrency::TReaderGuard;
 using NConcurrency::TReaderWriterSpinLock;
 
 thread_local std::atomic<void*> HazardPointer = {nullptr};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Simple container based on free list which support only Enqueue and DequeueAll.
+
+template <class T>
+class TDeleteQueue
+{
+private:
+    struct TNode
+        : public TFreeListItemBase<TNode>
+    {
+        T Value;
+
+        TNode() = default;
+
+        explicit TNode(T&& value)
+            : Value(std::move(value))
+        { }
+    };
+
+    TFreeList<TNode> Impl_;
+
+    void EraseList(TNode* node)
+    {
+        while (node) {
+            auto* next = node->Next;
+            delete node;
+            node = next;
+        }
+    }
+
+public:
+    TDeleteQueue() = default;
+
+    ~TDeleteQueue()
+    {
+        EraseList(Impl_.ExtractAll());
+    }
+
+    template <typename TCallback>
+    void DequeueAll(TCallback callback)
+    {
+        auto* head = Impl_.ExtractAll();
+
+        auto cleanup = Finally([this, head] {
+            EraseList(head);
+        });
+
+        auto* ptr = head;
+        while (ptr) {
+            callback(ptr->Value);
+            ptr = ptr->Next;
+        }
+    }
+
+    void Enqueue(T&& value)
+    {
+        Impl_.Put(new TNode(std::move(value)));
+    }
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TRetiredPtr
 {
@@ -77,7 +142,7 @@ private:
 
     std::atomic<size_t> ThreadCount_ = {0};
 
-    TLockFreeStack<TRetiredPtr> DeleteQueue_;
+    TDeleteQueue<TRetiredPtr> DeleteQueue_;
     TReaderWriterSpinLock ThreadRegistryLock_;
     TIntrusiveLinkedList<THazardThreadState, THazardThreadStateToRegistryNode> ThreadRegistry_;
     pthread_key_t ThreadDtorKey_;
