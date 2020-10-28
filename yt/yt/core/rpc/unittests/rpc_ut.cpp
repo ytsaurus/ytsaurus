@@ -29,7 +29,8 @@
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/stream.h>
 
-#include <yt/core/unittests/proto/rpc_ut.pb.h>
+#include <yt/core/rpc/unittests/lib/my_service.pb.h>
+#include <yt/core/rpc/unittests/lib/my_service.h>
 
 #include <yt/core/rpc/grpc/config.h>
 #include <yt/core/rpc/grpc/channel.h>
@@ -57,42 +58,6 @@ using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EMyFeature,
-    ((Cool) (0))
-    ((Great)(1))
-);
-
-class TMyProxy
-    : public TProxyBase
-{
-public:
-    DEFINE_RPC_PROXY(TMyProxy, MyService,
-        .SetProtocolVersion(1)
-        .SetFeaturesType<EMyFeature>());
-
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, PassCall);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, RegularAttachments);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, NullAndEmptyAttachments);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, Compression);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, DoNothing);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, CustomMessageError);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, NotRegistered);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, SlowCall);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, SlowCanceledCall);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, NoReply);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, FlakyCall);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, RequireCoolFeature);
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, StreamingEcho,
-        .SetStreamingEnabled(true));
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, ServerStreamsAborted,
-        .SetStreamingEnabled(true));
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, ServerNotReading,
-        .SetStreamingEnabled(true));
-    DEFINE_RPC_PROXY_METHOD(NMyRpc, ServerNotWriting,
-        .SetStreamingEnabled(true));
-};
-
 class TNonExistingServiceProxy
     : public TProxyBase
 {
@@ -119,308 +84,6 @@ TString StringFromSharedRef(const TSharedRef& sharedRef)
     return TString(sharedRef.Begin(), sharedRef.Begin() + sharedRef.Size());
 }
 
-TSharedRef SharedRefFromString(const TString& s)
-{
-    return TSharedRef::FromString(s);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TMyService
-    : public TServiceBase
-{
-public:
-    TMyService(IInvokerPtr invoker, bool secure)
-        : TServiceBase(
-            invoker,
-            TMyProxy::GetDescriptor(),
-            NLogging::TLogger("Main"))
-        , Secure_(secure)
-    {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SomeCall));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PassCall));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegularAttachments));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(NullAndEmptyAttachments));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Compression));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DoNothing));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(CustomMessageError));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCall)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SlowCanceledCall)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(NoReply));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlakyCall));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequireCoolFeature));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StreamingEcho)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ServerStreamsAborted)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ServerNotReading)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ServerNotWriting)
-            .SetStreamingEnabled(true)
-            .SetCancelable(true));
-        // NB: NotRegisteredCall is not registered intentionally
-
-        DeclareServerFeature(EMyFeature::Great);
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall)
-    {
-        context->SetRequestInfo();
-        int a = request->a();
-        response->set_b(a + 100);
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, PassCall)
-    {
-        context->SetRequestInfo();
-        WriteAuthenticationIdentityToProto(response, context->GetAuthenticationIdentity());
-        ToProto(response->mutable_mutation_id(), context->GetMutationId());
-        response->set_retry(context->IsRetry());
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, RegularAttachments)
-    {
-        for (const auto& attachment : request->Attachments()) {
-            auto data = TBlob(TDefaultBlobTag());
-            data.Append(attachment);
-            data.Append("_", 1);
-            response->Attachments().push_back(TSharedRef::FromBlob(std::move(data)));
-        }
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NullAndEmptyAttachments)
-    {
-        const auto& attachments = request->Attachments();
-        EXPECT_EQ(2, attachments.size());
-        EXPECT_FALSE(attachments[0]);
-        EXPECT_TRUE(attachments[1]);
-        EXPECT_TRUE(attachments[1].Empty());
-        response->Attachments() = attachments;
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, Compression)
-    {
-        auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
-        auto serializedRequestBody = SerializeProtoToRefWithCompression(*request, requestCodecId);
-        const auto& compressedRequestBody = context->GetRequestBody();
-        EXPECT_TRUE(TRef::AreBitwiseEqual(serializedRequestBody, compressedRequestBody));
-
-        const auto& attachments = request->Attachments();
-        const auto& compressedAttachments = context->RequestAttachments();
-        EXPECT_TRUE(attachments.size() == compressedAttachments.size());
-        auto* requestCodec = NCompression::GetCodec(requestCodecId);
-        for (int i = 0; i < attachments.size(); ++i) {
-            auto compressedAttachment = requestCodec->Compress(attachments[i]);
-            EXPECT_TRUE(TRef::AreBitwiseEqual(compressedAttachments[i], compressedAttachment));
-        }
-
-        response->set_message(request->message());
-        response->Attachments() = attachments;
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, DoNothing)
-    {
-        context->SetRequestInfo();
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, CustomMessageError)
-    {
-        context->SetRequestInfo();
-        context->Reply(TError(NYT::EErrorCode(42), "Some Error"));
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, SlowCall)
-    {
-        context->SetRequestInfo();
-        Sleep(TDuration::Seconds(1.0));
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, SlowCanceledCall)
-    {
-        try {
-            context->SetRequestInfo();
-            TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
-            context->Reply();
-        } catch (const TFiberCanceledException&) {
-            SlowCallCanceled_.Set();
-            throw;
-        }
-    }
-
-    TFuture<void> GetSlowCallCanceled() const
-    {
-        return SlowCallCanceled_.ToFuture();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, NoReply)
-    { }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, StreamingEcho)
-    {
-        context->SetRequestInfo();
-
-        bool delayed = request->delayed();
-        std::vector<TSharedRef> receivedData;
-
-        ssize_t totalSize = 0;
-        while (true) {
-            auto data = WaitFor(request->GetAttachmentsStream()->Read())
-                .ValueOrThrow();
-            if (!data) {
-                break;
-            }
-            totalSize += data.size();
-
-            if (delayed) {
-                receivedData.push_back(data);
-            } else {
-                WaitFor(response->GetAttachmentsStream()->Write(data))
-                    .ThrowOnError();
-            }
-        }
-
-        if (delayed) {
-            for (const auto& data : receivedData) {
-                WaitFor(response->GetAttachmentsStream()->Write(data))
-                    .ThrowOnError();
-            }
-        }
-
-        WaitFor(response->GetAttachmentsStream()->Close())
-            .ThrowOnError();
-
-        response->set_total_size(totalSize);
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ServerStreamsAborted)
-    {
-        context->SetRequestInfo();
-
-        auto promise = NewPromise<void>();
-        context->SubscribeCanceled(BIND([=] () mutable {
-            promise.Set();
-        }));
-
-        promise
-            .ToFuture()
-            .Get()
-            .ThrowOnError();
-
-        EXPECT_THROW({
-            response->GetAttachmentsStream()->Write(TSharedMutableRef::Allocate(100))
-                .Get()
-                .ThrowOnError();
-        }, TErrorException);
-
-        EXPECT_THROW({
-            request->GetAttachmentsStream()->Read()
-                .Get()
-                .ThrowOnError();
-        }, TErrorException);
-
-        ServerStreamsAborted_.Set();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ServerNotReading)
-    {
-        context->SetRequestInfo();
-
-        WaitFor(context->GetRequestAttachmentsStream()->Read())
-            .ThrowOnError();
-
-        try {
-            auto sleep = request->sleep();
-            if (sleep) {
-                TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
-            }
-
-            WaitFor(context->GetRequestAttachmentsStream()->Read())
-                .ThrowOnError();
-            context->Reply();
-        } catch (const TFiberCanceledException&) {
-            SlowCallCanceled_.Set();
-            throw;
-        }
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, ServerNotWriting)
-    {
-        context->SetRequestInfo();
-
-        auto data = SharedRefFromString("abacaba");
-        WaitFor(context->GetResponseAttachmentsStream()->Write(data))
-            .ThrowOnError();
-
-        try {
-            auto sleep = request->sleep();
-            if (sleep) {
-                TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
-            }
-
-            WaitFor(context->GetResponseAttachmentsStream()->Close())
-                .ThrowOnError();
-            context->Reply();
-        } catch (const TFiberCanceledException&) {
-            SlowCallCanceled_.Set();
-            throw;
-        }
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, FlakyCall)
-    {
-        static std::atomic<int> callCount;
-
-        context->SetRequestInfo();
-
-        if (callCount.fetch_add(1) % 2) {
-            context->Reply();
-        } else {
-            context->Reply(TError(EErrorCode::TransportError, "Flaky call iteration"));
-        }
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NMyRpc, RequireCoolFeature)
-    {
-        context->SetRequestInfo();
-        context->ValidateClientFeature(EMyFeature::Cool);
-        context->Reply();
-    }
-
-    TFuture<void> GetServerStreamsAborted()
-    {
-        return ServerStreamsAborted_.ToFuture();
-    }
-
-private:
-    const bool Secure_;
-
-    TPromise<void> SlowCallCanceled_ = NewPromise<void>();
-    TPromise<void> ServerStreamsAborted_ = NewPromise<void>();
-
-
-    virtual void BeforeInvoke(IServiceContext* context) override
-    {
-        TServiceBase::BeforeInvoke(context);
-        if (Secure_) {
-            const auto& ext = context->GetRequestHeader().GetExtension(NGrpc::NProto::TSslCredentialsExt::ssl_credentials_ext);
-            EXPECT_EQ("localhost", ext.peer_identity());
-        }
-    }
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Secure>
@@ -441,7 +104,7 @@ public:
         Server_ = CreateServer(Port_);
         WorkerPool_ = New<TThreadPool>(4, "Worker");
         bool secure = TImpl::Secure;
-        Service_ = New<TMyService>(WorkerPool_->GetInvoker(), secure);
+        Service_ = CreateMyService(WorkerPool_->GetInvoker(), secure);
         Server_->RegisterService(Service_);
         Server_->Start();
     }
@@ -494,7 +157,7 @@ protected:
     TString Address_;
 
     NConcurrency::TThreadPoolPtr WorkerPool_;
-    TIntrusivePtr<TMyService> Service_;
+    IMyServicePtr Service_;
     IServerPtr Server_;
 };
 
@@ -965,7 +628,7 @@ TYPED_TEST(TNotGrpcTest, ClientNotReading)
         req->set_delayed(true);
         auto invokeResult = req->Invoke();
 
-        WaitFor(req->GetRequestAttachmentsStream()->Write(SharedRefFromString("hello")))
+        WaitFor(req->GetRequestAttachmentsStream()->Write(TSharedRef::FromString("hello")))
             .ThrowOnError();
         WaitFor(req->GetRequestAttachmentsStream()->Close())
             .ThrowOnError();
@@ -995,7 +658,7 @@ TYPED_TEST(TNotGrpcTest, ClientNotWriting)
         auto req = proxy.StreamingEcho();
         auto invokeResult = req->Invoke();
 
-        WaitFor(req->GetRequestAttachmentsStream()->Write(SharedRefFromString("hello")))
+        WaitFor(req->GetRequestAttachmentsStream()->Write(TSharedRef::FromString("hello")))
             .ThrowOnError();
         WaitFor(req->GetResponseAttachmentsStream()->Read())
             .ThrowOnError();
@@ -1028,7 +691,7 @@ TYPED_TEST(TNotGrpcTest, ServerNotReading)
         req->set_sleep(sleep);
         auto invokeResult = req->Invoke();
 
-        auto data = SharedRefFromString("hello");
+        auto data = TSharedRef::FromString("hello");
         WaitFor(req->GetRequestAttachmentsStream()->Write(data))
             .ThrowOnError();
 
@@ -1148,9 +811,9 @@ TYPED_TEST(TRpcTest, RegularAttachments)
     TMyProxy proxy(this->CreateChannel());
     auto req = proxy.RegularAttachments();
 
-    req->Attachments().push_back(SharedRefFromString("Hello"));
-    req->Attachments().push_back(SharedRefFromString("from"));
-    req->Attachments().push_back(SharedRefFromString("TMyProxy"));
+    req->Attachments().push_back(TSharedRef::FromString("Hello"));
+    req->Attachments().push_back(TSharedRef::FromString("from"));
+    req->Attachments().push_back(TSharedRef::FromString("TMyProxy"));
 
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK());
@@ -1203,7 +866,7 @@ TYPED_TEST(TNotGrpcTest, Compression)
     req->set_request_codec(static_cast<int>(requestCodecId));
     req->set_message(message);
     for (const auto& attachmentString : attachmentStrings) {
-        req->Attachments().push_back(SharedRefFromString(attachmentString));
+        req->Attachments().push_back(TSharedRef::FromString(attachmentString));
     }
 
     auto rspOrError = req->Invoke().Get();
