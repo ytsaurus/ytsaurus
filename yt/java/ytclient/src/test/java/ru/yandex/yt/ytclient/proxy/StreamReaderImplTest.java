@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy.internal;
+package ru.yandex.yt.ytclient.proxy;
 
 import java.util.Collections;
 

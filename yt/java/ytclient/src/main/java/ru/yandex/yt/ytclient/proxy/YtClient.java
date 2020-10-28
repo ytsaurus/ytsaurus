@@ -163,8 +163,13 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
      *
      * @return future on number of banned proxies.
      */
-    CompletableFuture<Integer> banProxy(String address) {
-        return poolProvider.banClient(address);
+    CompletableFuture<Void> banProxy(String address) {
+        return poolProvider.banClient(address).thenApply((bannedCount) -> {
+            if (bannedCount == 0) {
+                throw new RuntimeException("Cannot ban proxy " + address + " since it is not known");
+            }
+            return null;
+        });
     }
 
     @Override

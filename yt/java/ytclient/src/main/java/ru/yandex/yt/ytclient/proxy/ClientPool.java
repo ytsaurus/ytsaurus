@@ -152,8 +152,7 @@ class MultiDcClientPool implements RpcClientPool {
 
         CompletableFuture<Void> accumulator = CompletableFuture.completedFuture(null);
         for (CompletableFuture<Integer> cur : bannedCountList) {
-            cur.whenComplete((value, throwable) -> total.addAndGet(value));
-            accumulator = CompletableFuture.allOf(accumulator, cur);
+            accumulator = CompletableFuture.allOf(accumulator, cur.thenApply(total::addAndGet));
         }
 
         return accumulator.thenApply((ignored) -> total.get());
