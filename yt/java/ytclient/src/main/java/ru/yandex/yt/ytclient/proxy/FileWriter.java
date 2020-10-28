@@ -10,6 +10,10 @@ public interface FileWriter {
     //! are not accepted and the client must invoke #GetReadyEvent and wait.
     boolean write(byte[] data, int offset, int len);
 
+    default boolean write(byte[] data) {
+        return write(data, 0, data.length);
+    }
+
     //! Closes the writer. Must be the last call to the writer.
     CompletableFuture<?> close();
 

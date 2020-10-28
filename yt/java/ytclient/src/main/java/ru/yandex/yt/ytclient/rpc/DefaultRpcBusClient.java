@@ -832,6 +832,11 @@ public class DefaultRpcBusClient implements RpcClient {
         public void wakeUp() {
             session.eventLoop().schedule(this::doConsumerWakeup, 0, TimeUnit.MILLISECONDS);
         }
+
+        @Override
+        public String getRpcProxyAddress() {
+            return sender.getAddressString();
+        }
     }
 
     public DefaultRpcBusClient(BusConnector busFactory, InetSocketAddress address) {

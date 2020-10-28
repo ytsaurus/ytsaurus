@@ -14,5 +14,5 @@ public interface RpcStreamConsumer {
     void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments);
     void onError(RpcClient sender, Throwable cause);
     void onCancel(RpcClient sender, CancellationException cancel);
-    default void onWakeup() { }
+    void onWakeup();
 }

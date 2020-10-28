@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -10,6 +11,9 @@ import com.google.protobuf.MessageLite;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TRequestHeader;
+import ru.yandex.yt.rpc.TResponseHeader;
+import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
+import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.proxy.internal.FailoverRpcExecutor;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
@@ -117,13 +121,48 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
             RpcClientPool clientPool,
             RpcStreamConsumer consumer)
     {
-        CompletableFuture<RpcClientStreamControl> result = new CompletableFuture<>();
-        CompletableFuture<RpcClient> clientFuture = clientPool.peekClient(result);
-        RpcUtil.relay(
-                clientFuture.thenApply(client -> client.startStream(this, consumer)),
-                result
-        );
-        return result;
+        CompletableFuture<Void> clientReleaseFuture = new CompletableFuture<>();
+        RpcStreamConsumer wrappedConsumer = new RpcStreamConsumer() {
+            @Override
+            public void onStartStream(RpcClientStreamControl control) {
+                consumer.onStartStream(control);
+            }
+
+            @Override
+            public void onFeedback(RpcClient sender, TStreamingFeedbackHeader header, List<byte[]> attachments) {
+                consumer.onFeedback(sender, header, attachments);
+            }
+
+            @Override
+            public void onPayload(RpcClient sender, TStreamingPayloadHeader header, List<byte[]> attachments) {
+                consumer.onPayload(sender, header, attachments);
+            }
+
+            @Override
+            public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
+                consumer.onResponse(sender, header, attachments);
+                clientReleaseFuture.complete(null);
+            }
+
+            @Override
+            public void onError(RpcClient sender, Throwable cause) {
+                consumer.onError(sender, cause);
+                clientReleaseFuture.complete(null);
+            }
+
+            @Override
+            public void onCancel(RpcClient sender, CancellationException cancel) {
+                consumer.onError(sender, cancel);
+                clientReleaseFuture.complete(null);
+            }
+
+            @Override
+            public void onWakeup() {
+                consumer.onWakeup();
+            }
+        };
+        CompletableFuture<RpcClient> clientFuture = clientPool.peekClient(clientReleaseFuture);
+        return clientFuture.thenApply(client -> client.startStream(this, wrappedConsumer));
     }
 
     protected abstract RpcClientResponseHandler createHandler(CompletableFuture<ResponseType> result);

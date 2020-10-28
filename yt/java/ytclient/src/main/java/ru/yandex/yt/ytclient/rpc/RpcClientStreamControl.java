@@ -14,4 +14,6 @@ public interface RpcClientStreamControl extends RpcClientRequestControl {
     CompletableFuture<Void> sendPayload(List<byte[]> attachments);
 
     void wakeUp();
+
+    String getRpcProxyAddress();
 }

@@ -9,5 +9,6 @@
         <Root level="info">
             <AppenderRef ref="CONSOLE"/>
         </Root>
+        <Logger name="ru.yandex.yt" level="debug"/>
     </Loggers>
 </Configuration>
