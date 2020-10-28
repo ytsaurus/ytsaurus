@@ -192,6 +192,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "allow_full_scan", allow_full_scan)
     set_param(params, "allow_join_without_index", allow_join_without_index)
     set_param(params, "execution_pool", execution_pool)
+    set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
 
     _check_transaction_type(client)
 
@@ -289,6 +290,7 @@ def explain_query(query, timestamp=None, input_row_limit=None, output_row_limit=
     set_param(params, "allow_full_scan", allow_full_scan)
     set_param(params, "allow_join_without_index", allow_join_without_index)
     set_param(params, "execution_pool", execution_pool)
+    set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
 
     _check_transaction_type(client)
 
@@ -430,6 +432,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     set_param(params, "enable_partial_result", enable_partial_result)
     set_param(params, "use_lookup_cache", use_lookup_cache)
     set_param(params, "versioned", versioned)
+    set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:
