@@ -135,15 +135,18 @@ class TestFileCommands(object):
         yt.write_file(file_path, b"")
         assert yt.read_file(file_path).read() == b""
 
+        id = yt.get(file_path + "/@id")
         revision = yt.get(file_path + "/@revision")
         response_stream = make_request("read_file", {"path": file_path}, return_content=False)
         response = response_stream._get_response()
 
-        assert int(response.headers["ETag"]) == revision
+        expected_etag = "{}:{}".format(id, revision)
+
+        assert response.headers["ETag"] == expected_etag
 
         import yt.packages.requests as requests
         response = requests.get("http://{0}/api/v3/read_file".format(yt.config["proxy"]["url"]),
-                                params={"path": file_path}, headers={"If-None-Match": str(revision)})
+                                params={"path": file_path}, headers={"If-None-Match": expected_etag})
         assert response.status_code == 304
 
     @authors("se4min")

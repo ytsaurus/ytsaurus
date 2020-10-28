@@ -1,5 +1,6 @@
 #include "file_commands.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/client/api/file_reader.h>
 #include <yt/client/api/file_writer.h>
@@ -23,7 +24,8 @@ TReadFileCommand::TReadFileCommand()
         .Optional();
     RegisterParameter("file_reader", FileReader)
         .Default(nullptr);
-    RegisterParameter("etag_revision", EtagRevision)
+    RegisterParameter("etag", Etag)
+        .Alias("etag_revision")
         .Default();
 }
 
@@ -41,12 +43,21 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
 
     ProduceResponseParameters(context, [&] (NYson::IYsonConsumer* consumer) {
         BuildYsonMapFragmentFluently(consumer)
+            .Item("id").Value(reader->GetId())
             .Item("revision").Value(reader->GetRevision());
     });
 
-    if (EtagRevision) {
+    if (!Etag.empty()) {
+        if (auto etag = ParseEtag(Etag);
+            etag.IsOK() &&
+            etag.Value().Id == reader->GetId() && etag.Value().Revision == reader->GetRevision())
+        {
+            return;
+        }
+
+        // COMPAT(shakurov)
         NHydra::TRevision etagRevision;
-        if (TryFromString(EtagRevision, etagRevision) && etagRevision == reader->GetRevision()) {
+        if (TryFromString(Etag, etagRevision) && etagRevision == reader->GetRevision()) {
             return;
         }
     }
