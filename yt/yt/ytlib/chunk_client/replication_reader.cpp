@@ -230,14 +230,14 @@ public:
         return ChunkId_;
     }
 
-    virtual bool IsValid() const override
+    virtual TInstant GetLastFailureTime() const override
     {
-        return !Failed_;
+        return LastFailureTime_;
     }
 
     void SetFailed()
     {
-        Failed_ = true;
+        LastFailureTime_ = NProfiling::GetInstant();
     }
 
     virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)> slownessChecker) override
@@ -289,7 +289,7 @@ private:
     THashMap<TString, int> PeerBanCountMap_;
     TAtomicObject<TChunkReplicaList> LastSeenReplicas_;
 
-    std::atomic<bool> Failed_ = false;
+    std::atomic<TInstant> LastFailureTime_ = TInstant();
 
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
@@ -1030,6 +1030,7 @@ private:
         if (SeedReplicas_.empty()) {
             RegisterError(TError("Chunk is lost"));
             if (reader->Config_->FailOnNoSeeds) {
+                DiscardSeeds();
                 OnSessionFailed(/* fatal */ true);
             } else {
                 OnRetryFailed();

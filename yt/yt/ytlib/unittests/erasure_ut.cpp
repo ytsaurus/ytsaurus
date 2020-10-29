@@ -60,9 +60,9 @@ public:
         int period = 5,
         bool validateBlocksChecksums = true)
         : TFileReader(ioEngine, chunkId, fileName, validateBlocksChecksums)
-        , IsFailed_(false)
         , Period_(period)
         , Counter_(0)
+        , LastFailureTime_(TInstant())
     { }
 
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
@@ -88,24 +88,27 @@ public:
         return TFileReader::ReadBlocks(options, firstBlockIndex, blockCount, estimatedSize);
     }
 
-    virtual bool IsValid() const override
+    virtual TInstant GetLastFailureTime() const override
     {
-        return !IsFailed_;
+        return LastFailureTime_;
     }
 
     virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)>) override
     { }
 
 private:
-    bool IsFailed_;
     int Period_;
     int Counter_;
+
+    std::atomic<TInstant> LastFailureTime_ = TInstant();
 
     bool TryFail()
     {
         ++Counter_;
-        IsFailed_ = IsFailed_ || Counter_ == Period_;
-        return IsFailed_;
+        if (Counter_ == Period_) {
+            LastFailureTime_ = TInstant::Now();
+        }
+        return LastFailureTime_.load() != TInstant();
     }
 
     TErrorOr<std::vector<TBlock>> MakeError()
@@ -201,6 +204,7 @@ TEST(TErasureCodingTest, RandomText)
 
 class TErasureMixture
     : public ::testing::Test
+    , public ::testing::WithParamInterface<ECodec>
 {
 public:
     static std::vector<TSharedRef> ToSharedRefs(const std::vector<TString>& strings)
@@ -432,9 +436,9 @@ public:
 };
 std::mt19937 TErasureMixture::Gen_(7657457);
 
-TEST_F(TErasureMixture, WriterTest)
+TEST_P(TErasureMixture, WriterTest)
 {
-    auto codecId = ECodec::Lrc_12_2_2;
+    auto codecId = GetParam();
     auto codec = GetCodec(codecId);
 
     // Prepare data
@@ -464,9 +468,9 @@ TEST_F(TErasureMixture, WriterTest)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, ReaderTest)
+TEST_P(TErasureMixture, ReaderTest)
 {
-    auto codecId = ECodec::Lrc_12_2_2;
+    auto codecId = GetParam();
     auto codec = GetCodec(codecId);
 
     // Prepare data
@@ -547,10 +551,10 @@ TEST_F(TErasureMixture, RepairTest1)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairTest2)
+TEST_P(TErasureMixture, RepairTest2)
 {
-    auto codecId = ECodec::Lrc_12_2_2;
-    auto codec = GetCodec(ECodec::Lrc_12_2_2);
+    auto codecId = GetParam();
+    auto codec = GetCodec(codecId);
 
     // Prepare data
     std::vector<TString> dataStrings = {
@@ -585,9 +589,9 @@ TEST_F(TErasureMixture, RepairTest2)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairTest3)
+TEST_P(TErasureMixture, RepairTest3)
 {
-    auto codecId = ECodec::Lrc_12_2_2;
+    auto codecId = GetParam();
     auto codec = GetCodec(codecId);
 
     // Prepare data (in this test we have multiple erasure windows).
@@ -631,9 +635,9 @@ TEST_F(TErasureMixture, RepairTest3)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairTest4)
+TEST_P(TErasureMixture, RepairTest4)
 {
-    auto codecId = ECodec::Lrc_12_2_2;
+    auto codecId = GetParam();
     auto codec = GetCodec(codecId);
 
     // Prepare data
@@ -676,9 +680,9 @@ TEST_F(TErasureMixture, RepairTest4)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairTest5)
+TEST_P(TErasureMixture, RepairTest5)
 {
-    auto codecId = ECodec::Lrc_12_2_2;
+    auto codecId = GetParam();
     auto codec = GetCodec(codecId);
 
     // Prepare data (in this test we have multiple erasure windows).
@@ -722,9 +726,9 @@ TEST_F(TErasureMixture, RepairTest5)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairTest6)
+TEST_P(TErasureMixture, RepairTest6)
 {
-    auto codecId = ECodec::Lrc_12_2_2;
+    auto codecId = GetParam();
     auto codec = GetCodec(codecId);
 
     // Prepare data (in this test we have multiple erasure windows).
@@ -807,9 +811,9 @@ TEST_F(TErasureMixture, RepairingReaderSimultaneousFail)
     Cleanup(codec);
 }
 
-TEST_F(TErasureMixture, RepairingReaderSequenceFail)
+TEST_P(TErasureMixture, RepairingReaderSequenceFail)
 {
-    auto codecId = ECodec::Lrc_12_2_2;
+    auto codecId = GetParam();
     auto codec = GetCodec(codecId);
     auto data = GetRandomData(Gen_, 50, 5);
     auto dataRefs = ToSharedRefs(data);
@@ -853,6 +857,11 @@ TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
 
     Cleanup(codec);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TErasureMixture,
+    TErasureMixture,
+    ::testing::Values(ECodec::Lrc_12_2_2, ECodec::IsaLrc_12_2_2));
 
 ////////////////////////////////////////////////////////////////////////////////
 

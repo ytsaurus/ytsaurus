@@ -57,7 +57,7 @@ public:
         int blockCount,
         std::optional<i64> estimatedSize) override;
 
-    virtual bool IsValid() const override;
+    virtual TInstant GetLastFailureTime() const override;
 
     void UpdateBannedPartIndices();
     TPartIndexSet GetBannedPartIndices();
@@ -65,12 +65,14 @@ public:
     TError CheckPartReaderIsSlow(int partIndex, i64 bytesReceived, TDuration timePassed);
 
 private:
-    void CheckSlowReaders();
+    void MaybeUnbanReaders();
 
     TRefCountedChunkMetaPtr DoGetMeta(
         const TClientBlockReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags);
+
+    bool CheckReaderRecentlyFailed(TInstant now, int index) const;
 
     const TErasureReaderConfigPtr Config_;
     const TLogger Logger;
@@ -79,7 +81,7 @@ private:
 
     TPartIndexSet BannedPartIndices_;
     TReaderWriterSpinLock IndicesLock_;
-    std::vector<TCpuInstant> SlowReaderBanTimes_;
+    std::vector<TInstant> SlowReaderBanTimes_;
     TPeriodicExecutorPtr ExpirationTimesExecutor_;
 };
 
@@ -224,7 +226,7 @@ TRepairingReader::TRepairingReader(
     : TErasureChunkReaderBase(chunkId, codec, readers)
     , Config_(config)
     , Logger(logger)
-    , SlowReaderBanTimes_(codec->GetTotalPartCount(), TCpuInstant())
+    , SlowReaderBanTimes_(codec->GetTotalPartCount(), TInstant())
 {
     if (Config_->EnableAutoRepair) {
         for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
@@ -240,8 +242,8 @@ TRepairingReader::TRepairingReader(
 
         ExpirationTimesExecutor_ = New<TPeriodicExecutor>(
             ReaderInvoker_,
-            BIND(&TRepairingReader::CheckSlowReaders, MakeWeak(this)),
-            Config_->SlowReaderExpirationTimeout
+            BIND(&TRepairingReader::MaybeUnbanReaders, MakeWeak(this)),
+            std::min(Config_->SlowReaderExpirationTimeout, Config_->ReplicationReaderFailureTimeout)
         );
         ExpirationTimesExecutor_->Start();
     }
@@ -301,18 +303,19 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
     YT_ABORT();
 }
 
-bool TRepairingReader::IsValid() const
+TInstant TRepairingReader::GetLastFailureTime() const
 {
-    return true;
+    return TInstant();
 }
 
 void TRepairingReader::UpdateBannedPartIndices()
 {
     TPartIndexList failedReaderIndices;
     {
+        auto now = NProfiling::GetInstant();
         TReaderGuard guard(IndicesLock_);
         for (size_t index = 0; index < Readers_.size(); ++index) {
-            if (!Readers_[index]->IsValid() && !BannedPartIndices_.test(index)) {
+            if (CheckReaderRecentlyFailed(now, index) && !BannedPartIndices_.test(index)) {
                 failedReaderIndices.push_back(index);
             }
         }
@@ -336,18 +339,23 @@ TPartIndexSet TRepairingReader::GetBannedPartIndices()
     return BannedPartIndices_;
 }
 
-void TRepairingReader::CheckSlowReaders()
+void TRepairingReader::MaybeUnbanReaders()
 {
     TWriterGuard guard(IndicesLock_);
 
-    auto now = GetCpuInstant();
+    auto now = NProfiling::GetInstant();
     for (size_t index = 0; index < SlowReaderBanTimes_.size(); ++index) {
-        if (!SlowReaderBanTimes_[index]) {
+        if (!BannedPartIndices_.test(index)) {
             continue;
         }
-        if (now >= SlowReaderBanTimes_[index] + DurationToCpuDuration(Config_->SlowReaderExpirationTimeout)) {
-            SlowReaderBanTimes_[index] = TCpuInstant();
-            if (Readers_[index]->IsValid()) {
+
+        auto slownessBanExpiration = SlowReaderBanTimes_[index]
+            ? SlowReaderBanTimes_[index] + Config_->SlowReaderExpirationTimeout
+            : TInstant();
+
+        if (now >= slownessBanExpiration) {
+            SlowReaderBanTimes_[index] = TInstant();
+            if (!CheckReaderRecentlyFailed(now, index)) {
                 BannedPartIndices_.set(index, false);
             }
         }
@@ -369,7 +377,7 @@ TError TRepairingReader::CheckPartReaderIsSlow(int partIndex, i64 bytesReceived,
         }
         BannedPartIndices_.set(partIndex);
         if (Codec_->CanRepair(BannedPartIndices_)) {
-            SlowReaderBanTimes_[partIndex] = GetCpuInstant();
+            SlowReaderBanTimes_[partIndex] = GetInstant();
             return TError("Reader of part %v is marked as slow since speed is less than %v and passed more than %v seconds from start",
                 partIndex,
                 speed,
@@ -392,8 +400,9 @@ TRefCountedChunkMetaPtr TRepairingReader::DoGetMeta(
     std::iota(indices.begin(), indices.end(), 0);
     Shuffle(indices.begin(), indices.end());
 
+    auto now = NProfiling::GetInstant();
     for (auto index : indices) {
-        if (!Readers_[index]->IsValid()) {
+        if (CheckReaderRecentlyFailed(now, index)) {
             continue;
         }
         auto result = WaitFor(Readers_[index]->GetMeta(options, partitionTag, extensionTags));
@@ -406,6 +415,14 @@ TRefCountedChunkMetaPtr TRepairingReader::DoGetMeta(
     THROW_ERROR_EXCEPTION("Failed to get chunk meta of chunk %v from any of valid part readers",
         GetChunkId())
         << errors;
+}
+
+bool TRepairingReader::CheckReaderRecentlyFailed(TInstant now, int index) const
+{
+    if (auto lastFailureTime = Readers_[index]->GetLastFailureTime()) {
+        return now < lastFailureTime + Config_->ReplicationReaderFailureTimeout;
+    }
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -600,14 +600,13 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual bool IsValid() const override
+    virtual TInstant GetLastFailureTime() const override
     {
-        for (size_t i = 0; i < Readers_.size(); ++i) {
-            if (!Readers_[i]->IsValid()) {
-                return false;
-            }
+        auto lastFailureTime = TInstant();
+        for (const auto& reader : Readers_) {
+            lastFailureTime = std::max(lastFailureTime, reader->GetLastFailureTime());
         }
-        return true;
+        return lastFailureTime;
     }
 
 private:

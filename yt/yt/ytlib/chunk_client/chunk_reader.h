@@ -9,6 +9,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/profiling/public.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,8 +51,8 @@ struct IChunkReader
     //! Returns the id of the read this reader is assigned to read.
     virtual TChunkId GetChunkId() const = 0;
 
-    //! Once this returns |false|, the reader is no longer usable.
-    virtual bool IsValid() const = 0;
+    //! Upon fatal failures reader updates its failure time.
+    virtual TInstant GetLastFailureTime() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkReader)

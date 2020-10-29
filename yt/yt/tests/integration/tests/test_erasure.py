@@ -11,10 +11,103 @@ import yt.yson as yson
 ##################################################################
 
 
-class TestErasure(YTEnvSetup):
+class TestErasureBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 20
     NUM_SCHEDULERS = 1
+
+    def _is_chunk_ok(self, chunk_id):
+        status = get("#%s/@replication_status/default" % chunk_id)
+        if status["lost"]:
+            return False
+        if status["data_missing"]:
+            return False
+        if status["parity_missing"]:
+            return False
+        if not get("#%s/@available" % chunk_id):
+            return False
+        return True
+
+    def _get_blocks_count(self, chunk_id, replica, replica_index):
+        address = str(replica)
+        parts = [int(s, 16) for s in chunk_id.split("-")]
+        parts[2] = (parts[2] / 2 ** 16) * (2 ** 16) + 103 + replica_index
+        node_chunk_id = "-".join(hex(i)[2:] for i in parts)
+        return get("//sys/cluster_nodes/{0}/orchid/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
+
+    def _prepare_table(self, erasure_codec, dynamic=False):
+        for node in ls("//sys/cluster_nodes"):
+            set(
+                "//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node),
+                {"repair_slots": 0},
+            )
+
+        remove("//tmp/table", force=True)
+        if not dynamic:
+            create("table", "//tmp/table", attributes={"erasure_codec": erasure_codec})
+        else:
+            schema = [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}]
+            create_dynamic_table(
+                "//tmp/table",
+                schema=schema,
+                chunk_writer={"block_size": 1024},
+                erasure_codec=erasure_codec,
+                compression_codec="none")
+            sync_mount_table("//tmp/table")
+
+        content = [{"key": i, "value": "x" * 1024} for i in xrange(12)]
+
+        if not dynamic:
+            write_table("//tmp/table",
+                        content,
+                        table_writer={"block_size": 1024})
+        else:
+            insert_rows("//tmp/table", content)
+            sync_flush_table("//tmp/table")
+
+        # check if there is 1 chunk exactly
+        chunk_id = get_singular_chunk_id("//tmp/table")
+
+        # check if there is exactly one block in each part
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        assert len(replicas) == 16
+        for index, replica in enumerate(replicas[:12]):
+            blocks_count = self._get_blocks_count(chunk_id, replica, index)
+            assert blocks_count == 1
+
+        return replicas, content
+
+    def _test_fetching_specs(self, chunk_strategy, erasure_codec):
+        replicas, _ = self._prepare_table(erasure_codec)
+        replica = replicas[3]
+        address_to_ban = str(replica)
+        set_node_banned(address_to_ban, True)
+        time.sleep(1)
+
+        has_failed = None
+
+        try:
+            read_table(
+                "//tmp/table",
+                table_reader={
+                    "unavailable_chunk_strategy": chunk_strategy,
+                    "pass_count": 1,
+                    "retry_count": 1,
+                },
+            )
+        except YtResponseError:
+            has_failed = True
+        else:
+            has_failed = False
+        finally:
+            set_node_banned(address_to_ban, False)
+
+        return has_failed
+
+
+class TestErasure(TestErasureBase):
 
     def _do_test_simple(self, erasure_codec):
         create("table", "//tmp/table")
@@ -41,109 +134,15 @@ class TestErasure(YTEnvSetup):
         assert get("//tmp/table/@row_count") == 3
         assert get("//tmp/table/@chunk_count") == 2
 
-    @authors("psushin", "ignat")
-    def test_reed_solomon(self):
-        self._do_test_simple("reed_solomon_6_3")
+    @authors("psushin", "ignat", "akozhikhov")
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2", "reed_solomon_6_3", "reed_solomon_3_3"])
+    def test_codecs_simple(self, erasure_codec):
+        self._do_test_simple(erasure_codec)
 
-    @authors("astiunov")
-    def test_lrc(self):
-        self._do_test_simple("lrc_12_2_2")
-
-    def _is_chunk_ok(self, chunk_id):
-        status = get("#%s/@replication_status/default" % chunk_id)
-        if status["lost"]:
-            return False
-        if status["data_missing"]:
-            return False
-        if status["parity_missing"]:
-            return False
-        if not get("#%s/@available" % chunk_id):
-            return False
-        return True
-
-    def _test_repair(self, codec, replica_count, data_replica_count):
-        remove("//tmp/table", force=True)
-        create("table", "//tmp/table")
-        set("//tmp/table/@erasure_codec", codec)
-        write_table("//tmp/table", {"b": "hello"})
-
-        chunk_id = get_singular_chunk_id("//tmp/table")
-
-        replicas = get("#%s/@stored_replicas" % chunk_id)
-        assert len(replicas) == replica_count
-
-        assert self._is_chunk_ok(chunk_id)
-
-        for r in replicas:
-            replica_index = r.attributes["index"]
-            address = str(r)
-            print_debug("Banning node %s containing replica %d" % (address, replica_index))
-            set_node_banned(address, True)
-            wait(lambda: self._is_chunk_ok(chunk_id))
-            assert read_table("//tmp/table") == [{"b": "hello"}]
-            set_node_banned(r, False)
-
-    def _get_blocks_count(self, chunk_id, replica, replica_index):
-        address = str(replica)
-        parts = [int(s, 16) for s in chunk_id.split("-")]
-        parts[2] = (parts[2] / 2 ** 16) * (2 ** 16) + 103 + replica_index
-        node_chunk_id = "-".join(hex(i)[2:] for i in parts)
-        return get("//sys/cluster_nodes/{0}/orchid/stored_chunks/{1}".format(address, node_chunk_id))["block_count"]
-
-    def _prepare_table(self):
-        for node in ls("//sys/cluster_nodes"):
-            set(
-                "//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node),
-                {"repair_slots": 0},
-            )
-
-        remove("//tmp/table", force=True)
-        create("table", "//tmp/table", attributes={"erasure_codec": "lrc_12_2_2"})
-        content = [{"a": "x" * 1024} for _ in xrange(12)]
-        write_table("//tmp/table", content, table_writer={"block_size": 1024})
-
-        # check if there is 1 chunk exactly
-        chunk_id = get_singular_chunk_id("//tmp/table")
-
-        # check if there is exactly one block in each part
-        replicas = get("#{0}/@stored_replicas".format(chunk_id))
-        assert len(replicas) == 16
-        for index, replica in enumerate(replicas[:12]):
-            blocks_count = self._get_blocks_count(chunk_id, replica, index)
-            assert blocks_count == 1
-
-        return replicas, content
-
-    def _test_fetching_specs(self, chunk_strategy):
-        replicas, _ = self._prepare_table()
-        replica = replicas[3]
-        address_to_ban = str(replica)
-        set_node_banned(address_to_ban, True)
-        time.sleep(1)
-
-        has_failed = None
-
-        try:
-            read_table(
-                "//tmp/table",
-                table_reader={
-                    "unavailable_chunk_strategy": chunk_strategy,
-                    "pass_count": 1,
-                    "retry_count": 1,
-                },
-            )
-        except YtResponseError:
-            has_failed = True
-        else:
-            has_failed = False
-        finally:
-            set_node_banned(address_to_ban, False)
-
-        return has_failed
-
-    @authors("astiunov")
-    def test_slow_read(self):
-        replicas, _ = self._prepare_table()
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_slow_read(self, erasure_codec):
+        replicas, _ = self._prepare_table(erasure_codec)
 
         correct_data = read_table("//tmp/table")
 
@@ -181,18 +180,20 @@ class TestErasure(YTEnvSetup):
             )
             wait(lambda: get("//sys/@chunk_replicator_enabled"))
 
-    @authors("astiunov")
-    def test_throw_error(self):
-        has_failed = self._test_fetching_specs("throw_error")
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_throw_error(self, erasure_codec):
+        has_failed = self._test_fetching_specs("throw_error", erasure_codec)
         assert has_failed, "Expected to fail due to unavailable chunk specs"
 
-    @authors("astiunov")
-    def test_repair_works(self):
-        has_failed = self._test_fetching_specs("restore")
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_repair_works(self, erasure_codec):
+        has_failed = self._test_fetching_specs("restore", erasure_codec)
         assert not has_failed, "Expected successful read"
 
-    def _test_repair_on_spot(self, allow_repair):
-        replicas, content = self._prepare_table()
+    def _test_repair_on_spot(self, allow_repair, erasure_codec):
+        replicas, content = self._prepare_table(erasure_codec)
 
         replica = replicas[3]
         window_size = 1024
@@ -237,21 +238,53 @@ class TestErasure(YTEnvSetup):
                 not response.is_ok()
             ), "Read finished successfully, but expected to fail (due to unavailable part and disabled repairing)"
 
-    @authors("astiunov")
-    def test_repair_on_spot_successful(self):
-        self._test_repair_on_spot(True)
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_repair_on_spot_successful(self, erasure_codec):
+        self._test_repair_on_spot(True, erasure_codec)
 
-    @authors("astiunov")
-    def test_repair_on_spot_failed(self):
-        self._test_repair_on_spot(False)
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_repair_on_spot_failed(self, erasure_codec):
+        self._test_repair_on_spot(False, erasure_codec)
+
+    def _test_repair(self, codec, replica_count, data_replica_count):
+        remove("//tmp/table", force=True)
+        create("table", "//tmp/table")
+        set("//tmp/table/@erasure_codec", codec)
+        write_table("//tmp/table", {"b": "hello"})
+
+        chunk_id = get_singular_chunk_id("//tmp/table")
+
+        replicas = get("#%s/@stored_replicas" % chunk_id)
+        assert len(replicas) == replica_count
+
+        assert self._is_chunk_ok(chunk_id)
+
+        for r in replicas:
+            replica_index = r.attributes["index"]
+            address = str(r)
+            print_debug("Banning node %s containing replica %d" % (address, replica_index))
+            set_node_banned(address, True)
+            wait(lambda: self._is_chunk_ok(chunk_id))
+            assert read_table("//tmp/table") == [{"b": "hello"}]
+            set_node_banned(r, False)
 
     @authors("ignat")
-    def test_reed_solomon_repair(self):
+    def test_reed_solomon_6_3_repair(self):
         self._test_repair("reed_solomon_6_3", 9, 6)
 
     @authors("psushin", "ignat")
     def test_lrc_repair(self):
         self._test_repair("lrc_12_2_2", 16, 12)
+
+    @authors("akozhikhov")
+    def test_reed_solomon_3_3_repair(self):
+        self._test_repair("reed_solomon_3_3", 6, 3)
+
+    @authors("akozhikhov")
+    def test_isa_lrc_repair(self):
+        self._test_repair("isa_lrc_12_2_2", 16, 12)
 
     @authors("psushin", "ignat")
     def test_map(self):
@@ -265,9 +298,10 @@ class TestErasure(YTEnvSetup):
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("max42")
-    def test_slice_erasure_chunks_by_parts(self):
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_slice_erasure_chunks_by_parts(self, erasure_codec):
         create("table", "//tmp/t1")
-        set("//tmp/t1/@erasure_codec", "lrc_12_2_2")
+        set("//tmp/t1/@erasure_codec", erasure_codec)
         write_table("//tmp/t1", [{"a": "b"}] * 240)
         create("table", "//tmp/t2")
 
@@ -290,13 +324,14 @@ class TestErasure(YTEnvSetup):
         assert chunk_count == 1
 
     @authors("prime")
-    def test_erasure_attribute_in_output_table(self):
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_erasure_attribute_in_output_table(self, erasure_codec):
         create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a": "b"})
 
         create("table", "//tmp/t2")
-        map(in_="//tmp/t1", out="<erasure_codec=lrc_12_2_2>//tmp/t2", command="cat")
-        assert get("//tmp/t2/@erasure_codec") == "lrc_12_2_2"
+        map(in_="//tmp/t1", out="<erasure_codec={}>//tmp/t2".format(erasure_codec), command="cat")
+        assert get("//tmp/t2/@erasure_codec") == erasure_codec
 
     @authors("ignat")
     def test_sort(self):
@@ -320,9 +355,10 @@ class TestErasure(YTEnvSetup):
         assert get("//tmp/t_out/@sorted_by") == ["key"]
 
     @authors("babenko")
-    def test_part_ids(self):
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_part_ids(self, erasure_codec):
         create("table", "//tmp/t")
-        set("//tmp/t/@erasure_codec", "lrc_12_2_2")
+        set("//tmp/t/@erasure_codec", erasure_codec)
         write_table("//tmp/t", {"a": "b"})
         chunk_id = get_singular_chunk_id("//tmp/t")
         parts = chunk_id.split("-")
@@ -331,24 +367,26 @@ class TestErasure(YTEnvSetup):
             assert get("#" + part_id + "/@id") == chunk_id
 
     @authors("prime")
-    def test_write_table_with_erasure(self):
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_write_table_with_erasure(self, erasure_codec):
         create("table", "//tmp/table")
 
         write_table("<erasure_codec=none>//tmp/table", [{"key": 0}])
         assert "none" == get("//tmp/table/@erasure_codec")
 
-        write_table("<erasure_codec=lrc_12_2_2>//tmp/table", [{"key": 0}])
-        assert "lrc_12_2_2" == get("//tmp/table/@erasure_codec")
+        write_table("<erasure_codec={}>//tmp/table".format(erasure_codec), [{"key": 0}])
+        assert erasure_codec == get("//tmp/table/@erasure_codec")
 
         with pytest.raises(YtError):
-            write_table("<append=true;erasure_codec=lrc_12_2_2>//tmp/table", [{"key": 0}])
+            write_table("<append=true;erasure_codec={}>//tmp/table".format(erasure_codec), [{"key": 0}])
 
     @authors("prime")
-    def test_write_file_with_erasure(self):
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2"])
+    def test_write_file_with_erasure(self, erasure_codec):
         create("file", "//tmp/f")
 
-        write_file("<erasure_codec=lrc_12_2_2>//tmp/f", "a")
-        assert get("//tmp/f/@erasure_codec") == "lrc_12_2_2"
+        write_file("<erasure_codec={}>//tmp/f".format(erasure_codec), "a")
+        assert get("//tmp/f/@erasure_codec") == erasure_codec
 
         write_file("<erasure_codec=none>//tmp/f", "a")
         assert get("//tmp/f/@erasure_codec") == "none"
@@ -362,3 +400,53 @@ class TestErasure(YTEnvSetup):
 
 class TestErasureMulticell(TestErasure):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+
+class TestDynamicTablesErasure(TestErasureBase):
+    USE_DYNAMIC_TABLES = True
+
+    @authors("akozhikhov")
+    def test_erasure_reader_failures(self):
+        set("//sys/@config/tablet_manager/chunk_reader", {
+            "pass_count": 1,
+            "retry_count": 1,
+            "slow_reader_expiration_timeout": 1000,
+            "replication_reader_failure_timeout": 10000})
+
+        sync_create_cells(1)
+
+        replicas, content = self._prepare_table("isa_lrc_12_2_2", dynamic=True)
+
+        def _read():
+            try:
+                rows = lookup_rows("//tmp/table", [{"key": i} for i in range(12)])
+                return rows == content
+            except:
+                return False
+        def _failing_read():
+            with raises_yt_error("Not enough parts"):
+                lookup_rows("//tmp/table", [{"key": i} for i in range(12)])
+
+        # Readers are initialized.
+        assert _read()
+
+        chunk_id = get_singular_chunk_id("//tmp/table")
+        replicas = get("#{0}/@stored_replicas".format(chunk_id))
+        banned_nodes = replicas[:4]
+        for node in banned_nodes:
+            set_node_banned(str(node), True)
+        time.sleep(1)
+
+        # Banned replicas' replication readers are marked as failed.
+        _failing_read()
+
+        for node in banned_nodes[:2]:
+            set_node_banned(str(node), False)
+        time.sleep(1)
+
+        # Failure timeout will expire later.
+        _failing_read()
+
+        wait(lambda: _read())

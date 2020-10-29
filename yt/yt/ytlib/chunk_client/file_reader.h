@@ -63,7 +63,7 @@ public:
 
     virtual TChunkId GetChunkId() const override;
 
-    virtual bool IsValid() const override;
+    virtual TInstant GetLastFailureTime() const override;
 
     virtual void SetSlownessChecker(TCallback<TError(i64, TDuration)>) override;
 
