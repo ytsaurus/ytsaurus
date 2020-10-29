@@ -21,14 +21,14 @@ import scala.util.{Failure, Success}
 trait YtClientUtils {
   private val log = Logger.getLogger(getClass)
 
-  def createRpcClient(config: YtClientConfiguration): YtRpcClient = {
-    log.info(s"Create RPC YT Client, configuration ${config.copy(token = "*****")}")
+  def createRpcClient(id: String, config: YtClientConfiguration): YtRpcClient = {
+    log.info(s"Create RPC YT Client, id $id, configuration ${config.copy(token = "*****")}")
 
-    createYtClient(config.timeout) { case (connector, options) => createYtClient(config, connector, options) }
+    createYtClient(id, config.timeout) { case (connector, options) => createYtClient(config, connector, options) }
   }
 
-  def createYtClient(proxy: String, timeout: Duration): YtRpcClient = {
-    createYtClient(timeout) { case (connector, options) =>
+  def createYtClient(id: String, proxy: String, timeout: Duration): YtRpcClient = {
+    createYtClient(id, timeout) { case (connector, options) =>
       new SingleProxyYtClient(
         connector,
         DefaultRpcCredentials.credentials,
@@ -38,7 +38,7 @@ trait YtClientUtils {
     }
   }
 
-  private def createYtClient(timeout: Duration)
+  private def createYtClient(id: String, timeout: Duration)
                             (client: (DefaultBusConnector, RpcOptions) => YtClient): YtRpcClient = {
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
       .setReadTimeout(toJavaDuration(timeout))
@@ -51,8 +51,8 @@ trait YtClientUtils {
       val yt = client(connector, rpcOptions)
       try {
         yt.waitProxies.join
-        log.info("YtClient created")
-        YtRpcClient(yt, connector)
+        log.info(s"YtClient $id created")
+        YtRpcClient(id, yt, connector)
       } catch {
         case e: Throwable =>
           yt.close()

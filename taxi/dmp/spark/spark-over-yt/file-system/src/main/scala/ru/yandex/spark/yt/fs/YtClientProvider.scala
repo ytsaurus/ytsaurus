@@ -34,7 +34,7 @@ object YtClientProvider {
   def ytRpcClient(conf: YtClientConfiguration, id: String = threadId): YtRpcClient = client.getOrElseUpdate(id, {
     this.conf.set(conf)
     log.info(s"Create YtClient for id $id")
-    YtWrapper.createRpcClient(conf)
+    YtWrapper.createRpcClient(id, conf)
   })
 
   def httpClient: Yt = {
@@ -43,10 +43,7 @@ object YtClientProvider {
 
   def close(): Unit = {
     log.info(s"Close all YT Clients")
-    client.foreach { case (id, c) =>
-      log.info(s"Close YT Client for id $id")
-      c.close()
-    }
+    client.foreach(_._2.close())
     client.clear()
   }
 

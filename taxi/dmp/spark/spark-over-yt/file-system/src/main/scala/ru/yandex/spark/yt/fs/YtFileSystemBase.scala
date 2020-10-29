@@ -24,14 +24,13 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
 
   private var _uri: URI = _
   private var _workingDirectory: Path = new Path("/")
-  private var _conf: Configuration = _
   protected var _ytConf: YtClientConfiguration = _
 
   override def initialize(uri: URI, conf: Configuration): Unit = {
     super.initialize(uri, conf)
-    this._conf = conf
+    setConf(conf)
     this._uri = uri
-    this._ytConf = ytClientConfiguration(_conf)
+    this._ytConf = ytClientConfiguration(getConf)
   }
 
   lazy val yt: YtClient = YtClientProvider.ytClient(_ytConf, id)
@@ -47,17 +46,26 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
                       replication: Short, blockSize: Long, progress: Progressable,
                       statistics: FileSystem.Statistics): FSDataOutputStream = {
     log.debugLazy(s"Create new file: $f")
-    val ytConf = _ytConf.copy(timeout = 7 days)
-    val ytRpcClient: YtRpcClient = YtWrapper.createRpcClient(ytConf)
-    try {
-      val path = ytPath(f)
-      YtWrapper.createFile(path)(ytRpcClient.yt)
+    val path = ytPath(f)
+
+    def createFile(ytRpcClient: Option[YtRpcClient], ytClient: YtClient): FSDataOutputStream = {
+      YtWrapper.createFile(path)(ytClient)
       statistics.incrementWriteOps(1)
-      new FSDataOutputStream(YtWrapper.writeFile(path, 7 days, ytRpcClient, None), statistics)
-    } catch {
-      case e: Throwable =>
-        ytRpcClient.close()
-        throw e
+      new FSDataOutputStream(YtWrapper.writeFile(path, 7 days, ytRpcClient, None)(ytClient), statistics)
+    }
+
+    if (_ytConf.extendedFileTimeout) {
+      val ytConf = _ytConf.copy(timeout = 7 days)
+      val ytRpcClient: YtRpcClient = YtWrapper.createRpcClient(s"create-file-${UUID.randomUUID().toString}", ytConf)
+      try {
+        createFile(Some(ytRpcClient), ytRpcClient.yt)
+      } catch {
+        case e: Throwable =>
+          ytRpcClient.close()
+          throw e
+      }
+    } else {
+      createFile(None, yt)
     }
   }
 

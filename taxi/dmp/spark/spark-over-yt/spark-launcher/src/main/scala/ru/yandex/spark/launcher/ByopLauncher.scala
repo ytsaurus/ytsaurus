@@ -38,7 +38,7 @@ trait ByopLauncher {
                 timeout: Duration): BasicService = {
     log.info(s"Start RPC proxy with config: $config")
 
-    val ytRpc = YtWrapper.createRpcClient(ytConf.copy(byop = ByopConfiguration.DISABLED))
+    val ytRpc = YtWrapper.createRpcClient("byop", ytConf.copy(byop = ByopConfiguration.DISABLED))
 
     try {
       val binaryAbsolutePath = path(config.binaryPath)
