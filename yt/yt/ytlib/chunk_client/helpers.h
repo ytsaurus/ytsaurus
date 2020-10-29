@@ -83,6 +83,13 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     bool skipUnavailableChunks = false,
     NNodeTrackerClient::EAddressType addressType = NNodeTrackerClient::EAddressType::InternalRpc);
 
+// XXX(ifsmirnov, max42): helper intended only for testing purposes.
+std::vector<NProto::TChunkSpec> FetchTabletStores(
+    const NApi::NNative::IClientPtr& client,
+    const TUserObject& userObject,
+    const std::vector<TReadRange>& ranges,
+    const NLogging::TLogger& logger);
+
 //! Synchronously invokes TChunkServiceProxy::AllocateWriteTargets.
 //! Populates #nodeDirectory with the returned node descriptors.
 //! Throws if the server returns no replicas.

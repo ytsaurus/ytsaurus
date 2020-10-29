@@ -10,10 +10,13 @@
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/rpc_helpers.h>
+#include <yt/ytlib/api/native/tablet_helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+
+#include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/ytlib/object_client/helpers.h>
 
@@ -26,10 +29,16 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/ytlib/query_client/query_service_proxy.h>
+
 #include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/client/chunk_client/data_statistics.h>
 
 #include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/wire_protocol.h>
+
+#include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/library/erasure/codec.h>
 
@@ -60,6 +69,9 @@ using namespace NYTree;
 using namespace NNet;
 using namespace NCypressClient;
 using namespace NSecurityClient;
+using namespace NTabletClient;
+using namespace NQueryClient;
+using namespace NTableClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -339,6 +351,128 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             &chunkSpecs,
             skipUnavailableChunks,
             addressType);
+    }
+
+    return chunkSpecs;
+}
+
+std::vector<NProto::TChunkSpec> FetchTabletStores(
+    const NApi::NNative::IClientPtr& client,
+    const TUserObject& userObject,
+    const std::vector<TReadRange>& ranges,
+    const NLogging::TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    // Get tablet info and do some sanity checks.
+    const auto& tableMountCache = client->GetTableMountCache();
+    auto mountInfo = WaitFor(tableMountCache->GetTableInfo(userObject.GetPath()))
+        .ValueOrThrow();
+    mountInfo->ValidateDynamic();
+    mountInfo->ValidateSorted();
+    mountInfo->ValidateNotReplicated();
+
+    // Visit all tablets and group tablet subrequests by nodes.
+    using TSubrequest = NQueryClient::NProto::TReqFetchTabletStores::TSubrequest;
+    THashMap<TAddressWithNetwork, std::vector<TSubrequest>> subrequestsByAddress;
+
+    const auto& connection = client->GetNativeConnection();
+    const auto& cellDirectory = connection->GetCellDirectory();
+
+    for (int tabletIndex = 0; tabletIndex < mountInfo->Tablets.size(); ++tabletIndex) {
+        const auto& tablet = mountInfo->Tablets[tabletIndex];
+
+        if (tablet->State != ETabletState::Mounted && tablet->State != ETabletState::Frozen) {
+            THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::TabletNotMounted,
+                "Tablet %v is not mounted",
+                tablet->TabletId)
+                << TErrorAttribute("tablet_state", tablet->State);
+        }
+
+        TSubrequest subrequest;
+
+        ToProto(subrequest.mutable_tablet_id(), tablet->TabletId);
+        subrequest.set_table_index(0);
+        subrequest.set_mount_revision(tablet->MountRevision);
+        for (int rangeIndex = 0; rangeIndex < ranges.size(); ++rangeIndex) {
+            const auto& range = ranges[rangeIndex];
+            // We don't do any pruning for now.
+            ToProto(subrequest.add_ranges(), range);
+            subrequest.add_range_indices(rangeIndex);
+        }
+        subrequest.set_fetch_samples(true);
+        subrequest.set_data_size_between_samples(5 *  1024 * 1024);
+
+        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(tablet->CellId);
+        const auto& primaryPeerDescriptor = NApi::NNative::GetPrimaryTabletPeerDescriptor(
+            cellDescriptor,
+            NHydra::EPeerKind::Leader);
+        auto address = primaryPeerDescriptor.GetAddressWithNetworkOrThrow(
+            connection->GetNetworks());
+        subrequestsByAddress[address].push_back(std::move(subrequest));
+    }
+
+    // Send requests to nodes.
+    constexpr NCompression::ECodec ResponseCodecId = NCompression::ECodec::Lz4;
+
+    std::vector<TFuture<TQueryServiceProxy::TRspFetchTabletStoresPtr>> asyncRspsOrErrors;
+
+    for (const auto& [address, subrequests] : subrequestsByAddress) {
+        auto channel = connection->GetChannelFactory()->CreateChannel(address);
+        TQueryServiceProxy proxy(channel);
+        auto req = proxy.FetchTabletStores();
+        for (const auto& subrequest : subrequests) {
+            *req->add_subrequests() = subrequest;
+        }
+        req->SetResponseCodec(ResponseCodecId);
+        req->set_fetch_all_meta_extensions(false);
+        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+        req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+        asyncRspsOrErrors.push_back(req->Invoke());
+    }
+
+    auto rspsOrErrors = WaitFor(AllSucceeded(asyncRspsOrErrors))
+        .ValueOrThrow();
+
+    // Read responses and collect chunk specs.
+    std::vector<NProto::TChunkSpec> chunkSpecs;
+    auto requestIt = subrequestsByAddress.begin();
+    for (const auto& rsp : rspsOrErrors) {
+        const auto& subrequests = requestIt++->second;
+
+        if (subrequests.size() != rsp->subresponses_size()) {
+            THROW_ERROR_EXCEPTION("Invalid number of subresponses: expected %v, actual %v",
+                subrequests.size(),
+                rsp->subresponses_size());
+        }
+        for (int subrequestIndex = 0; subrequestIndex < subrequests.size(); ++subrequestIndex) {
+            const auto& subrequest = subrequests[subrequestIndex];
+            const auto& subresponse = rsp->subresponses(subrequestIndex);
+
+            if (subresponse.tablet_missing()) {
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::NoSuchTablet,
+                    "Tablet %v is not known",
+                    FromProto<TTabletId>(subrequest.tablet_id()));
+            }
+
+            for (const auto& chunkSpec : subresponse.stores()) {
+                chunkSpecs.push_back(chunkSpec);
+            }
+        }
+
+        // We do nothing with samples but print them to the log. However, inheritors of
+        // this code may use them for any needs. And I hope they will; otherwise
+        // why on Earth would have I thoroughly picked 'em?
+        for (const auto& attachment : rsp->Attachments()) {
+            TWireProtocolReader reader(attachment);
+            auto rows = reader.ReadUnversionedRowset(false);
+            YT_LOG_DEBUG("Got samples in attachments (SampleCount: %v, FirstSample: %v, LastSample: %v)",
+                rows.size(),
+                rows.empty() ? TLegacyKey{} : rows[0],
+                rows.empty() ? TLegacyKey{} : rows.Back());
+        }
     }
 
     return chunkSpecs;

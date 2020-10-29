@@ -46,6 +46,7 @@ public:
     // ISortedStore implementation.
     virtual TLegacyOwningKey GetMinKey() const override;
     virtual TLegacyOwningKey GetUpperBoundKey() const override;
+    virtual bool HasNontrivialReadRange() const override;
 
     virtual NTableClient::IVersionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
@@ -118,8 +119,6 @@ private:
     virtual NTableClient::TKeyComparer GetKeyComparer() override;
 
     ISortedStorePtr GetSortedBackingStore();
-
-    bool HasNontrivialReadRange() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedChunkStore)

@@ -26,6 +26,7 @@
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/block_cache.h>
+#include <yt/ytlib/chunk_client/remote_chunk_reader.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -598,16 +599,6 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(const IThroughputThrottlerPtr&
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto isLocalChunkValid = [] (const IChunkPtr& chunk) {
-        if (!chunk) {
-            return false;
-        }
-        if (chunk->IsRemoveScheduled()) {
-            return false;
-        }
-        return true;
-    };
-
     auto hasValidCachedRemoteReader = [&] {
         if (!CachedChunkReader_) {
             return false;
@@ -629,7 +620,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(const IThroughputThrottlerPtr&
             return false;
         }
         auto chunk = CachedWeakChunk_.Lock();
-        if (!isLocalChunkValid(chunk)) {
+        if (!IsLocalChunkValid(chunk)) {
             return false;
         }
         return true;
@@ -695,7 +686,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(const IThroughputThrottlerPtr&
 
         if (ReaderConfig_->PreferLocalReplicas) {
             auto chunk = ChunkRegistry_->FindChunk(ChunkId_);
-            if (isLocalChunkValid(chunk)) {
+            if (IsLocalChunkValid(chunk)) {
                 createLocalReaders(chunk);
                 return;
             }
@@ -841,6 +832,53 @@ TChunkId TChunkStoreBase::GetChunkId() const
     return ChunkId_;
 }
 
+TTimestamp TChunkStoreBase::GetOverrideTimestamp() const
+{
+    return ChunkTimestamp_;
+}
+
+TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId) const
+{
+    TReaderGuard guard(SpinLock_);
+
+    if (CachedChunkReader_ && !CachedReadersLocal_) {
+        auto* remoteReader = dynamic_cast<IRemoteChunkReader*>(CachedChunkReader_.Get());
+        if (remoteReader) {
+            auto remoteReplicas = remoteReader->GetReplicas();
+            if (!remoteReplicas.empty()) {
+                return remoteReplicas;
+            }
+        }
+        return {};
+    }
+
+    // Erasure chunks do not have local readers.
+    if (TypeFromId(ChunkId_) != EObjectType::Chunk) {
+        return {};
+    }
+
+    auto makeLocalReplicas = [&] {
+        TChunkReplicaList replicas;
+        replicas.emplace_back(localNodeId, GenericChunkReplicaIndex);
+        return replicas;
+    };
+
+    if (CachedReadersLocal_) {
+        return makeLocalReplicas();
+    }
+
+    auto localChunk = CachedWeakChunk_.Lock();
+    if (!localChunk) {
+        localChunk = ChunkRegistry_->FindChunk(ChunkId_);
+    }
+
+    if (IsLocalChunkValid(localChunk)) {
+        return makeLocalReplicas();
+    }
+
+    return {};
+}
+
 IBlockCachePtr TChunkStoreBase::GetBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -855,6 +893,17 @@ IBlockCachePtr TChunkStoreBase::DoGetBlockCache()
 
     return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
 }
+
+bool TChunkStoreBase::IsLocalChunkValid(const IChunkPtr& chunk) const
+{
+    if (!chunk) {
+        return false;
+    }
+    if (chunk->IsRemoveScheduled()) {
+        return false;
+    }
+    return true;
+};
 
 bool TChunkStoreBase::ValidateBlockCachePreloaded()
 {

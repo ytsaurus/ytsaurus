@@ -1834,6 +1834,11 @@ TLegacyOwningKey TSortedDynamicStore::GetUpperBoundKey() const
     return MaxKey();
 }
 
+bool TSortedDynamicStore::HasNontrivialReadRange() const
+{
+    return false;
+}
+
 IVersionedReaderPtr TSortedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     TSharedRange<TRowRange> ranges,

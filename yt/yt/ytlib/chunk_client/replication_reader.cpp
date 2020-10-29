@@ -9,6 +9,7 @@
 #include "helpers.h"
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_replica_locator.h"
+#include "remote_chunk_reader.h"
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -40,6 +41,7 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/atomic_object.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/string.h>
 
@@ -136,6 +138,7 @@ DECLARE_REFCOUNTED_CLASS(TReplicationReader)
 class TReplicationReader
     : public IChunkReaderAllowingRepair
     , public ILookupReader
+    , public IRemoteChunkReader
 {
 public:
     TReplicationReader(
@@ -251,6 +254,11 @@ public:
         return SlownessChecker_(bytesReceived, timePassed);
     }
 
+    virtual TChunkReplicaList GetReplicas() const override
+    {
+        return LastSeenReplicas_.Load();
+    }
+
 private:
     class TSessionBase;
     class TReadBlockSetSession;
@@ -279,6 +287,7 @@ private:
     THashSet<TString> BannedForeverPeers_;
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
     THashMap<TString, int> PeerBanCountMap_;
+    TAtomicObject<TChunkReplicaList> LastSeenReplicas_;
 
     std::atomic<bool> Failed_ = false;
 
@@ -310,6 +319,11 @@ private:
                 BannedForeverPeers_.erase(*address);
             }
         }
+    }
+
+    void UpdateLastSeenReplicas(const TChunkReplicaList& lastSeenReplicas)
+    {
+        LastSeenReplicas_.Store(lastSeenReplicas);
     }
 
     //! Notifies reader about peer banned inside one of the sessions.
@@ -1012,6 +1026,7 @@ private:
         }
 
         SeedReplicas_ = result.Value();
+        reader->UpdateLastSeenReplicas(SeedReplicas_);
         if (SeedReplicas_.empty()) {
             RegisterError(TError("Chunk is lost"));
             if (reader->Config_->FailOnNoSeeds) {

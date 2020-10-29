@@ -116,6 +116,7 @@ public:
     // ISortedStore implementation.
     virtual TLegacyOwningKey GetMinKey() const override;
     virtual TLegacyOwningKey GetUpperBoundKey() const override;
+    virtual bool HasNontrivialReadRange() const override;
 
     i64 GetMaxDataWeight() const;
     TLegacyOwningKey GetMaxDataWeightWitnessKey() const;
