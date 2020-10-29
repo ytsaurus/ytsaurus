@@ -67,6 +67,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((AutoMergeDisabled)                           (21))
     ((InvalidatedJobsFound)                        (23))
     ((NoTablesWithEnabledDynamicStoreRead)         (24))
+    ((UnusedMemory)                                (25))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

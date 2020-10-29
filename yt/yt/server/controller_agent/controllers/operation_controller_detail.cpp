@@ -3484,14 +3484,18 @@ void TOperationControllerBase::CheckAvailableExecNodes()
         observedExecNode.Address);
 }
 
-void TOperationControllerBase::AnalyzeTmpfsUsage()
+void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
 {
-    if (!Config->EnableTmpfs) {
-        return;
-    }
+    struct TMemoryInfo
+    {
+        std::vector<std::optional<i64>> MaxTmpfsUsage;
+        std::optional<i64> MaxMemoryUsage;
+        i64 MemoryReserve = 0;
 
-    THashMap<TString, std::vector<std::optional<i64>>> maximumUsedTmpfsSizesPerJobType;
-    THashMap<TString, TUserJobSpecPtr> userJobSpecPerJobType;
+        TUserJobSpecPtr JobSpec;
+    };
+
+    THashMap<TString, TMemoryInfo> memoryInfoPerJobType;
 
     for (const auto& task : Tasks) {
         if (!task->IsSimpleTask()) {
@@ -3499,76 +3503,111 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         }
 
         auto jobType = task->GetVertexDescriptor();
-        const auto& userJobSpecPtr = task->GetUserJobSpec();
-        if (!userJobSpecPtr) {
+        const auto& userJobSpec = task->GetUserJobSpec();
+        if (!userJobSpec) {
             continue;
         }
 
-        std::optional<i64> maxMemoryUsage;
+        auto memoryInfoIt = memoryInfoPerJobType.find(jobType);
+        if (memoryInfoIt == memoryInfoPerJobType.end()) {
+            memoryInfoIt = memoryInfoPerJobType.emplace(jobType, TMemoryInfo()).first;
+        }
+
+        auto& memoryInfo = memoryInfoIt->second;
+
+        memoryInfo.JobSpec = userJobSpec;
+
+        // Some approximation to actual memory reserve in jobs of given task.
+        memoryInfo.MemoryReserve = userJobSpec->MemoryLimit *
+            task->GetUserJobMemoryDigest()->GetQuantile(Config->UserJobMemoryReserveQuantile);
+
         for (const auto& jobState : { EJobState::Completed, EJobState::Failed }) {
             auto statistic = "/user_job/max_memory" + JobHelper.GetStatisticsSuffix(jobState, task->GetJobType());
             auto summary = FindSummary(JobStatistics, statistic);
             if (summary) {
-                if (!maxMemoryUsage) {
-                    maxMemoryUsage = 0;
+                if (!memoryInfo.MaxMemoryUsage) {
+                    memoryInfo.MaxMemoryUsage = 0;
                 }
-                *maxMemoryUsage = std::max(*maxMemoryUsage, summary->GetMax());
+                memoryInfo.MaxMemoryUsage = std::max(*memoryInfo.MaxMemoryUsage, summary->GetMax());
             }
         }
-
-        if (maxMemoryUsage) {
-            auto memoryUsageRatio = static_cast<double>(*maxMemoryUsage) / userJobSpecPtr->MemoryLimit;
-            if (memoryUsageRatio > Config->OperationAlerts->TmpfsAlertMemoryUsageMuteRatio) {
-                continue;
-            }
-        }
-
-        userJobSpecPerJobType.insert(std::make_pair(jobType, userJobSpecPtr));
 
         auto maxUsedTmpfsSizes = task->GetMaximumUsedTmpfsSizes();
 
-        YT_VERIFY(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
+        YT_VERIFY(userJobSpec->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
 
-        auto it = maximumUsedTmpfsSizesPerJobType.find(jobType);
-        if (it == maximumUsedTmpfsSizesPerJobType.end()) {
-            it = maximumUsedTmpfsSizesPerJobType.emplace(jobType, std::vector<std::optional<i64>>(maxUsedTmpfsSizes.size())).first;
+        if (memoryInfo.MaxTmpfsUsage.empty()) {
+            memoryInfo.MaxTmpfsUsage.resize(maxUsedTmpfsSizes.size());
         }
-        auto& knownMaxUsedTmpfsSizes = it->second;
 
-        YT_VERIFY(knownMaxUsedTmpfsSizes.size() == maxUsedTmpfsSizes.size());
+        YT_VERIFY(memoryInfo.MaxTmpfsUsage.size() == maxUsedTmpfsSizes.size());
 
         for (int index = 0; index < maxUsedTmpfsSizes.size(); ++index) {
             auto tmpfsSize = maxUsedTmpfsSizes[index];
             if (tmpfsSize) {
-                if (!knownMaxUsedTmpfsSizes[index]) {
-                    knownMaxUsedTmpfsSizes[index] = 0;
+                if (!memoryInfo.MaxTmpfsUsage[index]) {
+                    memoryInfo.MaxTmpfsUsage[index] = 0;
                 }
-                knownMaxUsedTmpfsSizes[index] = std::max(*knownMaxUsedTmpfsSizes[index], *tmpfsSize);
+                memoryInfo.MaxTmpfsUsage[index] = std::max(*memoryInfo.MaxTmpfsUsage[index], *tmpfsSize);
             }
         }
     }
 
-    std::vector<TError> innerErrors;
+    std::vector<TError> tmpfsErrors;
+    std::vector<TError> memoryErrors;
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& [jobType, maxUsedTmpfsSizes] : maximumUsedTmpfsSizesPerJobType) {
-        const auto& userJobSpecPtr = userJobSpecPerJobType[jobType];
+    for (const auto& [jobType, memoryInfo] : memoryInfoPerJobType) {
+        const auto& jobSpec = memoryInfo.JobSpec;
+        const auto& tmpfsVolumes = jobSpec->TmpfsVolumes;
 
-        YT_VERIFY(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
+        bool skipTmpfsCheck = false;
+        if (memoryInfo.MaxMemoryUsage) {
+            i64 memoryUsage = *memoryInfo.MaxMemoryUsage;
 
-        const auto& tmpfsVolumes = userJobSpecPtr->TmpfsVolumes;
+            for (int index = 0; index < tmpfsVolumes.size(); ++index) {
+                auto maxTmpfsUsage = memoryInfo.MaxTmpfsUsage[index];
+                if (maxTmpfsUsage) {
+                    memoryUsage += *maxTmpfsUsage;
+                }
+            }
+
+            auto memoryUsageRatio = static_cast<double>(memoryUsage) / memoryInfo.MemoryReserve;
+
+            bool ratioViolated = memoryUsageRatio + Config->OperationAlerts->MemoryUsageAlertMaxUnusedRatio < 1.0;
+            bool sizeViolated = memoryUsage + Config->OperationAlerts->MemoryUsageAlertMaxUnusedSize < memoryInfo.MemoryReserve;
+            
+            auto maxJobCount = Config->OperationAlerts->MemoryUsageAlertMaxJobCount;
+            bool maxJobCountViolated = maxJobCount && GetTotalJobCount() < *maxJobCount;
+            if (ratioViolated && sizeViolated && !maxJobCountViolated) {
+                memoryErrors.push_back(TError(
+                    "Jobs of type %Qlv use less than %.1f%% of requested memory",
+                    jobType,
+                    1.0 - Config->OperationAlerts->MemoryUsageAlertMaxUnusedRatio)
+                    << TErrorAttribute("memory_reserve", memoryInfo.MemoryReserve)
+                    << TErrorAttribute("memory_usage", memoryUsage));
+            }
+
+            if (memoryUsageRatio > Config->OperationAlerts->TmpfsAlertMemoryUsageMuteRatio) {
+                skipTmpfsCheck = true;
+            }
+        }
+
+        if (skipTmpfsCheck) {
+            continue;
+        }
+
         for (int index = 0; index < tmpfsVolumes.size(); ++index) {
-            auto maxUsedTmpfsSize = maxUsedTmpfsSizes[index];
-            if (!maxUsedTmpfsSize) {
+            auto maxTmpfsUsage = memoryInfo.MaxTmpfsUsage[index];
+            if (!maxTmpfsUsage) {
                 continue;
             }
 
-            auto orderedTmpfsSize = tmpfsVolumes[index]->Size;
-            bool minUnusedSpaceThresholdOvercome = orderedTmpfsSize - *maxUsedTmpfsSize >
+            auto requestedTmpfsSize = tmpfsVolumes[index]->Size;
+            bool minUnusedSpaceThresholdOvercome = requestedTmpfsSize - *maxTmpfsUsage >
                 Config->OperationAlerts->TmpfsAlertMinUnusedSpaceThreshold;
-            bool minUnusedSpaceRatioViolated = *maxUsedTmpfsSize <
-                minUnusedSpaceRatio * orderedTmpfsSize;
+            bool minUnusedSpaceRatioViolated = *maxTmpfsUsage < minUnusedSpaceRatio * requestedTmpfsSize;
 
             if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
                 auto error = TError(
@@ -3576,22 +3615,36 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
                     jobType,
                     minUnusedSpaceRatio * 100.0,
                     tmpfsVolumes[index]->Path)
-                    << TErrorAttribute("max_used_tmpfs_size", *maxUsedTmpfsSize)
-                    << TErrorAttribute("tmpfs_size", orderedTmpfsSize);
-                innerErrors.push_back(error);
+                    << TErrorAttribute("max_used_tmpfs_size", *maxTmpfsUsage)
+                    << TErrorAttribute("tmpfs_size", requestedTmpfsSize);
+                tmpfsErrors.push_back(error);
             }
         }
     }
 
-    TError error;
-    if (!innerErrors.empty()) {
-        error = TError(
-            "Operation has jobs that use less than %.1f%% of requested tmpfs size; "
-            "consider specifying tmpfs size closer to actual usage",
-            minUnusedSpaceRatio * 100.0) << innerErrors;
+    {
+        TError error;
+        if (!tmpfsErrors.empty()) {
+            error = TError(
+                "Operation has jobs that use tmpfs inefficiently; "
+                "consider specifying tmpfs size closer to actual usage")
+                << tmpfsErrors;
+        }
+
+        SetOperationAlert(EOperationAlertType::UnusedTmpfsSpace, error);
     }
 
-    SetOperationAlert(EOperationAlertType::UnusedTmpfsSpace, error);
+    {
+        TError error;
+        if (!memoryErrors.empty()) {
+            error = TError(
+                "Operation has jobs that use memory inefficiently; "
+                "consider specifying memory limit closer to actual usage")
+                << memoryErrors;
+        }
+
+        SetOperationAlert(EOperationAlertType::UnusedMemory, error);
+    }
 }
 
 void TOperationControllerBase::AnalyzeInputStatistics()
@@ -3897,7 +3950,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
-    AnalyzeTmpfsUsage();
+    AnalyzeMemoryAndTmpfsUsage();
     AnalyzeInputStatistics();
     AnalyzeIntermediateJobsStatistics();
     AnalyzePartitionHistogram();

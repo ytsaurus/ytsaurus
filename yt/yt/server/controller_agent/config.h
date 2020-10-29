@@ -82,6 +82,15 @@ public:
     // Minimum memory usage ratio required to mute tmpfs usage alert.
     double TmpfsAlertMemoryUsageMuteRatio;
 
+    // Alert can be set only if unused memory greater than this number of bytes.
+    i64 MemoryUsageAlertMaxUnusedSize;
+    
+    // Alert can be set only if unused memory ratio greater than this threshold.
+    double MemoryUsageAlertMaxUnusedRatio;
+
+    // Alert can be set only if number of jobs less than or equal to this threshold.
+    std::optional<int> MemoryUsageAlertMaxJobCount;
+
     // Maximum allowed aborted jobs time. If it is violated
     // then operation alert will be set.
     i64 AbortedJobsAlertMaxAbortedTime;
