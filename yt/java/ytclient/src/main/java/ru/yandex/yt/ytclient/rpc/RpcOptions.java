@@ -2,6 +2,8 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.time.Duration;
 
+import javax.annotation.Nullable;
+
 import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
@@ -20,6 +22,9 @@ public class RpcOptions {
     private boolean useClientsCache = false; // for backward compatibility
     private int clientsCacheSize = 10000; // will be used only when useClientsCache is true
     private Duration clientCacheExpiration = Duration.ofMillis(1); // will be used only when useClientsCache is true
+
+    // Client fails request if acknowlegdgement is not received within this timeout.
+    private @Nullable Duration acknowledgementTimeout = Duration.ofSeconds(15);
 
     private Duration globalTimeout = Duration.ofMillis(60000);  // fails request after this timeout
     private Duration failoverTimeout = Duration.ofMillis(30000); // sends fallback request to other proxy after this timeout
@@ -288,6 +293,26 @@ public class RpcOptions {
      */
     public RpcOptions setNewDiscoveryServiceEnabled(boolean newDiscoveryServiceEnabled) {
         this.newDiscoveryServiceEnabled = newDiscoveryServiceEnabled;
+        return this;
+    }
+
+    /**
+     * @see #setAcknowledgementTimeout
+     */
+    public @Nullable Duration getAcknowledgementTimeout() {
+        return isNewDiscoveryServiceEnabled() ? acknowledgementTimeout : null;
+    }
+
+    /**
+     * Set acknowledgement timeout.
+     *
+     * Client will fail request if acknowledgement is not received within this timeout.
+     * Works only with newDiscoveryServiceEnabled
+     *
+     * @see #setNewDiscoveryServiceEnabled
+     */
+    public RpcOptions setAcknowledgementTimeout(@Nullable Duration acknowledgementTimeout) {
+        this.acknowledgementTimeout = acknowledgementTimeout;
         return this;
     }
 }

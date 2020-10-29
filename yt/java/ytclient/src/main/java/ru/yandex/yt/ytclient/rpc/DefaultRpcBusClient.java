@@ -264,10 +264,17 @@ public class DefaultRpcBusClient implements RpcClient {
      * Состояние запроса в системе
      */
     private enum RequestState {
-        INITIALIZING,
-        SENDING,
-        ACKED,
-        FINISHED,
+        INITIALIZING(0),
+        SENDING(1),
+        ACKED(2),
+        FINISHED(3),
+        ;
+
+        int step;
+
+        RequestState(int step) {
+            this.step = step;
+        }
     }
 
     private static abstract class RequestBase implements RpcClientRequestControl {
@@ -279,9 +286,11 @@ public class DefaultRpcBusClient implements RpcClient {
         protected final GUID requestId;
         protected Instant started;
         protected final Statistics stat;
+        protected final RpcOptions options;
 
         // Подписка на событие с таймаутом, если он есть
         protected ScheduledFuture<?> timeoutFuture;
+        private ScheduledFuture<?> ackTimeoutFuture;
 
         RequestBase(RpcClient sender, Session session, RpcClientRequest request, Statistics stat) {
             this.sender = Objects.requireNonNull(sender);
@@ -289,6 +298,7 @@ public class DefaultRpcBusClient implements RpcClient {
             this.request = Objects.requireNonNull(request);
             this.requestId = request.getRequestId();
             this.stat = stat;
+            this.options = request.getOptions();
         }
 
         public void response(TResponseHeader header, List<byte[]> attachments) {
@@ -305,7 +315,18 @@ public class DefaultRpcBusClient implements RpcClient {
 
         abstract void handleError(Throwable cause);
 
-        abstract void handleAcknowledgement(RpcClient sender);
+        void handleAcknowledgement() {
+            logger.trace("Ack {}", requestId);
+            lock.lock();
+            try {
+                if (ackTimeoutFuture != null) {
+                    ackTimeoutFuture.cancel(true);
+                    ackTimeoutFuture = null;
+                }
+            } finally {
+                lock.unlock();
+            }
+        }
 
         abstract void handleCancellation(CancellationException cancel);
 
@@ -325,7 +346,6 @@ public class DefaultRpcBusClient implements RpcClient {
                 }
 
                 started = Instant.now();
-                Duration timeout = request.getTimeout();
                 request.header().setStartTime(RpcUtil.instantToMicros(started));
                 List<byte[]> message = request.serialize();
 
@@ -343,22 +363,31 @@ public class DefaultRpcBusClient implements RpcClient {
                         logger.debug("({}) request `{}` acked in {} ms with error `{}`", session, request, elapsed.toMillis(), exception.toString());
                     } else {
                         ack();
-                        logger.trace("({}) request `{}` acked in {} ms", session, request, elapsed.toMillis());
+                        logger.trace("Request `{}` acked in {} ms", request, elapsed.toMillis());
                     }
                 });
 
-                if (timeout != null) {
-                    // Регистрируем таймаут после того как положили запрос в очередь
-                    lock.lock();
-                    try {
-                        if (state != RequestState.FINISHED) {
-                            // Запрос ещё не успел завершиться
-                            timeoutFuture = session.eventLoop()
-                                    .schedule(this::handleTimeout, timeout.toNanos(), TimeUnit.NANOSECONDS);
-                        }
-                    } finally {
-                        lock.unlock();
+                Duration timeout = request.getTimeout();
+                Duration acknowledgementTimeout = options.getAcknowledgementTimeout();
+                // Регистрируем таймаут после того как положили запрос в очередь
+                lock.lock();
+                try {
+                    if (timeout != null && state != RequestState.FINISHED) {
+                        // Запрос ещё не успел завершиться
+                        timeoutFuture = session.eventLoop()
+                                .schedule(this::handleTimeout, timeout.toNanos(), TimeUnit.NANOSECONDS);
                     }
+
+                    if (acknowledgementTimeout != null
+                            && request.requestAck()
+                            && state.step < RequestState.ACKED.step)
+                    {
+                        ackTimeoutFuture = session.eventLoop().schedule(
+                                this::onAcknowledgementTimeout,
+                                acknowledgementTimeout.toNanos(), TimeUnit.NANOSECONDS);
+                    }
+                } finally {
+                    lock.unlock();
                 }
             } catch (Throwable e) {
                 error(e);
@@ -373,6 +402,10 @@ public class DefaultRpcBusClient implements RpcClient {
             if (timeoutFuture != null) {
                 timeoutFuture.cancel(false);
                 timeoutFuture = null;
+            }
+            if (ackTimeoutFuture != null) {
+                ackTimeoutFuture.cancel(false);
+                ackTimeoutFuture = null;
             }
         }
 
@@ -392,10 +425,7 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         public void handleTimeout() {
-            logger.warn("Request timed out; RequestId: {}", requestId);
-
-            sendCancellation(); // NB. YT-11418
-            error(new TimeoutException("Request timed out"));
+            timeout(new TimeoutException("Request timed out"));
         }
 
         @Override
@@ -442,7 +472,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 lock.unlock();
             }
             try {
-                handleAcknowledgement(sender);
+                handleAcknowledgement();
             } catch (Throwable e) {
                 error(e);
             }
@@ -469,6 +499,28 @@ public class DefaultRpcBusClient implements RpcClient {
                 session.unregister(this);
             }
         }
+
+        private void timeout(TimeoutException error) {
+            logger.warn("{}; RequestId: {}", error.toString(), requestId);
+
+            sendCancellation(); // NB. YT-11418
+            error(error);
+        }
+
+        private void onAcknowledgementTimeout() {
+            lock.lock();
+            try {
+                if (state.step >= RequestState.ACKED.step) {
+                    return;
+                }
+            } finally {
+                lock.unlock();
+            }
+            String message = String.format("Request acknowledgement timed out; requestId: %s; proxy: %s",
+                    requestId.toString(),
+                    sender.getAddressString());
+            timeout(new AcknowledgementTimeoutException(message));
+        }
     }
 
     private static class Request extends RequestBase {
@@ -482,10 +534,6 @@ public class DefaultRpcBusClient implements RpcClient {
 
         public void handleError(Throwable error) {
             handler.onError(error);
-        }
-
-        @Override
-        public void handleAcknowledgement(RpcClient sender) {
         }
 
         @Override
@@ -535,7 +583,6 @@ public class DefaultRpcBusClient implements RpcClient {
         final AtomicInteger sequenceNumber = new AtomicInteger(0);
         Duration readTimeout;
         Duration writeTimeout;
-        final RpcOptions options;
 
         ScheduledFuture<?> readTimeoutFuture = null;
         ScheduledFuture<?> writeTimeoutFuture = null;
@@ -543,7 +590,6 @@ public class DefaultRpcBusClient implements RpcClient {
         StreamingRequest(RpcClient sender, Session session, RpcClientRequest request, RpcStreamConsumer consumer, Statistics stat) {
             super(sender, session, request, stat);
             this.consumer = consumer;
-            this.options = request.getOptions();
             this.readTimeout = options.getStreamingReadTimeout();
             this.writeTimeout = options.getStreamingWriteTimeout();
             this.resetWriteTimeout();
@@ -570,11 +616,6 @@ public class DefaultRpcBusClient implements RpcClient {
             }
             builder.setWindowSize(options.getStreamingWindowSize());
             request.header().setServerAttachmentsStreamingParameters(builder);
-        }
-
-        @Override
-        void handleAcknowledgement(RpcClient sender) {
-            logger.trace("Ack {}", requestId);
         }
 
         @Override
