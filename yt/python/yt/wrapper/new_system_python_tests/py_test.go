@@ -167,6 +167,9 @@ func GetPythonPaths() []string {
 		"contrib/python/pathlib2",
 		"contrib/python/funcsigs",
 		"contrib/python/scandir",
+		"contrib/python/importlib-metadata",
+		"contrib/python/contextlib2",
+		"contrib/python/configparser",
 	}
 
 	var sharedLibraries = []string{
