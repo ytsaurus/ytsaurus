@@ -36,7 +36,7 @@ Y_NO_SANITIZE("thread") void TFreeList<TItem>::Put(TItem* head, TItem* tail)
     auto popCount = Head_.PopCount.load(std::memory_order_relaxed);
 
     do {
-        tail->Next = current;
+        tail->Next.store(current, std::memory_order_release);
     } while (!CompareAndSet(&AtomicHead_, current, popCount, head, popCount));
 }
 
@@ -56,9 +56,9 @@ Y_NO_SANITIZE("thread") TItem* TFreeList<TItem>::Extract()
         // If current node is already extracted by other thread
         // there can be any writes at address &current->Next.
         // The only guaranteed thing is that address is valid (memory is not freed).
-        auto next = current->Next;
+        auto next = current->Next.load(std::memory_order_acquire);
         if (CompareAndSet(&AtomicHead_, current, popCount, next, popCount + 1)) {
-            current->Next = nullptr;
+            current->Next.store(nullptr, std::memory_order_release);
             return current;
         }
     }

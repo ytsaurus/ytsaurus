@@ -108,7 +108,7 @@ Y_FORCE_INLINE bool TRefCounter::Unref() const
 
 Y_FORCE_INLINE int TRefCounter::GetWeakRefCount() const noexcept
 {
-    return WeakCount_.load(std::memory_order_relaxed);
+    return WeakCount_.load(std::memory_order_acquire);
 }
 
 Y_FORCE_INLINE void TRefCounter::WeakRef() const noexcept
@@ -121,7 +121,12 @@ Y_FORCE_INLINE bool TRefCounter::WeakUnref() const
 {
     auto oldWeakCount = WeakCount_.fetch_sub(1, std::memory_order_release);
     YT_ASSERT(oldWeakCount > 0);
-    return oldWeakCount == 1;
+    if (oldWeakCount == 1) {
+        WeakCount_.load(std::memory_order_acquire);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,7 +11,7 @@ namespace NYT {
 template <class T>
 struct TFreeListItemBase
 {
-    T* Next = nullptr;
+    std::atomic<T*> Next = nullptr;
 };
 
 // DCAS is supported in Clang with option -mcx16, is not supported in GCC. See following links.

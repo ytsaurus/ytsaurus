@@ -39,7 +39,7 @@ TArenaPool::~TArenaPool()
 
     auto* segment = Segments_.ExtractAll();
     while (segment) {
-        auto* next = segment->Next;
+        auto* next = segment->Next.load(std::memory_order_acquire);
         NYTAlloc::Free(segment);
         segment = next;
     }
@@ -112,8 +112,10 @@ void* TSlabAllocator::Allocate(size_t size)
         ptr = NYTAlloc::Allocate(size);
     }
 
-    auto* header = static_cast<TArenaPool**>(ptr);
-    *header = arena;
+    // Mutes TSAN data race with write Next in TFreeList::Push.
+    auto* header = static_cast<std::atomic<void*>*>(ptr);
+    header->store(arena, std::memory_order_release);
+
     return header + 1;
 }
 

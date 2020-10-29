@@ -29,10 +29,7 @@ public:
         , ServerSocket_(serverSocket)
         , Poller_(poller)
         , Acceptor_(acceptor)
-    {
-        Acceptor_->Register(this);
-        Acceptor_->Arm(ServerSocket_, this, EPollControl::Read | EPollControl::EdgeTriggered);
-    }
+    { }
 
     // IPollable implementation
     virtual const TString& GetLoggingId() const override
@@ -204,12 +201,15 @@ IListenerPtr CreateListener(
         auto realAddress = GetSocketName(serverSocket);
 
         ListenSocket(serverSocket, maxBacklogSize);
-        return New<TListener>(
+        auto listener = New<TListener>(
             serverSocket,
             realAddress,
             Format("Listener{%v}", realAddress),
             poller,
             acceptor);
+        acceptor->Register(listener.Get());
+        acceptor->Arm(serverSocket, listener.Get(), EPollControl::Read | EPollControl::EdgeTriggered);
+        return listener;
     } catch (const std::exception& ) {
         YT_VERIFY(TryClose(serverSocket, false));
         throw;
