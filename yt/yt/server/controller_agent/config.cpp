@@ -36,6 +36,18 @@ TOperationAlertsConfig::TOperationAlertsConfig()
     RegisterParameter("tmpfs_alert_memory_usage_mute_ratio", TmpfsAlertMemoryUsageMuteRatio)
         .InRange(0.0, 1.0)
         .Default(0.8);
+    
+    RegisterParameter("memory_usage_alert_max_unused_size", MemoryUsageAlertMaxUnusedSize)
+        .Default(8_GB)
+        .GreaterThan(0);
+    
+    RegisterParameter("memory_usage_alert_max_unused_ratio", MemoryUsageAlertMaxUnusedRatio)
+        .InRange(0.0, 1.0)
+        .Default(0.2);
+
+    RegisterParameter("memory_usage_alert_max_job_count", MemoryUsageAlertMaxJobCount)
+        .Default()
+        .GreaterThan(0);
 
     RegisterParameter("aborted_jobs_alert_max_aborted_time", AbortedJobsAlertMaxAbortedTime)
         .Default((i64) 10 * 60 * 1000)

@@ -529,7 +529,7 @@ protected:
     void CheckAvailableExecNodes();
 
     virtual void AnalyzePartitionHistogram();
-    void AnalyzeTmpfsUsage();
+    void AnalyzeMemoryAndTmpfsUsage();
     void AnalyzeIntermediateJobsStatistics();
     void AnalyzeInputStatistics();
     void AnalyzeAbortedJobs();

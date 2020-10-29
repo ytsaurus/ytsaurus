@@ -210,7 +210,13 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="echo abcdef >local_file; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"mapper": {"tmpfs_size": 5 * 1024 * 1024, "tmpfs_path": "."}},
+            spec={
+                "mapper": {
+                    "tmpfs_size": 5 * 1024 * 1024,
+                    "tmpfs_path": ".",
+                    "memory_reserve_factor": 0.9,
+                },
+            },
         )
 
         wait(lambda: "unused_tmpfs_space" in op.get_alerts())
@@ -219,7 +225,13 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="printf '=%.0s' {1..768} >local_file; sleep 3; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"mapper": {"tmpfs_size": 1024, "tmpfs_path": "."}},
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024,
+                    "tmpfs_path": ".",
+                    "memory_reserve_factor": 0.9,
+                },
+            },
         )
 
         assert "unused_tmpfs_space" not in op.get_alerts()
@@ -234,11 +246,48 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "mapper": {
                     "tmpfs_size": 5 * 1024 * 1024,
                     "tmpfs_path": ".",
+                    "memory_reserve_factor": 0.9,
                 }
             },
         )
 
         assert "unused_tmpfs_space" not in op.get_alerts()
+
+    @authors("ignat")
+    def test_unused_memory_alert(self):
+        update_controller_agent_config("operation_alerts/memory_usage_alert_max_unused_size", 1024 * 1024)
+
+        create_test_tables()
+
+        op = map(
+            command="sleep 5",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "mapper": {
+                    "memory_reserve_factor": 0.9,
+                    "memory_limit": 1000 * 1024 * 1024,
+                },
+            },
+        )
+
+        wait(lambda: "unused_memory" in op.get_alerts())
+
+        update_controller_agent_config("operation_alerts/memory_usage_alert_max_unused_ratio", 1.0)
+
+        op = map(
+            command="echo abcdef >local_file; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "mapper": {
+                    "memory_reserve_factor": 0.9,
+                    "memory_limit": 1000 * 1024 * 1024,
+                },
+            },
+        )
+
+        assert "unused_memory" not in op.get_alerts()
 
     @authors("ignat")
     def test_missing_input_chunks_alert(self):
@@ -418,7 +467,13 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="echo abcdef >local_file; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"mapper": {"tmpfs_size": 5 * 1024 * 1024, "tmpfs_path": "."}},
+            spec={
+                "mapper": {
+                    "tmpfs_size": 5 * 1024 * 1024,
+                    "tmpfs_path": ".",
+                    "memory_reserve_factor": 0.9,
+                },
+            },
         )
 
         wait(lambda: "unused_tmpfs_space" in op.get_alerts())
