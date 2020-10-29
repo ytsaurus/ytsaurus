@@ -212,7 +212,7 @@ TTableSchemaPtr InferCommonSchema(const std::vector<TTablePtr>& tables, const TL
     for (const auto& schema : schemas) {
         for (const auto& column : schema.Columns()) {
             if (auto it = nameToColumn.find(column.Name()); it != nameToColumn.end()) {
-                if (it->second.SimplifiedLogicalType() == column.SimplifiedLogicalType()) {
+                if (it->second.CastToV1Type() == column.CastToV1Type()) {
                     ++nameCounter[column.Name()];
                     if (!column.Required() && it->second.Required()) {
                         // If at least in one schema the column isn't required, the result common column isn't required too.

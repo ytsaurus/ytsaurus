@@ -171,7 +171,7 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             if (index < schema.GetKeyColumnCount()) {
                 THROW_ERROR_EXCEPTION("Key column %Qv cannot be aggregated", columnSchema.Name());
             }
-            if (!columnSchema.SimplifiedLogicalType() || !IsPhysicalType(*columnSchema.SimplifiedLogicalType())) {
+            if (!columnSchema.IsOfV1Type() || !IsPhysicalType(columnSchema.CastToV1Type())) {
                 THROW_ERROR_EXCEPTION("Aggregated column %Qv is forbidden to have logical type %Qlv",
                     columnSchema.Name(),
                     *columnSchema.LogicalType());
@@ -229,7 +229,7 @@ void ValidateComputedColumns(const TTableSchema& schema, bool isTableDynamic)
             }
             THashSet<TString> references;
             auto expr = PrepareExpression(*columnSchema.Expression(), schema, BuiltinTypeInferrersMap, &references);
-            if (GetLogicalType(expr->Type) != columnSchema.SimplifiedLogicalType()) {
+            if (!columnSchema.IsOfV1Type(GetLogicalType(expr->Type))) {
                 THROW_ERROR_EXCEPTION(
                     "Computed column %Qv type mismatch: declared type is %Qlv but expression type is %Qlv",
                     columnSchema.Name(),
@@ -520,7 +520,7 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibilityImpl(
     // EValueType::Composite to EValueType::Any.
     if (!outputSchema.GetStrict()) {
         for (const auto& inputColumn : inputSchema.Columns()) {
-            if (inputColumn.SimplifiedLogicalType()) {
+            if (!IsV3Composite(inputColumn.LogicalType())) {
                 continue;
             }
             if (!outputSchemaIndex.contains(inputColumn.Name())) {

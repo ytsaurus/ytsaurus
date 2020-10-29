@@ -37,7 +37,7 @@ TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
         const auto& nameTable = valueConsumer->GetNameTable();
 
         for (const auto& column : valueConsumer->GetSchema()->Columns()) {
-            if (column.SimplifiedLogicalType()) {
+            if (!IsV3Composite(column.LogicalType())) {
                 continue;
             }
             const auto id = nameTable->GetIdOrRegisterName(column.Name());

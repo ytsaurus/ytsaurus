@@ -371,16 +371,16 @@ protected:
                     continue;
                 }
                 const auto& column = table->Schema->GetColumnOrThrow(columnName);
-                if (column.SimplifiedLogicalType() && *column.SimplifiedLogicalType() == ESimpleLogicalValueType::Any) {
+                if (column.IsOfV1Type(ESimpleLogicalValueType::Any)) {
                     continue;
                 }
                 if (referenceColumn) {
                     bool ok = true;
-                    if (!referenceColumn->SimplifiedLogicalType()) {
+                    if (!referenceColumn->IsOfV1Type() || !column.IsOfV1Type()) {
                         if (*column.LogicalType() != *referenceColumn->LogicalType())  {
                             ok = false;
                         }
-                    } else if (GetPhysicalType(*referenceColumn->SimplifiedLogicalType()) != GetPhysicalType(*column.SimplifiedLogicalType())) {
+                    } else if (GetPhysicalType(referenceColumn->CastToV1Type()) != GetPhysicalType(column.CastToV1Type())) {
                         ok = false;
                     }
                     if (!ok) {

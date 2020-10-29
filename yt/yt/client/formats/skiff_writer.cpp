@@ -488,7 +488,7 @@ public:
 
                     return {};
                 }
-                if (columnSchema->SimplifiedLogicalType()) {
+                if (columnSchema->IsOfV1Type()) {
                     return {};
                 }
 

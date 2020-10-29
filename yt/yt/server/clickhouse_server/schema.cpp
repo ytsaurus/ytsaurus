@@ -48,7 +48,7 @@ DB::DataTypePtr ToDataType(const TLogicalTypePtr& logicalType, const TCompositeS
 {
     // TODO(max42): this functions seems redundant. Maybe we can always ask composite converter
     // to deduce resulting data type for us.
-    if (!SimplifyLogicalType(logicalType).first) {
+    if (!IsV1Type(logicalType)) {
         // This is an ultimately rich type (like optional<optional<...>> or list<...> etc).
         if (settings->EnableConversion) {
             return TCompositeValueToClickHouseColumnConverter(TComplexTypeFieldDescriptor(logicalType), New<TCompositeSettings>())

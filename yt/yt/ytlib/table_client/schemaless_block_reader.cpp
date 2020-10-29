@@ -44,10 +44,7 @@ THorizontalBlockReader::THorizontalBlockReader(
     const auto& schemaColumns = schema->Columns();
     IsCompositeColumn_.assign(schemaColumns.size(), false);
     for (int i = 0; i < schemaColumns.size(); ++i) {
-        auto isSimpleType = schemaColumns[i].SimplifiedLogicalType().has_value();
-        if (!isSimpleType) {
-            IsCompositeColumn_[i] = true;
-        }
+        IsCompositeColumn_[i] = IsV3Composite(schemaColumns[i].LogicalType());
     }
 
     JumpToRowIndex(0);

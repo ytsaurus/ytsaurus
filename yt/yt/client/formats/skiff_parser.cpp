@@ -199,7 +199,7 @@ public:
                 TSkiffToUnversionedValueConverter converter;
                 auto columnSchema = columnSchemas.FindPtr(fieldDescription.Name());
                 try {
-                    if (columnSchema && !(*columnSchema)->SimplifiedLogicalType()) {
+                    if (columnSchema && !(*columnSchema)->IsOfV1Type()) {
                         converter = CreateComplexValueConverter(
                             TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
                             fieldDescription.Schema(),
@@ -225,7 +225,7 @@ public:
                 TSkiffToUnversionedValueConverter converter;
                 auto columnSchema = columnSchemas.FindPtr(fieldDescription.Name());
                 try {
-                    if (columnSchema && !(*columnSchema)->SimplifiedLogicalType()) {
+                    if (columnSchema && !(*columnSchema)->IsOfV1Type()) {
                         converter = CreateComplexValueConverter(
                             TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
                             fieldDescription.Schema(),

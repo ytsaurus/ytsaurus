@@ -1033,9 +1033,6 @@ void ValidateValueType(
 {
     if (value.Type == EValueType::Null) {
         if (columnSchema.Required()) {
-            // Any column can't be required.
-            YT_VERIFY(columnSchema.SimplifiedLogicalType() != ESimpleLogicalValueType::Any);
-
             if (ignoreRequired) {
                 return;
             }
@@ -1050,26 +1047,9 @@ void ValidateValueType(
         }
     }
 
-    if (!columnSchema.SimplifiedLogicalType()) {
-        if (value.Type != EValueType::Composite) {
-            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Invalid type of column %Qv: expected complex value but got %Qlv",
-                columnSchema.Name(),
-                value.Type);
-        }
-        try {
-            ValidateComplexLogicalType(TStringBuf(value.Data.String, value.Length), columnSchema.LogicalType());
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
-                "Error validating column %Qv",
-                columnSchema.Name()
-            ) << ex;
-        }
-        return;
-    }
-
     try {
-        switch (*columnSchema.SimplifiedLogicalType()) {
+        auto v1Type = columnSchema.CastToV1Type();
+        switch (v1Type) {
             case ESimpleLogicalValueType::Null:
             case ESimpleLogicalValueType::Void:
                 // this case should be handled before
@@ -1078,11 +1058,17 @@ void ValidateValueType(
                 }
                 return;
             case ESimpleLogicalValueType::Any:
-                if (!typeAnyAcceptsAllValues && value.Type != EValueType::Any) {
-                    ThrowInvalidColumnType(EValueType::Any, value.Type);
+                if (columnSchema.IsOfV1Type()) {
+                    if (!typeAnyAcceptsAllValues && value.Type != EValueType::Any) {
+                        ThrowInvalidColumnType(EValueType::Any, value.Type);
+                    }
+                } else {
+                    if (value.Type != EValueType::Composite) {
+                        ThrowInvalidColumnType(EValueType::Composite, value.Type);
+                    }
+                    ValidateComplexLogicalType(TStringBuf(value.Data.String, value.Length), columnSchema.LogicalType());
                 }
                 return;
-
 #define CASE(x) \
         case x: \
             ValidateSimpleLogicalType<x>(GetValue<x>(value)); \

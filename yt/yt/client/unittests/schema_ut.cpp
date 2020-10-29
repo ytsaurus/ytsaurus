@@ -1,4 +1,5 @@
 #include "logical_type_helpers.h"
+#include "logical_type_shortcuts.h"
 
 #include <yt/core/test_framework/framework.h>
 
@@ -8,6 +9,13 @@
 #include <yt/core/ytree/convert.h>
 
 namespace NYT::NTableClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void PrintTo(const TColumnSchema& columnSchema, std::ostream* os)
+{
+    *os << Format("%v", columnSchema);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -27,13 +35,21 @@ TColumnSchema ColumnFromYson(const TString& yson)
 
 TEST(TTableSchemaTest, ColumnTypeV1Deserialization)
 {
+    using namespace NLogicalTypeShortcuts;
+
     {
         auto column = ColumnFromYson(
             "{"
             "  name=x;"
             "  type=int64;"
             "}");
-        EXPECT_EQ(*column.LogicalType(), *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)));
+        EXPECT_EQ(*column.LogicalType(), *Optional(Int64()));
+        EXPECT_EQ(column.IsOfV1Type(), true);
+        EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Int64), true);
+        EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Uint64), false);
+        EXPECT_EQ(column.CastToV1Type(), ESimpleLogicalValueType::Int64);
+        EXPECT_EQ(column.Required(), false);
+        EXPECT_EQ(IsV3Composite(column.LogicalType()), false);
     }
 
     {
@@ -43,7 +59,13 @@ TEST(TTableSchemaTest, ColumnTypeV1Deserialization)
             "  type=uint64;"
             "  required=%true"
             "}");
-        EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Uint64));
+        EXPECT_EQ(*column.LogicalType(), *Uint64());
+        EXPECT_EQ(column.IsOfV1Type(), true);
+        EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Uint64), true);
+        EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Int64), false);
+        EXPECT_EQ(column.CastToV1Type(), ESimpleLogicalValueType::Uint64);
+        EXPECT_EQ(column.Required(), true);
+        EXPECT_EQ(IsV3Composite(column.LogicalType()), false);
     }
 
     {
@@ -54,6 +76,12 @@ TEST(TTableSchemaTest, ColumnTypeV1Deserialization)
             "}");
         EXPECT_EQ(*column.LogicalType(), *SimpleLogicalType(ESimpleLogicalValueType::Null));
         EXPECT_EQ(column.Required(), false);
+        EXPECT_EQ(column.IsOfV1Type(), true);
+        EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Null), true);
+        EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Int64), false);
+        EXPECT_EQ(column.CastToV1Type(), ESimpleLogicalValueType::Null);
+        EXPECT_EQ(column.Required(), false);
+        EXPECT_EQ(IsV3Composite(column.LogicalType()), false);
     }
 
     EXPECT_ANY_THROW(ColumnFromYson(
@@ -154,18 +182,23 @@ TEST(TTableSchemaTest, ColumnTypeV2Deserialization)
 
 TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
 {
-    {
-        auto column = ColumnFromYson(R"(
-            {
-              name=x;
-              type_v3={
-                type_name=list;
-                item=utf8;
-              }
-            }
-        )");
-        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)));
-    }
+    using namespace NLogicalTypeShortcuts;
+    auto listUtf8Column = ColumnFromYson(R"(
+        {
+          name=x;
+          type_v3={
+            type_name=list;
+            item=utf8;
+          }
+        }
+    )");
+    EXPECT_EQ(*listUtf8Column.LogicalType(), *List(Utf8()));
+    EXPECT_EQ(listUtf8Column.Required(), true);
+    EXPECT_EQ(listUtf8Column.IsOfV1Type(), false);
+    EXPECT_EQ(listUtf8Column.IsOfV1Type(ESimpleLogicalValueType::Utf8), false);
+    EXPECT_EQ(listUtf8Column.IsOfV1Type(ESimpleLogicalValueType::Any), false);
+    EXPECT_EQ(listUtf8Column.CastToV1Type(), ESimpleLogicalValueType::Any);
+    EXPECT_EQ(IsV3Composite(listUtf8Column.LogicalType()), true);
 
     {
         auto column = ColumnFromYson(R"(
@@ -178,7 +211,7 @@ TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
               required=%true;
             }
         )");
-        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)));
+        EXPECT_EQ(column, listUtf8Column);
     }
 
     {
@@ -192,7 +225,7 @@ TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
               type=any;
             }
         )");
-        EXPECT_EQ(*column.LogicalType(), *ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8)));
+        EXPECT_EQ(column, listUtf8Column);
     }
 
     {
@@ -210,9 +243,13 @@ TEST(TTableSchemaTest, ColumnTypeV3Deserialization)
               required=%false;
             }
         )");
-        EXPECT_EQ(
-            *column.LogicalType(),
-            *OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Utf8))));
+        EXPECT_EQ(*column.LogicalType(), *Optional(Optional(Utf8())));
+        EXPECT_EQ(column.Required(), false);
+        EXPECT_EQ(column.IsOfV1Type(), false);
+        EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Utf8), false);
+        EXPECT_EQ(column.IsOfV1Type(ESimpleLogicalValueType::Any), false);
+        EXPECT_EQ(column.CastToV1Type(), ESimpleLogicalValueType::Any);
+        EXPECT_EQ(IsV3Composite(column.LogicalType()), true);
     }
 
     EXPECT_THROW_WITH_SUBSTRING(

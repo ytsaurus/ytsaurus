@@ -229,12 +229,11 @@ private:
                     THROW_ERROR_EXCEPTION(
                         NTableClient::EErrorCode::InvalidSchemaValue, "Partitioned columns cannot be aggregated");
                 }
-                auto simpleLogicalValueType = SimplifyLogicalType(column.LogicalType()).first;
-                if (!simpleLogicalValueType) {
+                if (!column.IsOfV1Type()) {
                     THROW_ERROR_EXCEPTION(
                         NTableClient::EErrorCode::InvalidSchemaValue, "Only simple types are allowed for partitioned columns");
                 }
-                if (*simpleLogicalValueType == ESimpleLogicalValueType::Any) {
+                if (column.IsOfV1Type(ESimpleLogicalValueType::Any)) {
                     THROW_ERROR_EXCEPTION(
                         NTableClient::EErrorCode::InvalidSchemaValue, "Any type is not allowed for partitioned column");
                 }
