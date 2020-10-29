@@ -52,7 +52,7 @@ private:
     void EraseList(TNode* node)
     {
         while (node) {
-            auto* next = node->Next;
+            auto* next = node->Next.load(std::memory_order_acquire);
             delete node;
             node = next;
         }

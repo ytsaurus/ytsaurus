@@ -106,15 +106,9 @@ private:
 
 };
 
-// Cache registry in static variable to simplify introspection.
-static TFiberRegistry* FiberRegistry;
-
 TFiberRegistry* GetFiberRegistry()
 {
-    if (!FiberRegistry) {
-        FiberRegistry = Singleton<TFiberRegistry>();
-    }
-    return FiberRegistry;
+    return Singleton<TFiberRegistry>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
