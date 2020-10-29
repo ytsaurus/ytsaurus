@@ -238,6 +238,11 @@ TLegacyOwningKey TSortedChunkStore::GetUpperBoundKey() const
     return UpperBoundKey_;
 }
 
+bool TSortedChunkStore::HasNontrivialReadRange() const
+{
+    return ReadRange_.Front().first || ReadRange_.Front().second;
+}
+
 IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     TSharedRange<TRowRange> ranges,
@@ -589,11 +594,6 @@ ISortedStorePtr TSortedChunkStore::GetSortedBackingStore()
 {
     auto backingStore = GetBackingStore();
     return backingStore ? backingStore->AsSorted() : nullptr;
-}
-
-bool TSortedChunkStore::HasNontrivialReadRange() const
-{
-    return ReadRange_.Front().first || ReadRange_.Front().second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

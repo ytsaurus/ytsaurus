@@ -5,6 +5,8 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 
+#include <yt/server/node/data_node/master_connector.h>
+
 #include <yt/server/node/query_agent/config.h>
 
 #include <yt/server/node/tablet_node/security_manager.h>
@@ -21,6 +23,7 @@
 
 #include <yt/server/lib/tablet_node/config.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
@@ -42,6 +45,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/tls_cache.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -64,6 +68,8 @@ using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NYTree;
 using namespace NYson;
+
+using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,6 +184,8 @@ public:
             .SetCancelable(true)
             .SetStreamingEnabled(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchTabletStores)
+            .SetInvoker(bootstrap->GetStorageHeavyInvoker()));
     }
 
 private:
@@ -527,6 +535,323 @@ private:
             THROW_ERROR_EXCEPTION("Remote reader for ordered dynamic stores is not implemented");
         }
     }
+
+    void BuildChunkSpec(
+        const IChunkStorePtr& chunk,
+        TReadLimit lowerLimit,
+        TReadLimit upperLimit,
+        bool fetchAllMetaExtensions,
+        const THashSet<int>& extensionTags,
+        NChunkClient::NProto::TChunkSpec* chunkSpec)
+    {
+        const auto& chunkMeta = chunk->GetChunkMeta();
+        const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+
+        ToProto(chunkSpec->mutable_chunk_id(), chunk->GetChunkId());
+
+        // Adjust read ranges.
+        if (chunk->IsSorted()) {
+            auto sortedStore = chunk->AsSorted();
+
+            if (sortedStore->HasNontrivialReadRange()) {
+                // Adjust ranges for chunk views.
+                lowerLimit.MergeLowerKey(sortedStore->GetMinKey());
+                lowerLimit.MergeUpperKey(sortedStore->GetUpperBoundKey());
+            } else {
+                // Drop redundant ranges for chunks.
+                if (lowerLimit.HasKey() && lowerLimit.GetKey() <= sortedStore->GetMinKey()) {
+                    lowerLimit.SetKey({});
+                }
+                if (upperLimit.HasKey() && upperLimit.GetKey() >= sortedStore->GetUpperBoundKey()) {
+                    upperLimit.SetKey({});
+                }
+            }
+        }
+
+        if (!lowerLimit.IsTrivial()) {
+            ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
+        }
+        if (!upperLimit.IsTrivial()) {
+            ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
+        }
+
+        auto localNodeId = Bootstrap_->GetMasterConnector()->GetNodeId();
+        ToProto(chunkSpec->mutable_replicas(), chunk->GetReplicas(localNodeId));
+
+        chunkSpec->set_erasure_codec(miscExt.erasure_codec());
+
+        chunkSpec->set_row_count_override(miscExt.row_count());
+        chunkSpec->set_data_weight_override(miscExt.data_weight());
+
+        *chunkSpec->mutable_chunk_meta() = chunkMeta;
+        if (!fetchAllMetaExtensions) {
+            FilterProtoExtensions(
+                chunkSpec->mutable_chunk_meta()->mutable_extensions(),
+                chunkMeta.extensions(),
+                extensionTags);
+        }
+
+        if (auto overrideTimestamp = chunk->GetOverrideTimestamp()) {
+            chunkSpec->set_override_timestamp(overrideTimestamp);
+        }
+    }
+
+    void BuildDynamicStoreSpec(
+        const IDynamicStorePtr& dynamicStore,
+        TTabletId tabletId,
+        const TReadLimit& lowerLimit,
+        const TReadLimit& upperLimit,
+        NChunkClient::NProto::TChunkSpec* chunkSpec)
+    {
+        ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
+        ToProto(chunkSpec->mutable_tablet_id(), tabletId);
+
+        chunkSpec->set_row_count_override(dynamicStore->GetRowCount());
+        // For dynamic stores it is more or less the same.
+        chunkSpec->set_data_weight_override(dynamicStore->GetUncompressedDataSize());
+
+        auto localNodeId = Bootstrap_->GetMasterConnector()->GetNodeId();
+        TChunkReplica replica(localNodeId, GenericChunkReplicaIndex);
+        chunkSpec->add_replicas(ToProto<ui32>(replica));
+
+        if (!lowerLimit.IsTrivial()) {
+            ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
+        }
+        if (!upperLimit.IsTrivial()) {
+            ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
+        }
+    }
+
+    std::vector<TSharedRef> GatherSamples(
+        const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+        const TLegacyOwningKey& lowerBound,
+        const TLegacyOwningKey& upperBound,
+        i64 dataSizeBetweenSamples)
+    {
+        std::vector<TLegacyKey> keys;
+        i64 cumulativeSize = 0;
+        i64 nextSampleExpectedPosition = dataSizeBetweenSamples;
+
+        auto tryEmitSample = [&] (const TLegacyKey& key, i64 span) {
+            if (cumulativeSize >= nextSampleExpectedPosition) {
+                keys.push_back(key);
+                nextSampleExpectedPosition += dataSizeBetweenSamples;
+            } else {
+                i64 thisSamplePosition = cumulativeSize;
+                i64 nextSamplePosition = cumulativeSize + span;
+                if (nextSamplePosition > dataSizeBetweenSamples &&
+                    (nextSamplePosition - nextSampleExpectedPosition) >
+                        (nextSampleExpectedPosition - thisSamplePosition))
+                {
+                    keys.push_back(key);
+                    nextSampleExpectedPosition += dataSizeBetweenSamples;
+                }
+            }
+            cumulativeSize += span;
+        };
+
+        for (const auto& partition : tabletSnapshot->PartitionList) {
+            if (partition->PivotKey >= upperBound) {
+                break;
+            }
+            if (partition->NextPivotKey <= lowerBound) {
+                continue;
+            }
+
+            const auto& samples = partition->SampleKeys->Keys;
+
+            i64 partitionDataSize = 0;
+            for (const auto& store : partition->Stores) {
+                partitionDataSize += store->GetCompressedDataSize();
+            }
+            i64 span = partitionDataSize / (samples.size() + 1);
+
+            if (partition->PivotKey >= lowerBound && partition->PivotKey < upperBound) {
+                tryEmitSample(partition->PivotKey, span);
+            }
+
+            auto firstIt = std::lower_bound(samples.begin(), samples.end(), lowerBound);
+            auto lastIt = std::lower_bound(samples.begin(), samples.end(), upperBound);
+            while (firstIt < lastIt) {
+                tryEmitSample(*firstIt++, span);
+            }
+        }
+
+        TWireProtocolWriter writer;
+        writer.WriteUnversionedRowset(keys);
+        return writer.Finish();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, FetchTabletStores)
+    {
+        context->SetRequestInfo("SubrequestCount: %v", request->subrequests_size());
+
+        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
+
+        auto extensionTags = FromProto<THashSet<int>>(request->extension_tags());
+
+        for (const auto& subrequest : request->subrequests()) {
+            auto* subresponse = response->add_subresponses();
+
+            auto tabletId = FromProto<TTabletId>(subrequest.tablet_id());
+            auto tableIndex = subrequest.table_index();
+
+            try {
+                auto tabletSnapshot = subrequest.has_mount_revision()
+                    ? slotManager->FindTabletSnapshot(tabletId, subrequest.mount_revision())
+                    : slotManager->FindLatestTabletSnapshot(tabletId);
+                if (!tabletSnapshot) {
+                    subresponse->set_tablet_missing(true);
+                    continue;
+                }
+
+                if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
+                    THROW_ERROR_EXCEPTION("Fetching tablet stores for ordered tablets is not implemented");
+                }
+
+                auto validateReadLimit = [] (const TReadLimit& readLimit) {
+                    if (readLimit.HasOffset()) {
+                        THROW_ERROR_EXCEPTION("Cannot specify offset limit for fetching tablet stores");
+                    }
+                    if (readLimit.HasRowIndex()) {
+                        THROW_ERROR_EXCEPTION("Cannot specify row index limit for fetching tablet stores");
+                    }
+                    if (readLimit.HasTabletIndex()) {
+                        THROW_ERROR_EXCEPTION("Cannot specify tablet index limit for fetching tablet stores");
+                    }
+                    if (readLimit.HasChunkIndex()) {
+                        THROW_ERROR_EXCEPTION("Cannot specify chunk index limit for fetching tablet stores");
+                    }
+                };
+
+                for (int rangeIndex = 0; rangeIndex < subrequest.ranges_size(); ++rangeIndex) {
+                    const auto& protoRange = subrequest.ranges(rangeIndex);
+                    auto range = FromProto<TReadRange>(protoRange);
+                    validateReadLimit(range.LowerLimit());
+                    validateReadLimit(range.UpperLimit());
+
+                    if (subrequest.fetch_samples()) {
+                        response->Attachments().emplace_back();
+                    }
+
+                    const auto& rangeLowerBound = range.LowerLimit().HasKey()
+                        ? range.LowerLimit().GetKey()
+                        : MinKey();
+                    const auto& rangeUpperBound = range.UpperLimit().HasKey()
+                        ? range.UpperLimit().GetKey()
+                        : MaxKey();
+
+                    const auto& lowerBound = ChooseMaxKey(rangeLowerBound, tabletSnapshot->PivotKey);
+                    const auto& upperBound = ChooseMinKey(rangeUpperBound, tabletSnapshot->NextPivotKey);
+
+                    if (lowerBound >= upperBound) {
+                        continue;
+                    }
+
+                    TReadLimit inducedLowerBound;
+                    TReadLimit inducedUpperBound;
+                    if (lowerBound != MinKey()) {
+                        inducedLowerBound.SetKey(lowerBound);
+                    }
+                    if (upperBound != MaxKey()) {
+                        inducedUpperBound.SetKey(upperBound);
+                    }
+
+                    auto addStore = [&] (const IStorePtr& store) {
+                        switch (store->GetType()) {
+                            case EStoreType::SortedChunk: {
+                                auto sortedStore = store->AsSorted();
+                                if (sortedStore->GetMinKey() >= upperBound || sortedStore->GetUpperBoundKey() <= lowerBound) {
+                                    return;
+                                }
+
+                                BuildChunkSpec(
+                                    store->AsChunk(),
+                                    inducedLowerBound,
+                                    inducedUpperBound,
+                                    request->fetch_all_meta_extensions(),
+                                    extensionTags,
+                                    subresponse->add_stores());
+
+                                break;
+                            }
+
+                            case EStoreType::SortedDynamic:
+                                if (tabletSnapshot->Config->EnableDynamicStoreRead &&
+                                    !request->omit_dynamic_stores())
+                                {
+                                    BuildDynamicStoreSpec(
+                                        store->AsDynamic(),
+                                        tabletId,
+                                        inducedLowerBound,
+                                        inducedUpperBound,
+                                        subresponse->add_stores());
+                                } else {
+                                    return;
+                                }
+
+                                break;
+
+                            default:
+                                THROW_ERROR_EXCEPTION("Unexpected store type %Qlv",
+                                    store->GetType());
+                        }
+
+                        auto* spec = subresponse->mutable_stores(subresponse->stores_size() - 1);
+                        spec->set_range_index(subrequest.range_indices(rangeIndex));
+                        spec->set_table_index(tableIndex);
+                    };
+
+                    for (const auto& store : tabletSnapshot->Eden->Stores) {
+                        addStore(store);
+                    }
+
+                    {
+                        const auto& partitions = tabletSnapshot->PartitionList;
+
+                        auto firstIt = std::lower_bound(
+                            partitions.begin(),
+                            partitions.end(),
+                            lowerBound,
+                            [&] (const TPartitionSnapshotPtr& lhs, TLegacyKey rhs) {
+                                return lhs->NextPivotKey <= rhs;
+                            });
+                        auto lastIt = std::lower_bound(
+                            partitions.begin(),
+                            partitions.end(),
+                            upperBound,
+                            [&] (const TPartitionSnapshotPtr& lhs, TLegacyKey rhs) {
+                                return lhs->PivotKey < rhs;
+                            });
+
+                        for (auto it = firstIt; it != lastIt; ++it) {
+                            for (const auto& store : (*it)->Stores) {
+                                addStore(store);
+                            }
+                        }
+                    }
+
+                    if (subrequest.fetch_samples()) {
+                        auto samples = GatherSamples(
+                            tabletSnapshot,
+                            lowerBound,
+                            upperBound,
+                            subrequest.data_size_between_samples());
+                        struct TFetchTabletStoresTag {};
+                        auto mergedRef = MergeRefsToRef<TFetchTabletStoresTag>(std::move(samples));
+                        response->Attachments().back() = std::move(mergedRef);
+                    }
+                }
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error fetching tablet %v stores",
+                    tabletId)
+                    << TErrorAttribute("tablet_id", tabletId)
+                    << ex;
+            }
+        }
+
+        context->Reply();
+    }
 };
 
 IServicePtr CreateQueryService(
@@ -539,4 +864,3 @@ IServicePtr CreateQueryService(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryAgent
-

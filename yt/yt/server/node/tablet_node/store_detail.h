@@ -186,8 +186,6 @@ public:
 
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor);
 
-    const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const;
-
     TInstant GetCreationTime() const;
 
     // IStore implementation.
@@ -234,6 +232,12 @@ public:
     virtual void Preload(TInMemoryChunkDataPtr chunkData) override;
 
     virtual NChunkClient::TChunkId GetChunkId() const override;
+    virtual TTimestamp GetOverrideTimestamp() const override;
+
+    virtual NChunkClient::TChunkReplicaList GetReplicas(
+        NNodeTrackerClient::TNodeId localNodeId) const override;
+
+    virtual const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const override;
 
 protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
@@ -283,6 +287,8 @@ private:
     IDynamicStorePtr BackingStore_;
 
     NChunkClient::IBlockCachePtr DoGetBlockCache();
+
+    bool IsLocalChunkValid(const NDataNode::IChunkPtr& chunk) const;
 
     friend TPreloadedBlockCache;
 };

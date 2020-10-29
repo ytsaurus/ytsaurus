@@ -22,6 +22,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetTabletInfo);
     DEFINE_RPC_PROXY_METHOD(NProto, ReadDynamicStore,
         .SetStreamingEnabled(true));
+    DEFINE_RPC_PROXY_METHOD(NProto, FetchTabletStores);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

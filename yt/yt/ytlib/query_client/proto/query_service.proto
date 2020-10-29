@@ -3,6 +3,8 @@ package NYT.NQueryClient.NProto;
 import "yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt/client/table_client/proto/wire_protocol.proto";
 import "yt/client/query_client/proto/query_statistics.proto";
+import "yt/client/chunk_client/proto/read_limit.proto";
+import "yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt/ytlib/query_client/proto/query.proto";
 import "yt/ytlib/query_client/proto/functions_cache.proto";
 import "yt/core/misc/proto/guid.proto";
@@ -95,6 +97,48 @@ message TTabletInfo
 message TRspGetTabletInfo
 {
     repeated TTabletInfo tablets = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFetchTabletStores
+{
+    message TSubrequest
+    {
+        required NYT.NProto.TGuid tablet_id = 1;
+        optional int64 mount_revision = 2;
+        repeated NYT.NChunkClient.NProto.TReadRange ranges = 3;
+        repeated int32 range_indices = 4;
+        required int32 table_index = 5;
+        optional int32 tablet_index = 6;
+        optional bool fetch_samples = 7 [default = false];
+        // Compressed data size.
+        optional int32 data_size_between_samples = 8;
+    }
+
+    repeated TSubrequest subrequests = 1;
+
+    optional bool fetch_all_meta_extensions = 2 [default = false];
+    repeated int32 extension_tags = 3;
+
+    // Do not send dynamic stores even if @enable_dynamic_store_read is set.
+    optional bool omit_dynamic_stores = 4 [default = false];
+}
+
+message TRspFetchTabletStores
+{
+    message TSubresponse
+    {
+        repeated NChunkClient.NProto.TChunkSpec stores = 1;
+        required bool tablet_missing = 2 [default = false];
+    }
+
+    // |subresponses| contain exactly one subresponse for each subrequest
+    // from |subrequests| in the same order.
+    repeated TSubresponse subresponses = 1;
+
+    // Attachments contain wire-encoded samples keys. For each subrequest with
+    // |fetch_samples| = true there are len(|ranges|) attachments with samples.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

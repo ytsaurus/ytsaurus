@@ -51,6 +51,7 @@ TTableReadSpec FetchRegularTableReadSpec(
     int chunkCount;
     bool dynamic;
     TTableSchemaPtr schema;
+    bool fetchFromTablets;
     {
         YT_LOG_INFO("Requesting extended table attributes");
 
@@ -75,6 +76,7 @@ TTableReadSpec FetchRegularTableReadSpec(
             "schema",
             "unflushed_timestamp",
             "enable_dynamic_store_read",
+            "fetch_from_tablets",
         });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -87,6 +89,7 @@ TTableReadSpec FetchRegularTableReadSpec(
         chunkCount = attributes->Get<int>("chunk_count");
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchemaPtr>("schema");
+        fetchFromTablets = attributes->Get<bool>("fetch_from_tablets", false);
 
         ValidateDynamicTableTimestamp(options.RichPath, dynamic, *schema, *attributes);
     }
@@ -94,32 +97,37 @@ TTableReadSpec FetchRegularTableReadSpec(
     std::vector<TChunkSpec> chunkSpecs;
 
     {
-        YT_LOG_INFO("Fetching table chunks (ChunkCount: %v)",
-            chunkCount);
+        if (fetchFromTablets) {
+            YT_LOG_INFO("Fetching table chunks from tablets");
+            chunkSpecs = FetchTabletStores(options.Client, *userObject, options.RichPath.GetRanges(), logger);
+        } else {
+            YT_LOG_INFO("Fetching table chunks (ChunkCount: %v)",
+                chunkCount);
 
-        chunkSpecs = FetchChunkSpecs(
-            options.Client,
-            options.Client->GetNativeConnection()->GetNodeDirectory(),
-            *userObject,
-            options.RichPath.GetRanges(),
-            // XXX(babenko): YT-11825
-            dynamic && !schema->IsSorted() ? -1 : chunkCount,
-            options.FetchChunkSpecConfig->MaxChunksPerFetch,
-            options.FetchChunkSpecConfig->MaxChunksPerLocateRequest,
-            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-                req->set_fetch_parity_replicas(options.FetchParityReplicas);
-                AddCellTagToSyncWith(req, userObject->ObjectId);
-                SetTransactionId(req, userObject->ExternalTransactionId);
-                SetSuppressAccessTracking(req, suppressAccessTracking);
-                SetSuppressExpirationTimeoutRenewal(req, suppressExpirationTimeoutRenewal);
-            },
-            Logger,
-            /* skipUnavailableChunks */ options.UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip);
+            chunkSpecs = FetchChunkSpecs(
+                options.Client,
+                options.Client->GetNativeConnection()->GetNodeDirectory(),
+                *userObject,
+                options.RichPath.GetRanges(),
+                // XXX(babenko): YT-11825
+                dynamic && !schema->IsSorted() ? -1 : chunkCount,
+                options.FetchChunkSpecConfig->MaxChunksPerFetch,
+                options.FetchChunkSpecConfig->MaxChunksPerLocateRequest,
+                [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
+                    req->set_fetch_all_meta_extensions(false);
+                    req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                    req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                    req->set_fetch_parity_replicas(options.FetchParityReplicas);
+                    AddCellTagToSyncWith(req, userObject->ObjectId);
+                    SetTransactionId(req, userObject->ExternalTransactionId);
+                    SetSuppressAccessTracking(req, suppressAccessTracking);
+                    SetSuppressExpirationTimeoutRenewal(req, suppressExpirationTimeoutRenewal);
+                },
+                Logger,
+                /* skipUnavailableChunks */ options.UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip);
 
-        CheckUnavailableChunks(options.UnavailableChunkStrategy, &chunkSpecs);
+            CheckUnavailableChunks(options.UnavailableChunkStrategy, &chunkSpecs);
+        }
     }
 
     TDataSource dataSource;

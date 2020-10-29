@@ -4,6 +4,8 @@
 
 #include <yt/client/api/public.h>
 
+#include <yt/client/node_tracker_client/public.h>
+
 #include <yt/client/table_client/row_base.h>
 
 #include <yt/ytlib/chunk_client/public.h>
@@ -137,6 +139,13 @@ struct IChunkStore
     virtual void UpdateCompactionAttempt() = 0;
 
     virtual NChunkClient::TChunkId GetChunkId() const = 0;
+    //! Returns the timestamp provided by the chunk view, if any, and NullTimestamp otherwise.
+    virtual TTimestamp GetOverrideTimestamp() const = 0;
+
+    virtual NChunkClient::TChunkReplicaList GetReplicas(
+        NNodeTrackerClient::TNodeId localNodeId) const = 0;
+
+    virtual const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStore)
@@ -161,6 +170,10 @@ struct ISortedStore
     //! having the same width as schema key columns, and it is necessary to have
     //! the upper bound exclusive because such bounds come from chunk view.
     virtual TLegacyOwningKey GetUpperBoundKey() const = 0;
+
+    //! Returns true if min/upper bound keys were overridden and do not match boundary
+    //! keys from chunk meta. In particular, alwais returns false for dynamic stores.
+    virtual bool HasNontrivialReadRange() const = 0;
 
     //! Creates a reader for the range from |lowerKey| (inclusive) to |upperKey| (exclusive).
     /*!

@@ -47,6 +47,7 @@ struct TFetchSingleTableReadSpecOptions
     TNameTablePtr NameTable = New<TNameTable>();
     TColumnFilter ColumnFilter;
     TPartitionedTableHarvesterConfigPtr PartitionedTableHarvesterConfig;
+    bool FetchFromTablets = false;
 };
 
 //! Helper for fetching single table identified by TRichYPath.
