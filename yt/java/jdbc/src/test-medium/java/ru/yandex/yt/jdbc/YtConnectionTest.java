@@ -30,10 +30,10 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.misc.io.InputStreamSourceUtils2;
-import ru.yandex.yt.client.proxy.MappedObject;
-import ru.yandex.yt.client.proxy.YtClientTest;
 import ru.yandex.yt.testlib.LocalYt;
+import ru.yandex.yt.ytclient.proxy.MappedObject;
 import ru.yandex.yt.ytclient.proxy.YtClient;
+import ru.yandex.yt.ytclient.proxy.YtClientTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

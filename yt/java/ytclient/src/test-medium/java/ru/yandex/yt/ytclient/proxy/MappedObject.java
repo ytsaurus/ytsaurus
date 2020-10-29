@@ -1,4 +1,4 @@
-package ru.yandex.yt.client.proxy;
+package ru.yandex.yt.ytclient.proxy;
 
 import java.util.Objects;
 
