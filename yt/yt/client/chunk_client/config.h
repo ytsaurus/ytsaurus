@@ -337,6 +337,7 @@ public:
     double ReplicationReaderSpeedLimitPerSec;
     TDuration SlowReaderExpirationTimeout;
     TDuration ReplicationReaderTimeout;
+    TDuration ReplicationReaderFailureTimeout;
 
     TErasureReaderConfig()
     {
@@ -348,6 +349,8 @@ public:
             .Default(TDuration::Minutes(2));
         RegisterParameter("replication_reader_timeout", ReplicationReaderTimeout)
             .Default(TDuration::Seconds(60));
+        RegisterParameter("replication_reader_failure_timeout", ReplicationReaderFailureTimeout)
+            .Default(TDuration::Minutes(10));
     }
 };
 

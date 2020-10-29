@@ -122,9 +122,9 @@ public:
         return Chunk_->GetId();
     }
 
-    virtual bool IsValid() const override
+    virtual TInstant GetLastFailureTime() const override
     {
-        return true;
+        return TInstant();
     }
 
 private:

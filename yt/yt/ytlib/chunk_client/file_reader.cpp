@@ -139,9 +139,9 @@ TChunkId TFileReader::GetChunkId() const
     return ChunkId_;
 }
 
-bool TFileReader::IsValid() const
+TInstant TFileReader::GetLastFailureTime() const
 {
-    return true;
+    return TInstant();
 }
 
 void TFileReader::SetSlownessChecker(TCallback<TError(i64, TDuration)>)
