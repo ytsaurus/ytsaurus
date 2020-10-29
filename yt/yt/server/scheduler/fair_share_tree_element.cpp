@@ -4458,7 +4458,22 @@ std::optional<TMeteringKey> TRootElement::GetMeteringKey() const
 
 void TRootElement::BuildResourceDistributionInfo(TFluentMap fluent) const
 {
-    // TODO(renadeen): implement in integral vector algorithm.
+    double distributedMinShareRatio = 0.0;
+    for (const auto& child : EnabledChildren_) {
+        // TODO(renadeen): fix when min share becomes disproportional.
+        distributedMinShareRatio += GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
+    }
+    double maxDistributedIntegralRatio = std::max(Attributes_.TotalBurstRatio, Attributes_.TotalResourceFlowRatio);
+    double undistributedResourceFlowRatio = std::max(Attributes_.TotalBurstRatio - Attributes_.TotalResourceFlowRatio, 0.0);
+    double undistributedBurstGuaranteeRatio = std::max(Attributes_.TotalResourceFlowRatio - Attributes_.TotalBurstRatio, 0.0);
+
+    fluent
+        .Item("distributed_min_share_resources").Value(TotalResourceLimits_ * distributedMinShareRatio)
+        .Item("distributed_resource_flow").Value(TotalResourceLimits_ * Attributes_.TotalResourceFlowRatio)
+        .Item("distributed_burst_guarantee_resources").Value(TotalResourceLimits_ * Attributes_.TotalBurstRatio)
+        .Item("undistributed_resources").Value(TotalResourceLimits_ * (1.0 - distributedMinShareRatio - maxDistributedIntegralRatio))
+        .Item("undistributed_resource_flow").Value(TotalResourceLimits_ * undistributedResourceFlowRatio)
+        .Item("undistributed_burst_guarantee_resources").Value(TotalResourceLimits_ * undistributedBurstGuaranteeRatio);
 }
 
 void TRootElement::UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
