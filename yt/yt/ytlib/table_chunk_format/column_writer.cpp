@@ -19,12 +19,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     int columnIndex,
     TDataBlockWriter* blockWriter)
 {
-    auto simplifiedLogicalType = columnSchema.SimplifiedLogicalType();
-    if (!simplifiedLogicalType) {
-        return CreateUnversionedComplexColumnWriter(columnIndex, blockWriter);
-    }
-
-    switch (GetPhysicalType(*simplifiedLogicalType)) {
+    switch (columnSchema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnWriter(columnIndex, blockWriter);
 
@@ -32,7 +27,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
             return CreateUnversionedUint64ColumnWriter(columnIndex, blockWriter);
 
         case EValueType::Double:
-            switch (*simplifiedLogicalType) {
+            switch (columnSchema.CastToV1Type()) {
                 case NTableClient::ESimpleLogicalValueType::Float:
                     return CreateUnversionedFloatingPointColumnWriter<float>(columnIndex, blockWriter);
                 default:
@@ -46,7 +41,11 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
             return CreateUnversionedBooleanColumnWriter(columnIndex, blockWriter);
 
         case EValueType::Any:
-            return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter);
+            if (columnSchema.IsOfV1Type()) {
+                return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter);
+            } else {
+                return CreateUnversionedComplexColumnWriter(columnIndex, blockWriter);
+            }
 
         case EValueType::Null:
             return CreateUnversionedNullColumnWriter(blockWriter);
@@ -67,7 +66,6 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
     int id,
     TDataBlockWriter* blockWriter)
 {
-    auto simplifiedLogicalType = columnSchema.SimplifiedLogicalType();
     switch (columnSchema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnWriter(
@@ -82,8 +80,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 blockWriter);
 
         case EValueType::Double:
-            YT_VERIFY(simplifiedLogicalType);
-            switch (*simplifiedLogicalType) {
+            switch (auto simplifiedLogicalType = columnSchema.CastToV1Type()) {
                 case ESimpleLogicalValueType::Float:
                     return CreateVersionedFloatingPointColumnWriter<float>(
                         id,

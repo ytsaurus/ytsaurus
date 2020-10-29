@@ -62,7 +62,7 @@ std::tuple<org::apache::arrow::flatbuf::Type, flatbuffers::Offset<void>> Seriali
     flatbuffers::FlatBufferBuilder* flatbufBuilder,
     const TColumnSchema& schema)
 {
-    auto simpleType = SimplifyLogicalType(schema.LogicalType()).first.value_or(ESimpleLogicalValueType::Any);
+    auto simpleType = CastToV1Type(schema.LogicalType()).first;
     switch (simpleType) {
         case ESimpleLogicalValueType::Null:
             return std::make_tuple(
@@ -127,7 +127,7 @@ std::tuple<org::apache::arrow::flatbuf::Type, flatbuffers::Offset<void>> Seriali
 
 bool IsRleButNotDictionaryEncodedStringLikeColumn(const TBatchColumn& column)
 {
-    auto simpleType = SimplifyLogicalType(column.Type).first.value_or(ESimpleLogicalValueType::Any);
+    auto simpleType = CastToV1Type(column.Type).first;
     return
         IsStringLikeType(simpleType) &&
         column.Rle &&
@@ -580,7 +580,7 @@ void SerializeColumn(
         return;
     }
 
-    auto simpleType = SimplifyLogicalType(typedColumn.Type).first.value_or(ESimpleLogicalValueType::Any);
+    auto simpleType = CastToV1Type(typedColumn.Type).first;
     if (IsIntegralType(simpleType)) {
         SerializeIntegerColumn(typedColumn, simpleType, context);
     } else if (simpleType == ESimpleLogicalValueType::Double) {

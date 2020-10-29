@@ -109,11 +109,17 @@ void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& ne
 
 void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor);
 
-// Function converts new type to old typesystem if possible.
+// Function converts new type to old typesystem.
 // The first element of result is ESimpleLogicalValue type corresponding to logicalType
-// if logicalType is either T or optional<T> and T is simple. Otherwise the first element of result is nullopt.
+// (as seen in `type` field of column schema).
 // The second element of result is false if logicalType is Null or it is optional<A> where A is any type otherwise it's true.
-std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(const TLogicalTypePtr& logicalType);
+std::pair<ESimpleLogicalValueType, bool> CastToV1Type(const TLogicalTypePtr& logicalType);
+
+// Return true if given type is pure v1 type (i.e. expressable with `type` and `required` fields in schema).
+bool IsV1Type(const TLogicalTypePtr& logicalType);
+
+// Return true if this is new type expressable with EValueType::Composite type.
+bool IsV3Composite(const TLogicalTypePtr& logicalTypePtr);
 
 // Returns copy of the logical type with all tagged types replaces with its elements.
 TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& type);

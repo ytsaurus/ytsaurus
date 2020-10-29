@@ -386,7 +386,7 @@ public:
 
         for (int tableIndex = 0; tableIndex != schemas.size(); ++tableIndex) {
             for (const auto& column : schemas[tableIndex]->Columns()) {
-                if (column.SimplifiedLogicalType()) {
+                if (!IsV3Composite(column.LogicalType())) {
                     continue;
                 }
                 auto columnId = nameTable->GetIdOrRegisterName(column.Name());

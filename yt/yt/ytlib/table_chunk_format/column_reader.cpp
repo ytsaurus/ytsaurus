@@ -21,12 +21,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     int columnIndex,
     int columnId)
 {
-    auto simplifiedLogicalType = schema.SimplifiedLogicalType();
-    if (!simplifiedLogicalType) {
-        return CreateUnversionedComplexColumnReader(meta, columnIndex, columnId);
-    }
-
-    switch (GetPhysicalType(*simplifiedLogicalType)) {
+    switch (schema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnReader(meta, columnIndex, columnId);
 
@@ -34,11 +29,11 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
             return CreateUnversionedUint64ColumnReader(meta, columnIndex, columnId);
 
         case EValueType::Double:
-            switch (*simplifiedLogicalType) {
+            switch (auto simplifiedLogicalType = schema.CastToV1Type()) {
                 case ESimpleLogicalValueType::Float:
                     return CreateUnversionedFloatingPointColumnReader<float>(meta, columnIndex, columnId);
                 default:
-                    YT_VERIFY(*simplifiedLogicalType == ESimpleLogicalValueType::Double);
+                    YT_VERIFY(simplifiedLogicalType == ESimpleLogicalValueType::Double);
                     return CreateUnversionedFloatingPointColumnReader<double>(meta, columnIndex, columnId);
             }
         case EValueType::String:
@@ -48,7 +43,11 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
             return CreateUnversionedBooleanColumnReader(meta, columnIndex, columnId);
 
         case EValueType::Any:
-            return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId);
+            if (schema.IsOfV1Type()) {
+                return CreateUnversionedAnyColumnReader(meta, columnIndex, columnId);
+            } else {
+                return CreateUnversionedComplexColumnReader(meta, columnIndex, columnId);
+            }
 
         case EValueType::Null:
             return CreateUnversionedNullColumnReader(meta, columnIndex, columnId);
@@ -65,7 +64,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
     const TColumnMeta& meta,
     int columnId)
 {
-    auto simplifiedLogicalType = schema.SimplifiedLogicalType();
+    auto simplifiedLogicalType = schema.CastToV1Type();
     switch (schema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnReader(
@@ -80,8 +79,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
                 static_cast<bool>(schema.Aggregate()));
 
         case EValueType::Double:
-            YT_VERIFY(simplifiedLogicalType);
-            switch (*simplifiedLogicalType) {
+            switch (simplifiedLogicalType) {
                 case ESimpleLogicalValueType::Float:
                     return CreateVersionedFloatingPointColumnReader<float>(
                         meta,

@@ -811,24 +811,55 @@ bool TTaggedLogicalType::IsNullable() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<std::optional<ESimpleLogicalValueType>, bool> SimplifyLogicalType(const TLogicalTypePtr& logicalType)
+struct TTypeV3Info
+{
+    ESimpleLogicalValueType V1Type;
+    bool Required;
+    bool IsPureV1Type;
+};
+
+static TTypeV3Info GetTypeV3Info(const TLogicalTypePtr& logicalType)
 {
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Simple:
-            return std::make_pair(std::make_optional(logicalType->AsSimpleTypeRef().GetElement()), !logicalType->IsNullable());
-        case ELogicalMetatype::Optional:
-            return std::make_pair(logicalType->AsOptionalTypeRef().Simplify(), false);
+            return {logicalType->AsSimpleTypeRef().GetElement(), !logicalType->IsNullable(), true};
+        case ELogicalMetatype::Optional: {
+            const auto& element = logicalType->AsOptionalTypeRef().GetElement();
+            if (element->IsNullable()) {
+                return {ESimpleLogicalValueType::Any, false, false};
+            } else {
+                auto elementInfo = GetTypeV3Info(element);
+                return {elementInfo.V1Type, false, elementInfo.IsPureV1Type};
+            }
+        }
         case ELogicalMetatype::Tagged:
-            return SimplifyLogicalType(logicalType->AsTaggedTypeRef().GetElement());
+            return GetTypeV3Info(logicalType->AsTaggedTypeRef().GetElement());
         case ELogicalMetatype::List:
         case ELogicalMetatype::Struct:
         case ELogicalMetatype::Tuple:
         case ELogicalMetatype::VariantStruct:
         case ELogicalMetatype::VariantTuple:
         case ELogicalMetatype::Dict:
-            return std::make_pair(std::nullopt, true);
+            return {ESimpleLogicalValueType::Any, true, false};
     }
     YT_ABORT();
+}
+
+std::pair<ESimpleLogicalValueType, bool> CastToV1Type(const TLogicalTypePtr& logicalType)
+{
+    auto info = GetTypeV3Info(logicalType);
+    return {info.V1Type, info.Required};
+}
+
+bool IsV1Type(const TLogicalTypePtr& logicalType)
+{
+    return GetTypeV3Info(logicalType).IsPureV1Type;
+}
+
+bool IsV3Composite(const TLogicalTypePtr& logicalType)
+{
+    auto info = GetTypeV3Info(logicalType);
+    return info.IsPureV1Type == false && info.V1Type == ESimpleLogicalValueType::Any;
 }
 
 bool operator != (const TLogicalType& lhs, const TLogicalType& rhs)
@@ -902,10 +933,10 @@ void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& ne
     if (*oldType == *newType) {
         return;
     }
-    const auto& [simplifiedOldLogicalType, oldRequired] = SimplifyLogicalType(oldType);
-    const auto& [simplifiedNewLogicalType, newRequired] = SimplifyLogicalType(newType);
+    const auto& [simplifiedOldLogicalType, oldRequired] = CastToV1Type(oldType);
+    const auto& [simplifiedNewLogicalType, newRequired] = CastToV1Type(newType);
     if (simplifiedOldLogicalType != simplifiedNewLogicalType ||
-        !simplifiedOldLogicalType || // NB. types are different (we already checked this) and are complex
+        !IsV1Type(oldType) || !IsV1Type(newType) || // NB. types are different (we already checked this) and are complex
         !oldRequired && newRequired)
     {
         THROW_ERROR_EXCEPTION("Cannot alter type %Qv to type %Qv",

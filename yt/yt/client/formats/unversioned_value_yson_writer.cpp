@@ -30,7 +30,7 @@ TUnversionedValueYsonWriter::TUnversionedValueYsonWriter(
     const auto& columns = tableSchema->Columns();
     for (size_t i = 0; i != columns.size(); ++i) {
         const auto& column = columns[i];
-        if (column.SimplifiedLogicalType()) {
+        if (!IsV3Composite(column.LogicalType())) {
             continue;
         }
         auto id = nameTable->GetIdOrRegisterName(column.Name());

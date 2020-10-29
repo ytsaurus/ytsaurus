@@ -24,8 +24,7 @@ TAnyToCompositeConverter::TAnyToCompositeConverter(
     for (const auto& schema : schemas) {
         auto& isComposite = TableIndexToIsComposite_.emplace_back();
         for (const auto& column : schema->Columns()) {
-            auto isSimpleType = column.SimplifiedLogicalType().has_value();
-            if (!isSimpleType) {
+            if (IsV3Composite(column.LogicalType())) {
                 auto index = nameTable->GetIdOrRegisterName(column.Name());
                 isComposite.resize(index + 1, false);
                 isComposite[index] = true;

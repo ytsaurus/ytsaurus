@@ -396,7 +396,7 @@ void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSche
 {
     protoSchema->set_name(schema.Name());
     protoSchema->set_type(NYT::ToProto<int>(schema.GetPhysicalType()));
-    if (!schema.SimplifiedLogicalType()) {
+    if (!schema.IsOfV1Type()) {
         THROW_ERROR_EXCEPTION("Complex logical types are not supported in rpc yet")
             << TErrorAttribute("name", schema.Name())
             << TErrorAttribute("type", ToString(*schema.LogicalType()));
@@ -1407,13 +1407,13 @@ std::vector<TSharedRef> SerializeRowset(
         // COMPAT(babenko)
         entry->set_type(ToProto<int>(column.GetPhysicalType()));
         // TODO (ermolovd) YT-7178, support complex schemas.
-        if (!column.SimplifiedLogicalType()) {
+        if (!column.IsOfV1Type()) {
             THROW_ERROR_EXCEPTION("Serialization of complex types is not supported yet")
                 << TErrorAttribute("column_name", column.Name())
                 << TErrorAttribute("type", ToString(*column.LogicalType()));
         }
         // COMPAT(babenko)
-        entry->set_logical_type(ToProto<int>(*column.SimplifiedLogicalType()));
+        entry->set_logical_type(ToProto<int>(column.CastToV1Type()));
     }
 
     TWireProtocolWriter writer;

@@ -101,16 +101,14 @@ TColumnSchema& TColumnSchema::SetAggregate(const std::optional<TString>& value)
 TColumnSchema& TColumnSchema::SetLogicalType(TLogicalTypePtr type)
 {
     LogicalType_ = std::move(type);
-    std::tie(SimplifiedLogicalType_, Required_) = SimplifyLogicalType(LogicalType_);
+    IsOfV1Type_ = IsV1Type(LogicalType_);
+    std::tie(V1Type_, Required_) = NTableClient::CastToV1Type(LogicalType_);
     return *this;
 }
 
 EValueType TColumnSchema::GetPhysicalType() const
 {
-    if (SimplifiedLogicalType()) {
-        return NTableClient::GetPhysicalType(*SimplifiedLogicalType());
-    }
-    return EValueType::Any;
+    return NTableClient::GetPhysicalType(V1Type_);
 }
 
 i64 TColumnSchema::GetMemoryUsage() const
@@ -122,6 +120,21 @@ i64 TColumnSchema::GetMemoryUsage() const
         (Expression_ ? Expression_->size() : 0) +
         (Aggregate_ ? Aggregate_->size() : 0) +
         (Group_ ? Group_->size() : 0);
+}
+
+bool TColumnSchema::IsOfV1Type() const
+{
+    return IsOfV1Type_;
+}
+
+bool TColumnSchema::IsOfV1Type(ESimpleLogicalValueType type) const
+{
+    return IsOfV1Type_ && V1Type_ == type;
+}
+
+ESimpleLogicalValueType TColumnSchema::CastToV1Type() const
+{
+    return V1Type_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,15 +193,14 @@ struct TSerializableColumnSchema
                         SetLogicalType(MakeLogicalType(*LogicalTypeV1_, RequiredV1_.value_or(false)));
                         setTypeVersion = 1;
                     } else {
-                        auto expectedLogicalTypeV1 = SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
-                        if (*LogicalTypeV1_ != expectedLogicalTypeV1) {
+                        if (*LogicalTypeV1_ != CastToV1Type()) {
                             THROW_ERROR_EXCEPTION(
                                 "\"type_v%v\" doesn't match \"type\"; \"type_v%v\": %Qv \"type\": %Qlv expected \"type\": %Qlv",
                                 setTypeVersion,
                                 setTypeVersion,
                                 *LogicalType_,
                                 *LogicalTypeV1_,
-                                expectedLogicalTypeV1);
+                                CastToV1Type());
                         }
                     }
                 }
@@ -206,7 +218,7 @@ struct TSerializableColumnSchema
                     THROW_ERROR_EXCEPTION("Column type is not specified");
                 }
 
-                if (SimplifiedLogicalType() == ESimpleLogicalValueType::Any && Required()) {
+                if (*DetagLogicalType(LogicalType()) == *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
                     THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be \"required\"",
                         ESimpleLogicalValueType::Any);
                 }
@@ -232,7 +244,7 @@ public:
     void SetColumnSchema(const TColumnSchema& columnSchema)
     {
         static_cast<TColumnSchema&>(*this) = columnSchema;
-        LogicalTypeV1_ = columnSchema.SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
+        LogicalTypeV1_ = columnSchema.CastToV1Type();
         RequiredV1_ = columnSchema.Required();
         LogicalTypeV2_ = columnSchema.LogicalType();
         LogicalTypeV3_ = TTypeV3LogicalTypeWrapper{columnSchema.LogicalType()};
@@ -282,9 +294,7 @@ void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStri
         builder->AppendFormat("; group=%v", *group);
     }
 
-    if (const auto& physicalType = schema.SimplifiedLogicalType()) {
-        builder->AppendFormat("; physical_type=%v", CamelCaseToUnderscoreCase(ToString(*physicalType)));
-    }
+    builder->AppendFormat("; physical_type=%v", CamelCaseToUnderscoreCase(ToString(schema.CastToV1Type())));
 
     builder->AppendFormat("; required=%v", schema.Required());
 
@@ -310,8 +320,8 @@ void ToProto(NProto::TColumnSchema* protoSchema, const TColumnSchema& schema)
     protoSchema->set_name(schema.Name());
     protoSchema->set_type(static_cast<int>(schema.GetPhysicalType()));
 
-    if (schema.SimplifiedLogicalType()) {
-        protoSchema->set_simple_logical_type(static_cast<int>(*schema.SimplifiedLogicalType()));
+    if (schema.IsOfV1Type()) {
+        protoSchema->set_simple_logical_type(static_cast<int>(schema.CastToV1Type()));
     }
     if (schema.Required()) {
         protoSchema->set_required(true);
@@ -1132,13 +1142,13 @@ void ValidateColumnSchema(
 
         if (!IsComparable(columnSchema.LogicalType()) &&
             columnSchema.SortOrder() &&
-            columnSchema.SimplifiedLogicalType() != ESimpleLogicalValueType::Any)
+            !columnSchema.IsOfV1Type(ESimpleLogicalValueType::Any))
         {
             THROW_ERROR_EXCEPTION("Key column cannot be of %Qv type",
                 *columnSchema.LogicalType());
         }
 
-        if (columnSchema.SimplifiedLogicalType() == ESimpleLogicalValueType::Any && columnSchema.Required()) {
+        if (*DetagLogicalType(columnSchema.LogicalType()) == *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
             THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be required",
                 ESimpleLogicalValueType::Any);
         }
@@ -1215,7 +1225,7 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
 
     for (const auto& column : schema.Columns()) {
         try {
-            if (!column.SimplifiedLogicalType()) {
+            if (!column.IsOfV1Type()) {
                 THROW_ERROR_EXCEPTION("Complex types are not allowed in dynamic tables yet");
             }
             if (column.SortOrder() && column.GetPhysicalType() == EValueType::Any) {
@@ -1291,7 +1301,7 @@ void ValidateTimestampColumn(const TTableSchema& schema)
             TimestampColumnName);
     }
 
-    if (column->SimplifiedLogicalType() != ESimpleLogicalValueType::Uint64) {
+    if (!column->IsOfV1Type(ESimpleLogicalValueType::Uint64)) {
         THROW_ERROR_EXCEPTION("Column %Qv must have %Qlv type",
             TimestampColumnName,
             EValueType::Uint64);

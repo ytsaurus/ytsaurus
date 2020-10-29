@@ -17,75 +17,61 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TLogicalTypeTest, TestSimplifyLogicalType)
+TEST(TLogicalTypeTest, TestCastToV1Type)
 {
-    using TPair = std::pair<std::optional<ESimpleLogicalValueType>, bool>;
+    using namespace NLogicalTypeShortcuts;
 
     EXPECT_EQ(
-        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
-        TPair(ESimpleLogicalValueType::Int64, true));
+        CastToV1Type(Int64()),
+        std::pair(ESimpleLogicalValueType::Int64, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
-        TPair(ESimpleLogicalValueType::Int64, false));
+        CastToV1Type(Optional(Int64())),
+        std::pair(ESimpleLogicalValueType::Int64, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))),
-        TPair(std::nullopt, false));
+        CastToV1Type(Optional(Optional(Int64()))),
+        std::pair(ESimpleLogicalValueType::Any, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null)),
-        TPair(ESimpleLogicalValueType::Null, false));
+        CastToV1Type(Null()),
+        std::pair(ESimpleLogicalValueType::Null, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))),
-        TPair(std::nullopt, false));
+        CastToV1Type(Optional(Null())),
+        std::pair(ESimpleLogicalValueType::Any, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
-        TPair(std::nullopt, true));
+        CastToV1Type(List(Int64())),
+        std::pair(ESimpleLogicalValueType::Any, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(StructLogicalType({{"value", SimpleLogicalType(ESimpleLogicalValueType::Int64)}})),
-        TPair(std::nullopt, true));
+        CastToV1Type(Struct("value", Int64())),
+        std::pair(ESimpleLogicalValueType::Any, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(TupleLogicalType({
-            SimpleLogicalType(ESimpleLogicalValueType::Int64),
-            SimpleLogicalType(ESimpleLogicalValueType::Uint64)
-        })),
-        TPair(std::nullopt, true));
+        CastToV1Type(Tuple(Int64(), Uint64())),
+        std::pair(ESimpleLogicalValueType::Any, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(DictLogicalType(
-            SimpleLogicalType(ESimpleLogicalValueType::String),
-            SimpleLogicalType(ESimpleLogicalValueType::Uint64))
-        ),
-        TPair(std::nullopt, true));
+        CastToV1Type(Dict(String(), Uint64())),
+        std::pair(ESimpleLogicalValueType::Any, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(
-            TaggedLogicalType("foo", SimpleLogicalType(ESimpleLogicalValueType::String))
-        ),
-        TPair(ESimpleLogicalValueType::String, true));
+        CastToV1Type(Tagged("foo", String())),
+        std::pair(ESimpleLogicalValueType::String, true));
 
     EXPECT_EQ(
-        SimplifyLogicalType(
-            TaggedLogicalType("foo", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))
-        ),
-        TPair(ESimpleLogicalValueType::String, false));
+        CastToV1Type(Tagged("foo", Optional(String()))),
+        std::pair(ESimpleLogicalValueType::String, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(
-            TaggedLogicalType("foo", OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))))
-        ),
-        TPair(std::nullopt, false));
+        CastToV1Type(Tagged("foo", Optional(Optional(String())))),
+        std::pair(ESimpleLogicalValueType::Any, false));
 
     EXPECT_EQ(
-        SimplifyLogicalType(
-            TaggedLogicalType("foo", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))
-        ),
-        TPair(std::nullopt, true));
+        CastToV1Type(TaggedLogicalType("foo", List(String()))),
+        std::pair(ESimpleLogicalValueType::Any, true));
 }
 
 TEST(TLogicalTypeTest, DictValidationTest)

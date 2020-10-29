@@ -69,7 +69,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Aggregate);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Group);
 
-    DEFINE_BYREF_RO_PROPERTY(std::optional<ESimpleLogicalValueType>, SimplifiedLogicalType);
     DEFINE_BYREF_RO_PROPERTY(bool, Required);
 
 public:
@@ -105,6 +104,18 @@ public:
     EValueType GetPhysicalType() const;
 
     i64 GetMemoryUsage() const;
+
+    // Check if column has plain old v1 type.
+    bool IsOfV1Type() const;
+
+    // Check if column has specified v1 type.
+    bool IsOfV1Type(ESimpleLogicalValueType type) const;
+
+    ESimpleLogicalValueType CastToV1Type() const;
+
+private:
+    ESimpleLogicalValueType V1Type_;
+    bool IsOfV1Type_;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStringBuf spec);

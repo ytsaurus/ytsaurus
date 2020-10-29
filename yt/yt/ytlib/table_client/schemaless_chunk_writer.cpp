@@ -1110,7 +1110,7 @@ protected:
             if (Options_->CastAnyToComposite) {
                 for (int i = 0; i < Schema_->Columns().size(); ++i) {
                     const auto& column = Schema_->Columns()[i];
-                    if (!column.SimplifiedLogicalType() && mutableRow[i].Type == EValueType::Any) {
+                    if (IsV3Composite(column.LogicalType()) && mutableRow[i].Type == EValueType::Any) {
                         mutableRow[i].Type = EValueType::Composite;
                     }
                 }

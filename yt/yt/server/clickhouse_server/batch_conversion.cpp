@@ -590,8 +590,8 @@ DB::ColumnPtr ConvertYTColumnToCHColumn(
 {
     DB::ColumnPtr chColumn;
 
-    auto ytType = SimplifyLogicalType(ytColumn.Type).first.value_or(ESimpleLogicalValueType::Any);
-    auto chType = chSchema.SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
+    auto ytType = CastToV1Type(ytColumn.Type).first;
+    auto chType = chSchema.CastToV1Type();
 
     auto throwOnIncompatibleType = [&] (bool ok) {
         if (!ok) {

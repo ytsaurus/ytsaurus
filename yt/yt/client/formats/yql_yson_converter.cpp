@@ -719,9 +719,9 @@ static TWeightLimitedUnversionedValueToYqlConverter CreateWeightLimitedUnversion
     const TLogicalTypePtr& logicalType,
     TYqlConverterConfigPtr config)
 {
-    auto [maybeSimpleType, isRequired] = SimplifyLogicalType(logicalType);
-    if (maybeSimpleType) {
-        auto physicalType = GetPhysicalType(*maybeSimpleType);
+    if (IsV1Type(logicalType)) {
+        auto [simpleType, isRequired] = CastToV1Type(logicalType);
+        auto physicalType = GetPhysicalType(simpleType);
         return CreateSimpleUnversionedValueToYqlConverter(physicalType, isRequired, std::move(config));
     } else {
         return TComplexUnversionedValueToYqlConverter(logicalType, std::move(config));
