@@ -149,7 +149,7 @@ TUnversionedOwningRow YsonToSchemalessRow(const TString& valueYson)
 
 void foo()
 {
-    MakeUnversionedOwningRow(AsStringBuf("hello"));
+    MakeUnversionedOwningRow(TStringBuf("hello"));
 }
 
 TVersionedRow YsonToVersionedRow(

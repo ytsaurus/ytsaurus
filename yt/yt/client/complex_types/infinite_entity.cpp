@@ -5,7 +5,7 @@ namespace NYT::NComplexTypes {
 ////////////////////////////////////////////////////////////////////////////////
 
 TInfiniteEntity::TInfiniteEntity()
-    : Stream_(AsStringBuf("#;#;#;#;#;#;#;#;"))
+    : Stream_(TStringBuf("#;#;#;#;#;#;#;#;"))
     , Parser_(&Stream_, NYson::EYsonType::ListFragment)
     , Cursor_(&Parser_)
 { }

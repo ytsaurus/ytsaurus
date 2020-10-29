@@ -230,7 +230,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         parts.insert(parts.end(), pools.begin(), pools.end());
     }
 
-    auto result = JoinToString(parts.begin(), parts.end(), AsStringBuf(" "));
+    auto result = JoinToString(parts.begin(), parts.end(), TStringBuf(" "));
     return to_lower(result);
 }
 
@@ -446,7 +446,7 @@ public:
 
         ArchiveBatcher_->UpdateMaxBatchSize(Config_->ArchiveBatchSize);
         ArchiveBatcher_->UpdateBatchDuration(Config_->ArchiveBatchTimeout);
-        
+
         RemoveBatcher_->UpdateMaxBatchSize(Config_->RemoveBatchSize);
         RemoveBatcher_->UpdateBatchDuration(Config_->RemoveBatchTimeout);
 

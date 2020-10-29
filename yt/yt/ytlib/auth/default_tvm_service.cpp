@@ -207,10 +207,10 @@ private:
         TSafeUrlBuilder builder;
         builder.AppendString(Format("http://%v:%v/tvm/tickets?", Config_->Host, Config_->Port));
         if (!Config_->Src.empty()) {
-            builder.AppendParam(AsStringBuf("src"), Config_->Src);
+            builder.AppendParam(TStringBuf("src"), Config_->Src);
             builder.AppendChar('&');
         }
-        builder.AppendParam(AsStringBuf("dsts"), serviceId);
+        builder.AppendParam(TStringBuf("dsts"), serviceId);
         builder.AppendString("&format=json");
         auto safeUrl = builder.FlushSafeUrl();
         auto realUrl = builder.FlushRealUrl();

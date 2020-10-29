@@ -100,7 +100,7 @@ TString ToString(const NProto::TDiskResources& diskResources, const NChunkClient
             auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
             TStringBuf mediumName = mediumDescriptor
                 ? mediumDescriptor->Name
-                : AsStringBuf("unknown");
+                : TStringBuf("unknown");
             builder->AppendFormat("{usage: %v, limit: %v, medium_index: %v, medium_name: %v}",
                 locationResources.usage(),
                 locationResources.limit(),

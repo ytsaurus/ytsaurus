@@ -293,7 +293,7 @@ private:
                 NotifyError(
                     std::get<0>(existingRequest),
                     std::get<1>(existingRequest),
-                    AsStringBuf("Request failed due to channel termination"),
+                    TStringBuf("Request failed due to channel termination"),
                     error);
             }
         }
@@ -397,7 +397,7 @@ private:
                 NotifyError(
                     requestControl,
                     responseHandler,
-                    AsStringBuf("Request canceled"),
+                    TStringBuf("Request canceled"),
                     TError(NYT::EErrorCode::Canceled, "Request canceled"));
                 --Depth;
             } else {
@@ -406,7 +406,7 @@ private:
                     MakeStrong(this),
                     requestControl,
                     responseHandler,
-                    AsStringBuf("Request canceled"),
+                    TStringBuf("Request canceled"),
                     TError(NYT::EErrorCode::Canceled, "Request canceled")));
             }
 
@@ -525,7 +525,7 @@ private:
             NotifyError(
                 requestControl,
                 responseHandler,
-                AsStringBuf("Request timed out"),
+                TStringBuf("Request timed out"),
                 TError(NYT::EErrorCode::Timeout, aborted
                     ? "Request timed out or timer was aborted"
                     : "Request timed out"));
@@ -566,7 +566,7 @@ private:
             NotifyError(
                 requestControl,
                 responseHandler,
-                AsStringBuf("Request acknowledgement timed out"),
+                TStringBuf("Request acknowledgement timed out"),
                 error);
 
             Bus_->Terminate(error);
@@ -725,7 +725,7 @@ private:
                     NotifyError(
                         requestControl,
                         responseHandler,
-                        AsStringBuf("Request serialization failed"),
+                        TStringBuf("Request serialization failed"),
                         TError(NRpc::EErrorCode::TransportError, "Request serialization failed")
                             << requestMessageOrError);
                     return;
@@ -738,7 +738,7 @@ private:
                     NotifyError(
                         requestControl,
                         responseHandler,
-                        AsStringBuf("Request is dropped because channel is terminated"),
+                        TStringBuf("Request is dropped because channel is terminated"),
                         TError(NRpc::EErrorCode::TransportError, "Channel terminated")
                             << TerminationError_);
                     return;
@@ -861,7 +861,7 @@ private:
                     NotifyError(
                         requestControl,
                         responseHandler,
-                        AsStringBuf("Request failed"),
+                        TStringBuf("Request failed"),
                         error);
                 }
             }
@@ -999,7 +999,7 @@ private:
                 NotifyError(
                     requestControl,
                     responseHandler,
-                    AsStringBuf("Request acknowledgment failed"),
+                    TStringBuf("Request acknowledgment failed"),
                     TError(NRpc::EErrorCode::TransportError, "Request acknowledgment failed")
                          << error);
             }

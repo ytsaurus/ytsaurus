@@ -338,7 +338,7 @@ void TListJobsCommand::DoExecute(ICommandContextPtr context)
             .Item("jobs").DoListFor(result.Jobs, [] (TFluentList fluent, const TJob& job) {
                 fluent
                     .Item().Do([&] (TFluentAny innerFluent) {
-                        Serialize(job, innerFluent.GetConsumer(), AsStringBuf("id"));
+                        Serialize(job, innerFluent.GetConsumer(), TStringBuf("id"));
                     });
             })
             .Item("cypress_job_count").Value(result.CypressJobCount)

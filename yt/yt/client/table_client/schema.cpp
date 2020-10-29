@@ -875,7 +875,7 @@ void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStrin
     bool first = true;
     for (const auto& column : schema.Columns()) {
         if (!first) {
-            builder->AppendString(AsStringBuf("; "));
+            builder->AppendString(TStringBuf("; "));
         }
         builder->AppendFormat("%v", column);
         first = false;
@@ -893,7 +893,7 @@ void FormatValue(TStringBuilderBase* builder, const TTableSchemaPtr& schema, TSt
     if (schema) {
         FormatValue(builder, *schema, spec);
     } else {
-        builder->AppendString(AsStringBuf("<null>"));
+        builder->AppendString(TStringBuf("<null>"));
     }
 }
 

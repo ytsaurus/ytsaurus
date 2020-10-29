@@ -395,7 +395,7 @@ TString ToString(const TNetworkAddress& address, const TNetworkAddressFormatOpti
 
     TStringBuilder result;
     if (options.IncludeTcpProtocol) {
-        result.AppendString(AsStringBuf("tcp://"));
+        result.AppendString(TStringBuf("tcp://"));
     }
 
     bool withBrackets = ipv6 && (options.IncludeTcpProtocol || options.IncludePort);

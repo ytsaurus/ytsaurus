@@ -746,7 +746,7 @@ void Serialize(
                 // we can't use void(TFluentMap) in a function signature as it
                 // will lead to the inclusion of fluent.h in error.h and a cyclic
                 // inclusion error.h -> fluent.h -> callback.h -> error.h
-                consumer->OnKeyedItem(AsStringBuf("value"));
+                consumer->OnKeyedItem(TStringBuf("value"));
                 (*valueProducer)(consumer);
             })
         .EndMap();

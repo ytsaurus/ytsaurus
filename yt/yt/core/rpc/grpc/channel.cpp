@@ -286,7 +286,7 @@ private:
             YT_LOG_DEBUG("Request canceled (RequestId: %v)", Request_->GetRequestId());
 
             NotifyError(
-                AsStringBuf("Request canceled"),
+                TStringBuf("Request canceled"),
                 TError(NYT::EErrorCode::Canceled, "Request canceled"));
         }
 
@@ -375,7 +375,7 @@ private:
         {
             if (!success) {
                 NotifyError(
-                    AsStringBuf("Failed to send request"),
+                    TStringBuf("Failed to send request"),
                     TError(NRpc::EErrorCode::TransportError, "Failed to send request"));
                 Unref();
                 return;
@@ -402,7 +402,7 @@ private:
         {
             if (!success) {
                 NotifyError(
-                    AsStringBuf("Failed to receive initial response metadata"),
+                    TStringBuf("Failed to receive initial response metadata"),
                     TError(NRpc::EErrorCode::TransportError, "Failed to receive initial response metadata"));
                 Unref();
                 return;
@@ -437,7 +437,7 @@ private:
 
             if (!success) {
                 NotifyError(
-                    AsStringBuf("Failed to receive response"),
+                    TStringBuf("Failed to receive response"),
                     TError(NRpc::EErrorCode::TransportError, "Failed to receive response"));
                 return;
             }
@@ -451,13 +451,13 @@ private:
                     error = TError(NRpc::EErrorCode::TransportError, "GRPC error")
                         << TErrorAttribute("details", ToString(ResponseStatusDetails_));
                 }
-                NotifyError(AsStringBuf("Request failed"), error);
+                NotifyError(TStringBuf("Request failed"), error);
                 return;
             }
 
             if (!ResponseBodyBuffer_) {
                 auto error = TError(NRpc::EErrorCode::ProtocolError, "Empty response body");
-                NotifyError(AsStringBuf("Request failed"), error);
+                NotifyError(TStringBuf("Request failed"), error);
                 return;
             }
 
@@ -470,7 +470,7 @@ private:
                 } catch (const std::exception& ex) {
                     auto error = TError(NRpc::EErrorCode::TransportError, "Failed to parse response message body size")
                         << ex;
-                    NotifyError(AsStringBuf("Failed to parse response message body size"), error);
+                    NotifyError(TStringBuf("Failed to parse response message body size"), error);
                     return;
                 }
             }
@@ -482,7 +482,7 @@ private:
                     messageBodySize);
             } catch (const std::exception& ex) {
                 auto error = TError(NRpc::EErrorCode::TransportError, "Failed to receive request body") << ex;
-                NotifyError(AsStringBuf("Failed to receive request body"), error);
+                NotifyError(TStringBuf("Failed to receive request body"), error);
                 return;
             }
 

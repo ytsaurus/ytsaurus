@@ -55,7 +55,7 @@ void FormatValue(TStringBuilderBase* builder, const TTimestampMap& map, TStringB
     bool first = true;
     for (const auto& pair : map.Timestamps) {
         if (!first) {
-            builder->AppendString(AsStringBuf(", "));
+            builder->AppendString(TStringBuf(", "));
         }
         builder->AppendFormat("%v => %llx", pair.first, pair.second);
         first = false;

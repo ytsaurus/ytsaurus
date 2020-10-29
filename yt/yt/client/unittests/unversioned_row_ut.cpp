@@ -109,7 +109,7 @@ TEST(TMakeUnversionedOwningRow, SingleValue)
 {
     CheckSingleValue(TGuid::Create());
     CheckSingleValue(TString("hello"));
-    CheckSingleValue(AsStringBuf("hello"));
+    CheckSingleValue(TStringBuf("hello"));
     CheckSingleValue(true);
     CheckSingleValue(TYsonString("{a=1}"));
     CheckSingleValue(static_cast<i64>(-123));

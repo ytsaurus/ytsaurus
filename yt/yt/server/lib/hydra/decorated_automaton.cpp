@@ -1082,7 +1082,7 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
                 auto traceContext = pendingMutation.TraceContext
                     ? NTracing::CreateChildTraceContext(
                         pendingMutation.TraceContext,
-                        ConcatToString(AsStringBuf("HydraManager:"), pendingMutation.Request.Type))
+                        ConcatToString(TStringBuf("HydraManager:"), pendingMutation.Request.Type))
                     : nullptr;
                 NTracing::TTraceContextGuard traceContextGuard(std::move(traceContext));
                 DoApplyMutation(&mutationContext);

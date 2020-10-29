@@ -26,9 +26,9 @@ TEST(TComplexColumnTest, Simple)
 
     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
     owningRows.push_back(builder.FinishRow());
-    builder.AddValue(MakeUnversionedCompositeValue(AsStringBuf("{a = b}"), 0));
+    builder.AddValue(MakeUnversionedCompositeValue(TStringBuf("{a = b}"), 0));
     owningRows.push_back(builder.FinishRow());
-    builder.AddValue(MakeUnversionedCompositeValue(AsStringBuf("[100]"), 0));
+    builder.AddValue(MakeUnversionedCompositeValue(TStringBuf("[100]"), 0));
     owningRows.push_back(builder.FinishRow());
 
     std::vector<TUnversionedRow> rows;
@@ -70,9 +70,9 @@ void TestCompatibility()
 
     builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
     owningRows.push_back(builder.FinishRow());
-    builder.AddValue(MakeUnversionedStringLikeValue(WriterType, AsStringBuf("{a = b}"), 0));
+    builder.AddValue(MakeUnversionedStringLikeValue(WriterType, TStringBuf("{a = b}"), 0));
     owningRows.push_back(builder.FinishRow());
-    builder.AddValue(MakeUnversionedStringLikeValue(WriterType, AsStringBuf("[100]"), 0));
+    builder.AddValue(MakeUnversionedStringLikeValue(WriterType, TStringBuf("[100]"), 0));
     owningRows.push_back(builder.FinishRow());
 
     std::vector<TUnversionedRow> rows;

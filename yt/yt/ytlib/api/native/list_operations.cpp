@@ -245,66 +245,66 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
     cursor->ParseAttributes([&] (TYsonPullParserCursor* cursor) {
         YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
         auto key = (*cursor)->UncheckedAsString();
-        if (key == AsStringBuf("key")) {
+        if (key == TStringBuf("key")) {
             cursor->Next();
             consumer->OnId(ExtractTo<TOperationId>(cursor));
-        } else if (key == AsStringBuf("operation_type")) {
+        } else if (key == TStringBuf("operation_type")) {
             cursor->Next();
             consumer->OnType(ExtractTo<EOperationType>(cursor));
-        } else if (key == AsStringBuf("state")) {
+        } else if (key == TStringBuf("state")) {
             cursor->Next();
             consumer->OnState(ExtractTo<EOperationState>(cursor));
-        } else if (key == AsStringBuf("start_time")) {
+        } else if (key == TStringBuf("start_time")) {
             cursor->Next();
             consumer->OnStartTime(ExtractTo<TInstant>(cursor));
-        } else if (key == AsStringBuf("finish_time")) {
+        } else if (key == TStringBuf("finish_time")) {
             cursor->Next();
             consumer->OnFinishTime(ExtractTo<TInstant>(cursor));
-        } else if (key == AsStringBuf("authenticated_user")) {
+        } else if (key == TStringBuf("authenticated_user")) {
             cursor->Next();
             EnsureYsonToken("authenticated_user", *cursor, EYsonItemType::StringValue);
             consumer->OnAuthenticatedUser((*cursor)->UncheckedAsString());
             cursor->Next();
-        } else if (key == AsStringBuf("brief_spec")) {
+        } else if (key == TStringBuf("brief_spec")) {
             cursor->Next();
             consumer->OnBriefSpec(cursor);
-        } else if (key == AsStringBuf("spec")) {
+        } else if (key == TStringBuf("spec")) {
             cursor->Next();
             consumer->OnSpec(cursor);
-        } else if (key == AsStringBuf("full_spec")) {
+        } else if (key == TStringBuf("full_spec")) {
             cursor->Next();
             consumer->OnFullSpec(cursor);
-        } else if (key == AsStringBuf("unrecognized_spec")) {
+        } else if (key == TStringBuf("unrecognized_spec")) {
             cursor->Next();
             consumer->OnUnrecognizedSpec(cursor);
-        } else if (key == AsStringBuf("brief_progress")) {
+        } else if (key == TStringBuf("brief_progress")) {
             cursor->Next();
             consumer->OnBriefProgress(cursor);
-        } else if (key == AsStringBuf("progress")) {
+        } else if (key == TStringBuf("progress")) {
             cursor->Next();
             consumer->OnProgress(cursor);
-        } else if (key == AsStringBuf("runtime_parameters")) {
+        } else if (key == TStringBuf("runtime_parameters")) {
             cursor->Next();
             consumer->OnRuntimeParameters(cursor);
-        } else if (key == AsStringBuf("suspended")) {
+        } else if (key == TStringBuf("suspended")) {
             cursor->Next();
             consumer->OnSuspended(ExtractTo<bool>(cursor));
-       } else if (key == AsStringBuf("events")) {
+       } else if (key == TStringBuf("events")) {
             cursor->Next();
             consumer->OnEvents(cursor);
-        } else if (key == AsStringBuf("result")) {
+        } else if (key == TStringBuf("result")) {
             cursor->Next();
             consumer->OnResult(cursor);
-        } else if (key == AsStringBuf("slot_index_per_pool_tree")) {
+        } else if (key == TStringBuf("slot_index_per_pool_tree")) {
             cursor->Next();
             consumer->OnSlotIndexPerPoolTree(cursor);
-        } else if (key == AsStringBuf("alerts")) {
+        } else if (key == TStringBuf("alerts")) {
             cursor->Next();
             consumer->OnAlerts(cursor);
-        } else if (key == AsStringBuf("annotations")) {
+        } else if (key == TStringBuf("annotations")) {
             cursor->Next();
             consumer->OnAnnotations(cursor);
-        } else if (key == AsStringBuf("task_names")) {
+        } else if (key == TStringBuf("task_names")) {
             cursor->Next();
             consumer->OnTaskNames(cursor);
         } else {
@@ -333,14 +333,14 @@ static TListOperationsFilter::TBriefProgress ParseBriefProgress(TYsonPullParserC
     cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
         YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
         auto key = (*cursor)->UncheckedAsString();
-        if (key == AsStringBuf("build_time")) {
+        if (key == TStringBuf("build_time")) {
             cursor->Next();
             result.BuildTime = ExtractTo<TInstant>(cursor);
-        } else if (key == AsStringBuf("jobs")) {
+        } else if (key == TStringBuf("jobs")) {
             cursor->Next();
             cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
                 auto innerKey = (*cursor)->UncheckedAsString();
-                if (innerKey == AsStringBuf("failed")) {
+                if (innerKey == TStringBuf("failed")) {
                     cursor->Next();
                     result.HasFailedJobs = ExtractTo<i64>(cursor) > 0;
                 } else {
@@ -443,12 +443,12 @@ public:
         cursor->ParseMap([this] (TYsonPullParserCursor* cursor) {
             YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
             auto key = (*cursor)->UncheckedAsString();
-            if (key == AsStringBuf("title")) {
+            if (key == TStringBuf("title")) {
                 cursor->Next();
                 EnsureYsonToken("title", *cursor, EYsonItemType::StringValue);
                 SearchSubstring((*cursor)->UncheckedAsString());
                 cursor->Next();
-            } else if (key == AsStringBuf("input_table_paths") || key == AsStringBuf("output_table_paths")) {
+            } else if (key == TStringBuf("input_table_paths") || key == TStringBuf("output_table_paths")) {
                 cursor->Next();
                 if ((*cursor)->GetType() == EYsonItemType::BeginAttributes) {
                     cursor->SkipAttributes();
@@ -502,11 +502,11 @@ public:
         cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
             YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
             auto key = (*cursor)->UncheckedAsString();
-            if (Options_.AccessFilter && key == AsStringBuf("acl")) {
+            if (Options_.AccessFilter && key == TStringBuf("acl")) {
                 cursor->Next();
                 HasAcl_ = true;
                 Deserialize(Acl_, cursor);
-            } else if (key == AsStringBuf("scheduling_options_per_pool_tree")) {
+            } else if (key == TStringBuf("scheduling_options_per_pool_tree")) {
                 cursor->Next();
                 cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
                     YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
@@ -514,7 +514,7 @@ public:
                     cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
                         YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
                         auto innerKey = (*cursor)->UncheckedAsString();
-                        if (innerKey == AsStringBuf("pool")) {
+                        if (innerKey == TStringBuf("pool")) {
                             cursor->Next();
                             Pools_.push_back(ExtractTo<TString>(cursor));
                             SearchSubstring(Pools_.back());
@@ -524,7 +524,7 @@ public:
                         }
                     });
                 });
-            } else if (key == AsStringBuf("annotations")) {
+            } else if (key == TStringBuf("annotations")) {
                 cursor->Next();
                 OnAnnotations(cursor);
             } else {

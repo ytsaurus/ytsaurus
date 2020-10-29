@@ -333,7 +333,7 @@ void TJsonConsumer::EnterNode()
     } else if (Config->AttributesMode == EJsonAttributesMode::Always) {
         if (!HasAttributes) {
             JsonWriter->OnBeginMap();
-            JsonWriter->OnKeyedItem(AsStringBuf("$attributes"));
+            JsonWriter->OnKeyedItem(TStringBuf("$attributes"));
             JsonWriter->OnBeginMap();
             JsonWriter->OnEndMap();
             HasAttributes = true;
@@ -342,7 +342,7 @@ void TJsonConsumer::EnterNode()
     HasUnfoldedStructureStack.push_back(HasAttributes);
 
     if (HasAttributes) {
-        JsonWriter->OnKeyedItem(AsStringBuf("$value"));
+        JsonWriter->OnKeyedItem(TStringBuf("$value"));
         HasAttributes = false;
     }
 
@@ -384,7 +384,7 @@ void TJsonConsumer::OnStringScalar(TStringBuf value)
         }
     }
 
-    WriteStringScalarWithAttributes(writeValue, AsStringBuf("string"), incomplete);
+    WriteStringScalarWithAttributes(writeValue, TStringBuf("string"), incomplete);
 }
 
 void TJsonConsumer::OnInt64Scalar(i64 value)
@@ -395,8 +395,8 @@ void TJsonConsumer::OnInt64Scalar(i64 value)
                 JsonWriter->OnBeginMap();
                 HasAttributes = true;
             }
-            JsonWriter->OnKeyedItem(AsStringBuf("$type"));
-            JsonWriter->OnStringScalar(AsStringBuf("int64"));
+            JsonWriter->OnKeyedItem(TStringBuf("$type"));
+            JsonWriter->OnStringScalar(TStringBuf("int64"));
         }
         EnterNode();
         if (Config->Stringify) {
@@ -416,8 +416,8 @@ void TJsonConsumer::OnUint64Scalar(ui64 value)
                 JsonWriter->OnBeginMap();
                 HasAttributes = true;
             }
-            JsonWriter->OnKeyedItem(AsStringBuf("$type"));
-            JsonWriter->OnStringScalar(AsStringBuf("uint64"));
+            JsonWriter->OnKeyedItem(TStringBuf("$type"));
+            JsonWriter->OnStringScalar(TStringBuf("uint64"));
         }
         EnterNode();
         if (Config->Stringify) {
@@ -438,8 +438,8 @@ void TJsonConsumer::OnDoubleScalar(double value)
                 JsonWriter->OnBeginMap();
                 HasAttributes = true;
             }
-            JsonWriter->OnKeyedItem(AsStringBuf("$type"));
-            JsonWriter->OnStringScalar(AsStringBuf("double"));
+            JsonWriter->OnKeyedItem(TStringBuf("$type"));
+            JsonWriter->OnStringScalar(TStringBuf("double"));
         }
         EnterNode();
         if (Config->Stringify) {
@@ -450,12 +450,12 @@ void TJsonConsumer::OnDoubleScalar(double value)
             switch (NanInfinityMode_) {
                 case ENanInfinityMode::WriteAllQuouted:
                     if (std::isnan(value)) {
-                        JsonWriter->OnStringScalar(AsStringBuf("nan"));
+                        JsonWriter->OnStringScalar(TStringBuf("nan"));
                     } else if (std::isinf(value)) {
                         if (value < 0) {
-                            JsonWriter->OnStringScalar(AsStringBuf("-inf"));
+                            JsonWriter->OnStringScalar(TStringBuf("-inf"));
                         } else {
-                            JsonWriter->OnStringScalar(AsStringBuf("inf"));
+                            JsonWriter->OnStringScalar(TStringBuf("inf"));
                         }
                     } else {
                         JsonWriter->OnDoubleScalar(value);
@@ -491,8 +491,8 @@ void TJsonConsumer::OnBooleanScalar(bool value)
                 JsonWriter->OnBeginMap();
                 HasAttributes = true;
             }
-            JsonWriter->OnKeyedItem(AsStringBuf("$type"));
-            JsonWriter->OnStringScalar(AsStringBuf("boolean"));
+            JsonWriter->OnKeyedItem(TStringBuf("$type"));
+            JsonWriter->OnStringScalar(TStringBuf("boolean"));
         }
         EnterNode();
         if (Config->Stringify) {
@@ -568,7 +568,7 @@ void TJsonConsumer::OnBeginAttributes()
     InAttributesBalance += 1;
     if (Config->AttributesMode != EJsonAttributesMode::Never) {
         JsonWriter->OnBeginMap();
-        JsonWriter->OnKeyedItem(AsStringBuf("$attributes"));
+        JsonWriter->OnKeyedItem(TStringBuf("$attributes"));
         JsonWriter->OnBeginMap();
     }
 }
@@ -605,7 +605,7 @@ void TJsonConsumer::WriteStringScalarWithAttributes(
                     HasAttributes = true;
                 }
 
-                JsonWriter->OnKeyedItem(AsStringBuf("$incomplete"));
+                JsonWriter->OnKeyedItem(TStringBuf("$incomplete"));
                 JsonWriter->OnBooleanScalar(true);
             }
 
@@ -615,7 +615,7 @@ void TJsonConsumer::WriteStringScalarWithAttributes(
                     HasAttributes = true;
                 }
 
-                JsonWriter->OnKeyedItem(AsStringBuf("$type"));
+                JsonWriter->OnKeyedItem(TStringBuf("$type"));
                 JsonWriter->OnStringScalar(type);
             }
         }
@@ -640,13 +640,13 @@ void TJsonConsumer::OnStringScalarWeightLimited(TStringBuf value, std::optional<
         incomplete = true;
     }
 
-    WriteStringScalarWithAttributes(writeValue, AsStringBuf("string"), incomplete);
+    WriteStringScalarWithAttributes(writeValue, TStringBuf("string"), incomplete);
 }
 
 void TJsonConsumer::OnNodeWeightLimited(TStringBuf yson, std::optional<i64> weightLimit)
 {
     if (CheckLimit && weightLimit && yson.size() > *weightLimit) {
-        WriteStringScalarWithAttributes({}, AsStringBuf("any"), true);
+        WriteStringScalarWithAttributes({}, TStringBuf("any"), true);
         return;
     }
 

@@ -566,7 +566,7 @@ private:
                 Host_->GetPreparationPath(),
                 Host_->GetSlotPath(),
                 shellManagerUid,
-                Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, AsStringBuf("\n"))),
+                Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
                 std::move(shellEnvironment)
             );
 #endif

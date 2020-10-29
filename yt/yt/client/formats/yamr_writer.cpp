@@ -90,15 +90,15 @@ private:
 
             for (const auto* item = row.Begin(); item != row.End(); ++item) {
                 if (item->Id == KeyId_) {
-                    ValidateColumnType(item, AsStringBuf("key"));
+                    ValidateColumnType(item, TStringBuf("key"));
                     key = TStringBuf(item->Data.String, item->Length);
                 } else if (item->Id == SubkeyId_) {
                     if (item->Type != EValueType::Null) {
-                        ValidateColumnType(item, AsStringBuf("subkey"));
+                        ValidateColumnType(item, TStringBuf("subkey"));
                         subkey = TStringBuf(item->Data.String, item->Length);
                     }
                 } else if (item->Id == ValueId_) {
-                    ValidateColumnType(item, AsStringBuf("value"));
+                    ValidateColumnType(item, TStringBuf("value"));
                     value = TStringBuf(item->Data.String, item->Length);
                 } else {
                     // Ignore unknown columns.

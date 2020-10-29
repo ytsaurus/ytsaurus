@@ -17,7 +17,7 @@ struct TDefaultFormatter
     template <class T>
     void operator()(TStringBuilderBase* builder, const T& obj) const
     {
-        FormatValue(builder, obj, AsStringBuf("v"));
+        FormatValue(builder, obj, TStringBuf("v"));
     }
 };
 
@@ -273,7 +273,7 @@ void FormatEnum(TStringBuilderBase* builder, T value, bool lowerCase)
         for (auto scalarValue : TEnumTraits<T>::GetDomainValues()) {
             if (Any(value & scalarValue)) {
                 if (!first) {
-                    builder->AppendString(AsStringBuf(" | "));
+                    builder->AppendString(TStringBuf(" | "));
                 }
                 first = false;
                 formatScalarValue(scalarValue);

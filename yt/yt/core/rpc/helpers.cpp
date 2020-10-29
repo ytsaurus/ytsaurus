@@ -430,7 +430,7 @@ TTraceContextPtr GetOrCreateHandlerTraceContext(
     const auto& ext = header.GetExtension(NProto::TRequestHeader::tracing_ext);
     return NTracing::CreateChildTraceContext(
         ext,
-        ConcatToString(AsStringBuf("RpcServer:"), header.service(), AsStringBuf("."), header.method()),
+        ConcatToString(TStringBuf("RpcServer:"), header.service(), TStringBuf("."), header.method()),
         requestId,
         /* forceTracing */ true);
 }
@@ -445,7 +445,7 @@ TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& m
     // Slow path.
     return CreateChildTraceContext(
         std::move(context),
-        ConcatToString(AsStringBuf("RpcClient:"), service, AsStringBuf("."), method));
+        ConcatToString(TStringBuf("RpcClient:"), service, TStringBuf("."), method));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

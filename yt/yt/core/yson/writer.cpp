@@ -263,7 +263,7 @@ void TYsonWriter::OnBooleanScalar(bool value)
     if (Format_ == EYsonFormat::Binary) {
         Stream_->Write(value ? NDetail::TrueMarker : NDetail::FalseMarker);
     } else {
-        Stream_->Write(value ? AsStringBuf("%true") : AsStringBuf("%false"));
+        Stream_->Write(value ? TStringBuf("%true") : TStringBuf("%false"));
     }
     EndNode();
 }

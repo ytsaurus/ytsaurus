@@ -294,7 +294,7 @@ public:
     virtual TFuture<void> Execute(const TDriverRequest& request) override
     {
         NTracing::TChildTraceContextGuard traceContextGuard(
-            ConcatToString(AsStringBuf("Driver:"), request.CommandName),
+            ConcatToString(TStringBuf("Driver:"), request.CommandName),
             true);
 
         auto it = CommandNameToEntry_.find(request.CommandName);

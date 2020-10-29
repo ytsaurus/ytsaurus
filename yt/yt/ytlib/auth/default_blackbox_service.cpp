@@ -98,7 +98,7 @@ private:
             Config_->Secure ? "https" : "http",
             Config_->Host,
             Config_->Port));
-        builder.AppendParam(AsStringBuf("method"), method);
+        builder.AppendParam(TStringBuf("method"), method);
         for (const auto& param : params) {
             builder.AppendChar('&');
             builder.AppendParam(param.first, param.second);

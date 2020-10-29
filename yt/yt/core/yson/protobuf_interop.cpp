@@ -1441,55 +1441,55 @@ private:
     {
         switch (field->GetType()) {
             case FieldDescriptor::TYPE_INT32: {
-                auto i32Value = CheckedCastField<i32>(value, AsStringBuf("i32"), field);
+                auto i32Value = CheckedCastField<i32>(value, TStringBuf("i32"), field);
                 BodyCodedStream_.WriteVarint32SignExtended(i32Value);
                 break;
             }
 
             case FieldDescriptor::TYPE_INT64: {
-                auto i64Value = CheckedCastField<i64>(value, AsStringBuf("i64"), field);
+                auto i64Value = CheckedCastField<i64>(value, TStringBuf("i64"), field);
                 BodyCodedStream_.WriteVarint64(static_cast<ui64>(i64Value));
                 break;
             }
 
             case FieldDescriptor::TYPE_SINT32: {
-                auto i32Value = CheckedCastField<i32>(value, AsStringBuf("i32"), field);
+                auto i32Value = CheckedCastField<i32>(value, TStringBuf("i32"), field);
                 BodyCodedStream_.WriteVarint64(ZigZagEncode64(i32Value));
                 break;
             }
 
             case FieldDescriptor::TYPE_SINT64: {
-                auto i64Value = CheckedCastField<i64>(value, AsStringBuf("i64"), field);
+                auto i64Value = CheckedCastField<i64>(value, TStringBuf("i64"), field);
                 BodyCodedStream_.WriteVarint64(ZigZagEncode64(i64Value));
                 break;
             }
 
             case FieldDescriptor::TYPE_UINT32: {
-                auto ui32Value = CheckedCastField<ui32>(value, AsStringBuf("ui32"), field);
+                auto ui32Value = CheckedCastField<ui32>(value, TStringBuf("ui32"), field);
                 BodyCodedStream_.WriteVarint32(ui32Value);
                 break;
             }
 
             case FieldDescriptor::TYPE_UINT64: {
-                auto ui64Value = CheckedCastField<ui64>(value, AsStringBuf("ui64"), field);
+                auto ui64Value = CheckedCastField<ui64>(value, TStringBuf("ui64"), field);
                 BodyCodedStream_.WriteVarint64(ui64Value);
                 break;
             }
 
             case FieldDescriptor::TYPE_FIXED32: {
-                auto ui32Value = CheckedCastField<ui32>(value, AsStringBuf("ui32"), field);
+                auto ui32Value = CheckedCastField<ui32>(value, TStringBuf("ui32"), field);
                 BodyCodedStream_.WriteRaw(&ui32Value, sizeof(ui32Value));
                 break;
             }
 
             case FieldDescriptor::TYPE_FIXED64: {
-                auto ui64Value = CheckedCastField<ui64>(value, AsStringBuf("ui64"), field);
+                auto ui64Value = CheckedCastField<ui64>(value, TStringBuf("ui64"), field);
                 BodyCodedStream_.WriteRaw(&ui64Value, sizeof(ui64Value));
                 break;
             }
 
             case FieldDescriptor::TYPE_ENUM: {
-                auto i32Value = CheckedCastField<i32>(value, AsStringBuf("i32"), field);
+                auto i32Value = CheckedCastField<i32>(value, TStringBuf("i32"), field);
                 const auto* enumType = field->GetEnumType();
                 auto literal = enumType->FindLiteralByValue(i32Value);
                 if (!literal) {
@@ -2438,7 +2438,7 @@ namespace {
 
 TStringBuf FormatYPath(TStringBuf ypath)
 {
-    return ypath.empty() ? AsStringBuf("/") : ypath;
+    return ypath.empty() ? TStringBuf("/") : ypath;
 }
 
 TProtobufElementResolveResult GetProtobufElementFromField(
