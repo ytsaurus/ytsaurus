@@ -1,4 +1,4 @@
-package ru.yandex.yt.client.proxy;
+package ru.yandex.yt.ytclient.proxy;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,16 +39,6 @@ import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
-import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
-import ru.yandex.yt.ytclient.proxy.LookupRowsRequest;
-import ru.yandex.yt.ytclient.proxy.MappedLookupRowsRequest;
-import ru.yandex.yt.ytclient.proxy.MappedModifyRowsRequest;
-import ru.yandex.yt.ytclient.proxy.SelectRowsRequest;
-import ru.yandex.yt.ytclient.proxy.TableReader;
-import ru.yandex.yt.ytclient.proxy.TableWriter;
-import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.YtCluster;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
