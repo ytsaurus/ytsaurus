@@ -56,6 +56,9 @@ public:
     int MaxExpiredNodesRemovalsPerCommit;
     TDuration ExpirationBackoffTime;
 
+    // COMPAT(shakurov)
+    bool EnableCompositeNodeExpiration;
+
     NCompression::ECodec TreeSerializationCodec;
 
     // COMPAT(ignat)
