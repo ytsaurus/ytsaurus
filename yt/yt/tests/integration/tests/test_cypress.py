@@ -1821,6 +1821,27 @@ class TestCypress(YTEnvSetup):
         time.sleep(1)
         assert not exists("//tmp/t1")
 
+    @authors("shakurov")
+    @pytest.mark.parametrize("composite_node_type", ["map_node", "list_node"])
+    @pytest.mark.parametrize("expiration_settings", [("expiration_time", "2030-03-07T13:18:55.000000Z"), ("expiration_timeout", 10000)])
+    def test_composite_node_expiration_disabled_yt_13127(self, composite_node_type, expiration_settings):
+        # COMPAT(shakurov)
+        set("//sys/@config/cypress_manager/enable_composite_node_expiration", False)
+
+        with pytest.raises(YtError):
+            create(composite_node_type, "//tmp/n1", attributes={expiration_settings[0]: expiration_settings[1]})
+        tx = start_transaction()
+        with pytest.raises(YtError):
+            create(composite_node_type, "//tmp/n2", attributes={expiration_settings[0]: expiration_settings[1]}, tx=tx)
+
+        create(composite_node_type, "//tmp/n3")
+        with pytest.raises(YtError):
+            set("//tmp/n3/@" + expiration_settings[0], expiration_settings[1])
+
+        create(composite_node_type, "//tmp/n4", tx=tx)
+        with pytest.raises(YtError):
+            set("//tmp/n4/@" + expiration_settings[0], expiration_settings[1], tx=tx)
+
     @authors("babenko")
     def test_copy_preserve_expiration_time(self):
         create(

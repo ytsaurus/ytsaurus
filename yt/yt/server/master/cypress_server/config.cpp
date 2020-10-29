@@ -62,6 +62,9 @@ TDynamicCypressManagerConfig::TDynamicCypressManagerConfig()
     RegisterParameter("expiration_backoff_time", ExpirationBackoffTime)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("enable_composite_node_expiration", EnableCompositeNodeExpiration)
+        .Default(true);
+
     RegisterParameter("tree_serialization_codec", TreeSerializationCodec)
         .Default(NCompression::ECodec::Lz4);
 

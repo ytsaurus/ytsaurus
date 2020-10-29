@@ -141,6 +141,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTrunkNodeInvalidDeltaStatistics)                           (1414))  // shakurov
     ((NestPoolTreeConfig)                                           (1415))  // renadeen
     ((OptionalDedicatedUploadTxObjectTypes)                         (1416))  // shakurov
+    ((YT_13127_CompositeNodeExpiration)                             (1417))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
