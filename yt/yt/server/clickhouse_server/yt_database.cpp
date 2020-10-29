@@ -123,6 +123,16 @@ public:
         return false;
     }
 
+    virtual bool canContainMergeTreeTables() const override
+    {
+        return false;
+    }
+
+    virtual bool canContainDistributedTables() const override
+    {
+        return false;
+    }
+
     virtual DB::ASTPtr getCreateDatabaseQuery() const override
     {
         THROW_ERROR_EXCEPTION("Getting CREATE DATABASE query is not supported");
