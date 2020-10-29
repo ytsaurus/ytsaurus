@@ -25,8 +25,9 @@ object LocalYtClient {
       enabled = false,
       ByopRemoteConfiguration(enabled = false, EmptyWorkersListStrategy.Default)
     ),
-    masterWrapperUrl = None
+    masterWrapperUrl = None,
+    extendedFileTimeout = true
   )
 
-  lazy val ytClient: YtRpcClient = YtWrapper.createRpcClient(conf)
+  lazy val ytClient: YtRpcClient = YtWrapper.createRpcClient("test", conf)
 }

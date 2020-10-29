@@ -12,7 +12,8 @@ case class YtClientConfiguration(proxy: String,
                                  timeout: Duration,
                                  proxyRole: Option[String],
                                  byop: ByopConfiguration,
-                                 masterWrapperUrl: Option[String]) {
+                                 masterWrapperUrl: Option[String],
+                                 extendedFileTimeout: Boolean) {
   def shortProxy: String = proxy.split("\\.").head.split(":").head
 
   def fullProxy: String = if (proxy.contains(".") || proxy.contains(":")) {
@@ -52,7 +53,8 @@ object YtClientConfiguration {
           emptyWorkersListStrategy = parseEmptyWorkersListStrategy(getByName)
         )
       ),
-      getByName("masterWrapper.url")
+      getByName("masterWrapper.url"),
+      getByName("extendedFileTimeout").forall(_.toBoolean)
     )
   }
 
@@ -63,7 +65,8 @@ object YtClientConfiguration {
     timeout = 5 minutes,
     proxyRole = None,
     byop = ByopConfiguration.DISABLED,
-    masterWrapperUrl = None
+    masterWrapperUrl = None,
+    extendedFileTimeout = true
   )
 }
 

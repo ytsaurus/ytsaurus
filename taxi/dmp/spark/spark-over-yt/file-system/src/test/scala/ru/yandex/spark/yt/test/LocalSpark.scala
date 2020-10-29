@@ -44,7 +44,7 @@ trait LocalSpark extends LocalYtClient {
     .withExtensions(_.injectPlannerStrategy(_ => plannerStrategy))
     .getOrCreate()
 
-  override lazy val ytClient: YtRpcClient = YtWrapper.createRpcClient(ytClientConfiguration(spark))
+  override lazy val ytClient: YtRpcClient = YtWrapper.createRpcClient("test", ytClientConfiguration(spark))
 
   def physicalPlan(df: DataFrame): SparkPlan = {
     spark.sessionState.executePlan(df.queryExecution.logical)

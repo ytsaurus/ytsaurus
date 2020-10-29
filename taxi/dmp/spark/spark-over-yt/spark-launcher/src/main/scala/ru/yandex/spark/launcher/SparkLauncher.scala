@@ -139,7 +139,7 @@ trait SparkLauncher {
   }
 
   def withDiscovery(ytConfig: YtClientConfiguration, discoveryPath: String)(f: DiscoveryService => Unit): Unit = {
-    val client = YtWrapper.createRpcClient(ytConfig)
+    val client = YtWrapper.createRpcClient("discovery", ytConfig)
     try {
       val discoveryService = new CypressDiscoveryService(discoveryPath)(client.yt)
       f(discoveryService)

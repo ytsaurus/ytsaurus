@@ -44,9 +44,10 @@ trait YtFileUtils {
     new WriteFile(formatPath(path)).setWindowSize(10000000L).setPacketSize(1000000L).optionalTransaction(transaction)
   }
 
-  def writeFile(path: String, timeout: Duration, yt: YtRpcClient, transaction: Option[String]): OutputStream = {
-    val writer = writeFileWithTimeout(writeFileRequest(path, transaction), timeout)(yt.yt).join()
-    new YtFileOutputStream(writer, Some(yt))
+  def writeFile(path: String, timeout: Duration, ytRpcClient: Option[YtRpcClient], transaction: Option[String])
+               (implicit yt: YtClient): OutputStream = {
+    val writer = writeFileWithTimeout(writeFileRequest(path, transaction), timeout)(yt).join()
+    new YtFileOutputStream(writer, ytRpcClient)
   }
 
   def writeFile(path: String, timeout: Duration, transaction: Option[String])(implicit yt: YtClient): OutputStream = {
