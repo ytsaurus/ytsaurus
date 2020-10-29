@@ -100,10 +100,6 @@ static const auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TError RedirectToOrchidCompatError("Compat. See tablet orchid for real error");
-
-////////////////////////////////////////////////////////////////////////////////
-
 TMasterConnector::TMasterConnector(
     TDataNodeConfigPtr config,
     const TAddressMap& rpcAddresses,
@@ -858,9 +854,6 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         }
     }
 
-    THashSet<TTableId> tablesWithTabletErrors;
-    THashSet<TTableReplicaId> replicasWithErrors;
-
     auto tabletSnapshots = slotManager->GetTabletSnapshots();
     for (const auto& tabletSnapshot : tabletSnapshots) {
         if (CellTagFromId(tabletSnapshot->TabletId) == cellTag) {
@@ -901,23 +894,13 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
             int tabletErrorCount = 0;
 
-            // COMPAT(ifsmirnov)
-            TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TError> dummyErrors;
-
             for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
                 auto error = tabletSnapshot->TabletRuntimeData->Errors[key].Load();
                 if (!error.IsOK()) {
                     ++tabletErrorCount;
-
-                    // COMPAT(ifsmirnov)
-                    dummyErrors[key] = RedirectToOrchidCompatError;
                 }
             }
             protoTabletInfo->set_error_count(tabletErrorCount);
-            if (tabletErrorCount > 0 && !tablesWithTabletErrors.contains(tabletSnapshot->TableId)) {
-                ToProto(protoTabletInfo->mutable_errors(), dummyErrors);
-                tablesWithTabletErrors.insert(tabletSnapshot->TableId);
-            }
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 auto replicaId = pair.first;
@@ -929,12 +912,6 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 auto error = replicaSnapshot->RuntimeData->Error.Load();
                 if (!error.IsOK()) {
                     protoReplicaInfo->set_has_error(true);
-
-                    // COMPAT(ifsmirnov)
-                    if (!replicasWithErrors.contains(replicaId)) {
-                        ToProto(protoReplicaInfo->mutable_error_compat(), RedirectToOrchidCompatError);
-                        replicasWithErrors.insert(replicaId);
-                    }
                 }
             }
 

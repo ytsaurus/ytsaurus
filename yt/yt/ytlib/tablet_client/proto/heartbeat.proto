@@ -68,8 +68,7 @@ message TTableReplicaInfo
     required NYT.NProto.TGuid replica_id = 1;
     required TTableReplicaStatistics statistics = 2;
 
-    // COMPAT(ifsmirnov)
-    optional NYT.NProto.TError error_compat = 3; // deprecated
+    reserved 3;
 
     optional bool has_error = 4 [default = false];
 
@@ -89,10 +88,9 @@ message TTabletInfo
     required TTabletStatistics statistics = 2;
     repeated TTableReplicaInfo replicas = 3;
     required TTabletPerformanceCounters performance_counters = 4;
-    // repeated NYT.NProto.TError errors = 5; deprecated
 
-    // COMPAT(ifsmirnov)
-    repeated TErrorEntry errors = 6; // deprecated
+    reserved 5;
+    reserved 6;
 
     optional int32 error_count = 7 [default = 0];
 }
