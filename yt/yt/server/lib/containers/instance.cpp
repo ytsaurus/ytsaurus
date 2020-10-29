@@ -355,7 +355,7 @@ public:
             .ValueOrThrow();
 
         TResourceUsage result;
-        
+
         for (auto field : fields) {
             auto ruleIt = NDetail::PortoStatRules.find(field);
             if (ruleIt == NDetail::PortoStatRules.end()) {
@@ -389,7 +389,7 @@ public:
 
         // We should maintain context switch information even if this field
         // is not requested since metrics of individual containers can go up and down.
-        
+
         auto selfAbsoluteName = GetOrCrash(propertyMap, "absolute_name")
             .ValueOrThrow();
 
@@ -412,7 +412,7 @@ public:
                 result[EStatField::ContextSwitches] = TotalContextSwitches_;
             }
         }
-        
+
         return result;
     }
 
@@ -620,7 +620,7 @@ public:
         if (RequireMemoryController_) {
             controllers.push_back("memory");
         }
-        SetProperty("controllers", JoinToString(controllers, AsStringBuf(";")));
+        SetProperty("controllers", JoinToString(controllers, TStringBuf(";")));
 
         SetProperty("enable_porto", FormatEnablePorto(EnablePorto_));
         SetProperty("isolate", Isolate_ ? "true" : "false");

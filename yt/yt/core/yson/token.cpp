@@ -174,7 +174,7 @@ void TToken::ExpectTypes(const std::vector<ETokenType>& expectedTypes) const
             [] (TStringBuilderBase* builder, ETokenType type) {
                 builder->AppendFormat("%Qlv", type);
             },
-            AsStringBuf(" or "));
+            TStringBuf(" or "));
         if (Type_ == ETokenType::EndOfStream) {
             THROW_ERROR_EXCEPTION("Unexpected end of stream; expected types are %v",
                 typesString);

@@ -178,7 +178,7 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                             if (auto owner = weakOwner.Lock()) {
                                 FormatValue(builder, owner->Path, TStringBuf());
                             } else {
-                                builder->AppendString(AsStringBuf("<expired>"));
+                                builder->AppendString(TStringBuf("<expired>"));
                             }
                         }));
 

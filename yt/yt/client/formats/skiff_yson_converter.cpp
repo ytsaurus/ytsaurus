@@ -838,7 +838,7 @@ class TInfiniteEntity
 {
 public:
     TInfiniteEntity()
-        : Stream_(AsStringBuf("#;#;#;#;#;#;#;#;"))
+        : Stream_(TStringBuf("#;#;#;#;#;#;#;#;"))
         , Parser_(&Stream_, EYsonType::ListFragment)
         , Cursor_(&Parser_)
     {}

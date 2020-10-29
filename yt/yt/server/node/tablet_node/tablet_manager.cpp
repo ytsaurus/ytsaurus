@@ -1907,7 +1907,7 @@ private:
             YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Partition split failed (%v, PartitionId: %v, Keys: %v)",
                 tablet->GetLoggingId(),
                 partitionId,
-                JoinToString(pivotKeys, AsStringBuf(" .. ")));
+                JoinToString(pivotKeys, TStringBuf(" .. ")));
             return;
         }
 
@@ -1923,7 +1923,7 @@ private:
                     tablet->PartitionList().data() + partitionIndex + pivotKeys.size()),
                 TPartitionIdFormatter()),
             partitionDataSize,
-            JoinToString(pivotKeys, AsStringBuf(" .. ")));
+            JoinToString(pivotKeys, TStringBuf(" .. ")));
     }
 
     void HydraMergePartitions(TReqMergePartitions* request)

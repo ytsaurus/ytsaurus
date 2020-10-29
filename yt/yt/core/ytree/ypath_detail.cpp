@@ -1380,7 +1380,7 @@ protected:
         }
         return NTracing::CreateChildTraceContext(
             std::move(traceContext),
-            ConcatToString(AsStringBuf("YPath:"), GetService(), AsStringBuf("."), GetMethod()));
+            ConcatToString(TStringBuf("YPath:"), GetService(), TStringBuf("."), GetMethod()));
     }
 
     const NProto::TYPathHeaderExt& GetYPathExt()

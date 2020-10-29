@@ -94,7 +94,7 @@ void FormatMessage(TMessageBuffer* out, TStringBuf message)
         if (current + 16 > message.end()) {
             appendChar();
         } else if (out->GetBytesRemaining() < MessageBufferWatermarkSize) {
-            out->AppendString(AsStringBuf("...<message truncated>"));
+            out->AppendString(TStringBuf("...<message truncated>"));
             break;
         } else {
             const void* inPtr = &(*current);

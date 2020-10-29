@@ -173,7 +173,7 @@ public:
 
         auto mailboxHolder = std::make_unique<TMailbox>(cellId);
         auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
-        
+
         {
             TWriterGuard guard(MailboxRuntimeDataMapLock_);
             YT_VERIFY(MailboxRuntimeDataMap_.emplace(cellId, mailbox->GetRuntimeData()).second);
@@ -643,7 +643,7 @@ private:
             mailbox->UpdateLastOutcomingMessageId();
 
             if (mailbox != mailboxes.front()) {
-                logMessageBuilder.AppendString(AsStringBuf(", "));
+                logMessageBuilder.AppendString(TStringBuf(", "));
             }
             logMessageBuilder.AppendFormat("%v=>%v",
                 mailbox->GetCellId(),
@@ -652,7 +652,7 @@ private:
             SchedulePostOutcomingMessages(mailbox);
         }
 
-        logMessageBuilder.AppendString(AsStringBuf("})"));
+        logMessageBuilder.AppendString(TStringBuf("})"));
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), logMessageBuilder.Flush());
     }
 
@@ -678,7 +678,7 @@ private:
             }
 
             if (mailbox != mailboxes.front()) {
-                logMessageBuilder.AppendString(AsStringBuf(", "));
+                logMessageBuilder.AppendString(TStringBuf(", "));
             }
             logMessageBuilder.AppendFormat("%v", mailbox->GetCellId());
 
@@ -699,7 +699,7 @@ private:
                     .Via(EpochAutomatonInvoker_));
         }
 
-        logMessageBuilder.AppendString(AsStringBuf("])"));
+        logMessageBuilder.AppendString(TStringBuf("])"));
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), logMessageBuilder.Flush());
     }
 
@@ -1355,7 +1355,7 @@ private:
         auto traceContext = message.has_tracing_ext()
             ? NTracing::CreateChildTraceContext(
                 message.tracing_ext(),
-                ConcatToString(AsStringBuf("HiveManager:"), message.type()))
+                ConcatToString(TStringBuf("HiveManager:"), message.type()))
             : nullptr;
         TTraceContextGuard traceContextGuard(std::move(traceContext));
 
@@ -1451,7 +1451,7 @@ private:
         TCompositeAutomatonPart::Clear();
 
         MailboxMap_.Clear();
-        
+
         {
             TWriterGuard guard(MailboxRuntimeDataMapLock_);
             MailboxRuntimeDataMap_.clear();

@@ -44,7 +44,7 @@ TUncheckedYsonTokenWriter::TUncheckedYsonTokenWriter(TZeroCopyOutputStreamWriter
 
 void TUncheckedYsonTokenWriter::WriteTextBoolean(bool value)
 {
-    auto res = value ? AsStringBuf("%true") : AsStringBuf("%false");
+    auto res = value ? TStringBuf("%true") : TStringBuf("%false");
     Writer_->Write(res.data(), res.size());
 }
 

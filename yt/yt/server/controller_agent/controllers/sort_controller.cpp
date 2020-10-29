@@ -2914,9 +2914,9 @@ protected:
     {
         switch (jobType) {
             case EJobType::Partition:
-                return AsStringBuf("data_weight_per_partition_job");
+                return TStringBuf("data_weight_per_partition_job");
             case EJobType::FinalSort:
-                return AsStringBuf("partition_data_weight");
+                return TStringBuf("partition_data_weight");
             default:
                 YT_ABORT();
         }
@@ -3653,10 +3653,10 @@ protected:
         switch (jobType) {
             case EJobType::PartitionMap:
             case EJobType::Partition:
-                return AsStringBuf("data_weight_per_map_job");
+                return TStringBuf("data_weight_per_map_job");
             case EJobType::PartitionReduce:
             case EJobType::SortedReduce:
-                return AsStringBuf("partition_data_weight");
+                return TStringBuf("partition_data_weight");
            default:
                 YT_ABORT();
         }

@@ -102,22 +102,22 @@ void Deserialize(TSerializableAccessControlEntry& ace, NYson::TYsonPullParserCur
     ace.InheritanceMode = EAceInheritanceMode::ObjectAndDescendants;
     cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
         auto key = cursor->GetCurrent().UncheckedAsString();
-        if (key == AsStringBuf("action")) {
+        if (key == TStringBuf("action")) {
             cursor->Next();
             HasAction = true;
             Deserialize(ace.Action, cursor);
-        } else if (key == AsStringBuf("subjects")) {
+        } else if (key == TStringBuf("subjects")) {
             cursor->Next();
             HasSubjects = true;
             Deserialize(ace.Subjects, cursor);
-        } else if (key == AsStringBuf("permissions")) {
+        } else if (key == TStringBuf("permissions")) {
             cursor->Next();
             HasPermissions = true;
             Deserialize(ace.Permissions, cursor);
-        } else if (key == AsStringBuf("inheritance_mode")) {
+        } else if (key == TStringBuf("inheritance_mode")) {
             cursor->Next();
             Deserialize(ace.InheritanceMode, cursor);
-        } else if (key == AsStringBuf("columns")) {
+        } else if (key == TStringBuf("columns")) {
             cursor->Next();
             Deserialize(ace.Columns, cursor);
         } else {

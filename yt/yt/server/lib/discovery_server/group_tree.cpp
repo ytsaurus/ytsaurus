@@ -604,7 +604,7 @@ private:
 
     TStringBuf GetNodeType(const TGroupNodePtr& node)
     {
-        return node->GetGroup() ? AsStringBuf("group") : AsStringBuf("node");
+        return node->GetGroup() ? TStringBuf("group") : TStringBuf("node");
     }
 
     int GetNodeCount(const TGroupNodePtr& node)
@@ -625,7 +625,7 @@ private:
         if (!node) {
             return;
         }
-        
+
         NConcurrency::TWriterGuard guard(Lock_);
 
         if (!DoFindGroup(groupId)) {

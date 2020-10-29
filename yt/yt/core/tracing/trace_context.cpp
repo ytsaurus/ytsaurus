@@ -164,7 +164,7 @@ void FormatValue(TStringBuilderBase* builder, const TTraceContextPtr& context, T
             context->GetSpanName(),
             context->GetSpanContext());
     } else {
-        builder->AppendString(AsStringBuf("<null>"));
+        builder->AppendString(TStringBuf("<null>"));
     }
 }
 

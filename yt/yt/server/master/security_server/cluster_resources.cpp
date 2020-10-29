@@ -449,12 +449,12 @@ bool operator != (const TClusterResources& lhs, const TClusterResources& rhs)
 
 void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources, TStringBuf /*format*/)
 {
-    builder->AppendString(AsStringBuf("{DiskSpace: ["));
+    builder->AppendString(TStringBuf("{DiskSpace: ["));
     bool firstDiskSpace = true;
     for (const auto& [mediumIndex, diskSpace] : resources.DiskSpace()) {
         if (diskSpace != 0) {
             if (!firstDiskSpace) {
-                builder->AppendString(AsStringBuf(", "));
+                builder->AppendString(TStringBuf(", "));
             }
             builder->AppendFormat("%v@%v",
                 diskSpace,

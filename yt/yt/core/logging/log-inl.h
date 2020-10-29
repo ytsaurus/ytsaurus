@@ -69,12 +69,12 @@ void AppendLogMessage(TStringBuilderBase* builder, TStringBuf context, TRef mess
     if (context) {
         if (message.Size() >= 1 && message[message.Size() - 1] == ')') {
             builder->AppendString(TStringBuf(message.Begin(), message.Size() - 1));
-            builder->AppendString(AsStringBuf(", "));
+            builder->AppendString(TStringBuf(", "));
             builder->AppendString(context);
             builder->AppendChar(')');
         } else {
             builder->AppendString(TStringBuf(message.Begin(), message.Size()));
-            builder->AppendString(AsStringBuf(" ("));
+            builder->AppendString(TStringBuf(" ("));
             builder->AppendString(context);
             builder->AppendChar(')');
         }
@@ -89,12 +89,12 @@ void AppendLogMessageWithFormat(TStringBuilderBase* builder, TStringBuf context,
     if (context) {
         if (FormatLength >= 2 && format[FormatLength - 2] == ')') {
             builder->AppendFormat(TStringBuf(format, FormatLength - 2), std::forward<TArgs>(args)...);
-            builder->AppendString(AsStringBuf(", "));
+            builder->AppendString(TStringBuf(", "));
             builder->AppendString(context);
             builder->AppendChar(')');
         } else {
             builder->AppendFormat(format, std::forward<TArgs>(args)...);
-            builder->AppendString(AsStringBuf(" ("));
+            builder->AppendString(TStringBuf(" ("));
             builder->AppendString(context);
             builder->AppendChar(')');
         }
@@ -127,7 +127,7 @@ TSharedRef BuildLogMessage(TStringBuf context, const T& obj)
     TMessageStringBuilder builder;
     FormatValue(&builder, obj, TStringBuf());
     if (context) {
-        builder.AppendString(AsStringBuf(" ("));
+        builder.AppendString(TStringBuf(" ("));
         builder.AppendString(context);
         builder.AppendChar(')');
     }

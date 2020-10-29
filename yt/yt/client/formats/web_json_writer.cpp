@@ -106,43 +106,43 @@ TStringBuf GetSimpleYqlTypeName(ESimpleLogicalValueType type)
 {
     switch (type) {
         case ESimpleLogicalValueType::Float:
-            return AsStringBuf("Float");
+            return TStringBuf("Float");
         case ESimpleLogicalValueType::Double:
-            return AsStringBuf("Double");
+            return TStringBuf("Double");
         case ESimpleLogicalValueType::Boolean:
-            return AsStringBuf("Boolean");
+            return TStringBuf("Boolean");
         case ESimpleLogicalValueType::String:
-            return AsStringBuf("String");
+            return TStringBuf("String");
         case ESimpleLogicalValueType::Utf8:
-            return AsStringBuf("Utf8");
+            return TStringBuf("Utf8");
         case ESimpleLogicalValueType::Any:
-            return AsStringBuf("Yson");
+            return TStringBuf("Yson");
         case ESimpleLogicalValueType::Json:
-            return AsStringBuf("Json");
+            return TStringBuf("Json");
         case ESimpleLogicalValueType::Int8:
-            return AsStringBuf("Int8");
+            return TStringBuf("Int8");
         case ESimpleLogicalValueType::Int16:
-            return AsStringBuf("Int16");
+            return TStringBuf("Int16");
         case ESimpleLogicalValueType::Int32:
-            return AsStringBuf("Int32");
+            return TStringBuf("Int32");
         case ESimpleLogicalValueType::Int64:
-            return AsStringBuf("Int64");
+            return TStringBuf("Int64");
         case ESimpleLogicalValueType::Uint8:
-            return AsStringBuf("Uint8");
+            return TStringBuf("Uint8");
         case ESimpleLogicalValueType::Uint16:
-            return AsStringBuf("Uint16");
+            return TStringBuf("Uint16");
         case ESimpleLogicalValueType::Uint32:
-            return AsStringBuf("Uint32");
+            return TStringBuf("Uint32");
         case ESimpleLogicalValueType::Uint64:
-            return AsStringBuf("Uint64");
+            return TStringBuf("Uint64");
         case ESimpleLogicalValueType::Date:
-            return AsStringBuf("Date");
+            return TStringBuf("Date");
         case ESimpleLogicalValueType::Datetime:
-            return AsStringBuf("Datetime");
+            return TStringBuf("Datetime");
         case ESimpleLogicalValueType::Timestamp:
-            return AsStringBuf("Timestamp");
+            return TStringBuf("Timestamp");
         case ESimpleLogicalValueType::Interval:
-            return AsStringBuf("Interval");
+            return TStringBuf("Interval");
         case ESimpleLogicalValueType::Null:
         case ESimpleLogicalValueType::Void:
             // This case must have been processed earlier.

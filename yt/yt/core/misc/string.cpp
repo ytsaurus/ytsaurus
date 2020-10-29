@@ -128,7 +128,7 @@ bool ParseBool(const TString& value)
 
 TStringBuf FormatBool(bool value)
 {
-    return value ? AsStringBuf("true") : AsStringBuf("false");
+    return value ? TStringBuf("true") : TStringBuf("false");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,13 +244,13 @@ char* WriteUnsignedIntToBufferBackwardsImpl(char* ptr, T value)
 template <>
 char* WriteIntToBufferBackwards(char* ptr, i32 value)
 {
-    return WriteSignedIntToBufferBackwardsImpl(ptr, value, AsStringBuf("-2147483647"));
+    return WriteSignedIntToBufferBackwardsImpl(ptr, value, TStringBuf("-2147483647"));
 }
 
 template <>
 char* WriteIntToBufferBackwards(char* ptr, i64 value)
 {
-    return WriteSignedIntToBufferBackwardsImpl(ptr, value, AsStringBuf("-9223372036854775808"));
+    return WriteSignedIntToBufferBackwardsImpl(ptr, value, TStringBuf("-9223372036854775808"));
 }
 
 template <>
