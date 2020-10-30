@@ -74,11 +74,9 @@ NYTree::INodePtr CreatePoolTreesConfig()
     physicalTreeConfig->DefaultParentPool = "research";
 
     physicalTreeConfig->FairSharePreemptionTimeout = TDuration::Seconds(30);
-    physicalTreeConfig->MinSharePreemptionTimeout = TDuration::Seconds(15);
     physicalTreeConfig->FairShareStarvationTolerance = 0.8;
 
     physicalTreeConfig->FairSharePreemptionTimeoutLimit = TDuration::Seconds(30);
-    physicalTreeConfig->MinSharePreemptionTimeoutLimit = TDuration::Seconds(15);
     physicalTreeConfig->FairShareStarvationToleranceLimit = 0.8;
 
     physicalTreeConfig->PreemptionSatisfactionThreshold = 1.0;

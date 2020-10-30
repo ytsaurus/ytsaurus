@@ -5,7 +5,7 @@
 #include "fair_share_tree_element.h"
 #endif
 
-namespace NYT::NScheduler::NVectorScheduler {
+namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,4 +41,4 @@ inline const NLogging::TLogger& TSchedulerElement::GetLogger() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler::NVectorScheduler
+} // namespace NYT::NScheduler

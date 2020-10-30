@@ -2,7 +2,6 @@
 #include "operation_controller.h"
 #include "node_shard.h"
 
-#include <yt/server/scheduler/fair_share_implementations.h>
 #include <yt/server/scheduler/fair_share_strategy.h>
 #include <yt/server/scheduler/fair_share_tree.h>
 

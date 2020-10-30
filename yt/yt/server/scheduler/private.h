@@ -15,27 +15,12 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NClassicScheduler {
-
 DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TOperationElement)
 DECLARE_REFCOUNTED_CLASS(TOperationElementSharedState)
 DECLARE_REFCOUNTED_CLASS(TCompositeSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TPool)
 DECLARE_REFCOUNTED_CLASS(TRootElement)
-
-} // namespace NClassicScheduler
-
-namespace NVectorScheduler {
-
-DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
-DECLARE_REFCOUNTED_CLASS(TOperationElement)
-DECLARE_REFCOUNTED_CLASS(TOperationElementSharedState)
-DECLARE_REFCOUNTED_CLASS(TCompositeSchedulerElement)
-DECLARE_REFCOUNTED_CLASS(TPool)
-DECLARE_REFCOUNTED_CLASS(TRootElement)
-
-} // namespace NVectorScheduler
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulerTree)
 
@@ -59,7 +44,6 @@ using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterrupt
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)
     (BelowFairShare)
-    (BelowMinShare) // NB(antonkikh): For compatibility with the classic scheduler. Not used in vector fair share.
 );
 
 DEFINE_ENUM(EJobRevivalPhase,

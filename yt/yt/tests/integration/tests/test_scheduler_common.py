@@ -641,8 +641,7 @@ class TestSchedulerCommon(YTEnvSetup):
         statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
         operation_objects = [
             "NYT::NScheduler::TOperation",
-            "NYT::NScheduler::NVectorScheduler::TOperationElement",
-            "NYT::NScheduler::NClassicScheduler::TOperationElement",
+            "NYT::NScheduler::TOperationElement",
         ]
         records = [record for record in statistics if record["name"] in operation_objects]
         assert len(records) == 2

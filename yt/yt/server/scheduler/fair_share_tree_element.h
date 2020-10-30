@@ -9,7 +9,6 @@
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
-#include "fair_share_tree_element_common.h"
 #include "fair_share_tree_snapshot.h"
 #include "packing.h"
 
@@ -26,7 +25,12 @@
 
 #include <yt/core/profiling/metrics_accumulator.h>
 
-namespace NYT::NScheduler::NVectorScheduler {
+namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr int UnassignedTreeIndex = -1;
+static constexpr int EmptySchedulingTagFilterIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +43,31 @@ using TOperationElementMap = THashMap<TOperationId, TOperationElementPtr>;
 
 using TRawPoolMap = THashMap<TString, TPool*>;
 using TPoolMap = THashMap<TString, TPoolPtr>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EPrescheduleJobOperationCriterion,
+    (All)
+    (AggressivelyStarvingOnly)
+    (StarvingOnly)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TScheduleJobsProfilingCounters
+{
+    TScheduleJobsProfilingCounters(const TString& prefix, const NProfiling::TTagIdList& treeIdProfilingTags);
+
+    NProfiling::TShardedAggregateGauge PrescheduleJobTime;
+    NProfiling::TShardedAggregateGauge TotalControllerScheduleJobTime;
+    NProfiling::TShardedAggregateGauge ExecControllerScheduleJobTime;
+    NProfiling::TShardedAggregateGauge StrategyScheduleJobTime;
+    NProfiling::TShardedAggregateGauge PackingRecordHeartbeatTime;
+    NProfiling::TShardedAggregateGauge PackingCheckTime;
+    NProfiling::TShardedMonotonicCounter ScheduleJobAttemptCount;
+    NProfiling::TShardedMonotonicCounter ScheduleJobFailureCount;
+    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TShardedMonotonicCounter> ControllerScheduleJobFail;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,12 +109,10 @@ struct TSchedulableAttributes
     int FifoIndex = -1;
 
     double AdjustedFairShareStarvationTolerance = 1.0;
-    TDuration AdjustedMinSharePreemptionTimeout;
     TDuration AdjustedFairSharePreemptionTimeout;
 
-    // Set of methods for compatibility with the classic scheduler.
+    // TODO(eshcherbin): Rethink whether we want to use |MaxComponent| here or the share of |DominantResource|.
 
-    // TODO(eshcherbin): Use <Attribute>[Attributes_.DominantResource] instead of MaxComponent[<Attribute>] here and below.
     double GetFairShareRatio() const
     {
         return MaxComponent(FairShare.Total);
@@ -96,40 +123,9 @@ struct TSchedulableAttributes
         return MaxComponent(DemandShare);
     }
 
-    double GetUnlimitedDemandFairShareRatio() const
-    {
-        return MaxComponent(UnlimitedDemandFairShare);
-    }
-
-    double GetMinShareRatio() const
-    {
-        return MaxComponent(MinShare);
-    }
-
-    double GetPossibleUsageRatio() const
-    {
-        // NB(eshcherbin): For compatibility.
-        return MaxComponent(DemandShare);
-    }
-
-    double GetTotalResourceFlowRatio() const
-    {
-        return TotalResourceFlowRatio;
-    }
-
-    double GetTotalBurstRatio() const
-    {
-        return TotalBurstRatio;
-    }
-
     TResourceVector GetFairShare() const
     {
         return FairShare.Total;
-    }
-
-    TResourceVector GetUnlimitedDemandFairShare() const
-    {
-        return UnlimitedDemandFairShare;
     }
 
     TResourceVector GetGuaranteeShare() const
@@ -408,8 +404,8 @@ public:
 
     virtual TResourceVector GetMaxShare() const = 0;
 
-    // For compatibility with the classic scheduler.
-    virtual double GetMaxShareRatio() const;
+    // Used for diagnostics.
+    double GetMaxShareRatio() const;
 
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
     double GetAccumulatedResourceRatioVolume() const;
@@ -419,7 +415,6 @@ public:
     void IncreaseHierarchicalIntegralShare(const TResourceVector& delta);
 
     virtual double GetFairShareStarvationTolerance() const = 0;
-    virtual TDuration GetMinSharePreemptionTimeout() const = 0;
     virtual TDuration GetFairSharePreemptionTimeout() const = 0;
 
     TCompositeSchedulerElement* GetMutableParent();
@@ -439,8 +434,7 @@ public:
     TResourceVector GetResourceUsageShare() const;
     TResourceVector GetResourceUsageShareWithPrecommit() const;
 
-    // For compatibility with the classic scheduler.
-    double GetResourceUsageRatio() const;
+    // Used for diagnostics.
     double GetResourceUsageRatioAtUpdate() const;
 
     virtual TString GetTreeId() const;
@@ -481,8 +475,6 @@ public:
 
     TJobResources GetTotalResourceLimits() const;
 
-    virtual double GetBestAllocationRatio() const;
-
     virtual std::optional<TMeteringKey> GetMeteringKey() const;
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const;
 
@@ -516,10 +508,7 @@ protected:
 
     ESchedulableStatus GetStatusImpl(double defaultTolerance, bool atUpdate) const;
 
-    void CheckForStarvationImpl(
-        TDuration minSharePreemptionTimeout,
-        TDuration fairSharePreemptionTimeout,
-        TInstant now);
+    void CheckForStarvationImpl(TDuration fairSharePreemptionTimeout, TInstant now);
 
     void SetOperationAlert(
         TOperationId operationId,
@@ -559,7 +548,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, WaitingOperationIds);
 
     DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
-    DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedMinSharePreemptionTimeoutLimit);
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedFairSharePreemptionTimeoutLimit);
 
 protected:
@@ -601,7 +589,6 @@ public:
     virtual void UpdateGlobalDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
 
     virtual double GetFairShareStarvationToleranceLimit() const;
-    virtual TDuration GetMinSharePreemptionTimeoutLimit() const;
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
@@ -784,11 +771,9 @@ public:
     virtual ESchedulableStatus GetStatus(bool atUpdate = false) const override;
 
     virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual double GetFairShareStarvationToleranceLimit() const override;
-    virtual TDuration GetMinSharePreemptionTimeoutLimit() const override;
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const override;
 
     virtual TJobResources GetSpecifiedResourceLimits() const override;
@@ -1027,7 +1012,6 @@ public:
     virtual void DisableNonAliveElements() override;
 
     virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
@@ -1093,8 +1077,6 @@ public:
     TString GetUserName() const;
 
     virtual TResourceVector ComputeLimitsShare() const override;
-
-    virtual double GetBestAllocationRatio() const override;
 
     bool OnJobStarted(
         TJobId jobId,
@@ -1238,7 +1220,6 @@ public:
     virtual TResourceVector GetMaxShare() const override;
 
     virtual double GetFairShareStarvationTolerance() const override;
-    virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual TJobResources GetSpecifiedResourceLimits() const override;
@@ -1283,7 +1264,7 @@ DEFINE_REFCOUNTED_TYPE(TRootElement)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler::NVectorScheduler
+} // namespace NYT::NScheduler
 
 ////////////////////////////////////////////////////////////////////////////////
 

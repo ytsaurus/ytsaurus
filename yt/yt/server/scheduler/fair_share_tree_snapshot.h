@@ -10,8 +10,8 @@ namespace NYT::NScheduler {
 
 struct TSchedulerElementStateSnapshot
 {
-    TJobResources ResourceDemand;
-    TJobResources UnlimitedDemandFairShareResources;
+    TResourceVector DemandShare;
+    TResourceVector UnlimitedDemandFairShare;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

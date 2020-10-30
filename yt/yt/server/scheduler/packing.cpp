@@ -1,5 +1,4 @@
 #include "fair_share_tree_element.h"
-#include "fair_share_tree_element_classic.h"
 #include "private.h"
 #include "packing.h"
 #include "packing_detail.h"
@@ -68,9 +67,8 @@ void TPackingStatistics::RecordHeartbeat(
     }
 }
 
-template <class TAnyOperationElement>
 bool TPackingStatistics::CheckPacking(
-    const TAnyOperationElement* operationElement,
+    const TOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& jobResourcesWithQuota,
     const TJobResources& totalResourceLimits,
@@ -124,24 +122,6 @@ bool TPackingStatistics::CheckPacking(
 
     return decision;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Explicit instantiations for the new and the classic scheduler.
-
-template bool TPackingStatistics::CheckPacking(
-    const NVectorScheduler::TOperationElement* operationElement,
-    const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
-    const TJobResources& totalResourceLimits,
-    const TFairShareStrategyPackingConfigPtr& config) const;
-
-template bool TPackingStatistics::CheckPacking(
-    const NClassicScheduler::TOperationElement* operationElement,
-    const TPackingHeartbeatSnapshot& heartbeatSnapshot,
-    const TJobResourcesWithQuota& jobResourcesWithQuota,
-    const TJobResources& totalResourceLimits,
-    const TFairShareStrategyPackingConfigPtr& config) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 

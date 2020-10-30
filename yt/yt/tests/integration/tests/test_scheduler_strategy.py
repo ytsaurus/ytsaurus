@@ -12,7 +12,6 @@ from yt_env_setup import (
     is_asan_build,
 )
 from yt.test_helpers import are_almost_equal
-import yt.common
 
 from flaky import flaky
 
@@ -36,12 +35,12 @@ def get_from_tree_orchid(tree, path, **kwargs):
 ##################################################################
 
 
-class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
+class TestResourceUsage(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    BASE_DELTA_SCHEDULER_CONFIG = {
+    DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
@@ -66,7 +65,7 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
     }
 
     def setup_method(self, method):
-        super(BaseTestResourceUsage, self).setup_method(method)
+        super(TestResourceUsage, self).setup_method(method)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
         time.sleep(0.5)
@@ -160,7 +159,7 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create_pool("test_pool", attributes={"resource_limits": resource_limits})
 
-        # TODO(renadeen): make better, I know you can
+        # TODO(renadeen): Do better, I know you can.
         def check_limits():
             stats = get(scheduler_orchid_default_pool_tree_path())
             pool_resource_limits = stats["pools"]["test_pool"]["resource_limits"]
@@ -284,12 +283,8 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         data = [{"foo": i} for i in xrange(3)]
         write_table("//tmp/t_in", data)
 
-        get_pool_fair_share_ratio = lambda pool: get(
-            "{0}/pools/{1}/fair_share_ratio".format(scheduler_orchid_default_pool_tree_path(), pool)
-        )
-        get_pool_max_possible_resource_usage = lambda pool: get(
-            "{0}/pools/{1}/max_possible_usage_ratio".format(scheduler_orchid_default_pool_tree_path(), pool)
-        )
+        def get_pool_fair_share(pool, resource):
+            return get("{0}/pools/{1}/detailed_fair_share/total/{2}".format(scheduler_orchid_default_pool_tree_path(), pool, resource))
 
         command_with_breakpoint = with_breakpoint("cat ; BREAKPOINT")
         op1 = map(
@@ -310,10 +305,11 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
 
         wait_breakpoint()
 
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0))
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_2"), 0))
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0))
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 2.0 / 3.0))
+        for resource in ["cpu", "user_slots"]:
+            wait(lambda: are_almost_equal(get_pool_fair_share("subpool_1", resource), 1.0 / 3.0))
+            wait(lambda: are_almost_equal(get_pool_fair_share("subpool_2", resource), 0.0))
+            wait(lambda: are_almost_equal(get_pool_fair_share("low_cpu_pool", resource), 1.0 / 3.0))
+            wait(lambda: are_almost_equal(get_pool_fair_share("high_cpu_pool", resource), 2.0 / 3.0))
 
         op3 = map(
             track=False,
@@ -325,16 +321,15 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
 
         time.sleep(1)
 
-        if self.DELTA_SCHEDULER_CONFIG["scheduler"].get("use_classic_scheduler", True):
-            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0))
-            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0))
-        else:
-            # TODO: When vector fair share is exported fully to the Orchid, need to check the CPU fair share as well.
-            # Currently user slots are dominant.
-            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 4.0))
-            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_2"), 1.0 / 4.0))
-            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0))
-            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share("subpool_1", "user_slots"), 1.0 / 4.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share("subpool_2", "user_slots"), 1.0 / 4.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share("low_cpu_pool", "user_slots"), 1.0 / 2.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share("high_cpu_pool", "user_slots"), 1.0 / 2.0))
+
+        wait(lambda: are_almost_equal(get_pool_fair_share("subpool_1", "cpu"), 1.0 / 4.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share("subpool_2", "cpu"), 0.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share("low_cpu_pool", "cpu"), 1.0 / 4.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share("high_cpu_pool", "cpu"), 1.0 / 2.0))
 
         release_breakpoint()
         op1.track()
@@ -366,17 +361,6 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
 
         release_breakpoint()
         op.track()
-
-
-class TestResourceUsageClassic(BaseTestResourceUsage):
-    DELTA_SCHEDULER_CONFIG = BaseTestResourceUsage.BASE_DELTA_SCHEDULER_CONFIG
-
-
-class TestResourceUsageVector(BaseTestResourceUsage):
-    DELTA_SCHEDULER_CONFIG = yt.common.update(
-        BaseTestResourceUsage.BASE_DELTA_SCHEDULER_CONFIG,
-        {"scheduler": {"use_classic_scheduler": False}},
-    )
 
 
 ##################################################################
@@ -983,12 +967,12 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 ##################################################################
 
 
-class BaseTestSchedulerPreemption(YTEnvSetup):
+class TestSchedulerPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    BASE_DELTA_SCHEDULER_CONFIG = {
+    DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
             "event_log": {"flush_period": 300, "retry_backoff_time": 300},
@@ -1000,11 +984,10 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
     }
 
     def setup_method(self, method):
-        super(BaseTestSchedulerPreemption, self).setup_method(method)
+        super(TestSchedulerPreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.99)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.7)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.9)
-        set("//sys/pool_trees/default/@config/min_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@config/job_graceful_interrupt_timeout", 10000)
@@ -1340,15 +1323,7 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         op0.abort()
 
 
-class TestSchedulerPreemptionClassic(BaseTestSchedulerPreemption):
-    DELTA_SCHEDULER_CONFIG = BaseTestSchedulerPreemption.BASE_DELTA_SCHEDULER_CONFIG
-
-
-class TestSchedulerPreemptionVector(BaseTestSchedulerPreemption):
-    DELTA_SCHEDULER_CONFIG = yt.common.update(
-        BaseTestSchedulerPreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"scheduler": {"use_classic_scheduler": False}},
-    )
+##################################################################
 
 
 class TestInferWeightFromMinShare(YTEnvSetup):
@@ -1389,8 +1364,8 @@ class TestInferWeightFromMinShare(YTEnvSetup):
 
         get_pool_weight = lambda pool: get(scheduler_orchid_pool_path(pool) + "/weight")
 
-        wait(lambda: are_almost_equal(get_pool_weight("test_pool1"), 3.0))
-        wait(lambda: are_almost_equal(get_pool_weight("test_pool2"), 4.0))
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool1"), 3.0 / 7.0 * 10.0))
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool2"), 4.0 / 7.0 * 10.0))
         wait(lambda: are_almost_equal(get_pool_weight("test_pool3"), 1.0))
 
         wait(lambda: are_almost_equal(get_pool_weight("subpool1"), 3.0))
@@ -1400,12 +1375,12 @@ class TestInferWeightFromMinShare(YTEnvSetup):
 ##################################################################
 
 
-class BaseTestResourceLimitsOverdraftPreemption(YTEnvSetup):
+class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
-    BASE_DELTA_SCHEDULER_CONFIG = {
+    DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
             "allowed_node_resources_overcommit_duration": 1000,
@@ -1534,17 +1509,6 @@ class BaseTestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
-
-
-class TestResourceLimitsOverdraftPreemptionClassic(BaseTestResourceLimitsOverdraftPreemption):
-    DELTA_SCHEDULER_CONFIG = BaseTestResourceLimitsOverdraftPreemption.BASE_DELTA_SCHEDULER_CONFIG
-
-
-class TestResourceLimitsOverdraftPreemptionVector(BaseTestResourceLimitsOverdraftPreemption):
-    DELTA_SCHEDULER_CONFIG = yt.common.update(
-        BaseTestResourceLimitsOverdraftPreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"scheduler": {"use_classic_scheduler": False}},
-    )
 
 
 ##################################################################
@@ -1751,23 +1715,21 @@ class TestSchedulerHangingOperations(YTEnvSetup):
 ##################################################################
 
 
-class BaseTestSchedulerAggressivePreemption(YTEnvSetup):
+class TestSchedulerAggressivePreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 4
     NUM_SCHEDULERS = 1
 
-    BASE_DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
 
     def setup_method(self, method):
-        super(BaseTestSchedulerAggressivePreemption, self).setup_method(method)
+        super(TestSchedulerAggressivePreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.2)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 1.0)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.9)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@config/fair_share_preemption_timeout_limit", 100)
-        set("//sys/pool_trees/default/@config/min_share_preemption_timeout", 100)
-        set("//sys/pool_trees/default/@config/min_share_preemption_timeout_limit", 100)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 5)
         time.sleep(0.5)
@@ -1879,34 +1841,22 @@ class BaseTestSchedulerAggressivePreemption(YTEnvSetup):
         wait(lambda: len(op1.get_running_jobs()) == 2)
 
 
-class TestSchedulerAggressivePreemptionClassic(BaseTestSchedulerAggressivePreemption):
-    DELTA_SCHEDULER_CONFIG = BaseTestSchedulerAggressivePreemption.BASE_DELTA_SCHEDULER_CONFIG
-
-
-class TestSchedulerAggressivePreemptionVector(BaseTestSchedulerAggressivePreemption):
-    DELTA_SCHEDULER_CONFIG = yt.common.update(
-        BaseTestSchedulerAggressivePreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"scheduler": {"use_classic_scheduler": False}},
-    )
-
-
 ##################################################################
 
 
-class BaseTestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
+class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    BASE_DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
+    DELTA_SCHEDULER_CONFIG = {"scheduler": {"fair_share_update_period": 100}}
 
     def setup_method(self, method):
-        super(BaseTestSchedulerAggressiveStarvationPreemption, self).setup_method(method)
+        super(TestSchedulerAggressiveStarvationPreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@config/aggressive_preemption_satisfaction_threshold", 0.2)
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.75)
         set("//sys/pool_trees/default/@config/preemption_check_starvation", False)
         set("//sys/pool_trees/default/@config/preemption_check_satisfaction", False)
-        set("//sys/pool_trees/default/@config/min_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 2)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
@@ -2029,17 +1979,6 @@ class BaseTestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         time.sleep(1.0)
         wait(lambda: are_almost_equal(get_usage_ratio(op_special.id), 0.08), iter=10)
         wait(lambda: are_almost_equal(get_usage_ratio(op_honest_big.id), 0.32))
-
-
-class TestSchedulerAggressiveStarvationPreemptionClassic(BaseTestSchedulerAggressiveStarvationPreemption):
-    DELTA_SCHEDULER_CONFIG = BaseTestSchedulerAggressiveStarvationPreemption.BASE_DELTA_SCHEDULER_CONFIG
-
-
-class TestSchedulerAggressiveStarvationPreemptionVector(BaseTestSchedulerAggressiveStarvationPreemption):
-    DELTA_SCHEDULER_CONFIG = yt.common.update(
-        BaseTestSchedulerAggressiveStarvationPreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"scheduler": {"use_classic_scheduler": False}},
-    )
 
 
 ##################################################################
@@ -2816,12 +2755,12 @@ class TestMinNeededResources(YTEnvSetup):
 ##################################################################
 
 
-class BaseTestSchedulingSegments(YTEnvSetup):
+class TestSchedulingSegments(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 10
     NUM_SCHEDULERS = 1
 
-    BASE_DELTA_SCHEDULER_CONFIG = {
+    DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,
             "fair_share_update_period": 100,
@@ -2856,10 +2795,10 @@ class BaseTestSchedulingSegments(YTEnvSetup):
     def setup_class(cls):
         if is_asan_build():
             pytest.skip("test suite has too high memory consumption for ASAN build")
-        super(BaseTestSchedulingSegments, cls).setup_class()
+        super(TestSchedulingSegments, cls).setup_class()
 
     def setup_method(self, method):
-        super(BaseTestSchedulingSegments, self).setup_method(method)
+        super(TestSchedulingSegments, self).setup_method(method)
         # NB(eshcherbin): This is done to reset node segments.
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -2918,14 +2857,10 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
 
+    @pytest.mark.skip("There is no logic that reduces oversatisfied segments yet, "
+                      "and operations with zero GPU demand do not change the default segment's fair resource amount")
     @authors("eshcherbin")
     def test_default_segment_extended_cpu(self):
-        if not self.DELTA_SCHEDULER_CONFIG["scheduler"].get("use_classic_scheduler", True):
-            pytest.skip(
-                "There is no logic that reduces oversatisfied segments yet, "
-                "and operations with zero GPU demand do not change the default segment's fair resource amount"
-            )
-
         blocking_op = run_sleeping_vanilla(
             job_count=10,
             spec={"pool": "large_gpu"},
@@ -2936,14 +2871,10 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         op = run_sleeping_vanilla(job_count=10, spec={"pool": "cpu"}, task_patch={"cpu_limit": 1})
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
 
+    @pytest.mark.skip("There is no logic that reduces oversatisfied segments yet, "
+                      "and operations with zero GPU demand do not change the default segment's fair resource amount")
     @authors("eshcherbin")
     def test_default_segment_extended_gpu_and_cpu(self):
-        if not self.DELTA_SCHEDULER_CONFIG["scheduler"].get("use_classic_scheduler", True):
-            pytest.skip(
-                "There is no logic that reduces oversatisfied segments yet, "
-                "and operations with zero GPU demand do not change the default segment's fair resource amount"
-            )
-
         blocking_op = run_sleeping_vanilla(
             job_count=10,
             spec={"pool": "large_gpu"},
@@ -3407,17 +3338,6 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
 
 
-class TestSchedulingSegmentsClassic(BaseTestSchedulingSegments):
-    DELTA_SCHEDULER_CONFIG = BaseTestSchedulingSegments.BASE_DELTA_SCHEDULER_CONFIG
-
-
-class TestSchedulingSegmentsVector(BaseTestSchedulingSegments):
-    DELTA_SCHEDULER_CONFIG = yt.common.update(
-        BaseTestSchedulingSegments.BASE_DELTA_SCHEDULER_CONFIG,
-        {"scheduler": {"use_classic_scheduler": False}},
-    )
-
-
 ##################################################################
 
 
@@ -3633,7 +3553,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
 
 @authors("renadeen")
-class TestIntegralGuaranteesClassic(YTEnvSetup):
+class TestIntegralGuarantees(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -3641,445 +3561,6 @@ class TestIntegralGuaranteesClassic(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,  # Update pools configuration period
-        }
-    }
-
-    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
-
-    def wait_pool_fair_share(self, pool, min_share, integral, weight_proportional):
-        path = scheduler_orchid_default_pool_tree_path() + "/pools/" + pool + "/detailed_fair_share"
-        wait(lambda: exists(path))
-
-        def check_pool_fair_share():
-            fair_share = get(path, default=-1)
-            return (
-                are_almost_equal(fair_share["min_share_guarantee_ratio"], min_share)
-                and are_almost_equal(fair_share["integral_guarantee_ratio"], integral)
-                and are_almost_equal(fair_share["weight_proportional_ratio"], weight_proportional)
-            )
-
-        wait(check_pool_fair_share)
-
-    def setup_method(self, method):
-        super(TestIntegralGuaranteesClassic, self).setup_method(method)
-        set("//sys/pool_trees/default/@config/integral_guarantees", {"smooth_period": 500})
-
-    def test_simple_burst_integral_guarantee(self):
-        create_pool(
-            "burst_pool",
-            attributes={
-                "min_share_resources": {"cpu": 2},
-                "integral_guarantees": {
-                    "guarantee_type": "burst",
-                    "resource_flow": {"cpu": 3},
-                    "burst_guarantee_resources": {"cpu": 8},
-                },
-            },
-        )
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
-        self.wait_pool_fair_share("burst_pool", min_share=0.2, integral=0.3, weight_proportional=0.5)
-
-    def test_simple_relaxed_integral_guarantee(self):
-        create_pool(
-            "relaxed_pool",
-            attributes={
-                "min_share_resources": {"cpu": 2},
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 3},
-                },
-            },
-        )
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.2, integral=0.3, weight_proportional=0.5)
-
-    def test_min_share_vs_burst(self):
-        create_pool(
-            "min_share_pool",
-            attributes={
-                "min_share_resources": {"cpu": 5},
-            },
-        )
-
-        create_pool(
-            "burst_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "burst",
-                    "resource_flow": {"cpu": 5},
-                    "burst_guarantee_resources": {"cpu": 5},
-                }
-            },
-        )
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
-        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
-
-        self.wait_pool_fair_share("min_share_pool", min_share=0.5, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=0.5, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.5, integral=0.5, weight_proportional=0.0)
-
-    def test_min_share_vs_relaxed(self):
-        create_pool(
-            "min_share_pool",
-            attributes={
-                "min_share_resources": {"cpu": 5},
-            },
-        )
-
-        create_pool(
-            "relaxed_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 5},
-                }
-            },
-        )
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
-        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
-
-        self.wait_pool_fair_share("min_share_pool", min_share=0.5, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=0.5, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.5, integral=0.5, weight_proportional=0.0)
-
-    def test_relaxed_vs_empty_min_share(self):
-        create_pool(
-            "min_share_pool",
-            attributes={
-                "min_share_resources": {"cpu": 5},
-            },
-        )
-
-        create_pool(
-            "relaxed_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 10},
-                }
-            },
-        )
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
-
-        self.wait_pool_fair_share("min_share_pool", min_share=0.0, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-    def test_relaxed_vs_no_guarantee(self):
-        create_pool(
-            "relaxed_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 10},
-                }
-            },
-        )
-
-        create_pool("no_guarantee_pool")
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
-        run_sleeping_vanilla(job_count=10, spec={"pool": "no_guarantee_pool"})
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("no_guarantee_pool", min_share=0.0, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-    def test_burst_gets_all_relaxed_none(self):
-        create_pool(
-            "burst_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "burst",
-                    "resource_flow": {"cpu": 10},
-                    "burst_guarantee_resources": {"cpu": 10},
-                }
-            },
-        )
-
-        create_pool(
-            "relaxed_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 5},
-                }
-            },
-        )
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
-        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
-
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-    def test_burst_gets_its_guarantee_relaxed_gets_remaining(self):
-        create_pool(
-            "burst_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "burst",
-                    "resource_flow": {"cpu": 6},
-                    "burst_guarantee_resources": {"cpu": 6},
-                }
-            },
-        )
-
-        create_pool(
-            "relaxed_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 10},
-                }
-            },
-        )
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
-        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
-
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=0.6, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=0.4, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-    def test_weight_proportional_distribution_among_min_share_and_burst_and_relaxed_pools(
-        self,
-    ):
-        create_pool(
-            "min_share_pool",
-            attributes={"min_share_resources": {"cpu": 1}, "weight": 4},
-        )
-
-        create_pool(
-            "burst_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "burst",
-                    "resource_flow": {"cpu": 1},
-                    "burst_guarantee_resources": {"cpu": 1},
-                },
-                "weight": 1,
-            },
-        )
-
-        create_pool(
-            "relaxed_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 1},
-                },
-                "weight": 2,
-            },
-        )
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
-        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
-        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
-
-        self.wait_pool_fair_share("min_share_pool", min_share=0.1, integral=0.0, weight_proportional=0.4)
-
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=0.1, weight_proportional=0.1)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=0.1, weight_proportional=0.2)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.8, integral=0.2, weight_proportional=0.0)
-
-    def test_min_share_and_burst_guarantees_adjustment(self):
-        create_pool(
-            "min_share_pool",
-            attributes={
-                "min_share_resources": {"cpu": 30},
-            },
-        )
-
-        create_pool(
-            "burst_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "burst",
-                    "resource_flow": {"cpu": 10},
-                    "burst_guarantee_resources": {"cpu": 70},
-                }
-            },
-        )
-
-        run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
-        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
-
-        self.wait_pool_fair_share("min_share_pool", min_share=0.3, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=0.7, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.3, integral=0.7, weight_proportional=0.0)
-
-    def test_accumulated_resource_ratio_volume_consumption(self):
-        create_pool(
-            "test_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 5},
-                }
-            },
-        )
-        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
-
-        # No operations -> volume is accumulating
-        wait(
-            lambda: get(
-                scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_ratio_volume"
-            )
-            > 1
-        )
-        run_sleeping_vanilla(job_count=10, spec={"pool": "test_pool"})
-
-        # Minimum volume is 0.25 = 0.5 (period) * 0.5 (flow_ratio)
-        wait(
-            lambda: get(
-                scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_ratio_volume"
-            )
-            < 0.3
-        )
-
-    def test_accumulated_resource_ratio_volume_survives_restart(self):
-        create_pool(
-            "test_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 10},
-                }
-            },
-        )
-
-        wait(lambda: exists(scheduler_orchid_pool_path("test_pool")))
-        wait(lambda: get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_ratio_volume") > 3)
-
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            pass
-
-        wait(lambda: exists(scheduler_orchid_pool_path("test_pool")), sleep_backoff=0.1)
-        # Wait for total resource limits to appear.
-        wait(
-            lambda: get(scheduler_orchid_pool_path("<Root>") + "/resource_limits/cpu") > 0,
-            sleep_backoff=0.1,
-        )
-
-        volume = get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_ratio_volume")
-        assert 3 < volume < 5
-
-    def test_integral_pools_orchid(self):
-        create_pool(
-            "burst_pool",
-            attributes={
-                "min_share_resources": {"cpu": 2},
-                "integral_guarantees": {
-                    "guarantee_type": "burst",
-                    "resource_flow": {"cpu": 3},
-                    "burst_guarantee_resources": {"cpu": 7},
-                },
-            },
-        )
-
-        create_pool(
-            "relaxed_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 5},
-                }
-            },
-        )
-
-        root_pool_path = scheduler_orchid_default_pool_tree_path() + "/pools/<Root>"
-        burst_pool_path = scheduler_orchid_default_pool_tree_path() + "/pools/burst_pool"
-        relaxed_pool_path = scheduler_orchid_default_pool_tree_path() + "/pools/relaxed_pool"
-        wait(lambda: exists(relaxed_pool_path))
-
-        assert get(burst_pool_path + "/integral_guarantee_type") == "burst"
-        assert get(burst_pool_path + "/specified_burst_ratio") == 0.7
-        assert get(burst_pool_path + "/specified_resource_flow_ratio") == 0.3
-        assert get(burst_pool_path + "/integral_pool_capacity/cpu") == 3.0 * 86400
-
-        assert get(relaxed_pool_path + "/integral_guarantee_type") == "relaxed"
-        assert get(relaxed_pool_path + "/specified_resource_flow_ratio") == 0.5
-        assert get(relaxed_pool_path + "/integral_pool_capacity/cpu") == 5.0 * 86400
-
-        assert get(root_pool_path + "/total_resource_flow_ratio") == 0.8
-        assert get(root_pool_path + "/total_burst_ratio") == 0.7
-
-    def test_total_resources_orchid(self):
-        create_pool(
-            "burst_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "burst",
-                    "resource_flow": {"cpu": 2},
-                    "burst_guarantee_resources": {"cpu": 7},
-                }
-            },
-        )
-
-        create_pool(
-            "relaxed_pool",
-            attributes={
-                "integral_guarantees": {
-                    "guarantee_type": "relaxed",
-                    "resource_flow": {"cpu": 3},
-                }
-            },
-        )
-
-        create_pool(
-            "min_share_pool",
-            attributes={
-                "min_share_resources": {"cpu": 2},
-            },
-        )
-
-        resource_distribution_info_path = scheduler_orchid_default_pool_tree_path() + "/resource_distribution_info"
-        wait(lambda: exists(resource_distribution_info_path))
-
-        assert get(resource_distribution_info_path + "/distributed_min_share_resources/cpu") == 2.0
-        assert get(resource_distribution_info_path + "/distributed_resource_flow/cpu") == 5.0
-        assert get(resource_distribution_info_path + "/distributed_burst_guarantee_resources/cpu") == 7.0
-        assert get(resource_distribution_info_path + "/undistributed_resources/cpu") == 1.0
-        assert get(resource_distribution_info_path + "/undistributed_resource_flow/cpu") == 2.0
-        assert get(resource_distribution_info_path + "/undistributed_burst_guarantee_resources/cpu") == 0.0
-
-
-##################################################################
-
-
-@authors("renadeen")
-class TestIntegralGuaranteesVector(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 1
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,  # Update pools configuration period
-            "use_classic_scheduler": False,
         }
     }
 
@@ -4100,7 +3581,7 @@ class TestIntegralGuaranteesVector(YTEnvSetup):
         wait(check_pool_fair_share)
 
     def setup_method(self, method):
-        super(TestIntegralGuaranteesVector, self).setup_method(method)
+        super(TestIntegralGuarantees, self).setup_method(method)
         set("//sys/pool_trees/default/@config/integral_guarantees", {"smooth_period": 500})
 
     def test_simple_burst_integral_guarantee(self):
@@ -4473,12 +3954,12 @@ class TestIntegralGuaranteesVector(YTEnvSetup):
 ##################################################################
 
 
-class BaseTestSatisfactionRatio(YTEnvSetup):
+class TestSatisfactionRatio(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
-    BASE_DELTA_SCHEDULER_CONFIG = {
+    DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,  # Update pools configuration period
         }
@@ -4518,14 +3999,3 @@ class BaseTestSatisfactionRatio(YTEnvSetup):
             )
         )
         wait(lambda: are_almost_equal(get(scheduler_orchid_pool_path("pool") + "/satisfaction_ratio"), 1.0))
-
-
-class TestSatisfactionRatioClassic(BaseTestSatisfactionRatio):
-    DELTA_SCHEDULER_CONFIG = BaseTestSatisfactionRatio.BASE_DELTA_SCHEDULER_CONFIG
-
-
-class TestSatisfactionRatioVector(BaseTestSatisfactionRatio):
-    DELTA_SCHEDULER_CONFIG = yt.common.update(
-        BaseTestSatisfactionRatio.BASE_DELTA_SCHEDULER_CONFIG,
-        {"scheduler": {"use_classic_scheduler": False}},
-    )

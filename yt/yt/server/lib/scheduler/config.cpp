@@ -71,23 +71,15 @@ TFairShareStrategySchedulingSegmentsConfig::TFairShareStrategySchedulingSegments
 
 TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 {
-    RegisterParameter("use_classic_scheduler", UseClassicScheduler)
-        .Default();
-
     RegisterParameter("nodes_filter", NodesFilter)
         .Default();
 
-    // TODO(FOOBAR): Completely remove MinSharePreemption.
-    RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
-        .Default(TDuration::Seconds(15));
     RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
         .Default(TDuration::Seconds(30));
     RegisterParameter("fair_share_starvation_tolerance", FairShareStarvationTolerance)
         .InRange(0.0, 1.0)
         .Default(0.8);
 
-    RegisterParameter("min_share_preemption_timeout_limit", MinSharePreemptionTimeoutLimit)
-        .Default(TDuration::Seconds(15));
     RegisterParameter("fair_share_preemption_timeout_limit", FairSharePreemptionTimeoutLimit)
         .Default(TDuration::Seconds(30));
     RegisterParameter("fair_share_starvation_tolerance_limit", FairShareStarvationToleranceLimit)
@@ -309,9 +301,6 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
         .Default();
 
     RegisterParameter("enable_schedule_in_single_tree", EnableScheduleInSingleTree)
-        .Default(true);
-
-    RegisterParameter("use_classic_scheduler", UseClassicScheduler)
         .Default(true);
 
     RegisterParameter("strategy_testing_options", StrategyTestingOptions)
