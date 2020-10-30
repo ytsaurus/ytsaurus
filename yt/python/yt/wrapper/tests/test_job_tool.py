@@ -42,6 +42,8 @@ class TestJobTool(object):
             args = [sys.executable]
         else:
             args = []
+
+        job_path = os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + job_id)
         args += [
             arcadia_interop.search_binary_path("yt"),
             "job-tool",
@@ -49,7 +51,7 @@ class TestJobTool(object):
             operation_id,
             job_id,
             "--job-path",
-            os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + job_id),
+            job_path,
             "--proxy",
             yt_env_job_archive.config["proxy"]["url"],
         ]
@@ -58,7 +60,11 @@ class TestJobTool(object):
             wait_record_in_job_archive(operation_id, job_id)
         else:
             args += ["--context"]
-        return subprocess.check_output(args, stderr=sys.stderr).strip()
+        try:
+            return subprocess.check_output(args, stderr=sys.stderr).strip()
+        except subprocess.CalledProcessError:
+            shutil.rmtree(job_path)
+            raise
 
     def _check(self, operation_id, yt_env_job_archive, check_running=False,
                get_context_mode=INPUT_CONTEXT_MODE, expect_ok_return_code=False):
