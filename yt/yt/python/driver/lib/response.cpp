@@ -21,17 +21,49 @@ static const NLogging::TLogger Logger = DriverLogger;
 std::atomic<bool> TDriverResponseHolder::ShuttingDown_ = {};
 TAdaptiveLock TDriverResponseHolder::DestructionSpinLock_;
 
+TAdaptiveLock AliveDriverResponseHoldersLock;
+THashSet<TDriverResponseHolder*> AliveDriverResponseHolders;
+
 TDriverResponseHolder::TDriverResponseHolder()
 { }
 
 void TDriverResponseHolder::Initialize()
 {
-    Initialized_.store(true);
+    // TDriverResponseHolder should not be created after start of python finalization.
+    // But it can happen if GCCollect initiated by finalization remove some object that releases GIL,
+    // in that case other threads can try to execute some code and execute driver request.
+    // YT_VERIFY(!ShuttingDown_);
+    if (ShuttingDown_) {
+        return;
+    }
+
     ResponseParametersYsonWriter_ = CreateYsonWriter(
         &ResponseParametersBlobOutput_,
         EYsonFormat::Binary,
         EYsonType::MapFragment,
         /* enableRaw */ false);
+
+    Initialized_.store(true);
+
+    {
+        auto guard = Guard(AliveDriverResponseHoldersLock);
+        YT_VERIFY(AliveDriverResponseHolders.insert(this).second);
+    }
+}
+
+void TDriverResponseHolder::Destroy()
+{
+    // Can be called multiple times, must be called under GIL.
+    InputStream_.reset(nullptr);
+    OutputStream_.reset(nullptr);
+    ResponseParametersYsonWriter_.reset(nullptr);
+
+    Destroyed_.store(true);
+}
+
+bool TDriverResponseHolder::IsInitialized() const
+{
+    return Initialized_;
 }
 
 TDriverResponseHolder::~TDriverResponseHolder()
@@ -40,34 +72,39 @@ TDriverResponseHolder::~TDriverResponseHolder()
         return;
     }
 
-    if (!Py_IsInitialized()) {
-        return;
-    }
-
-    if (ShuttingDown_) {
-        return;
-    }
-
-    {
-        auto guard = Guard(DestructionSpinLock_);
-        if (ShuttingDown_) {
-            return;
+    if (!Destroyed_) {
+		auto guard = Guard(DestructionSpinLock_);
+		if (ShuttingDown_) {
+			return;
+		}
+        
+        {
+            TGilGuard gilGuard;
+            Destroy();
         }
-
-        TGilGuard gilGuard;
-        // Releasing Python objects under GIL.
-        InputStream_.reset(nullptr);
-        OutputStream_.reset(nullptr);
-        ResponseParametersYsonWriter_.reset(nullptr);
+    }
+    
+    {
+        auto guard = Guard(AliveDriverResponseHoldersLock);
+        YT_VERIFY(AliveDriverResponseHolders.erase(this) == 1);
     }
 }
 
 void TDriverResponseHolder::OnBeforePythonFinalize()
 {
-    YT_LOG_DEBUG("Make preparations for TDriverResponseHolder before finalization");
-
     ShuttingDown_.store(true);
+
     {
+        auto guard = Guard(AliveDriverResponseHoldersLock);
+    
+        {
+            for (auto* holder : AliveDriverResponseHolders) {
+                holder->Destroy();
+            }
+        }
+    }
+
+	{
         TReleaseAcquireGilGuard guard;
         DestructionSpinLock_.Acquire();
     }
@@ -96,9 +133,9 @@ void TDriverResponseHolder::OnResponseParametersFinished()
     ResponseParametersFinished_.store(true);
 }
 
-bool TDriverResponseHolder::IsResponseParametersFinished() const
+bool TDriverResponseHolder::IsResponseParametersReady() const
 {
-    return ResponseParametersFinished_;
+    return ResponseParametersYsonWriter_ && ResponseParametersFinished_;
 }
 
 void TDriverResponseHolder::HoldInputStream(std::unique_ptr<IInputStream> inputStream)
@@ -138,8 +175,7 @@ TIntrusivePtr<TDriverResponseHolder> TDriverResponse::GetHolder() const
 
 Py::Object TDriverResponse::ResponseParameters(Py::Tuple& args, Py::Dict& kwargs)
 {
-    if (Holder_->IsResponseParametersFinished()) {
-        Holder_->GetResponseParametersConsumer()->Flush();
+    if (Holder_->IsResponseParametersReady()) {
         return NYTree::ConvertTo<Py::Object>(Holder_->GetResponseParametersYsonString());
     } else {
         return Py::None();

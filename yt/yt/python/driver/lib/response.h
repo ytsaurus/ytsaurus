@@ -26,10 +26,13 @@ public:
     virtual ~TDriverResponseHolder();
 
     void Initialize();
+    void Destroy();
+
+    bool IsInitialized() const;
 
     NYson::IFlushableYsonConsumer* GetResponseParametersConsumer() const;
     NYson::TYsonString GetResponseParametersYsonString() const;
-    bool IsResponseParametersFinished() const;
+    bool IsResponseParametersReady() const;
     void OnResponseParametersFinished();
 
     void HoldInputStream(std::unique_ptr<IInputStream> inputStream);
@@ -40,6 +43,7 @@ public:
 
 private:
     std::atomic<bool> Initialized_ = {false};
+    std::atomic<bool> Destroyed_ = {false};
 
     std::unique_ptr<IInputStream> InputStream_;
     std::unique_ptr<IOutputStream> OutputStream_;
