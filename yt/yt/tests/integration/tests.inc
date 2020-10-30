@@ -73,6 +73,7 @@ TEST_SRCS(
     test_http_proxy.py
     test_journals.py
     test_layers.py
+    test_master_leader_switch.py
     test_list_jobs.py
     test_list_operations.py
     test_lookup.py

@@ -4,6 +4,8 @@
 
 #include <yt/client/api/admin.h>
 
+#include <yt/client/hydra/public.h>
+
 #include <yt/core/concurrency/public.h>
 
 namespace NYT::NApi::NRpcProxy {
@@ -20,7 +22,12 @@ public:
         const NApi::TBuildSnapshotOptions& options = {}) override;
 
     virtual TFuture<TCellIdToSnapshotIdMap> BuildMasterSnapshots(
-        const TBuildMasterSnapshotsOptions& options = TBuildMasterSnapshotsOptions()) override;
+        const TBuildMasterSnapshotsOptions& options = {}) override;
+
+    virtual TFuture<void> SwitchLeader(
+        NHydra::TCellId cellId,
+        NHydra::TPeerId newLeaderId,
+        const TSwitchLeaderOptions& options = {}) override;
 
     virtual TFuture<void> GCCollect(
         const NApi::TGCCollectOptions& options = {}) override;
@@ -33,7 +40,9 @@ public:
         const TString& address,
         const NApi::TWriteCoreDumpOptions& options = {}) override;
 
-    virtual TFuture<TString> WriteOperationControllerCoreDump(NJobTrackerClient::TOperationId operationId) override;
+    virtual TFuture<TString> WriteOperationControllerCoreDump(
+        NJobTrackerClient::TOperationId operationId,
+        const NApi::TWriteOperationControllerCoreDumpOptions& options = {}) override;
 
 private:
     const NRpc::IChannelPtr Channel_;

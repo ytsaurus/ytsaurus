@@ -426,7 +426,7 @@ TBuildSnapshotCommand::TBuildSnapshotCommand()
 
 void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
 {
-    if (!ValidateSuperuserPermissions(context)) {
+    if (!CheckSuperuserPermissions(context)) {
         THROW_ERROR_EXCEPTION("User not authorized");
     }
 
@@ -453,7 +453,7 @@ TBuildMasterSnapshotsCommand::TBuildMasterSnapshotsCommand()
 
 void TBuildMasterSnapshotsCommand::DoExecute(ICommandContextPtr context)
 {
-    if (!ValidateSuperuserPermissions(context)) {
+    if (!CheckSuperuserPermissions(context)) {
         THROW_ERROR_EXCEPTION("User not authorized");
     }
 
@@ -470,6 +470,28 @@ void TBuildMasterSnapshotsCommand::DoExecute(ICommandContextPtr context)
                 .EndMap();
         })
     );
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSwitchLeaderCommand::TSwitchLeaderCommand()
+{
+    RegisterParameter("cell_id", CellId_);
+    RegisterParameter("new_leader_id", NewLeaderId_);
+}
+
+void TSwitchLeaderCommand::DoExecute(ICommandContextPtr context)
+{
+    if (!CheckSuperuserPermissions(context)) {
+        THROW_ERROR_EXCEPTION("User not authorized");
+    }
+
+    auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
+    
+    WaitFor(admin->SwitchLeader(CellId_, NewLeaderId_))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

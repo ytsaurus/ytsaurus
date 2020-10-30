@@ -1889,7 +1889,7 @@ TListJobsResult TClient::DoListJobs(
         statisticsFuture = ListJobsStatisticsFromArchiveAsync(operationId, deadline, options);
     }
 
-    auto controllerAgentAddress = GetControllerAgentAddressFromCypress(
+    auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,
         GetMasterChannelOrThrow(EMasterChannelKind::Follower));
     auto controllerAgentResultFuture = DoListJobsFromControllerAgentAsync(
@@ -2063,7 +2063,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
     const THashSet<TString>& attributes,
     const TGetJobOptions& options)
 {
-    auto controllerAgentAddress = GetControllerAgentAddressFromCypress(
+    auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,
         GetMasterChannelOrThrow(EMasterChannelKind::Follower));
     if (!controllerAgentAddress) {

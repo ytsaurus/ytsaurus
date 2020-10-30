@@ -21,6 +21,8 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
+#include <yt/core/rpc/helpers.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 namespace NYT::NApi::NNative {
@@ -76,6 +78,11 @@ public:
     IMPLEMENT_METHOD(TCellIdToSnapshotIdMap, BuildMasterSnapshots, (
         const TBuildMasterSnapshotsOptions& options),
         (options))
+    IMPLEMENT_METHOD(void, SwitchLeader, (
+        TCellId cellId,
+        TPeerId newLeaderId,
+        const TSwitchLeaderOptions& options),
+        (cellId, newLeaderId, options))
     IMPLEMENT_METHOD(void, GCCollect, (
         const TGCCollectOptions& options),
         (options))
@@ -88,8 +95,9 @@ public:
         const TWriteCoreDumpOptions& options),
         (address, options))
     IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
-        TOperationId operationId),
-        (operationId))
+        TOperationId operationId,
+        const TWriteOperationControllerCoreDumpOptions& options),
+        (operationId, options))
 
 private:
     const IConnectionPtr Connection_;
@@ -119,7 +127,7 @@ private:
     int DoBuildSnapshot(const TBuildSnapshotOptions& options)
     {
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
-        auto channel = GetCellChannelOrThrow(cellId);
+        auto channel = GetLeaderCellChannelOrThrow(cellId);
 
         THydraServiceProxy proxy(channel);
         auto req = proxy.ForceBuildSnapshot();
@@ -143,10 +151,10 @@ private:
         };
 
         auto constructRequest = [&] (TCellId cellId) {
-            auto channel = GetCellChannelOrThrow(cellId);
+            auto channel = GetLeaderCellChannelOrThrow(cellId);
             THydraServiceProxy proxy(channel);
             auto req = proxy.ForceBuildSnapshot();
-            req->SetTimeout(TDuration::Hours(1));
+            req->SetTimeout(TDuration::Hours(1)); // effective infinity
             req->set_set_read_only(options.SetReadOnly);
             req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
             return req;
@@ -201,6 +209,88 @@ private:
         return cellIdToSnapshotId;
     }
 
+    void DoSwitchLeader(
+        TCellId cellId,
+        TPeerId newLeaderId,
+        const TSwitchLeaderOptions& options)
+    {
+        auto currentLeaderChannel = GetLeaderCellChannelOrThrow(cellId);
+
+        auto cellDescriptor = GetCellDescriptorOrThrow(cellId);
+        std::vector<IChannelPtr> peerChannels;
+        for (const auto& peerDescriptor : cellDescriptor.Peers) {
+            peerChannels.push_back(CreateRealmChannel(
+                Connection_->GetChannelFactory()->CreateChannel(peerDescriptor.GetDefaultAddress()),
+                cellId));
+        }
+
+        if (newLeaderId < 0 || newLeaderId >= peerChannels.size()) {
+            THROW_ERROR_EXCEPTION("New leader peer id is invalid: expected in range [0,%v], got %v",
+                peerChannels.size() - 1,
+                newLeaderId);
+        }
+        const auto& newLeaderChannel = peerChannels[newLeaderId];
+
+        auto timeout = Connection_->GetConfig()->HydraControlRpcTimeout;
+
+        {
+            YT_LOG_DEBUG("Preparing switch at current leader");
+
+            THydraServiceProxy proxy(currentLeaderChannel);
+            auto req = proxy.PrepareLeaderSwitch();
+            req->SetTimeout(timeout);
+            
+            WaitFor(req->Invoke())
+                .ValueOrThrow();
+        }
+
+        {
+            YT_LOG_DEBUG("Synchronizing new leader with the current one");
+
+            THydraServiceProxy proxy(newLeaderChannel);
+            auto req = proxy.ForceSyncWithLeader();
+            req->SetTimeout(timeout);
+            
+            WaitFor(req->Invoke())
+                .ValueOrThrow();
+        }
+
+        TError restartReason(
+            "Switching leader to %v by admin request",
+            cellDescriptor.Peers[newLeaderId].GetDefaultAddress());
+
+        {
+            YT_LOG_DEBUG("Restarting new leader with priority boost armed");
+
+            THydraServiceProxy proxy(newLeaderChannel);
+            auto req = proxy.ForceRestart();
+            req->SetTimeout(timeout);
+            ToProto(req->mutable_reason(), restartReason);
+            req->set_arm_priority_boost(true);
+            
+            WaitFor(req->Invoke())
+                .ValueOrThrow();
+        }
+        
+        {
+            YT_LOG_DEBUG("Restarting all other peers");
+
+            for (int peerId = 0; peerId < peerChannels.size(); ++peerId) {
+                if (peerId == newLeaderId) {
+                    continue;
+                }
+
+                THydraServiceProxy proxy(peerChannels[peerId]);
+                auto req = proxy.ForceRestart();
+                ToProto(req->mutable_reason(), restartReason);
+                req->SetTimeout(timeout);
+                
+                // Fire-and-forget.
+                req->Invoke();
+            }
+        }
+    }
+
     void DoGCCollect(const TGCCollectOptions& options)
     {
         auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
@@ -221,11 +311,11 @@ private:
         TAdminServiceProxy proxy(channel);
         auto req = proxy.Die();
         req->set_exit_code(options.ExitCode);
-        auto asyncResult = req->Invoke().As<void>();
+        
         // NB: this will always throw an error since the service can
         // never reply to the request because it makes _exit immediately.
         // This is the intended behavior.
-        WaitFor(asyncResult)
+        WaitFor(req->Invoke())
             .ThrowOnError();
     }
 
@@ -240,14 +330,15 @@ private:
         return rsp->path();
     }
 
-    TString DoWriteOperationControllerCoreDump(TOperationId operationId)
+    TString DoWriteOperationControllerCoreDump(
+        TOperationId operationId,
+        const TWriteOperationControllerCoreDumpOptions& /*options*/)
     {
-        auto address = GetControllerAgentAddressFromCypress(
+        auto address = FindControllerAgentAddressFromCypress(
             operationId,
             Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-
         if (!address) {
-            THROW_ERROR_EXCEPTION("Cannot find the address of the controller agent for the operation %v",
+            THROW_ERROR_EXCEPTION("Cannot find address of the controller agent for operation %v",
                 operationId);
         }
 
@@ -256,23 +347,29 @@ private:
         TControllerAgentServiceProxy proxy(channel);
         auto req = proxy.WriteOperationControllerCoreDump();
         ToProto(req->mutable_operation_id(), operationId);
+        
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
         return rsp->path();
     }
 
-    IChannelPtr GetCellChannelOrThrow(TCellId cellId)
+    
+    IChannelPtr GetLeaderCellChannelOrThrow(TCellId cellId)
     {
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        auto channel = cellDirectory->FindChannel(cellId);
-        if (channel) {
-            return channel;
-        }
-
         WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
             .ThrowOnError();
 
-       return cellDirectory->GetChannelOrThrow(cellId);
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        return cellDirectory->GetChannelOrThrow(cellId);
+    }
+    
+    TCellDescriptor GetCellDescriptorOrThrow(TCellId cellId)
+    {
+        WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
+            .ThrowOnError();
+
+        const auto& cellDirectory = Connection_->GetCellDirectory();
+        return cellDirectory->GetDescriptorOrThrow(cellId);
     }
 };
 

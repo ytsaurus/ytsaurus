@@ -792,12 +792,12 @@ void TDistributedElectionManager::StartVoting()
 
     if (IsVotingPeer()) {
         VoteId_ = CellManager_->GetSelfPeerId();
-        YT_LOG_DEBUG("Voting for self (VoteId_: %v, VoteEpochId_: %v)",
+        YT_LOG_DEBUG("Voting for self (VoteId: %v, VoteEpochId: %v)",
             VoteId_,
             VoteEpochId_);
     } else {
         VoteId_ = InvalidPeerId;
-        YT_LOG_DEBUG("Voting for nobody (VoteEpochId_: %v)",
+        YT_LOG_DEBUG("Voting for nobody (VoteEpochId: %v)",
             VoteEpochId_);
     }
 
@@ -1012,7 +1012,7 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
     ToProto(response->mutable_vote_epoch_id(), VoteEpochId_);
     response->set_self_id(CellManager_->GetSelfPeerId());
 
-    context->SetResponseInfo("State: %v, VoteId_: %v, Priority: %v, VoteEpochId_: %v",
+    context->SetResponseInfo("State: %v, VoteId: %v, Priority: %v, VoteEpochId: %v",
         State_,
         VoteId_,
         ElectionCallbacks_->FormatPriority(priority),

@@ -226,4 +226,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSwitchLeaderCommand
+    : public TTypedCommand<NApi::TSwitchLeaderOptions>
+{
+public:
+    TSwitchLeaderCommand();
+
+private:
+    NHydra::TCellId CellId_;
+    NHydra::TPeerId NewLeaderId_;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

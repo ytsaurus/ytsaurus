@@ -88,9 +88,13 @@ public:
 
         auto electionManagerThunk = New<TElectionManagerThunk>();
 
-        TDistributedHydraManagerOptions hydraManagerOptions;
-        hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
-        hydraManagerOptions.UseFork = true;
+        TDistributedHydraManagerOptions hydraManagerOptions{
+            .UseFork = true,
+            .ResponseKeeper = ResponseKeeper_
+        };
+        TDistributedHydraManagerDynamicOptions hydraManagerDynamicOptions{
+            .AbandonLeaderLeaseDuringRecovery = true
+        };
         HydraManager_ = CreateDistributedHydraManager(
             Config_->HydraManager,
             Bootstrap_->GetControlInvoker(),
@@ -101,7 +105,8 @@ public:
             Bootstrap_->GetCellManager()->GetCellId(),
             Bootstrap_->GetChangelogStoreFactory(),
             Bootstrap_->GetSnapshotStore(),
-            hydraManagerOptions);
+            hydraManagerOptions,
+            hydraManagerDynamicOptions);
 
         HydraManager_->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
         HydraManager_->SubscribeStopLeading(BIND(&TImpl::OnStopEpoch, MakeWeak(this)));

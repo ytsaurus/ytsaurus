@@ -119,7 +119,7 @@ TYPath GetControllerAgentOrchidOperationPath(
         ToYPathLiteral(ToString(operationId));
 }
 
-std::optional<TString> GetControllerAgentAddressFromCypress(
+std::optional<TString> FindControllerAgentAddressFromCypress(
     TOperationId operationId,
     const IChannelPtr& channel)
 {

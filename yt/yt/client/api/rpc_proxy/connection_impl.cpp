@@ -177,7 +177,7 @@ IInvokerPtr TConnection::GetInvoker()
     return ActionQueue_->GetInvoker();
 }
 
-IAdminPtr TConnection::CreateAdmin(const TAdminOptions&)
+IAdminPtr TConnection::CreateAdmin(const TAdminOptions& /*options*/)
 {
     // This client is used only in tests
     return New<TAdmin>(CreateDynamicChannel(ChannelPool_));

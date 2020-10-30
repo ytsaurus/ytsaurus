@@ -35,6 +35,14 @@ TFuture<TCellIdToSnapshotIdMap> TAdmin::BuildMasterSnapshots(const TBuildMasterS
     YT_UNIMPLEMENTED();
 }
 
+TFuture<void> TAdmin::SwitchLeader(
+    NHydra::TCellId /* cellId */,
+    NHydra::TPeerId /* newLeaderId */,
+    const TSwitchLeaderOptions& /* options */)
+{
+    YT_UNIMPLEMENTED();
+}
+
 TFuture<void> TAdmin::GCCollect(const TGCCollectOptions& options)
 {
     TApiServiceProxy proxy(Channel_);
@@ -47,17 +55,23 @@ TFuture<void> TAdmin::GCCollect(const TGCCollectOptions& options)
     return req->Invoke().As<void>();
 }
 
-TFuture<void> TAdmin::KillProcess(const TString& /* address */, const TKillProcessOptions& /* options */)
+TFuture<void> TAdmin::KillProcess(
+    const TString& /* address */,
+    const TKillProcessOptions& /* options */)
 {
     YT_UNIMPLEMENTED();
 }
 
-TFuture<TString> TAdmin::WriteCoreDump(const TString& /* address */, const TWriteCoreDumpOptions& /* options */)
+TFuture<TString> TAdmin::WriteCoreDump(
+    const TString& /* address */,
+    const TWriteCoreDumpOptions& /* options */)
 {
     YT_UNIMPLEMENTED();
 }
 
-TFuture<TString> TAdmin::WriteOperationControllerCoreDump(TOperationId /* operationId */)
+TFuture<TString> TAdmin::WriteOperationControllerCoreDump(
+    TOperationId /* operationId */,
+    const TWriteOperationControllerCoreDumpOptions& /* options */)
 {
     YT_UNIMPLEMENTED();
 }

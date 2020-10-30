@@ -34,7 +34,7 @@ NYPath::TYPath GetSchedulerOrchidAliasPath(const TString& alias);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
     TStringBuf controllerAgentAddress,
     TOperationId operationId);
-std::optional<TString> GetControllerAgentAddressFromCypress(
+std::optional<TString> FindControllerAgentAddressFromCypress(
     TOperationId operationId,
     const NRpc::IChannelPtr& channel);
 

@@ -6,7 +6,7 @@
 
 #include <yt/client/job_tracker_client/public.h>
 
-#include <yt/client/election/public.h>
+#include <yt/client/hydra/public.h>
 
 #include <yt/core/actions/future.h>
 
@@ -20,7 +20,7 @@ struct TBuildSnapshotOptions
 {
     //! Refers either to masters or to tablet cells.
     //! If null then the primary one is assumed.
-    NElection::TCellId CellId;
+    NHydra::TCellId CellId;
     bool SetReadOnly = false;
     bool WaitForSnapshotCompletion = true;
 };
@@ -32,11 +32,14 @@ struct TBuildMasterSnapshotsOptions
     bool Retry = true;
 };
 
+struct TSwitchLeaderOptions
+{ };
+
 struct TGCCollectOptions
 {
     //! Refers to master cell.
     //! If null then the primary one is assumed.
-    NElection::TCellId CellId;
+    NHydra::TCellId CellId;
 };
 
 struct TKillProcessOptions
@@ -47,30 +50,39 @@ struct TKillProcessOptions
 struct TWriteCoreDumpOptions
 { };
 
-using TCellIdToSnapshotIdMap = THashMap<NElection::TCellId, int>;
+struct TWriteOperationControllerCoreDumpOptions
+{ };
+
+using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
 
 struct IAdmin
     : public virtual TRefCounted
 {
     virtual TFuture<int> BuildSnapshot(
-        const TBuildSnapshotOptions& options = TBuildSnapshotOptions()) = 0;
+        const TBuildSnapshotOptions& options = {}) = 0;
 
     virtual TFuture<TCellIdToSnapshotIdMap> BuildMasterSnapshots(
-        const TBuildMasterSnapshotsOptions& options = TBuildMasterSnapshotsOptions()) = 0;
+        const TBuildMasterSnapshotsOptions& options = {}) = 0;
+
+    virtual TFuture<void> SwitchLeader(
+        NHydra::TCellId cellId,
+        NHydra::TPeerId newLeaderId,
+        const TSwitchLeaderOptions& options = {}) = 0;
 
     virtual TFuture<void> GCCollect(
-        const TGCCollectOptions& options = TGCCollectOptions()) = 0;
+        const TGCCollectOptions& options = {}) = 0;
 
     virtual TFuture<void> KillProcess(
         const TString& address,
-        const TKillProcessOptions& options = TKillProcessOptions()) = 0;
+        const TKillProcessOptions& options = {}) = 0;
 
     virtual TFuture<TString> WriteCoreDump(
         const TString& address,
-        const TWriteCoreDumpOptions& options = TWriteCoreDumpOptions()) = 0;
+        const TWriteCoreDumpOptions& options = {}) = 0;
 
     virtual TFuture<TString> WriteOperationControllerCoreDump(
-        NJobTrackerClient::TOperationId operationId) = 0;
+        NJobTrackerClient::TOperationId operationId,
+        const TWriteOperationControllerCoreDumpOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAdmin)
