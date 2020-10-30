@@ -99,7 +99,12 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
     Py::Callable classType(TDriverResponse::type());
     Py::PythonClassObject<TDriverResponse> pythonResponse(classType.apply(Py::Tuple(), Py::Dict()));
     auto* response = pythonResponse.getCxxObject();
+
     auto holder = response->GetHolder();
+    if (!holder->IsInitialized()) {
+        throw Py::RuntimeError("Python response could not be initialized, it usually means that python interpreter is in finalization state");
+    }
+
 
     TDriverRequest request(holder);
     request.CommandName = ConvertStringObjectToString(GetAttr(pyRequest, "command_name"));
@@ -298,6 +303,9 @@ void TDriverModuleBase::Initialize(
         BIND(&FinalizeFutures),
         /*index*/ 1);
     RegisterAfterFinalizeShutdownCallback(
+        BIND(&TDriverResponseHolder::OnAfterPythonFinalize),
+        /*index*/ 0);
+    RegisterAfterFinalizeShutdownCallback(
         BIND([] () {
             YT_LOG_INFO("Module shutdown started");
             for (const auto& pair : ActiveDrivers) {
@@ -311,10 +319,7 @@ void TDriverModuleBase::Initialize(
             ActiveDrivers.clear();
             YT_LOG_INFO("Module shutdown finished");
         }),
-        /*index*/ 0);
-    RegisterAfterShutdownCallback(
-        BIND(&TDriverResponseHolder::OnAfterPythonFinalize),
-        /*index*/ 0);
+        /*index*/ 1);
 }
 
 Py::Object TDriverModuleBase::ConfigureLogging(const Py::Tuple& args_, const Py::Dict& kwargs_)
