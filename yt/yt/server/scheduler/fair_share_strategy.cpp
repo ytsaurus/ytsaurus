@@ -1,8 +1,6 @@
 #include "fair_share_strategy.h"
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
-#include "fair_share_implementations.h"
-#include "fair_share_tree_element_classic.h"
 #include "persistent_pool_state.h"
 #include "public.h"
 #include "scheduler_strategy.h"
@@ -920,17 +918,8 @@ public:
             // If pool is not present in the snapshot (e.g. due to poor timings or if it is an ephemeral pool),
             // then its demand and guaranteed resources ratio are considered to be zero.
             if (auto poolStateSnapshot = snapshot->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
-                // TODO(eshcherbin): Do this the right way when the classic strategy is gone.
-                currentDemandShare = TResourceVector::FromJobResources(
-                    poolStateSnapshot->ResourceDemand,
-                    totalResourceLimits,
-                    /* zeroDivByZero */ 0.0,
-                    /* oneDivByZero */ 1.0);
-                unlimitedDemandFairShare = TResourceVector::FromJobResources(
-                    poolStateSnapshot->UnlimitedDemandFairShareResources,
-                    totalResourceLimits,
-                    /* zeroDivByZero */ 0.0,
-                    /* oneDivByZero */ 1.0);
+                currentDemandShare = poolStateSnapshot->DemandShare;
+                unlimitedDemandFairShare = poolStateSnapshot->UnlimitedDemandFairShare;
             }
 
             auto newDemandShare = TResourceVector::FromJobResources(
@@ -941,8 +930,7 @@ public:
             auto modelDemandShare = newDemandShare + currentDemandShare;
             auto reserveShare = unlimitedDemandFairShare - modelDemandShare;
 
-            // TODO(eshcherbin): Do this the right way when the classic strategy is gone.
-            // Perhaps we need to add a configurable main resource for each tree and compare the shares of this resource.
+            // TODO(eshcherbin): Perhaps we need to add a configurable main resource for each tree and compare the shares of this resource.
             auto currentReserveRatio = std::numeric_limits<double>::max();
             #define XX(name, Name) \
                 if (totalResourceLimits.Get##Name() > 0) { \
@@ -1330,11 +1318,7 @@ private:
                 continue;
             }
 
-            bool useClassicScheduler = treeConfig->UseClassicScheduler.value_or(Config->UseClassicScheduler);
-            auto tree = useClassicScheduler
-                ? CreateFairShareTree<TClassicFairShareImpl>(treeConfig, Config, Host, this, FeasibleInvokers, treeId)
-                : CreateFairShareTree<TVectorFairShareImpl>(treeConfig, Config, Host, this, FeasibleInvokers, treeId);
-
+            auto tree = CreateFairShareTree(treeConfig, Config, Host, this, FeasibleInvokers, treeId);
             trees.emplace(treeId, tree);
         }
 

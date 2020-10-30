@@ -1,7 +1,5 @@
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
-#include "fair_share_tree_element_classic.h"
-#include "fair_share_implementations.h"
 #include "persistent_pool_state.h"
 #include "public.h"
 #include "pools_config_parser.h"
@@ -129,37 +127,11 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
 //!
 //!   * Resource tree, it is thread safe tree that maintain shared attributes of tree elements.
 //!     More details can be find at #TResourceTree.
-template <class TFairShareImpl>
 class TFairShareTree
     : public ISchedulerTree
     , public IFairShareTreeHost
 {
 public:
-    using TSchedulerElement = typename TFairShareImpl::TSchedulerElement;
-    using TSchedulerElementPtr = typename TFairShareImpl::TSchedulerElementPtr;
-    using TOperationElement = typename TFairShareImpl::TOperationElement;
-    using TOperationElementPtr = typename TFairShareImpl::TOperationElementPtr;
-    using TCompositeSchedulerElement = typename TFairShareImpl::TCompositeSchedulerElement;
-    using TCompositeSchedulerElementPtr = typename TFairShareImpl::TCompositeSchedulerElementPtr;
-    using TPool = typename TFairShareImpl::TPool;
-    using TPoolPtr = typename TFairShareImpl::TPoolPtr;
-    using TRootElement = typename TFairShareImpl::TRootElement;
-    using TRootElementPtr = typename TFairShareImpl::TRootElementPtr;
-
-    using TDynamicAttributes = typename TFairShareImpl::TDynamicAttributes;
-    using TDynamicAttributesList = typename TFairShareImpl::TDynamicAttributesList;
-    using TUpdateFairShareContext = typename TFairShareImpl::TUpdateFairShareContext;
-    using TFairShareSchedulingStage = typename TFairShareImpl::TFairShareSchedulingStage;
-    using TFairShareContext = typename TFairShareImpl::TFairShareContext;
-    using TSchedulableAttributes = typename TFairShareImpl::TSchedulableAttributes;
-    using TPersistentAttributes = typename TFairShareImpl::TPersistentAttributes;
-
-    using TRawOperationElementMap = typename TFairShareImpl::TRawOperationElementMap;
-    using TOperationElementMap = typename TFairShareImpl::TOperationElementMap;
-
-    using TRawPoolMap = typename TFairShareImpl::TRawPoolMap;
-    using TPoolMap = typename TFairShareImpl::TPoolMap;
-
     using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;
 
     struct TJobWithPreemptionInfo
@@ -215,7 +187,7 @@ public:
 
         DoRegisterPoolProfilingCounters(RootElement_->GetId(), RootElement_->GetProfilingTag());
 
-        YT_LOG_INFO("Fair share tree created (Algorithm: %v)", TFairShareImpl::Algorithm);
+        YT_LOG_INFO("Fair share tree created");
     }
 
     virtual TFairShareStrategyTreeConfigPtr GetConfig() const override
@@ -1056,10 +1028,9 @@ private:
         virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override
         {
             if (auto* element = RootElementSnapshot_->FindPool(poolId)) {
-                // TODO(eshcherbin): Use TResourceVector here when the classic strategy is gone.
                 return TSchedulerElementStateSnapshot{
-                    element->ResourceDemand(),
-                    element->GetTotalResourceLimits() * element->Attributes().GetUnlimitedDemandFairShare()};
+                    element->Attributes().DemandShare,
+                    element->Attributes().UnlimitedDemandFairShare};
             }
 
             return std::nullopt;
@@ -2416,12 +2387,17 @@ private:
             tags);
         accumulator.Add(
             profilingPrefix + "/usage_ratio_x100000",
-            static_cast<i64>(element->GetResourceUsageRatio() * 1e5),
+            static_cast<i64>(element->GetResourceUsageRatioAtUpdate() * 1e5),
             EMetricType::Gauge,
             tags);
         accumulator.Add(
             profilingPrefix + "/demand_ratio_x100000",
             static_cast<i64>(element->Attributes().GetDemandRatio() * 1e5),
+            EMetricType::Gauge,
+            tags);
+        accumulator.Add(
+            profilingPrefix + "/unlimited_demand_fair_share_ratio_x100000",
+            static_cast<i64>(MaxComponent(element->Attributes().UnlimitedDemandFairShare) * 1e5),
             EMetricType::Gauge,
             tags);
         accumulator.Add(
@@ -2509,7 +2485,7 @@ private:
 
         YT_LOG_DEBUG("Constructing fair share info for orchid");
 
-        auto buildOperationsInfo = [&] (TFluentMap fluent, const typename TRawOperationElementMap::value_type& pair) {
+        auto buildOperationsInfo = [&] (TFluentMap fluent, const TRawOperationElementMap::value_type& pair) {
             const auto& [operationId, element] = pair;
             fluent
                 .Item(ToString(operationId)).BeginMap()
@@ -2525,8 +2501,7 @@ private:
             .Item("operations").BeginMap()
                 .DoFor(rootElementSnapshot->OperationIdToElement, buildOperationsInfo)
                 .DoFor(rootElementSnapshot->DisabledOperationIdToElement, buildOperationsInfo)
-            .EndMap()
-            .Item("algorithm").Value(TFairShareImpl::Algorithm);
+            .EndMap();
     }
 
     void DoBuildPoolsInformation(const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
@@ -2545,8 +2520,8 @@ private:
                     .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsForbidden())
                     .Item("is_ephemeral").Value(pool->IsDefaultConfigured())
                     .Item("integral_guarantee_type").Value(pool->GetIntegralGuaranteeType())
-                    .Item("total_resource_flow_ratio").Value(attributes.GetTotalResourceFlowRatio())
-                    .Item("total_burst_ratio").Value(attributes.GetTotalBurstRatio())
+                    .Item("total_resource_flow_ratio").Value(attributes.TotalResourceFlowRatio)
+                    .Item("total_burst_ratio").Value(attributes.TotalBurstRatio)
                     .DoIf(pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None, [&] (TFluentMap fluent) {
                         auto burstRatio = pool->GetSpecifiedBurstRatio();
                         auto resourceFlowRatio = pool->GetSpecifiedResourceFlowRatio();
@@ -2577,7 +2552,7 @@ private:
         fluent
             .Item("pool_count").Value(GetPoolCount())
             .Item("pools").BeginMap()
-                .DoFor(rootElementSnapshot->PoolNameToElement, [&] (TFluentMap fluent, const typename TRawPoolMap::value_type& pair) {
+                .DoFor(rootElementSnapshot->PoolNameToElement, [&] (TFluentMap fluent, const TRawPoolMap::value_type& pair) {
                     buildPoolInfo(pair.second, fluent);
                 })
                 .Do(BIND(buildPoolInfo, Unretained(rootElementSnapshot->RootElement.Get())))
@@ -2609,16 +2584,16 @@ private:
         const auto& attributes = element->Attributes();
         const auto& dynamicAttributes = GetDynamicAttributes(rootElementSnapshot, element);
 
-        auto unlimitedDemandFairShareResources = element->GetTotalResourceLimits() * attributes.GetUnlimitedDemandFairShare();
+        auto unlimitedDemandFairShareResources = element->GetTotalResourceLimits() * attributes.UnlimitedDemandFairShare;
 
+        // TODO(eshcherbin): Rethink which fields should be here and which should in in |TSchedulerElement::BuildYson|.
+        // Also rethink which scalar fields should be exported to Orchid.
         fluent
             .Item("scheduling_status").Value(element->GetStatus(/* atUpdate */ true))
             .Item("starving").Value(element->GetStarving())
             .Item("fair_share_starvation_tolerance").Value(element->GetFairShareStarvationTolerance())
-            .Item("min_share_preemption_timeout").Value(element->GetMinSharePreemptionTimeout())
             .Item("fair_share_preemption_timeout").Value(element->GetFairSharePreemptionTimeout())
             .Item("adjusted_fair_share_starvation_tolerance").Value(attributes.AdjustedFairShareStarvationTolerance)
-            .Item("adjusted_min_share_preemption_timeout").Value(attributes.AdjustedMinSharePreemptionTimeout)
             .Item("adjusted_fair_share_preemption_timeout").Value(attributes.AdjustedFairSharePreemptionTimeout)
             .Item("resource_demand").Value(element->ResourceDemand())
             .Item("resource_usage").Value(element->ResourceUsageAtUpdate())
@@ -2627,14 +2602,12 @@ private:
             .Item("weight").Value(element->GetWeight())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
             .Item("min_share_resources").Value(element->GetMinShareResources())
-            .Item("min_share_ratio").Value(attributes.GetMinShareRatio())
-            .Item("unlimited_demand_fair_share_ratio").Value(attributes.GetUnlimitedDemandFairShareRatio())
+            .Item("min_share_ratio").Value(MaxComponent(attributes.MinShare))
+            .Item("unlimited_demand_fair_share_ratio").Value(MaxComponent(attributes.UnlimitedDemandFairShare))
             .Item("unlimited_demand_fair_share_resources").Value(unlimitedDemandFairShareResources)
-            .Item("possible_usage_ratio").Value(attributes.GetPossibleUsageRatio())
             .Item("usage_ratio").Value(element->GetResourceUsageRatioAtUpdate())
             .Item("demand_ratio").Value(attributes.GetDemandRatio())
             .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
-            .Item("best_allocation_ratio").Value(element->GetBestAllocationRatio())
             .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio);
 
         element->BuildYson(fluent);
@@ -2642,7 +2615,7 @@ private:
 
     void DoBuildEssentialFairShareInfo(const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
     {
-        auto buildOperationsInfo = [&] (TFluentMap fluent, const typename TRawOperationElementMap::value_type& pair) {
+        auto buildOperationsInfo = [&] (TFluentMap fluent, const TRawOperationElementMap::value_type& pair) {
             const auto& [operationId, element] = pair;
             fluent
                 .Item(ToString(operationId)).BeginMap()
@@ -2663,7 +2636,7 @@ private:
         const auto& poolMap = rootElementSnapshot->PoolNameToElement;
         fluent
             .Item("pool_count").Value(poolMap.size())
-            .Item("pools").DoMapFor(poolMap, [&] (TFluentMap fluent, const typename TRawPoolMap::value_type& pair) {
+            .Item("pools").DoMapFor(poolMap, [&] (TFluentMap fluent, const TRawPoolMap::value_type& pair) {
                 const auto& [poolName, pool] = pair;
                 fluent
                     .Item(poolName).BeginMap()
@@ -2698,12 +2671,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template class TFairShareTree<TVectorFairShareImpl>;
-template class TFairShareTree<TClassicFairShareImpl>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TFairShareImpl>
 ISchedulerTreePtr CreateFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
@@ -2712,7 +2679,7 @@ ISchedulerTreePtr CreateFairShareTree(
     std::vector<IInvokerPtr> feasibleInvokers,
     TString treeId)
 {
-    return New<TFairShareTree<TFairShareImpl>>(
+    return New<TFairShareTree>(
         std::move(config),
         std::move(controllerConfig),
         strategyHost,
@@ -2720,22 +2687,6 @@ ISchedulerTreePtr CreateFairShareTree(
         std::move(feasibleInvokers),
         std::move(treeId));
 }
-
-template ISchedulerTreePtr CreateFairShareTree<TClassicFairShareImpl>(
-    TFairShareStrategyTreeConfigPtr config,
-    TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-    ISchedulerStrategyHost* strategyHost,
-    ISchedulerTreeHost* treeHost,
-    std::vector<IInvokerPtr> feasibleInvokers,
-    TString treeId);
-
-template ISchedulerTreePtr CreateFairShareTree<TVectorFairShareImpl>(
-    TFairShareStrategyTreeConfigPtr config,
-    TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-    ISchedulerStrategyHost* strategyHost,
-    ISchedulerTreeHost* treeHost,
-    std::vector<IInvokerPtr> feasibleInvokers,
-    TString treeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

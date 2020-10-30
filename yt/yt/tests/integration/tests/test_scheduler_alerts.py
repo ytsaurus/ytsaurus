@@ -27,20 +27,26 @@ class TestSchedulerAlerts(YTEnvSetup):
         }
     }
 
-    @authors("ignat")
+    @authors("ignat", "eshcherbin")
     def test_pools(self):
-        assert get("//sys/scheduler/@alerts") == []
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
+
+        create_pool(
+            "good_pool",
+            attributes={"min_share_resources": {"cpu": 1}}
+        )
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
 
         # Incorrect pool configuration.
         create_pool(
-            "poolA",
+            "bad_pool",
             attributes={"min_share_resources": {"cpu": 100}},
             wait_for_orchid=False,
         )
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
-        set("//sys/pools/poolA/@min_share_resources/cpu", 0)
-        wait(lambda: get("//sys/scheduler/@alerts") == [])
+        set("//sys/pools/bad_pool/@min_share_resources/cpu", 0)
+        wait(lambda: len(get("//sys/scheduler/@alerts")) == 0)
 
     @authors("ignat")
     def test_config(self):

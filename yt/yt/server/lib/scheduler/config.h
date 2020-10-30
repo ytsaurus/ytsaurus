@@ -155,20 +155,13 @@ class TFairShareStrategyTreeConfig
     : virtual public NYTree::TYsonSerializable
 {
 public:
-    // NB(eshcherbin): This option is used only when the tree is created. Subsequent changes won't have any effect.
-    //! Use scheduling strategy based on fair share ratio instead of new one based on vector fair share.
-    //! This option overrides the same option in the strategy config.
-    std::optional<bool> UseClassicScheduler;
-
     // Specifies nodes that are served by this tree.
     TSchedulingTagFilter NodesFilter;
 
     // The following settings can be overridden in operation spec.
-    TDuration MinSharePreemptionTimeout;
     TDuration FairSharePreemptionTimeout;
     double FairShareStarvationTolerance;
 
-    TDuration MinSharePreemptionTimeoutLimit;
     TDuration FairSharePreemptionTimeoutLimit;
     double FairShareStarvationToleranceLimit;
 
@@ -322,10 +315,6 @@ public:
 
     //! Enables the "schedule_in_single_tree" operation spec option cluster-wide.
     bool EnableScheduleInSingleTree;
-
-    // NB(eshcherbin): This option is used only when a tree is created. Subsequent changes won't have any effect on existing trees.
-    //! Use scheduling strategy based on fair share ratio instead of new one based on vector fair share.
-    bool UseClassicScheduler;
 
     TStrategyTestingOptionsPtr StrategyTestingOptions;
 

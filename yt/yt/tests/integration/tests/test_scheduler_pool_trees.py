@@ -12,7 +12,6 @@ from yt_helpers import *
 
 from yt.test_helpers import are_almost_equal
 import yt.environment.init_operation_archive as init_operation_archive
-import yt.common
 
 from flaky import flaky
 
@@ -1530,171 +1529,26 @@ class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
 ##################################################################
 
 
-class TestSchedulingStrategyAlgorithmConfigPerTree(YTEnvSetup):
+@authors("renadeen")
+class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
+    # Scenario:
+    # 1. Operation is running in two trees.
+    # 2. Scheduler sends to controller request to schedule job in some tree.
+    # 3. Admin removes that tree from cypress (or controller bans that tree as tentative).
+    # 4. Scheduler unregisters all operations and aborts jobs in removed tree.
+    # 5. Controller responds to schedule job request.
+    # 6. Operation element is not alive in that tree anymore.
+    # 7. Scheduler fails attempt to schedule job but doesn't abort job on controller.
+    # 8. Controller still thinks that job is running and will never complete or abort it.
+    # 9. Operation is stuck forever.
+
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "use_classic_scheduler": True,
-            "fair_share_update_period": 100,
-            "fair_share_profiling_period": 100,
-            "operations_update_period": 10,
-        }
-    }
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 8,
-                    "cpu": 8,
-                },
-            },
-        },
-    }
-
-    def setup_method(self, method):
-        super(TestSchedulingStrategyAlgorithmConfigPerTree, self).setup_method(method)
-        node = ls("//sys/cluster_nodes")[0]
-        set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
-        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
-        create_pool_tree("other", config={
-            "nodes_filter": "other",
-            "use_classic_scheduler": False
-        })
-        wait(lambda: "other" in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(node)))
-        wait(lambda: "other" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
-
-        for tree in ["default", "other"]:
-            create_pool("pool", pool_tree=tree)
-
-    @authors("eshcherbin")
-    def test_scheduling_strategy_config_per_tree(self):
-        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
-        wait(lambda: get(scheduler_orchid_pool_tree_path("default") + "/algorithm") == "classic")
-
-        op1_classic = run_sleeping_vanilla(spec={"pool": "pool"}, task_patch={"cpu_limit": 4})
-        op2_classic = run_sleeping_vanilla(spec={"pool": "pool"}, job_count=4, task_patch={"cpu_limit": 0.25})
-        op1_vector = run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["other"]}, task_patch={"cpu_limit": 4})
-        op2_vector = run_sleeping_vanilla(
-            spec={"pool": "pool", "pool_trees": ["other"]},
-            job_count=4,
-            task_patch={"cpu_limit": 0.25},
-        )
-
-        wait(
-            lambda: are_almost_equal(
-                get(
-                    scheduler_orchid_operation_path(op1_classic.id, tree="default") + "/fair_share_ratio",
-                    default=0.0,
-                ),
-                0.3125,
-            )
-        )
-        wait(
-            lambda: are_almost_equal(
-                get(
-                    scheduler_orchid_operation_path(op2_classic.id, tree="default") + "/fair_share_ratio",
-                    default=0.0,
-                ),
-                0.3125,
-            )
-        )
-        wait(
-            lambda: are_almost_equal(
-                get(
-                    scheduler_orchid_operation_path(op1_vector.id, tree="other") + "/fair_share_ratio",
-                    default=0.0,
-                ),
-                0.5,
-            )
-        )
-        wait(
-            lambda: are_almost_equal(
-                get(
-                    scheduler_orchid_operation_path(op2_vector.id, tree="other") + "/fair_share_ratio",
-                    default=0.0,
-                ),
-                0.5,
-            )
-        )
-
-    @authors("eshcherbin")
-    def test_option_has_no_effect_after_the_tree_is_created(self):
-        set("//sys/pool_trees/other/@config/use_classic_scheduler", True)
-        wait(lambda: get(scheduler_orchid_pool_tree_config_path("other") + "/use_classic_scheduler"))
-
-        op1 = run_sleeping_vanilla(spec={"pool": "pool", "pool_trees": ["other"]}, task_patch={"cpu_limit": 4})
-        op2 = run_sleeping_vanilla(
-            spec={"pool": "pool", "pool_trees": ["other"]},
-            job_count=4,
-            task_patch={"cpu_limit": 0.25},
-        )
-        wait(
-            lambda: are_almost_equal(
-                get(
-                    scheduler_orchid_operation_path(op1.id, tree="other") + "/fair_share_ratio",
-                    default=0.0,
-                ),
-                0.5,
-            )
-        )
-        wait(
-            lambda: are_almost_equal(
-                get(
-                    scheduler_orchid_operation_path(op2.id, tree="other") + "/fair_share_ratio",
-                    default=0.0,
-                ),
-                0.5,
-            )
-        )
-
-        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
-
-    @authors("eshcherbin")
-    def test_default_algorithm_in_strategy_config_from_cypress(self):
-        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
-        wait(lambda: get(scheduler_orchid_pool_tree_path("default") + "/algorithm") == "classic")
-
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            set("//sys/scheduler/config/use_classic_scheduler", False)
-
-        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
-        wait(lambda: get(scheduler_orchid_pool_tree_path("default") + "/algorithm") == "vector")
-
-        # This is done to switch the default tree back to the classic algorithm for other tests to pass.
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            set("//sys/scheduler/config/use_classic_scheduler", True)
-
-        wait(lambda: get(scheduler_orchid_pool_tree_path("other") + "/algorithm") == "vector")
-        wait(lambda: get(scheduler_orchid_pool_tree_path("default") + "/algorithm") == "classic")
-
-
-##################################################################
-
-
-@authors("renadeen")
-class BaseTestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
-    # Scenario:
-    # 1. operation is running in two trees
-    # 2. scheduler sends to controller request to schedule job in some tree
-    # 3. admin removes that tree from cypress (or controller bans that tree as tentative)
-    # 4. scheduler unregisters all operations and aborts jobs in removed tree
-    # 5. controller responds to schedule job request
-    # 6. operation element is not alive in that tree anymore
-    # 7. scheduler fails attempt to schedule job but doesn't abort job on controller
-    # 7. controller still thinks that job is running and will never complete or abort it
-    # 8. operation is stuck forever
-
-    NUM_MASTERS = 1
-    NUM_NODES = 2
-    NUM_SCHEDULERS = 1
-
-    BASE_DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,  # Update pools configuration period
+            "watchers_update_period": 100,  # Update pools configuration period.
             "node_shard_count": 2,
         }
     }
@@ -1715,14 +1569,3 @@ class BaseTestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
         remove("//sys/pool_trees/other")
         op.wait_for_state("completed")
         op.track()
-
-
-class TestRaceBetweenSchedulingJobAndDisablingOperationClassic(BaseTestRaceBetweenSchedulingJobAndDisablingOperation):
-    DELTA_SCHEDULER_CONFIG = BaseTestRaceBetweenSchedulingJobAndDisablingOperation.BASE_DELTA_SCHEDULER_CONFIG
-
-
-class TestRaceBetweenSchedulingJobAndDisablingOperationVector(BaseTestRaceBetweenSchedulingJobAndDisablingOperation):
-    DELTA_SCHEDULER_CONFIG = yt.common.update(
-        BaseTestRaceBetweenSchedulingJobAndDisablingOperation.BASE_DELTA_SCHEDULER_CONFIG,
-        {"scheduler": {"use_classic_scheduler": False}},
-    )

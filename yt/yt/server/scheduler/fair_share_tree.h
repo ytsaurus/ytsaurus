@@ -34,7 +34,6 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TFairShareImpl>
 ISchedulerTreePtr CreateFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,

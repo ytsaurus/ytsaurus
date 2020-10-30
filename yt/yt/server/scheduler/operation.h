@@ -146,7 +146,6 @@ struct IOperationStrategyHost
 
 protected:
     friend class TFairShareStrategyOperationState;
-    friend class NClassicScheduler::TFairShareStrategyOperationState;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

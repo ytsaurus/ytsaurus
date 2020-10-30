@@ -139,11 +139,9 @@ public:
     TResourceLimitsConfigPtr MinShareResources;
 
     // The following settings override scheduler configuration.
-    std::optional<TDuration> MinSharePreemptionTimeout;
     std::optional<TDuration> FairSharePreemptionTimeout;
     std::optional<double> FairShareStarvationTolerance;
 
-    std::optional<TDuration> MinSharePreemptionTimeoutLimit;
     std::optional<TDuration> FairSharePreemptionTimeoutLimit;
     std::optional<double> FairShareStarvationToleranceLimit;
 
