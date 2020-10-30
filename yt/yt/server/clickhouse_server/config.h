@@ -243,6 +243,7 @@ public:
     TDuration ProcessListSnapshotUpdatePeriod;
 
     int WorkerThreadCount;
+    int FetcherThreadCount;
 
     std::optional<int> CpuLimit;
 

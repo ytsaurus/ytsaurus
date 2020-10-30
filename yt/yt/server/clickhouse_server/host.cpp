@@ -135,6 +135,9 @@ public:
         , WorkerThreadPool_(New<TThreadPool>(Config_->WorkerThreadCount, "Worker"))
         , WorkerInvoker_(WorkerThreadPool_->GetInvoker())
         , ClickHouseWorkerInvoker_(CreateClickHouseInvoker(WorkerInvoker_))
+        , FetcherThreadPool_(New<TThreadPool>(Config_->FetcherThreadCount, "Fetcher"))
+        , FetcherInvoker_(FetcherThreadPool_->GetInvoker())
+        , ClickHouseFetcherInvoker_(CreateClickHouseInvoker(FetcherInvoker_))
     {
         InitializeClients();
         InitializeCaches();
@@ -352,6 +355,16 @@ public:
         return ClickHouseWorkerInvoker_;
     }
 
+    const IInvokerPtr& GetFetcherInvoker() const
+    {
+        return FetcherInvoker_;
+    }
+
+    const IInvokerPtr& GetClickHouseFetcherInvoker() const
+    {
+        return ClickHouseFetcherInvoker_;
+    }
+
     const IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const
     {
         return ParallelReaderMemoryManager_;
@@ -363,7 +376,7 @@ public:
         WriteToStderr("*** Current query id (possible reason of failure): ");
         const auto& queryId = DB::CurrentThread::getQueryId();
         WriteToStderr(queryId.data, queryId.size);
-        WriteToStderr("***\n");
+        WriteToStderr(" ***\n");
     }
 
     TFuture<void> GetIdleFuture() const
@@ -438,6 +451,9 @@ private:
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
     IInvokerPtr WorkerInvoker_;
     IInvokerPtr ClickHouseWorkerInvoker_;
+    NConcurrency::TThreadPoolPtr FetcherThreadPool_;
+    IInvokerPtr FetcherInvoker_;
+    IInvokerPtr ClickHouseFetcherInvoker_;
 
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
@@ -722,6 +738,16 @@ const IInvokerPtr& THost::GetWorkerInvoker() const
 const IInvokerPtr& THost::GetClickHouseWorkerInvoker() const
 {
     return Impl_->GetClickHouseWorkerInvoker();
+}
+
+const IInvokerPtr& THost::GetFetcherInvoker() const
+{
+    return Impl_->GetFetcherInvoker();
+}
+
+const IInvokerPtr& THost::GetClickHouseFetcherInvoker() const
+{
+    return Impl_->GetClickHouseFetcherInvoker();
 }
 
 TClusterNodes THost::GetNodes() const

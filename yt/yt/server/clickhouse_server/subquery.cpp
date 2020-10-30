@@ -112,8 +112,7 @@ public:
         : StorageContext_(storageContext)
         , QueryContext_(StorageContext_->QueryContext)
         , Client_(QueryContext_->Client())
-        // TODO(max42): use clickhouse worker invoker?
-        , Invoker_(CreateSerializedInvoker(QueryContext_->Host->GetWorkerInvoker()))
+        , Invoker_(CreateSerializedInvoker(QueryContext_->Host->GetClickHouseFetcherInvoker()))
         , TableSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , ColumnNames_(columnNames.begin(), columnNames.end())

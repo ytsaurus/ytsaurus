@@ -11,7 +11,12 @@
 
 namespace NYT::NClickHouseServer {
 
+using namespace NConcurrency;
+using namespace NLogging;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+static thread_local i32 ClickHouseFrameCount = 0;
 
 class TClickHouseInvoker
     : public TInvokerWrapper
@@ -21,22 +26,36 @@ public:
 
     virtual void Invoke(TClosure callback) override
     {
+        if (!DB::current_thread) {
+            YT_ASSERT(ClickHouseFrameCount == 0);
+            UnderlyingInvoker_->Invoke(callback);
+            return;
+        }
+
         auto doInvoke = [currentThread = DB::current_thread, callback = std::move(callback), this_ = MakeStrong(this)] {
             auto attach = [currentThread] {
-                DB::current_thread = currentThread;
+                if (ClickHouseFrameCount == 0) {
+                    YT_ASSERT(DB::current_thread == nullptr);
+                    DB::current_thread = currentThread;
+                } else {
+                    YT_ASSERT(DB::current_thread == currentThread);
+                }
+                ++ClickHouseFrameCount;
             };
 
             auto detach = [currentThread] {
+                YT_ASSERT(ClickHouseFrameCount > 0);
                 YT_ASSERT(DB::current_thread == currentThread);
-                DB::current_thread = nullptr;
+                --ClickHouseFrameCount;
+                if (ClickHouseFrameCount == 0) {
+                    DB::current_thread = nullptr;
+                }
             };
 
             auto currentThreadRestoreGuard = NConcurrency::TContextSwitchGuard(detach, attach);
 
             attach();
             auto detachGuard = Finally(detach);
-
-            TCurrentInvokerGuard guard(this_);
 
             callback.Run();
         };
