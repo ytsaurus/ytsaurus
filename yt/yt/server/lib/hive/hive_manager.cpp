@@ -631,10 +631,16 @@ private:
 
         auto traceContext = NTracing::GetCurrentTraceContext();
 
+        auto* mutationContext = GetCurrentMutationContext();
+
+        mutationContext->CombineStateHash(message->Type, message->Data);
+
         for (auto* mailbox : mailboxes) {
             auto messageId =
                 mailbox->GetFirstOutcomingMessageId() +
                 mailbox->OutcomingMessages().size();
+
+            mutationContext->CombineStateHash(messageId, mailbox->GetCellId());
 
             mailbox->OutcomingMessages().push_back({
                 message,

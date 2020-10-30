@@ -791,7 +791,9 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
         hash &= 0xffff;
     }
 
-    return MakeRegularId(type, cellTag, version, hash);
+    auto result = MakeRegularId(type, cellTag, version, hash);
+    mutationContext->CombineStateHash(result);
+    return result;
 }
 
 int TObjectManager::TImpl::RefObject(TObject* object)
