@@ -67,7 +67,7 @@ private:
 
     void Send()
     {
-        Writer_->AddRow(Row_);
+        Writer_->AddRow(Row_, TableIndex_);
         Row_.MutableData()->clear();
         Row_.SetPartIndex(Row_.GetPartIndex() + 1);
     }
