@@ -3766,6 +3766,27 @@ class TestJoinAndIn(ClickHouseTestBase):
             ]
 
     @authors("max42")
+    def test_sorted_join_with_wider_key_condition(self):
+        # CHYT-487.
+        create("table", "//tmp/t1", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"}
+        ]})
+        create("table", "//tmp/t2", attributes={"schema": [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "subkey", "type": "int64", "sort_order": "ascending"}
+        ]})
+        write_table("//tmp/t1", [{"key": 1}, {"key": 5}, {"key": 7}, {"key": 10}])
+        write_table("<append=%true>//tmp/t2", [{"key": 5, "subkey": 42}])
+        write_table("<append=%true>//tmp/t2", [{"key": 7, "subkey": -1}])
+        write_table("<append=%true>//tmp/t2", [{"key": 10, "subkey": 42}])
+        with Clique(1) as clique:
+            # TODO(max42): why 7 rows are read? I would expect 6 rows.
+            assert clique.make_query_and_validate_row_count(
+                'select * from "//tmp/t1" t1 inner join "//tmp/t2" t2 using key where t2.subkey == 42',
+                exact=7) == [{"key": 5, "subkey": 42},
+                             {"key": 10, "subkey": 42}]
+
+    @authors("max42")
     def test_join_under_different_names(self):
         # CHYT-270.
         create(

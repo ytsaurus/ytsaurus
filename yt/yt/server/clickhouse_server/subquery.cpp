@@ -116,7 +116,6 @@ public:
         , TableSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , ColumnNames_(columnNames.begin(), columnNames.end())
-        , KeyColumnCount_(queryAnalysisResult.KeyColumnCount)
         , Config_(QueryContext_->Host->GetConfig()->Subquery)
         , RowBuffer_(QueryContext_->RowBuffer)
         , Logger(StorageContext_->Logger)
@@ -129,6 +128,7 @@ public:
                 table->OperandIndex = operandIndex;
                 InputTables_.emplace_back(std::move(table));
             }
+            KeyColumnDataTypes_.push_back(ToDataTypes(*TableSchemas_[operandIndex]->ToKeys(), StorageContext_->Settings->Composite));
         }
     }
 
@@ -147,13 +147,13 @@ private:
 
     IInvokerPtr Invoker_;
 
+
     std::vector<TTableSchemaPtr> TableSchemas_;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions_;
 
     std::vector<TString> ColumnNames_;
 
-    std::optional<int> KeyColumnCount_ = 0;
-    DB::DataTypes KeyColumnDataTypes_;
+    std::vector<DB::DataTypes> KeyColumnDataTypes_;
 
     //! Number of operands to join. May be either 1 (if no JOIN present or joinee is not a YT table) or 2 (otherwise).
     int OperandCount_ = 0;
@@ -176,19 +176,6 @@ private:
     //! Fetch input tables. Result goes to ResultStripeList_.
     void DoFetch()
     {
-        // TODO(max42): do we need this check?
-        if (!TableSchemas_.empty()) {
-            // TODO(max42): it's better for query analyzer to do this substitution...
-            if (TableSchemas_.size() == 1) {
-                KeyColumnCount_ = TableSchemas_.front()->GetKeyColumnCount();
-            }
-            auto commonSchemaPart = TableSchemas_.front()->Columns();
-            if (KeyColumnCount_) {
-                commonSchemaPart.resize(*KeyColumnCount_);
-            }
-            KeyColumnDataTypes_ = ToDataTypes(TTableSchema(commonSchemaPart), StorageContext_->Settings->Composite);
-        }
-
         FetchTables();
 
         if (Config_->UseColumnarStatistics) {
@@ -552,16 +539,15 @@ private:
         if (!KeyConditions_[operandIndex]) {
             return BoolMask(true, true);
         }
-        YT_VERIFY(KeyColumnCount_);
-        YT_VERIFY(*KeyColumnCount_ > 0);
 
-        DB::FieldRef minKey[*KeyColumnCount_];
-        DB::FieldRef maxKey[*KeyColumnCount_];
+        auto keyColumnCount = TableSchemas_[operandIndex]->GetKeyColumnCount();
+        DB::FieldRef minKey[keyColumnCount];
+        DB::FieldRef maxKey[keyColumnCount];
 
         // TODO(max42): Refactor!
         {
             int index = 0;
-            for ( ; index < std::min<int>(lowerKey.GetCount(), *KeyColumnCount_); ++index) {
+            for ( ; index < std::min<int>(lowerKey.GetCount(), keyColumnCount); ++index) {
                 if (lowerKey[index].Type != EValueType::Max && lowerKey[index].Type != EValueType::Min && lowerKey[index].Type != EValueType::Null) {
                     minKey[index] = ConvertToField(lowerKey[index]);
                 } else {
@@ -569,7 +555,7 @@ private:
                     break;
                 }
             }
-            for (; index < *KeyColumnCount_; ++index) {
+            for (; index < keyColumnCount; ++index) {
                 minKey[index] = ConvertToField(MakeUnversionedNullValue());
             }
         }
@@ -578,7 +564,7 @@ private:
         {
             if (!isMax) {
                 int index = 0;
-                for (; index < std::min<int>(upperKey.GetCount(), *KeyColumnCount_); ++index) {
+                for (; index < std::min<int>(upperKey.GetCount(), keyColumnCount); ++index) {
                     if (upperKey[index].Type == EValueType::Max) {
                         // We can not do anything better than this CH has no meaning of "infinite" value.
                         // Pretend like this is a half-open ray.
@@ -592,7 +578,7 @@ private:
                     }
                 }
                 if (!isMax) {
-                    for (; index < *KeyColumnCount_; ++index) {
+                    for (; index < keyColumnCount; ++index) {
                         maxKey[index] = ConvertToField(MakeUnversionedNullValue());
                     }
                 }
@@ -601,7 +587,7 @@ private:
 
         auto toFormattable = [&] (DB::FieldRef* fields) {
             return MakeFormattableView(
-                MakeRange(fields, fields + *KeyColumnCount_),
+                MakeRange(fields, fields + keyColumnCount),
                 [&] (auto* builder, DB::FieldRef field) { builder->AppendString(TString(field.dump())); });
         };
 
@@ -612,17 +598,24 @@ private:
             YT_LOG_TRACE(
                 "Checking if predicate can be true in range (Scale: %v, KeyColumnCount: %v, MinKey: %v, MaxKey: %v)",
                 scale,
-                KeyColumnCount_,
+                keyColumnCount,
                 toFormattable(minKey),
                 toFormattable(maxKey));
-            result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_), false);
+            result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueInRange(
+                keyColumnCount,
+                minKey,
+                maxKey,
+                KeyColumnDataTypes_[operandIndex]), false);
         } else {
             YT_LOG_TRACE(
                 "Checking if predicate can be true in half-open ray (Scale: %v, KeyColumnCount: %v, MinKey: %v)",
                 scale,
-                KeyColumnCount_,
+                keyColumnCount,
                 toFormattable(minKey));
-            result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueAfter(*KeyColumnCount_, minKey, KeyColumnDataTypes_), false);
+            result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueAfter(
+                keyColumnCount,
+                minKey,
+                KeyColumnDataTypes_[operandIndex]), false);
         }
 
         YT_LOG_EVENT(Logger,
