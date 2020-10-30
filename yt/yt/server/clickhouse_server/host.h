@@ -59,6 +59,15 @@ public:
     //! Cf. clickhouse_invoker.h
     const IInvokerPtr& GetClickHouseWorkerInvoker() const;
 
+    //! Thread pool for input fetching.
+    const IInvokerPtr& GetFetcherInvoker() const;
+
+    //! Wrapper around previous thread pool which does bookkeeping around
+    //! DB::current_thread.
+    //!
+    //! Cf. clickhouse_invoker.h
+    const IInvokerPtr& GetClickHouseFetcherInvoker() const;
+
     NApi::NNative::IClientPtr GetRootClient() const;
     NApi::NNative::IClientPtr CreateClient(const TString& user);
 

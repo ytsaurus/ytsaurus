@@ -216,6 +216,9 @@ TYtConfig::TYtConfig()
     RegisterParameter("worker_thread_count", WorkerThreadCount)
         .Default(8);
 
+    RegisterParameter("fetcher_thread_count", FetcherThreadCount)
+        .Default(8);
+
     RegisterParameter("cpu_limit", CpuLimit)
         .Default();
 
