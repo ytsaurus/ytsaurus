@@ -119,8 +119,10 @@ public:
 
         virtual TString FormatPriority(TPeerPriority priority) override
         {
-            auto version = TVersion::FromRevision(priority);
-            return ToString(version);
+            auto version = TVersion::FromRevision(priority / 2);
+            return Format("%v%v",
+                version,
+                (priority % 2) != 0 ? "+" : "");
         }
 
         virtual void OnAlivePeerSetChanged(const TPeerIdSet& alivePeers) override
@@ -193,6 +195,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RotateChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithLeader));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceSyncWithLeader));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitMutation)
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Poke)
@@ -200,6 +203,9 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonLeaderLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReportMutationsStateHashes)
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PrepareLeaderSwitch)
+            .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ForceRestart));
     }
 
     virtual void Initialize() override
@@ -458,6 +464,13 @@ public:
                     return MakeFuture<TMutationResponse>(error);
                 }
 
+                if (AutomatonEpochContext_->LeaderSwitchStarted) {
+                    // This check is also monotonic (see above).
+                    return MakeFuture<TMutationResponse>(TError(
+                        NRpc::EErrorCode::Unavailable,
+                        "Leader switch is in progress"));
+                }
+
                 return AutomatonEpochContext_->LeaderCommitter->Commit(std::move(request));
 
             case EPeerState::Following:
@@ -558,6 +571,7 @@ private:
 
     IChangelogStorePtr ChangelogStore_;
     std::optional<TVersion> ReachableVersion_;
+    bool EnablePriorityBoost_ = false;
 
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
@@ -958,12 +972,21 @@ private:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, ForceSyncWithLeader)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        context->SetRequestInfo();
+
+        context->ReplyFrom(SyncWithLeader());
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NProto, CommitMutation)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TMutationRequest mutationRequest;
-        mutationRequest.Reign =request->reign();
+        mutationRequest.Reign = request->reign();
         mutationRequest.Type = request->type();
         if (request->has_mutation_id()) {
             mutationRequest.MutationId = FromProto<TMutationId>(request->mutation_id());
@@ -992,6 +1015,46 @@ private:
                 response->Attachments() = mutationResponse.Data.ToVector();
                 context->Reply();
             }));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, PrepareLeaderSwitch)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        context->SetRequestInfo();
+
+        auto state = GetAutomatonState();
+        if (state != EPeerState::Leading) {
+            THROW_ERROR_EXCEPTION("Peer is not leading");
+        }
+
+        auto epochContext = AutomatonEpochContext_;
+        if (epochContext->LeaderSwitchStarted) {
+            THROW_ERROR_EXCEPTION("Leader is already being switched");
+        }
+
+        YT_LOG_INFO("Preparing leader switch (Timeout: %v)",
+            Config_->LeaderSwitchTimeout);
+
+        TDelayedExecutor::Submit(
+            BIND([=, this_ = MakeWeak(this)] {
+                ScheduleRestart(
+                    epochContext,
+                    TError("Leader switch did not complete within timeout"));
+            }),
+            Config_->LeaderSwitchTimeout);
+        
+        TMutationRequest mutationRequest;
+        mutationRequest.Reign = GetCurrentReign();
+        mutationRequest.Type = HeartbeatMutationType;
+        mutationRequest.Data = TSharedMutableRef::Allocate(0);
+
+        CommitMutation(std::move(mutationRequest))
+            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
+                context->Reply(TError(result));
+            }));
+
+        epochContext->LeaderSwitchStarted = true;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Poke)
@@ -1055,6 +1118,44 @@ private:
         context->Reply();
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, ForceRestart)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto reason = FromProto<TError>(request->reason());
+        auto armPriorityBoost = request->arm_priority_boost();
+
+        context->SetRequestInfo("Reason: %v, ArmPriorityBoost: %v",
+            reason,
+            armPriorityBoost);
+
+        if (armPriorityBoost) {
+            SetPriorityBoost(true);
+        }
+
+        ScheduleRestart(ControlEpochContext_, reason);
+
+        context->Reply();
+    }
+
+    
+    void SetPriorityBoost(bool value)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (EnablePriorityBoost_ == value) {
+            return;
+        }
+
+        if (value) {
+            YT_LOG_INFO("Priority boost armed");
+        } else {
+            YT_LOG_INFO("Priority boost disarmed");
+        }
+
+        EnablePriorityBoost_ = value;
+    }
+
     i64 GetElectionPriority()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1067,7 +1168,7 @@ private:
             ? DecoratedAutomaton_->GetAutomatonVersion()
             : *ReachableVersion_;
 
-        return version.ToRevision();
+        return (version.ToRevision() * 2) + (EnablePriorityBoost_ ? 1 : 0);
     }
 
 
@@ -1506,6 +1607,8 @@ private:
             electionEpochContext->CellManager->GetSelfConfig(),
             electionEpochContext->CellManager->GetSelfPeerId());
 
+        SetPriorityBoost(false);
+
         YT_VERIFY(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::FollowerRecovery;
 
@@ -1731,6 +1834,8 @@ private:
         ControlEpochContext_ = epochContext;
 
         SystemLockGuard_ = TSystemLockGuard::Acquire(DecoratedAutomaton_);
+
+        SetPriorityBoost(false);
 
         return ControlEpochContext_;
     }

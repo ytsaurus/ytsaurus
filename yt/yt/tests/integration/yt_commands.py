@@ -1477,6 +1477,10 @@ def build_master_snapshots(*args, **kwargs):
     return get_driver().build_master_snapshots(*args, **kwargs)
 
 
+def switch_leader(*args, **kwargs):
+    return get_driver().switch_leader(*args, **kwargs)
+
+
 def get_version():
     return execute_command("get_version", {}, parse_yson=True)
 

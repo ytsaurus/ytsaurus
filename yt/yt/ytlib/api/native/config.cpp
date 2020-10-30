@@ -190,6 +190,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("cluster_liveness_check_timeout", ClusterLivenessCheckTimeout)
         .Default(TDuration::Seconds(15));
 
+    RegisterParameter("hydra_control_rpc_timeout", HydraControlRpcTimeout)
+        .Default(TDuration::Seconds(30));
+
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
 

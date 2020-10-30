@@ -49,6 +49,7 @@ struct TEpochContext
     NConcurrency::TPeriodicExecutorPtr HeartbeatMutationCommitExecutor;
 
     std::atomic_flag Restarting = ATOMIC_FLAG_INIT;
+    bool LeaderSwitchStarted = false;
     bool LeaderLeaseExpired = false;
 
     TIntrusivePtr<NConcurrency::TAsyncBatcher<void>> LeaderSyncBatcher;

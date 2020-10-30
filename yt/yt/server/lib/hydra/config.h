@@ -373,6 +373,10 @@ public:
     //! Followers will report leader every "StateHashCheckerMutationVerificationSamplingRate"-th mutation's state hash.
     int StateHashCheckerMutationVerificationSamplingRate;
 
+    //! In case Hydra leader is not restarted after switch has been initiated within this timeout,
+    //! it will restart automatically.
+    TDuration LeaderSwitchTimeout;
+
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -475,6 +479,9 @@ public:
         RegisterParameter("state_hash_checker_mutation_verification_sampling_rate", StateHashCheckerMutationVerificationSamplingRate)
             .GreaterThan(0)
             .Default(10);
+
+        RegisterParameter("leader_switch_timeout", LeaderSwitchTimeout)
+            .Default(TDuration::Seconds(30));
 
         RegisterPostprocessor([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {

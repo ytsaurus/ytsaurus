@@ -1,6 +1,7 @@
 package NYT.NHydra.NProto;
 
 import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/error.proto";
 import "yt/core/rpc/proto/rpc.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,6 +111,14 @@ message TRspSyncWithLeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqForceSyncWithLeader
+{ }
+
+message TRspForceSyncWithLeader
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCommitMutation
 {
     required string type = 1;
@@ -172,6 +181,25 @@ message TReqReportMutationsStateHashes
 }
 
 message TRspReportMutationsStateHashes
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqPrepareLeaderSwitch
+{ }
+
+message TRspPrepareLeaderSwitch
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqForceRestart
+{
+    required NYT.NProto.TError reason = 1;
+    optional bool arm_priority_boost = 2;
+}
+
+message TRspForceRestart
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

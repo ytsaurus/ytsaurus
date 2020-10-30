@@ -112,7 +112,7 @@ void TCommandBase::ProduceResponseParameters(
     }
 }
 
-bool TCommandBase::ValidateSuperuserPermissions(const ICommandContextPtr& context) const
+bool TCommandBase::CheckSuperuserPermissions(const ICommandContextPtr& context) const
 {
     const auto& userName = context->Request().AuthenticatedUser;
     if (userName == NSecurityClient::RootUserName) {
