@@ -167,8 +167,10 @@ class Transaction(object):
             return
         if self._finished:
             raise YtError("Transaction is already finished, cannot commit")
-        self._stop_pinger()
+
+        self._prepare_stop_pinger()
         commit_transaction(self.transaction_id, client=self._client)
+        self._stop_pinger()
         self._finished = True
 
     def is_pinger_alive(self):
@@ -255,6 +257,10 @@ class Transaction(object):
         if self._ping:
             self._ping_thread.stop()
 
+    def _prepare_stop_pinger(self):
+        if self._ping:
+            self._ping_thread.prepare_stop()
+
 
 class PingTransaction(Thread):
     """Pinger for transaction.
@@ -275,6 +281,8 @@ class PingTransaction(Thread):
         self.step = min(self.delay, get_config(client)["transaction_sleep_period"] / 1000.0)  # in seconds
         self._client = client
 
+        self.ignore_no_such_transaction_error = False
+
         ping_failed_mode = _get_ping_failed_mode(self._client)
         if ping_failed_mode not in ("interrupt_main", "send_signal", "pass"):
             raise YtError("Incorrect ping failed mode {}, expects one of "
@@ -287,6 +295,9 @@ class PingTransaction(Thread):
     def __exit__(self, type, value, traceback):
         self.stop()
 
+    def prepare_stop(self):
+        self.ignore_no_such_transaction_error = True
+
     def stop(self):
         if not self.is_running:
             return
@@ -297,24 +308,31 @@ class PingTransaction(Thread):
         if self.is_alive():
             logger.warning("Ping request could not be completed within %.1lf seconds", timeout)
 
+
+    def _process_failed_ping(self):
+        self.failed = True
+        if self.interrupt_on_failed:
+            logger.exception("Ping failed")
+            ping_failed_mode = _get_ping_failed_mode(self._client)
+            if ping_failed_mode == "send_signal":
+                os.kill(os.getpid(), signal.SIGUSR1)
+            elif ping_failed_mode == "interrupt_main":
+                interrupt_main()
+            else:  # ping_failed_mode == "pass":
+                pass
+        else:
+            logger.exception("Failed to ping transaction %s, pinger stopped", self.transaction)
+
     def run(self):
         while self.is_running:
             try:
                 ping_transaction(self.transaction, client=self._client)
+            except YtError as err:
+                if not self.ignore_no_such_transaction_error or not err.is_no_such_transaction():
+                    self._process_failed_ping()
             except:
-                self.failed = True
-                if self.interrupt_on_failed:
-                    logger.exception("Ping failed")
-                    ping_failed_mode = _get_ping_failed_mode(self._client)
-                    if ping_failed_mode == "send_signal":
-                        os.kill(os.getpid(), signal.SIGUSR1)
-                    elif ping_failed_mode == "interrupt_main":
-                        interrupt_main()
-                    else:  # ping_failed_mode == "pass":
-                        pass
-                else:
-                    logger.exception("Failed to ping transaction %s, pinger stopped", self.transaction)
-                    return
+                self._process_failed_ping()
+
             start_time = datetime.now()
             while datetime.now() - start_time < timedelta(seconds=self.delay):
                 sleep(self.step)
