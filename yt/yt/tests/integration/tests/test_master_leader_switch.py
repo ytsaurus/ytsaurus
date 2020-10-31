@@ -29,10 +29,16 @@ class TestMasterLeaderSwitch(YTEnvSetup):
 
     @authors("babenko")
     def test_switch(self):
+        def _get_master_state(rpc_address):
+            try:
+                return get("//sys/primary_masters/{}/orchid/monitoring/hydra/state".format(rpc_address))
+            except:
+                return None
+
         current_leader_id = None
         while current_leader_id is None:
             for id, rpc_address in enumerate(self.Env.configs["master"][0]["primary_master"]["addresses"]):
-                if get("//sys/primary_masters/{}/orchid/monitoring/hydra/state".format(rpc_address)) == "leading":
+                if _get_master_state(rpc_address) == "leading":
                     current_leader_id = id
                     break
 
@@ -44,10 +50,7 @@ class TestMasterLeaderSwitch(YTEnvSetup):
 
         def _check():
             try:
-                return (
-                    get("//sys/primary_masters/{}/orchid/monitoring/hydra/state".format(new_leader_rpc_address))
-                    == "leading"
-                )
+                return _get_master_state(new_leader_rpc_address) == "leading"
             except:
                 return False
 
