@@ -1,5 +1,6 @@
 from .config import (get_option, set_option, get_config, get_total_request_timeout,
-                     get_request_retry_count, get_command_param, set_command_param, del_command_param)
+                     get_request_retry_count, get_command_param, set_command_param, del_command_param,
+                     get_backend_type)
 from .common import get_value
 from .errors import YtResponseError, YtError, YtTransactionPingError
 from .transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
@@ -88,7 +89,7 @@ class Transaction(object):
             ping = False
 
         self.transaction_id = transaction_id
-        self.sticky = True if type == "tablet" else False
+        self.sticky = (type == "tablet" and get_backend_type(client) == "http")
         self._client = client
         self._ping_ancestor_transactions = \
             get_value(ping_ancestor_transactions, get_command_param("ping_ancestor_transactions", self._client))
