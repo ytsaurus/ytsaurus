@@ -17,6 +17,7 @@
 
 namespace NYT::NChunkClient {
 
+using namespace NConcurrency;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,7 +65,7 @@ TFileWriter::TFileWriter(
 void TFileWriter::TryLockDataFile(TPromise<void> promise)
 {
     if (DataFile_->Flock(LOCK_EX | LOCK_NB) < 0 && errno == EWOULDBLOCK) {
-        NConcurrency::TDelayedExecutor::Submit(
+        TDelayedExecutor::Submit(
             BIND(&TFileWriter::TryLockDataFile, MakeStrong(this), promise),
             TDuration::MilliSeconds(10));
     } else {
@@ -138,7 +139,8 @@ bool TFileWriter::WriteBlock(const TBlock& block)
             YT_VERIFY(start >= Buffer_.Begin() && end <= Buffer_.End());
             YT_VERIFY(filePosition - offset == Buffer_.Begin() + BufferPosition_ - start);
 
-            NConcurrency::WaitFor(IOEngine_->Pwrite(DataFile_, data, offset)).ThrowOnError();
+            WaitFor(IOEngine_->Pwrite(DataFile_, data, offset))
+                .ThrowOnError();
 
             filePosition += size;
 
@@ -155,19 +157,6 @@ bool TFileWriter::WriteBlock(const TBlock& block)
         DataSize_ += block.Size();
 
         YT_VERIFY(filePosition == DataSize_);
-    } catch (const TSystemError& error) {
-        if (error.Status() == ENOSPC) {
-            Error_ = TError(
-                NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
-                "Not enough space to write chunk data file %v",
-                FileName_);
-        } else {
-            Error_ = TError(
-                "Failed to write chunk data file %v",
-                FileName_)
-                << static_cast<const std::exception&>(error);
-        }
-        return false;
     } catch (const std::exception& ex) {
         Error_ = TError(
             "Failed to write chunk data file %v",

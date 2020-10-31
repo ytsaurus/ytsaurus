@@ -196,7 +196,7 @@ protected:
 
     void DoFlushDirectory(const TString& path)
     {
-        NFS::ExpectIOErrors([&]() {
+        NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             NFS::FlushDirectory(path);
         });
@@ -204,7 +204,7 @@ protected:
 
     void DoClose(const std::shared_ptr<TFileHandle>& handle, i64 newSize, bool flush)
     {
-        NFS::ExpectIOErrors([&]() {
+        NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             if (newSize >= 0) {
                 handle->Resize(newSize);
@@ -441,7 +441,7 @@ private:
 
         YT_VERIFY(readPortion <= data.Size());
 
-        NFS::ExpectIOErrors([&]() {
+        NFS::ExpectIOErrors([&] {
             while (readPortion > 0) {
                 i32 toRead = static_cast<i32>(Min(MaxBytesPerRead, readPortion));
 
@@ -504,7 +504,7 @@ private:
         const ui8* buf = reinterpret_cast<const ui8*>(data.Begin());
         size_t numBytes = data.Size();
 
-        NFS::ExpectIOErrors([&]() {
+        NFS::ExpectIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
             while (numBytes) {
                 i32 toWrite = static_cast<i32>(Min(MaxBytesPerRead, numBytes));
@@ -921,7 +921,7 @@ private:
                 auto& ev = events[i];
 
                 try {
-                    NFS::ExpectIOErrors([&]() {
+                    NFS::ExpectIOErrors([&] {
                         if (ev.res < 0) {
                             ythrow TSystemError(-ev.res);
                         }
