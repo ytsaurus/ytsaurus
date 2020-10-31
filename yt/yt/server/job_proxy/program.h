@@ -63,7 +63,6 @@ protected:
         CloseAllDescriptors();
         NYTAlloc::EnableYTLogging();
         NYTAlloc::InitializeLibunwindInterop();
-        NYTAlloc::ConfigureFromEnv();
 
         try {
             SafeCreateStderrFile(StderrPath_);
