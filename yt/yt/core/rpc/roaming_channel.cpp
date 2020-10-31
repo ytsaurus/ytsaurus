@@ -57,7 +57,7 @@ private:
     const TSendOptions Options_;
     const TInstant StartTime_;
 
-    std::atomic<bool> Semaphore_ = {false};
+    std::atomic<bool> Semaphore_ = false;
 
 
     bool TryAcquireSemaphore()
@@ -72,8 +72,11 @@ private:
             return;
         }
 
+        auto request = std::move(Request_);
+        auto responseHandler = std::move(ResponseHandler_);
+
         if (!result.IsOK()) {
-            ResponseHandler_->HandleError(result);
+            responseHandler->HandleError(result);
             return;
         }
 
@@ -86,8 +89,8 @@ private:
 
         const auto& channel = result.Value();
         auto requestControl = channel->Send(
-            std::move(Request_),
-            std::move(ResponseHandler_),
+            request,
+            responseHandler,
             adjustedOptions);
 
         SetUnderlying(std::move(requestControl));
