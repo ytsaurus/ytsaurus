@@ -208,6 +208,8 @@ def write_file(destination, stream,
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:
         chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+    else:
+        file_writer = update({"desired_chunk_size": chunk_size}, get_value(file_writer, {}))
 
     stream = RawStream(stream, chunk_size)
 
@@ -215,12 +217,15 @@ def write_file(destination, stream,
         filename_hint = stream.filename_hint
     if size_hint is None:
         size_hint = stream.size
-    if size_hint is not None and size_hint <= 16 * MB and file_writer is None:
-        file_writer = {
-            "enable_early_finish": True,
-            "upload_replication_factor": 3,
-            "min_upload_replication_factor": 2,
-        }
+    if size_hint is not None and size_hint <= 16 * MB:
+        file_writer = update(
+            {
+                "enable_early_finish": True,
+                "upload_replication_factor": 3,
+                "min_upload_replication_factor": 2,
+            },
+            get_value(file_writer, {}))
+
 
     params = {}
     set_param(params, "file_writer", file_writer)

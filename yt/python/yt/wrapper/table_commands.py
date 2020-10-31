@@ -176,6 +176,12 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
     table = TablePath(table, client=client)
     format = _prepare_command_format(format, raw, client)
     table_writer = _prepare_table_writer(table_writer, client)
+    
+    chunk_size = get_config(client)["write_retries"]["chunk_size"]
+    if chunk_size is None:
+        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
+    else:
+        table_writer = update({"desired_chunk_size": chunk_size}, get_value(table_writer, {}))
 
     params = {}
     params["input_format"] = format.to_yson_type()
@@ -201,10 +207,6 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
         "sorted_by" not in table.attributes
     if enable_parallel_write and get_config(client)["proxy"]["content_encoding"] == "gzip":
         enable_parallel_write = try_enable_parallel_write_gzip(config_enable_parallel_write)
-
-    chunk_size = get_config(client)["write_retries"]["chunk_size"]
-    if chunk_size is None:
-        chunk_size = DEFAULT_WRITE_CHUNK_SIZE
 
     input_stream = _to_chunk_stream(
         input_stream,
