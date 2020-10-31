@@ -16,8 +16,9 @@ struct TChunkDescriptor
 {
     TChunkDescriptor() = default;
 
-    explicit TChunkDescriptor(TChunkId id)
+    explicit TChunkDescriptor(TChunkId id, i64 diskSpace = 0)
         : Id(id)
+        , DiskSpace(diskSpace)
     { }
 
     TChunkId Id;

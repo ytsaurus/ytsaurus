@@ -789,22 +789,26 @@ void ExpectIOErrors(std::function<void()> func)
         auto status = ex.Status();
         switch (status) {
             case ENOMEM:
-                fprintf(stderr, "Out-of-memory condition detected during IO operation; terminating\n");
+                fprintf(stderr, "Out-of-memory condition detected during I/O operation; terminating\n");
                 _exit(9);
                 break;
+            
             case EIO:
             case ENOSPC:
             case EROFS:
-                throw;
+                THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "I/O error")
+                    << TErrorAttribute("status", status)
+                    << TError(ex);
+            
             default: {
                 TError error(ex);
-                YT_LOG_FATAL(error,"Unexpected exception thrown during IO operation");
+                YT_LOG_FATAL(error, "Unexpected exception thrown during I/O operation");
                 break;
             }
         }
     } catch (...) {
         TError error(CurrentExceptionMessage());
-        YT_LOG_FATAL(error, "Unexpected exception thrown during IO operation");
+        YT_LOG_FATAL(error, "Unexpected exception thrown during I/O operation");
     }
 }
 

@@ -89,13 +89,16 @@ private:
         const std::vector<NChunkClient::TBlock>& blocks,
         int beginBlockIndex,
         int endBlockIndex);
-    void OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const TError& error);
+    void OnBlocksWritten(
+        int beginBlockIndex,
+        int endBlockIndex,
+        const TError& error);
 
-    void OnBlockFlushed(int blockIndex, const TError& error);
+    void OnBlockFlushed(int blockIndex);
 
     void ReleaseSpace();
 
-    void SetFailed(const TError& error, bool fatal = true);
+    void SetFailed(const TError& error, bool fatal);
 
     void OnSlotCanceled(int blockIndex, const TError& error);
 };
