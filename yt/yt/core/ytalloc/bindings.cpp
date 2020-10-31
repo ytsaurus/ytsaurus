@@ -1,4 +1,5 @@
 #include "bindings.h"
+#include "config.h"
 
 #include <yt/core/logging/log.h>
 
@@ -16,6 +17,8 @@
 #include <yt/core/libunwind/libunwind.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
+
+#include <util/system/env.h>
 
 #include <cstdio>
 
@@ -217,80 +220,15 @@ void EnableYTProfiling()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSerializableConfiguration
-    : public NYTree::TYsonSerializable
+void Configure(const TYTAllocConfigPtr& config)
 {
-public:
-    bool EnableAllocationProfiling;
-    double AllocationProfilingSamplingRate;
-    std::vector<int> SmallArenasToProfile;
-    std::vector<int> LargeArenasToProfile;
-    std::optional<int> ProfilingBacktraceDepth;
-    std::optional<size_t> MinProfilingBytesUsedToReport;
-    std::optional<TDuration> StockpileInterval;
-    std::optional<int> StockpileThreadCount;
-    std::optional<size_t> StockpileSize;
-    std::optional<bool> EnableEagerMemoryRelease;
-
-    TSerializableConfiguration()
-    {
-        RegisterParameter("enable_allocation_profiling", EnableAllocationProfiling)
-            .Default(false);
-        RegisterParameter("allocation_profiling_sampling_rate", AllocationProfilingSamplingRate)
-            .Default(1.0)
-            .InRange(0.0, 1.0);
-        RegisterParameter("small_arenas_to_profile", SmallArenasToProfile)
-            .Default({});
-        RegisterParameter("large_arenas_to_profile", LargeArenasToProfile)
-            .Default({});
-        RegisterParameter("profiling_backtrace_depth", ProfilingBacktraceDepth)
-            .InRange(1, MaxAllocationProfilingBacktraceDepth)
-            .Default();
-        RegisterParameter("min_profiling_bytes_used_to_report", MinProfilingBytesUsedToReport)
-            .GreaterThan(0)
-            .Default();
-        RegisterParameter("stockpile_interval", StockpileInterval)
-            .Default();
-        RegisterParameter("stockpile_thread_count", StockpileThreadCount)
-            .Default();
-        RegisterParameter("stockpile_size", StockpileSize)
-            .GreaterThan(0)
-            .Default();
-        RegisterParameter("enable_eager_memory_release", EnableEagerMemoryRelease)
-            .Default(true);
-    }
-};
-
-void ConfigureFromEnv()
-{
-    const auto Logger = GetLogger();
-
-    constexpr const char* ConfigEnvVarName = "YT_ALLOC_CONFIG";
-    const auto* configVarValue = ::getenv(ConfigEnvVarName);
-    if (!configVarValue) {
-        YT_LOG_DEBUG("No %v environment variable is found",
-            ConfigEnvVarName);
-        return;
-    }
-
-    TIntrusivePtr<TSerializableConfiguration> config;
-    try {
-        config = NYTree::ConvertTo<TIntrusivePtr<TSerializableConfiguration>>(
-            NYson::TYsonString(TString(configVarValue)));
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error parsing environment variable %v",
-            ConfigEnvVarName);
-        return;
-    }
-
     for (size_t rank = 1; rank < SmallRankCount; ++rank) {
         SetSmallArenaAllocationProfilingEnabled(rank, false);
     }
     for (auto rank : config->SmallArenasToProfile) {
         if (rank < 1 || rank >= SmallRankCount) {
-            YT_LOG_WARNING("Unable to enable allocation profiling for small arena %v since its rank is out of range",
+            THROW_ERROR_EXCEPTION("Unable to enable allocation profiling for small arena %v since its rank is out of range",
                 rank);
-            continue;
         }
         SetSmallArenaAllocationProfilingEnabled(rank, true);
     }
@@ -300,9 +238,8 @@ void ConfigureFromEnv()
     }
     for (auto rank : config->LargeArenasToProfile) {
         if (rank < 1 || rank >= LargeRankCount) {
-            YT_LOG_WARNING("Unable to enable allocation profiling for large arena %v since its rank is out of range",
+            THROW_ERROR_EXCEPTION("Unable to enable allocation profiling for large arena %v since its rank is out of range",
                 rank);
-            continue;
         }
         SetLargeArenaAllocationProfilingEnabled(rank, true);
     }
@@ -327,9 +264,40 @@ void ConfigureFromEnv()
     if (config->EnableEagerMemoryRelease) {
         SetEnableEagerMemoryRelease(*config->EnableEagerMemoryRelease);
     }
+}
+
+bool ConfigureFromEnv()
+{
+    const auto& Logger = GetLogger();
+
+    static const TString ConfigEnvVarName = "YT_ALLOC_CONFIG";
+    auto configVarValue = GetEnv(ConfigEnvVarName);
+    if (!configVarValue) {
+        YT_LOG_DEBUG("No %v environment variable is found",
+            ConfigEnvVarName);
+        return false;
+    }
+
+    TYTAllocConfigPtr config;
+    try {
+        config = ConvertTo<TYTAllocConfigPtr>(NYson::TYsonString(configVarValue));
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Error parsing environment variable %v",
+            ConfigEnvVarName);
+        return false;
+    }
 
     YT_LOG_DEBUG("%v environment variable parsed successfully",
         ConfigEnvVarName);
+
+    try {
+        Configure(config);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Error applying configuration parsed from environment variable");
+        return false;
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

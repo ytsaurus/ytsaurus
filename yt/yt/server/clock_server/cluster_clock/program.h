@@ -67,7 +67,6 @@ protected:
         NYTAlloc::SetEnableEagerMemoryRelease(false);
         NYTAlloc::EnableStockpile();
         NYTAlloc::MlockFileMappings();
-        NYTAlloc::ConfigureFromEnv();
 
         if (HandleSetsidOptions()) {
             return;

@@ -235,7 +235,6 @@ protected:
         NYTAlloc::EnableYTProfiling();
         NYTAlloc::InitializeLibunwindInterop();
         NYTAlloc::EnableStockpile();
-        NYTAlloc::ConfigureFromEnv();
 
         if (HandlePdeathsigOptions()) {
             return;

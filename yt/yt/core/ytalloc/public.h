@@ -1,14 +1,12 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/core/yson/public.h>
+#include <yt/core/misc/public.h>
 
 namespace NYT::NYTAlloc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonProducer CreateStatisticsProducer();
+DECLARE_REFCOUNTED_CLASS(TYTAllocConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NYTAlloc {

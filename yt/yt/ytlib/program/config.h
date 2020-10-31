@@ -4,6 +4,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/core/ytalloc/config.h>
+
 #include <yt/core/net/config.h>
 
 #include <yt/core/rpc/config.h>
@@ -24,6 +26,7 @@ class TSingletonsConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    NYTAlloc::TYTAllocConfigPtr YTAlloc;
     THashMap<TString, int> FiberStackPoolSizes;
     NNet::TAddressResolverConfigPtr AddressResolver;
     NRpc::TDispatcherConfigPtr RpcDispatcher;
@@ -34,6 +37,8 @@ public:
 
     TSingletonsConfig()
     {
+        RegisterParameter("yt_alloc", YTAlloc)
+            .Default();
         RegisterParameter("fiber_stack_pool_sizes", FiberStackPoolSizes)
             .Default({});
         RegisterParameter("address_resolver", AddressResolver)

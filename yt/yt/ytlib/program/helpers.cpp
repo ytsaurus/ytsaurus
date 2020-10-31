@@ -3,6 +3,8 @@
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
+#include <yt/core/ytalloc/bindings.h>
+
 #include <yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/core/ytalloc/bindings.h>
@@ -29,6 +31,10 @@ using namespace NConcurrency;
 
 void ConfigureSingletons(const TSingletonsConfigPtr& config)
 {
+    if (!NYTAlloc::ConfigureFromEnv() && config->YTAlloc) {
+        NYTAlloc::Configure(config->YTAlloc);
+    }
+
     for (const auto& [kind, size] : config->FiberStackPoolSizes) {
         NConcurrency::SetFiberStackPoolSize(ParseEnum<NConcurrency::EExecutionStackKind>(kind), size);
     }

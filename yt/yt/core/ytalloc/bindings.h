@@ -1,6 +1,6 @@
 #pragma once
 
-#include <util/generic/string.h>
+#include "public.h"
 
 namespace NYT::NYTAlloc {
 
@@ -15,8 +15,14 @@ void EnableYTProfiling();
 // Installs backtrace provider that invokes libunwind.
 void InitializeLibunwindInterop();
 
-// Configures YTAlloc from YT_ALLOC_CONFIG environment variable.
-void ConfigureFromEnv();
+// Configures YTAlloc from a given #config instance.
+void Configure(const TYTAllocConfigPtr& config);
+
+// Configures YTAlloc from |YT_ALLOC_CONFIG| environment variable.
+// Never throws on error; just reports it via logging.
+// Returns |true| if YTAlloc was successfully configured from the variable;
+// |false| otherwise (the variable did not exist or could not be parsed).
+bool ConfigureFromEnv();
 
 // Builds a string containing some brief allocation statistics.
 TString FormatAllocationCounters();
