@@ -607,11 +607,16 @@ TJobResult TJobProxy::DoRun()
         }
 
         const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
-        NYTAlloc::SetLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_large_unreclaimable_bytes());
-        JobProxyMemoryOvercommitLimit_ =
-            schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit() ?
-            std::make_optional(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) :
-            std::nullopt;
+        
+        if (schedulerJobSpecExt.has_yt_alloc_min_large_unreclaimable_bytes()) {
+            NYTAlloc::SetMinLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_min_large_unreclaimable_bytes());
+        }
+        if (schedulerJobSpecExt.has_yt_alloc_max_large_unreclaimable_bytes()) {
+            NYTAlloc::SetMaxLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_max_large_unreclaimable_bytes());
+        }
+        JobProxyMemoryOvercommitLimit_ = schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit()
+            ? std::make_optional(schedulerJobSpecExt.job_proxy_memory_overcommit_limit())
+            : std::nullopt;
 
         RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
 

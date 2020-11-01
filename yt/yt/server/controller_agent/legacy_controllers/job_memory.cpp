@@ -16,8 +16,11 @@ using NChunkClient::ChunkReaderMemorySize;
 //! Accounts for job proxy process and other lightweight stuff.
 static const i64 FootprintMemorySize = 64_MB;
 
-//! Memory overhead caused by YTAlloc.
-static const i64 YTAllocLargeUnreclaimableBytes = 64_MB;
+//! Min memory overhead caused by YTAlloc.
+static const i64 YTAllocMinLargeUnreclaimableBytes = 32_MB;
+
+//! Max memory overhead caused by YTAlloc.
+static const i64 YTAllocMaxLargeUnreclaimableBytes = 64_MB;
 
 static const i64 ChunkSpecOverhead = 1000;
 
@@ -25,12 +28,17 @@ static const i64 ChunkSpecOverhead = 1000;
 
 i64 GetFootprintMemorySize()
 {
-    return FootprintMemorySize + GetYTAllocLargeUnreclaimableBytes();
+    return FootprintMemorySize + YTAllocMaxLargeUnreclaimableBytes;
 }
 
-i64 GetYTAllocLargeUnreclaimableBytes()
+i64 GetYTAllocMinLargeUnreclaimableBytes()
 {
-    return YTAllocLargeUnreclaimableBytes;
+    return YTAllocMinLargeUnreclaimableBytes;
+}
+
+i64 GetYTAllocMaxLargeUnreclaimableBytes()
+{
+    return YTAllocMaxLargeUnreclaimableBytes;
 }
 
 i64 GetOutputWindowMemorySize(const TJobIOConfigPtr& ioConfig)

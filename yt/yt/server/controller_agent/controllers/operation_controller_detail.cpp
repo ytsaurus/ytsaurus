@@ -4138,7 +4138,9 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 {
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-    schedulerJobSpecExt->set_yt_alloc_large_unreclaimable_bytes(GetYTAllocLargeUnreclaimableBytes());
+    schedulerJobSpecExt->set_yt_alloc_min_large_unreclaimable_bytes(GetYTAllocMinLargeUnreclaimableBytes());
+    schedulerJobSpecExt->set_yt_alloc_max_large_unreclaimable_bytes(GetYTAllocMaxLargeUnreclaimableBytes());
+    
     if (OutputTransaction) {
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }
