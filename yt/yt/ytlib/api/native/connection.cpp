@@ -1,8 +1,6 @@
-#include "admin.h"
 #include "config.h"
 #include "connection.h"
 #include "client.h"
-#include "admin.h"
 #include "transaction_participant.h"
 #include "transaction.h"
 #include "private.h"
@@ -253,11 +251,6 @@ public:
     virtual IInvokerPtr GetInvoker() override
     {
         return ThreadPoolInvoker_;
-    }
-
-    virtual IAdminPtr CreateAdmin(const TAdminOptions& options) override
-    {
-        return NNative::CreateAdmin(this, options);
     }
 
     virtual NApi::IClientPtr CreateClient(const TClientOptions& options) override

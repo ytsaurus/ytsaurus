@@ -225,23 +225,14 @@ public:
 
     // Metadata
     virtual TFuture<NApi::TClusterMeta> GetClusterMeta(
-        const NApi::TGetClusterMetaOptions&) override
-    {
-        ThrowUnimplemented("get_cluster_meta");
-    }
+        const NApi::TGetClusterMetaOptions&) override;
 
     virtual TFuture<void> CheckClusterLiveness(
-        const TCheckClusterLivenessOptions&) override
-    {
-        ThrowUnimplemented("check_cluster_liveness");
-    }
+        const TCheckClusterLivenessOptions&) override;
 
     virtual TFuture<NApi::TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath&,
-        const NApi::TLocateSkynetShareOptions&) override
-    {
-        ThrowUnimplemented("locate_skynet_share");
-    }
+        const NApi::TLocateSkynetShareOptions&) override;
 
     virtual TFuture<std::vector<NTableClient::TColumnarStatistics>> GetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& path,
@@ -251,6 +242,33 @@ public:
         const NYPath::TYPath& path,
         i64 rowCount,
         const NApi::TTruncateJournalOptions& options) override;
+
+    // Administration
+    virtual TFuture<int> BuildSnapshot(
+        const NApi::TBuildSnapshotOptions& options) override;
+
+    virtual TFuture<TCellIdToSnapshotIdMap> BuildMasterSnapshots(
+        const TBuildMasterSnapshotsOptions& options) override;
+
+    virtual TFuture<void> SwitchLeader(
+        NHydra::TCellId cellId,
+        NHydra::TPeerId newLeaderId,
+        const TSwitchLeaderOptions& options) override;
+
+    virtual TFuture<void> GCCollect(
+        const NApi::TGCCollectOptions& options) override;
+
+    virtual TFuture<void> KillProcess(
+        const TString& address,
+        const NApi::TKillProcessOptions& options) override;
+
+    virtual TFuture<TString> WriteCoreDump(
+        const TString& address,
+        const NApi::TWriteCoreDumpOptions& options) override;
+
+    virtual TFuture<TString> WriteOperationControllerCoreDump(
+        NJobTrackerClient::TOperationId operationId,
+        const NApi::TWriteOperationControllerCoreDumpOptions& options) override;
 
 private:
     const TConnectionPtr Connection_;

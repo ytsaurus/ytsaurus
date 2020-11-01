@@ -8,7 +8,6 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/client/api/admin.h>
 #include <yt/client/api/client.h>
 
 #include <yt/client/api/rpc_proxy/proto/api_service.pb.h>

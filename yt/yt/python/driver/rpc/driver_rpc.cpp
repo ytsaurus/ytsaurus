@@ -8,7 +8,6 @@
 #include <yt/client/api/rpc_proxy/connection.h>
 #include <yt/client/api/rpc_proxy/config.h>
 
-#include <yt/client/api/admin.h>
 #include <yt/client/api/transaction.h>
 
 #include <yt/client/driver/config.h>

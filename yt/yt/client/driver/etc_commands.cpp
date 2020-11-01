@@ -1,7 +1,6 @@
 #include "etc_commands.h"
 
 #include <yt/client/api/client.h>
-#include <yt/client/api/admin.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -410,88 +409,6 @@ void TBalanceTabletCellsCommand::DoExecute(ICommandContextPtr context)
     auto tabletActions = WaitFor(asyncResult)
         .ValueOrThrow();
     context->ProduceOutputValue(BuildYsonStringFluently().List(tabletActions));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TBuildSnapshotCommand::TBuildSnapshotCommand()
-{
-    RegisterParameter("cell_id", Options.CellId);
-
-    RegisterParameter("set_read_only", Options.SetReadOnly)
-        .Optional();
-    RegisterParameter("wait_for_snapshot_completion", Options.WaitForSnapshotCompletion)
-        .Optional();
-}
-
-void TBuildSnapshotCommand::DoExecute(ICommandContextPtr context)
-{
-    if (!CheckSuperuserPermissions(context)) {
-        THROW_ERROR_EXCEPTION("User not authorized");
-    }
-
-    auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
-    auto snapshotIdOrError = WaitFor(admin->BuildSnapshot(Options));
-    auto snapshotId = snapshotIdOrError.ValueOrThrow();
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .BeginMap()
-            .Item("snapshot_id").Value(snapshotId)
-        .EndMap());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TBuildMasterSnapshotsCommand::TBuildMasterSnapshotsCommand()
-{
-    RegisterParameter("set_read_only", Options.SetReadOnly)
-        .Optional();
-    RegisterParameter("wait_for_snapshot_completion", Options.WaitForSnapshotCompletion)
-        .Optional();
-    RegisterParameter("retry", Options.Retry)
-        .Optional();
-}
-
-void TBuildMasterSnapshotsCommand::DoExecute(ICommandContextPtr context)
-{
-    if (!CheckSuperuserPermissions(context)) {
-        THROW_ERROR_EXCEPTION("User not authorized");
-    }
-
-    auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
-    auto cellIdToSnapshotId = WaitFor(admin->BuildMasterSnapshots(Options))
-        .ValueOrThrow();
-
-    context->ProduceOutputValue(BuildYsonStringFluently()
-        .DoListFor(cellIdToSnapshotId, [=] (TFluentList fluent, const auto& pair) {
-            fluent
-                .Item().BeginMap()
-                    .Item("cell_id").Value(pair.first)
-                    .Item("snapshot_id").Value(pair.second)
-                .EndMap();
-        })
-    );
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSwitchLeaderCommand::TSwitchLeaderCommand()
-{
-    RegisterParameter("cell_id", CellId_);
-    RegisterParameter("new_leader_id", NewLeaderId_);
-}
-
-void TSwitchLeaderCommand::DoExecute(ICommandContextPtr context)
-{
-    if (!CheckSuperuserPermissions(context)) {
-        THROW_ERROR_EXCEPTION("User not authorized");
-    }
-
-    auto admin = context->GetDriver()->GetConnection()->CreateAdmin(TAdminOptions{});
-    
-    WaitFor(admin->SwitchLeader(CellId_, NewLeaderId_))
-        .ThrowOnError();
-
-    ProduceEmptyOutput(context);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

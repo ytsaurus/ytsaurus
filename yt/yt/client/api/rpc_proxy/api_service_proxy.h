@@ -125,7 +125,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateObject);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetTableMountInfo);
 
-    // IAdmin
+    // Administration
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, BuildSnapshot);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GCCollect);
 

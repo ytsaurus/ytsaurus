@@ -70,17 +70,14 @@ struct IConnection
     virtual NObjectClient::TCellTag GetCellTag() = 0;
     virtual const TString& GetLoggingId() = 0;
     virtual const TString& GetClusterId() = 0;
-
     virtual IInvokerPtr GetInvoker() = 0;
 
-    virtual IAdminPtr CreateAdmin(const TAdminOptions& options = TAdminOptions()) = 0;
-    virtual IClientPtr CreateClient(const TClientOptions& options = TClientOptions()) = 0;
+    virtual IClientPtr CreateClient(const TClientOptions& options = {}) = 0;
     virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
         NHiveClient::TCellId cellId,
         const TTransactionParticipantOptions& options = TTransactionParticipantOptions()) = 0;
 
     virtual void ClearMetadataCaches() = 0;
-
     virtual void Terminate() = 0;
 };
 

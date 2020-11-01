@@ -12,7 +12,6 @@
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/client/api/admin.h>
 #include <yt/client/api/transaction.h>
 
 #include <yt/client/driver/config.h>
@@ -28,6 +27,7 @@ using namespace NYTree;
 using namespace NConcurrency;
 using namespace NTabletClient;
 using namespace NJobTrackerClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +48,7 @@ public:
         try {
             configNode = ConvertToNode(configDict);
 
-            auto connection = NApi::CreateConnection(configNode);
+            auto connection = CreateConnection(configNode);
             auto driverConfig = ConvertTo<TDriverConfigPtr>(configNode);
             driver = CreateDriver(connection, driverConfig);
         } catch(const std::exception& ex) {
@@ -82,8 +82,8 @@ public:
     Py::Object GCCollect(Py::Tuple& args, Py::Dict& kwargs)
     {
         try {
-            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
-            WaitFor(admin->GCCollect())
+            auto client = CreateClient();
+            WaitFor(client->GCCollect())
                 .ThrowOnError();
             return Py::None();
         } CATCH_AND_CREATE_YT_ERROR("Failed to perform garbage collect");
@@ -92,7 +92,7 @@ public:
 
     Py::Object KillProcess(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto options = NApi::TKillProcessOptions();
+        auto options = TKillProcessOptions();
 
         if (!HasArgument(args, kwargs, "address")) {
             throw CreateYtError("Missing argument 'address'");
@@ -106,8 +106,8 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
-            WaitFor(admin->KillProcess(address, options))
+            auto client = CreateClient();
+            WaitFor(client->KillProcess(address, options))
                 .ThrowOnError();
             return Py::None();
         } CATCH_AND_CREATE_YT_ERROR("Failed to kill process");
@@ -116,7 +116,7 @@ public:
 
     Py::Object WriteCoreDump(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto options = NApi::TWriteCoreDumpOptions();
+        auto options = TWriteCoreDumpOptions();
 
         if (!HasArgument(args, kwargs, "address")) {
             throw CreateYtError("Missing argument 'address'");
@@ -126,8 +126,8 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
-            auto path = WaitFor(admin->WriteCoreDump(address, options))
+            auto client = CreateClient();
+            auto path = WaitFor(client->WriteCoreDump(address, options))
                 .ValueOrThrow();
             return Py::String(path);
         } CATCH_AND_CREATE_YT_ERROR("Failed to write core dump");
@@ -144,8 +144,8 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
-            auto path = WaitFor(admin->WriteOperationControllerCoreDump(operationId))
+            auto client = CreateClient();
+            auto path = WaitFor(client->WriteOperationControllerCoreDump(operationId))
                 .ValueOrThrow();
             return Py::String(path);
         } CATCH_AND_CREATE_YT_ERROR("Failed to write operation controller core dump");
@@ -154,7 +154,7 @@ public:
 
     Py::Object BuildSnapshot(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto options = NApi::TBuildSnapshotOptions();
+        auto options = TBuildSnapshotOptions();
 
         if (HasArgument(args, kwargs, "set_read_only")) {
             options.SetReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "set_read_only")));
@@ -175,8 +175,9 @@ public:
                 options.CellId = NHydra::TCellId::FromString(ConvertStringObjectToString(cellId));
             }
 
-            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
-            int snapshotId = WaitFor(admin->BuildSnapshot(options)).ValueOrThrow();
+            auto client = CreateClient();
+            int snapshotId = WaitFor(client->BuildSnapshot(options))
+                .ValueOrThrow();
             return Py::Long(snapshotId);
         } CATCH_AND_CREATE_YT_ERROR("Failed to build snapshot");
     }
@@ -184,7 +185,7 @@ public:
 
     Py::Object BuildMasterSnapshots(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto options = NApi::TBuildMasterSnapshotsOptions();
+        auto options = TBuildMasterSnapshotsOptions();
 
         if (HasArgument(args, kwargs, "set_read_only")) {
             options.SetReadOnly = static_cast<bool>(Py::Boolean(ExtractArgument(args, kwargs, "set_read_only")));
@@ -199,8 +200,9 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
-            auto cellIdToSnapshotId = WaitFor(admin->BuildMasterSnapshots(options)).ValueOrThrow();
+            auto client = CreateClient();
+            auto cellIdToSnapshotId = WaitFor(client->BuildMasterSnapshots(options))
+                .ValueOrThrow();
 
             Py::Dict dict;
             for (auto [cellId, snapshotId] : cellIdToSnapshotId) {
@@ -213,7 +215,7 @@ public:
 
     Py::Object SwitchLeader(Py::Tuple& args, Py::Dict& kwargs)
     {
-        auto options = NApi::TSwitchLeaderOptions();
+        auto options = TSwitchLeaderOptions();
 
         if (!HasArgument(args, kwargs, "cell_id")) {
             throw CreateYtError("Missing argument 'cell_id'");
@@ -228,8 +230,8 @@ public:
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
-            WaitFor(admin->SwitchLeader(
+            auto client = CreateClient();
+            WaitFor(client->SwitchLeader(
                 NHydra::TCellId::FromString(ConvertStringObjectToString(cellId)),
                 CheckedIntegralCast<NHydra::TPeerId>(ConvertToLongLong(newLeaderId)),
                 options))
@@ -255,6 +257,13 @@ public:
     virtual Py::Type GetDriverType() const override
     {
         return TDriver::type();
+    }
+
+private:
+    IClientPtr CreateClient()
+    {
+        auto options = TClientOptions::FromUser(NSecurityClient::RootUserName);
+        return UnderlyingDriver_->GetConnection()->CreateClient(options);
     }
 };
 

@@ -20,7 +20,7 @@ using namespace NTabletClient;
 
 void ThrowUnimplemented(const TString& method)
 {
-    THROW_ERROR_EXCEPTION("Method %Qv is not implemented in RPC proxy",
+    THROW_ERROR_EXCEPTION("%Qv method is not implemented in RPC proxy",
         method);
 }
 

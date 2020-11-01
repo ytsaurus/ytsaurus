@@ -3,8 +3,6 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/client/security_client/helpers.h>
-
 #include <yt/core/misc/error.h>
 
 #include <yt/core/ypath/tokenizer.h>
@@ -110,23 +108,6 @@ void TCommandBase::ProduceResponseParameters(
     if (context->Request().ResponseParametersFinishedCallback) {
         context->Request().ResponseParametersFinishedCallback();
     }
-}
-
-bool TCommandBase::CheckSuperuserPermissions(const ICommandContextPtr& context) const
-{
-    const auto& userName = context->Request().AuthenticatedUser;
-    if (userName == NSecurityClient::RootUserName) {
-        return true;
-    }
-
-    auto pathToGroupYsonList = NSecurityClient::GetUserPath(userName) + "/@member_of_closure";
-    auto groupYsonList = WaitFor(context->GetClient()->GetNode(pathToGroupYsonList)).ValueOrThrow();
-
-    auto groups = ConvertTo<THashSet<TString>>(groupYsonList);
-    YT_LOG_DEBUG("User group membership info received (Name: %v, Groups: %v)",
-        userName,
-        groups);
-    return groups.contains(NSecurityClient::SuperusersGroupName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
