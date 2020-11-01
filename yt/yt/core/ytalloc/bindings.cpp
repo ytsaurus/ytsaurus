@@ -222,45 +222,60 @@ void EnableYTProfiling()
 
 void Configure(const TYTAllocConfigPtr& config)
 {
-    for (size_t rank = 1; rank < SmallRankCount; ++rank) {
-        SetSmallArenaAllocationProfilingEnabled(rank, false);
-    }
-    for (auto rank : config->SmallArenasToProfile) {
-        if (rank < 1 || rank >= SmallRankCount) {
-            THROW_ERROR_EXCEPTION("Unable to enable allocation profiling for small arena %v since its rank is out of range",
-                rank);
+    if (config->SmallArenasToProfile) {
+        for (size_t rank = 1; rank < SmallRankCount; ++rank) {
+            SetSmallArenaAllocationProfilingEnabled(rank, false);
         }
-        SetSmallArenaAllocationProfilingEnabled(rank, true);
+        for (auto rank : *config->SmallArenasToProfile) {
+            if (rank < 1 || rank >= SmallRankCount) {
+                THROW_ERROR_EXCEPTION("Unable to enable allocation profiling for small arena %v since its rank is out of range",
+                    rank);
+            }
+            SetSmallArenaAllocationProfilingEnabled(rank, true);
+        }
     }
 
-    for (size_t rank = 1; rank < LargeRankCount; ++rank) {
-        SetLargeArenaAllocationProfilingEnabled(rank, false);
-    }
-    for (auto rank : config->LargeArenasToProfile) {
-        if (rank < 1 || rank >= LargeRankCount) {
-            THROW_ERROR_EXCEPTION("Unable to enable allocation profiling for large arena %v since its rank is out of range",
-                rank);
+    if (config->LargeArenasToProfile) {
+        for (size_t rank = 1; rank < LargeRankCount; ++rank) {
+            SetLargeArenaAllocationProfilingEnabled(rank, false);
         }
-        SetLargeArenaAllocationProfilingEnabled(rank, true);
+        for (auto rank : *config->LargeArenasToProfile) {
+            if (rank < 1 || rank >= LargeRankCount) {
+                THROW_ERROR_EXCEPTION("Unable to enable allocation profiling for large arena %v since its rank is out of range",
+                    rank);
+            }
+            SetLargeArenaAllocationProfilingEnabled(rank, true);
+        }
     }
 
-    SetAllocationProfilingEnabled(config->EnableAllocationProfiling);
-    SetAllocationProfilingSamplingRate(config->AllocationProfilingSamplingRate);
+    if (config->EnableAllocationProfiling) {
+        SetAllocationProfilingEnabled(*config->EnableAllocationProfiling);
+    }
+    
+    if (config->AllocationProfilingSamplingRate) {
+        SetAllocationProfilingSamplingRate(*config->AllocationProfilingSamplingRate);
+    }
+    
     if (config->ProfilingBacktraceDepth) {
         SetProfilingBacktraceDepth(*config->ProfilingBacktraceDepth);
     }
+    
     if (config->MinProfilingBytesUsedToReport) {
         SetMinProfilingBytesUsedToReport(*config->MinProfilingBytesUsedToReport);
     }
+    
     if (config->StockpileInterval) {
         SetStockpileInterval(*config->StockpileInterval);
     }
+    
     if (config->StockpileThreadCount) {
         SetStockpileThreadCount(*config->StockpileThreadCount);
     }
+    
     if (config->StockpileSize) {
         SetStockpileSize(*config->StockpileSize);
     }
+    
     if (config->EnableEagerMemoryRelease) {
         SetEnableEagerMemoryRelease(*config->EnableEagerMemoryRelease);
     }

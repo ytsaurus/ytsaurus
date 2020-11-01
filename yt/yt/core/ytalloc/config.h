@@ -12,10 +12,10 @@ class TYTAllocConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    bool EnableAllocationProfiling;
-    double AllocationProfilingSamplingRate;
-    std::vector<int> SmallArenasToProfile;
-    std::vector<int> LargeArenasToProfile;
+    std::optional<bool> EnableAllocationProfiling;
+    std::optional<double> AllocationProfilingSamplingRate;
+    std::optional<std::vector<int>> SmallArenasToProfile;
+    std::optional<std::vector<int>> LargeArenasToProfile;
     std::optional<int> ProfilingBacktraceDepth;
     std::optional<size_t> MinProfilingBytesUsedToReport;
     std::optional<TDuration> StockpileInterval;
@@ -26,14 +26,14 @@ public:
     TYTAllocConfig()
     {
         RegisterParameter("enable_allocation_profiling", EnableAllocationProfiling)
-            .Default(false);
+            .Default();
         RegisterParameter("allocation_profiling_sampling_rate", AllocationProfilingSamplingRate)
-            .Default(1.0)
-            .InRange(0.0, 1.0);
+            .InRange(0.0, 1.0)
+            .Default();
         RegisterParameter("small_arenas_to_profile", SmallArenasToProfile)
-            .Default({});
+            .Default();
         RegisterParameter("large_arenas_to_profile", LargeArenasToProfile)
-            .Default({});
+            .Default();
         RegisterParameter("profiling_backtrace_depth", ProfilingBacktraceDepth)
             .InRange(1, MaxAllocationProfilingBacktraceDepth)
             .Default();
@@ -48,7 +48,7 @@ public:
             .GreaterThan(0)
             .Default();
         RegisterParameter("enable_eager_memory_release", EnableEagerMemoryRelease)
-            .Default(true);
+            .Default();
     }
 };
 
