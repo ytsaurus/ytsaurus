@@ -9,7 +9,9 @@ namespace NYT::NControllerAgent::NControllers {
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetFootprintMemorySize();
-i64 GetYTAllocLargeUnreclaimableBytes();
+
+i64 GetYTAllocMinLargeUnreclaimableBytes();
+i64 GetYTAllocMaxLargeUnreclaimableBytes();
 
 i64 GetInputIOMemorySize(
     const NScheduler::TJobIOConfigPtr& ioConfig,
