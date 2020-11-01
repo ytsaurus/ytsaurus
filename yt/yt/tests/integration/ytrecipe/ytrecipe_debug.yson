@@ -27,7 +27,7 @@
 
     resource_limits={
         cpu_limit=10;
-        memory_limit=20000000000;
+        memory_limit=30000000000;
         tmpfs_size=10000000000;
     };
 
