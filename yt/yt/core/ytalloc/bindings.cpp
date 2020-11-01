@@ -279,6 +279,18 @@ void Configure(const TYTAllocConfigPtr& config)
     if (config->EnableEagerMemoryRelease) {
         SetEnableEagerMemoryRelease(*config->EnableEagerMemoryRelease);
     }
+    
+    if (config->LargeUnreclaimableCoeff) {
+        SetLargeUnreclaimableCoeff(*config->LargeUnreclaimableCoeff);
+    }
+    
+    if (config->MinLargeUnreclaimableBytes) {
+        SetMinLargeUnreclaimableBytes(*config->MinLargeUnreclaimableBytes);
+    }
+    
+    if (config->MaxLargeUnreclaimableBytes) {
+        SetMaxLargeUnreclaimableBytes(*config->MaxLargeUnreclaimableBytes);
+    }
 }
 
 bool ConfigureFromEnv()

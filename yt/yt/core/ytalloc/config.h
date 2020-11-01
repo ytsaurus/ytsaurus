@@ -22,6 +22,9 @@ public:
     std::optional<int> StockpileThreadCount;
     std::optional<size_t> StockpileSize;
     std::optional<bool> EnableEagerMemoryRelease;
+    std::optional<double> LargeUnreclaimableCoeff;
+    std::optional<size_t> MinLargeUnreclaimableBytes;
+    std::optional<size_t> MaxLargeUnreclaimableBytes;
 
     TYTAllocConfig()
     {
@@ -48,6 +51,12 @@ public:
             .GreaterThan(0)
             .Default();
         RegisterParameter("enable_eager_memory_release", EnableEagerMemoryRelease)
+            .Default();
+        RegisterParameter("large_unreclaimable_coeff", LargeUnreclaimableCoeff)
+            .Default();
+        RegisterParameter("min_large_unreclaimable_bytes", MinLargeUnreclaimableBytes)
+            .Default();
+        RegisterParameter("max_large_unreclaimable_bytes", MaxLargeUnreclaimableBytes)
             .Default();
     }
 };
