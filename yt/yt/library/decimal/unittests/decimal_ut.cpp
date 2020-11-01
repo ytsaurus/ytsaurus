@@ -104,8 +104,7 @@ TEST(TDecimal, TestTextBinaryConversion)
 
 TEST(TDecimal, TestPrecisionScaleLimits)
 {
-
-EXPECT_THROW_WITH_SUBSTRING(TDecimal::TextToBinary("0", -1, 0), "Invalid decimal precision");
+    EXPECT_THROW_WITH_SUBSTRING(TDecimal::TextToBinary("0", -1, 0), "Invalid decimal precision");
     EXPECT_THROW_WITH_SUBSTRING(TDecimal::TextToBinary("0", 0, 0), "Invalid decimal precision");
     EXPECT_THROW_WITH_SUBSTRING(TDecimal::TextToBinary("0", TDecimal::MaxPrecision + 1, 0), "Invalid decimal precision");
 
@@ -127,6 +126,21 @@ EXPECT_THROW_WITH_SUBSTRING(TDecimal::TextToBinary("0", -1, 0), "Invalid decimal
 
     EXPECT_THROW_WITH_SUBSTRING(TDecimal::TextToBinary("314.15", 5, 3), "too many digits before decimal point");
     EXPECT_THROW_WITH_SUBSTRING(TDecimal::TextToBinary("-314.15", 5, 3), "too many digits before decimal point");
+
+    // Sometimes we want to print values that are not representable with given precision
+    // (e.g. in error messages we sometimes want to print text value of invalid decimal to explain that it has
+    // more digits than allowed by precision).
+    //
+    // Here we test that extreme values are printed ok.
+    auto maxBinaryDecimal = HexDecode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD");
+    auto minBinaryDecimal1 = HexDecode("00000000000000000000000000000000");
+    auto minBinaryDecimal2 = HexDecode("00000000000000000000000000000003");
+    EXPECT_EQ(TDecimal::MaxBinarySize, maxBinaryDecimal.size());   // If max TDecimal::MaxBinarySize ever increases
+    EXPECT_EQ(TDecimal::MaxBinarySize, minBinaryDecimal1.size());  // please update this test
+    EXPECT_EQ(TDecimal::MaxBinarySize, minBinaryDecimal2.size());  // with better values.
+    EXPECT_EQ("1701411834604692317316873037158841057.25", TDecimal::BinaryToText(maxBinaryDecimal, TDecimal::MaxPrecision, 2));
+    EXPECT_EQ("-1701411834604692317316873037158841057.28", TDecimal::BinaryToText(minBinaryDecimal1, TDecimal::MaxPrecision, 2));
+    EXPECT_EQ("-1701411834604692317316873037158841057.25", TDecimal::BinaryToText(minBinaryDecimal2, TDecimal::MaxPrecision, 2));
 }
 
 TEST(TDecimal, TestValidation)

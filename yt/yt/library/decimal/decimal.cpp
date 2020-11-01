@@ -2,8 +2,6 @@
 
 #include <yt/core/misc/error.h>
 
-#include <library/cpp/int128/int128.h>
-
 #include <util/generic/ylimits.h>
 #include <util/string/hex.h>
 #include <util/system/byteorder.h>
@@ -231,7 +229,7 @@ static Y_FORCE_INLINE TStringBuf PlaceOnBuffer(TStringBuf value, char* buffer)
 template<typename T>
 static TStringBuf WriteTextDecimalUnchecked(T decodedValue, int scale, char* buffer)
 {
-    i8 digits[TDecimal::MaxPrecision] = {0,};
+    i8 digits[std::numeric_limits<T>::digits + 1] = {0,};
     static constexpr auto ten = DecimalIntegerToUnsigned(T{10});
 
     const bool negative = decodedValue < 0;
@@ -254,6 +252,7 @@ static TStringBuf WriteTextDecimalUnchecked(T decodedValue, int scale, char* buf
         absValue = absValue / ten;
         curDigit++;
     }
+    YT_VERIFY(curDigit <= digits + std::size(digits));
 
     if (curDigit - digits <= scale) {
         curDigit = digits + scale + 1;
