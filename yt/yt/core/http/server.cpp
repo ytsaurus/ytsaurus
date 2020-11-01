@@ -186,7 +186,7 @@ private:
                 YT_LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
                     request->GetRequestId());
             } else {
-                YT_LOG_DEBUG("Missing HTTP handler for given URL (RequestId: %v, Path: %v)",
+                YT_LOG_INFO("Missing HTTP handler for given URL (RequestId: %v, Path: %v)",
                     request->GetRequestId(),
                     path);
 
@@ -194,7 +194,7 @@ private:
             }
         } catch (const std::exception& ex) {
             closeResponse = true;
-            YT_LOG_DEBUG(ex, "Error handling HTTP request (RequestId: %v)",
+            YT_LOG_INFO(ex, "Error handling HTTP request (RequestId: %v)",
                 request->GetRequestId());
 
             if (!response->IsHeadersFlushed()) {
@@ -208,7 +208,7 @@ private:
                     .ThrowOnError();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error flushing HTTP response stream (RequestId: %v)",
+            YT_LOG_INFO(ex, "Error flushing HTTP response stream (RequestId: %v)",
                 request->GetRequestId());
         }
 
