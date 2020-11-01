@@ -2,6 +2,7 @@
 #include "command.h"
 #include "config.h"
 #include "cypress_commands.h"
+#include "admin_commands.h"
 #include "etc_commands.h"
 #include "file_commands.h"
 #include "journal_commands.h"
@@ -453,7 +454,7 @@ private:
                 request.AuthenticatedUser);
         }
 
-        context->MutableRequest().Reset();
+        context->Finish();
 
         THROW_ERROR_EXCEPTION_IF_FAILED(result);
     }
@@ -491,11 +492,6 @@ private:
         }
 
         virtual const TDriverRequest& Request() override
-        {
-            return Request_;
-        }
-
-        virtual TDriverRequest& MutableRequest() override
         {
             return Request_;
         }
@@ -545,11 +541,17 @@ private:
             syncOutputStream->Flush();
         }
 
+        void Finish()
+        {
+            Request_.Reset();
+        }
+
     private:
         const IDriverPtr Driver_;
         const IClientPtr Client_;
         const TDriverConfigPtr Config_;
         const TCommandDescriptor Descriptor_;
+
         TDriverRequest Request_;
 
         std::optional<TFormat> InputFormat_;

@@ -1,12 +1,9 @@
-#include "admin.h"
 #include "discovery_service_proxy.h"
 #include "connection_impl.h"
 #include "client_impl.h"
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
-
-#include <yt/client/api/admin.h>
 
 #include <yt/core/net/local_address.h>
 #include <yt/core/net/address.h>
@@ -175,12 +172,6 @@ const TString& TConnection::GetClusterId()
 IInvokerPtr TConnection::GetInvoker()
 {
     return ActionQueue_->GetInvoker();
-}
-
-IAdminPtr TConnection::CreateAdmin(const TAdminOptions& /*options*/)
-{
-    // This client is used only in tests
-    return New<TAdmin>(CreateDynamicChannel(ChannelPool_));
 }
 
 NApi::IClientPtr TConnection::CreateClient(const TClientOptions& options)

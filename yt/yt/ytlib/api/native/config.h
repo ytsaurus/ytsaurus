@@ -138,8 +138,6 @@ public:
 
     TDuration ClusterLivenessCheckTimeout;
 
-    TDuration HydraControlRpcTimeout;
-
     TConnectionConfig();
 };
 

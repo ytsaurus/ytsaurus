@@ -154,7 +154,33 @@ public:
         const NYPath::TYPath& path,
         const TJournalWriterOptions& options));
 
-    // ICLient
+    MOCK_METHOD1(BuildSnapshot, TFuture<int>(
+        const TBuildSnapshotOptions& options));
+
+    MOCK_METHOD1(BuildMasterSnapshots, TFuture<TCellIdToSnapshotIdMap>(
+        const TBuildMasterSnapshotsOptions& options));
+
+    MOCK_METHOD3(SwitchLeader, TFuture<void>(
+        NHydra::TCellId cellId,
+        NHydra::TPeerId newLeaderId,
+        const TSwitchLeaderOptions& options));
+
+    MOCK_METHOD1(GCCollect, TFuture<void>(
+        const TGCCollectOptions& options));
+
+    MOCK_METHOD2(KillProcess, TFuture<void>(
+        const TString& address,
+        const TKillProcessOptions& options));
+
+    MOCK_METHOD2(WriteCoreDump, TFuture<TString>(
+        const TString& address,
+        const TWriteCoreDumpOptions& options));
+
+    MOCK_METHOD2(WriteOperationControllerCoreDump, TFuture<TString>(
+        NJobTrackerClient::TOperationId operationId,
+        const TWriteOperationControllerCoreDumpOptions& options));
+
+    // IClient
     NTabletClient::ITableMountCachePtr TableMountCache;
     NTransactionClient::ITimestampProviderPtr TimestampProvider;
 

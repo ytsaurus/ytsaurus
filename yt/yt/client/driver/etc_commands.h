@@ -4,8 +4,6 @@
 
 #include <yt/client/ypath/rich.h>
 
-#include <yt/client/api/admin.h>
-
 #include <yt/core/ytree/permission.h>
 
 namespace NYT::NDriver {
@@ -196,45 +194,6 @@ public:
 private:
     TString TabletCellBundle;
     std::vector<NYPath::TYPath> MovableTables;
-
-    virtual void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TBuildSnapshotCommand
-    : public TTypedCommand<NApi::TBuildSnapshotOptions>
-{
-public:
-    TBuildSnapshotCommand();
-
-private:
-    virtual void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TBuildMasterSnapshotsCommand
-    : public TTypedCommand<NApi::TBuildMasterSnapshotsOptions>
-{
-public:
-    TBuildMasterSnapshotsCommand();
-
-private:
-    virtual void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSwitchLeaderCommand
-    : public TTypedCommand<NApi::TSwitchLeaderOptions>
-{
-public:
-    TSwitchLeaderCommand();
-
-private:
-    NHydra::TCellId CellId_;
-    NHydra::TPeerId NewLeaderId_;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };

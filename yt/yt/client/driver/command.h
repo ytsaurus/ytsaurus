@@ -32,7 +32,6 @@ struct ICommandContext
     virtual const IDriverPtr& GetDriver() = 0;
 
     virtual const TDriverRequest& Request() = 0;
-    virtual TDriverRequest& MutableRequest() = 0;
 
     virtual const NFormats::TFormat& GetInputFormat() = 0;
     virtual const NFormats::TFormat& GetOutputFormat() = 0;
@@ -83,8 +82,6 @@ protected:
     void ProduceResponseParameters(
         ICommandContextPtr context,
         const std::function<void(NYson::IYsonConsumer*)>& producer);
-
-    bool CheckSuperuserPermissions(const ICommandContextPtr& context) const;
 
     std::optional<bool> RewriteOperationPathOption;
     bool RewriteOperationPath = true;

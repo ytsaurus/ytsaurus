@@ -1112,6 +1112,25 @@ TFuture<TPutFileToCacheResult> TClient::PutFileToCache(
     }));
 }
 
+TFuture<TClusterMeta> TClient::GetClusterMeta(
+    const TGetClusterMetaOptions& /*options*/)
+{
+    ThrowUnimplemented("GetClusterMeta");
+}
+
+TFuture<void> TClient::CheckClusterLiveness(
+    const TCheckClusterLivenessOptions& /*options*/)
+{
+    ThrowUnimplemented("CheckClusterLiveness");
+}
+
+TFuture<TSkynetSharePartsLocationsPtr> TClient::LocateSkynetShare(
+    const NYPath::TRichYPath&,
+    const TLocateSkynetShareOptions& /*options*/)
+{
+    ThrowUnimplemented("LocateSkynetShare");
+}
+
 TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
     const std::vector<NYPath::TRichYPath>& path,
     const TGetColumnarStatisticsOptions& options)
@@ -1145,7 +1164,7 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
 TFuture<void> TClient::TruncateJournal(
     const NYPath::TYPath& path,
     i64 rowCount,
-    const NApi::TTruncateJournalOptions& options)
+    const TTruncateJournalOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -1159,6 +1178,71 @@ TFuture<void> TClient::TruncateJournal(
 
     return req->Invoke().As<void>();
 }
+
+
+TFuture<int> TClient::BuildSnapshot(const TBuildSnapshotOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.BuildSnapshot();
+    if (options.CellId) {
+        ToProto(req->mutable_cell_id(), options.CellId);
+    }
+    req->set_set_read_only(options.SetReadOnly);
+    req->set_wait_for_snapshot_completion(options.WaitForSnapshotCompletion);
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspBuildSnapshotPtr>& rspOrError) -> int {
+        const auto& rsp = rspOrError.ValueOrThrow();
+        return rsp->snapshot_id();
+    }));
+}
+
+TFuture<TCellIdToSnapshotIdMap> TClient::BuildMasterSnapshots(const TBuildMasterSnapshotsOptions& /* options */)
+{
+    ThrowUnimplemented("BuildMasterSnapshots");
+}
+
+TFuture<void> TClient::SwitchLeader(
+    NHydra::TCellId /* cellId */,
+    NHydra::TPeerId /* newLeaderId */,
+    const TSwitchLeaderOptions& /* options */)
+{
+    ThrowUnimplemented("SwitchLeader");
+}
+
+TFuture<void> TClient::GCCollect(const TGCCollectOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GCCollect();
+    if (options.CellId) {
+        ToProto(req->mutable_cell_id(), options.CellId);
+    }
+
+    return req->Invoke().As<void>();
+}
+
+TFuture<void> TClient::KillProcess(
+    const TString& /* address */,
+    const TKillProcessOptions& /* options */)
+{
+    ThrowUnimplemented("KillProcess");
+}
+
+TFuture<TString> TClient::WriteCoreDump(
+    const TString& /* address */,
+    const TWriteCoreDumpOptions& /* options */)
+{
+    ThrowUnimplemented("WriteCoreDump");
+}
+
+TFuture<TString> TClient::WriteOperationControllerCoreDump(
+    TOperationId /* operationId */,
+    const TWriteOperationControllerCoreDumpOptions& /* options */)
+{
+    ThrowUnimplemented("WriteOperationControllerCoreDump");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NApi::NRpcProxy
+} // namespace NYT::NRpcProxy

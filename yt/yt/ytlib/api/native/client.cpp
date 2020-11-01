@@ -19,6 +19,7 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
+#include <yt/ytlib/hive/cell_directory_synchronizer.h>
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
@@ -33,6 +34,8 @@
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/ytlib/query_client/functions_cache.h>
+
+#include <yt/client/security_client/helpers.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/action_queue.h>
@@ -56,6 +59,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NQueryClient;
 using namespace NChunkClient;
+using namespace NHiveClient;
 using namespace NScheduler;
 
 using NNodeTrackerClient::CreateNodeChannelFactory;
@@ -360,7 +364,9 @@ std::unique_ptr<TProxy> TClient::CreateReadProxy(
     return std::make_unique<TProxy>(channel, Connection_->GetStickyGroupSizeCache());
 }
 
-template std::unique_ptr<TObjectServiceProxy> TClient::CreateReadProxy<TObjectServiceProxy>(const TMasterReadOptions& options, TCellTag cellTag);
+template std::unique_ptr<TObjectServiceProxy> TClient::CreateReadProxy<TObjectServiceProxy>(
+    const TMasterReadOptions& options,
+    TCellTag cellTag);
 
 template <class TProxy>
 std::unique_ptr<TProxy> TClient::CreateWriteProxy(
@@ -379,6 +385,44 @@ IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
     const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
     const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, NHydra::EPeerKind::Leader);
     return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressWithNetworkOrThrow(Connection_->GetNetworks()));
+}
+
+IChannelPtr TClient::GetLeaderCellChannelOrThrow(TCellId cellId)
+{
+    WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
+        .ThrowOnError();
+
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+    return cellDirectory->GetChannelOrThrow(cellId);
+}
+
+TCellDescriptor TClient::GetCellDescriptorOrThrow(TCellId cellId)
+{
+    WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
+        .ThrowOnError();
+
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+    return cellDirectory->GetDescriptorOrThrow(cellId);
+}
+
+void TClient::ValidateSuperuserPermissions()
+{
+    if (Options_.User == NSecurityClient::RootUserName) {
+        return;
+    }
+
+    auto pathToGroupYsonList = NSecurityClient::GetUserPath(*Options_.User) + "/@member_of_closure";
+    auto groupYsonList = WaitFor(GetNode(pathToGroupYsonList, {}))
+        .ValueOrThrow();
+
+    auto groups = ConvertTo<THashSet<TString>>(groupYsonList);
+    YT_LOG_DEBUG("User group membership info received (Name: %v, Groups: %v)",
+        Options_.User,
+        groups);
+    
+    if (!groups.contains(NSecurityClient::SuperusersGroupName)) {
+        THROW_ERROR_EXCEPTION("Superuser permissions required");
+    }
 }
 
 TClusterMeta TClient::DoGetClusterMeta(

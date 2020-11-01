@@ -426,7 +426,6 @@ public:
         const TAbortJobOptions& options),
         (jobId, options))
 
-
     IMPLEMENT_METHOD(TClusterMeta, GetClusterMeta, (
         const TGetClusterMetaOptions& options),
         (options))
@@ -434,6 +433,32 @@ public:
         const TCheckClusterLivenessOptions& options),
         (options))
 
+    IMPLEMENT_METHOD(int, BuildSnapshot, (
+        const TBuildSnapshotOptions& options),
+        (options))
+    IMPLEMENT_METHOD(TCellIdToSnapshotIdMap, BuildMasterSnapshots, (
+        const TBuildMasterSnapshotsOptions& options),
+        (options))
+    IMPLEMENT_METHOD(void, SwitchLeader, (
+        NObjectClient::TCellId cellId,
+        NHydra::TPeerId newLeaderId,
+        const TSwitchLeaderOptions& options),
+        (cellId, newLeaderId, options))
+    IMPLEMENT_METHOD(void, GCCollect, (
+        const TGCCollectOptions& options),
+        (options))
+    IMPLEMENT_METHOD(void, KillProcess, (
+        const TString& address,
+        const TKillProcessOptions& options),
+        (address, options))
+    IMPLEMENT_METHOD(TString, WriteCoreDump, (
+        const TString& address,
+        const TWriteCoreDumpOptions& options),
+        (address, options))
+    IMPLEMENT_METHOD(TString, WriteOperationControllerCoreDump, (
+        NScheduler::TOperationId operationId,
+        const TWriteOperationControllerCoreDumpOptions& options),
+        (operationId, options))
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -500,6 +525,10 @@ private:
     std::unique_ptr<TProxy> CreateWriteProxy(
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTag);
     NRpc::IChannelPtr GetReadCellChannelOrThrow(NObjectClient::TCellId cellId);
+    NRpc::IChannelPtr GetLeaderCellChannelOrThrow(NObjectClient::TCellId cellId);
+    NHiveClient::TCellDescriptor GetCellDescriptorOrThrow(NObjectClient::TCellId cellId);
+
+    void ValidateSuperuserPermissions();
 
     using TEncoderWithMapping = std::function<std::vector<TSharedRef>(
         const NTableClient::TColumnFilter&,
@@ -936,7 +965,6 @@ private:
         NScheduler::TJobId jobId,
         const NJobTrackerClient::NProto::TJobSpec& jobSpec,
         NYTree::EPermissionSet permissions);
-
     void ValidateOperationAccess(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
@@ -1051,6 +1079,27 @@ private:
     void DoCheckClusterLiveness(
         const TCheckClusterLivenessOptions& options);
 
+
+    // Administration.
+    int DoBuildSnapshot(
+        const TBuildSnapshotOptions& options);
+    TCellIdToSnapshotIdMap DoBuildMasterSnapshots(
+        const TBuildMasterSnapshotsOptions& options);
+    void DoSwitchLeader(
+        NObjectClient::TCellId cellId,
+        NHydra::TPeerId newLeaderId,
+        const TSwitchLeaderOptions& options);
+    void DoGCCollect(
+        const TGCCollectOptions& options);
+    void DoKillProcess(
+        const TString& address,
+        const TKillProcessOptions& options);
+    TString DoWriteCoreDump(
+        const TString& address,
+        const TWriteCoreDumpOptions& options);
+    TString DoWriteOperationControllerCoreDump(
+        NScheduler::TOperationId operationId,
+        const TWriteOperationControllerCoreDumpOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

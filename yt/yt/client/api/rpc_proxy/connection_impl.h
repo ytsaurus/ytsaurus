@@ -39,7 +39,6 @@ public:
 
     virtual IInvokerPtr GetInvoker() override;
 
-    virtual NApi::IAdminPtr CreateAdmin(const NApi::TAdminOptions& options) override;
     virtual NApi::IClientPtr CreateClient(const NApi::TClientOptions& options) override;
     virtual NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
         NHiveClient::TCellId cellId,

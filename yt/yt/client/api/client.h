@@ -1114,6 +1114,52 @@ struct TCheckClusterLivenessOptions
     bool CheckCypressRoot = false;
 };
 
+struct TBuildSnapshotOptions
+    : public TTimeoutOptions
+{
+    //! Refers either to masters or to tablet cells.
+    //! If null then the primary one is assumed.
+    NHydra::TCellId CellId;
+    bool SetReadOnly = false;
+    bool WaitForSnapshotCompletion = true;
+};
+
+struct TBuildMasterSnapshotsOptions
+    : public TTimeoutOptions
+{
+    bool SetReadOnly = false;
+    bool WaitForSnapshotCompletion = true;
+    bool Retry = true;
+};
+
+struct TSwitchLeaderOptions
+    : public TTimeoutOptions
+{ };
+
+struct TGCCollectOptions
+    : public TTimeoutOptions
+{
+    //! Refers to master cell.
+    //! If null then the primary one is assumed.
+    NHydra::TCellId CellId;
+};
+
+struct TKillProcessOptions
+    : public TTimeoutOptions
+{
+    int ExitCode = 42;
+};
+
+struct TWriteCoreDumpOptions
+    : public TTimeoutOptions
+{ };
+
+struct TWriteOperationControllerCoreDumpOptions
+    : public TTimeoutOptions
+{ };
+
+using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -1501,6 +1547,33 @@ struct IClient
 
     virtual TFuture<void> CheckClusterLiveness(
         const TCheckClusterLivenessOptions& options = {}) = 0;
+
+    // Administration
+    virtual TFuture<int> BuildSnapshot(
+        const TBuildSnapshotOptions& options = {}) = 0;
+
+    virtual TFuture<TCellIdToSnapshotIdMap> BuildMasterSnapshots(
+        const TBuildMasterSnapshotsOptions& options = {}) = 0;
+
+    virtual TFuture<void> SwitchLeader(
+        NHydra::TCellId cellId,
+        NHydra::TPeerId newLeaderId,
+        const TSwitchLeaderOptions& options = {}) = 0;
+
+    virtual TFuture<void> GCCollect(
+        const TGCCollectOptions& options = {}) = 0;
+
+    virtual TFuture<void> KillProcess(
+        const TString& address,
+        const TKillProcessOptions& options = {}) = 0;
+
+    virtual TFuture<TString> WriteCoreDump(
+        const TString& address,
+        const TWriteCoreDumpOptions& options = {}) = 0;
+
+    virtual TFuture<TString> WriteOperationControllerCoreDump(
+        NJobTrackerClient::TOperationId operationId,
+        const TWriteOperationControllerCoreDumpOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

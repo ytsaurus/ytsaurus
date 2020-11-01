@@ -2847,17 +2847,17 @@ private:
         for (int partCount : request->part_counts()) {
             if (partCount < 0) {
                 THROW_ERROR_EXCEPTION("Received a negative part count")
-                    << TErrorAttribute("partCount", partCount);
+                    << TErrorAttribute("part_count", partCount);
             }
             if (partCount >= attachmentCount) {
                 THROW_ERROR_EXCEPTION("Part count is too large")
-                    << TErrorAttribute("partCount", partCount);
+                    << TErrorAttribute("part_count", partCount);
             }
             expectedAttachmentCount += partCount + 1;
         }
         if (attachmentCount != expectedAttachmentCount) {
             THROW_ERROR_EXCEPTION("Attachment count mismatch")
-                << TErrorAttribute("attachment_count", attachmentCount)
+                << TErrorAttribute("actual_attachment_count", attachmentCount)
                 << TErrorAttribute("expected_attachment_count", expectedAttachmentCount);
         }
 
@@ -2886,21 +2886,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BuildSnapshot)
     {
-        if (Bootstrap_->GetConfig()->RequireAuthentication ||
-            context->GetAuthenticationIdentity().User != NSecurityClient::RootUserName)
-        {
-            context->Reply(TError(
-                NSecurityClient::EErrorCode::AuthorizationError,
-                "Only root can call \"BuildSnapshot\""));
-            return;
-        }
-
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-
-        auto connection = client->GetConnection();
-        auto admin = connection->CreateAdmin();
-
         TBuildSnapshotOptions options;
+        SetTimeoutOptions(&options, context.Get());
         options.CellId = FromProto<TCellId>(request->cell_id());
         options.SetReadOnly = request->set_read_only();
         options.WaitForSnapshotCompletion = request->wait_for_snapshot_completion();
@@ -2910,10 +2897,11 @@ private:
             options.SetReadOnly,
             options.WaitForSnapshotCompletion);
 
+        auto client = GetAuthenticatedClientOrThrow(context, request);
         CompleteCallWith(
             client,
             context,
-            admin->BuildSnapshot(options),
+            client->BuildSnapshot(options),
             [] (const auto& context, int snapshotId) {
                 auto* response = &context->Response();
                 response->set_snapshot_id(snapshotId);
@@ -2923,29 +2911,17 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GCCollect)
     {
-        if (Bootstrap_->GetConfig()->RequireAuthentication ||
-            context->GetAuthenticationIdentity().User != NSecurityClient::RootUserName)
-        {
-            context->Reply(TError(
-                NSecurityClient::EErrorCode::AuthorizationError,
-                "Only root can call \"GCCollect\""));
-            return;
-        }
-
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-
-        auto connection = client->GetConnection();
-        auto admin = connection->CreateAdmin();
-
         TGCCollectOptions options;
+        SetTimeoutOptions(&options, context.Get());
         options.CellId = FromProto<TCellId>(request->cell_id());
 
         context->SetRequestInfo("CellId: %v", options.CellId);
 
+        auto client = GetAuthenticatedClientOrThrow(context, request);
         CompleteCallWith(
             nullptr,
             context,
-            admin->GCCollect(options));
+            client->GCCollect(options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////
