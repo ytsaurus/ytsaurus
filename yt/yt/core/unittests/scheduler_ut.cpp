@@ -100,7 +100,7 @@ TEST_W(TSchedulerTest, CheckFiberStack)
 
     WaitFor(asyncResult1).ThrowOnError();
 
-#ifdef _asan_enabled_
+#if defined(_asan_enabled_) || defined(_msan_enabled_)
     constexpr size_t tooLargeDepth = 160;
 #else
     constexpr size_t tooLargeDepth = 20;

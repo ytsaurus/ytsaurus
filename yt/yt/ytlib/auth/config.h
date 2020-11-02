@@ -89,23 +89,23 @@ public:
     // TvmTool settings (deprecated)
     NHttp::TClientConfigPtr HttpClient;
     TString Host;
-    int Port;
+    int Port = 0;
     TString Token;
     TString Src; // When tvmtool has multiple clients, almost never happens.
 
     TDuration RequestTimeout;
 
     // TvmClient settings
-    ui32 ClientSelfId;
+    ui32 ClientSelfId = 0;
     TString ClientDiskCacheDir;
 
     TString TvmHost;
-    ui16 TvmPort;
+    ui16 TvmPort = 0;
 
-    bool ClientEnableUserTicketChecking;
+    bool ClientEnableUserTicketChecking = false;
     TString ClientBlackboxEnv;
 
-    bool ClientEnableServiceTicketFetching;
+    bool ClientEnableServiceTicketFetching = false;
     TString ClientSelfSecret;
     THashMap<TString, ui32> ClientDstMap;
 
