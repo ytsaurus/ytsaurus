@@ -164,16 +164,16 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
                     continue;
                 }
 
-                auto tabletState = retriableError->Attributes().Find<ETabletState>("tablet_state");
+                auto isTabletUnmounted = retriableError->Attributes().Find<bool>("is_tablet_unmounted");
                 auto tabletInfo = FindTablet(*tabletId);
                 if (tabletInfo) {
                     YT_LOG_DEBUG(error,
                         "Invalidating tablet in table mount cache "
-                        "(TabletId: %v, CellId: %v, MountRevision: %llx, TabletState: %v, Owners: %v)",
+                        "(TabletId: %v, CellId: %v, MountRevision: %llx, IsTabletUnmounted: %v, Owners: %v)",
                         tabletInfo->TabletId,
                         tabletInfo->CellId,
                         tabletInfo->MountRevision,
-                        tabletState,
+                        isTabletUnmounted,
                         MakeFormattableView(tabletInfo->Owners, [] (auto* builder, const auto& weakOwner) {
                             if (auto owner = weakOwner.Lock()) {
                                 FormatValue(builder, owner->Path, TStringBuf());
@@ -187,8 +187,8 @@ std::pair<bool, TTabletInfoPtr> TTableMountCacheBase::InvalidateOnError(const TE
 
                 bool dontRetry =
                     code == NTabletClient::EErrorCode::TabletNotMounted &&
-                    tabletState &&
-                    *tabletState == ETabletState::Unmounted &&
+                    isTabletUnmounted &&
+                    *isTabletUnmounted &&
                     !forceRetry;
 
                 return std::make_pair(!dontRetry, tabletInfo);

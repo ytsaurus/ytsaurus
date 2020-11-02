@@ -148,7 +148,7 @@ void ValidateTabletMountedOrFrozen(const TTabletInfoPtr& tabletInfo)
             tabletInfo->TabletId,
             state)
             << TErrorAttribute("tablet_id", tabletInfo->TabletId)
-            << TErrorAttribute("tablet_state", state);
+            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 
@@ -163,7 +163,7 @@ void ValidateTabletMounted(const TTableMountInfoPtr& tableInfo, const TTabletInf
             tableInfo->Path,
             tabletInfo->State)
             << TErrorAttribute("tablet_id", tabletInfo->TabletId)
-            << TErrorAttribute("tablet_state", state);
+            << TErrorAttribute("is_tablet_unmounted", state == ETabletState::Unmounted);
     }
 }
 

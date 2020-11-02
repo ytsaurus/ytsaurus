@@ -3409,7 +3409,7 @@ private:
                 ETabletState::Mounted)
                 << TErrorAttribute("tablet_id", tablet->GetId())
                 << TErrorAttribute("table_path", tablet->GetTablePath())
-                << TErrorAttribute("tablet_state", tablet->GetState());
+                << TErrorAttribute("is_tablet_unmounted", tablet->GetState() == ETabletState::Unmounted);
         }
     }
 
