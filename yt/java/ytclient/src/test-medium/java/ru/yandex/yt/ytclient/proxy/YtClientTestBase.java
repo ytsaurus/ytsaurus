@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.time.Duration;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -25,6 +27,7 @@ public class YtClientTestBase {
     final public void setUpClient() {
         RpcOptions rpcOptions = new RpcOptions();
         rpcOptions.setNewDiscoveryServiceEnabled(true);
+        rpcOptions.setProxyUpdateTimeout(Duration.ofSeconds(5));
 
         yt = YtClient.builder()
                 .setCluster(LocalYt.getAddress())
