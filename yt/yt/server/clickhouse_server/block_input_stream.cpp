@@ -318,6 +318,11 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     auto blockInputStreamTraceContext = NTracing::CreateChildTraceContext(
         traceContext,
         "ClickHouseYt.BlockInputStream");
+    
+    if (!storageContext->Settings->EnableReaderTracing) {
+        blockInputStreamTraceContext->SetSampled(false);
+    }
+
     NTracing::TTraceContextGuard guard(blockInputStreamTraceContext);
 
     ISchemalessMultiChunkReaderPtr reader;
