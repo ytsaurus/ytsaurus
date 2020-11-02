@@ -122,13 +122,13 @@ abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer 
     }
 
     @Override
-    public void onError(RpcClient sender, Throwable error) {
+    public void onError(Throwable error) {
         logger.error("Error", error);
         result.completeExceptionally(error);
     }
 
     @Override
-    public void onCancel(RpcClient sender, CancellationException cancel) {
+    public void onCancel(CancellationException cancel) {
         result.completeExceptionally(cancel);
     }
 
@@ -375,8 +375,8 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
     }
 
     @Override
-    public void onError(RpcClient sender, Throwable error) {
-        super.onError(sender, error);
+    public void onError(Throwable error) {
+        super.onError(error);
 
         synchronized (lock) {
             reinitReadyEvent();
@@ -384,8 +384,8 @@ abstract class StreamWriterImpl<T extends Message> extends StreamBase<T> impleme
     }
 
     @Override
-    public void onCancel(RpcClient sender, CancellationException cancel) {
-        super.onCancel(sender, cancel);
+    public void onCancel(CancellationException cancel) {
+        super.onCancel(cancel);
 
         synchronized (lock) {
             reinitReadyEvent();
@@ -707,7 +707,7 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
             try {
                 stash.push(attachment);
             } catch (Throwable ex) {
-                onError(payload.getSender(), ex);
+                onError(ex);
             }
         }
     });
