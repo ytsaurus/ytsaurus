@@ -1119,21 +1119,12 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     @authors("dakovalkov")
     def test_graceful_preemption_timeout(self):
-        create_test_tables(row_count=1)
-
-        command = "BREAKPOINT ; sleep 100"
-
-        op = map(
-            track=False,
-            command=with_breakpoint(command),
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={
-                "preemption_mode": "graceful",
-            },
+        op = run_test_vanilla(
+            command=with_breakpoint("BREAKPOINT ; sleep 100"),
+            spec={"preemption_mode": "graceful"}
         )
 
-        jobs = wait_breakpoint()
+        wait_breakpoint()
         release_breakpoint()
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
         wait(lambda: op.get_job_count("aborted") == 1)
@@ -1321,6 +1312,42 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: check_events())
 
         op0.abort()
+
+
+class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 2, "user_slots": 2}}}}
+
+    @authors("renadeen")
+    def test_scheduling_bug_of_operation_with_graceful_preemption(self):
+        # Scenario:
+        # 1. run operation with graceful preemption and with two jobs;
+        # 2. first job is successfully scheduled;
+        # 3. operation status becomes Normal since usage/fair_share is greater than fair_share_starvation_tolerance;
+        # 4. next job will never be scheduled cause scheduler doesn't schedule jobs for operations with graceful preemption and Normal status.
+
+        # TODO(renadeen): need this placeholder operation to work around some bugs in scheduler (YT-13840).
+        run_test_vanilla(with_breakpoint("BREAKPOINT", breakpoint_name="placeholder"))
+
+        op = run_test_vanilla(
+            command=with_breakpoint("BREAKPOINT", breakpoint_name="graceful"),
+            job_count=2,
+            spec={
+                "preemption_mode": "graceful",
+                "fair_share_starvation_tolerance": 0.4
+            }
+        )
+
+        wait_breakpoint(breakpoint_name="graceful", job_count=1)
+        release_breakpoint(breakpoint_name="placeholder")
+
+        wait_breakpoint(breakpoint_name="graceful", job_count=2)
+        wait(lambda: op.get_job_count("running") == 2)
+        release_breakpoint(breakpoint_name="graceful")
+        op.track()
 
 
 ##################################################################

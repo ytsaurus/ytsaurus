@@ -882,7 +882,7 @@ public:
     int GetPreemptableJobCount() const;
     int GetAggressivelyPreemptableJobCount() const;
 
-    std::optional<TJobResources> AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force);
+    bool AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force);
     std::optional<TJobResources> RemoveJob(TJobId jobId);
 
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);

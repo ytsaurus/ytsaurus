@@ -725,6 +725,11 @@ ESchedulableStatus TSchedulerElement::GetStatusImpl(double tolerance, bool atUpd
     auto usageShare = atUpdate
         ? Attributes_.UsageShare
         : GetResourceUsageShare();
+
+    if (Dominates(Attributes_.FairShare.Total + TResourceVector::Epsilon(), Attributes_.DemandShare)) {
+        tolerance = 1.0;
+    }
+
     if (IsStrictlyDominatesNonBlocked(Attributes_.FairShare.Total * tolerance, usageShare)) {
         return ESchedulableStatus::BelowFairShare;
     }
@@ -2804,12 +2809,12 @@ int TOperationElementSharedState::GetAggressivelyPreemptableJobCount() const
     return AggressivelyPreemptableJobs_.size();
 }
 
-std::optional<TJobResources> TOperationElementSharedState::AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force)
+bool TOperationElementSharedState::AddJob(TJobId jobId, const TJobResources& resourceUsage, bool force)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
     if (!Enabled_ && !force) {
-        return std::nullopt;
+        return false;
     }
 
     LastScheduleJobSuccessTime_ = TInstant::Now();
@@ -2828,7 +2833,7 @@ std::optional<TJobResources> TOperationElementSharedState::AddJob(TJobId jobId, 
     ++RunningJobCount_;
 
     IncreaseJobResourceUsage(&it.first->second, resourceUsage);
-    return resourceUsage;
+    return true;
 }
 
 void TOperationElementSharedState::UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status)
@@ -3817,9 +3822,8 @@ bool TOperationElement::OnJobStarted(
 {
     YT_ELEMENT_LOG_DETAILED(this, "Adding job to strategy (JobId: %v)", jobId);
 
-    auto resourceUsageDelta = OperationElementSharedState_->AddJob(jobId, resourceUsage, force);
-    if (resourceUsageDelta) {
-        TreeHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, *resourceUsageDelta, precommittedResources);
+    if (OperationElementSharedState_->AddJob(jobId, resourceUsage, force)) {
+        TreeHost_->GetResourceTree()->CommitHierarchicalResourceUsage(ResourceTreeElement_, resourceUsage, precommittedResources);
         UpdatePreemptableJobsList();
         return true;
     } else {
