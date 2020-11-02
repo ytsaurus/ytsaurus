@@ -145,14 +145,14 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
             }
 
             @Override
-            public void onError(RpcClient sender, Throwable cause) {
-                consumer.onError(sender, cause);
+            public void onError(Throwable cause) {
+                consumer.onError(cause);
                 clientReleaseFuture.complete(null);
             }
 
             @Override
-            public void onCancel(RpcClient sender, CancellationException cancel) {
-                consumer.onError(sender, cancel);
+            public void onCancel(CancellationException cancel) {
+                consumer.onCancel(cancel);
                 clientReleaseFuture.complete(null);
             }
 

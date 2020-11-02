@@ -623,7 +623,7 @@ public class DefaultRpcBusClient implements RpcClient {
             logger.info("Error in RPC protocol: `{}`", cause.getMessage(), cause);
             lock.lock();
             try {
-                consumer.onError(sender, cause);
+                consumer.onError(cause);
             } catch (Throwable e) {
                 logger.error("Error", e);
             } finally {
@@ -635,7 +635,7 @@ public class DefaultRpcBusClient implements RpcClient {
         void handleCancellation(CancellationException cancel) {
             lock.lock();
             try {
-                consumer.onCancel(sender, cancel);
+                consumer.onCancel(cancel);
             } catch (Throwable e) {
                 logger.error("Error", e);
             } finally {
