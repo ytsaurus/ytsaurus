@@ -877,6 +877,10 @@ private:
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TGetOperationOptions& options);
+    NYson::TYsonString DoGetOperationImpl(
+        NScheduler::TOperationId operationId,
+        TInstant deadline,
+        const TGetOperationOptions& options);
     NYson::TYsonString DoGetOperation(
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options);

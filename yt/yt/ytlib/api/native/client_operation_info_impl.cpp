@@ -473,27 +473,11 @@ static TYsonString GetLatestProgress(const TYsonString& cypressProgress, const T
         : archiveProgress;
 }
 
-TYsonString TClient::DoGetOperation(
-    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+TYsonString TClient::DoGetOperationImpl(
+    TOperationId operationId,
+    TInstant deadline,
     const TGetOperationOptions& options)
 {
-    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
-    auto deadline = timeout.ToDeadLine();
-
-    TOperationId operationId;
-    Visit(operationIdOrAlias.Payload,
-        [&] (const TOperationId& id) {
-            operationId = id;
-        },
-        [&] (const TString& alias) {
-            if (!options.IncludeRuntime) {
-                THROW_ERROR_EXCEPTION(
-                    "Operation alias cannot be resolved without using runtime information; "
-                    "consider setting include_runtime = %true");
-            }
-            operationId = ResolveOperationAlias(alias, options, deadline);
-        });
-
     std::vector<TFuture<void>> getOperationFutures;
 
     auto cypressFuture = BIND(&TClient::DoGetOperationFromCypress, MakeStrong(this), operationId, deadline, options)
@@ -664,6 +648,44 @@ TYsonString TClient::DoGetOperation(
     YT_VERIFY(archiveResultNode->GetType() == ENodeType::Map);
     archiveResultNode->AsMap()->RemoveChild("state");
     return ConvertToYsonString(archiveResultNode);
+}
+
+TYsonString TClient::DoGetOperation(
+    const TOperationIdOrAlias& operationIdOrAlias,
+    const TGetOperationOptions& options)
+{
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetOperationTimeout);
+    auto deadline = timeout.ToDeadLine();
+
+    TOperationId operationId;
+    Visit(operationIdOrAlias.Payload,
+        [&] (const TOperationId& id) {
+            operationId = id;
+        },
+        [&] (const TString& alias) {
+            if (!options.IncludeRuntime) {
+                THROW_ERROR_EXCEPTION(
+                    "Operation alias cannot be resolved without using runtime information; "
+                    "consider setting include_runtime = %true");
+            }
+            operationId = ResolveOperationAlias(alias, options, deadline);
+        });
+
+    while (true) {
+        try {
+            return DoGetOperationImpl(operationId, deadline, options);
+        } catch (const TErrorException& error) {
+            YT_LOG_DEBUG(error, "Failed to get operation (OperationId: %v)",
+                operationId);
+            if (!error.Error().FindMatching(EErrorCode::OperationProgressOutdated)) {
+                throw;
+            }
+            if (TInstant::Now() > deadline) {
+                throw;
+            }
+            TDelayedExecutor::WaitForDuration(Connection_->GetConfig()->DefaultGetOperationRetryInterval);
+        }
+    }
 }
 
 static THashSet<TString> DeduceActualAttributes(
