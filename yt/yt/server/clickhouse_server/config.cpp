@@ -71,6 +71,9 @@ TQuerySettings::TQuerySettings()
 
     RegisterParameter("table_reader", TableReader)
         .DefaultNew();
+
+    RegisterParameter("enable_reader_tracing", EnableReaderTracing)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

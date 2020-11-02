@@ -97,6 +97,8 @@ public:
 
     NTableClient::TTableReaderConfigPtr TableReader;
 
+    bool EnableReaderTracing;
+
     TQuerySettings();
 };
 
