@@ -20,6 +20,7 @@
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
+#include <library/cpp/testing/hook/hook.h>
 
 #include <util/system/fs.h>
 #include <util/system/env.h>
@@ -105,7 +106,7 @@ class TYTEnvironment
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Y_GTEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
+Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
 {
 #ifdef _unix_
     ::signal(SIGPIPE, SIG_IGN);
@@ -128,7 +129,7 @@ Y_GTEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
     }
 }
 
-Y_GTEST_HOOK_AFTER_RUN(GTEST_YT_TEARDOWN)
+Y_TEST_HOOK_AFTER_RUN(GTEST_YT_TEARDOWN)
 {
     NYT::Shutdown();
 #ifdef _asan_enabled_
