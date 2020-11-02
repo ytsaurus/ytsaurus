@@ -11,7 +11,8 @@ class TLocalServer
 {
 public:
     TLocalServer()
-        : TServerBase(RpcServerLogger)
+        : TServerBase(NLogging::TLogger(RpcServerLogger)
+            .AddTag("LocalServerId: %v", TGuid::Create()))
     { }
 };
 
