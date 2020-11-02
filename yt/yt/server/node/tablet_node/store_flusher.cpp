@@ -421,6 +421,8 @@ private:
                     FormatValue(builder, FromProto<TChunkId>(descriptor.store_id()), TStringBuf());
                 }));
 
+            tablet->ThrottleTabletStoresUpdate(slot, Logger);
+
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tabletId);
             actionRequest.set_mount_revision(tablet->GetMountRevision());

@@ -86,6 +86,8 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr CompactionThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr FlushThrottler;
 
+    THashMap<TString, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+
     int SamplesPerPartition;
 
     TDuration BackingStoreRetentionTime;
@@ -224,6 +226,9 @@ public:
             .DefaultNew();
         RegisterParameter("partitioning_throttler", PartitioningThrottler)
             .DefaultNew();
+
+        RegisterParameter("throttlers", Throttlers)
+            .Default();
 
         RegisterParameter("samples_per_partition", SamplesPerPartition)
             .Default(100)

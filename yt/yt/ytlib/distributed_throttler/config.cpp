@@ -17,8 +17,6 @@ TDistributedThrottlerConfig::TDistributedThrottlerConfig()
 
     RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
         .Default(TDuration::Seconds(5));
-    RegisterParameter("throttle_rpc_timeout", ThrottleRpcTimeout)
-        .Default(TDuration::Seconds(60));
 
     RegisterParameter("limit_update_period", LimitUpdatePeriod)
         .Default(TDuration::Seconds(1));

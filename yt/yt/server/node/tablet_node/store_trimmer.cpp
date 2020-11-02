@@ -200,6 +200,8 @@ private:
                 Logger.AddTag("TransactionId: %v", transaction->GetId());
             }
 
+            tablet->ThrottleTabletStoresUpdate(slot, Logger);
+
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tabletId);
             actionRequest.set_mount_revision(tablet->GetMountRevision());

@@ -400,6 +400,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::deque<TDynamicStoreId>, DynamicStoreIdPool);
     DEFINE_BYVAL_RW_PROPERTY(bool, DynamicStoreIdRequested);
 
+    DEFINE_BYVAL_RW_PROPERTY(NConcurrency::IThroughputThrottlerPtr, TabletStoresUpdateThrottler);
+
 public:
     TTablet(
         TTabletId tabletId,
@@ -527,6 +529,10 @@ public:
     void ClearDynamicStoreIdPool();
 
     NTabletNode::NProto::TMountHint GetMountHint() const;
+
+    void ThrottleTabletStoresUpdate(
+        const TTabletSlotPtr& slot,
+        const NLogging::TLogger& Logger) const;
 
 private:
     TTableMountConfigPtr Config_;

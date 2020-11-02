@@ -101,6 +101,29 @@ void ProfileChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletStoresUpdateThrottlerWaitCounters
+{
+    explicit TTabletStoresUpdateThrottlerWaitCounters(const TTagIdList& tagIds)
+        : WaitTime("/tablet_stores_update_throttler_wait_time", tagIds)
+    { }
+
+    TShardedAggregateGauge WaitTime;
+};
+
+using TTabletStoresUpdateThrottlerWaitProfilerTrait = TTagListProfilerTrait<
+    TTabletStoresUpdateThrottlerWaitCounters>;
+
+void ProfileTabletStoresUpdateThrottlerWait(
+    const TTagIdList& tags,
+    TDuration elapsedTime)
+{
+    auto& counters = GetLocallyGloballyCachedValue<
+        TTabletStoresUpdateThrottlerWaitProfilerTrait>(tags);
+    TabletNodeProfiler.Update(counters.WaitTime, DurationToValue(elapsedTime));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TWriterProfiler::Profile(const TTabletSnapshotPtr& tabletSnapshot, TTagId tag)
 {
     ProfileChunkWriter(tabletSnapshot, DataStatistics_, CodecStatistics_, tag);

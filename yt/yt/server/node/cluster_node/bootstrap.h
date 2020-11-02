@@ -125,8 +125,10 @@ public:
 
     NObjectClient::TCellId GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
-    NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
-    std::optional<TString> GetDefaultNetworkName();
+    std::vector<TString> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const;
+    NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const;
+    std::optional<TString> GetDefaultNetworkName() const;
+    TString GetDefaultLocalAddressOrThrow() const;
     NExecAgent::EJobEnvironmentType GetEnvironmentType() const;
     bool IsSimpleEnvironment() const;
 

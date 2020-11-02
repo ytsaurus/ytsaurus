@@ -1,6 +1,7 @@
 #include "tablet_manager.h"
 #include "private.h"
 #include "automaton.h"
+#include "distributed_throttler_manager.h"
 #include "sorted_chunk_store.h"
 #include "ordered_chunk_store.h"
 #include "sorted_dynamic_store.h"
@@ -43,6 +44,8 @@
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/ytlib/distributed_throttler/config.h>
 
 #include <yt/ytlib/api/native/transaction.h>
 
@@ -111,6 +114,7 @@ using namespace NHiveServer::NProto;
 using namespace NQueryClient;
 using namespace NApi;
 using namespace NProfiling;
+using namespace NDistributedThrottler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -163,6 +167,8 @@ public:
             0 /*size*/,
             {} /*poolTag*/,
             MemoryUsageGranularity))
+        , DistributedThrottlerManager_(
+            CreateDistributedThrottlerManager(Bootstrap_, Slot_->GetCellId()))
         , DecommissionCheckExecutor_(New<TPeriodicExecutor>(
             Slot_->GetAutomatonInvoker(),
             BIND(&TImpl::OnCheckTabletCellDecommission, MakeWeak(this)),
@@ -651,6 +657,8 @@ private:
     // so we don't worry about per-pool management here.
     TNodeMemoryTrackerGuard WriteLogsMemoryTrackerGuard_;
 
+    const IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
+
     const TPeriodicExecutorPtr DecommissionCheckExecutor_;
 
     const IYPathServicePtr OrchidService_;
@@ -840,6 +848,7 @@ private:
         for (auto [tabletId, tablet] : TabletMap_) {
             CheckIfTabletFullyUnlocked(tablet);
             CheckIfTabletFullyFlushed(tablet);
+            UpdateTabletDistributedThrottlers(tablet);
         }
 
         DecommissionCheckExecutor_->Start();
@@ -942,6 +951,8 @@ private:
 
         tabletHolder->FillProfilerTags(Slot_->GetCellId());
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
+
+        UpdateTabletDistributedThrottlers(tablet);
 
         if (tablet->IsPhysicallyOrdered()) {
             tablet->SetTrimmedRowCount(request->trimmed_row_count());
@@ -1077,6 +1088,7 @@ private:
         tablet->ReconfigureThrottlers();
         tablet->FillProfilerTags(Slot_->GetCellId());
         tablet->UpdateReplicaCounters();
+        UpdateTabletDistributedThrottlers(tablet);
         UpdateTabletSnapshot(tablet);
 
         if (!IsRecovery()) {
@@ -3817,6 +3829,25 @@ private:
         } catch (const std::exception& ex) {
             promise.Set(TError(ex));
         }
+    }
+
+    void UpdateTabletDistributedThrottlers(TTablet* tablet)
+    {
+        auto getThrottlerConfig = [&] (const TString& key) {
+            auto it = tablet->GetConfig()->Throttlers.find(key);
+            return it != tablet->GetConfig()->Throttlers.end()
+                ? it->second
+                : New<TThroughputThrottlerConfig>();
+        };
+
+        tablet->SetTabletStoresUpdateThrottler(
+            DistributedThrottlerManager_->GetOrCreateThrottler(
+                tablet->GetTablePath(),
+                CellTagFromId(tablet->GetId()),
+                getThrottlerConfig("tablet_stores_update"),
+                "tablet_stores_update",
+                EDistributedThrottlerMode::Precise,
+                TabletStoresUpdateThrottlerRpcTimeout));
     }
 };
 

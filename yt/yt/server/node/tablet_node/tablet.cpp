@@ -1603,6 +1603,35 @@ TMountHint TTablet::GetMountHint() const
     return mountHint;
 }
 
+void TTablet::ThrottleTabletStoresUpdate(
+    const TTabletSlotPtr& slot,
+    const NLogging::TLogger& Logger) const
+{
+    auto throttler = GetTabletStoresUpdateThrottler();
+    if (!throttler) {
+        return;
+    }
+
+    NProfiling::TWallTimer timer;
+
+    YT_LOG_DEBUG("Started waiting for tablet stores update throttler (CellId: %v)",
+        slot->GetCellId());
+
+    auto result = WaitFor(throttler->Throttle(1));
+    if (!result.IsOK()) {
+        result.ThrowOnError();
+    }
+
+    auto elapsedTime = timer.GetElapsedTime();
+    YT_LOG_DEBUG("Finished waiting for tablet stores update throttler (ElapsedTime: %v, CellId: %v)",
+        elapsedTime,
+        slot->GetCellId());
+
+    if (IsProfilingEnabled()) {
+        ProfileTabletStoresUpdateThrottlerWait(GetProfilerTags(), elapsedTime);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

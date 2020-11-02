@@ -39,11 +39,13 @@ public:
     TWrappedThrottler(
         TString throttlerId,
         TDistributedThrottlerConfigPtr config,
-        TThroughputThrottlerConfigPtr throttlerConfig)
+        TThroughputThrottlerConfigPtr throttlerConfig,
+        TDuration throttleRpcTimeout)
         : Underlying_(CreateReconfigurableThroughputThrottler(throttlerConfig))
         , ThrottlerId_(std::move(throttlerId))
         , Config_(std::move(config))
         , ThrottlerConfig_(std::move(throttlerConfig))
+        , ThrottleRpcTimeout_(throttleRpcTimeout)
     {
         HistoricUsageAggregator_.UpdateParameters(THistoricUsageAggregationParameters(
             EHistoricUsageAggregationMode::ExponentialMovingAverage,
@@ -84,7 +86,7 @@ public:
             TDistributedThrottlerProxy proxy(leaderChannel);
 
             auto req = proxy.Throttle();
-            req->SetTimeout(config->ThrottleRpcTimeout);
+            req->SetTimeout(ThrottleRpcTimeout_);
             req->set_throttler_id(ThrottlerId_);
             req->set_count(count);
 
@@ -170,6 +172,8 @@ private:
 
     TAtomicObject<TDistributedThrottlerConfigPtr> Config_;
     TAtomicObject<TThroughputThrottlerConfigPtr> ThrottlerConfig_;
+
+    TDuration ThrottleRpcTimeout_;
 
     TReaderWriterSpinLock LeaderChannelLock_;
     IChannelPtr LeaderChannel_;
@@ -743,7 +747,10 @@ public:
         MemberClient_->SetPriority(TInstant::Now().Seconds());
     }
 
-    IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(const TString& throttlerId, TThroughputThrottlerConfigPtr throttlerConfig)
+    IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
+        const TString& throttlerId,
+        TThroughputThrottlerConfigPtr throttlerConfig,
+        TDuration throttleRpcTimeout)
     {
         auto findThrottler = [&] (const TString& throttlerId) -> IReconfigurableThroughputThrottlerPtr {
             auto it = Throttlers_.Throttlers.find(throttlerId);
@@ -774,7 +781,11 @@ public:
             }
 
             DistributedThrottlerService_->SetTotalLimit(throttlerId, throttlerConfig->Limit);
-            auto wrappedThrottler = New<TWrappedThrottler>(throttlerId, Config_.Load(), std::move(throttlerConfig));
+            auto wrappedThrottler = New<TWrappedThrottler>(
+                throttlerId,
+                Config_.Load(),
+                std::move(throttlerConfig),
+                throttleRpcTimeout);
             {
                 TReaderGuard readerGuard(Lock_);
                 wrappedThrottler->SetLeaderChannel(LeaderChannel_);
@@ -1066,11 +1077,13 @@ TDistributedThrottlerFactory::~TDistributedThrottlerFactory() = default;
 
 IReconfigurableThroughputThrottlerPtr TDistributedThrottlerFactory::GetOrCreateThrottler(
     const TString& throttlerId,
-    TThroughputThrottlerConfigPtr throttlerConfig)
+    TThroughputThrottlerConfigPtr throttlerConfig,
+    TDuration throttleRpcTimeout)
 {
     return Impl_->GetOrCreateThrottler(
         throttlerId,
-        std::move(throttlerConfig));
+        std::move(throttlerConfig),
+        throttleRpcTimeout);
 }
 
 void TDistributedThrottlerFactory::Reconfigure(

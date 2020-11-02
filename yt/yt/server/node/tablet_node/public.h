@@ -83,6 +83,8 @@ DECLARE_REFCOUNTED_CLASS(TStoreCompactor)
 
 DECLARE_REFCOUNTED_STRUCT(TRowCache)
 
+DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerManager)
+
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
 
