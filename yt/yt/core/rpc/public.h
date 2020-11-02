@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/guid.h>
 
+#include <yt/core/actions/callback.h>
+
 #include <yt/core/bus/public.h>
 
 namespace NYT::NRpc {
@@ -70,6 +72,7 @@ DECLARE_REFCOUNTED_CLASS(TResponseKeeper)
 DECLARE_REFCOUNTED_CLASS(TAttachmentsInputStream)
 DECLARE_REFCOUNTED_CLASS(TAttachmentsOutputStream)
 
+DECLARE_REFCOUNTED_CLASS(TDynamicChannelPool)
 DECLARE_REFCOUNTED_CLASS(TServerAddressPool)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,6 +81,7 @@ DECLARE_REFCOUNTED_CLASS(TServerConfig)
 DECLARE_REFCOUNTED_CLASS(TServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TMethodConfig)
 DECLARE_REFCOUNTED_CLASS(TRetryingChannelConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicChannelPoolConfig)
 DECLARE_REFCOUNTED_CLASS(TBalancingChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TThrottlingChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TResponseKeeperConfig)
@@ -103,6 +107,10 @@ constexpr TNetworkId DefaultNetworkId = 0;
 constexpr int TypicalMessagePartCount = 8;
 
 using TFeatureIdFormatter = const std::function<const TStringBuf*(int featureId)>*;
+
+using TDiscoverRequestHook = TCallback<void(NProto::TReqDiscover*)>;
+
+////////////////////////////////////////////////////////////////////////////////
 
 extern const TString RequestIdAnnotation;
 extern const TString EndpointAnnotation;
@@ -134,6 +142,7 @@ DEFINE_ENUM(EErrorCode,
     ((StreamingNotSupported)        (112))
     ((UnsupportedClientFeature)     (113))
     ((UnsupportedServerFeature)     (114))
+    ((PeerBanned)                   (115))
 );
 
 DEFINE_ENUM(EMessageFormat,

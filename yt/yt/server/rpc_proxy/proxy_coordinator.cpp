@@ -36,6 +36,7 @@ public:
     virtual bool SetAvailableState(bool available) override;
     virtual bool GetAvailableState() const override;
 
+    virtual bool GetOperableState() const override;
     virtual void ValidateOperable() const override;
 
     virtual void SetDynamicConfig(TDynamicProxyConfigPtr config) override;
@@ -48,12 +49,11 @@ private:
     std::atomic<bool> Banned_ = false;
     std::atomic<bool> Available_ = false;
 
-    TAdaptiveLock BanSpinLock_;
-    TString BanMessage_;
+    TAtomicObject<TString> BanMessage_;
 
     NTracing::TSampler Sampler_;
 
-    TAtomicObject<TDynamicProxyConfigPtr> Config_{New<TDynamicProxyConfig>()};
+    TAtomicObject<TDynamicProxyConfigPtr> Config_ = New<TDynamicProxyConfig>();
 
     void BuildOrchid(IYsonConsumer* consumer);
 };
@@ -70,14 +70,12 @@ bool TProxyCoordinator::GetBannedState() const
 
 void TProxyCoordinator::SetBanMessage(const TString& message)
 {
-    auto guard = Guard(BanSpinLock_);
-    BanMessage_ = message;
+    BanMessage_.Store(message);
 }
 
 TString TProxyCoordinator::GetBanMessage() const
 {
-    auto guard = Guard(BanSpinLock_);
-    return BanMessage_;
+    return BanMessage_.Load();
 }
 
 bool TProxyCoordinator::SetAvailableState(bool available)
@@ -90,13 +88,18 @@ bool TProxyCoordinator::GetAvailableState() const
     return Available_.load(std::memory_order_relaxed);
 }
 
+bool TProxyCoordinator::GetOperableState() const
+{
+    return GetAvailableState() && !GetBannedState();
+}
+
 void TProxyCoordinator::ValidateOperable() const
 {
     if (!GetAvailableState()) {
-        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Proxy cannot synchronize with cluster");
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Proxy is unable to synchronize with the cluster");
     }
     if (GetBannedState()) {
-        THROW_ERROR_EXCEPTION(NApi::NRpcProxy::EErrorCode::ProxyBanned, "Proxy has been banned")
+        THROW_ERROR_EXCEPTION(NApi::NRpcProxy::EErrorCode::ProxyBanned, "Proxy is banned")
             << TErrorAttribute("message", GetBanMessage());
     }
 }

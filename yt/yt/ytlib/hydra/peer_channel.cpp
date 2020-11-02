@@ -33,10 +33,10 @@ IChannelPtr CreatePeerChannel(
             .Item("kind").Value(kind)
         .EndMap());
     auto balancingChannel = CreateBalancingChannel(
-        config,
-        realmChannelFactory,
-        endpointDescription,
-        *endpointAttributes,
+        std::move(config),
+        std::move(realmChannelFactory),
+        std::move(endpointDescription),
+        std::move(endpointAttributes),
         BIND([=] (TReqDiscover* request) {
             auto* ext = request->MutableExtension(TPeerKindExt::peer_kind_ext);
             ext->set_peer_kind(static_cast<int>(kind));

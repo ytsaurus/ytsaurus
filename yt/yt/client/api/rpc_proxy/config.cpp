@@ -16,10 +16,8 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("proxy_host_order", ProxyHostOrder)
         .Default();
 
-    RegisterParameter("channel_pool_size", ChannelPoolSize)
-        .Default(3);
-    RegisterParameter("channel_pool_rebalance_interval", ChannelPoolRebalanceInterval)
-        .Default(TDuration::Minutes(1));
+    RegisterParameter("dynamic_channel_pool", DynamicChannelPool)
+        .DefaultNew();
 
     RegisterParameter("ping_period", PingPeriod)
         .Default(TDuration::Seconds(3));
@@ -70,11 +68,16 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("enable_retries", EnableRetries)
         .Default(false);
+    RegisterParameter("retrying_channel", RetryingChannel)
+        .DefaultNew();
 
     RegisterParameter("modify_rows_batch_capacity", ModifyRowsBatchCapacity)
         .GreaterThanOrEqual(0)
         .Default(0);
 
+    RegisterPreprocessor([&] {
+        DynamicChannelPool->MaxPeerCount = 5;
+    });
 
     RegisterPostprocessor([&] {
         if (!ClusterUrl && ProxyAddresses.empty()) {

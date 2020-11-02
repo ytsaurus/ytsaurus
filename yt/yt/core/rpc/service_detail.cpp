@@ -1009,7 +1009,7 @@ void TServiceBase::HandleRequest(
         std::move(message)
     };
 
-    if (!Authenticator_) {
+    if (!IsAuthenticationNeeded(acceptedRequest)) {
         HandleAuthenticatedRequest(std::move(acceptedRequest));
         return;
     }
@@ -1105,6 +1105,13 @@ void TServiceBase::OnRequestAuthenticated(
             *acceptedRequest.Header,
             acceptedRequest.ReplyBus);
     }
+}
+
+bool TServiceBase::IsAuthenticationNeeded(const TAcceptedRequest& acceptedRequest)
+{
+    return
+        Authenticator_.operator bool() &&
+        !acceptedRequest.RuntimeInfo->Descriptor.System;
 }
 
 void TServiceBase::HandleAuthenticatedRequest(

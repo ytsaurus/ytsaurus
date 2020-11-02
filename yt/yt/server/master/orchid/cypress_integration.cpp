@@ -150,10 +150,10 @@ private:
                 return CreateRetryingChannel(
                     manifest,
                     CreateBalancingChannel(
-                        channelConfig,
+                        std::move(channelConfig),
                         ChannelFactory_,
-                        endpointDescription,
-                        *endpointAttributes));
+                        std::move(endpointDescription),
+                        std::move(endpointAttributes)));
             }
 
             default:

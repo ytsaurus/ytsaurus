@@ -473,6 +473,7 @@ protected:
 
         //! System requests are completely transparent to derived classes;
         //! in particular, |BeforeInvoke| is not called.
+        //! Also system methods do not require authentication.
         bool System = false;
 
         //! Log level for events emitted via |Set(Request|Response)Info|-like functions.
@@ -807,6 +808,7 @@ private:
         const NProfiling::TWallTimer& timer,
         TAcceptedRequest acceptedRequest,
         const TErrorOr<TAuthenticationResult>& authResultOrError);
+    bool IsAuthenticationNeeded(const TAcceptedRequest& acceptedRequest);
     void HandleAuthenticatedRequest(TAcceptedRequest acceptedRequest);
 
     static bool TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeInfo);

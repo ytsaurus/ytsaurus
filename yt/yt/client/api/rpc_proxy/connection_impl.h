@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "dynamic_channel_pool.h"
 
 #include <yt/client/api/connection.h>
 
@@ -24,11 +23,7 @@ public:
     explicit TConnection(TConnectionConfigPtr config);
     ~TConnection();
 
-    TFuture<NRpc::IChannelPtr> CreateChannelAndRegisterProvider(
-        const NApi::TClientOptions& options,
-        NRpc::IRoamingChannelProvider* provider);
-    void UnregisterProvider(
-        NRpc::IRoamingChannelProvider* provider);
+    NRpc::IChannelPtr CreateChannel(bool sticky);
 
     const TConnectionConfigPtr& GetConfig();
 
@@ -55,12 +50,13 @@ private:
 
     const TConnectionConfigPtr Config_;
 
+    const TGuid ConnectionId_;
     const TString LoggingId_;
     const TString ClusterId_;
     const NLogging::TLogger Logger;
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    const TDynamicChannelPoolPtr ChannelPool_;
+    const NRpc::TDynamicChannelPoolPtr ChannelPool_;
 
     const NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
     NRpc::IChannelPtr DiscoveryChannel_;

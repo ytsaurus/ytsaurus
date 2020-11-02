@@ -26,19 +26,19 @@ IChannelPtr CreateTimestampProviderChannel(
     TRemoteTimestampProviderConfigPtr config,
     IChannelFactoryPtr channelFactory)
 {
-    auto endpointDescription = TString("TimestampProvider@");
+    auto endpointDescription = TString("TimestampProvider");
     auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
         .BeginMap()
             .Item("timestamp_provider").Value(true)
         .EndMap());
     auto channel = CreateBalancingChannel(
         config,
-        channelFactory,
-        endpointDescription,
-        *endpointAttributes);
+        std::move(channelFactory),
+        std::move(endpointDescription),
+        std::move(endpointAttributes));
     channel = CreateRetryingChannel(
         config,
-        channel);
+        std::move(channel));
     return channel;
 }
 

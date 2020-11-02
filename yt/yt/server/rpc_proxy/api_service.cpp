@@ -3562,6 +3562,15 @@ private:
                 context->SetResponseInfo("StatisticsCount: %v", result.size());
             });
     }
+
+    ////////////////////////////////////////////////////////////////////////////////
+
+    virtual bool IsUp(const TCtxDiscoverPtr& /*context*/) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Coordinator_->GetOperableState();
+    }
 };
 
 IServicePtr CreateApiService(TBootstrap* bootstrap)
