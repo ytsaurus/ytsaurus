@@ -19,7 +19,6 @@ class TClient
 public:
     TClient(
         TConnectionPtr connection,
-        TDynamicChannelPoolPtr channelPool,
         const TClientOptions& options);
 
     virtual void Terminate() override;
@@ -272,7 +271,7 @@ public:
 
 private:
     const TConnectionPtr Connection_;
-    const TDynamicChannelPoolPtr ChannelPool_;
+    const NRpc::TDynamicChannelPoolPtr ChannelPool_;
     const NRpc::IChannelPtr Channel_;
     const TClientOptions ClientOptions_;
 

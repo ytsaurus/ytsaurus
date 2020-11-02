@@ -1,5 +1,6 @@
 #pragma once
 
+#include "private.h"
 #include "helpers.h"
 #include "connection_impl.h"
 #include "api_service_proxy.h"

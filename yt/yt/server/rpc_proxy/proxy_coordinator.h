@@ -42,6 +42,16 @@ struct IProxyCoordinator
      */
     virtual bool GetAvailableState() const = 0;
 
+
+    //! Gets operable state.
+    /*!
+     *  Lightweight call.
+     */
+    virtual bool GetOperableState() const = 0;
+    //! Throws if the proxy is not operable.
+    /*!
+     *  Lightweight call.
+     */
     virtual void ValidateOperable() const = 0;
 
     virtual void SetDynamicConfig(TDynamicProxyConfigPtr config) = 0;

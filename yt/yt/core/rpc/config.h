@@ -186,27 +186,56 @@ public:
     }
 };
 
-class TBalancingChannelConfig
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicChannelPoolConfig
     : public TBalancingChannelConfigBase
 {
 public:
-    //! List of seed addresses.
-    std::vector<TString> Addresses;
-
-    //! Maximum number of peers to query in parallel when locating alive endpoints.
+    //! Maximum number of peers to query in parallel when locating alive ones.
     int MaxConcurrentDiscoverRequests;
 
     //! For sticky mode: number of consistent hash tokens to assign to each peer.
     int HashesPerPeer;
 
+    //! In case too many peers are known, the pool will only maintain this many peers.
+    int MaxPeerCount;
+
+    //! When more than #MaxPeerCount peers are known an attempt to add more is
+    //! typically ignored. To avoid stucking with the same peer set forever, one
+    //! random peer could be evicted after #RandomPeerEvictionPeriod.
+    TDuration RandomPeerEvictionPeriod;
+
+    TDynamicChannelPoolConfig()
+    {
+        RegisterParameter("max_concurrent_discover_requests", MaxConcurrentDiscoverRequests)
+            .GreaterThan(0)
+            .Default(10);
+        RegisterParameter("hashes_per_peer", HashesPerPeer)
+            .GreaterThan(0)
+            .Default(10);
+        RegisterParameter("max_peer_count", MaxPeerCount)
+            .GreaterThan(1)
+            .Default(100);
+        RegisterParameter("random_peer_eviction_period", RandomPeerEvictionPeriod)
+            .Default(TDuration::Minutes(1));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChannelPoolConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBalancingChannelConfig
+    : public TDynamicChannelPoolConfig
+{
+public:
+    //! List of seed addresses.
+    std::vector<TString> Addresses;
+
     TBalancingChannelConfig()
     {
         RegisterParameter("addresses", Addresses);
-        RegisterParameter("max_concurrent_discover_requests", MaxConcurrentDiscoverRequests)
-            .GreaterThan(0)
-            .Default(3);
-        RegisterParameter("hashes_per_peer", HashesPerPeer)
-            .Default(10);
     }
 };
 
