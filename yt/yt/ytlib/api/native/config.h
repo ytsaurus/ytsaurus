@@ -110,6 +110,7 @@ public:
     TDuration DefaultGetTabletInfosTimeout;
     TDuration DefaultTrimTableTimeout;
     TDuration DefaultGetOperationTimeout;
+    TDuration DefaultGetOperationRetryInterval;
     TDuration DefaultListJobsTimeout;
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;

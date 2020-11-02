@@ -140,8 +140,10 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(15));
     RegisterParameter("default_trim_table_timeout", DefaultTrimTableTimeout)
         .Default(TDuration::Seconds(15));
+    RegisterParameter("default_get_operation_retry_interval", DefaultGetOperationRetryInterval)
+        .Default(TDuration::Seconds(3));
     RegisterParameter("default_get_operation_timeout", DefaultGetOperationTimeout)
-        .Default(TDuration::Seconds(60));
+        .Default(TDuration::Minutes(5));
     RegisterParameter("default_list_jobs_timeout", DefaultListJobsTimeout)
         .Default(TDuration::Seconds(60));
     RegisterParameter("default_get_job_timeout", DefaultGetJobTimeout)
