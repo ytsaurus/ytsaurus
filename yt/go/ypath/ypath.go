@@ -98,7 +98,7 @@ func (p Path) ListBegin() Path {
 	return p
 }
 
-// ListBegin returns path used for appending elements to the list.
+// ListEnd returns path used for appending elements to the list.
 func (p Path) ListEnd() Path {
 	p += Path("/end")
 	return p
