@@ -167,10 +167,6 @@ public:
             Slot_->GetAutomatonInvoker(),
             BIND(&TImpl::OnCheckTabletCellDecommission, MakeWeak(this)),
             Config_->TabletCellDecommissionCheckPeriod))
-        , ProfilingExecutor_(New<TPeriodicExecutor>(
-            Slot_->GetAutomatonInvoker(),
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            Config_->TabletProfilingPeriod))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -656,7 +652,6 @@ private:
     TNodeMemoryTrackerGuard WriteLogsMemoryTrackerGuard_;
 
     const TPeriodicExecutorPtr DecommissionCheckExecutor_;
-    const TPeriodicExecutorPtr ProfilingExecutor_;
 
     const IYPathServicePtr OrchidService_;
 
@@ -848,7 +843,6 @@ private:
         }
 
         DecommissionCheckExecutor_->Start();
-        ProfilingExecutor_->Start();
     }
 
 
@@ -867,7 +861,6 @@ private:
         }
 
         DecommissionCheckExecutor_->Stop();
-        ProfilingExecutor_->Stop();
     }
 
 
@@ -3823,20 +3816,6 @@ private:
             promise.Set();
         } catch (const std::exception& ex) {
             promise.Set(TError(ex));
-        }
-    }
-
-
-    void OnProfiling()
-    {
-        for (const auto& [tabletId, tablet] : TabletMap_) {
-            const auto& runtimeData = tablet->RuntimeData();
-            for (auto type : TEnumTraits<ETabletDynamicMemoryType>::GetDomainValues()) {
-                ProfileDynamicMemoryUsage(
-                    tablet->GetProfilerTags(),
-                    type,
-                    runtimeData->DynamicMemoryUsagePerType[type].load());
-            }
         }
     }
 };

@@ -164,7 +164,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
             GetBlockPromise(windowSlot).Set(
                 TBlock(TSharedRef(managedBlock->Data, managedBlock)));
             TotalRemainingSize_ -= BlockInfos_[windowIndex].UncompressedDataSize;
-            BlockReadOptions_.ChunkReaderStatistics->DataBytesReadFromUncompressedCache += uncompressedBlock.Size();
+            BlockReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache += uncompressedBlock.Size();
         } else {
             ReaderInvoker_->Invoke(BIND(
                 &TBlockFetcher::RequestBlocks,
@@ -285,7 +285,7 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
                 GetBlockPromise(windowSlot).Set(
                     TBlock(TSharedRef(managedBlock->Data, managedBlock)));
                 TotalRemainingSize_ -= blockInfo.UncompressedDataSize;
-                BlockReadOptions_.ChunkReaderStatistics->DataBytesReadFromUncompressedCache += uncompressedBlock.Size();
+                BlockReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache += uncompressedBlock.Size();
             } else {
                 uncompressedSize += blockInfo.UncompressedDataSize;
                 windowIndexes.push_back(FirstUnfetchedWindowIndex_);

@@ -26,11 +26,6 @@ void ProfileChunkReader(
     const NChunkClient::TChunkReaderStatisticsPtr& chunkReaderStatistics,
     NProfiling::TTagId methodTag);
 
-void ProfileDynamicMemoryUsage(
-    const NProfiling::TTagIdList& tags,
-    ETabletDynamicMemoryType memoryType,
-    i64 memoryUsage);
-
 class TWriterProfiler
     : public TRefCounted
 {

@@ -101,31 +101,6 @@ void ProfileChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDynamicMemoryUsageCounters
-{
-    explicit TDynamicMemoryUsageCounters(const TTagIdList& tagIds)
-        : DynamicMemoryUsage("/dynamic_memory_usage", tagIds)
-    { }
-
-    TAtomicGauge DynamicMemoryUsage;
-};
-
-using TDynamicMemoryProfilerTrait = TTagListProfilerTrait<TDynamicMemoryUsageCounters>;
-
-void ProfileDynamicMemoryUsage(
-    const NProfiling::TTagIdList& tags,
-    ETabletDynamicMemoryType memoryType,
-    i64 memoryUsage)
-{
-    static const NProfiling::TEnumMemberTagCache<ETabletDynamicMemoryType> MemoryTypeTagCache("memory_type");
-    
-    auto allTags = tags;
-    allTags.push_back(MemoryTypeTagCache.GetTag(memoryType));
-    
-    auto& counters = GetLocallyGloballyCachedValue<TDynamicMemoryProfilerTrait>(allTags);
-    TabletNodeProfiler.Update(counters.DynamicMemoryUsage, memoryUsage);
-}
-
 void TWriterProfiler::Profile(const TTabletSnapshotPtr& tabletSnapshot, TTagId tag)
 {
     ProfileChunkWriter(tabletSnapshot, DataStatistics_, CodecStatistics_, tag);
