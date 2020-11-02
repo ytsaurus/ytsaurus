@@ -57,7 +57,7 @@ class TServer
 public:
     explicit TServer(TServerConfigPtr config)
         : TServerBase(NLogging::TLogger(GrpcLogger)
-            .AddTag("ServerId: %v", TGuid::Create()))
+            .AddTag("GrpcServerId: %v", TGuid::Create()))
         , Config_(std::move(config))
         , LibraryLock_(TDispatcher::Get()->CreateLibraryLock())
         , CompletionQueue_(TDispatcher::Get()->PickRandomCompletionQueue())
