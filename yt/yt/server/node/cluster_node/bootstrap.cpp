@@ -1079,6 +1079,23 @@ TCellId TBootstrap::GetCellId(TCellTag cellTag) const
         : ReplaceCellTagInId(GetCellId(), cellTag);
 }
 
+std::vector<TString> TBootstrap::GetMasterAddressesOrThrow(TCellTag cellTag) const
+{
+    auto cellId = GetCellId(cellTag);
+
+    if (Config_->ClusterConnection->PrimaryMaster->CellId == cellId) {
+        return Config_->ClusterConnection->PrimaryMaster->Addresses;
+    }
+
+    for (const auto& secondaryMaster : Config_->ClusterConnection->SecondaryMasters) {
+        if (secondaryMaster->CellId == cellId) {
+            return secondaryMaster->Addresses;
+        }
+    }
+
+    THROW_ERROR_EXCEPTION("Master with cell tag %v is not known", cellTag);
+}
+
 const NQueryClient::TColumnEvaluatorCachePtr& TBootstrap::GetColumnEvaluatorCache() const
 {
     return ColumnEvaluatorCache_;
@@ -1223,16 +1240,34 @@ const IThroughputThrottlerPtr& TBootstrap::GetReadRpsOutThrottler() const
     return ReadRpsOutThrottler_;
 }
 
-TNetworkPreferenceList TBootstrap::GetLocalNetworks()
+TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
 {
     return Config_->Addresses.empty()
         ? DefaultNetworkPreferences
         : GetIths<0>(Config_->Addresses);
 }
 
-std::optional<TString> TBootstrap::GetDefaultNetworkName()
+std::optional<TString> TBootstrap::GetDefaultNetworkName() const
 {
     return Config_->BusServer->DefaultNetwork;
+}
+
+TString TBootstrap::GetDefaultLocalAddressOrThrow() const
+{
+    auto addressMap = GetLocalAddresses(
+        Config_->Addresses,
+        Config_->RpcPort);
+    auto defaultNetwork = GetDefaultNetworkName();
+
+    if (!defaultNetwork) {
+        THROW_ERROR_EXCEPTION("Default network is not configured");
+    }
+
+    if (!addressMap.contains(*defaultNetwork)) {
+        THROW_ERROR_EXCEPTION("Address for the default network is not configured");
+    }
+
+    return addressMap[*defaultNetwork];
 }
 
 EJobEnvironmentType TBootstrap::GetEnvironmentType() const

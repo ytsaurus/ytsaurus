@@ -30,6 +30,8 @@ static constexpr int InitialOrderedDynamicSegmentIndex = 10;
 
 static constexpr i64 MemoryUsageGranularity = 16_KB;
 
+static constexpr auto TabletStoresUpdateThrottlerRpcTimeout = TDuration::Minutes(10);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger TabletNodeLogger;

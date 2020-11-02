@@ -26,7 +26,6 @@ public:
     NDiscoveryClient::TDiscoveryClientConfigPtr DiscoveryClient;
 
     TDuration ControlRpcTimeout;
-    TDuration ThrottleRpcTimeout;
 
     TDuration LimitUpdatePeriod;
     TDuration LeaderUpdatePeriod;

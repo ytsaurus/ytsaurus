@@ -26,6 +26,10 @@ void ProfileChunkReader(
     const NChunkClient::TChunkReaderStatisticsPtr& chunkReaderStatistics,
     NProfiling::TTagId methodTag);
 
+void ProfileTabletStoresUpdateThrottlerWait(
+    const NProfiling::TTagIdList& tags,
+    TDuration elapsedTime);
+
 class TWriterProfiler
     : public TRefCounted
 {

@@ -1046,8 +1046,11 @@ private:
         TTablet* tablet,
         const TTabletSlotPtr& slot,
         NTabletServer::NProto::TReqUpdateTabletStores actionRequest,
-        NNative::ITransactionPtr transaction)
+        NNative::ITransactionPtr transaction,
+        const NLogging::TLogger& Logger)
     {
+        tablet->ThrottleTabletStoresUpdate(slot, Logger);
+
         ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
         actionRequest.set_mount_revision(tablet->GetMountRevision());
 
@@ -1248,7 +1251,7 @@ private:
                 storeIdsToRemove,
                 endInstant - beginInstant);
 
-            FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction));
+            FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
@@ -1516,7 +1519,7 @@ private:
                 partition->GetCompressedDataSize(),
                 storeIdsToRemove);
 
-            FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction));
+            FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
@@ -1737,7 +1740,7 @@ private:
                 storeIdsToRemove,
                 endInstant - beginInstant);
 
-            FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction));
+            FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction), Logger);
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);

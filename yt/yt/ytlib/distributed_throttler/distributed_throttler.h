@@ -31,7 +31,8 @@ public:
 
     NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const TString& throttlerId,
-        NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig);
+        NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig,
+        TDuration throttleRpcTimeout = DefaultThrottleRpcTimeout);
 
     void Reconfigure(TDistributedThrottlerConfigPtr config);
 
