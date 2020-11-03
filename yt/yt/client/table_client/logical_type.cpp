@@ -36,6 +36,7 @@ static void WalkImpl(
     const auto metatype = descriptor.GetType()->GetMetatype();
     switch (metatype) {
         case ELogicalMetatype::Simple:
+        case ELogicalMetatype::Decimal:
             return;
         case ELogicalMetatype::Optional:
             WalkImpl(walkContext, descriptor.OptionalElement(), onElement);
@@ -83,53 +84,66 @@ static void Walk(const TComplexTypeFieldDescriptor& descriptor, const std::funct
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T, typename F>
+const T& VerifiedCast(const F& from)
+{
+    const T* to = dynamic_cast<const T*>(&from);
+    YT_VERIFY(to != nullptr);
+    return *to;
+}
+
 TLogicalType::TLogicalType(ELogicalMetatype type)
     : Metatype_(type)
 {}
 
 const TSimpleLogicalType& TLogicalType::AsSimpleTypeRef() const
 {
-    return dynamic_cast<const TSimpleLogicalType&>(*this);
+    return VerifiedCast<TSimpleLogicalType>(*this);
+}
+
+const TDecimalLogicalType& TLogicalType::AsDecimalTypeRef() const
+{
+    return VerifiedCast<TDecimalLogicalType>(*this);
 }
 
 const TOptionalLogicalType& TLogicalType::AsOptionalTypeRef() const
 {
-    return dynamic_cast<const TOptionalLogicalType&>(*this);
+    return VerifiedCast<TOptionalLogicalType>(*this);
 }
 
 const TListLogicalType& TLogicalType::AsListTypeRef() const
 {
-    return dynamic_cast<const TListLogicalType&>(*this);
+    return VerifiedCast<TListLogicalType>(*this);
 }
 
 const TStructLogicalType& TLogicalType::AsStructTypeRef() const
 {
-    return dynamic_cast<const TStructLogicalType&>(*this);
+    return VerifiedCast<TStructLogicalType>(*this);
 }
 
 const TTupleLogicalType& TLogicalType::AsTupleTypeRef() const
 {
-    return dynamic_cast<const TTupleLogicalType&>(*this);
+    return VerifiedCast<TTupleLogicalType>(*this);
 }
 
 const TVariantTupleLogicalType& TLogicalType::AsVariantTupleTypeRef() const
 {
-    return dynamic_cast<const TVariantTupleLogicalType&>(*this);
+    return VerifiedCast<TVariantTupleLogicalType>(*this);
 }
 
 const TVariantStructLogicalType& TLogicalType::AsVariantStructTypeRef() const
 {
-    return dynamic_cast<const TVariantStructLogicalType&>(*this);
+    return VerifiedCast<TVariantStructLogicalType>(*this);
 }
 
 const TDictLogicalType& TLogicalType::AsDictTypeRef() const
 {
-    return dynamic_cast<const TDictLogicalType&>(*this);
+    return VerifiedCast<TDictLogicalType>(*this);
 }
 
 const TTaggedLogicalType& TLogicalType::AsTaggedTypeRef() const
 {
-    return dynamic_cast<const TTaggedLogicalType&>(*this);
+    return VerifiedCast<TTaggedLogicalType>(*this);
 }
 
 const TLogicalTypePtr& TLogicalType::GetElement() const
@@ -183,6 +197,10 @@ TString ToString(const TLogicalType& logicalType)
     switch (logicalType.GetMetatype()) {
         case ELogicalMetatype::Simple:
             return CamelCaseToUnderscoreCase(ToString(logicalType.AsSimpleTypeRef().GetElement()));
+        case ELogicalMetatype::Decimal:
+            return Format("decimal(%v,%v)",
+                logicalType.AsDecimalTypeRef().GetPrecision(),
+                logicalType.AsDecimalTypeRef().GetScale());
         case ELogicalMetatype::Optional:
             return Format("optional<%v>", *logicalType.AsOptionalTypeRef().GetElement());
         case ELogicalMetatype::List:
@@ -262,6 +280,49 @@ TString ToString(const TLogicalType& logicalType)
         }
     }
     YT_ABORT();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDecimalLogicalType::TDecimalLogicalType(int precision, int scale)
+    : TLogicalType(ELogicalMetatype::Decimal)
+    , Precision_(precision)
+    , Scale_(scale)
+{ }
+
+size_t TDecimalLogicalType::GetMemoryUsage() const
+{
+    return sizeof(*this);
+}
+
+int TDecimalLogicalType::GetTypeComplexity() const
+{
+    return 1;
+}
+
+void TDecimalLogicalType::ValidateNode(const TWalkContext& context) const
+{
+    if (Precision_ < MinPrecision || Precision_ > MaxPrecision) {
+        THROW_ERROR_EXCEPTION("Decimal precision %Qv is not in range [%v, %v]",
+            Precision_,
+            MinPrecision,
+            MaxPrecision);
+    }
+    if (Scale_ < 0) {
+        THROW_ERROR_EXCEPTION("Decimal scale %Qv is negative",
+            Scale_);
+    }
+
+    if (Scale_ > Precision_) {
+        THROW_ERROR_EXCEPTION("Decimal scale %Qv exceeds precision %Qv",
+            Scale_,
+            Precision_);
+    }
+}
+
+bool TDecimalLogicalType::IsNullable() const
+{
+    return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -507,6 +568,7 @@ TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& type)
 {
     switch (type->GetMetatype()) {
         case ELogicalMetatype::Simple:
+        case ELogicalMetatype::Decimal:
             return type;
         case ELogicalMetatype::Optional: {
             const auto& element = type->AsOptionalTypeRef().GetElement();
@@ -760,6 +822,7 @@ void TDictLogicalType::ValidateNode(const TWalkContext&) const
             case ELogicalMetatype::List:
             case ELogicalMetatype::Dict:
             case ELogicalMetatype::Tagged:
+            case ELogicalMetatype::Decimal:
                 return;
         }
         YT_ABORT();
@@ -823,6 +886,8 @@ static TTypeV3Info GetTypeV3Info(const TLogicalTypePtr& logicalType)
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Simple:
             return {logicalType->AsSimpleTypeRef().GetElement(), !logicalType->IsNullable(), true};
+        case ELogicalMetatype::Decimal:
+            return {ESimpleLogicalValueType::String, true, false};
         case ELogicalMetatype::Optional: {
             const auto& element = logicalType->AsOptionalTypeRef().GetElement();
             if (element->IsNullable()) {
@@ -911,6 +976,9 @@ bool operator == (const TLogicalType& lhs, const TLogicalType& rhs)
         case ELogicalMetatype::Tagged:
             return lhs.AsTaggedTypeRef().GetTag() == rhs.AsTaggedTypeRef().GetTag() &&
                 *lhs.AsTaggedTypeRef().GetElement() == *rhs.AsTaggedTypeRef().GetElement();
+        case ELogicalMetatype::Decimal:
+            return lhs.AsDecimalTypeRef().GetPrecision() == rhs.AsDecimalTypeRef().GetPrecision() &&
+                lhs.AsDecimalTypeRef().GetScale() == rhs.AsDecimalTypeRef().GetScale();
     }
     YT_ABORT();
 }
@@ -950,6 +1018,10 @@ void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logi
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Simple:
             protoLogicalType->set_simple(static_cast<int>(logicalType->AsSimpleTypeRef().GetElement()));
+            return;
+        case ELogicalMetatype::Decimal:
+            protoLogicalType->mutable_decimal()->set_precision(logicalType->AsDecimalTypeRef().GetPrecision());
+            protoLogicalType->mutable_decimal()->set_scale(logicalType->AsDecimalTypeRef().GetScale());
             return;
         case ELogicalMetatype::Optional:
             ToProto(protoLogicalType->mutable_optional(), logicalType->AsOptionalTypeRef().GetElement());
@@ -1014,6 +1086,9 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
     switch (protoLogicalType.type_case()) {
         case NProto::TLogicalType::TypeCase::kSimple:
             *logicalType = SimpleLogicalType(CheckedEnumCast<ESimpleLogicalValueType>(protoLogicalType.simple()));
+            return;
+        case NProto::TLogicalType::TypeCase::kDecimal:
+            *logicalType = DecimalLogicalType(protoLogicalType.decimal().precision(), protoLogicalType.decimal().scale());
             return;
         case NProto::TLogicalType::TypeCase::kOptional: {
             TLogicalTypePtr element;
@@ -1108,6 +1183,14 @@ void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consume
             NYTree::BuildYsonFluently(consumer)
                 .Value(logicalType->AsSimpleTypeRef().GetElement());
             return;
+        case ELogicalMetatype::Decimal:
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("metatype").Value(metatype)
+                    .Item("precision").Value(logicalType->AsDecimalTypeRef().GetPrecision())
+                    .Item("scale").Value(logicalType->AsDecimalTypeRef().GetScale())
+                .EndMap();
+            return;
         case ELogicalMetatype::Optional:
             NYTree::BuildYsonFluently(consumer)
                 .BeginMap()
@@ -1198,6 +1281,12 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
         case ELogicalMetatype::Simple: {
             THROW_ERROR_EXCEPTION("Error parsing logical type: cannot parse simple type from %Qv",
                 NYTree::ENodeType::Map);
+        }
+        case ELogicalMetatype::Decimal: {
+            auto precision = mapNode->GetChildOrThrow("precision")->GetValue<i64>();
+            auto scale = mapNode->GetChildOrThrow("scale")->GetValue<i64>();
+            logicalType = DecimalLogicalType(precision, scale);
+            return;
         }
         case ELogicalMetatype::Optional: {
             auto elementNode = mapNode->GetChildOrThrow("element");
@@ -1293,7 +1382,8 @@ bool IsComparable(const TLogicalTypePtr& type)
                     return false;
             }
             Y_FAIL();
-
+        case ELogicalMetatype::Decimal:
+            return true;
         case ELogicalMetatype::Optional:
         case ELogicalMetatype::List:
         case ELogicalMetatype::Tagged:
@@ -1366,6 +1456,7 @@ std::pair<ELogicalMetatype, TString> V3LogicalMetatypeEncoding[] =
     {ELogicalMetatype::Tuple, "tuple"},
     {ELogicalMetatype::Dict, "dict"},
     {ELogicalMetatype::Tagged, "tagged"},
+    {ELogicalMetatype::Decimal, "decimal"},
 };
 
 // NB ELogicalMetatype::{Simple,VariantStruct,VariantTuple} are not encoded therefore we have `-3` in static_assert below.
@@ -1464,6 +1555,14 @@ void Serialize(const TTypeV3LogicalTypeWrapper& wrapper, NYson::IYsonConsumer* c
         case ELogicalMetatype::Simple:
             NYTree::BuildYsonFluently(consumer)
                 .Value(ToTypeV3(wrapper.LogicalType->AsSimpleTypeRef().GetElement()));
+            return;
+        case ELogicalMetatype::Decimal:
+            NYTree::BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("type_name").Value(ToTypeV3(metatype))
+                    .Item("precision").Value(wrapper.LogicalType->AsDecimalTypeRef().GetPrecision())
+                    .Item("scale").Value(wrapper.LogicalType->AsDecimalTypeRef().GetScale())
+                .EndMap();
             return;
         case ELogicalMetatype::Optional:
             NYTree::BuildYsonFluently(consumer)
@@ -1591,6 +1690,12 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
                 case ELogicalMetatype::Simple:
                     // NB. FromTypeV3 never returns this value.
                     YT_ABORT();
+                case ELogicalMetatype::Decimal: {
+                    auto precision = mapNode->GetChildOrThrow("precision")->GetValue<i64>();
+                    auto scale = mapNode->GetChildOrThrow("scale")->GetValue<i64>();
+                    wrapper.LogicalType = DecimalLogicalType(precision, scale);
+                    return;
+                }
                 case ELogicalMetatype::Optional: {
                     auto itemNode = mapNode->GetChildOrThrow("item");
                     auto item = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(itemNode);
@@ -1723,6 +1828,11 @@ TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element)
     return Singleton<TSimpleTypeStore>()->GetSimpleType(element);
 }
 
+TLogicalTypePtr DecimalLogicalType(int precision, int scale)
+{
+    return New<TDecimalLogicalType>(precision, scale);
+}
+
 TLogicalTypePtr MakeLogicalType(ESimpleLogicalValueType element, bool required)
 {
     if (element == ESimpleLogicalValueType::Null || element == ESimpleLogicalValueType::Void) {
@@ -1808,6 +1918,13 @@ size_t THash<NYT::NTableClient::TLogicalType>::operator()(const NYT::NTableClien
     switch (logicalType.GetMetatype()) {
         case ELogicalMetatype::Simple:
             return CombineHashes(static_cast<size_t>(logicalType.AsSimpleTypeRef().GetElement()), typeHash);
+        case ELogicalMetatype::Decimal:
+            return CombineHashes(
+                CombineHashes(
+                    static_cast<size_t>(logicalType.AsDecimalTypeRef().GetPrecision()),
+                    static_cast<size_t>(logicalType.AsDecimalTypeRef().GetScale())
+                ),
+                typeHash);
         case ELogicalMetatype::Optional:
             return CombineHashes((*this)(*logicalType.AsOptionalTypeRef().GetElement()), typeHash);
         case ELogicalMetatype::List:

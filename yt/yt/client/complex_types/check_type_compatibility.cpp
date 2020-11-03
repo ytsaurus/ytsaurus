@@ -323,6 +323,17 @@ TCompatibilityPair CheckDictTypeCompatibility(
     return MinCompatibility(keyCompatibility, valueCompatibility);
 }
 
+TCompatibilityPair CheckDecimalTypeCompatibility(
+    const TComplexTypeFieldDescriptor& oldDescriptor,
+    const TComplexTypeFieldDescriptor& newDescriptor)
+{
+    if (*oldDescriptor.GetType() == *newDescriptor.GetType()) {
+        return {ESchemaCompatibility::FullyCompatible, {}};
+    } else {
+        return CreateResultPair(ESchemaCompatibility::Incompatible, oldDescriptor, newDescriptor);
+    }
+}
+
 // Returns pair:
 //   1. Inner element that is neither optional nor tagged.
 //   2. How many times this element is wrapped into Optional type.
@@ -406,6 +417,8 @@ static TCompatibilityPair CheckTypeCompatibilityImpl(
                 /*allowNewElement*/ true);
         case ELogicalMetatype::Dict:
             return CheckDictTypeCompatibility(oldDescriptor, newDescriptor);
+        case ELogicalMetatype::Decimal:
+            return CheckDecimalTypeCompatibility(oldDescriptor, newDescriptor);
     }
     YT_ABORT();
 }

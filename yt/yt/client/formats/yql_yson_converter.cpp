@@ -4,6 +4,8 @@
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/helpers.h>
 
+#include <yt/library/decimal/decimal.h>
+
 #include <yt/core/json/json_writer.h>
 
 #include <yt/core/yson/pull_parser.h>
@@ -63,6 +65,7 @@ public:
     void OnKeyedItem(TStringBuf key);
     void OnEndMap();
 
+    void OnStringScalarNoWeightLimit(TStringBuf value);
     void OnStringScalarWeightLimited(TStringBuf value, i64 limit);
     void TransferYsonWeightLimited(const std::function<void(NYson::TCheckedInDebugYsonTokenWriter*)>& callback, i64 limit);
 
@@ -152,6 +155,12 @@ void TYqlJsonWriter::OnKeyedItem(TStringBuf key)
 void TYqlJsonWriter::OnEndMap()
 {
     Underlying_->OnEndMap();
+}
+
+void TYqlJsonWriter::OnStringScalarNoWeightLimit(TStringBuf value)
+{
+    bool base64 = !IsUtf(value);
+    OnStringScalarImpl(value, false, base64);
 }
 
 void TYqlJsonWriter::OnStringScalarWeightLimited(TStringBuf value, i64 limit)
@@ -562,6 +571,9 @@ static TWeightLimitedYsonToYqlConverter CreateWeightLimitedYsonToYqlConverter(
             return CreateSimpleTypeYsonToYqlConverter(
                 GetPhysicalType(logicalType->AsSimpleTypeRef().GetElement()),
                 std::move(config));
+        case ELogicalMetatype::Decimal:
+            // TODO(ermolovd) support decimal.
+            return CreateSimpleTypeYsonToYqlConverter(EValueType::String, std::move(config));
         case ELogicalMetatype::List:
             return TListYsonToYqlConverter(logicalType->AsListTypeRef(), std::move(config));
         case ELogicalMetatype::Struct:
@@ -719,8 +731,11 @@ static TWeightLimitedUnversionedValueToYqlConverter CreateWeightLimitedUnversion
     const TLogicalTypePtr& logicalType,
     TYqlConverterConfigPtr config)
 {
-    if (IsV1Type(logicalType)) {
-        auto [simpleType, isRequired] = CastToV1Type(logicalType);
+    // TODO: (ermolovd) here should be fair switch over our metatypes
+    if (IsV1Type(logicalType) ||
+        CastToV1Type(logicalType).first == ESimpleLogicalValueType::String) // Decimal
+    {
+        auto[simpleType, isRequired] = CastToV1Type(logicalType);
         auto physicalType = GetPhysicalType(simpleType);
         return CreateSimpleUnversionedValueToYqlConverter(physicalType, isRequired, std::move(config));
     } else {

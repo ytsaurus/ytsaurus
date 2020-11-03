@@ -38,6 +38,8 @@ DEFINE_ENUM(ELogicalMetatype,
     (Dict)
 
     (Tagged)
+
+    (Decimal)
 )
 
 class TLogicalType
@@ -49,6 +51,8 @@ public:
 
     const TSimpleLogicalType& AsSimpleTypeRef() const;
     Y_FORCE_INLINE const TSimpleLogicalType& UncheckedAsSimpleTypeRef() const;
+    const TDecimalLogicalType& AsDecimalTypeRef() const;
+    Y_FORCE_INLINE const TDecimalLogicalType& UncheckedAsDecimalTypeRef() const;
     const TOptionalLogicalType& AsOptionalTypeRef() const;
     Y_FORCE_INLINE const TOptionalLogicalType& UncheckedAsOptionalTypeRef() const;
     const TListLogicalType& AsListTypeRef() const;
@@ -143,6 +147,31 @@ struct TTypeV3LogicalTypeWrapper
 
 void Serialize(const TTypeV3LogicalTypeWrapper& wrapper, NYson::IYsonConsumer* consumer);
 void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDecimalLogicalType
+    : public TLogicalType
+{
+public:
+    static constexpr int MinPrecision = 1;
+    static constexpr int MaxPrecision = 35;
+
+public:
+    TDecimalLogicalType(int precision, int scale);
+
+    virtual size_t GetMemoryUsage() const override;
+    virtual int GetTypeComplexity() const override;
+    virtual void ValidateNode(const TWalkContext& context) const override;
+    virtual bool IsNullable() const override;
+
+    Y_FORCE_INLINE int GetPrecision() const;
+    Y_FORCE_INLINE int GetScale() const;
+
+private:
+    const int Precision_;
+    const int Scale_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -373,6 +402,7 @@ extern const TLogicalTypePtr NullLogicalType;
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogicalTypePtr SimpleLogicalType(ESimpleLogicalValueType element);
+TLogicalTypePtr DecimalLogicalType(int precision, int scale);
 TLogicalTypePtr OptionalLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr ListLogicalType(TLogicalTypePtr element);
 TLogicalTypePtr StructLogicalType(std::vector<TStructField> fields);

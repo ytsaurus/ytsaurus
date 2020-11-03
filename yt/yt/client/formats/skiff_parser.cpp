@@ -200,6 +200,10 @@ public:
                 auto columnSchema = columnSchemas.FindPtr(fieldDescription.Name());
                 try {
                     if (columnSchema && !(*columnSchema)->IsOfV1Type()) {
+                        if ((*columnSchema)->CastToV1Type() != ESimpleLogicalValueType::Any) {
+                            THROW_ERROR_EXCEPTION("Type %Qv is not supported for skiff yet",
+                                *(*columnSchema)->LogicalType());
+                        }
                         converter = CreateComplexValueConverter(
                             TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
                             fieldDescription.Schema(),
@@ -226,6 +230,10 @@ public:
                 auto columnSchema = columnSchemas.FindPtr(fieldDescription.Name());
                 try {
                     if (columnSchema && !(*columnSchema)->IsOfV1Type()) {
+                        if ((*columnSchema)->CastToV1Type() != ESimpleLogicalValueType::Any) {
+                            THROW_ERROR_EXCEPTION("Type %Qv is not supported for skiff yet",
+                                *(*columnSchema)->LogicalType());
+                        }
                         converter = CreateComplexValueConverter(
                             TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
                             fieldDescription.Schema(),

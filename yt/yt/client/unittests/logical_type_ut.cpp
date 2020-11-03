@@ -72,6 +72,10 @@ TEST(TLogicalTypeTest, TestCastToV1Type)
     EXPECT_EQ(
         CastToV1Type(TaggedLogicalType("foo", List(String()))),
         std::pair(ESimpleLogicalValueType::Any, true));
+
+    EXPECT_EQ(
+        CastToV1Type(DecimalLogicalType(3, 2)),
+        std::pair(ESimpleLogicalValueType::String, true));
 }
 
 TEST(TLogicalTypeTest, DictValidationTest)
@@ -126,6 +130,16 @@ TEST(TLogicalTypeTest, DictValidationTest)
             TaggedLogicalType("bar", SimpleLogicalType(ESimpleLogicalValueType::Int64)),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
         ))));
+
+    EXPECT_NO_THROW(
+        ValidateLogicalType(
+            TComplexTypeFieldDescriptor("example_column",
+                DictLogicalType(
+                    DecimalLogicalType(3, 2),
+                    OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))
+                )
+            )
+    ));
 }
 
 TEST(TLogicalTypeTest, TestDetag)
@@ -168,6 +182,19 @@ static const std::vector<TLogicalTypePtr> ComplexTypeExampleList = {
     SimpleLogicalType(ESimpleLogicalValueType::String),
     SimpleLogicalType(ESimpleLogicalValueType::Utf8),
     OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)),
+
+
+    // Decimals
+    DecimalLogicalType(1, 0),
+    DecimalLogicalType(1, 1),
+    DecimalLogicalType(3, 2),
+    DecimalLogicalType(35, 0),
+    DecimalLogicalType(35, 35),
+    OptionalLogicalType(DecimalLogicalType(1, 0)),
+    OptionalLogicalType(DecimalLogicalType(1, 1)),
+    OptionalLogicalType(DecimalLogicalType(3, 2)),
+    OptionalLogicalType(DecimalLogicalType(35, 0)),
+    OptionalLogicalType(DecimalLogicalType(35, 35)),
 
     // Optionals
     OptionalLogicalType(
@@ -374,6 +401,7 @@ TEST(TLogicalTypeTest, TestIsComparable) {
         })
     ));
 
+    EXPECT_TRUE(IsComparable(DecimalLogicalType(3, 2)));
 }
 
 TString CanonizeYsonString(TString input)
@@ -650,6 +678,17 @@ TEST(TLogicalTypeTest, TestTypeV3Yson)
             }
         }
         )");
+
+    // Decimal
+    CHECK_TYPE_V3(
+        DecimalLogicalType(3, 2),
+        R"(
+        {
+            type_name=decimal;
+            precision=3;
+            scale=2;
+        }
+        )");
 }
 
 class TLogicalTypeTestExamples
@@ -757,6 +796,7 @@ TEST(TLogicalTypeTest, TestAllTypesInCombineFunctions)
     }
     std::set<ELogicalMetatype> expectedMetatypes(allMetatypes.begin(), allMetatypes.end());
     expectedMetatypes.erase(ELogicalMetatype::Simple);
+    expectedMetatypes.erase(ELogicalMetatype::Decimal);
     EXPECT_EQ(actualMetatypes, expectedMetatypes);
 }
 

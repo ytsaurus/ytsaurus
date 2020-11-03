@@ -33,6 +33,7 @@ private:
         auto& result = Cache_[logicalType.Get()];
         switch (logicalType->GetMetatype()) {
             case ELogicalMetatype::Simple:
+            case ELogicalMetatype::Decimal:
                 return result = true;
 
             case ELogicalMetatype::Optional:
@@ -445,7 +446,8 @@ TYsonConverter CreateYsonConverterImpl(
     }
     switch (type->GetMetatype()) {
         case ELogicalMetatype::Simple:
-            // All simple types are trivial and must be handled before this switch
+        case ELogicalMetatype::Decimal:
+            // All simple types and decimals are trivial and must be handled before this switch
             YT_ABORT();
         case ELogicalMetatype::Optional: {
             auto elementConverter = CreateYsonConverterImpl(descriptor.OptionalElement(), cache, config);

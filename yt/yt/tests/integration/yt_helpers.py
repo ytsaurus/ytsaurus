@@ -2,6 +2,8 @@ from yt_commands import get, set, ls, create_pool_tree, print_debug
 from yt.test_helpers import wait
 
 from yt.packages import requests
+import decimal
+import struct
 import time
 from datetime import datetime
 from dateutil import parser
@@ -11,6 +13,8 @@ import tarfile
 import os
 from io import BytesIO
 from collections import defaultdict
+
+MAX_DECIMAL_PRECISION = 35
 
 
 # This class resembles a metric exported via Orchid and provides effective means

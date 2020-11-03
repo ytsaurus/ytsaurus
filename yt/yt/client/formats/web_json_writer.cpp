@@ -194,6 +194,13 @@ void SerializeAsYqlType(TFluentAny fluent, const TLogicalTypePtr& type)
                         .Item().Value(GetSimpleYqlTypeName(type->AsSimpleTypeRef().GetElement()));
                 }
                 return;
+            case ELogicalMetatype::Decimal:
+                fluentList
+                    .Item().Value("DataType")
+                    .Item().Value("Decimal")
+                    .Item().Value(ToString(type->AsDecimalTypeRef().GetPrecision()))
+                    .Item().Value(ToString(type->AsDecimalTypeRef().GetScale()));
+                return;
             case ELogicalMetatype::Optional:
                 fluentList
                     .Item().Value("OptionalType")

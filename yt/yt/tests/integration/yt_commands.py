@@ -2027,6 +2027,13 @@ def tagged_type(tag, element_type):
     }
 
 
+def decimal_type(precision, scale):
+    return {
+        "type_name": "decimal",
+        "precision": precision,
+        "scale": scale,
+    }
+
 ##################################################################
 
 
@@ -2365,6 +2372,10 @@ def sync_alter_table_replica_mode(replica_id, mode, driver=None):
         return True
 
     wait(check)
+
+
+def create_table(path, **attributes):
+    create("table", path, attributes=attributes)
 
 
 def create_dynamic_table(path, **attributes):

@@ -9,6 +9,8 @@
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schema.h>
 
+#include <yt/library/decimal/decimal.h>
+
 #include <yt/core/misc/farm_hash.h>
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/string.h>
@@ -1004,13 +1006,18 @@ void ValidateValueType(
         actual);
 }
 
+static inline void ValidateColumnType(EValueType expected, const TUnversionedValue& value)
+{
+    if (value.Type != expected) {
+        ThrowInvalidColumnType(expected, value.Type);
+    }
+}
+
 template <ESimpleLogicalValueType logicalType>
 Y_FORCE_INLINE auto GetValue(const TUnversionedValue& value)
 {
     constexpr auto physicalType = GetPhysicalType(logicalType);
-    if (value.Type != physicalType) {
-        ThrowInvalidColumnType(physicalType, value.Type);
-    }
+    ValidateColumnType(physicalType, value);
     if constexpr (physicalType == EValueType::Int64) {
         return value.Data.Int64;
     } else if constexpr (physicalType == EValueType::Uint64) {
@@ -1023,6 +1030,31 @@ Y_FORCE_INLINE auto GetValue(const TUnversionedValue& value)
         static_assert(physicalType == EValueType::String || physicalType == EValueType::Any);
         return TStringBuf(value.Data.String, value.Length);
     }
+}
+
+static const TLogicalTypePtr& UnwrapTaggedAndOptional(const TLogicalTypePtr& type)
+{
+    const TLogicalTypePtr* current = &type;
+    while ((*current)->GetMetatype() == ELogicalMetatype::Tagged) {
+        current = &(*current)->UncheckedAsTaggedTypeRef().GetElement();
+    }
+
+    if ((*current)->GetMetatype() != ELogicalMetatype::Optional) {
+        return *current;
+    }
+
+    const auto& optionalType = (*current)->UncheckedAsOptionalTypeRef();
+    if (optionalType.IsElementNullable()) {
+        return *current;
+    }
+
+    current = &optionalType.GetElement();
+
+    while ((*current)->GetMetatype() == ELogicalMetatype::Tagged) {
+        current = &(*current)->UncheckedAsTaggedTypeRef().GetElement();
+    }
+
+    return *current;
 }
 
 void ValidateValueType(
@@ -1053,20 +1085,29 @@ void ValidateValueType(
             case ESimpleLogicalValueType::Null:
             case ESimpleLogicalValueType::Void:
                 // this case should be handled before
-                if (value.Type != EValueType::Null) {
-                    ThrowInvalidColumnType(EValueType::Null, value.Type);
-                }
+                ValidateColumnType(EValueType::Null, value);
                 return;
             case ESimpleLogicalValueType::Any:
                 if (columnSchema.IsOfV1Type()) {
-                    if (!typeAnyAcceptsAllValues && value.Type != EValueType::Any) {
-                        ThrowInvalidColumnType(EValueType::Any, value.Type);
+                    if (!typeAnyAcceptsAllValues) {
+                        ValidateColumnType(EValueType::Any, value);
                     }
                 } else {
-                    if (value.Type != EValueType::Composite) {
-                        ThrowInvalidColumnType(EValueType::Composite, value.Type);
-                    }
+                    ValidateColumnType(EValueType::Composite, value);
                     ValidateComplexLogicalType(TStringBuf(value.Data.String, value.Length), columnSchema.LogicalType());
+                }
+                return;
+            case ESimpleLogicalValueType::String:
+                if (columnSchema.IsOfV1Type()) {
+                    ValidateSimpleLogicalType<ESimpleLogicalValueType::String>(GetValue<ESimpleLogicalValueType::String>(value));
+                } else {
+                    ValidateColumnType(EValueType::String, value);
+                    auto type = UnwrapTaggedAndOptional(columnSchema.LogicalType());
+                    YT_VERIFY(type->GetMetatype() == ELogicalMetatype::Decimal);
+                    NDecimal::TDecimal::ValidateBinaryValue(
+                        TStringBuf(value.Data.String, value.Length),
+                        type->UncheckedAsDecimalTypeRef().GetPrecision(),
+                        type->UncheckedAsDecimalTypeRef().GetScale());
                 }
                 return;
 #define CASE(x) \
@@ -1078,7 +1119,6 @@ void ValidateValueType(
             CASE(ESimpleLogicalValueType::Uint64)
             CASE(ESimpleLogicalValueType::Double)
             CASE(ESimpleLogicalValueType::Boolean)
-            CASE(ESimpleLogicalValueType::String)
 
             CASE(ESimpleLogicalValueType::Float)
 
