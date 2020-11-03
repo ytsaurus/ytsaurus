@@ -198,6 +198,9 @@ using TRowRange = std::pair<TUnversionedRow, TUnversionedRow>;
 class TUnversionedRowBuilder;
 class TUnversionedOwningRowBuilder;
 
+class TKeyBound;
+class TOwningKeyBound;
+
 using TKeyComparer = std::function<int(TLegacyKey, TLegacyKey)>;
 
 struct TColumnRenameDescriptor;

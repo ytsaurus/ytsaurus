@@ -1,6 +1,7 @@
 #include "helpers.h"
 #include "schema.h"
 #include "name_table.h"
+#include "key_bound.h"
 
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 
@@ -1215,6 +1216,16 @@ void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
 void PrintTo(const TUnversionedRow& value, ::std::ostream* os)
 {
     *os << ToString(value);
+}
+
+void PrintTo(const TKeyBound& keyBound, ::std::ostream* os)
+{
+    *os << ToString(keyBound);
+}
+
+void PrintTo(const TOwningKeyBound& keyBound, ::std::ostream* os)
+{
+    *os << ToString(keyBound);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
