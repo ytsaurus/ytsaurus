@@ -1,7 +1,7 @@
 #include "fair_share_strategy.h"
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
-#include "persistent_pool_state.h"
+#include "persistent_scheduler_state.h"
 #include "public.h"
 #include "scheduler_strategy.h"
 #include "scheduler_tree.h"
@@ -746,7 +746,7 @@ public:
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
         }
 
-        Host->StoreStrategyStateAsync(BuildStrategyState());
+        Host->InvokeStoringStrategyState(BuildStrategyState());
 
         YT_LOG_INFO("Fair share successfully updated");
     }

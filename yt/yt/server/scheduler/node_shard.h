@@ -108,6 +108,14 @@ using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegme
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNodeShardMasterHandshakeResult
+{
+    TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState;
+    TInstant SchedulingSegmentInitializationDeadline;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeShard
     : public TRefCounted
 {
@@ -123,7 +131,7 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
-    IInvokerPtr OnMasterConnected();
+    IInvokerPtr OnMasterConnected(const TNodeShardMasterHandshakeResult& result);
     void OnMasterDisconnected();
 
     void RegisterOperation(
@@ -288,6 +296,9 @@ private:
 
     THashMap<TOperationId, TOperationState> IdToOpertionState_;
     TEpoch CurrentEpoch_ = 0;
+
+    TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState_;
+    TInstant SchedulingSegmentInitializationDeadline_;
 
     void ValidateConnected();
 

@@ -1,5 +1,6 @@
 #include "scheduling_segment_manager.h"
 #include "private.h"
+#include "persistent_scheduler_state.h"
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -20,6 +21,15 @@ static const auto& Profiler = SchedulerProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int LargeGpuSegmentJobGpuDemand = 8;
+
+////////////////////////////////////////////////////////////////////////////////
+
+double GetNodeResourceLimit(const TExecNodeDescriptor& node, EJobResourceType resourceType)
+{
+    return node.Online
+        ? GetResource(node.ResourceLimits, resourceType)
+        : 0.0;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +78,7 @@ void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext*
         TSegmentToResourceAmount currentResourceAmountPerSegment;
         for (auto nodeId : context->NodeIdsPerTree[treeId]) {
             const auto& node = GetOrCrash(*context->ExecNodeDescriptors, nodeId);
-            auto resourceAmountOnNode = GetResource(node.ResourceLimits, keyResource);
+            auto resourceAmountOnNode = GetNodeResourceLimit(node, keyResource);
             currentResourceAmountPerSegment[node.SchedulingSegment] += resourceAmountOnNode;
         }
 
@@ -87,19 +97,21 @@ void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext*
             continue;
         }
 
-        auto now = TInstant::Now();
         if (!unsatisfiedSince) {
-            unsatisfiedSince = now;
+            unsatisfiedSince = context->Now;
         }
 
         YT_LOG_DEBUG("Found unsatisfied scheduling segments in tree ("
             "TreeId: %v, UnsatisfiedSegments: %v, UnsatisfiedFor: %v, Timeout: %v)",
             treeId,
             unsatisfiedSegments,
-            now - *unsatisfiedSince,
+            context->Now - *unsatisfiedSince,
             segmentsInfo.UnsatisfiedSegmentsRebalancingTimeout);
 
-        if (now > *unsatisfiedSince + segmentsInfo.UnsatisfiedSegmentsRebalancingTimeout) {
+        auto deadline = std::max(
+            *unsatisfiedSince + segmentsInfo.UnsatisfiedSegmentsRebalancingTimeout,
+            SegmentsInitializationDeadline_);
+        if (context->Now > deadline) {
             RebalanceSegmentsInTree(
                 context,
                 treeId,
@@ -109,6 +121,35 @@ void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext*
 
         treeState.PreviousMode = segmentsInfo.Mode;
     }
+}
+
+TPersistentSchedulingSegmentsStatePtr TSchedulingSegmentManager::BuildSegmentsState(TManageSchedulingSegmentsContext* context) const
+{
+    auto segmentsState = New<TPersistentSchedulingSegmentsState>();
+    for (const auto& [treeId, treeNodeIds] : context->NodeIdsPerTree) {
+        for (auto nodeId : treeNodeIds) {
+            auto it = context->ExecNodeDescriptors->find(nodeId);
+            if (it == context->ExecNodeDescriptors->end()) {
+                // NB(eshcherbin): This should not happen usually but the exec node descriptors map here might differ
+                // from the one used for rebalancing, because we need to update the segments at the moved nodes.
+                // So I don't want to put any hard constraints here.
+                continue;
+            }
+            const auto& node = it->second;
+
+            if (node.SchedulingSegment != ESchedulingSegment::Default) {
+                segmentsState->NodeStates.emplace(
+                    nodeId,
+                    TPersistentNodeSchedulingSegmentState{
+                        .Segment = node.SchedulingSegment,
+                        .Address = node.Address,
+                        .Tree = treeId,
+                    });
+            }
+        }
+    }
+
+    return segmentsState;
 }
 
 void TSchedulingSegmentManager::ResetTree(TManageSchedulingSegmentsContext *context, const TString& treeId)
@@ -201,7 +242,7 @@ void TSchedulingSegmentManager::RebalanceSegmentsInTree(
             const auto& nextMovableNode = *nextMovableNodeIterator;
             ++nextMovableNodeIterator;
 
-            auto resourceAmountOnNode = GetResource(nextMovableNode.ResourceLimits, keyResource);
+            auto resourceAmountOnNode = GetNodeResourceLimit(nextMovableNode, keyResource);
             auto oldSegment = nextMovableNode.SchedulingSegment;
 
             auto nodeShardId = context->NodeShardHost->GetNodeShardId(nextMovableNode.Id);
@@ -263,7 +304,7 @@ std::vector<TExecNodeDescriptor> TSchedulingSegmentManager::GetMovableNodesInTre
             SortBy(segmentNodes, getPenalty);
 
             for (const auto& node : segmentNodes) {
-                auto resourceAmountOnNode = GetResource(node.ResourceLimits, keyResource);
+                auto resourceAmountOnNode = GetNodeResourceLimit(node, keyResource);
 
                 if (resourceAmount - resourceAmountOnNode < fairResourceAmount) {
                     break;

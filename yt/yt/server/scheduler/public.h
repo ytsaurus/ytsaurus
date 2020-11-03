@@ -46,6 +46,7 @@ class TBootstrap;
 DECLARE_REFCOUNTED_CLASS(TPersistentStrategyState)
 DECLARE_REFCOUNTED_CLASS(TPersistentTreeState)
 DECLARE_REFCOUNTED_CLASS(TPersistentPoolState)
+DECLARE_REFCOUNTED_CLASS(TPersistentSchedulingSegmentsState)
 
 // TODO(mrkastep) Move to private.h
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationState)

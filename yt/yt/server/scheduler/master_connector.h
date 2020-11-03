@@ -20,6 +20,7 @@ namespace NYT::NScheduler {
 struct TMasterHandshakeResult
 {
     std::vector<TOperationPtr> Operations;
+    TPersistentSchedulingSegmentsStatePtr SchedulingSegmentsState;
 };
 
 using TWatcherRequester = TCallback<void(NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr)>;
@@ -77,7 +78,8 @@ public:
     TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations);
     TFuture<NYson::TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation);
 
-    void StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState);
+    void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState);
+    void StoreSchedulingSegmentsStateAsync(TPersistentSchedulingSegmentsStatePtr segmentsState);
 
     void AttachJobContext(
         const NYPath::TYPath& path,

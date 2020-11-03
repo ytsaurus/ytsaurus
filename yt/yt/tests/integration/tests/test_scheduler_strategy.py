@@ -2793,6 +2793,7 @@ class TestSchedulingSegments(YTEnvSetup):
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
             "scheduling_segments_manage_period": 100,
+            "scheduling_segments_initialization_timeout": 100,
         }
     }
 
@@ -2812,11 +2813,22 @@ class TestSchedulingSegments(YTEnvSetup):
         "job_proxy_heartbeat_period": 100,
     }
 
+    SCHEDULING_SEGMENTS = [
+        "default",
+        "large_gpu",
+    ]
+
     def _get_usage_ratio(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/usage_ratio", default=0.0)
 
     def _get_fair_share_ratio(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
+
+    # NB(eshcherbin): This method always returns NO nodes for the default segment.
+    def _get_nodes_for_segment_in_tree(self, segment, tree="default"):
+        node_states = get("//sys/scheduler/segments_state/node_states", default={})
+        return [node_state["address"] for _, node_state in node_states.iteritems()
+                if node_state["segment"] == segment and node_state["tree"] == tree]
 
     @classmethod
     def setup_class(cls):
@@ -2828,7 +2840,7 @@ class TestSchedulingSegments(YTEnvSetup):
         super(TestSchedulingSegments, self).setup_method(method)
         # NB(eshcherbin): This is done to reset node segments.
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            pass
+            remove("//sys/scheduler/segments_state", force=True)
         create_pool("cpu", wait_for_orchid=False)
         create_pool("small_gpu", wait_for_orchid=False)
         create_pool("large_gpu")
@@ -3363,6 +3375,88 @@ class TestSchedulingSegments(YTEnvSetup):
 
         wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
         wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
+
+    @authors("eshcherbin")
+    def test_persistent_segments_state(self):
+        wait(lambda: exists("//sys/scheduler/segments_state/node_states"))
+        for segment in TestSchedulingSegments.SCHEDULING_SEGMENTS:
+            wait(lambda: len(self._get_nodes_for_segment_in_tree(segment)) == 0)
+
+        blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+
+        wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu")) == 1)
+        wait(lambda: len(self._get_nodes_for_segment_in_tree("default")) == 0)
+
+        node_segment_orchid_path = scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment"
+        large_gpu_segment_nodes = self._get_nodes_for_segment_in_tree("large_gpu")
+        assert len(large_gpu_segment_nodes) == 1
+        for node in ls("//sys/nodes"):
+            expected_segment = "large_gpu" \
+                if node in large_gpu_segment_nodes \
+                else "default"
+            wait(lambda: get(node_segment_orchid_path.format(node), default="") == expected_segment)
+
+    @authors("eshcherbin")
+    def test_persistent_segments_state_revive(self):
+        update_controller_agent_config("snapshot_period", 300)
+
+        wait(lambda: exists("//sys/scheduler/segments_state/node_states"))
+        for segment in TestSchedulingSegments.SCHEDULING_SEGMENTS:
+            wait(lambda: len(self._get_nodes_for_segment_in_tree(segment)) == 0)
+
+        blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+
+        wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu")) == 1)
+        wait(lambda: len(self._get_nodes_for_segment_in_tree("default")) == 0)
+
+        large_gpu_segment_nodes = self._get_nodes_for_segment_in_tree("large_gpu")
+        assert len(large_gpu_segment_nodes) == 1
+        expected_node = large_gpu_segment_nodes[0]
+
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        expected_job = jobs[0]
+
+        op.wait_for_fresh_snapshot()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            set("//sys/scheduler/config/scheduling_segments_initialization_timeout", 30000)
+
+        node_segment_orchid_path = scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment"
+        for node in ls("//sys/nodes"):
+            expected_segment = "large_gpu" \
+                if node == expected_node \
+                else "default"
+            wait(lambda: get(node_segment_orchid_path.format(node), default="") == expected_segment)
+
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        assert jobs[0] == expected_job
+
+    @authors("eshcherbin")
+    def test_node_changes_trees(self):
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        create_pool_tree("other", config={"nodes_filter": "other"})
+
+        op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: len(op.get_running_jobs()) == 1)
+
+        large_nodes = self._get_nodes_for_segment_in_tree("large_gpu", tree="default")
+        assert len(large_nodes) == 1
+        node = large_nodes[0]
+
+        set("//sys/nodes/{}/@user_tags/end".format(node), "other")
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>", tree="other") + "/resource_limits/cpu") > 0)
+
+        wait(lambda: get(scheduler_orchid_node_path(node) + "/scheduling_segment") == "default")
+        wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu", tree="other")) == 0)
+        wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu", tree="default")) == 1)
 
 
 ##################################################################

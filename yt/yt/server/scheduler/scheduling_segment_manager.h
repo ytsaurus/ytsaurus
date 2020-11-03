@@ -13,6 +13,7 @@ using TNodeShardIdToMovedNodes = std::array<TSetNodeSchedulingSegmentOptionsList
 
 struct TManageSchedulingSegmentsContext
 {
+    TInstant Now;
     INodeShardHost* NodeShardHost;
     TTreeIdToSchedulingSegmentsInfo SegmentsInfoPerTree;
     TRefCountedExecNodeDescriptorMapPtr ExecNodeDescriptors;
@@ -28,6 +29,8 @@ using TChangeNodeSegmentPenaltyFunction = std::function<double(const TExecNodeDe
 class TSchedulingSegmentManager
 {
 public:
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, SegmentsInitializationDeadline);
+
     static ESchedulingSegment GetSegmentForOperation(
         ESegmentedSchedulingMode mode,
         const TJobResources& operationMinNeededResources);
@@ -35,6 +38,8 @@ public:
     static EJobResourceType GetSegmentBalancingKeyResource(ESegmentedSchedulingMode mode);
 
     void ManageSegments(TManageSchedulingSegmentsContext* context);
+
+    TPersistentSchedulingSegmentsStatePtr BuildSegmentsState(TManageSchedulingSegmentsContext* context) const;
 
 private:
     struct TTreeSchedulingSegmentsState

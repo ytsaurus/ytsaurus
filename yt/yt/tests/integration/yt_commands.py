@@ -2481,6 +2481,10 @@ def scheduler_orchid_operation_path(op, tree="default"):
     return scheduler_orchid_pool_tree_path(tree) + "/operations/{}".format(op)
 
 
+def scheduler_orchid_node_path(node):
+    return scheduler_orchid_path() + "/scheduler/nodes/{}".format(node)
+
+
 def get_applied_node_dynamic_config(node):
     return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node))
 

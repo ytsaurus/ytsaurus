@@ -12,7 +12,7 @@
 #include "operations_cleaner.h"
 #include "controller_agent_tracker.h"
 #include "scheduling_segment_manager.h"
-#include "persistent_pool_state.h"
+#include "persistent_scheduler_state.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
@@ -1669,9 +1669,9 @@ public:
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
     }
 
-    virtual void StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState) override
+    virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) override
     {
-        MasterConnector_->StoreStrategyStateAsync(std::move(strategyState));
+        MasterConnector_->InvokeStoringStrategyState(std::move(strategyState));
     }
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId)
@@ -2073,9 +2073,17 @@ private:
         {
             YT_LOG_INFO("Connecting node shards");
 
+            auto segmentsInitializationDeadline = TInstant::Now() + Config_->SchedulingSegmentsInitializationTimeout;
+            SchedulingSegmentManager_.SetSegmentsInitializationDeadline(segmentsInitializationDeadline);
+
+            TNodeShardMasterHandshakeResult nodeShardResult{
+                .InitialSchedulingSegmentsState = result.SchedulingSegmentsState,
+                .SchedulingSegmentInitializationDeadline = segmentsInitializationDeadline,
+            };
+
             std::vector<TFuture<IInvokerPtr>> asyncInvokers;
             for (const auto& nodeShard : NodeShards_) {
-                asyncInvokers.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard)
+                asyncInvokers.push_back(BIND(&TNodeShard::OnMasterConnected, nodeShard, nodeShardResult)
                     .AsyncVia(nodeShard->GetInvoker())
                     .Run());
             }
@@ -4062,10 +4070,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (!IsConnected()) {
+            return;
+        }
+
         YT_LOG_DEBUG("Started managing scheduling segments");
 
         TManageSchedulingSegmentsContext context;
-
+        context.Now = TInstant::Now();
         context.NodeShardHost = this;
         context.SegmentsInfoPerTree = Strategy_->GetSchedulingSegmentsInfoPerTree();
         context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
@@ -4080,8 +4092,6 @@ private:
                 context.NodeIdsPerTree[*treeId].emplace_back(nodeId);
             }
         }
-
-        // TODO: Persist nodes' segment info to Cypress.
 
         SchedulingSegmentManager_.ManageSegments(&context);
 
@@ -4106,6 +4116,15 @@ private:
 
             WaitFor(AllSet(futures))
                 .ThrowOnError();
+
+            // We want to update the descriptors after moving nodes between segments to send the most recent state to master.
+            UpdateExecNodeDescriptors();
+            context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
+        }
+
+        if (context.Now > SchedulingSegmentManager_.GetSegmentsInitializationDeadline()) {
+            auto segmentsState = SchedulingSegmentManager_.BuildSegmentsState(&context);
+            MasterConnector_->StoreSchedulingSegmentsStateAsync(std::move(segmentsState));
         }
 
         YT_LOG_DEBUG("Finished managing scheduling segments");
