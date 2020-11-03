@@ -120,6 +120,8 @@ public:
     // Returns false if connection was closed before receiving first byte.
     bool ReceiveHeaders();
 
+    virtual TInstant GetStartTime() const override;
+
     virtual bool IsHttps() const override;
     void SetHttps();
 
@@ -145,6 +147,7 @@ private:
     i64 StartByteCount_ = 0;
     NNet::TConnectionStatistics StartStatistics_;
     TInstant LastProgressLogTime_;
+    TInstant StartTime_;
 
     bool SafeToReuse_ = false;
     bool IsHttps_ = false;
