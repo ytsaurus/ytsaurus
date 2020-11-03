@@ -34,6 +34,15 @@ import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
+/**
+ * Interface of transactional YT client.
+ * <p>
+ *     <b>WARNING</b> Callbacks that <b>can block</b> (e.g. they use {@link CompletableFuture#join})
+ *     <b>MUST NEVER BE USED</b> with non-Async thenApply, whenComplete, etc methods
+ *     called on futures returned by this client.
+ *
+ * @see YtClient
+ */
 public abstract class TransactionalClient {
     public abstract CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?> request);
 

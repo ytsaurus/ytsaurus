@@ -50,6 +50,19 @@ import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 
+/**
+ *  Asynchronous YT client.
+ *  <p>
+ *      <b>WARNING</b> Callbacks that <b>can block</b> (e.g. they use {@link CompletableFuture#join})
+ *      <b>MUST NEVER BE USED</b> with non-Async thenApply, whenComplete, etc methods
+ *      called on futures returned by this client. Otherwise deadlock may appear.
+ *      Always use Async versions of these methods with blocking callbacks.
+ *  <p>
+ *      Explanation. When using non-async thenApply callback is invoked by the thread that sets the future.
+ *      In our case it is internal thread of YtClient.
+ *      When all internal threads of YtClient are blocked by such callbacks
+ *      YtClient becomes unable to send requests and receive responses.
+ */
 public class YtClient extends DestinationsSelector implements AutoCloseable {
     private static final Object KEY = new Object();
 
