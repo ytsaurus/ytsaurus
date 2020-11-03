@@ -976,9 +976,21 @@ private:
         {
             auto specString = attributes.GetYson("spec");
 
+            // COMPAT(levysotsky): Remove after commit with this comment is on all clusters.
+            auto specNode = ConvertTo<IMapNodePtr>(specString);
+            try {
+                if (auto aclNode = specNode->FindChild("acl")) {
+                    ConvertTo<TSerializableAccessControlList>(aclNode);
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Failed to parse operation ACL from spec, removing it (OperationId: %v)",
+                    operationId);
+                specNode->RemoveChild("acl");
+            }
+
             TOperationSpecBasePtr spec;
             try {
-                spec = ConvertTo<TOperationSpecBasePtr>(specString);
+                spec = ConvertTo<TOperationSpecBasePtr>(specNode);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error parsing operation spec")
                     << ex;

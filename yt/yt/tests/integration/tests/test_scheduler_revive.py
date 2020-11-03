@@ -333,6 +333,40 @@ class TestSchedulerRestart(YTEnvSetup):
         release_breakpoint()
         op.track()
 
+    # COMPAT(levysotsky): Remove when commit with this line is on every cluster.
+    @authors("levysotsky")
+    def test_bad_acl_during_revival(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": 0}])
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+        )
+        wait_breakpoint()
+        op.wait_for_fresh_snapshot()
+
+        bad_acl = [
+            {
+                "permission": ["read", "manage"],
+                "subject": ["harold_finch"],
+                "action": "allow",
+            },
+        ]
+
+        acl_path = op.get_path() + "/@spec/acl"
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            set(acl_path, bad_acl)
+
+        release_breakpoint()
+        with pytest.raises(YtError):
+            op.track()
 
 ##################################################################
 
