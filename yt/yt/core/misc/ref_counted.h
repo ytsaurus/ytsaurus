@@ -109,12 +109,6 @@ void Ref(T* obj);
 template <class T>
 void Unref(T* obj);
 
-template <class T>
-void WeakRef(T* obj);
-
-template <class T>
-void WeakUnref(T* obj);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRefCounted
