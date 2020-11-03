@@ -76,7 +76,7 @@ void THeaders::Add(const TString& header, TString value)
     entry.Values.push_back(std::move(value));
 }
 
-void THeaders::Remove(const TString& header)
+void THeaders::Remove(TStringBuf header)
 {
     NameToEntry_.erase(header);
 }
@@ -88,7 +88,7 @@ void THeaders::Set(const TString& header, TString value)
     NameToEntry_[header] = {header, {std::move(value)}};
 }
 
-const TString* THeaders::Find(const TString& header) const
+const TString* THeaders::Find(TStringBuf header) const
 {
     auto it = NameToEntry_.find(header);
     if (it == NameToEntry_.end()) {
@@ -103,7 +103,7 @@ const TString* THeaders::Find(const TString& header) const
     return &it->second.Values[0];
 }
 
-void THeaders::RemoveOrThrow(const TString& header)
+void THeaders::RemoveOrThrow(TStringBuf header)
 {
     auto it = NameToEntry_.find(header);
     if (it == NameToEntry_.end()) {
@@ -112,7 +112,7 @@ void THeaders::RemoveOrThrow(const TString& header)
     NameToEntry_.erase(it);
 }
 
-TString THeaders::GetOrThrow(const TString& header) const
+TString THeaders::GetOrThrow(TStringBuf header) const
 {
     auto value = Find(header);
     if (!value) {
@@ -121,11 +121,9 @@ TString THeaders::GetOrThrow(const TString& header) const
     return *value;
 }
 
-const SmallVector<TString, 1>& THeaders::GetAll(const TString& header) const
+const SmallVector<TString, 1>& THeaders::GetAll(TStringBuf header) const
 {
-    auto lower = to_lower(header);
-
-    auto it = NameToEntry_.find(lower);
+    auto it = NameToEntry_.find(header);
     if (it == NameToEntry_.end()) {
         THROW_ERROR_EXCEPTION("Header %Qv not found", header);
     }
