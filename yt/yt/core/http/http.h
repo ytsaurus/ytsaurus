@@ -175,16 +175,16 @@ class THeaders
 public:
     void Add(const TString& header, TString value);
     void Set(const TString& header, TString value);
-    void Remove(const TString& header);
+    void Remove(TStringBuf header);
 
-    const TString* Find(const TString& header) const;
+    const TString* Find(TStringBuf header) const;
 
-    void RemoveOrThrow(const TString& header);
+    void RemoveOrThrow(TStringBuf header);
 
     //! Returns first header value, if any. Throws otherwise.
-    TString GetOrThrow(const TString& header) const;
+    TString GetOrThrow(TStringBuf header) const;
 
-    const SmallVector<TString, 1>& GetAll(const TString& header) const;
+    const SmallVector<TString, 1>& GetAll(TStringBuf header) const;
 
     void WriteTo(
         IOutputStream* out,
