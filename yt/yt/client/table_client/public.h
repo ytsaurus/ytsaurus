@@ -269,6 +269,7 @@ class TComplexTypeFieldDescriptor;
 
 DECLARE_REFCOUNTED_CLASS(TLogicalType)
 class TSimpleLogicalType;
+class TDecimalLogicalType;
 class TOptionalLogicalType;
 class TListLogicalType;
 class TStructLogicalType;

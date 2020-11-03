@@ -1,6 +1,8 @@
 #include "validate_logical_type.h"
 #include "logical_type.h"
 
+#include <yt/library/decimal/decimal.h>
+
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/yson/pull_parser.h>
@@ -88,6 +90,9 @@ private:
                 return;
             case ELogicalMetatype::Tagged:
                 ValidateTaggedType(type->UncheckedAsTaggedTypeRef(), fieldId);
+                return;
+            case ELogicalMetatype::Decimal:
+                ValidateDecimalType(type->UncheckedAsDecimalTypeRef(), fieldId);
                 return;
         }
         YT_ABORT();
@@ -423,6 +428,22 @@ private:
         ValidateLogicalType(type.GetElement(), fieldId.TaggedElement());
     }
 
+    Y_FORCE_INLINE void ValidateDecimalType(const TDecimalLogicalType& type, const TFieldId& fieldId)
+    {
+        ValidateYsonTokenType(EYsonItemType::StringValue, fieldId);
+        try {
+            NDecimal::TDecimal::ValidateBinaryValue(
+                Cursor_.GetCurrent().UncheckedAsString(),
+                type.GetPrecision(),
+                type.GetScale());
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation, "Error validating field %Qv",
+                GetDescription(fieldId))
+                << ex;
+        }
+        Cursor_.Next();
+    }
+
     TString GetDescription(const TFieldId& fieldId) const
     {
         return fieldId.GetDescriptor(RootDescriptor_).GetDescription();
@@ -494,6 +515,7 @@ private:
                 const auto& type = descriptor.GetType();
                 switch (type->GetMetatype()) {
                     case ELogicalMetatype::Simple:
+                    case ELogicalMetatype::Decimal:
                         return descriptor;
                     case ELogicalMetatype::Optional:
                         descriptor = descriptor.OptionalElement();

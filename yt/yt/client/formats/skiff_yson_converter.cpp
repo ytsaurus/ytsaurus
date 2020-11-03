@@ -1091,6 +1091,9 @@ TYsonToSkiffConverter CreateYsonToSkiffConverterImpl(
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Simple:
             return CreateSimpleYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Decimal:
+            THROW_ERROR_EXCEPTION("Type %v is not supported for skiff yet",
+                *logicalType);
         case ELogicalMetatype::Optional:
             return CreateOptionalYsonToSkiffConverter(std::move(descriptor), skiffSchema, innerContext, config);
         case ELogicalMetatype::List:
@@ -1562,6 +1565,9 @@ TSkiffToYsonConverter CreateSkiffToYsonConverterImpl(
     switch (logicalType->GetMetatype()) {
         case ELogicalMetatype::Simple:
             return CreateSimpleSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
+        case ELogicalMetatype::Decimal:
+            THROW_ERROR_EXCEPTION("Type %v is not supported for skiff yet",
+                *logicalType);
         case ELogicalMetatype::Optional:
             return CreateOptionalSkiffToYsonConverter(std::move(descriptor), skiffSchema, innerContext, config);
         case ELogicalMetatype::List:

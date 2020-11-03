@@ -1,3 +1,5 @@
+#include "logical_type_shortcuts.h"
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/client/table_client/logical_type.h>
@@ -47,6 +49,8 @@ bool IsSchemaViolationError(const std::exception& ex) {
     }
     return errorException->Error().FindMatching(NYT::NTableClient::EErrorCode::SchemaViolation).has_value();
 }
+
+// TODO (ermolovd): we should use functions from NLogicalTypeShortcuts here
 
 TEST(TValidateLogicalTypeTest, TestBasicTypes)
 {
@@ -179,6 +183,7 @@ TEST(TValidateLogicalTypeTest, TestAnyType)
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Any), "[<>1]");
 }
 
+
 TEST(TValidateLogicalTypeTest, TestJsonType)
 {
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "\"foo\"" )");
@@ -203,7 +208,31 @@ TEST(TValidateLogicalTypeTest, TestJsonType)
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "\xFF" )");
 }
 
-TEST(TValidateLogicalTypeTest, TestOptionalComplexType)
+TEST(TValidateLogicalTypeTest, TestDecimalType)
+{
+    using namespace NLogicalTypeShortcuts;
+
+    EXPECT_GOOD_TYPE(Decimal(3, 2), R"("\x80\x00\x01\x3a")"); // 314
+    EXPECT_BAD_TYPE(Decimal(3, 2), R"("\x80\x00\x11\x3a")");
+    EXPECT_BAD_TYPE(Decimal(3, 2), R"("\x80\x11\x3a")");
+    EXPECT_BAD_TYPE(Decimal(3, 2), R"("")");
+    EXPECT_BAD_TYPE(Decimal(3, 2), R"(3.14)");
+    EXPECT_BAD_TYPE(Decimal(3, 2), R"(3)");
+    EXPECT_BAD_TYPE(Decimal(3, 2), R"(#)");
+
+    EXPECT_GOOD_TYPE(Decimal(15, 0), R"("\x80\x03\x8d\x7e\xa4\xc6\x7f\xff")"); // 10 ** 15
+    EXPECT_BAD_TYPE(Decimal(15, 0), R"("\x80\x03\x8d\x7e\xa4\xc6\x80\x00")");
+    EXPECT_BAD_TYPE(Decimal(15, 0), R"("\x80\x00\x01\x3a")");
+    EXPECT_BAD_TYPE(Decimal(15, 0), R"("")");
+
+    EXPECT_GOOD_TYPE(Decimal(35, 0), R"("\x80\x13\x42\x61\x72\xc7\x4d\x82\x2b\x87\x8f\xe7\xff\xff\xff\xff")"); // 10 ** 35
+    EXPECT_BAD_TYPE(Decimal(35, 0), R"("\x80\x13\x42\x61\x72\xc7\x4d\x82\x2b\x87\x8f\xe8\x00\x00\x00\x00")");
+    EXPECT_BAD_TYPE(Decimal(35, 0), R"("\x80\x03\x8d\x7e\xa4\xc6\x7f\xff")");
+    EXPECT_BAD_TYPE(Decimal(35, 0), R"("\x80\x00\x01\x3a")");
+    EXPECT_BAD_TYPE(Decimal(35, 0), R"("")");
+}
+
+TEST(TValidateLogicalTypeTest, TestOptionalCompositeType)
 {
     const auto optionalOptionalInt = OptionalLogicalType(
         OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))

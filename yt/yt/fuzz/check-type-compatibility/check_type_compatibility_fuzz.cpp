@@ -74,6 +74,11 @@ private:
                         GenerateType(complexityLimit));
                 case ELogicalMetatype::Tagged:
                     return TaggedLogicalType(GenerateName(16), GenerateType(complexityLimit));
+                case ELogicalMetatype::Decimal: {
+                    int precision = GenerateByte() % 34 + 1;
+                    int scale = GenerateByte() % (precision + 1);
+                    return DecimalLogicalType(precision, scale);
+                }
             }
         }
     }

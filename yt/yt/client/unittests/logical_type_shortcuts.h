@@ -58,6 +58,11 @@ inline TLogicalTypePtr Optional(const TLogicalTypePtr& element)
     return OptionalLogicalType(element);
 }
 
+inline TLogicalTypePtr Decimal(int precision, int scale)
+{
+    return DecimalLogicalType(precision, scale);
+}
+
 inline TLogicalTypePtr List(const TLogicalTypePtr& element)
 {
     return ListLogicalType(element);

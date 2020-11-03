@@ -44,6 +44,12 @@ message TLogicalType
         optional TLogicalType element = 2;
     }
 
+    message TDecimalLogicalType
+    {
+        optional int32 precision = 1;
+        optional int32 scale = 2;
+    }
+
     oneof type {
         int32 simple = 1;
         TLogicalType optional = 2;
@@ -54,6 +60,7 @@ message TLogicalType
         TVariantStructLogicalType variant_struct = 7;
         TDictLogicalType dict = 8;
         TTaggedLogicalType tagged = 9;
+        TDecimalLogicalType decimal = 10;
     }
 }
 

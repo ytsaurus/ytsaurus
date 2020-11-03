@@ -490,6 +490,9 @@ public:
                 }
                 if (columnSchema->IsOfV1Type()) {
                     return {};
+                } else if (columnSchema->CastToV1Type() != ESimpleLogicalValueType::Any) {
+                    THROW_ERROR_EXCEPTION("Type %v is not supported for skiff yet",
+                        *columnSchema->LogicalType());
                 }
 
                 auto descriptor = TComplexTypeFieldDescriptor(field.Name(), columnSchema->LogicalType());

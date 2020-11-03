@@ -9,8 +9,14 @@ ELogicalMetatype TLogicalType::GetMetatype() const
     return Metatype_;
 }
 
-const TSimpleLogicalType& TLogicalType::UncheckedAsSimpleTypeRef() const {
+const TSimpleLogicalType& TLogicalType::UncheckedAsSimpleTypeRef() const
+{
     return static_cast<const TSimpleLogicalType&>(*this);
+}
+
+const TDecimalLogicalType& TLogicalType::UncheckedAsDecimalTypeRef() const
+{
+    return static_cast<const TDecimalLogicalType&>(*this);
 }
 
 const TOptionalLogicalType& TLogicalType::UncheckedAsOptionalTypeRef() const
@@ -51,6 +57,18 @@ const TDictLogicalType& TLogicalType::UncheckedAsDictTypeRef() const
 const TTaggedLogicalType& TLogicalType::UncheckedAsTaggedTypeRef() const
 {
     return static_cast<const TTaggedLogicalType&>(*this);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+int TDecimalLogicalType::GetPrecision() const
+{
+    return Precision_;
+}
+
+int TDecimalLogicalType::GetScale() const
+{
+    return Scale_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

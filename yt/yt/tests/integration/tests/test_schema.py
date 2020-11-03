@@ -1,12 +1,22 @@
 # -*- coding: utf8 -*-
 
 import collections
+import decimal
 import json
+import random
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from decimal_helpers import decode_decimal, encode_decimal, YtNaN, MAX_DECIMAL_PRECISION
 import pytest
 
+# Run our tests on all decimal precisions might be expensive so we create
+# representative sample of possible precisions.
+INTERESTING_DECIMAL_PRECISION_LIST = [
+    1, 5, 9,  # 4 bytes
+    10, 15, 18,  # 8 bytes
+    19, 25, MAX_DECIMAL_PRECISION,  # 16 bytes
+]
 
 ##################################################################
 
@@ -425,10 +435,148 @@ class TestComplexTypes(YTEnvSetup):
         table2.check_bad_value("1")
         table2.check_bad_value(3.0)
 
+    @authors("ermolovd")
+    def test_decimal(self, optimize_for):
+        assert type_v3_to_type_v1(decimal_type(3, 2)) == TypeV1("string", True)
+
+        table = SingleColumnTable(
+            decimal_type(3, 2),
+            optimize_for)
+        table.check_good_value(encode_decimal("3.12", 3, 2))
+        table.check_good_value(encode_decimal("-2.7", 3, 2))
+        table.check_good_value(encode_decimal("Nan", 3, 2))
+        table.check_good_value(encode_decimal("Inf", 3, 2))
+        table.check_good_value(encode_decimal("-Inf", 3, 2))
+
+        table.check_bad_value(encode_decimal("43.12", 3, 2))
+        table.check_bad_value(3.14)
+
+        table = SingleColumnTable(
+            optional_type(decimal_type(3, 2)),
+            optimize_for)
+        table.check_good_value(encode_decimal("3.12", 3, 2))
+        table.check_good_value(encode_decimal("-2.7", 3, 2))
+        table.check_bad_value(encode_decimal("43.12", 3, 2))
+        table.check_bad_value(3.14)
+        table.check_good_value(None)
+
+        import sys
+        print >>sys.stderr, "DIMAN 1"
+        table = SingleColumnTable(
+            list_type(decimal_type(3, 2)),
+            optimize_for)
+        print >>sys.stderr, "DIMAN 2"
+        table.check_good_value([encode_decimal("3.12", 3, 2)])
+        print >>sys.stderr, "DIMAN 3"
+        table.check_bad_value([encode_decimal("43.12", 3, 2)])
+        print >>sys.stderr, "DIMAN 4"
+        table.check_bad_value([3.12])
+        print >>sys.stderr, "DIMAN 5"
+
 
 @authors("ermolovd")
 class TestComplexTypesMisc(YTEnvSetup):
     NUM_SCHEDULERS = 1
+
+    @authors("ermolovd")
+    @pytest.mark.parametrize("precision", list(range(3, 36)))
+    def test_decimal_various_precision(self, precision):
+        table1 = SingleColumnTable(decimal_type(precision, 2), "lookup")
+        table1.check_good_value(encode_decimal(decimal.Decimal("3.12"), precision, 2))
+        table1.check_good_value(encode_decimal(decimal.Decimal("inf"), precision, 2))
+        table1.check_good_value(encode_decimal(decimal.Decimal("nan"), precision, 2))
+        table1.check_good_value(encode_decimal(decimal.Decimal("-nan"), precision, 2))
+        table1.check_bad_value("")
+        table1.check_bad_value("foo")
+        table1.check_bad_value(None)
+
+    @authors("ermolovd")
+    @pytest.mark.parametrize("type_v3", [
+        decimal_type(MAX_DECIMAL_PRECISION, 2),
+        optional_type(decimal_type(MAX_DECIMAL_PRECISION, 2)),
+        tagged_type("foo", decimal_type(MAX_DECIMAL_PRECISION, 2)),
+        optional_type(tagged_type("foo", decimal_type(MAX_DECIMAL_PRECISION, 2))),
+        tagged_type("bar", optional_type(decimal_type(MAX_DECIMAL_PRECISION, 2))),
+        tagged_type("bar", optional_type(tagged_type("foo", decimal_type(MAX_DECIMAL_PRECISION, 2)))),
+    ])
+    def test_decimal_optional_tagged_combinations(self, type_v3):
+        table1 = SingleColumnTable(type_v3, "lookup")
+        table1.check_good_value(encode_decimal(decimal.Decimal("3.12"), MAX_DECIMAL_PRECISION, 2))
+        table1.check_good_value(encode_decimal(decimal.Decimal("1" * 33), MAX_DECIMAL_PRECISION, 2))
+        table1.check_bad_value(encode_decimal(decimal.Decimal("1" * 34), MAX_DECIMAL_PRECISION, 2))
+
+        table1.check_bad_value(5)
+        table1.check_bad_value("foo")
+        table1.check_bad_value(5.5)
+
+    @authors("ermolovd")
+    def test_decimal_sort(self):
+        create_table(
+            "//tmp/table",
+            schema=make_schema([{"name": "key", "type_v3": decimal_type(3, 2)}])
+        )
+
+        data = [
+            decimal.Decimal("Infinity"),
+            decimal.Decimal("-Infinity"),
+            decimal.Decimal("Nan"),
+            decimal.Decimal("2.71"),
+            decimal.Decimal("3.14"),
+            decimal.Decimal("-6.62"),
+            decimal.Decimal("0"),
+        ]
+
+        write_table("//tmp/table", [{"key": encode_decimal(d, 3, 2)} for d in data])
+        sort(in_="//tmp/table", out="//tmp/table", sort_by=["key"])
+
+        actual = [decode_decimal(row["key"], 3, 2) for row in read_table("//tmp/table")]
+
+        assert [
+            decimal.Decimal("-Infinity"),
+            decimal.Decimal("-6.62"),
+            decimal.Decimal("0"),
+            decimal.Decimal("2.71"),
+            decimal.Decimal("3.14"),
+            decimal.Decimal("Infinity"),
+            YtNaN,
+        ] == actual
+
+    @pytest.mark.timeout(60)
+    @pytest.mark.parametrize("precision", [p for p in INTERESTING_DECIMAL_PRECISION_LIST])
+    @authors("ermolovd")
+    def test_decimal_sort_random(self, precision):
+        scale = precision / 2
+        digits = "0123456789"
+        rnd = random.Random()
+        rnd.seed(42)
+
+        def generate_random_decimal():
+            decimal_text = (
+                "".join(rnd.choice(digits) for _ in xrange(precision - scale))
+                + "." + "".join(rnd.choice(digits) for _ in xrange(scale))
+            )
+            return decimal.Decimal(decimal_text)
+
+        data = [generate_random_decimal() for _ in xrange(1000)]
+
+        for d in data:
+            assert d == decode_decimal(encode_decimal(d, precision, scale), precision, scale)
+
+        create_table(
+            "//tmp/table",
+            schema=make_schema([{"name": "key", "type_v3": decimal_type(precision, scale)}])
+        )
+
+        write_table("//tmp/table", [{"key": encode_decimal(d, precision, scale)} for d in data])
+        sort(in_="//tmp/table", out="//tmp/table", sort_by=["key"])
+
+        actual = [decode_decimal(row["key"], precision, scale) for row in read_table("//tmp/table")]
+        expected = list(sorted(data))
+
+        if actual != expected:
+            assert len(actual) == len(expected)
+            for i in xrange(len(actual)):
+                assert actual[i] == expected[i], "Mismatch on position {}; {} != {} ".format(i, actual[i], expected[i])
 
     @authors("ermolovd")
     def test_set_old_schema(self):
