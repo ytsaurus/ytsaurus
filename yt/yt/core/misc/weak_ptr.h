@@ -29,61 +29,49 @@ public:
     explicit TWeakPtr(T* p) noexcept
         : T_(p)
     {
+        
+#if defined(_tsan_enabled_)
         if (T_) {
-            WeakRef(T_);
+            RefCounter_ = GetRefCounter(T_);
         }
+#endif
+        AcquireRef();
     }
 
     //! Constructor from a strong reference.
     TWeakPtr(const TIntrusivePtr<T>& ptr) noexcept
-        : T_(ptr.Get())
-    {
-        if (T_) {
-            WeakRef(T_);
-        }
-    }
+        : TWeakPtr(ptr.Get())
+    { }
 
     //! Constructor from a strong reference with an upcast.
     template <class U, class = typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType>
     TWeakPtr(const TIntrusivePtr<U>& ptr) noexcept
-        : T_(ptr.Get())
+        : TWeakPtr(ptr.Get())
     {
         static_assert(
             std::is_base_of_v<TRefCountedBase, T>,
             "Cast allowed only for types derived from TRefCountedBase");
-        if (T_) {
-            WeakRef(T_);
-        }
     }
 
     //! Copy constructor.
     TWeakPtr(const TWeakPtr& other) noexcept
-        : T_(other.T_)
-    {
-        if (T_) {
-            WeakRef(T_);
-        }
-    }
+        : TWeakPtr(other.T_)
+    { }
 
     //! Copy constructor with an upcast.
     template <class U, class = typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType>
     TWeakPtr(const TWeakPtr<U>& other) noexcept
+        : TWeakPtr(other.Lock())
     {
         static_assert(
             std::is_base_of_v<TRefCountedBase, T>,
             "Cast allowed only for types derived from TRefCountedBase");
-        TIntrusivePtr<U> strongOther = other.Lock();
-        if (strongOther) {
-            T_ = strongOther.Get();
-            WeakRef(T_);
-        }
     }
 
     //! Move constructor.
     TWeakPtr(TWeakPtr&& other) noexcept
-        : T_(other.T_)
     {
-        other.T_ = nullptr;
+        other.Swap(*this);
     }
 
     //! Move constructor with an upcast.
@@ -96,18 +84,19 @@ public:
         TIntrusivePtr<U> strongOther = other.Lock();
         if (strongOther) {
             T_ = other.T_;
-
             other.T_ = nullptr;
+
+#if defined(_tsan_enabled_)
+            RefCounter_ = other.RefCounter_;
+            other.RefCounter_ = nullptr;
+#endif
         }
     }
 
     //! Destructor.
     ~TWeakPtr()
     {
-        if (T_) {
-            // Support incomplete type.
-            WeakUnref(T_);
-        }
+        ReleaseRef();
     }
 
     //! Assignment operator from a strong reference.
@@ -142,7 +131,7 @@ public:
     //! Move assignment operator.
     TWeakPtr& operator=(TWeakPtr&& other) noexcept
     {
-        TWeakPtr(std::move(other)).Swap(*this);
+        other.Swap(*this);
         return *this;
     }
 
@@ -179,32 +168,65 @@ public:
         TWeakPtr(ptr).Swap(*this);
     }
 
-    //! Acquire a strong reference to the pointee and return a strong pointer.
-    TIntrusivePtr<T> Lock() const noexcept
-    {
-        return T_ && T_->TryRef()
-            ? TIntrusivePtr<T>(T_, false)
-            : TIntrusivePtr<T>();
-    }
-
     //! Swap the pointer with the other one.
     void Swap(TWeakPtr& other) noexcept
     {
         DoSwap(T_, other.T_);
+#if defined(_tsan_enabled_)
+        DoSwap(RefCounter_, other.RefCounter_);
+#endif
+    }
+
+    //! Acquire a strong reference to the pointee and return a strong pointer.
+    TIntrusivePtr<T> Lock() const noexcept
+    {
+        return T_ && RefCounter()->TryRef()
+            ? TIntrusivePtr<T>(T_, false)
+            : TIntrusivePtr<T>();
     }
 
     bool IsExpired() const noexcept
     {
-        return !T_ || (T_->GetRefCount() == 0);
+        return !T_ || (RefCounter()->GetRefCount() == 0);
     }
 
 private:
+    void AcquireRef()
+    {
+        if (T_) {
+            RefCounter()->WeakRef();
+        } 
+    }
+
+    void ReleaseRef()
+    {
+        if (T_) {
+            // Support incomplete type.
+            if (RefCounter()->WeakUnref()) {
+                DeallocateRefCounted(T_);
+            }
+        }
+    }
+
     template <class U>
     friend class TWeakPtr;
     template <class U>
     friend struct ::THash;
 
     T* T_ = nullptr;
+#if defined(_tsan_enabled_)
+    const TRefCounter* RefCounter_ = nullptr;
+
+    const TRefCounter* RefCounter() const
+    {
+        return RefCounter_;
+    }
+#else
+    const TRefCounter* RefCounter() const
+    {
+        return GetRefCounter(T_);
+    }
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////

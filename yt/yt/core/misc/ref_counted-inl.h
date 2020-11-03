@@ -229,20 +229,6 @@ Y_FORCE_INLINE void Unref(T* obj)
     }
 }
 
-template <class T>
-Y_FORCE_INLINE void WeakRef(T* obj)
-{
-    GetRefCounter(obj)->WeakRef();
-}
-
-template <class T>
-Y_FORCE_INLINE void WeakUnref(T* obj)
-{
-    if (GetRefCounter(obj)->WeakUnref()) {
-        DeallocateRefCounted(obj);
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE void TRefCounted::Unref() const
@@ -252,8 +238,11 @@ Y_FORCE_INLINE void TRefCounted::Unref() const
 
 Y_FORCE_INLINE void TRefCounted::WeakUnref() const
 {
-    ::NYT::WeakUnref(this);
+    if (TRefCounter::WeakUnref()) {
+        DeallocateRefCounted(this);
+    }
 }
+
 
 template <class T>
 void TRefCounted::DestroyRefCountedImpl(T* ptr)
