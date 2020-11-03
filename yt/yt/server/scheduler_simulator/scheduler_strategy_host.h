@@ -7,7 +7,7 @@
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/exec_node.h>
 #include <yt/server/scheduler/operation.h>
-#include <yt/server/scheduler/persistent_pool_state.h>
+#include <yt/server/scheduler/persistent_scheduler_state.h>
 #include <yt/server/scheduler/scheduler_strategy.h>
 
 #include <yt/server/lib/scheduler/event_log.h>
@@ -96,7 +96,7 @@ public:
 
     virtual int GetDefaultAbcId() const override;
 
-    virtual void StoreStrategyStateAsync(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
+    virtual void InvokeStoringStrategyState(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
 
     void CloseEventLogger();
 

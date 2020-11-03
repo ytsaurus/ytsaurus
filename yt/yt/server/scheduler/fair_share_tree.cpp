@@ -1,6 +1,6 @@
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
-#include "persistent_pool_state.h"
+#include "persistent_scheduler_state.h"
 #include "public.h"
 #include "pools_config_parser.h"
 #include "resource_tree.h"

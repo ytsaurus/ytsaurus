@@ -624,6 +624,9 @@ TSchedulerConfig::TSchedulerConfig()
     RegisterParameter("scheduling_segments_manage_period", SchedulingSegmentsManagePeriod)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("scheduling_segments_initialization_timeout", SchedulingSegmentsInitializationTimeout)
+        .Default(TDuration::Minutes(5));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

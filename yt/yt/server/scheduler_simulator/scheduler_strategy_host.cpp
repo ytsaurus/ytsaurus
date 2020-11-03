@@ -238,7 +238,7 @@ int TSchedulerStrategyHost::GetDefaultAbcId() const
     return -1;
 }
 
-void TSchedulerStrategyHost::StoreStrategyStateAsync(TPersistentStrategyStatePtr /* persistentStrategyState */)
+void TSchedulerStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */)
 { }
 
 void TSchedulerStrategyHost::CloseEventLogger() {

@@ -656,6 +656,7 @@ public:
     TResourceMeteringConfigPtr ResourceMetering;
 
     TDuration SchedulingSegmentsManagePeriod;
+    TDuration SchedulingSegmentsInitializationTimeout;
 
     TSchedulerConfig();
 };

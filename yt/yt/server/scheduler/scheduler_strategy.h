@@ -80,7 +80,7 @@ struct ISchedulerStrategyHost
         TInstant now) = 0;
     virtual int GetDefaultAbcId() const = 0;
 
-    virtual void StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState) = 0;
+    virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

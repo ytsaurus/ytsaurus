@@ -5,6 +5,7 @@
 #include "controller_agent.h"
 #include "bootstrap.h"
 #include "helpers.h"
+#include "persistent_scheduler_state.h"
 
 #include <yt/server/lib/exec_agent/public.h>
 
@@ -181,7 +182,7 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
     CachedResourceStatisticsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
 }
 
-IInvokerPtr TNodeShard::OnMasterConnected()
+IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResult& result)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -196,6 +197,9 @@ IInvokerPtr TNodeShard::OnMasterConnected()
 
     CachedExecNodeDescriptorsRefresher_->Start();
     SubmitJobsToStrategyExecutor_->Start();
+
+    InitialSchedulingSegmentsState_ = result.InitialSchedulingSegmentsState;
+    SchedulingSegmentInitializationDeadline_ = result.SchedulingSegmentInitializationDeadline;
 
     return CancelableInvoker_;
 }
@@ -259,6 +263,9 @@ void TNodeShard::DoCleanup()
     OperationIdToJobIterators_.clear();
 
     SubmitJobsToStrategy();
+
+    InitialSchedulingSegmentsState_.Reset();
+    SchedulingSegmentInitializationDeadline_ = TInstant::Zero();
 }
 
 void TNodeShard::RegisterOperation(
@@ -1473,6 +1480,19 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
     auto node = New<TExecNode>(nodeId, descriptor, state);
     const auto& address = node->GetDefaultAddress();
 
+    auto now = TInstant::Now();
+    if (InitialSchedulingSegmentsState_) {
+        if (now < SchedulingSegmentInitializationDeadline_) {
+            auto it = InitialSchedulingSegmentsState_->NodeStates.find(nodeId);
+            if (it != InitialSchedulingSegmentsState_->NodeStates.end()) {
+                node->SetSchedulingSegment(it->second.Segment);
+                InitialSchedulingSegmentsState_->NodeStates.erase(it);
+            }
+        } else {
+            InitialSchedulingSegmentsState_.Reset();
+        }
+    }
+
     {
         auto lease = TLeaseManager::CreateLease(
             Config_->NodeRegistrationTimeout,
@@ -1490,7 +1510,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
 
     YT_VERIFY(IdToNode_.insert(std::make_pair(node->GetId(), node)).second);
 
-    node->SetLastSeenTime(TInstant::Now());
+    node->SetLastSeenTime(now);
 
     YT_LOG_INFO("Node registered (Address: %v)", address);
 
@@ -1567,6 +1587,15 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reaso
             TError("All jobs on the node were aborted by scheduler")
             << TErrorAttribute("abort_reason", reason));
         OnJobAborted(job, &status, /* byScheduler */ true);
+    }
+
+    if (reason == EAbortReason::NodeFairShareTreeChanged) {
+        YT_LOG_DEBUG_IF(node->GetSchedulingSegment() != ESchedulingSegment::Default,
+            "Moving node to the default segment because its fair share tree changed (Address: %v, OldSegment: %v)",
+            node->GetDefaultAddress(),
+            node->GetSchedulingSegment());
+
+        node->SetSchedulingSegment(ESchedulingSegment::Default);
     }
 }
 

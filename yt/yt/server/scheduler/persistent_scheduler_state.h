@@ -11,7 +11,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPersistentPoolState
-    : public NYTree::TYsonSerializable  // TODO(renadeen): try make it lite
+    : public NYTree::TYsonSerializable  // TODO(renadeen): Try to make it lite.
 {
 public:
     TJobResources AccumulatedResourceVolume;
@@ -49,6 +49,33 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TPersistentStrategyState)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPersistentNodeSchedulingSegmentState
+{
+    ESchedulingSegment Segment;
+
+    // NB: Used only for diagnostics.
+    TString Address;
+    TString Tree;
+};
+
+void Serialize(const TPersistentNodeSchedulingSegmentState& state, NYson::IYsonConsumer* consumer);
+void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPersistentSchedulingSegmentsState
+    : public NYTree::TYsonSerializable
+{
+public:
+    THashMap<NNodeTrackerClient::TNodeId, TPersistentNodeSchedulingSegmentState> NodeStates;
+
+    TPersistentSchedulingSegmentsState();
+};
+
+DEFINE_REFCOUNTED_TYPE(TPersistentSchedulingSegmentsState)
 
 ////////////////////////////////////////////////////////////////////////////////
 

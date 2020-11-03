@@ -194,7 +194,7 @@ struct TSchedulerStrategyHostMock
         return MediumDirectory_;
     }
 
-    virtual void StoreStrategyStateAsync(TPersistentStrategyStatePtr /* persistentStrategyState */) override
+    virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr /* persistentStrategyState */) override
     { }
 
     TJobResourcesWithQuotaList NodeResourceLimitsList;
