@@ -366,12 +366,12 @@ bool THttpInput::ReceiveHeaders()
     }
 
     bool idleConnection = MessageType_ == EMessageType::Request;
-    auto start = TInstant::Now();
+    StartTime_ = TInstant::Now();
 
     if (idleConnection) {
-        Connection_->SetReadDeadline(start + Config_->ConnectionIdleTimeout);
+        Connection_->SetReadDeadline(StartTime_ + Config_->ConnectionIdleTimeout);
     } else {
-        Connection_->SetReadDeadline(start + Config_->HeaderReadTimeout);
+        Connection_->SetReadDeadline(StartTime_ + Config_->HeaderReadTimeout);
     }
 
     while (true) {
@@ -402,7 +402,7 @@ bool THttpInput::ReceiveHeaders()
 
         if (idleConnection) {
             idleConnection = false;
-            Connection_->SetReadDeadline(start + Config_->HeaderReadTimeout);
+            Connection_->SetReadDeadline(StartTime_ + Config_->HeaderReadTimeout);
         }
     }
 }
@@ -432,6 +432,11 @@ TFuture<TSharedRef> THttpInput::Read()
 i64 THttpInput::GetReadByteCount() const
 {
     return Connection_->GetReadByteCount() - StartByteCount_;
+}
+
+TInstant THttpInput::GetStartTime() const
+{
+    return StartTime_;
 }
 
 bool THttpInput::IsHttps() const
