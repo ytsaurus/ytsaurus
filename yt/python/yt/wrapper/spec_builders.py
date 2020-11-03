@@ -497,7 +497,13 @@ class UserJobSpecBuilder(object):
         return spec, tmpfs_size
 
     def _prepare_memory_limit(self, spec, client=None):
-        memory_limit = get_value(spec.get("memory_limit"), get_config(client)["memory_limit"])
+        memory_limit = get_value(
+            spec.get("memory_limit"),
+            get_value(
+                get_config(client)["memory_limit"],
+                get_config(client)["user_job_spec_defaults"].get("memory_limit")
+            )
+        )
         if memory_limit is not None:
             memory_limit = int(memory_limit)
         if memory_limit is None and get_config(client)["yamr_mode"]["use_yamr_defaults"]:
