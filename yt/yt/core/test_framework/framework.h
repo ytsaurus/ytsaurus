@@ -34,6 +34,16 @@ TString GenerateRandomFileName(const char* prefix);
 #define EXPECT_THROW_WITH_SUBSTRING(expr, exceptionSubstring) \
     EXPECT_THROW_THAT(expr, testing::HasSubstr(exceptionSubstring))
 
+#define EXPECT_THROW_WITH_ERROR_CODE(expr, code) \
+    do { \
+        try { \
+            expr; \
+            ADD_FAILURE() << "Expected exception to be thrown"; \
+        } catch (const TErrorException& ex) { \
+            EXPECT_TRUE(ex.Error().FindMatching(code).has_value()); \
+        } \
+    } while (0)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void WaitForPredicate(

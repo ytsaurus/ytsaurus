@@ -1,0 +1,17 @@
+#pragma once
+
+#include <yt/core/misc/public.h>
+
+namespace NYT::NServiceDiscovery {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EErrorCode,
+    ((EndpointSetDoesNotExist) (20000))
+);
+
+DECLARE_REFCOUNTED_STRUCT(IServiceDiscovery)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NServiceDiscovery
