@@ -955,10 +955,9 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_get_with_attributes_virtual_maps(self):
         tx = start_transaction()
-        assert get("//sys/transactions", attributes=["type"]) == to_yson_type(
-            {tx: to_yson_type(None, attributes={"type": "transaction"})},
-            attributes={"type": "transaction_map"},
-        )
+        txs = get("//sys/transactions", attributes=["type"])
+        assert txs.attributes["type"] == "transaction_map"
+        assert txs[tx] == to_yson_type(None, attributes={"type": "transaction"})
 
     @authors("babenko")
     def test_move_virtual_maps1(self):
@@ -973,7 +972,8 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_list_with_attributes_virtual_maps(self):
         tx = start_transaction()
-        assert ls("//sys/transactions", attributes=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
+        txs = ls("//sys/transactions", attributes=["type"])
+        assert to_yson_type(tx, attributes={"type": "transaction"}) in txs
 
     @authors("aleksandra-zh")
     def test_map_node_branch(self):
