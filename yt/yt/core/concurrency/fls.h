@@ -35,7 +35,7 @@ private:
     void FsdResize();
 };
 
-void SetCurrentFsdHolder(TFsdHolder* currentFsd);
+TFsdHolder* SetCurrentFsdHolder(TFsdHolder* currentFsd);
 
 } // namespace NDetail
 

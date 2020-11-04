@@ -2,6 +2,8 @@
 
 #include <yt/core/actions/cancelable_context.h>
 #include <yt/core/actions/invoker_util.h>
+// TODO(lukyan): Move invoker_detail to concurrency? Merge concurrency and actions?
+#include <yt/core/actions/invoker_detail.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/action_queue.h>
@@ -753,6 +755,102 @@ TEST_W(TSchedulerTest, CancelDelayedFuture)
     EXPECT_EQ(1, error.InnerErrors().size());
     EXPECT_EQ(NYT::EErrorCode::Generic, error.InnerErrors()[0].GetCode());
 }
+
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+
+using NYTAlloc::TMemoryTag;
+using NYTAlloc::SetCurrentMemoryTag;
+using NYTAlloc::GetCurrentMemoryTag;
+
+class TVerifyingMemoryTagGuard
+{
+public:
+    explicit TVerifyingMemoryTagGuard(TMemoryTag tag)
+        : Tag_(tag)
+        , SavedTag_(GetCurrentMemoryTag())
+    {
+        SetCurrentMemoryTag(Tag_);
+    }
+
+    ~TVerifyingMemoryTagGuard()
+    {
+        auto tag = GetCurrentMemoryTag();
+        EXPECT_EQ(tag, Tag_);
+        SetCurrentMemoryTag(SavedTag_);
+    }
+
+    TVerifyingMemoryTagGuard(const TVerifyingMemoryTagGuard& other) = delete;
+    TVerifyingMemoryTagGuard(TVerifyingMemoryTagGuard&& other) = delete;
+
+private:
+    const TMemoryTag Tag_;
+    const TMemoryTag SavedTag_;
+};
+
+class TWrappingInvoker
+    : public TInvokerWrapper
+{
+public:
+    explicit TWrappingInvoker(IInvokerPtr underlyingInvoker)
+        : TInvokerWrapper(std::move(underlyingInvoker))
+    { }
+
+    void Invoke(TClosure callback) override
+    {
+        UnderlyingInvoker_->Invoke(BIND(
+            &TWrappingInvoker::RunCallback,
+            MakeStrong(this),
+            Passed(std::move(callback))));
+    }
+
+    void RunCallback(TClosure callback)
+    {
+        TCurrentInvokerGuard currentInvokerGuard(this);
+        DoRunCallback(callback);
+    }
+
+    void virtual DoRunCallback(TClosure callback) = 0;
+};
+
+class TVerifyingMemoryTaggingInvoker
+    : public TWrappingInvoker
+{
+public:
+    TVerifyingMemoryTaggingInvoker(IInvokerPtr invoker, TMemoryTag memoryTag)
+        : TWrappingInvoker(std::move(invoker))
+        , MemoryTag_(memoryTag)
+    { }
+
+private:
+    const TMemoryTag MemoryTag_;
+
+    void DoRunCallback(TClosure callback) override
+    {
+        TVerifyingMemoryTagGuard memoryTagGuard(MemoryTag_);
+        callback.Run();
+    }
+};
+
+TEST_W(TSchedulerTest, MemoryTagAndResumer)
+{
+    auto actionQueue = New<TActionQueue>();
+
+    auto invoker1 = New<TVerifyingMemoryTaggingInvoker>(actionQueue->GetInvoker(), 1);
+    auto invoker2 = New<TVerifyingMemoryTaggingInvoker>(actionQueue->GetInvoker(), 2);
+
+    auto asyncResult = BIND([=] {
+        EXPECT_EQ(NYTAlloc::GetCurrentMemoryTag(), 1);
+        SwitchTo(invoker2);
+        EXPECT_EQ(NYTAlloc::GetCurrentMemoryTag(), 1);
+    })
+        .AsyncVia(invoker1)
+        .Run();
+
+    WaitFor(asyncResult)
+        .ThrowOnError();
+}
+
+#endif
 
 void CheckTraceContextTime(const NTracing::TTraceContextPtr& traceContext, TDuration lo, TDuration hi)
 {

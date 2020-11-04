@@ -257,44 +257,40 @@ thread_local TTraceContext* CurrentTraceContext;
 thread_local TCpuInstant TraceContextTimingCheckpoint;
 static thread_local TCurrentTraceContextReclaimer CurrentTraceContextReclaimer;
 
-TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext)
+TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext, NProfiling::TCpuInstant now)
 {
     auto oldContext = TTraceContextPtr(CurrentTraceContext, false);
-    auto now = GetCpuInstant();
+
+    // Invalid if no oldContext
     auto delta = now - TraceContextTimingCheckpoint;
-    YT_LOG_TRACE("Switching context (OldContext: %v, NewContext: %v, CpuTimeDelta: %v)",
-        oldContext,
-        newContext,
-        NProfiling::CpuDurationToDuration(delta));
-    CurrentTraceContext = newContext.Release();
-    TraceContextTimingCheckpoint = now;
+
+    if (oldContext && newContext) {
+        YT_LOG_TRACE("Switching context (OldContext: %v, NewContext: %v, CpuTimeDelta: %v)",
+            oldContext,
+            newContext,
+            NProfiling::CpuDurationToDuration(delta));
+    } else if (oldContext) {
+        YT_LOG_TRACE("Uninstalling context (Context: %v, CpuTimeDelta: %v)",
+            oldContext,
+            NProfiling::CpuDurationToDuration(delta));
+    } else if (newContext) {
+        YT_LOG_TRACE("Installing context (Context: %v)",
+            newContext);
+    }
+
     if (oldContext) {
         oldContext->IncrementElapsedCpuTime(delta);
     }
+
+    CurrentTraceContext = newContext.Release();
+    TraceContextTimingCheckpoint = now;
+
     return oldContext;
 }
 
-void InstallTraceContext(NProfiling::TCpuInstant now, TTraceContextPtr context)
+TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext)
 {
-    YT_LOG_TRACE("Installing context (Context: %v)",
-        context);
-    YT_ASSERT(!CurrentTraceContext);
-    CurrentTraceContext = context.Release();
-    TraceContextTimingCheckpoint = now;
-}
-
-TTraceContextPtr UninstallTraceContext(NProfiling::TCpuInstant now)
-{
-    auto context = TTraceContextPtr(CurrentTraceContext, false);
-    auto delta = now - TraceContextTimingCheckpoint;
-    YT_LOG_TRACE("Uninstalling context (Context: %v, CpuTimeDelta: %v)",
-        context,
-        NProfiling::CpuDurationToDuration(delta));
-    CurrentTraceContext = nullptr;
-    if (context) {
-        context->IncrementElapsedCpuTime(delta);
-    }
-    return context;
+    return SwitchTraceContext(newContext, GetCpuInstant());
 }
 
 void FlushCurrentTraceContextTime()

@@ -82,9 +82,11 @@ TFsdHolder::~TFsdHolder()
 static thread_local TFsdHolder TsdHolder;
 thread_local TFsdHolder* CurrentFsdHolder = &TsdHolder;
 
-void SetCurrentFsdHolder(TFsdHolder* currentFsd)
+TFsdHolder* SetCurrentFsdHolder(TFsdHolder* newFsd)
 {
-    CurrentFsdHolder = currentFsd ? currentFsd : &TsdHolder;
+    auto currentFsd = CurrentFsdHolder;
+    CurrentFsdHolder = newFsd ? newFsd : &TsdHolder;
+    return currentFsd != &TsdHolder ? currentFsd : nullptr;
 }
 
 uintptr_t& FlsAt(int index)

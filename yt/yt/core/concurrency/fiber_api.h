@@ -53,10 +53,6 @@ public:
 void PushContextHandler(std::function<void()> out, std::function<void()> in);
 void PopContextHandler();
 
-//! Returns the duration the fiber is running.
-//! This counts CPU wall time but excludes periods the fiber was sleeping.
-NProfiling::TCpuDuration GetCurrentFiberRunCpuTime();
-
 //! Returns |true| if there is enough remaining stack space.
 bool CheckFreeStackSpace(size_t space);
 
