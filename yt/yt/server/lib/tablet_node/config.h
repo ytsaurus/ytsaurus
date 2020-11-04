@@ -712,6 +712,9 @@ public:
     //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
     double ForcedRotationMemoryRatio;
 
+    // TODO(babenko): either drop or make always false.
+    bool EnableForcedRotationBackingMemoryAccounting;
+
     //! Limits resources consumed by tablets.
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -781,6 +784,8 @@ public:
             .InRange(0.0, 1.0)
             .Default(0.8)
             .Alias("forced_rotations_memory_ratio");
+        RegisterParameter("enable_forced_rotation_backing_memory_accounting", EnableForcedRotationBackingMemoryAccounting)
+            .Default(true);
 
         RegisterParameter("resource_limits", ResourceLimits)
             .DefaultNew();

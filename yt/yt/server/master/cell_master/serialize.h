@@ -143,6 +143,7 @@ DEFINE_ENUM(EMasterReign,
     ((OptionalDedicatedUploadTxObjectTypes)                         (1416))  // shakurov
     ((YT_13127_CompositeNodeExpiration)                             (1417))  // shakurov
     ((CombineStateHash)                                             (1418))  // aleksandra-zh
+    ((EnableForcedRotationBackingMemoryAccounting)                  (1419))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
