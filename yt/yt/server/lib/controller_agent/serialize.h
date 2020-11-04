@@ -56,6 +56,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobSplitterInTask)                    (300423))
     ((BarrierlessSort)                      (300424))
     ((NewPartitionCountHeuristic)           (300425))
+    ((RemovePartitionedTables)              (300426))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

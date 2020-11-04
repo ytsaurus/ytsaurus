@@ -38,12 +38,6 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
         : CellTagFromId(ObjectId);
     ChunkCount = attributes->Get<i64>("chunk_count", 0);
     Schema = attributes->Get<TTableSchemaPtr>("schema");
-    IsPartitioned = (Type == EObjectType::PartitionedTable) ||
-        attributes->Get<bool>("assume_partitioned_table", false);
-
-    if (IsPartitioned && !Schema) {
-        THROW_ERROR_EXCEPTION("Partitioned table should have attribute 'schema'");
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,9 +73,8 @@ std::vector<TTablePtr> FetchTables(
         try {
             const auto& attributes = attributesOrError.ValueOrThrow();
             auto type = attributes->Get<EObjectType>("type", EObjectType::Null);
-            bool assumePartitionedTable = attributes->Get<bool>("assume_partitioned_table", false);
-            static THashSet<EObjectType> allowedTypes = {EObjectType::Table, EObjectType::PartitionedTable};
-            if (!allowedTypes.contains(type) && !assumePartitionedTable) {
+            static THashSet<EObjectType> allowedTypes = {EObjectType::Table};
+            if (!allowedTypes.contains(type)) {
                 THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a table; expected one of types %Qlv, actual type %Qlv",
                     path,
                     allowedTypes,
@@ -105,7 +98,7 @@ std::vector<TTablePtr> FetchTables(
                     "Dynamic store read for table %Qv is disabled; in order to read dynamic stores, "
                     "set attribute \"enable_dynamic_store_read\" to true and remount table; "
                     "if you indeed want to read only static part of dynamic table, "
-                    "pass setting chyt.dynamic_table.enable_dynamic_store_read = 0", 
+                    "pass setting chyt.dynamic_table.enable_dynamic_store_read = 0",
                     path.GetPath());
             }
 

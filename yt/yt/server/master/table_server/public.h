@@ -18,7 +18,6 @@ using TTableSchemaRegistryPtr = TInternRegistryPtr<NTableClient::TTableSchema>;
 
 class TTableNode;
 class TReplicatedTableNode;
-class TPartitionedTableNode;
 
 template <class TImpl>
 class TTableNodeTypeHandlerBase;

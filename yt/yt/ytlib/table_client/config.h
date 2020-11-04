@@ -71,23 +71,4 @@ DEFINE_REFCOUNTED_TYPE(TTableReaderOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Partitioned table partition config.
-class TPartitionConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    NYPath::TYPath Path;
-    NTableClient::TLegacyOwningKey Key;
-
-    TPartitionConfig()
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("key", Key);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPartitionConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NTableClient

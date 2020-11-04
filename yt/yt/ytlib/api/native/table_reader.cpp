@@ -185,7 +185,7 @@ private:
         tableReaderOptions->EnableTabletIndex = Options_.EnableTabletIndex;
 
         auto readSessionId = TReadSessionId::Create();
-        auto fetchTableReadMetaOptions = TFetchSingleTableReadSpecOptions{
+        auto fetchTableReadSpecOptions = TFetchSingleTableReadSpecOptions{
             .RichPath = RichPath_,
             .Client = Client_,
             .TransactionId = Options_.TransactionId,
@@ -198,9 +198,6 @@ private:
             .FetchChunkSpecConfig = Config_,
             .FetchParityReplicas = tableReaderConfig->EnableAutoRepair,
             .UnavailableChunkStrategy = tableReaderConfig->UnavailableChunkStrategy,
-            .NameTable = NameTable_,
-            .ColumnFilter = ColumnFilter_,
-            .PartitionedTableHarvesterConfig = tableReaderConfig,
         };
 
         TClientBlockReadOptions blockReadOptions;
@@ -209,7 +206,7 @@ private:
         blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         blockReadOptions.ReadSessionId = readSessionId;
 
-        auto tableReadSpec = FetchSingleTableReadSpec(fetchTableReadMetaOptions);
+        auto tableReadSpec = FetchSingleTableReadSpec(fetchTableReadSpecOptions);
         YT_VERIFY(tableReadSpec.DataSourceDirectory->DataSources().size() == 1);
         const auto& dataSource = tableReadSpec.DataSourceDirectory->DataSources().front();
         TableSchema_ = dataSource.Schema();

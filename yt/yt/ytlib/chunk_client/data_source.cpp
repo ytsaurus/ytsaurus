@@ -195,29 +195,6 @@ TDataSource MakeUnversionedDataSource(
         columnRenameDescriptors);
 }
 
-TDataSource MakePartitionedTableDataSource(
-    const std::optional<NYPath::TYPath>& path,
-    NTableClient::TTableSchemaPtr schema,
-    int virtualKeyPrefixLength,
-    const std::optional<std::vector<TString>>& columns,
-    const std::vector<TString>& omittedInaccessibleColumns,
-    const NTableClient::TVirtualValueDirectoryPtr& virtualValueDirectory,
-    const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors)
-{
-    TDataSource dataSource(
-        EDataSourceType::UnversionedTable,
-        path,
-        schema,
-        virtualKeyPrefixLength,
-        columns,
-        omittedInaccessibleColumns,
-        NullTimestamp,
-        NullTimestamp,
-        columnRenameDescriptors);
-    dataSource.SetVirtualValueDirectory(virtualValueDirectory);
-    return dataSource;
-}
-
 
 TDataSource MakeFileDataSource(const std::optional<TYPath>& path)
 {

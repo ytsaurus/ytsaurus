@@ -144,6 +144,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_13127_CompositeNodeExpiration)                             (1417))  // shakurov
     ((CombineStateHash)                                             (1418))  // aleksandra-zh
     ((EnableForcedRotationBackingMemoryAccounting)                  (1419))  // babenko
+    ((RemovePartitionedTables)                                      (1420))  // max42
 );
 
 ////////////////////////////////////////////////////////////////////////////////

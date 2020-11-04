@@ -104,7 +104,6 @@ DECLARE_REFCOUNTED_CLASS(TBlobTableWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TBufferedTableWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
-DECLARE_REFCOUNTED_CLASS(TPartitionedTableHarvester)
 
 ////////////////////////////////////////////////////////////////////////////////
 
