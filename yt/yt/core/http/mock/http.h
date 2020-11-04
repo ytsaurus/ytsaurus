@@ -6,6 +6,9 @@
 #include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NHttp {
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRequestMock
     : public IRequest
 {
@@ -27,6 +30,8 @@ public:
     THeadersPtr Headers;
     NNet::TNetworkAddress Address;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TResponseWriterMock
     : public IResponseWriter
@@ -51,6 +56,8 @@ public:
     THeadersPtr Trailers;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TResponseMock
     : public IResponse
 {
@@ -63,4 +70,7 @@ class TResponseMock
     THeadersPtr Headers;
     THeadersPtr Trailers;
 };
-}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NHttp
