@@ -112,13 +112,15 @@ private:
                     ConvertToYsonString(node, EYsonFormat::Text));
 
                 if (node->AsMap()->GetChildOrThrow("chunk_count")->GetValue<bool>()) {
-                    THROW_ERROR_EXCEPTION("Account %Qv violates chunk count limit",
+                    THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AccountLimitExceeded,
+                        "Account %Qv violates chunk count limit",
                         key.Account);
                 }
 
                 if (key.InMemoryMode != EInMemoryMode::None) {
                     if (node->AsMap()->GetChildOrThrow("tablet_static_memory")->GetValue<bool>()) {
-                        THROW_ERROR_EXCEPTION("Account %Qv violates tablet static memory limit",
+                        THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AccountLimitExceeded,
+                            "Account %Qv violates tablet static memory limit",
                             key.Account);
                     }
                 }
@@ -130,7 +132,8 @@ private:
                         key.MediumName);
                 }
                 if (mediumLimit->GetValue<bool>()) {
-                    THROW_ERROR_EXCEPTION("Account %Qv violates disk space limit for medium %Qv",
+                    THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AccountLimitExceeded,
+                        "Account %Qv violates disk space limit for medium %Qv",
                         key.Account,
                         key.MediumName);
                 }
