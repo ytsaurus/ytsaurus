@@ -119,6 +119,7 @@ export YT_START_ROW_INDEX=0
 export YT_OPERATION_ID={operation_id}
 export YT_JOB_ID={job_id}
 export YT_STARTED_BY_JOB_TOOL=1
+export SHELL=/bin/bash
 {environment}
 
 {run_bash_env_command}
