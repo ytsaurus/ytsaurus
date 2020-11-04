@@ -2,11 +2,8 @@
 
 #include "private.h"
 #include "execution_stack.h"
-#include "fls.h"
 
 #include <yt/core/misc/small_vector.h>
-
-#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/system/context.h>
 
@@ -69,18 +66,7 @@ public:
     void OnSwitchIn();
     void OnSwitchOut();
 
-    NProfiling::TCpuDuration GetRunCpuTime() const;
-
 private:
-    NDetail::TFsdHolder FsdHolder_;
-
-    NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
-    NYTAlloc::EMemoryZone MemoryZone_ = NYTAlloc::EMemoryZone::Normal;
-
-    NTracing::TTraceContextPtr SavedTraceContext_;
-    NProfiling::TCpuInstant RunStartInstant_ = 0;
-    NProfiling::TCpuDuration RunCpuTime_ = 0;
-
     std::atomic<bool> Running_ = {false};
 
 protected:

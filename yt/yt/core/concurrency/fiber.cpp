@@ -2,6 +2,8 @@
 
 #include "atomic_flag_spinlock.h"
 
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 namespace NYT::NConcurrency {
 
 static const auto& Logger = ConcurrencyLogger;
@@ -201,22 +203,11 @@ void TFiber::InvokeContextInHandlers()
 void TFiber::OnSwitchIn()
 {
     OnStartRunning();
-
-    NYTAlloc::SetCurrentMemoryTag(MemoryTag_);
-    NYTAlloc::SetCurrentMemoryZone(MemoryZone_);
 }
 
 void TFiber::OnSwitchOut()
 {
     OnFinishRunning();
-
-    MemoryTag_ = NYTAlloc::GetCurrentMemoryTag();
-    MemoryZone_ = NYTAlloc::GetCurrentMemoryZone();
-}
-
-NProfiling::TCpuDuration TFiber::GetRunCpuTime() const
-{
-    return RunCpuTime_ + std::max<NProfiling::TCpuDuration>(0, NProfiling::GetCpuInstant() - RunStartInstant_);
 }
 
 void TFiber::OnStartRunning()
@@ -225,23 +216,12 @@ void TFiber::OnStartRunning()
 
     YT_VERIFY(CurrentFiberId == InvalidFiberId);
     SetCurrentFiberId(Id_);
-
-    RunStartInstant_ = NProfiling::GetCpuInstant();
-    InstallTraceContext(RunStartInstant_, std::move(SavedTraceContext_));
-
-    NDetail::SetCurrentFsdHolder(&FsdHolder_);
 }
 
 void TFiber::OnFinishRunning()
 {
     auto isRunning = Running_.exchange(false);
     YT_VERIFY(isRunning);
-
-    auto now = NProfiling::GetCpuInstant();
-    SavedTraceContext_ = NTracing::UninstallTraceContext(now);
-    RunCpuTime_ += std::max<NProfiling::TCpuDuration>(0, now - RunStartInstant_);
-
-    NDetail::SetCurrentFsdHolder(nullptr);
 
     YT_VERIFY(CurrentFiberId == Id_);
     SetCurrentFiberId(InvalidFiberId);
@@ -290,10 +270,6 @@ void TFiber::ResetForReuse()
         Canceler_.Reset();
         Future_.Reset();
     }
-
-    RunCpuTime_ = 0;
-    RunStartInstant_ = NProfiling::GetCpuInstant();
-    SavedTraceContext_.Reset();
 
     auto oldId = Id_;
     RegenerateId();
@@ -359,11 +335,6 @@ void PopContextHandler()
         YT_VERIFY(!currentFiber->SwitchHandlers_.empty());
         currentFiber->SwitchHandlers_.pop_back();
     }
-}
-
-NProfiling::TCpuDuration GetCurrentFiberRunCpuTime()
-{
-    return CurrentFiber()->GetRunCpuTime();
 }
 
 TFiberCanceler GetCurrentFiberCanceler()

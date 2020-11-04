@@ -205,8 +205,6 @@ private:
 // For internal use only.
 
 TTraceContextPtr SwitchTraceContext(TTraceContextPtr traceContext);
-void InstallTraceContext(NProfiling::TCpuInstant now, TTraceContextPtr newTraceContext);
-TTraceContextPtr UninstallTraceContext(NProfiling::TCpuInstant now);
 
 ////////////////////////////////////////////////////////////////////////////////
 

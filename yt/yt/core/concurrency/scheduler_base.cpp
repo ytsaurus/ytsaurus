@@ -2,9 +2,12 @@
 #include "fiber.h"
 #include "private.h"
 #include "profiling_helpers.h"
+#include "fls.h"
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/shutdown.h>
+
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/thread/lfstack.h>
 
@@ -244,6 +247,7 @@ void SwitchFromFiber(TFiberPtr target)
 
     // Here current fiber could be destroyed. But it must be saved in AfterSwitch callback or other place.
     YT_VERIFY(currentFiber->GetRefCount() > 1);
+
     CurrentFiber() = std::move(target);
     SwitchImpl(context, targetContext);
 
@@ -317,6 +321,89 @@ void TDerivedFiber::DoRunNaked()
     YT_ABORT();
 }
 
+NYTAlloc::TMemoryTag SwapMemoryTag(NYTAlloc::TMemoryTag tag)
+{
+    auto result = NYTAlloc::GetCurrentMemoryTag();
+    NYTAlloc::SetCurrentMemoryTag(tag);
+    return result;
+}
+
+NYTAlloc::EMemoryZone SwapMemoryZone(NYTAlloc::EMemoryZone zone)
+{
+    auto result = NYTAlloc::GetCurrentMemoryZone();
+    NYTAlloc::SetCurrentMemoryZone(zone);
+    return result;
+}
+
+class TSwitchHandler
+{
+public:
+    TSwitchHandler()
+    {
+        PushContextHandler(
+            [this] () noexcept {
+                // Now values may differ from initial.
+                OnSwitch();
+            }, [this] () noexcept {
+                OnSwitch();
+            });
+    }
+
+    TSwitchHandler(const TSwitchHandler&) = delete;
+    TSwitchHandler(TSwitchHandler&&) = delete;
+
+    ~TSwitchHandler()
+    {
+        PopContextHandler();
+
+        YT_VERIFY(TraceContext_.Get() == nullptr);
+        YT_VERIFY(MemoryTag_ == NYTAlloc::NullMemoryTag);
+        YT_VERIFY(MemoryZone_ == NYTAlloc::EMemoryZone::Normal);
+        YT_VERIFY(FsdHolder_ == nullptr);
+    }
+
+    void OnSwitch()
+    {
+        // In user defined context switch callbacks (ContextSwitchGuard) Swap must be used.
+        // It preserves context from fiber resumer.
+
+        TraceContext_ = NTracing::SwitchTraceContext(TraceContext_);
+        MemoryTag_ = SwapMemoryTag(MemoryTag_);
+        MemoryZone_ = SwapMemoryZone(MemoryZone_);
+        FsdHolder_ = NDetail::SetCurrentFsdHolder(FsdHolder_);
+    }
+
+private:
+    NYTAlloc::TMemoryTag MemoryTag_ = NYTAlloc::NullMemoryTag;
+    NYTAlloc::EMemoryZone MemoryZone_ = NYTAlloc::EMemoryZone::Normal;
+    NTracing::TTraceContextPtr TraceContext_ = nullptr;
+    NDetail::TFsdHolder* FsdHolder_ = nullptr;
+};
+
+namespace {
+
+void RunInFiberContext(TClosure callback)
+{
+    NDetail::TFsdHolder fsdHolder;
+    TSwitchHandler switchHandler;
+
+    auto oldFsd = NDetail::SetCurrentFsdHolder(&fsdHolder);
+    YT_VERIFY(oldFsd == nullptr);
+    auto finally = Finally([&] {
+        auto oldFsd = NDetail::SetCurrentFsdHolder(nullptr);
+        YT_VERIFY(oldFsd == &fsdHolder);
+
+        // Supports case when current fiber has been resumed, but finished without WaitFor.
+        // There is preserved context of resumer fiber saved in switchHandler. Restore it.
+        // If there are no values for resumer the following call will swap null with null.
+        switchHandler.OnSwitch();
+    });
+
+    callback.Run();
+}
+
+} // namespace
+
 void TDerivedFiber::Main()
 {
     {
@@ -340,11 +427,10 @@ void TDerivedFiber::Main()
 
         if (callback) {
             threadThis->CancelWait();
-            try {
-                callback.Run();
-            } catch (const TFiberCanceledException&) { }
 
-            callback.Reset();
+            try {
+                RunInFiberContext(std::move(callback));
+            } catch (const TFiberCanceledException&) { }
 
             currentFiber->ResetForReuse();
             SetCurrentFiberId(currentFiber->GetId());
@@ -354,35 +440,44 @@ void TDerivedFiber::Main()
 
         auto* resumerFiber = ResumerFiber().Get();
 
+        // Trace context can be restored for resumer fiber, so current trace context and memory tag are
+        // not necessarily null. Check them after switch from and returning into current fiber.
+
         if (resumerFiber) {
             // Suspend current fiber.
             YT_VERIFY(currentFiber);
 
-            NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
 #ifdef REUSE_FIBERS
-            // Switch out and add fiber to idle fibers.
-            // Save fiber in AfterSwitch because it can be immediately concurrently reused.
-            SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([current = MakeStrong(currentFiber)] () mutable {
-                // Reuse the fiber but regenerate its id.
-                current->ResetForReuse();
 
-                YT_LOG_TRACE("Make fiber idle (FiberId: %llx)",
-                    current->GetId());
+            {
+                NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
+                // Switch out and add fiber to idle fibers.
+                // Save fiber in AfterSwitch because it can be immediately concurrently reused.
+                SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([current = MakeStrong(currentFiber)] () mutable {
+                    // Reuse the fiber but regenerate its id.
+                    current->ResetForReuse();
 
-                Profiler.Increment(IdleFibersCounter, 1);
-                IdleFibers.Enqueue(std::move(current));
-            }));
+                    YT_LOG_TRACE("Making fiber idle (FiberId: %llx)",
+                        current->GetId());
+
+                    Profiler.Increment(IdleFibersCounter, 1);
+                    IdleFibers.Enqueue(std::move(current));
+                }));
+            }
 
             // Switched to ResumerFiber or thread main.
             SwitchFromFiber(std::move(ResumerFiber()));
 #else
-            SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([
-                current = MakeStrong(currentFiber),
-                resume = std::move(ResumerFiber())
-            ] () mutable {
-                current.Reset();
-                SwitchFromThread(std::move(resume));
-            }));
+            {
+                NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
+                SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([
+                    current = MakeStrong(currentFiber),
+                    resume = std::move(ResumerFiber())
+                ] () mutable {
+                    current.Reset();
+                    SwitchFromThread(std::move(resume));
+                }));
+            }
 
             break;
 #endif
@@ -393,11 +488,12 @@ void TDerivedFiber::Main()
 
 #ifdef REUSE_FIBERS
         // currentFiber->IsCanceled() used in shutdown to destroy idle fibers
-        if (!threadThis || threadThis->IsShutdown() || currentFiber->IsCanceled()) {
+        if (!threadThis || threadThis->IsShutdown() || currentFiber->IsCanceled())
 #else
         YT_VERIFY(!currentFiber->IsCanceled());
-        if (!threadThis || threadThis->IsShutdown()) {
+        if (!threadThis || threadThis->IsShutdown())
 #endif
+        {
             // Do not reuse fiber in this rear case. Otherwise too many idle fibers are collected.
             YT_VERIFY(!ResumerFiber());
 
@@ -466,6 +562,7 @@ bool TFiberReusingAdapter::OnLoop(TEventCount::TCookie* cookie)
     CurrentThread = this;
     FiberContext = &fiberContext;
     auto finally = Finally([] {
+        CurrentThread = nullptr;
         CurrentThread = nullptr;
         FiberContext = nullptr;
     });
@@ -551,6 +648,52 @@ void SetCurrentScheduler(IScheduler* scheduler)
     CurrentScheduler = scheduler;
 }
 
+TFiberPtr GetYieldTarget()
+{
+    // Switch to resumer.
+    auto targetFiber = std::move(ResumerFiber());
+    YT_ASSERT(!ResumerFiber());
+
+    // If there is no resumer switch to idle fiber. Or switch to thread main.
+#ifdef REUSE_FIBERS
+    if (!targetFiber) {
+        IdleFibers.Dequeue(&targetFiber);
+
+        if (targetFiber) {
+            Profiler.Increment(IdleFibersCounter, -1);
+        }
+    }
+#endif
+    return targetFiber;
+}
+
+void BaseYield(TClosure afterSwitch)
+{
+    YT_VERIFY(CurrentFiber());
+
+    SetAfterSwitch(std::move(afterSwitch));
+
+    // Switch to resumer.
+    auto switchTarget = GetYieldTarget();
+
+    auto waitingFibersCounter = WaitingFibersCounter();
+
+    Profiler.Increment(*waitingFibersCounter, 1);
+    SwitchFromFiber(std::move(switchTarget));
+    Profiler.Increment(*waitingFibersCounter, -1);
+
+    YT_VERIFY(ResumerFiber());
+}
+
+
+void Yield(TClosure afterSwitch)
+{
+    auto* currentFiber = CurrentFiber().Get();
+    currentFiber->InvokeContextOutHandlers();
+    BaseYield(std::move(afterSwitch));
+    currentFiber->InvokeContextInHandlers();
+}
+
 void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
 {
     YT_VERIFY(future);
@@ -561,18 +704,29 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
         return;
     }
 
-    if (auto* currentFiber = CurrentFiber().Get()) {
-        if (currentFiber->IsCanceled()) {
-            future.Cancel(currentFiber->GetCancelationError());
-        }
+    auto* currentFiber = CurrentFiber().Get();
 
-        currentFiber->SetFuture(future);
-        auto finally = Finally([&] {
-            currentFiber->ResetFuture();
-        });
+    if (!currentFiber) {
+        // When called from a fiber-unfriendly context, we fallback to blocking wait.
+        YT_VERIFY(invoker == GetCurrentInvoker());
+        YT_VERIFY(invoker == GetSyncInvoker());
+        YT_VERIFY(future.TimedWait(TInstant::Max()));
+        return;
+    }
 
+    if (currentFiber->IsCanceled()) {
+        future.Cancel(currentFiber->GetCancelationError());
+    }
+
+    currentFiber->SetFuture(future);
+    auto finally = Finally([&] {
+        currentFiber->ResetFuture();
+    });
+
+    TClosure afterSwitch;
+    {
         NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-        SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([
+        afterSwitch = BIND_DONT_CAPTURE_TRACE_CONTEXT([
             invoker = std::move(invoker),
             future = std::move(future),
             fiber = MakeStrong(currentFiber)
@@ -583,46 +737,17 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
             ] (const TError&) mutable {
                 YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx)",
                     fiber->GetId());
-                invoker->Invoke(BIND(TResumeGuard{std::move(fiber)}));
+
+                invoker->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(TResumeGuard{std::move(fiber)}));
             }));
-        }));
+        });
+    };
 
-        // Switch to resumer.
-        auto switchTarget = std::move(ResumerFiber());
-        YT_ASSERT(!ResumerFiber());
+    Yield(std::move(afterSwitch));
 
-        // If there is no resumer switch to idle fiber. Or switch to thread main.
-#ifdef REUSE_FIBERS
-        if (!switchTarget) {
-            IdleFibers.Dequeue(&switchTarget);
-
-            if (switchTarget) {
-                Profiler.Increment(IdleFibersCounter, -1);
-            }
-        }
-#endif
-
-        currentFiber->InvokeContextOutHandlers();
-
-        auto waitingFibersCounter = WaitingFibersCounter();
-
-        Profiler.Increment(*waitingFibersCounter, 1);
-        SwitchFromFiber(std::move(switchTarget));
-        Profiler.Increment(*waitingFibersCounter, -1);
-
-        // ContextInHandlers should be invoked before unwinding during cancelation.
-        currentFiber->InvokeContextInHandlers();
-
-        if (currentFiber->IsCanceled()) {
-            YT_LOG_DEBUG("Throwing fiber cancelation exception");
-            throw TFiberCanceledException();
-        }
-
-    } else {
-        // When called from a fiber-unfriendly context, we fallback to blocking wait.
-        YT_VERIFY(invoker == GetCurrentInvoker());
-        YT_VERIFY(invoker == GetSyncInvoker());
-        YT_VERIFY(future.TimedWait(TInstant::Max()));
+    if (currentFiber->IsCanceled()) {
+        YT_LOG_DEBUG("Throwing fiber cancelation exception");
+        throw TFiberCanceledException();
     }
 }
 
