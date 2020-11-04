@@ -117,7 +117,9 @@ private:
     struct TTabletCellBundleData
     {
         double ForcedRotationMemoryRatio = 0;
+        bool EnableForcedRotationBackingMemoryAccounting = true;
         i64 PassiveMemoryUsage = 0;
+        i64 BackingMemoryUsage = 0;
         std::vector<TForcedRotationCandidate> ForcedRotationCandidates;
     };
 
@@ -144,14 +146,14 @@ private:
             TabletCellBundleData_.emplace(
                 slot->GetTabletCellBundleName(),
                 TTabletCellBundleData{
-                    .ForcedRotationMemoryRatio = slot->GetDynamicOptions()->ForcedRotationMemoryRatio
+                    .ForcedRotationMemoryRatio = slot->GetDynamicOptions()->ForcedRotationMemoryRatio,
+                    .EnableForcedRotationBackingMemoryAccounting = slot->GetDynamicOptions()->EnableForcedRotationBackingMemoryAccounting
                 }
             );
         }
 
         const auto& tabletManager = slot->GetTabletManager();
-        for (const auto& pair : tabletManager->Tablets()) {
-            auto* tablet = pair.second;
+        for (auto [tabletId, tablet] : tabletManager->Tablets()) {
             ScanTablet(slot, tablet);
         }
     }
@@ -177,11 +179,10 @@ private:
 
         for (auto& pair : tabletCellBundles) {
             // NB: Cannot use structured bindings since 'isRotationForced' lambda modifies
-            // local variable 'bundle'.
+            // local variable 'bundleData'.
             const auto& bundleName = pair.first;
-            auto& bundle = pair.second;
-
-            auto& candidates = bundle.ForcedRotationCandidates;
+            auto& bundleData = pair.second;
+            auto& candidates = bundleData.ForcedRotationCandidates;
 
             // Order candidates by increasing memory usage.
             std::sort(
@@ -193,19 +194,27 @@ private:
 
             const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
-            auto poolMemoryUsed = tracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName);
-            auto poolMemoryLimit = tracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName);
+            auto bundleMemoryUsed = tracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName);
+            auto bundleMemoryLimit = tracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName);
 
             auto isRotationForced = [&] {
-                // Per-pool memory pressure.
-                if (poolMemoryUsed - bundle.PassiveMemoryUsage > poolMemoryLimit * bundle.ForcedRotationMemoryRatio) {
+                // Per-bundle memory pressure.
+                auto adjustedBundleMemoryUsed = bundleMemoryUsed;
+                adjustedBundleMemoryUsed -= bundleData.PassiveMemoryUsage;
+                if (!bundleData.EnableForcedRotationBackingMemoryAccounting) {
+                    adjustedBundleMemoryUsed -= bundleData.BackingMemoryUsage;
+                }
+                if (adjustedBundleMemoryUsed > bundleMemoryLimit * bundleData.ForcedRotationMemoryRatio) {
                     return true;
                 }
 
                 // Global memory pressure.
-                return
-                    tracker->GetUsed(EMemoryCategory::TabletDynamic) - PassiveMemoryUsage_ >
-                    tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationMemoryRatio;
+                auto adjustedGlobalMemoryUsed = tracker->GetUsed(EMemoryCategory::TabletDynamic);
+                adjustedGlobalMemoryUsed -= PassiveMemoryUsage_;
+                if (!Config_->EnableForcedRotationBackingMemoryAccounting) {
+                    adjustedGlobalMemoryUsed -= BackingMemoryUsage_;
+                }
+                return adjustedGlobalMemoryUsed > tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationMemoryRatio;
             };
 
             // Pick the heaviest candidates until no more rotations are needed.
@@ -221,19 +230,22 @@ private:
                 }
 
                 YT_LOG_INFO("Scheduling store rotation due to memory pressure condition (%v, "
-                    "TotalMemoryUsage: %v, PassiveMemoryUsage: %v, MemoryPool: %v, "
-                    "PoolMemoryUsage: %v, PoolPassiveMemoryUsage: %v, TabletMemoryUsage: %v, "
-                    "MemoryLimit: %v, PoolMemoryLimit: %v, ForcedRotationMemoryRatio: %v)",
+                    "GlobalMemory: {TotalUsage: %v, PassiveUsage: %v, BackingUsage: %v, Limit: %v}, "
+                    "Bundle: %v, "
+                    "BundleMemory: {TotalUsage: %v, PassiveUsage: %v, BackingUsage: %v, Limit: %v}, "
+                    "TabletMemoryUsage: %v, ForcedRotationMemoryRatio: %v)",
                     candidate.TabletLoggingId,
                     tracker->GetUsed(EMemoryCategory::TabletDynamic),
                     PassiveMemoryUsage_,
-                    bundleName,
-                    poolMemoryUsed,
-                    bundle.PassiveMemoryUsage,
-                    candidate.MemoryUsage,
+                    BackingMemoryUsage_,
                     tracker->GetLimit(EMemoryCategory::TabletDynamic),
-                    poolMemoryLimit,
-                    bundle.ForcedRotationMemoryRatio);
+                    bundleName,
+                    bundleMemoryUsed,
+                    bundleData.PassiveMemoryUsage,
+                    bundleData.BackingMemoryUsage,
+                    bundleMemoryLimit,
+                    candidate.MemoryUsage,
+                    bundleData.ForcedRotationMemoryRatio);
 
                 const auto& slot = candidate.Slot;
                 auto invoker = slot->GetGuardedAutomatonInvoker();
@@ -247,7 +259,7 @@ private:
                 }));
 
                 PassiveMemoryUsage_ += candidate.MemoryUsage;
-                bundle.PassiveMemoryUsage += candidate.MemoryUsage;
+                bundleData.PassiveMemoryUsage += candidate.MemoryUsage;
             }
         }
     }
@@ -272,22 +284,33 @@ private:
             tabletManager->ScheduleStoreRotation(tablet);
         }
 
-        for (const auto& pair : tablet->StoreIdMap()) {
-            const auto& store = pair.second;
+        for (const auto& [storeId, store] : tablet->StoreIdMap()) {
             ScanStore(slot, tablet, store);
-            if (store->GetStoreState() == EStoreState::PassiveDynamic) {
-                TGuard<TAdaptiveLock> guard(SpinLock_);
-                PassiveMemoryUsage_ += store->GetDynamicMemoryUsage();
-                TabletCellBundleData_[bundleName].PassiveMemoryUsage += store->GetDynamicMemoryUsage();
-            } else if (store->GetStoreState() == EStoreState::ActiveDynamic) {
-                TGuard<TAdaptiveLock> guard(SpinLock_);
-                ActiveMemoryUsage_ += store->GetDynamicMemoryUsage();
-            } else if (store->GetStoreState() == EStoreState::Persistent) {
-                auto backingStore = store->AsChunk()->GetBackingStore();
-                if (backingStore) {
+            switch (store->GetStoreState()) {
+                case EStoreState::PassiveDynamic: {
                     TGuard<TAdaptiveLock> guard(SpinLock_);
-                    BackingMemoryUsage_ += backingStore->GetDynamicMemoryUsage();
+                    PassiveMemoryUsage_ += store->GetDynamicMemoryUsage();
+                    TabletCellBundleData_[bundleName].PassiveMemoryUsage += store->GetDynamicMemoryUsage();
+                    break;
                 }
+                
+                case EStoreState::ActiveDynamic: {
+                    TGuard<TAdaptiveLock> guard(SpinLock_);
+                    ActiveMemoryUsage_ += store->GetDynamicMemoryUsage();
+                    break;
+                }
+                
+                case EStoreState::Persistent: {
+                    if (auto backingStore = store->AsChunk()->GetBackingStore()) {
+                        TGuard<TAdaptiveLock> guard(SpinLock_);
+                        BackingMemoryUsage_ += backingStore->GetDynamicMemoryUsage();
+                        TabletCellBundleData_[bundleName].BackingMemoryUsage += store->GetDynamicMemoryUsage();
+                    }
+                    break;
+                }
+                
+                default:
+                    break;
             }
         }
 
@@ -393,7 +416,7 @@ private:
                     .AutoAbort = false,
                     .Attributes = std::move(transactionAttributes),
                     .CoordinatorMasterCellTag = CellTagFromId(tablet->GetId()),
-                    .ReplicateToMasterCellTags = TCellTagList()
+                    .ReplicateToMasterCellTags = {}
                 });
             auto transaction = WaitFor(asyncTransaction)
                 .ValueOrThrow();
