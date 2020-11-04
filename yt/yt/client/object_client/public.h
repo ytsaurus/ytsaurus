@@ -173,7 +173,6 @@ DEFINE_ENUM(EObjectType,
     ((Link)                          (417))
     ((Document)                      (421))
     ((ReplicatedTable)               (425))
-    ((PartitionedTable)              (427))
 
     // Portals
     ((PortalEntrance)               (11000))

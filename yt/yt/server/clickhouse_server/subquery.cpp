@@ -41,7 +41,6 @@
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
-#include <yt/ytlib/table_client/partitioned_table_harvester.h>
 #include <yt/ytlib/table_client/table_read_spec.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
@@ -232,37 +231,26 @@ private:
     {
         int staticTableCount = 0;
         int dynamicTableCount = 0;
-        int partitionedTableCount = 0;
         for (const auto& table : InputTables_) {
-            if (table->IsPartitioned) {
-                ++partitionedTableCount;
-            } else if (table->Dynamic) {
+            if (table->Dynamic) {
                 ++dynamicTableCount;
             } else {
                 ++staticTableCount;
             }
         }
         if (dynamicTableCount > 0 && staticTableCount > 0) {
-            THROW_ERROR_EXCEPTION("Reading static/partitioned tables together with dynamic tables is not supported yet");
+            THROW_ERROR_EXCEPTION("Reading static tables together with dynamic tables is not supported yet");
         }
 
         YT_LOG_INFO(
-            "Fetching input tables (StaticTableCount: %v, DynamicTableCount: %v, PartitionedTableCount: %v)",
+            "Fetching input tables (StaticTableCount: %v, DynamicTableCount: %v)",
             staticTableCount,
-            dynamicTableCount,
-            partitionedTableCount);
+            dynamicTableCount);
 
         // We fetch table read spec for each table separately, put them into TableReadSpecs_ vector,
         // which will later be joined by JoinTableReadSpecs function.
         TableReadSpecs_.resize(InputTables_.size());
-        auto regularAsyncResult = BIND(&TInputFetcher::FetchRegularTables, MakeWeak(this))
-            .AsyncVia(Invoker_)
-            .Run();
-        auto partitionedAsyncResult = BIND(&TInputFetcher::FetchPartitionedTables, MakeWeak(this))
-            .AsyncVia(Invoker_)
-            .Run();
-        WaitFor(AllSucceeded<void>({regularAsyncResult, partitionedAsyncResult}))
-            .ThrowOnError();
+        FetchTableReadSpecs();
 
         YT_LOG_INFO("Input tables fetched, preparing data slices");
 
@@ -378,15 +366,13 @@ private:
         }
     }
 
-    void FetchRegularTables()
+    void FetchTableReadSpecs()
     {
         i64 totalChunkCount = 0;
         for (const auto& inputTable : InputTables_) {
-            if (!inputTable->IsPartitioned) {
-                totalChunkCount += inputTable->ChunkCount;
-            }
+            totalChunkCount += inputTable->ChunkCount;
         }
-        YT_LOG_INFO("Fetching regular tables (RegularTableCount: %v, TotalChunkCount: %v)",
+        YT_LOG_INFO("Fetching tables (TableCount: %v, TotalChunkCount: %v)",
             InputTables_.size(),
             totalChunkCount);
 
@@ -416,9 +402,6 @@ private:
 
         for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
             const auto& table = InputTables_[tableIndex];
-            if (table->IsPartitioned) {
-                continue;
-            }
             TableReadSpecs_[tableIndex].DataSourceDirectory = New<TDataSourceDirectory>();
             auto& dataSource = TableReadSpecs_[tableIndex].DataSourceDirectory->DataSources().emplace_back();
             if (table->Dynamic) {
@@ -450,7 +433,7 @@ private:
         WaitFor(chunkSpecFetcher->Fetch())
             .ThrowOnError();
 
-        YT_LOG_INFO("Regular chunk specs fetched (ChunkCount: %v)", chunkSpecFetcher->ChunkSpecs().size());
+        YT_LOG_INFO("Chunk specs fetched (ChunkCount: %v)", chunkSpecFetcher->ChunkSpecs().size());
 
         for (auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
             auto tableIndex = chunkSpec.table_index();
@@ -458,51 +441,6 @@ private:
             chunkSpec.set_table_index(0);
             TableReadSpecs_[tableIndex].DataSliceDescriptors.emplace_back(TDataSliceDescriptor(std::move(chunkSpec)));
         }
-    }
-
-    void FetchPartitionedTables()
-    {
-        std::vector<TFuture<void>> asyncResults;
-
-        for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
-            const auto& table = InputTables_[tableIndex];
-            if (!table->IsPartitioned) {
-                continue;
-            }
-            auto harvester = New<TPartitionedTableHarvester>(TPartitionedTableHarvesterOptions{
-                .RichPath = table->Path,
-                .Client = Client_,
-                .ObjectAttributeCache = StorageContext_->QueryContext->Host->GetObjectAttributeCache(),
-                .Invoker = GetCurrentInvoker(),
-                .Config = New<TPartitionedTableHarvesterConfig>(),
-                .Logger = Logger,
-            });
-            asyncResults.emplace_back(BIND(&TInputFetcher::FetchPartitionedTable, MakeWeak(this), harvester, tableIndex, table->OperandIndex)
-                .AsyncVia(Invoker_)
-                .Run());
-        }
-
-        WaitFor(AllSucceeded(asyncResults))
-            .ThrowOnError();
-    }
-
-    void FetchPartitionedTable(TPartitionedTableHarvesterPtr harvester, int tableIndex, int operandIndex)
-    {
-        WaitFor(harvester->Prepare())
-            .ThrowOnError();
-        // Filter partitions.
-        harvester->FilterPartitions([&] (TLegacyKey lowerKey, TLegacyKey upperKey) {
-            return GetRangeMask(EKeyConditionScale::Partition, lowerKey, upperKey, operandIndex).can_be_true;
-        });
-        auto nameTable = TNameTable::FromKeyColumns(ColumnNames_);
-        TColumnFilter columnFilter(nameTable->GetSize());
-
-        // NB: we should always fetch all virtual columns because otherwise we do not know proper limits
-        // for resulting data slices which is crucial for range filtering.
-        TableReadSpecs_[tableIndex] = WaitFor(harvester->Fetch(TFetchSingleTableReadSpecOptions{
-            .Client = Client_,
-        }))
-            .ValueOrThrow();
     }
 
     //! Wrap chunk spec from data slice descriptor into data slice,

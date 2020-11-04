@@ -66,8 +66,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::PortalExitMap ||
         type == EObjectType::CypressShardMap ||
         type == EObjectType::EstimatedCreationTimeMap ||
-        type == EObjectType::NetworkProjectMap ||
-        type == EObjectType::PartitionedTable;
+        type == EObjectType::NetworkProjectMap;
 }
 
 bool IsUserType(EObjectType type)
@@ -96,16 +95,14 @@ bool IsUserType(EObjectType type)
         type == EObjectType::Document ||
         type == EObjectType::Account ||
         type == EObjectType::SchedulerPool ||
-        type == EObjectType::SchedulerPoolTree ||
-        type == EObjectType::PartitionedTable;
+        type == EObjectType::SchedulerPoolTree;
 }
 
 bool IsTableType(EObjectType type)
 {
     return
         type == EObjectType::Table ||
-        type == EObjectType::ReplicatedTable ||
-        type == EObjectType::PartitionedTable;
+        type == EObjectType::ReplicatedTable;
 }
 
 bool IsCellType(EObjectType type)

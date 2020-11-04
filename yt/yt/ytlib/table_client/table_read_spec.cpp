@@ -3,7 +3,6 @@
 #include "private.h"
 #include "helpers.h"
 #include "chunk_meta_extensions.h"
-#include "partitioned_table_harvester.h"
 
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -161,26 +160,6 @@ TTableReadSpec FetchRegularTableReadSpec(
     };
 }
 
-TTableReadSpec FetchPartitionedTableReadSpec(const TFetchSingleTableReadSpecOptions& options, TLogger logger)
-{
-    const auto& Logger = logger;
-    YT_LOG_INFO("Fetching partitioned table");
-
-    auto partitionedTableHarvester = New<TPartitionedTableHarvester>(TPartitionedTableHarvesterOptions{
-        .RichPath = options.RichPath,
-        .Client = options.Client,
-        .TransactionId = options.TransactionId,
-        .Invoker = GetCurrentInvoker(),
-        .Config = options.PartitionedTableHarvesterConfig,
-        .Logger = logger,
-    });
-
-    WaitFor(partitionedTableHarvester->Prepare())
-        .ThrowOnError();
-    return WaitFor(partitionedTableHarvester->Fetch(options))
-        .ValueOrThrow();
-}
-
 TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& options)
 {
     const auto& path = options.RichPath.GetPath();
@@ -216,15 +195,10 @@ TTableReadSpec FetchSingleTableReadSpec(const TFetchSingleTableReadSpecOptions& 
     switch (type) {
         case EObjectType::Table:
             return FetchRegularTableReadSpec(options, userObject.get(), Logger);
-        case EObjectType::PartitionedTable:
-            return FetchPartitionedTableReadSpec(options, Logger);
         default:
-            if (options.PartitionedTableHarvesterConfig->AssumePartitionedTable) {
-                return FetchPartitionedTableReadSpec(options, Logger);
-            }
             THROW_ERROR_EXCEPTION("Invalid type of %v: expected any of %Qlv, actual %Qlv",
                 path,
-                std::vector<EObjectType>{EObjectType::Table, EObjectType::PartitionedTable},
+                std::vector<EObjectType>{EObjectType::Table},
                 userObject->Type);
     }
 }

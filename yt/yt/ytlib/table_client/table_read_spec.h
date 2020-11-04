@@ -42,11 +42,6 @@ struct TFetchSingleTableReadSpecOptions
     NChunkClient::TFetchChunkSpecConfigPtr FetchChunkSpecConfig = New<NChunkClient::TFetchChunkSpecConfig>();
     bool FetchParityReplicas = true;
     EUnavailableChunkStrategy UnavailableChunkStrategy = NTableClient::EUnavailableChunkStrategy::ThrowError;
-    // Name table and column filter may be used for reading partitioned tables to identify which virtual
-    // columns to put into table read spec.
-    TNameTablePtr NameTable = New<TNameTable>();
-    TColumnFilter ColumnFilter;
-    TPartitionedTableHarvesterConfigPtr PartitionedTableHarvesterConfig;
     bool FetchFromTablets = false;
 };
 

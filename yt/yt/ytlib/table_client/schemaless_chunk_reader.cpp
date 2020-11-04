@@ -183,8 +183,7 @@ protected:
     int VirtualColumnCount_ = 0;
 
     int RowIndexId_ = -1;
-    //! Values for virtual constant columns like
-    //! range_index, table_index or partitioned table virtual key columns.
+    //! Values for virtual constant columns like $range_index, $table_index etc.
     TReaderVirtualValues VirtualValues_;
 
     NLogging::TLogger Logger;

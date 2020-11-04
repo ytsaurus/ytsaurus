@@ -151,35 +151,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitionedTableHarvesterConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    EMisconfiguredPartitionTactics MisconfiguredPartitionTactics;
-    int MaxPartitionErrorCount;
-    //! Suppress object type validation and assume that object is a partitioned table.
-    //! Useful for testing when master is not yet aware about partitioned table nodes.
-    bool AssumePartitionedTable;
-
-    TPartitionedTableHarvesterConfig()
-    {
-        RegisterParameter("misconfigured_partition_tactics", MisconfiguredPartitionTactics)
-            .Default(EMisconfiguredPartitionTactics::Fail);
-        RegisterParameter("max_partition_error_count", MaxPartitionErrorCount)
-            .Default(100);
-        RegisterParameter("assume_partitioned_table", AssumePartitionedTable)
-            .Default(false);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPartitionedTableHarvesterConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTableReaderConfig
     : public virtual NChunkClient::TMultiChunkReaderConfig
     , public virtual TChunkReaderConfig
-    , public virtual TPartitionedTableHarvesterConfig
 {
 public:
     bool SuppressAccessTracking;

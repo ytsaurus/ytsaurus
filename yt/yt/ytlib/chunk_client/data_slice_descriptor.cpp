@@ -200,7 +200,7 @@ void FromProto(
 
         std::optional<i64> virtualRowIndex;
         if (dataSliceIndex >= virtualRowIndexPerDataSlice.size()) {
-            // COMPAT(max42): writer does not support partitioned tables yet.
+            // XXX(max42): why?
             virtualRowIndex = std::nullopt;
         } else if (virtualRowIndexPerDataSlice[dataSliceIndex] == -1) {
             // -1 stands for nullopt.
