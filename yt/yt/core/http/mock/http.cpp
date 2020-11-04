@@ -3,6 +3,9 @@
 #include <yt/core/actions/future.h>
 
 namespace NYT::NHttp {
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRequestMock::TRequestMock()
     : Headers(New<THeaders>())
 {
@@ -12,6 +15,8 @@ TRequestMock::TRequestMock()
     ON_CALL(*this, GetRemoteAddress()).WillByDefault(::testing::ReturnRef(Address));
     ON_CALL(*this, GetStartTime()).WillByDefault(::testing::Return(TInstant::Now()));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 TResponseWriterMock::TResponseWriterMock()
     : Headers(New<THeaders>())
@@ -27,6 +32,8 @@ TResponseWriterMock::TResponseWriterMock()
     ON_CALL(*this, Close()).WillByDefault(::testing::Return(VoidFuture));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TResponseMock::TResponseMock()
     : Headers(New<THeaders>())
     , Trailers(New<THeaders>())
@@ -34,4 +41,7 @@ TResponseMock::TResponseMock()
     ON_CALL(*this, GetHeaders()).WillByDefault(::testing::ReturnRef(Headers));
     ON_CALL(*this, GetTrailers()).WillByDefault(::testing::ReturnRef(Trailers));
 }
-}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NHttp
