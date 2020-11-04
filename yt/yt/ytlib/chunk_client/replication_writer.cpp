@@ -895,6 +895,10 @@ private:
             return;
         }
 
+        if (blocks.empty()) {
+            return;
+        }
+
         int firstBlockIndex = BlockCount_;
         int currentBlockIndex = firstBlockIndex;
 
