@@ -345,6 +345,7 @@ public:
     TDuration CheckPeriod;
     TDuration UpdatePeriod;
     TAsyncExpiringCacheConfigPtr BundleHealthCache;
+    TAsyncExpiringCacheConfigPtr ClusterStateCache;
     NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
 
     TDynamicReplicatedTableTrackerConfig()
@@ -357,8 +358,14 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("bundle_health_cache", BundleHealthCache)
             .DefaultNew();
+        RegisterParameter("cluster_state_cache", ClusterStateCache)
+            .DefaultNew();
         RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
             .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            ClusterStateCache->RefreshTime = CheckPeriod;
+        });
     }
 };
 

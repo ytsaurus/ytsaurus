@@ -75,6 +75,36 @@ static const auto& Profiler = TabletServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TClusterStateKey
+{
+    NApi::IClientPtr Client;
+    TString ClusterName; // for diagnostics only
+
+    bool operator==(const TClusterStateKey& other) const
+    {
+        return Client == other.Client;
+    }
+
+    operator size_t() const
+    {
+        size_t result = 0;
+        HashCombine(result, Client);
+        return result;
+    }
+};
+
+void FormatValue(TStringBuilderBase* builder, const TClusterStateKey& key, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v", key.ClusterName);
+}
+
+TString ToString(const TClusterStateKey& key)
+{
+    return ToStringViaBuilder(key);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TBundleHealthKey
 {
     NApi::IClientPtr Client;
@@ -140,6 +170,78 @@ DEFINE_REFCOUNTED_TYPE(TBundleHealthCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TClusterStateCache)
+
+class TClusterStateCache
+    : public TAsyncExpiringCache<TClusterStateKey, void>
+{
+public:
+    explicit TClusterStateCache(TAsyncExpiringCacheConfigPtr config)
+        : TAsyncExpiringCache(
+            std::move(config),
+            NLogging::TLogger(TabletServerLogger)
+                .AddTag("Cache: ClusterLivenessCheck"))
+    { }
+
+protected:
+    virtual TFuture<void> DoGet(
+        const TClusterStateKey& key,
+        bool /*isPeriodicUpdate*/) noexcept override
+    {
+        return AllSucceeded(std::vector<TFuture<void>>{
+            CheckClusterLiveness(key),
+            CheckClusterSafeMode(key),
+            CheckHydraIsReadOnly(key)});
+    }
+
+private:
+    TFuture<void> CheckClusterLiveness(const TClusterStateKey& key) const
+    {
+        TCheckClusterLivenessOptions options;
+        options.CheckCypressRoot = true;
+        return key.Client->CheckClusterLiveness(options)
+            .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<void>& result) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking cluster %Qlv liveness",
+                    clusterName);
+            }));
+    }
+
+    TFuture<void> CheckClusterSafeMode(const TClusterStateKey& key) const
+    {
+        return key.Client->GetNode("//sys/@config/enable_safe_mode")
+            .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<TYsonString>& error) {
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    error,
+                    "Error getting enable_safe_mode attribute for cluster %Qlv",
+                    clusterName);
+                if (auto isSafeModeEnabled = ConvertTo<bool>(error.Value())) {
+                    THROW_ERROR_EXCEPTION("Safe mode is enabled for cluster %Qlv", clusterName);
+                }
+            }));
+    }
+
+    TFuture<void> CheckHydraIsReadOnly(const TClusterStateKey& key) const
+    {
+        return key.Client->GetNode("//sys/@hydra_read_only")
+            .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<TYsonString>& error) {
+                if (error.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    return;
+                }
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    error,
+                    "Error getting hydra_read_only attribute for cluster %Qlv",
+                    clusterName);
+                if (auto isHydraReadOnly = ConvertTo<bool>(error.Value())) {
+                    THROW_ERROR_EXCEPTION("Hydra read only mode is activated for cluster %Qlv", clusterName);
+                }
+            }));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterStateCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReplicatedTableTracker::TImpl
     : public TMasterAutomatonPart
 {
@@ -148,6 +250,7 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ReplicatedTableTracker)
         , Config_(std::move(config))
         , BundleHealthCache_(New<TBundleHealthCache>(BundleHealthCacheConfig_))
+        , ClusterStateCache_(New<TClusterStateCache>(ClusterStateCacheConfig_))
         , CheckerThreadPool_(New<TThreadPool>(Config_->CheckerThreadCount, "RplTableTracker"))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker), AutomatonThread);
@@ -162,11 +265,13 @@ public:
 
 private:
     const TReplicatedTableTrackerConfigPtr Config_;
+    const TAsyncExpiringCacheConfigPtr BundleHealthCacheConfig_ = New<TAsyncExpiringCacheConfig>();
+    const TAsyncExpiringCacheConfigPtr ClusterStateCacheConfig_ = New<TAsyncExpiringCacheConfig>();
 
     std::atomic<bool> Enabled_ = false;
 
-    const TAsyncExpiringCacheConfigPtr BundleHealthCacheConfig_ = New<TAsyncExpiringCacheConfig>();
     TAtomicObject<TBundleHealthCachePtr> BundleHealthCache_;
+    TAtomicObject<TClusterStateCachePtr> ClusterStateCache_;
 
     class TReplica
         : public TRefCounted
@@ -178,6 +283,7 @@ private:
             const TString& clusterName,
             const TYPath& path,
             TBundleHealthCachePtr bundleHealthCache,
+            TClusterStateCachePtr clusterStateCache,
             IConnectionPtr connection,
             IInvokerPtr checkerInvoker,
             TDuration lag,
@@ -188,6 +294,7 @@ private:
             , ClusterName_(clusterName)
             , Path_(path)
             , BundleHealthCache_(std::move(bundleHealthCache))
+            , ClusterStateCache_(std::move(clusterStateCache))
             , Connection_(std::move(connection))
             , CheckerInvoker_(std::move(checkerInvoker))
             , Lag_(lag)
@@ -230,11 +337,9 @@ private:
             }
 
             return AllSucceeded(std::vector<TFuture<void>>{
-                CheckClusterLiveness(),
+                CheckClusterState(),
                 CheckTableExists(),
-                CheckBundleHealth(),
-                CheckClusterSafeMode(),
-                CheckHydraIsReadOnly()
+                CheckBundleHealth()
             });
         }
 
@@ -308,6 +413,7 @@ private:
         const TYPath Path_;
 
         TBundleHealthCachePtr BundleHealthCache_;
+        TClusterStateCachePtr ClusterStateCache_;
         NApi::IConnectionPtr Connection_;
         NApi::IClientPtr Client_;
         const IInvokerPtr CheckerInvoker_;
@@ -319,15 +425,10 @@ private:
 
         TInstant LastUpdateTime_;
 
-        TFuture<void> CheckClusterLiveness()
+
+        TFuture<void> CheckClusterState()
         {
-            TCheckClusterLivenessOptions options;
-            options.CheckCypressRoot = true;
-            return Client_->CheckClusterLiveness(options)
-                .Apply(BIND([clusterName = ClusterName_] (const TErrorOr<void>& result) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking cluster %Qlv liveness",
-                        clusterName);
-                }));
+            return ClusterStateCache_->Get({Client_, ClusterName_});
         }
 
         TFuture<void> CheckBundleHealth()
@@ -355,30 +456,6 @@ private:
                     auto exists = result.Value();
                     if (!exists) {
                         THROW_ERROR_EXCEPTION("Table does not exist");
-                    }
-                }));
-        }
-
-        TFuture<void> CheckClusterSafeMode()
-        {
-            return Client_->GetNode("//sys/@config/enable_safe_mode")
-                .Apply(BIND([] (const TErrorOr<TYsonString>& error) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error getting enable_safe_mode attribute");
-                    auto isSafeModeEnabled = ConvertTo<bool>(error.Value());
-                    if (isSafeModeEnabled) {
-                        THROW_ERROR_EXCEPTION("Safe mode enabled");
-                    }
-                }));
-        }
-
-        TFuture<void> CheckHydraIsReadOnly()
-        {
-            return Client_->GetNode("//sys/@hydra_read_only")
-                .Apply(BIND([] (const TErrorOr<TYsonString>& error) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error getting hydra_read_only attribute");
-                    auto isHydraReadOnly = ConvertTo<bool>(error.Value());
-                    if (isHydraReadOnly) {
-                        THROW_ERROR_EXCEPTION("Hydra ReadOnly activated");
                     }
                 }));
         }
@@ -864,6 +941,7 @@ private:
                 replica->GetClusterName(),
                 replica->GetReplicaPath(),
                 BundleHealthCache_.Load(),
+                ClusterStateCache_.Load(),
                 connection,
                 CheckerThreadPool_->GetInvoker(),
                 replica->ComputeReplicationLagTime(lastestTimestamp),
@@ -919,6 +997,10 @@ private:
 
         if (ReconfigureYsonSerializable(BundleHealthCacheConfig_, dynamicConfig->BundleHealthCache)) {
             BundleHealthCache_.Store(New<TBundleHealthCache>(BundleHealthCacheConfig_));
+        }
+
+        if (ReconfigureYsonSerializable(ClusterStateCacheConfig_, dynamicConfig->ClusterStateCache)) {
+            ClusterStateCache_.Store(New<TClusterStateCache>(ClusterStateCacheConfig_));
         }
 
         if (IsLeader() && (ReconfigureYsonSerializable(ClusterDirectorySynchronizerConfig_, dynamicConfig->ClusterDirectorySynchronizer) || !ClusterDirectorySynchronizer_)) {
