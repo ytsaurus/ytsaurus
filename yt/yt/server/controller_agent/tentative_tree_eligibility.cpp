@@ -135,7 +135,7 @@ void TTentativeTreeEligibility::LogTentativeTreeStatistics() const
 
     THashMap<TString, TDuration> treeAverageJobDurations;
     for (const auto& [treeId, jobs] : StartedJobsPerPoolTree_) {
-        treeAverageJobDurations.insert(std::make_pair(treeId, GetTentativeTreeAverageJobDuration(treeId)));
+        treeAverageJobDurations.emplace(treeId, GetTentativeTreeAverageJobDuration(treeId));
     }
 
     YT_LOG_DEBUG("Tentative tree statistics (NonTentativeJobCount: %v, NonTentativeAverageDuration: %v, TentativeTreeJobDurations: %v)",

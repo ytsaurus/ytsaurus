@@ -953,7 +953,7 @@ void TStoreLocation::RegisterTrashChunk(TChunkId chunkId)
 
     {
         TGuard<TAdaptiveLock> guard(TrashMapSpinLock_);
-        TrashMap_.insert(std::make_pair(timestamp, TTrashChunkEntry{chunkId, diskSpace}));
+        TrashMap_.emplace(timestamp, TTrashChunkEntry{chunkId, diskSpace});
         TrashDiskSpace_ += diskSpace;
     }
 

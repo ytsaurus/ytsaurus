@@ -56,7 +56,7 @@ ui32 TSaveContext::GenerateId(void* basePtr, const std::type_info* typeInfo)
     TEntry entry;
     entry.Id = static_cast<ui32>(IdGenerator_.Next());
     entry.TypeInfo = typeInfo;
-    YT_VERIFY(PtrToEntry_.insert(std::make_pair(basePtr, entry)).second);
+    YT_VERIFY(PtrToEntry_.emplace(basePtr, entry).second);
     return entry.Id;
 }
 
@@ -71,7 +71,7 @@ TLoadContext::~TLoadContext()
 
 void TLoadContext::RegisterObject(ui32 id, void* basePtr)
 {
-    YT_VERIFY(IdToPtr_.insert(std::make_pair(id, basePtr)).second);
+    YT_VERIFY(IdToPtr_.emplace(id, basePtr).second);
 }
 
 void* TLoadContext::GetObject(ui32 id) const

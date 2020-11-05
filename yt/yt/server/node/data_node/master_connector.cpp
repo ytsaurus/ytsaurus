@@ -808,7 +808,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
     delta->ReportedAdded.clear();
     for (const auto& chunk : delta->AddedSinceLastSuccess) {
-        YT_VERIFY(delta->ReportedAdded.insert(std::make_pair(chunk, chunk->GetVersion())).second);
+        YT_VERIFY(delta->ReportedAdded.emplace(chunk, chunk->GetVersion()).second);
         *request->add_added_chunks() = BuildAddChunkInfo(chunk);
     }
 

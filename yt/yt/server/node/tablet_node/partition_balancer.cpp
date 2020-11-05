@@ -665,7 +665,7 @@ private:
 
                 auto chunkId = store->AsSortedChunk()->GetChunkId();
                 YT_VERIFY(chunkId);
-                if (storeMap.insert(std::make_pair(chunkId, store->AsSortedChunk())).second) {
+                if (storeMap.emplace(chunkId, store->AsSortedChunk()).second) {
                     ToProto(req->add_subrequests(), chunkId);
                 }
             };

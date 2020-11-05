@@ -344,7 +344,7 @@ private:
     {
         auto state = New<TState>();
         for (int tabletIndex : TabletIndexes_) {
-            YT_VERIFY(state->TabletMap.insert(std::make_pair(tabletIndex, TTablet())).second);
+            YT_VERIFY(state->TabletMap.emplace(tabletIndex, TTablet()).second);
         }
 
         {

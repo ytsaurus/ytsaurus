@@ -154,7 +154,7 @@ public:
 
         if (remember) {
             // NB: Allow duplicates.
-            if (!FinishedResponses_.insert(std::make_pair(id, response)).second) {
+            if (!FinishedResponses_.emplace(id, response).second) {
                 return;
             }
 

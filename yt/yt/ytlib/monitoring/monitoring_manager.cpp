@@ -36,7 +36,7 @@ public:
     void Register(const TYPath& path, TYsonProducer producer)
     {
         TGuard<TAdaptiveLock> guard(SpinLock_);
-        YT_VERIFY(PathToProducer_.insert(std::make_pair(path, producer)).second);
+        YT_VERIFY(PathToProducer_.emplace(path, producer).second);
     }
 
     void Unregister(const TYPath& path)

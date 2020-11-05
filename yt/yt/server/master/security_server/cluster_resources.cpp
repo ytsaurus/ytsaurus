@@ -307,7 +307,7 @@ TSerializableClusterResources::TSerializableClusterResources(
         if (!medium || medium->GetCache()) {
             continue;
         }
-        YT_VERIFY(DiskSpacePerMedium_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
+        YT_VERIFY(DiskSpacePerMedium_.emplace(medium->GetName(), mediumDiskSpace).second);
         if (serializeDiskSpace) {
             DiskSpace_ += mediumDiskSpace;
         }

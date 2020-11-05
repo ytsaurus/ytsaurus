@@ -104,7 +104,7 @@ void TCompositeAutomatonPart::RegisterLoader(
         }
         callback.Run(context);
     });
-    YT_VERIFY(Automaton_->PartNameToLoaderDescriptor_.insert(std::make_pair(name, descriptor)).second);
+    YT_VERIFY(Automaton_->PartNameToLoaderDescriptor_.emplace(name, descriptor).second);
 }
 
 void TCompositeAutomatonPart::RegisterMethod(
@@ -118,7 +118,7 @@ void TCompositeAutomatonPart::RegisterMethod(
         callback,
         TShardedMonotonicCounter("/cumulative_mutation_time", tagIds)
     };
-    YT_VERIFY(Automaton_->MethodNameToDescriptor_.insert(std::make_pair(type, descriptor)).second);
+    YT_VERIFY(Automaton_->MethodNameToDescriptor_.emplace(type, descriptor).second);
 }
 
 bool TCompositeAutomatonPart::ValidateSnapshotVersion(int /*version*/)

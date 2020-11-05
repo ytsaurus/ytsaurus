@@ -745,7 +745,7 @@ private:
                 }
 
                 // NB: We're OK with duplicate request ids.
-                auto pair = ActiveRequestMap_.insert(std::make_pair(requestId, requestControl));
+                auto pair = ActiveRequestMap_.emplace(requestId, requestControl);
                 if (!pair.second) {
                     existingRequestControl = std::move(pair.first->second);
                     existingResponseHandler = existingRequestControl->Finalize(guard);

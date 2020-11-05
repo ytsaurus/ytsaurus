@@ -127,7 +127,7 @@ protected:
             CurrentPreallocated_ += size;
             DirectBuffer_->Advance(size);
 
-            auto pair = Dictionary_.insert(std::make_pair(value, Dictionary_.size() + 1));
+            auto pair = Dictionary_.emplace(value, Dictionary_.size() + 1);
 
             if (pair.second) {
                 DictionarySize_ += size;

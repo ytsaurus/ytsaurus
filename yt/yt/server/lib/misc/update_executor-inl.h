@@ -52,7 +52,7 @@ TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::AddUpdate(const TKe
 {
     VERIFY_THREAD_AFFINITY(UpdateThread);
 
-    auto pair = Updates_.insert(std::make_pair(key, TUpdateRecord(key, parameters)));
+    auto pair = Updates_.emplace(key, TUpdateRecord(key, parameters));
     YT_VERIFY(pair.second);
     YT_LOG_DEBUG("Item added to periodic updates (Key: %v)", key);
     return &pair.first->second.UpdateParameters;

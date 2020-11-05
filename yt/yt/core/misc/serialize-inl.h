@@ -1556,7 +1556,7 @@ struct TMultiMapSerializer
                 TValueSerializer::Load(context, value);
             }
 
-            map.insert(std::make_pair(key, value));
+            map.emplace(key, value);
         }
     }
 };

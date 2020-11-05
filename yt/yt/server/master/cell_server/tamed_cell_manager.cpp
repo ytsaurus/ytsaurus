@@ -219,7 +219,7 @@ public:
 
         auto id = holder->GetId();
         auto* cellBundle = CellBundleMap_.Insert(id, std::move(holder));
-        YT_VERIFY(NameToCellBundleMap_.insert(std::make_pair(cellBundle->GetName(), cellBundle)).second);
+        YT_VERIFY(NameToCellBundleMap_.emplace(cellBundle->GetName(), cellBundle).second);
         cellBundle->SetOptions(std::move(options));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -735,7 +735,7 @@ public:
         }
 
         YT_VERIFY(NameToCellBundleMap_.erase(cellBundle->GetName()) == 1);
-        YT_VERIFY(NameToCellBundleMap_.insert(std::make_pair(newName, cellBundle)).second);
+        YT_VERIFY(NameToCellBundleMap_.emplace(newName, cellBundle).second);
         cellBundle->SetName(newName);
     }
 
@@ -840,7 +840,7 @@ private:
 
         NameToCellBundleMap_.clear();
         for (const auto [bundleId, bundle] : CellBundleMap_) {
-            YT_VERIFY(NameToCellBundleMap_.insert(std::make_pair(bundle->GetName(), bundle)).second);
+            YT_VERIFY(NameToCellBundleMap_.emplace(bundle->GetName(), bundle).second);
         }
 
         AddressToCell_.clear();
@@ -860,7 +860,7 @@ private:
 
             auto* transaction = cell->GetPrerequisiteTransaction();
             if (transaction) {
-                YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+                YT_VERIFY(TransactionToCellMap_.emplace(transaction, cell).second);
             }
 
             cell->GossipStatus().Initialize(Bootstrap_);
@@ -1323,7 +1323,7 @@ private:
         const auto& address = descriptor.GetDefaultAddress();
         auto cellsIt = AddressToCell_.find(address);
         if (cellsIt == AddressToCell_.end()) {
-            cellsIt = AddressToCell_.insert(std::make_pair(address, TCellSet())).first;
+            cellsIt = AddressToCell_.emplace(address, TCellSet()).first;
         }
         auto& set = cellsIt->second;
         auto it = std::find_if(set.begin(), set.end(), [&] (const auto& pair) {
@@ -1604,7 +1604,7 @@ private:
 
         YT_VERIFY(!cell->GetPrerequisiteTransaction());
         cell->SetPrerequisiteTransaction(transaction);
-        YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+        YT_VERIFY(TransactionToCellMap_.emplace(transaction, cell).second);
 
         TReqStartPrerequisiteTransaction request;
         ToProto(request.mutable_cell_id(), cell->GetId());
@@ -1638,7 +1638,7 @@ private:
             return;
         }
 
-        YT_VERIFY(TransactionToCellMap_.insert(std::make_pair(transaction, cell)).second);
+        YT_VERIFY(TransactionToCellMap_.emplace(transaction, cell).second);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet cell prerequisite transaction attached (CellId: %v, TransactionId: %v)",
             cell->GetId(),

@@ -2804,7 +2804,7 @@ void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
     auto* childImpl = LockImpl(trunkChildImpl);
 
     if (beforeIndex < 0) {
-        YT_VERIFY(impl->ChildToIndex().insert(std::make_pair(trunkChildImpl, static_cast<int>(list.size()))).second);
+        YT_VERIFY(impl->ChildToIndex().emplace(trunkChildImpl, static_cast<int>(list.size())).second);
         list.push_back(trunkChildImpl);
     } else {
         // Update indices.
@@ -2813,7 +2813,7 @@ void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
         }
 
         // Insert the new child.
-        YT_VERIFY(impl->ChildToIndex().insert(std::make_pair(trunkChildImpl, beforeIndex)).second);
+        YT_VERIFY(impl->ChildToIndex().emplace(trunkChildImpl, beforeIndex).second);
         list.insert(list.begin() + beforeIndex, trunkChildImpl);
     }
 
@@ -2882,7 +2882,7 @@ void TListNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newC
 
     impl->IndexToChild()[index] = newTrunkChildImpl;
     impl->ChildToIndex().erase(it);
-    YT_VERIFY(impl->ChildToIndex().insert(std::make_pair(newTrunkChildImpl, index)).second);
+    YT_VERIFY(impl->ChildToIndex().emplace(newTrunkChildImpl, index).second);
     AttachChild(TrunkNode_, newChildImpl);
     objectManager->RefObject(newChildImpl->GetTrunkNode());
 

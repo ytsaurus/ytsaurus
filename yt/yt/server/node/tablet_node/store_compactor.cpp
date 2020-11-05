@@ -980,7 +980,7 @@ private:
             return;
         }
         TWriterGuard guard(FutureEffectLock_);
-        auto pair = FutureEffect_.insert(std::make_pair(tabletId, delta));
+        auto pair = FutureEffect_.emplace(tabletId, delta);
         if (!pair.second) {
             pair.first->second += delta;
         }

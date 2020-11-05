@@ -222,7 +222,7 @@ std::optional<int> TNameTableWriter::FindId(TStringBuf name) const
     auto optionalId = NameTable_->FindId(name);
     if (optionalId) {
         Names_.push_back(TString(name));
-        YT_VERIFY(NameToId_.insert(std::make_pair(Names_.back(), *optionalId)).second);
+        YT_VERIFY(NameToId_.emplace(Names_.back(), *optionalId).second);
     }
     return optionalId;
 }
@@ -245,7 +245,7 @@ int TNameTableWriter::GetIdOrRegisterName(TStringBuf name)
 
     auto id = NameTable_->GetIdOrRegisterName(name);
     Names_.push_back(TString(name));
-    YT_VERIFY(NameToId_.insert(std::make_pair(Names_.back(), id)).second);
+    YT_VERIFY(NameToId_.emplace(Names_.back(), id).second);
     return id;
 }
 

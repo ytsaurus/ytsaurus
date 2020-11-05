@@ -1058,7 +1058,7 @@ private:
             YT_VERIFY(commitTimestamp > lastTimestampIt->second);
             lastTimestampIt->second = commitTimestamp;
         } else {
-            YT_VERIFY(LastSerializedCommitTimestamps_.insert(std::make_pair(cellTag, commitTimestamp)).second);
+            YT_VERIFY(LastSerializedCommitTimestamps_.emplace(cellTag, commitTimestamp).second);
         }
     }
 

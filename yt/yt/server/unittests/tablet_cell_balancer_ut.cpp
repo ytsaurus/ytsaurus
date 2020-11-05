@@ -247,7 +247,7 @@ private:
         auto bundleHolder = std::make_unique<TCellBundle>(id);
         bundleHolder->SetName(name);
         auto* bundle = CellBundleMap_.Insert(id, std::move(bundleHolder));
-        YT_VERIFY(NameToBundle_.insert(std::make_pair(name, bundle)).second);
+        YT_VERIFY(NameToBundle_.emplace(name, bundle).second);
         bundle->RefObject();
         return bundle;
     }
@@ -259,8 +259,8 @@ private:
         cellHolder->Peers().resize(bundle->GetOptions()->PeerCount);
         cellHolder->SetCellBundle(bundle);
         auto* cell = CellMap_.Insert(id, std::move(cellHolder));
-        YT_VERIFY(IndexToCell_.insert(std::make_pair(index, cell)).second);
-        YT_VERIFY(CellToIndex_.insert(std::make_pair(cell, index)).second);
+        YT_VERIFY(IndexToCell_.emplace(index, cell).second);
+        YT_VERIFY(CellToIndex_.emplace(cell, index).second);
         cell->RefObject();
         YT_VERIFY(bundle->Cells().insert(cell).second);
     }
@@ -281,8 +281,8 @@ private:
         auto id = GenerateClusterNodeId();
         auto nodeHolder = std::make_unique<TNode>(id);
         auto* node = NodeMap_.Insert(id, std::move(nodeHolder));
-        YT_VERIFY(NameToNode_.insert(std::make_pair(name, node)).second);
-        YT_VERIFY(NodeToName_.insert(std::make_pair(node, name)).second);
+        YT_VERIFY(NameToNode_.emplace(name, node).second);
+        YT_VERIFY(NodeToName_.emplace(node, name).second);
         node->RefObject();
         node->SetNodeAddresses(TNodeAddressMap{std::make_pair(
             EAddressType::InternalRpc,
@@ -326,7 +326,7 @@ private:
                             NodeToName_[cellSet[slot]],
                             NodeToName_[holder.GetNode()]);
                     }
-                    YT_VERIFY(cellSet.insert(std::make_pair(slot, holder.GetNode())).second);
+                    YT_VERIFY(cellSet.emplace(slot, holder.GetNode()).second);
                 }
             }
 

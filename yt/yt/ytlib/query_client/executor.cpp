@@ -469,7 +469,7 @@ std::vector<std::pair<TDataRanges, TString>> InferRanges(
 
         ValidateTabletMountedOrFrozen(tabletInfo);
 
-        auto insertResult = tabletCellReplicas.insert(std::make_pair(tabletInfo->CellId, TCellDescriptor()));
+        auto insertResult = tabletCellReplicas.emplace(tabletInfo->CellId, TCellDescriptor());
         auto& descriptor = insertResult.first->second;
 
         if (insertResult.second) {

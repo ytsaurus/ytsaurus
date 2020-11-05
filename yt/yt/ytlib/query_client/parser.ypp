@@ -371,7 +371,7 @@ expression
             if ($expr.size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(@$, source));
             }
-            auto inserted = head->AliasMap.insert(std::make_pair(TString($name), $expr.front())).second;
+            auto inserted = head->AliasMap.emplace(TString($name), $expr.front()).second;
             if (!inserted) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", $name);
             }

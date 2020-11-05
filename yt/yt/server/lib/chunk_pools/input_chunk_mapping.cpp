@@ -189,7 +189,7 @@ void TInputChunkMapping::Reset(IChunkPoolInput::TCookie resetCookie, const TChun
 
 void TInputChunkMapping::Add(IChunkPoolInput::TCookie cookie, const TChunkStripePtr& stripe)
 {
-    YT_VERIFY(OriginalStripes_.insert(std::make_pair(cookie, stripe)).second);
+    YT_VERIFY(OriginalStripes_.emplace(cookie, stripe).second);
 }
 
 void TInputChunkMapping::Persist(const TPersistenceContext& context)

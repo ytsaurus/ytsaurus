@@ -258,7 +258,7 @@ private:
 
     void Register(IShellPtr shell)
     {
-        YT_VERIFY(IdToShell_.insert(std::make_pair(shell->GetId(), shell)).second);
+        YT_VERIFY(IdToShell_.emplace(shell->GetId(), shell).second);
 
         YT_LOG_DEBUG("Shell registered (ShellId: %v)",
             shell->GetId());

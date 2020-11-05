@@ -217,7 +217,7 @@ public:
         YT_ASSERT(child);
         ValidateYTreeKey(key);
 
-        if (KeyToChild_.insert(std::make_pair(key, child)).second) {
+        if (KeyToChild_.emplace(key, child).second) {
             YT_VERIFY(ChildToKey_.emplace(child, key).second);
             child->SetParent(this);
             return true;
@@ -274,7 +274,7 @@ public:
 
         KeyToChild_[key] = newChild;
         newChild->SetParent(this);
-        YT_VERIFY(ChildToKey_.insert(std::make_pair(newChild, key)).second);
+        YT_VERIFY(ChildToKey_.emplace(newChild, key).second);
     }
 
     virtual std::optional<TString> FindChildKey(const IConstNodePtr& child) override
@@ -345,7 +345,7 @@ public:
         YT_ASSERT(child);
 
         if (beforeIndex < 0) {
-            YT_VERIFY(ChildToIndex_.insert(std::make_pair(child, static_cast<int>(IndexToChild_.size()))).second);
+            YT_VERIFY(ChildToIndex_.emplace(child, static_cast<int>(IndexToChild_.size())).second);
             IndexToChild_.push_back(child);
         } else {
             YT_VERIFY(beforeIndex <= IndexToChild_.size());
@@ -353,7 +353,7 @@ public:
                 ++ChildToIndex_[*it];
             }
 
-            YT_VERIFY(ChildToIndex_.insert(std::make_pair(child, beforeIndex)).second);
+            YT_VERIFY(ChildToIndex_.emplace(child, beforeIndex).second);
             IndexToChild_.insert(IndexToChild_.begin() + beforeIndex, child);
         }
         child->SetParent(this);
@@ -394,7 +394,7 @@ public:
 
         IndexToChild_[index] = newChild;
         ChildToIndex_.erase(it);
-        YT_VERIFY(ChildToIndex_.insert(std::make_pair(newChild, index)).second);
+        YT_VERIFY(ChildToIndex_.emplace(newChild, index).second);
         newChild->SetParent(this);
     }
 

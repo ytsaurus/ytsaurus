@@ -358,7 +358,7 @@ void TFetcherBase::OnChunkFailed(TNodeId nodeId, int chunkIndex, const TError& e
         chunkId,
         NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
 
-    DeadChunks_.insert(std::make_pair(nodeId, chunkId));
+    DeadChunks_.emplace(nodeId, chunkId);
     YT_VERIFY(UnfetchedChunkIndexes_.insert(chunkIndex).second);
 }
 

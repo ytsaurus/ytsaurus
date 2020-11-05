@@ -1508,7 +1508,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
         node->SetHeartbeatLease(lease);
     }
 
-    YT_VERIFY(IdToNode_.insert(std::make_pair(node->GetId(), node)).second);
+    YT_VERIFY(IdToNode_.emplace(node->GetId(), node).second);
 
     node->SetLastSeenTime(now);
 
@@ -2411,7 +2411,7 @@ void TNodeShard::RegisterJob(const TJobPtr& job)
 
     YT_VERIFY(operationState.Jobs.emplace(job->GetId(), job).second);
     YT_VERIFY(node->Jobs().insert(job).second);
-    YT_VERIFY(node->IdToJob().insert(std::make_pair(job->GetId(), job)).second);
+    YT_VERIFY(node->IdToJob().emplace(job->GetId(), job).second);
     ++ActiveJobCount_;
 
     YT_LOG_DEBUG("Job registered (JobId: %v, JobType: %v, Revived: %v, OperationId: %v)",

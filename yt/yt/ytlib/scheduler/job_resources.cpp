@@ -113,7 +113,7 @@ TString ToString(NScheduler::TDiskQuota diskQuota)
 TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace)
 {
     TDiskQuota result;
-    result.DiskSpacePerMedium.insert(std::make_pair(mediumIndex, diskSpace));
+    result.DiskSpacePerMedium.emplace(mediumIndex, diskSpace);
     return result;
 }
 

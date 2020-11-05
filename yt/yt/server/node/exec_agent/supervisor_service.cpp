@@ -73,7 +73,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThrottlerThread);
         auto id = TGuid::Create();
-        YT_VERIFY(OutstandingThrottlingRequests_.insert(std::make_pair(id, future)).second);
+        YT_VERIFY(OutstandingThrottlingRequests_.emplace(id, future).second);
         // Remove future from outstanding requests after it was set + timeout.
         future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& /* error */) {
             TDelayedExecutor::Submit(

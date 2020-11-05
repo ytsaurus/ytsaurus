@@ -547,7 +547,7 @@ private:
 
             {
                 auto guard = Guard(SpinLock_);
-                YT_VERIFY(Layers_.insert(std::make_pair(id, meta)).second);
+                YT_VERIFY(Layers_.emplace(id, meta).second);
             }
         }
     }
@@ -811,7 +811,7 @@ private:
 
             {
                 auto guard = Guard(SpinLock_);
-                YT_VERIFY(Volumes_.insert(std::make_pair(id, volumeMeta)).second);
+                YT_VERIFY(Volumes_.emplace(id, volumeMeta).second);
             }
 
             return volumeMeta;
@@ -1283,9 +1283,9 @@ private:
                 if (it != CachedLayerDescriptors_.end()) {
                     cachedLayerDescriptors.insert(*it);
                 } else {
-                    cachedLayerDescriptors.insert(std::make_pair(
+                    cachedLayerDescriptors.emplace(
                         path,
-                    TFetchedArtifactKey{.ContentRevision = 0}));
+                        TFetchedArtifactKey{.ContentRevision = 0});
                 }
             }
 

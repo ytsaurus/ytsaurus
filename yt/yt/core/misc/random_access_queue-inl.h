@@ -17,7 +17,7 @@ void TRandomAccessQueue<TKey, TValue>::Push(TRandomAccessQueue<TKey, TValue>::TE
     if (it == KeyToEntryMap_.end()) {
         Queue_.push_back(std::move(entry));
         auto listIt = --Queue_.end();
-        KeyToEntryMap_.insert(std::make_pair(std::move(key), listIt));
+        KeyToEntryMap_.emplace(std::move(key), listIt);
     } else {
         auto listIt = it->second;
         listIt->second = std::move(entry.second);
@@ -31,7 +31,7 @@ TValue& TRandomAccessQueue<TKey, TValue>::operator[](const TKey& key)
     if (it == KeyToEntryMap_.end()) {
         Queue_.emplace_back(key, TValue());
         auto listIt = --Queue_.end();
-        KeyToEntryMap_.insert(std::make_pair(std::move(key), listIt));
+        KeyToEntryMap_.emplace(std::move(key), listIt);
         return listIt->second;
     } else {
         auto listIt = it->second;
@@ -100,7 +100,7 @@ void TRandomAccessQueue<TKey, TValue>::Load(TLoadContext& context)
     Load(context, Queue_);
 
     for (auto it = Queue_.begin(); it != Queue_.end(); ++it) {
-        YT_VERIFY(KeyToEntryMap_.insert(std::make_pair(it->first, it)).second);
+        YT_VERIFY(KeyToEntryMap_.emplace(it->first, it).second);
     }
 }
 

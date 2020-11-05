@@ -495,7 +495,7 @@ public:
         rackHolder->SetIndex(AllocateRackIndex());
 
         auto* rack = RackMap_.Insert(id, std::move(rackHolder));
-        YT_VERIFY(NameToRackMap_.insert(std::make_pair(name, rack)).second);
+        YT_VERIFY(NameToRackMap_.emplace(name, rack).second);
 
         // Make the fake reference.
         YT_VERIFY(rack->RefObject() == 1);
@@ -529,7 +529,7 @@ public:
 
         // Update name.
         YT_VERIFY(NameToRackMap_.erase(rack->GetName()) == 1);
-        YT_VERIFY(NameToRackMap_.insert(std::make_pair(newName, rack)).second);
+        YT_VERIFY(NameToRackMap_.emplace(newName, rack).second);
         rack->SetName(newName);
 
         // Rebuild node tags since they depend on rack name.
@@ -610,7 +610,7 @@ public:
         dcHolder->SetName(name);
 
         auto* dc = DataCenterMap_.Insert(id, std::move(dcHolder));
-        YT_VERIFY(NameToDataCenterMap_.insert(std::make_pair(name, dc)).second);
+        YT_VERIFY(NameToDataCenterMap_.emplace(name, dc).second);
 
         // Make the fake reference.
         YT_VERIFY(dc->RefObject() == 1);
@@ -647,7 +647,7 @@ public:
 
         // Update name.
         YT_VERIFY(NameToDataCenterMap_.erase(dc->GetName()) == 1);
-        YT_VERIFY(NameToDataCenterMap_.insert(std::make_pair(newName, dc)).second);
+        YT_VERIFY(NameToDataCenterMap_.emplace(newName, dc).second);
         dc->SetName(newName);
 
         // Rebuild node tags since they depend on DC name.
@@ -1235,7 +1235,7 @@ private:
                 continue;
             }
 
-            YT_VERIFY(NameToRackMap_.insert(std::make_pair(rack->GetName(), rack)).second);
+            YT_VERIFY(NameToRackMap_.emplace(rack->GetName(), rack).second);
 
             auto rackIndex = rack->GetIndex();
             YT_VERIFY(!UsedRackIndexes_.test(rackIndex));
@@ -1248,7 +1248,7 @@ private:
                 continue;
             }
 
-            YT_VERIFY(NameToDataCenterMap_.insert(std::make_pair(dc->GetName(), dc)).second);
+            YT_VERIFY(NameToDataCenterMap_.emplace(dc->GetName(), dc).second);
         }
     }
 
@@ -1354,7 +1354,7 @@ private:
         auto* transaction = node->GetLeaseTransaction();
         YT_VERIFY(transaction);
         YT_VERIFY(transaction->GetPersistentState() == ETransactionState::Active);
-        YT_VERIFY(TransactionToNodeMap_.insert(std::make_pair(transaction, node)).second);
+        YT_VERIFY(TransactionToNodeMap_.emplace(transaction, node).second);
     }
 
     TTransaction* UnregisterLeaseTransaction(TNode* node)
@@ -1721,9 +1721,9 @@ private:
 
     void InsertToAddressMaps(TNode* node)
     {
-        YT_VERIFY(AddressToNodeMap_.insert(std::make_pair(node->GetDefaultAddress(), node)).second);
+        YT_VERIFY(AddressToNodeMap_.emplace(node->GetDefaultAddress(), node).second);
         for (const auto& pair : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
-            HostNameToNodeMap_.insert(std::make_pair(TString(GetServiceHostName(pair.second)), node));
+            HostNameToNodeMap_.emplace(TString(GetServiceHostName(pair.second)), node);
         }
     }
 

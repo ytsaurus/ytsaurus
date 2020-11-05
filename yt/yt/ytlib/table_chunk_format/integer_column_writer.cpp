@@ -54,7 +54,7 @@ protected:
     {
         MaxValue_ = std::max(MaxValue_, value);
         MinValue_ = std::min(MinValue_, value);
-        DistinctValues_.insert(std::make_pair(value, DistinctValues_.size() + 1));
+        DistinctValues_.emplace(value, DistinctValues_.size() + 1);
     }
 
     void DumpDirectValues(TSegmentInfo* segmentInfo, TAppendOnlyBitmap<ui64>& nullBitmap)
