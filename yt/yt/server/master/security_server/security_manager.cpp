@@ -2306,11 +2306,7 @@ private:
         AccountMap_.LoadKeys(context);
         UserMap_.LoadKeys(context);
         GroupMap_.LoadKeys(context);
-
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= EMasterReign::NetworkProject) {
-            NetworkProjectMap_.LoadKeys(context);
-        }
+        NetworkProjectMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2320,12 +2316,7 @@ private:
         AccountMap_.LoadValues(context);
         UserMap_.LoadValues(context);
         GroupMap_.LoadValues(context);
-
-        // COMPAT(gritukan)
-        if (context.GetVersion() >= EMasterReign::NetworkProject) {
-            NetworkProjectMap_.LoadValues(context);
-        }
-
+        NetworkProjectMap_.LoadValues(context);
         MustRecomputeMembershipClosure_ = Load<bool>(context);
 
         // COMPAT(savrus) COMPAT(shakurov)

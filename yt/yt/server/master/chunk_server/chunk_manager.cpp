@@ -1487,7 +1487,6 @@ private:
 
     int TotalReplicaCount_ = 0;
 
-    bool NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
     // COMPAT(shakurov)
     bool NeedFixTrunkNodeInvalidDeltaStatistics_ = false;
 
@@ -2593,10 +2592,6 @@ private:
             DynamicStoreMap_.LoadValues(context);
         }
 
-        // COMPAT(ifsmirnov)
-        NeedToComputeCumulativeStatisticsForDynamicTables_ = context.GetVersion() <
-            EMasterReign::YT_10639_CumulativeStatisticsInDynamicTables;
-
         // COMPAT(shakurov)
         NeedFixTrunkNodeInvalidDeltaStatistics_ = context.GetVersion() < EMasterReign::FixTrunkNodeInvalidDeltaStatistics;
     }
@@ -2605,7 +2600,6 @@ private:
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
-        NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
         NeedFixTrunkNodeInvalidDeltaStatistics_ = false;
     }
 
@@ -2654,11 +2648,6 @@ private:
         }
 
         InitBuiltins();
-
-        if (NeedToComputeCumulativeStatisticsForDynamicTables_) {
-            ComputeCumulativeStatisticsForDynamicTables();
-            NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
-        }
 
         if (NeedFixTrunkNodeInvalidDeltaStatistics_) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -2886,35 +2875,6 @@ private:
                 chunkList->GetId(),
                 chunkList->Statistics(),
                 ultimateCumulativeEntry);
-        }
-    }
-
-    // Compat for YT-10639.
-    void ComputeCumulativeStatisticsForDynamicTables()
-    {
-        for (auto [id, chunkList] : ChunkListMap_) {
-            switch (chunkList->GetKind()) {
-                case EChunkListKind::OrderedDynamicTablet:
-                    RecomputeOrderedTabletCumulativeStatistics(chunkList);
-                    break;
-
-                case EChunkListKind::OrderedDynamicRoot:
-                case EChunkListKind::SortedDynamicRoot:
-                case EChunkListKind::SortedDynamicTablet:
-                    RecomputeStatistics(chunkList);
-                    break;
-
-                default:
-                    break;
-            }
-
-            if (chunkList->HasCumulativeStatistics()) {
-                YT_VERIFY(chunkList->Children().size() == chunkList->CumulativeStatistics().Size());
-                if (chunkList->Statistics().ChunkCount > 0 && !chunkList->CumulativeStatistics().Empty()) {
-                    YT_VERIFY(TCumulativeStatisticsEntry{chunkList->Statistics()} ==
-                        chunkList->CumulativeStatistics().Back());
-                }
-            }
         }
     }
 

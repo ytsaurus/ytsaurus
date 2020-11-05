@@ -21,17 +21,11 @@ void TPortalExitNode::Load(NCellMaster::TLoadContext& context)
     TMapNode::Load(context);
 
     using NYT::Load;
-    // COMPAT(babenko)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::TwoSidedPortalRemoval) {
-        Load(context, RemovalStarted_);
-    }
+    Load(context, RemovalStarted_);
     Load(context, EntranceCellTag_);
     Load(context, Path_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::MorePortalAttributes) {
-        Load(context, Key_);
-        Load(context, ParentId_);
-    }
+    Load(context, Key_);
+    Load(context, ParentId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

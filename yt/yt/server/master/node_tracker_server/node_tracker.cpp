@@ -1164,7 +1164,7 @@ private:
         // COMPAT(aleksandra-zh)
         if (context.GetVersion() >= EMasterReign::DynamicTimestampProviderDiscovery) {
             Load(context, NodeListPerRole_);
-        } else if (context.GetVersion() >= EMasterReign::DynamicMasterCacheDiscovery) {
+        } else {
             Load(context, NodeListPerRole_[ENodeRole::MasterCache].Nodes());
             NodeListPerRole_[ENodeRole::MasterCache].UpdateAddresses();
         }
@@ -1172,16 +1172,6 @@ private:
         NodeMap_.LoadValues(context);
         RackMap_.LoadValues(context);
         DataCenterMap_.LoadValues(context);
-
-        // COMPAT(babenko)
-        if (context.GetVersion() < EMasterReign::FixClusterNodeForeignFlag) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            for (auto [nodeId, node] : NodeMap_) {
-                if (node->GetNativeCellTag() != multicellManager->GetCellTag()) {
-                    node->SetForeign();
-                }
-            }
-        }
     }
 
 

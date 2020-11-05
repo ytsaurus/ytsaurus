@@ -216,14 +216,8 @@ void TCypressNode::Load(TLoadContext& context)
     Load(context, Opaque_);
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::CypressShards) {
-        Load(context, Shard_);
-    }
-    // COMPAT(avmatrosov)
-    if (context.GetVersion() >= EMasterReign::YT_10745_Annotation) {
-        Load(context, Annotation_);
-    }
+    Load(context, Shard_);
+    Load(context, Annotation_);
 }
 
 TVersionedObjectId GetObjectId(const TCypressNode* object)

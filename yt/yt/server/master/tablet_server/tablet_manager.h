@@ -180,10 +180,6 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
 
-    // COMPAT(savrus)
-    NHydra::TEntityMap<TTabletCellBundle>& CompatTabletCellBundleMap();
-    NHydra::TEntityMap<TTabletCell>& CompatTabletCellMap();
-
     void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase);
 
 private:

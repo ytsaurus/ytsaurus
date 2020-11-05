@@ -46,37 +46,7 @@ void TUser::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, Banned_);
-
-    if (context.GetVersion() < NCellMaster::EMasterReign::RequestLimits) {
-        RequestLimits_->ReadRequestRateLimits->Default = Load<int>(context);
-        RequestLimits_->WriteRequestRateLimits->Default = Load<int>(context);
-        RequestLimits_->RequestQueueSizeLimits->Default = Load<int>(context);
-    } else {
-        Load(context, *RequestLimits_);
-    }
-
-    // COMPAT(babenko)
-    if (context.GetVersion() < NCellMaster::EMasterReign::DropUserStatistics) {
-        struct TLegacyUserStatistics
-        {
-            i64 RequestCount = 0;
-            TDuration ReadRequestTime;
-            TDuration WriteRequestTime;
-            TInstant AccessTime;
-
-            void Persist(NCellMaster::TPersistenceContext& context)
-            {
-                using NYT::Persist;
-                Persist(context, RequestCount);
-                Persist(context, ReadRequestTime);
-                Persist(context, WriteRequestTime);
-                Persist(context, AccessTime);
-            }
-        };
-
-        Load<THashMap<NObjectClient::TCellTag, TLegacyUserStatistics>>(context);
-        Load<TLegacyUserStatistics>(context);
-    }
+    Load(context, *RequestLimits_);
 }
 
 const NConcurrency::IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)

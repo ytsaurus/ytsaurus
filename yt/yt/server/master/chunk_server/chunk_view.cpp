@@ -73,9 +73,7 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
     Load(context, UnderlyingChunk_);
     Load(context, ReadRange_);
     Load(context, Parents_);
-    if (context.GetVersion() >= EMasterReign::BulkInsert) {
-        Load(context, TransactionId_);
-    }
+    Load(context, TransactionId_);
 }
 
 TReadLimit TChunkView::GetAdjustedLowerReadLimit(TReadLimit readLimit) const

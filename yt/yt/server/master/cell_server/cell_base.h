@@ -135,10 +135,6 @@ public:
 
     //! Returns |true| if cell reported that it is decommissioned.
     bool IsDecommissionCompleted() const;
-
-protected:
-    // COMPAT(savrus)
-    THashSet<NTabletServer::TTablet*> CompatTablets_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

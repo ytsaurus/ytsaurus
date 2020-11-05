@@ -42,7 +42,7 @@ void TNetworkProject::Load(NCellMaster::TLoadContext& context)
     // COMPAT(gritukan)
     using NCellMaster::EMasterReign;
     if (context.GetVersion() >= EMasterReign::FixNetworkProjectSerialization ||
-       (context.GetVersion() >= EMasterReign::FixNetworkProjectSerialization_19_8 && context.GetVersion() < EMasterReign::TruncateJournals))
+        context.GetVersion() < EMasterReign::TruncateJournals)
     {
         Load(context, Acd_);
     }

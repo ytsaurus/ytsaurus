@@ -138,11 +138,7 @@ void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, Zombies_);
-
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::SyncCellsBeforeRemoval) {
-        Load(context, RemovalAwaitingCellsSyncObjects_);
-    }
+    Load(context, RemovalAwaitingCellsSyncObjects_);
 
     YT_VERIFY(EphemeralGhosts_.empty());
 }

@@ -462,13 +462,7 @@ void TTableReplicaInfo::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, CurrentReplicationRowIndex_);
     Load(context, CurrentReplicationTimestamp_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::NoTabletErrorsOnMaster) {
-        Load(context, HasError_);
-    } else {
-        auto error = Load<TError>(context);
-        HasError_ = !error.IsOK();
-    }
+    Load(context, HasError_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -533,24 +527,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, TrimmedRowCount_);
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::NoTabletErrorsOnMaster) {
-        using TTabletErrors = TEnumIndexedVector<
-            NTabletClient::ETabletBackgroundActivity,
-            TError
-        >;
-        Load<TTabletErrors>(context); // Errors_
-    }
     Load(context, TabletErrorCount_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::NoTabletErrorsOnMaster) {
-        Load(context, ReplicationErrorCount_);
-    }
+    Load(context, ReplicationErrorCount_);
     Load(context, ExpectedState_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::BulkInsert) {
-        Load(context, UnconfirmedDynamicTableLocks_);
-    }
+    Load(context, UnconfirmedDynamicTableLocks_);
     // COMPAT(ifsmirnov):
     if (context.GetVersion() >= EMasterReign::MountHint) {
         Load(context, EdenStoreIds_);
