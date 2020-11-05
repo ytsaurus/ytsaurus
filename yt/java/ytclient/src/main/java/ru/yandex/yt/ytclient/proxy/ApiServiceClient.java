@@ -754,15 +754,15 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     /* tables */
-    private void runTabletsMountedChecker(String tablePath, CompletableFuture<Void> futureToComplete, ScheduledExecutorService executorService) {
+    private void runTabletsStateChecker(String tablePath, CompletableFuture<Void> futureToComplete, ScheduledExecutorService executorService, String state) {
         getNode(tablePath + "/@tablets").thenAccept(tablets -> {
             List<YTreeNode> tabletPaths = tablets.asList();
             Stream<Boolean> tabletsMounted = tabletPaths.stream()
-                    .map(node -> node.asMap().getOrThrow("state").stringValue().equals("mounted"));
-            if (tabletsMounted.allMatch(mounted -> mounted)) {
+                    .map(node -> node.asMap().getOrThrow("state").stringValue().equals(state));
+            if (tabletsMounted.allMatch(tableState -> tableState)) {
                 futureToComplete.complete(null);
             } else {
-                executorService.schedule(() -> runTabletsMountedChecker(tablePath, futureToComplete, executorService), 1, TimeUnit.SECONDS);
+                executorService.schedule(() -> runTabletsStateChecker(tablePath, futureToComplete, executorService, state), 1, TimeUnit.SECONDS);
             }
         }).exceptionally(e -> {
             futureToComplete.completeExceptionally(e);
@@ -796,7 +796,7 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> {
                     ScheduledExecutorService executor = response.sender().executor();
                     if (waitMounted) {
-                        executor.schedule(() -> runTabletsMountedChecker(path, result, executor), 1, TimeUnit.SECONDS);
+                        executor.schedule(() -> runTabletsStateChecker(path, result, executor, "mounted"), 1, TimeUnit.SECONDS);
                     } else {
                         result.complete(null);
                     }
@@ -831,10 +831,12 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<Void> unmountTable(String path, boolean force) {
-        return unmountTable(path, force, null);
+        return unmountTable(path, force, null, false);
     }
 
-    public CompletableFuture<Void> unmountTable(String path, boolean force, @Nullable Duration requestTimeout) {
+    public CompletableFuture<Void> unmountTable(String path, boolean force, @Nullable Duration requestTimeout,
+                                                boolean waitUnmounted) {
+        final CompletableFuture<Void> result = new CompletableFuture<>();
         RpcClientRequestBuilder<TReqUnmountTable.Builder, RpcClientResponse<TRspUnmountTable>> builder =
                 service.unmountTable();
         if (requestTimeout != null) {
@@ -842,15 +844,28 @@ public class ApiServiceClient extends TransactionalClient {
         }
         builder.body().setPath(path);
         builder.body().setForce(force);
-        return RpcUtil.apply(invoke(builder), response -> null);
+        RpcUtil.apply(invoke(builder), response -> {
+            if (waitUnmounted) {
+                ScheduledExecutorService executor = response.sender().executor();
+                executor.schedule(() -> runTabletsStateChecker(path, result, executor, "unmounted"), 1, TimeUnit.SECONDS);
+            } else {
+                result.complete(null);
+            }
+            return null;
+        }).exceptionally(result::completeExceptionally);
+        return result;
     }
 
     public CompletableFuture<Void> unmountTable(String path) {
         return unmountTable(path, null);
     }
 
+    public CompletableFuture<Void> unmountTable(String path, boolean force, boolean waitUnmounted) {
+        return unmountTable(path, force, null, waitUnmounted);
+    }
+
     public CompletableFuture<Void> unmountTable(String path, @Nullable Duration requestTimeout) {
-        return unmountTable(path, false, requestTimeout);
+        return unmountTable(path, false, requestTimeout, false);
     }
 
     public CompletableFuture<Void> remountTable(RemountTable req) {
