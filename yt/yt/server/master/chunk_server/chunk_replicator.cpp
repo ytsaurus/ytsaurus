@@ -2161,7 +2161,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
         void Run()
         {
             YT_VERIFY(IsObjectAlive(Root_));
-            auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+            auto callbacks = CreateAsyncChunkTraverserContext(
                 Bootstrap_,
                 NCellMaster::EAutomatonThreadQueue::ChunkRequisitionUpdateTraverser);
             TraverseChunkTree(std::move(callbacks), this, Root_);
@@ -2174,8 +2174,8 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 
         virtual bool OnChunk(
             TChunk* chunk,
-            i64 /*rowIndex*/,
-            std::optional<i32> /*tabletIndex*/,
+            std::optional<i64> /*rowIndex*/,
+            std::optional<int> /*tabletIndex*/,
             const TReadLimit& /*startLimit*/,
             const TReadLimit& /*endLimit*/,
             TTransactionId /*timestampTransactionId*/) override

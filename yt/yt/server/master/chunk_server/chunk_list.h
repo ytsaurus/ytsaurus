@@ -91,17 +91,18 @@ public:
     void SetKind(EChunkListKind kind);
 
     bool IsOrdered() const;
+    bool IsSealed() const;
 
     bool HasCumulativeStatistics() const;
     bool HasAppendableCumulativeStatistics() const;
     bool HasModifyableCumulativeStatistics() const;
     bool HasTrimmableCumulativeStatistics() const;
+    bool HasChildToIndexMapping() const;
 
 private:
     TIndexedVector<TChunkList*> Parents_;
     TIndexedVector<TChunkOwnerBase*> TrunkOwningNodes_;
     TIndexedVector<TChunkOwnerBase*> BranchedOwningNodes_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

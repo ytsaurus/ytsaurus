@@ -664,7 +664,7 @@ public:
         securityManager->UpdateResourceUsage(chunk, requisition, delta);
     }
 
-    void SealChunk(TChunk* chunk, const TMiscExt& miscExt)
+    void SealChunk(TChunk* chunk, const TChunkSealInfo& info)
     {
         if (!chunk->IsJournal()) {
             THROW_ERROR_EXCEPTION("Not a journal chunk");
@@ -680,10 +680,19 @@ public:
             return;
         }
 
-        chunk->Seal(miscExt);
+        chunk->Seal(info);
         OnChunkSealed(chunk);
 
         ScheduleChunkRefresh(chunk);
+
+        for (auto [chunkTree, cardinality] : chunk->Parents()) {
+            const auto* chunkList = chunkTree->As<TChunkList>();
+            const auto& children = chunkList->Children();
+            int index = GetChildIndex(chunkList, chunk);
+            if (index + 1 < static_cast<int>(children.size())) {
+                ScheduleChunkSeal(children[index + 1]->AsChunk());
+            }
+        }
     }
 
     TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange, TTransactionId transactionId = {})
@@ -1426,18 +1435,30 @@ public:
     }
 
 
-    TFuture<TMiscExt> GetChunkQuorumInfo(TChunk* chunk)
+    TFuture<TChunkQuorumInfo> GetChunkQuorumInfo(TChunk* chunk)
     {
-        if (chunk->IsSealed()) {
-            return MakeFuture(chunk->MiscExt());
-        }
-
-        return ComputeQuorumInfo(
+        return GetChunkQuorumInfo(
             chunk->GetId(),
+            chunk->GetOverlayed(),
             chunk->GetErasureCodec(),
-            GetChunkReplicaDescriptors(chunk),
-            GetDynamicConfig()->JournalRpcTimeout,
             chunk->GetReadQuorum(),
+            GetChunkReplicaDescriptors(chunk));
+    }
+
+    TFuture<TChunkQuorumInfo> GetChunkQuorumInfo(
+        TChunkId chunkId,
+        bool overlayed,
+        NErasure::ECodec codecId,
+        int readQuorum,
+        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors)
+    {
+        return ComputeQuorumInfo(
+            chunkId,
+            overlayed,
+            codecId,
+            readQuorum,
+            replicaDescriptors,
+            GetDynamicConfig()->JournalRpcTimeout,
             Bootstrap_->GetNodeChannelFactory());
     }
 
@@ -2299,6 +2320,9 @@ private:
         const auto& mediumName = subrequest->medium_name();
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
         int writeQuorum = isJournal ? subrequest->write_quorum() : 0;
+        bool movable = subrequest->movable();
+        bool vital = subrequest->vital();
+        bool overlayed = subrequest->overlayed();
 
         auto* medium = GetMediumByNameOrThrow(mediumName);
         int mediumIndex = medium->GetIndex();
@@ -2323,7 +2347,9 @@ private:
         if (subrequest->has_chunk_list_id()) {
             auto chunkListId = FromProto<TChunkListId>(subrequest->chunk_list_id());
             chunkList = GetChunkListOrThrow(chunkListId);
-            chunkList->ValidateSealed();
+            if (!overlayed) {
+                chunkList->ValidateSealed();
+            }
             chunkList->ValidateUniqueAncestors();
         }
 
@@ -2332,7 +2358,8 @@ private:
         chunk->SetReadQuorum(readQuorum);
         chunk->SetWriteQuorum(writeQuorum);
         chunk->SetErasureCodec(erasureCodecId);
-        chunk->SetMovable(subrequest->movable());
+        chunk->SetMovable(movable);
+        chunk->SetOverlayed(overlayed);
 
         YT_ASSERT(chunk->GetLocalRequisitionIndex() ==
                  (isErasure
@@ -2344,12 +2371,10 @@ private:
             mediumIndex,
             TReplicationPolicy(replicationFactor, false /* dataPartsOnly */),
             false /* committed */);
-        requisition.SetVital(subrequest->vital());
+        requisition.SetVital(vital);
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto requisitionIndex = ChunkRequisitionRegistry_.GetOrCreate(requisition, objectManager);
         chunk->SetLocalRequisitionIndex(requisitionIndex, GetChunkRequisitionRegistry(), objectManager);
-
-        auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
 
         StageChunk(chunk, transaction, account);
 
@@ -2360,24 +2385,27 @@ private:
         }
 
         if (subresponse) {
+            auto sessionId = TSessionId(chunk->GetId(), mediumIndex);
             ToProto(subresponse->mutable_session_id(), sessionId);
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Chunk created "
-            "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, MediumName: %v "
-            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, Movable: %v, Vital: %v)",
-            sessionId,
+            "(ChunkId: %v, ChunkListId: %v, TransactionId: %v, Account: %v, Medium: %v, "
+            "ReplicationFactor: %v, ReadQuorum: %v, WriteQuorum: %v, ErasureCodec: %v, "
+            "Movable: %v, Vital: %v, Overlayed: %v)",
+            chunk->GetId(),
             GetObjectId(chunkList),
             transaction->GetId(),
             account->GetName(),
-            mediumName,
+            medium->GetName(),
             replicationFactor,
             readQuorum,
             writeQuorum,
             erasureCodecId,
-            subrequest->movable(),
-            subrequest->vital());
+            movable,
+            vital,
+            overlayed);
     }
 
     void ExecuteConfirmChunkSubrequest(
@@ -2411,18 +2439,16 @@ private:
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto* chunk = GetChunkOrThrow(chunkId);
 
-        const auto& miscExt = subrequest->misc();
-
-        SealChunk(
-            chunk,
-            miscExt);
+        const auto& info = subrequest->info();
+        SealChunk(chunk, info);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk sealed "
-            "(ChunkId: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            "(ChunkId: %v, FirstOverlayedRowIndex: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             chunk->GetId(),
-            miscExt.row_count(),
-            miscExt.uncompressed_data_size(),
-            miscExt.compressed_data_size());
+            info.has_first_overlayed_row_index() ? std::make_optional(info.first_overlayed_row_index()) : std::nullopt,
+            info.row_count(),
+            info.uncompressed_data_size(),
+            info.compressed_data_size());
     }
 
     void ExecuteCreateChunkListsSubrequest(
@@ -2821,7 +2847,6 @@ private:
     void RecomputeOrderedTabletCumulativeStatistics(TChunkList* chunkList)
     {
         YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
-
 
         auto getChildStatisticsEntry = [] (TChunkTree* child) {
             return child
@@ -3319,33 +3344,7 @@ private:
 
     void OnChunkSealed(TChunk* chunk)
     {
-        YT_ASSERT(chunk->IsSealed());
-
-        if (!chunk->HasParents())
-            return;
-
-        // Go upwards and apply delta.
-        YT_VERIFY(chunk->GetParentCount() == 1);
-        auto statisticsDelta = chunk->GetStatistics();
-        AccumulateUniqueAncestorsStatistics(chunk, statisticsDelta);
-
-        auto owningNodes = GetOwningNodes(chunk);
-
-        bool journalNodeLocked = false;
-        TJournalNode* trunkJournalNode = nullptr;
-        for (auto* node : owningNodes) {
-            if (node->GetType() == EObjectType::Journal) {
-                auto* journalNode = node->As<TJournalNode>();
-                if (journalNode->GetUpdateMode() != EUpdateMode::None) {
-                    journalNodeLocked = true;
-                }
-                if (trunkJournalNode) {
-                    YT_VERIFY(journalNode->GetTrunkNode() == trunkJournalNode);
-                } else {
-                    trunkJournalNode = journalNode->GetTrunkNode();
-                }
-            }
-        }
+        YT_VERIFY(chunk->IsSealed());
 
         if (chunk->IsJournal()) {
             if (chunk->IsStaged()) {
@@ -3354,9 +3353,45 @@ private:
             UpdateAccountResourceUsage(chunk, +1);
         }
 
-        if (!journalNodeLocked && IsObjectAlive(trunkJournalNode)) {
-            const auto& journalManager = Bootstrap_->GetJournalManager();
-            journalManager->SealJournal(trunkJournalNode, nullptr);
+        auto parentCount = chunk->GetParentCount();
+        if (parentCount == 0) {
+            return;
+        }
+        if (parentCount > 1) {
+            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Improper number of parents of a sealed chunk (ChunkId: %v, ParentCount: %v)",
+                chunk->GetId(),
+                parentCount);
+            return;
+        }
+        auto* chunkList = GetUniqueParent(chunk)->As<TChunkList>();
+
+        // Go upwards and apply delta.
+        auto statisticsDelta = chunk->GetStatistics();
+        AccumulateUniqueAncestorsStatistics(chunk, statisticsDelta);
+
+        if (chunkList->Children().back() == chunk) {
+            auto owningNodes = GetOwningNodes(chunk);
+
+            bool journalNodeLocked = false;
+            TJournalNode* trunkJournalNode = nullptr;
+            for (auto* node : owningNodes) {
+                if (node->GetType() == EObjectType::Journal) {
+                    auto* journalNode = node->As<TJournalNode>();
+                    if (journalNode->GetUpdateMode() != EUpdateMode::None) {
+                        journalNodeLocked = true;
+                    }
+                    if (trunkJournalNode) {
+                        YT_VERIFY(journalNode->GetTrunkNode() == trunkJournalNode);
+                    } else {
+                        trunkJournalNode = journalNode->GetTrunkNode();
+                    }
+                }
+            }
+
+            if (!journalNodeLocked && IsObjectAlive(trunkJournalNode)) {
+                const auto& journalManager = Bootstrap_->GetJournalManager();
+                journalManager->SealJournal(trunkJournalNode, nullptr);
+            }
         }
     }
 
@@ -4012,9 +4047,24 @@ TMediumMap<EChunkStatus> TChunkManager::ComputeChunkStatuses(TChunk* chunk)
     return Impl_->ComputeChunkStatuses(chunk);
 }
 
-TFuture<TMiscExt> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
+TFuture<TChunkQuorumInfo> TChunkManager::GetChunkQuorumInfo(TChunk* chunk)
 {
     return Impl_->GetChunkQuorumInfo(chunk);
+}
+
+TFuture<TChunkQuorumInfo> TChunkManager::GetChunkQuorumInfo(
+    TChunkId chunkId,
+    bool overlayed,
+    NErasure::ECodec codecId,
+    int readQuorum,
+    const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors)
+{
+    return Impl_->GetChunkQuorumInfo(
+        chunkId,
+        overlayed,
+        codecId,
+        readQuorum,
+        replicaDescriptors);
 }
 
 TMedium* TChunkManager::GetMediumOrThrow(TMediumId id) const

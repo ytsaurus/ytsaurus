@@ -20,8 +20,8 @@ struct IChunkVisitor
      */
     virtual bool OnChunk(
         TChunk* chunk,
-        i64 rowIndex,
-        std::optional<i32> tabletIndex,
+        std::optional<i64> rowIndex,
+        std::optional<int> tabletIndex,
         const NChunkClient::TReadLimit& startLimit,
         const NChunkClient::TReadLimit& endLimit,
         TTransactionId timestampTransactionId) = 0;
@@ -47,9 +47,14 @@ DEFINE_REFCOUNTED_TYPE(IChunkVisitor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IChunkTraverserCallbacks
+struct IChunkTraverserContext
     : public virtual TRefCounted
 {
+    //! If |true| then #GetInvoker and #GetUnsealedChunkStatistics are not supported;
+    //! traverser must run fully synchronously. In particular, not all of its filtering
+    //! features are available (e.g. it cannot handle non-trivial bounds).
+    virtual bool IsSynchronous() const = 0;
+
     //! Returns |nullptr| if traversing cannot be preempted.
     virtual IInvokerPtr GetInvoker() const = 0;
 
@@ -62,43 +67,65 @@ struct IChunkTraverserCallbacks
     //! Called when traversing finishes; #nodes contains all nodes from the stack.
     virtual void OnShutdown(const std::vector<TChunkTree*>& nodes) = 0;
 
-    //! Called by the traverser to notify the callbacks about the amount of
+    //! Called by the traverser to notify the context about the amount of
     //! time spent during traversing.
     virtual void OnTimeSpent(TDuration time) = 0;
+
+    //! See NYT::NJournalClient::TChunkQuorumInfo.
+    struct TUnsealedChunkStatistics
+    {
+        std::optional<i64> FirstOverlayedRowIndex;
+        i64 RowCount = 0;
+    };
+
+    //! Asynchronously computes the statistics of an unsealed chunk.
+    virtual TFuture<TUnsealedChunkStatistics> GetUnsealedChunkStatistics(TChunk* chunk) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IChunkTraverserCallbacks)
+DEFINE_REFCOUNTED_TYPE(IChunkTraverserContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IChunkTraverserCallbacksPtr CreatePreemptableChunkTraverserCallbacks(
+IChunkTraverserContextPtr CreateAsyncChunkTraverserContext(
     NCellMaster::TBootstrap* bootstrap,
     NCellMaster::EAutomatonThreadQueue threadQueue);
 
-IChunkTraverserCallbacksPtr GetNonpreemptableChunkTraverserCallbacks();
+IChunkTraverserContextPtr GetSyncChunkTraverserContext();
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Traverses the subtree at #root pruning it to |[lowerLimit, upperLimit)| range.
+//! For unsealed chunks, may consult the context to figure out the quorum information.
 void TraverseChunkTree(
-    IChunkTraverserCallbacksPtr callbacks,
+    IChunkTraverserContextPtr context,
     IChunkVisitorPtr visitor,
     TChunkList* root,
-    const NChunkClient::TReadLimit& lowerLimit = NChunkClient::TReadLimit(),
-    const NChunkClient::TReadLimit& upperLimit = NChunkClient::TReadLimit(),
-    std::optional<int> keyColumnCount = std::nullopt);
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit,
+    std::optional<int> keyColumnCount);
 
+//! Traverses the subtree at #root. No bounds are being checked,
+//! #visitor is being notified of each relevant child.
+void TraverseChunkTree(
+    IChunkTraverserContextPtr context,
+    IChunkVisitorPtr visitor,
+    TChunkList* root);
+
+//! Appends the chunks found in subtree at #root to #chunks.
 void EnumerateChunksInChunkTree(
     TChunkList* root,
-    std::vector<TChunk*>* chunks,
-    const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),
-    const NChunkClient::TReadLimit& upperBound = NChunkClient::TReadLimit());
+    std::vector<TChunk*>* chunks);
 
+//! Returns the list of all chunks in subtree at #root.
 std::vector<TChunk*> EnumerateChunksInChunkTree(
+    TChunkList* root);
+
+//! Appends the chunks, chunk views, and dynamic stores found in subtree at #root to #stores.
+void EnumerateStoresInChunkTree(
     TChunkList* root,
-    const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),
-    const NChunkClient::TReadLimit& upperBound = NChunkClient::TReadLimit());
+    std::vector<TChunkTree*>* stores);
 
-// Enumerates chunks, chunk views and dynamic stores.
-void EnumerateStoresInChunkTree(TChunkList* root, std::vector<TChunkTree*>* stores);
-
+//! Returns the list of chunks, chunk views, and dynamic stores found in subtree at #root.
 std::vector<TChunkTree*> EnumerateStoresInChunkTree(TChunkList* root);
 
 ////////////////////////////////////////////////////////////////////////////////

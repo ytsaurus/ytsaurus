@@ -135,13 +135,30 @@ class TJournalConsumer
 {
 public:
     explicit TJournalConsumer(IJournalWriterPtr writer)
-        : Writer_(writer)
+        : Writer_(std::move(writer))
     { }
 
+    void Flush()
+    {
+        if (BufferedRows_.empty()) {
+            return;
+        }
+
+        WaitFor(Writer_->Write(BufferedRows_))
+            .ThrowOnError();
+        
+        BufferedRows_.clear();
+        BufferedByteSize_ = 0;
+    }
+
 private:
-    IJournalWriterPtr Writer_;
+    const IJournalWriterPtr Writer_;
 
     EJournalConsumerState State_ = EJournalConsumerState::Root;
+    
+    std::vector<TSharedRef> BufferedRows_;
+    i64 BufferedByteSize_ = 0;
+    static constexpr i64 MaxBufferedSize = 64_KB;
 
 
     virtual void OnStringScalar(TStringBuf value) override
@@ -150,11 +167,9 @@ private:
             ThrowMalformedData();
         }
 
-        std::vector<TSharedRef> rows;
-        rows.push_back(TSharedRef::FromString(TString(value)));
-
-        WaitFor(Writer_->Write(rows))
-            .ThrowOnError();
+        auto row = TSharedRef::FromString(TString(value));
+        BufferedByteSize_ += row.Size();
+        BufferedRows_.push_back(std::move(row));
 
         State_ = EJournalConsumerState::InsideMap;
     }
@@ -245,6 +260,12 @@ private:
         THROW_ERROR_EXCEPTION("Malformed journal data");
     }
 
+    void MaybeFlush()
+    {
+        if (BufferedByteSize_ >= MaxBufferedSize) {
+            Flush();
+        }
+    }
 };
 
 TWriteJournalCommand::TWriteJournalCommand()
@@ -289,6 +310,8 @@ void TWriteJournalCommand::DoExecute(ICommandContextPtr context)
     }
 
     parser->Finish();
+
+    consumer.Flush();
 
     WaitFor(writer->Close())
         .ThrowOnError();

@@ -27,8 +27,6 @@ public:
 
     virtual void BeginUpload(const TBeginUploadContext& context) override;
 
-    NChunkServer::TChunk* GetTrailingChunk() const;
-
     TJournalNode* GetTrunkNode();
     const TJournalNode* GetTrunkNode() const;
 

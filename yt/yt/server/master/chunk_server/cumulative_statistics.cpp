@@ -161,8 +161,9 @@ void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& 
     switch (GetImplementationIndex()) {
         case AppendableAlternativeIndex: {
             auto& statistics = AsAppendable();
-            YT_VERIFY(index == statistics.size() - 1);
-            statistics[index] = statistics[index] + delta;
+            for (int currentIndex = index; currentIndex < static_cast<int>(statistics.size()); ++currentIndex) {
+                statistics[currentIndex] = statistics[currentIndex] + delta;
+            }
             break;
         }
 

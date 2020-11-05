@@ -139,8 +139,8 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
     }
 
     int firstBlockIndex = blockIndexes.front();
-    int blockCount = 0;
-    while (blockCount < blockIndexes.size() && blockIndexes[blockCount + 1] == blockIndexes[blockCount] + 1) {
+    int blockCount = 1;
+    while (blockCount < blockIndexes.size() && blockIndexes[blockCount] == blockIndexes[blockCount - 1] + 1) {
         ++blockCount;
     }
 
@@ -153,8 +153,15 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     const TBlockReadOptions& options)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    YT_VERIFY(firstBlockIndex >= 0);
-    YT_VERIFY(blockCount >= 0);
+
+    if (firstBlockIndex < 0) {
+        return MakeFuture<std::vector<TBlock>>(TError("First block index %v is negative",
+            firstBlockIndex));
+    }
+    if (blockCount < 0) {
+        return MakeFuture<std::vector<TBlock>>(TError("Block count %v is negative",
+            blockCount));
+    }
 
     if (!options.FetchFromDisk) {
         return MakeFuture(std::vector<TBlock>());

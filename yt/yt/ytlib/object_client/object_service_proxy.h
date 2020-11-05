@@ -1,3 +1,4 @@
+
 #pragma once
 
 #include "public.h"
@@ -61,7 +62,8 @@ class TObjectServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TObjectServiceProxy, ObjectService,
-        .SetProtocolVersion(12));
+        .SetProtocolVersion(12)
+        .SetFeaturesType<EMasterFeature>());
 
     TObjectServiceProxy(
         NRpc::IChannelPtr channel,

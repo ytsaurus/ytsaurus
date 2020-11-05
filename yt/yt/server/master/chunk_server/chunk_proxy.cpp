@@ -41,6 +41,7 @@ using namespace NYson;
 using namespace NObjectServer;
 using namespace NChunkClient;
 using namespace NTableClient;
+using namespace NJournalClient;
 using namespace NNodeTrackerServer;
 
 using NChunkClient::NProto::TMiscExt;
@@ -129,9 +130,12 @@ private:
             .SetPresent(chunk->IsConfirmed() && miscExt.has_compression_codec()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RowCount)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_row_count()));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FirstOverlayedRowIndex)
+            .SetPresent(chunk->IsConfirmed() && miscExt.has_first_overlayed_row_index()));
+        descriptors->push_back(EInternedAttributeKey::Overlayed);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaxBlockSize)
             .SetPresent(chunk->IsConfirmed() && miscExt.has_max_block_size()));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QuorumRowCount)
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QuorumInfo)
             .SetPresent(chunk->IsJournal())
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Sealed)
@@ -547,6 +551,19 @@ private:
                     .Value(miscExt.row_count());
                 return true;
 
+            case EInternedAttributeKey::FirstOverlayedRowIndex:
+                if (!isConfirmed || !miscExt.has_first_overlayed_row_index()) {
+                    break;
+                }
+                BuildYsonFluently(consumer)
+                    .Value(miscExt.first_overlayed_row_index());
+                return true;
+
+            case EInternedAttributeKey::Overlayed:
+                BuildYsonFluently(consumer)
+                    .Value(chunk->GetOverlayed());
+                return true;
+
             case EInternedAttributeKey::ValueCount:
                 if (!isConfirmed || !miscExt.has_value_count()) {
                     break;
@@ -710,15 +727,24 @@ private:
         auto* chunk = GetThisImpl();
 
         switch (key) {
-            case EInternedAttributeKey::QuorumRowCount: {
+            case EInternedAttributeKey::QuorumInfo: {
                 if (!chunk->IsJournal()) {
                     break;
                 }
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
-                auto rowCountResult = chunkManager->GetChunkQuorumInfo(chunk);
-                return rowCountResult.Apply(BIND([=] (const TMiscExt& miscExt) {
-                    return MakeFuture(ConvertToYsonString(miscExt.row_count()));
-                }));
+                return chunkManager->GetChunkQuorumInfo(chunk)
+                    .Apply(BIND([] (const TChunkQuorumInfo& info) {
+                        return MakeFuture(BuildYsonStringFluently()
+                            .BeginMap()
+                                .DoIf(info.FirstOverlayedRowIndex.has_value(), [&] (auto fluent) {
+                                    fluent
+                                        .Item("first_overlayed_row_index").Value(info.FirstOverlayedRowIndex);
+                                })
+                                .Item("row_count").Value(info.RowCount)
+                                .Item("uncompressed_data_size").Value(info.UncompressedDataSize)
+                                .Item("compressed_data_size").Value(info.CompressedDataSize)
+                            .EndMap());
+                    }));
             }
 
             case EInternedAttributeKey::OwningNodes:

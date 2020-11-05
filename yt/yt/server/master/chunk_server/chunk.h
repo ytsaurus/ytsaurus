@@ -10,6 +10,8 @@
 #include <yt/server/master/security_server/cluster_resources.h>
 
 #include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
+
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <yt/library/erasure/public.h>
@@ -88,8 +90,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ExpirationTime);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TChunkExpirationMapIterator>, ExpirationIterator);
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, Movable);
-
 public:
     explicit TChunk(TChunkId id);
 
@@ -137,6 +137,12 @@ public:
     void Confirm(
         NChunkClient::NProto::TChunkInfo* chunkInfo,
         NChunkClient::NProto::TChunkMeta* chunkMeta);
+
+    bool GetMovable() const;
+    void SetMovable(bool value);
+
+    bool GetOverlayed() const;
+    void SetOverlayed(bool value);
 
     bool IsConfirmed() const;
 
@@ -227,7 +233,7 @@ public:
     i64 GetSealedRowCount() const;
 
     //! Marks the chunk as sealed, i.e. sets its ultimate row count, data size etc.
-    void Seal(const NChunkClient::NProto::TMiscExt& info);
+    void Seal(const NChunkClient::NProto::TChunkSealInfo& info);
 
     //! For journal chunks, returns true iff the chunk is sealed.
     //! For blob chunks, return true iff the chunk is confirmed.
@@ -280,6 +286,11 @@ private:
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;
     NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
+    union
+    {
+        bool Movable : 1;
+        bool Overlayed : 1;
+    } Flags_ = {};
 
     TChunkRequisitionIndex AggregatedRequisitionIndex_;
 

@@ -20,6 +20,10 @@
 #include "link_node_type_handler.h"
 #include "document_node_type_handler.h"
 
+// COMPAT(babenko)
+#include <yt/server/master/journal_server/journal_node.h>
+#include <yt/server/master/chunk_server/chunk_list.h>
+
 #include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/master/cell_master/bootstrap.h>
@@ -1983,6 +1987,8 @@ private:
     bool NeedBindNodesToAncestorShard_ = false;
     // COMPAT(babenko)
     bool NeedSuggestShardNames_ = false;
+    // COMPAT(babenko)
+    bool NeedSetJournalChunkListKinds_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2031,6 +2037,8 @@ private:
         NeedBindNodesToAncestorShard_ = context.GetVersion() < EMasterReign::FixSetShardInClone;
         // COMPAT(babenko)
         NeedSuggestShardNames_ = context.GetVersion() < EMasterReign::CypressShardName;
+        // COMPAT(babenko)
+        NeedSetJournalChunkListKinds_ = context.GetVersion() < EMasterReign::OverlayedJournals;
     }
 
     virtual void Clear() override
@@ -2068,6 +2076,7 @@ private:
         NeedBindNodesToRootShard_ = false;
         NeedBindNodesToAncestorShard_ = false;
         NeedSuggestShardNames_ = false;
+        NeedSetJournalChunkListKinds_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2194,6 +2203,24 @@ private:
                 if (auto* shard = ancestorNode->GetShard()) {
                     SetShard(node, shard);
                 }
+            }
+        }
+
+        // COMPAT(babenko)
+        if (NeedSetJournalChunkListKinds_) {
+            for (auto [nodeId, node] : NodeMap_) {
+                if (node->GetType() != EObjectType::Journal) {
+                    continue;
+                }
+
+                auto* journalNode = node->As<NJournalServer::TJournalNode>();
+                auto* chunkList = journalNode->GetChunkList();
+                if (!chunkList || chunkList->GetKind() == NChunkServer::EChunkListKind::JournalRoot) {
+                    continue;
+                }
+
+                YT_VERIFY(chunkList->GetKind() == NChunkServer::EChunkListKind::Static);
+                chunkList->SetKind(NChunkServer::EChunkListKind::JournalRoot);
             }
         }
     }

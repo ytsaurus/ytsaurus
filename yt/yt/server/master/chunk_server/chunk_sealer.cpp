@@ -2,6 +2,7 @@
 #include "private.h"
 #include "chunk.h"
 #include "chunk_list.h"
+#include "chunk_tree.h"
 #include "chunk_manager.h"
 #include "chunk_owner_base.h"
 #include "config.h"
@@ -177,13 +178,26 @@ private:
         return chunk->StoredReplicas().size() >= chunk->GetReadQuorum();
     }
 
+    static bool IsFirstUnsealedInChunkList(TChunk* chunk)
+    {
+        for (auto [chunkTree, cardinality] : chunk->Parents()) {
+            const auto* chunkList = chunkTree->As<TChunkList>();
+            int index = GetChildIndex(chunkList, chunk);
+            if (index > 0 && !chunkList->Children()[index - 1]->IsSealed()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static bool CanBeSealed(TChunk* chunk)
     {
         return
             IsSealNeeded(chunk) &&
             HasEnoughReplicas(chunk) &&
             IsAttached(chunk) &&
-            !IsLocked(chunk);
+            !IsLocked(chunk) &&
+            IsFirstUnsealedInChunkList(chunk);
     }
 
 
@@ -268,7 +282,7 @@ private:
         try {
             GuardedSealChunk(chunk);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error sealing journal chunk %v; backing off",
+            YT_LOG_DEBUG(ex, "Error sealing journal chunk; backing off (ChunkId: %v)",
                 chunkId);
 
             TDelayedExecutor::Submit(
@@ -278,20 +292,41 @@ private:
         }
     }
 
+    static i64 ComputeSealedRowCount(TChunkId chunkId, i64 startRowIndex, const TChunkQuorumInfo& quorumInfo)
+    {
+        if (!quorumInfo.FirstOverlayedRowIndex) {
+            return quorumInfo.RowCount;
+        }
+        if (startRowIndex < *quorumInfo.FirstOverlayedRowIndex) {
+            THROW_ERROR_EXCEPTION("Sealing chunk %v would produce row gap",
+                chunkId)
+                << TErrorAttribute("start_row_index", startRowIndex)
+                << TErrorAttribute("first_overlayed_row_index", *quorumInfo.FirstOverlayedRowIndex);
+        }
+        return std::max(quorumInfo.RowCount - (startRowIndex - *quorumInfo.FirstOverlayedRowIndex), static_cast<i64>(0));
+    }
+
     void GuardedSealChunk(TChunk* chunk)
     {
-        ValidateChunkHasReplicas(chunk);
-
         // NB: Copy all the needed properties into locals. The subsequent code involves yields
         // and the chunk may expire. See YT-8120.
         auto chunkId = chunk->GetId();
+        auto overlayed = chunk->GetOverlayed();
         auto codecId = chunk->GetErasureCodec();
+        auto startRowIndex = GetJournalChunkStartRowIndex(chunk);
         auto readQuorum = chunk->GetReadQuorum();
         auto replicas = GetChunkReplicaDescriptors(chunk);
         auto dynamicConfig = GetDynamicConfig();
 
-        YT_LOG_DEBUG("Sealing journal chunk (ChunkId: %v)",
-            chunkId);
+        if (replicas.empty()) {
+            THROW_ERROR_EXCEPTION("No replicas of chunk %v are known",
+                chunkId);
+        }
+
+        YT_LOG_DEBUG("Sealing journal chunk (ChunkId: %v, Overlayed: %v, StartRowIndex: %v)",
+            chunkId,
+            overlayed,
+            startRowIndex);
 
         std::vector<TChunkReplicaDescriptor> abortedReplicas;
         {
@@ -305,18 +340,18 @@ private:
                 .ValueOrThrow();
         }
 
-        TMiscExt miscExt;
+        TChunkQuorumInfo quorumInfo;
         {
             auto future = ComputeQuorumInfo(
                 chunkId,
+                overlayed,
                 codecId,
+                readQuorum,
                 abortedReplicas,
                 dynamicConfig->JournalRpcTimeout,
-                readQuorum,
                 Bootstrap_->GetNodeChannelFactory());
-            miscExt = WaitFor(future)
+            quorumInfo = WaitFor(future)
                 .ValueOrThrow();
-            miscExt.set_sealed(true);
         }
 
         {
@@ -328,7 +363,12 @@ private:
 
             auto* req = batchReq->add_seal_chunk_subrequests();
             ToProto(req->mutable_chunk_id(), chunkId);
-            *req->mutable_misc() = miscExt;
+            if (quorumInfo.FirstOverlayedRowIndex) {
+                req->mutable_info()->set_first_overlayed_row_index(*quorumInfo.FirstOverlayedRowIndex);
+            }
+            req->mutable_info()->set_row_count(ComputeSealedRowCount(chunkId, startRowIndex, quorumInfo));
+            req->mutable_info()->set_uncompressed_data_size(quorumInfo.UncompressedDataSize);
+            req->mutable_info()->set_compressed_data_size(quorumInfo.CompressedDataSize);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
             THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -339,14 +379,6 @@ private:
 
         YT_LOG_DEBUG("Journal chunk sealed (ChunkId: %v)",
             chunkId);
-    }
-
-    void ValidateChunkHasReplicas(TChunk* chunk)
-    {
-        if (chunk->StoredReplicas().empty()) {
-            THROW_ERROR_EXCEPTION("No replicas of chunk %v are known",
-                chunk->GetId());
-        }
     }
 };
 

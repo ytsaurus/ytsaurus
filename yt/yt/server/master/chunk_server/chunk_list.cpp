@@ -187,7 +187,7 @@ TRange<TChunkOwnerBase*> TChunkList::BranchedOwningNodes() const
 
 ui64 TChunkList::GenerateVisitMark()
 {
-    static std::atomic<ui64> counter(0);
+    static std::atomic<ui64> counter;
     return ++counter;
 }
 
@@ -208,24 +208,41 @@ void TChunkList::SetKind(EChunkListKind kind)
 
 bool TChunkList::IsOrdered() const
 {
-    return Kind_ == EChunkListKind::Static || Kind_ == EChunkListKind::OrderedDynamicTablet;
+    return
+        Kind_ == EChunkListKind::Static ||
+        Kind_ == EChunkListKind::OrderedDynamicTablet ||
+        Kind_ == EChunkListKind::JournalRoot;
+}
+
+bool TChunkList::IsSealed() const
+{
+    if (Children_.empty()) {
+        return true;
+    }
+    const auto* lastChild = Children_.back();
+    // NB: nulls are possible in ordered tablets.
+    return !lastChild || lastChild->IsSealed();
 }
 
 bool TChunkList::HasCumulativeStatistics() const
 {
-    return HasAppendableCumulativeStatistics() ||
+    return
+        HasAppendableCumulativeStatistics() ||
         HasModifyableCumulativeStatistics() ||
         HasTrimmableCumulativeStatistics();
 }
 
 bool TChunkList::HasAppendableCumulativeStatistics() const
 {
-    return Kind_ == EChunkListKind::Static;
+    return
+        Kind_ == EChunkListKind::Static ||
+        Kind_ == EChunkListKind::JournalRoot;
 }
 
 bool TChunkList::HasModifyableCumulativeStatistics() const
 {
-    return Kind_ == EChunkListKind::SortedDynamicRoot ||
+    return
+        Kind_ == EChunkListKind::SortedDynamicRoot ||
         Kind_ == EChunkListKind::OrderedDynamicRoot ||
         Kind_ == EChunkListKind::SortedDynamicTablet ||
         Kind_ == EChunkListKind::SortedDynamicSubtablet;
@@ -233,7 +250,18 @@ bool TChunkList::HasModifyableCumulativeStatistics() const
 
 bool TChunkList::HasTrimmableCumulativeStatistics() const
 {
-    return Kind_ == EChunkListKind::OrderedDynamicTablet;
+    return
+        Kind_ == EChunkListKind::OrderedDynamicTablet;
+}
+
+bool TChunkList::HasChildToIndexMapping() const
+{
+    return
+        Kind_ == EChunkListKind::SortedDynamicRoot ||
+        Kind_ == EChunkListKind::SortedDynamicTablet ||
+        Kind_ == EChunkListKind::OrderedDynamicRoot ||
+        Kind_ == EChunkListKind::SortedDynamicSubtablet ||
+        Kind_ == EChunkListKind::JournalRoot;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

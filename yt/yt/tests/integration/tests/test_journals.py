@@ -2,6 +2,9 @@ import pytest
 
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, is_asan_build
 from yt_commands import *
+from io import TextIOBase
+from time import sleep
+
 import random
 
 ##################################################################
@@ -23,8 +26,8 @@ class TestJournals(YTEnvSetup):
         for i in xrange(0, 10)
     ]
 
-    def _write_and_wait_until_sealed(self, path, data, **kwargs):
-        write_journal(path, data, **kwargs)
+    def _write_and_wait_until_sealed(self, path, *args, **kwargs):
+        write_journal(path, *args, **kwargs)
         wait_until_sealed(path)
 
     def _wait_until_last_chunk_sealed(self, path):
@@ -32,11 +35,23 @@ class TestJournals(YTEnvSetup):
         chunk_id = chunk_ids[-1]
         wait(lambda: all(r.attributes["state"] == "sealed" for r in get("#{}/@stored_replicas".format(chunk_id))))
 
-    def _truncate_and_check(self, path, row_count, expected_row_count):
+    def _truncate_and_check(self, path, row_count):
+        rows = read_journal(path)
+        original_row_count = len(rows)
+
+        assert get(path + "/@quorum_row_count") == original_row_count
+        assert get(path + "/@sealed")
+
         truncate_journal(path, row_count)
 
         assert get(path + "/@sealed")
-        assert get(path + "/@quorum_row_count") == expected_row_count
+
+        if row_count < original_row_count:
+            assert get(path + "/@quorum_row_count") == row_count
+            assert read_journal(path) == rows[:row_count]
+        else:
+            assert get(path + "/@quorum_row_count") == original_row_count
+            assert read_journal(path) == rows
 
     @authors("babenko")
     def test_explicit_compression_codec_forbidden(self):
@@ -106,15 +121,49 @@ class TestJournals(YTEnvSetup):
             with pytest.raises(YtError):
                 create("journal", "//tmp/j", attributes=attributes)
 
+    @authors("babenko")
+    @pytest.mark.parametrize("preallocate_chunks", [False, True])
+    def test_journal_quorum_row_count(self, preallocate_chunks):
+        create("journal", "//tmp/j")
+        self._write_and_wait_until_sealed(
+            "//tmp/j",
+            self.DATA,
+            journal_writer={
+                "max_batch_row_count": 4,
+                "max_flush_row_count": 4,
+                "max_chunk_row_count": 4,
+                "preallocate_chunks": preallocate_chunks,
+            },
+        )
+        assert get("//tmp/j/@quorum_row_count") == 10
+
+        write_journal(
+            "//tmp/j", self.DATA, journal_writer={"preallocate_chunks": preallocate_chunks, "dont_close": True}
+        )
+        assert get("//tmp/j/@quorum_row_count") == 20
+
     @authors("babenko", "ignat")
-    def test_read_write(self):
+    @pytest.mark.parametrize("preallocate_chunks", [False, True])
+    def test_read_write(self, preallocate_chunks):
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
-            self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+            self._write_and_wait_until_sealed(
+                "//tmp/j",
+                self.DATA,
+                journal_writer={
+                    "max_batch_row_count": 4,
+                    "max_chunk_row_count": 4,
+                    "max_flush_row_count": 4,
+                    "preallocate_chunks": preallocate_chunks,
+                },
+            )
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@quorum_row_count") == 100
-        assert get("//tmp/j/@chunk_count") == 10
+
+        chunk_count = get("//tmp/j/@chunk_count")
+        assert chunk_count >= 10 * 3
+        assert chunk_count <= 10 * (3 + (1 if preallocate_chunks else 0))
 
         for i in xrange(0, 10):
             assert read_journal("//tmp/j[#" + str(i * 10) + ":]") == self.DATA * (10 - i)
@@ -125,42 +174,65 @@ class TestJournals(YTEnvSetup):
         assert read_journal("//tmp/j[#200:]") == []
 
     @authors("aleksandra-zh")
-    def test_truncate1(self):
+    @pytest.mark.parametrize("preallocate_chunks", [False, True])
+    def test_truncate1(self, preallocate_chunks):
         create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+        self._write_and_wait_until_sealed(
+            "//tmp/j",
+            self.DATA,
+            journal_writer={
+                "preallocate_chunks": preallocate_chunks,
+            },
+        )
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@quorum_row_count") == 10
 
-        self._truncate_and_check("//tmp/j", 3, 3)
-        self._truncate_and_check("//tmp/j", 10, 3)
+        self._truncate_and_check("//tmp/j", 3)
+        self._truncate_and_check("//tmp/j", 10)
 
     @authors("aleksandra-zh")
-    def test_truncate2(self):
+    @pytest.mark.parametrize("preallocate_chunks", [False, True])
+    def test_truncate2(self, preallocate_chunks):
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
-            self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+            self._write_and_wait_until_sealed(
+                "//tmp/j",
+                self.DATA,
+                journal_writer={
+                    "preallocate_chunks": preallocate_chunks,
+                },
+            )
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@quorum_row_count") == 100
 
-        self._truncate_and_check("//tmp/j", 73, 73)
-        self._truncate_and_check("//tmp/j", 2, 2)
-        self._truncate_and_check("//tmp/j", 0, 0)
+        self._truncate_and_check("//tmp/j", 73)
+        self._truncate_and_check("//tmp/j", 2)
+        self._truncate_and_check("//tmp/j", 0)
 
         for i in xrange(0, 10):
-            self._write_and_wait_until_sealed("//tmp/j", self.DATA)
-            truncate_journal("//tmp/j", (i + 1) * 3)
+            self._write_and_wait_until_sealed(
+                "//tmp/j",
+                self.DATA,
+                journal_writer={
+                    "preallocate_chunks": preallocate_chunks,
+                },
+            )
+            self._truncate_and_check("//tmp/j", (i + 1) * 3)
 
         assert get("//tmp/j/@sealed")
         assert get("//tmp/j/@quorum_row_count") == 30
 
     @authors("aleksandra-zh")
-    def test_truncate_unsealed(self):
+    @pytest.mark.parametrize("preallocate_chunks", [False, True])
+    def test_cannot_truncate_unsealed(self, preallocate_chunks):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", self.DATA, journal_writer={"ignore_closing": True})
+        write_journal(
+            "//tmp/j", self.DATA, journal_writer={"preallocate_chunks": preallocate_chunks, "dont_close": True}
+        )
 
         with pytest.raises(YtError):
             truncate_journal("//tmp/j", 1)
@@ -219,14 +291,70 @@ class TestJournals(YTEnvSetup):
         with pytest.raises(YtError):
             set("//tmp/j/@primary_medium", "default")
 
-    @authors("kiselyovp")
-    def test_write_future_semantics(self):
+    @authors("babenko")
+    @pytest.mark.parametrize("preallocate_chunks", [False, True])
+    def test_read_write_unsealed(self, preallocate_chunks):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
-        create("journal", "//tmp/j1")
-        write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
+        create("journal", "//tmp/j")
+        write_journal(
+            "//tmp/j",
+            self.DATA,
+            journal_writer={
+                "dont_close": True,
+                "max_batch_row_count": 4,
+                "max_flush_row_count": 4,
+                "max_chunk_row_count": 4,
+                "preallocate_chunks": preallocate_chunks,
+            },
+        )
 
-        assert read_journal("//tmp/j1") == self.DATA
+        assert read_journal("//tmp/j") == self.DATA
+
+    @authors("babenko")
+    @pytest.mark.parametrize("preallocate_chunks", [False, True])
+    def test_simulated_failures(self, preallocate_chunks):
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
+
+        create("journal", "//tmp/j")
+
+        rows = self.DATA * 100
+        yson_rows = yson.dumps(rows, yson_type="list_fragment")
+
+        class SlowStream(TextIOBase):
+            def __init__(self, data):
+                self._data = data
+                self._position = 0
+
+            def read(self, size):
+                if size < 0:
+                    raise ValueError()
+
+                size = min(size, 1000)
+                size = min(size, len(self._data) - self._position)
+
+                sys.stderr.write("Reading {} bytes at position {}\n".format(size, self._position))
+                sleep(0.1)
+
+                result = self._data[self._position : self._position + size]
+                self._position = min(self._position + size, len(self._data))
+                return result
+
+        write_journal(
+            "//tmp/j",
+            input_stream=SlowStream(yson_rows),
+            journal_writer={
+                "dont_close": True,
+                "max_batch_row_count": 10,
+                "max_flush_row_count": 10,
+                "max_chunk_row_count": 50,
+                "preallocate_chunks": preallocate_chunks,
+                "replica_failure_probability": 0.1,
+                "open_session_backoff_time": 100,
+            },
+        )
+
+        assert read_journal("//tmp/j") == rows
 
     @authors("ifsmirnov")
     def test_data_node_orchid(self):
@@ -267,7 +395,7 @@ class TestJournalsChangeMedia(YTEnvSetup):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False, recursive=True)
 
         create("journal", "//tmp/j1")
-        write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
+        write_journal("//tmp/j1", self.DATA, journal_writer={"dont_close": True})
 
         assert not get("//tmp/j1/@sealed")
         chunk_id = get_singular_chunk_id("//tmp/j1")
@@ -351,7 +479,7 @@ class TestErasureJournals(TestJournals):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         N = 3
         for i in xrange(N):
-            self._write_and_wait_until_sealed("//tmp/j", self.DATA, journal_writer={"ignore_closing": True})
+            self._write_and_wait_until_sealed("//tmp/j", self.DATA, journal_writer={"dont_close": True})
             self._wait_until_last_chunk_sealed("//tmp/j")
 
         assert get("//tmp/j/@sealed")
@@ -395,7 +523,7 @@ class TestErasureJournals(TestJournals):
         set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
 
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_lrc_12_2_2"])
-        write_journal("//tmp/j", self.DATA, journal_writer={"ignore_closing": True})
+        write_journal("//tmp/j", self.DATA, journal_writer={"dont_close": True})
 
         chunk_ids = get("//tmp/j/@chunk_ids")
         chunk_id = chunk_ids[-1]

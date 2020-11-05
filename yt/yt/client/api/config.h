@@ -170,42 +170,57 @@ class TJournalWriterConfig
     : public virtual TWorkloadConfig
 {
 public:
-    TDuration MaxBatchDelay;
-    i64 MaxBatchDataSize;
     int MaxBatchRowCount;
+    i64 MaxBatchDataSize;
+    TDuration MaxBatchDelay;
 
     int MaxFlushRowCount;
     i64 MaxFlushDataSize;
 
+    int MaxChunkRowCount;
+    i64 MaxChunkDataSize;
+    TDuration MaxChunkSessionDuration;
+    
     bool PreferLocalHost;
 
     TDuration NodeRpcTimeout;
     TDuration NodePingPeriod;
     TDuration NodeBanTimeout;
 
-    int MaxChunkRowCount;
-    i64 MaxChunkDataSize;
-    TDuration MaxChunkSessionDuration;
+    TDuration OpenSessionBackoffTime;
 
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
     TDuration PrerequisiteTransactionProbePeriod;
 
-    bool IgnoreClosing; // for testing purposes only
+    bool PreallocateChunks;
+
+    // For testing purposes only.
+    bool DontClose;
+    double ReplicaFailureProbability;
 
     TJournalWriterConfig()
     {
-        RegisterParameter("max_batch_delay", MaxBatchDelay)
-            .Default(TDuration::MilliSeconds(5));
+        RegisterParameter("max_batch_row_count", MaxBatchRowCount)
+            .Default(10'000);
         RegisterParameter("max_batch_data_size", MaxBatchDataSize)
             .Default(16_MB);
-        RegisterParameter("max_batch_row_count", MaxBatchRowCount)
-            .Default(100'000);
+        RegisterParameter("max_batch_delay", MaxBatchDelay)
+            .Default(TDuration::MilliSeconds(5));
 
         RegisterParameter("max_flush_row_count", MaxFlushRowCount)
             .Default(100'000);
         RegisterParameter("max_flush_data_size", MaxFlushDataSize)
             .Default(100_MB);
+
+        RegisterParameter("max_chunk_row_count", MaxChunkRowCount)
+            .GreaterThan(0)
+            .Default(1'000'000);
+        RegisterParameter("max_chunk_data_size", MaxChunkDataSize)
+            .GreaterThan(0)
+            .Default(10_GB);
+        RegisterParameter("max_chunk_session_duration", MaxChunkSessionDuration)
+            .Default(TDuration::Hours(60));
 
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
@@ -217,14 +232,8 @@ public:
         RegisterParameter("node_ban_timeout", NodeBanTimeout)
             .Default(TDuration::Seconds(60));
 
-        RegisterParameter("max_chunk_row_count", MaxChunkRowCount)
-            .GreaterThan(0)
-            .Default(1'000'000);
-        RegisterParameter("max_chunk_data_size", MaxChunkDataSize)
-            .GreaterThan(0)
-            .Default(10_GB);
-        RegisterParameter("max_chunk_session_duration", MaxChunkSessionDuration)
-            .Default(TDuration::Hours(60));
+        RegisterParameter("open_session_backoff_time", OpenSessionBackoffTime)
+            .Default(TDuration::Seconds(10));
 
         RegisterParameter("node_channel", NodeChannel)
             .DefaultNew();
@@ -232,8 +241,14 @@ public:
         RegisterParameter("prerequisite_transaction_probe_period", PrerequisiteTransactionProbePeriod)
             .Default(TDuration::Seconds(60));
 
-        RegisterParameter("ignore_closing", IgnoreClosing)
+        RegisterParameter("preallocate_chunks", PreallocateChunks)
             .Default(false);
+
+        RegisterParameter("dont_close", DontClose)
+            .Default(false);
+        RegisterParameter("replica_failure_probability", ReplicaFailureProbability)
+            .Default(0.0)
+            .InRange(0.0, 1.0);
     }
 };
 

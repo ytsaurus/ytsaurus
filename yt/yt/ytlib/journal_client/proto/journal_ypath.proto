@@ -12,6 +12,8 @@ message TReqUpdateStatistics
 message TRspUpdateStatistics
 { }
 
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqSeal
 {
     required NYT.NChunkClient.NProto.TDataStatistics statistics = 1;
@@ -19,6 +21,8 @@ message TReqSeal
 
 message TRspSeal
 { }
+
+////////////////////////////////////////////////////////////////////////////////
 
 message TReqTruncate
 {

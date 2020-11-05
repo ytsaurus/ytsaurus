@@ -2019,8 +2019,7 @@ public:
 
         auto* oldRootChunkList = table->GetChunkList();
 
-        std::vector<TChunk*> chunks;
-        EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
+        auto chunks = EnumerateChunksInChunkTree(oldRootChunkList);
 
         // Compute last commit timestamp.
         auto lastCommitTimestamp = NTransactionClient::MinTimestamp;
@@ -2128,10 +2127,8 @@ public:
         table->SetChunkList(newRootChunkList);
         newRootChunkList->AddOwningNode(table);
 
-        std::vector<TChunk*> chunks;
-        EnumerateChunksInChunkTree(oldRootChunkList, &chunks);
-        std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
-        chunkManager->AttachToChunkList(newRootChunkList, chunkTrees);
+        auto chunks = EnumerateChunksInChunkTree(oldRootChunkList);
+        chunkManager->AttachToChunkList(newRootChunkList, std::vector<TChunkTree*>{chunks.begin(), chunks.end()});
 
         oldRootChunkList->RemoveOwningNode(table);
         objectManager->UnrefObject(oldRootChunkList);

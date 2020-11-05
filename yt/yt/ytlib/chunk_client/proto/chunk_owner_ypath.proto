@@ -49,6 +49,7 @@ message TRspGetUploadParams
     repeated NYT.NProto.TGuid tablet_chunk_list_ids = 4;
     repeated bytes pivot_keys = 5;
     optional int32 max_heavy_columns = 6;
+    optional int64 row_count = 7 [default = 0];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

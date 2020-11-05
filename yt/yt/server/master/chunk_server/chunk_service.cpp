@@ -85,6 +85,8 @@ public:
             .SetHeavy(true)
             .SetQueueSizeLimit(10000)
             .SetConcurrencyLimit(10000));
+
+        DeclareServerFeature(EMasterFeature::OverlayedJournals);
     }
 
 private:
@@ -192,7 +194,7 @@ private:
                 if (chunk) {
                     BuildChunkSpec(
                         chunk,
-                        -1 /*rowIndex*/,
+                        {} /*rowIndex*/,
                         {} /*tabletIndex*/,
                         {} /*lowerLimit*/,
                         {} /*upperLimit*/,

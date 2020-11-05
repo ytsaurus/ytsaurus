@@ -8,13 +8,17 @@
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/chunk_owner_node_proxy.h>
 
+#include <yt/server/master/chunk_server/helpers.h>
+
 #include <yt/server/lib/misc/interned_attributes.h>
 
-#include <yt/ytlib/journal_client/journal_ypath.pb.h>
+#include <yt/ytlib/journal_client/helpers.h>
+#include <yt/ytlib/journal_client/proto/journal_ypath.pb.h>
 
 namespace NYT::NJournalServer {
 
 using namespace NChunkClient;
+using namespace NJournalClient;
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NObjectServer;
@@ -22,6 +26,127 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionServer;
 using namespace NCellMaster;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Computes the quorum row count for a given journal.
+/*!
+ *  Quorum row count |Q| obeys the following:
+ *  1) safety: if row with index |i| was ever committed then |i < Q|;
+ *  2) soundness: it is possible to read (possibly applying erasure repair)
+ *     the first |Q| rows in the journal.
+ */
+class TJournalQuorumRowCountSession
+    : public TRefCounted
+{
+public:
+    TJournalQuorumRowCountSession(TJournalNode* node, TBootstrap* bootstrap)
+        : Bootstrap_(bootstrap)
+    {
+        const auto* chunkList = node->GetChunkList();
+        if (!chunkList) {
+            Promise_.Set(0);
+            return;
+        }
+
+        if (chunkList->Children().empty()) {
+            Promise_.Set(0);
+            return;
+        }
+
+        SealedRowCount_ = chunkList->Statistics().RowCount;
+
+        auto* firstUnsealedChunk = FindFirstUnsealedChild(chunkList)->As<TChunk>();
+        if (!firstUnsealedChunk) {
+            Promise_.Set(SealedRowCount_);
+            return;
+        }
+
+        if (firstUnsealedChunk->GetOverlayed()) {
+            auto firstUnsealedChunkIndex = GetChildIndex(chunkList, firstUnsealedChunk);
+            for (int index = firstUnsealedChunkIndex; index < static_cast<int>(chunkList->Children().size()); ++index) {
+                auto* chunk = chunkList->Children()[index]->As<TChunk>();
+                ChunkDescriptors_.push_back(TChunkDescriptor{
+                    .ChunkId = chunk->GetId(),
+                    .CodecId = chunk->GetErasureCodec(),
+                    .ReadQuorum = chunk->GetReadQuorum(),
+                    .ReplicaDescriptors = GetChunkReplicaDescriptors(chunk)
+                });
+            }
+            CurrentChunkIndex_ = static_cast<int>(ChunkDescriptors_.size()) - 1;
+            RequestChunkInfo();
+        } else {
+            YT_VERIFY(chunkList->Children().back() == firstUnsealedChunk);
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            Promise_.SetFrom(chunkManager->GetChunkQuorumInfo(firstUnsealedChunk).Apply(
+                BIND([sealedRowCount = SealedRowCount_] (const TChunkQuorumInfo& info) {
+                    YT_VERIFY(!info.FirstOverlayedRowIndex);
+                    return sealedRowCount + info.RowCount;
+                })));
+        }
+    }
+
+    TFuture<i64> Run()
+    {
+        return Promise_.ToFuture();
+    }
+
+private:
+    TBootstrap* const Bootstrap_;
+
+    i64 SealedRowCount_ = -1;
+
+    const TPromise<i64> Promise_ = NewPromise<i64>();
+
+    struct TChunkDescriptor
+    {
+        TChunkId ChunkId;
+        NErasure::ECodec CodecId;
+        int ReadQuorum;
+        std::vector<TChunkReplicaDescriptor> ReplicaDescriptors;
+    };
+
+    std::vector<TChunkDescriptor> ChunkDescriptors_;
+    int CurrentChunkIndex_ = -1;
+
+
+    void RequestChunkInfo()
+    {
+        if (CurrentChunkIndex_ < 0) {
+            Promise_.Set(SealedRowCount_);
+            return;
+        }
+
+        const auto& chunkDescriptor = ChunkDescriptors_[CurrentChunkIndex_];
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        chunkManager->GetChunkQuorumInfo(
+            chunkDescriptor.ChunkId,
+            true,
+            chunkDescriptor.CodecId,
+            chunkDescriptor.ReadQuorum,
+            chunkDescriptor.ReplicaDescriptors)
+            .Apply(
+                BIND(&TJournalQuorumRowCountSession::OnChunkInfoReceived, MakeStrong(this))
+                    .Via(GetCurrentInvoker()));
+    }
+
+    void OnChunkInfoReceived(const TErrorOr<TChunkQuorumInfo>& infoOrError)
+    {
+        if (!infoOrError.IsOK()) {
+            Promise_.Set(infoOrError);
+            return;
+        }
+
+        const auto& info = infoOrError.Value();
+        if (info.FirstOverlayedRowIndex) {
+            Promise_.Set(*info.FirstOverlayedRowIndex + info.RowCount);
+            return;
+        }
+
+        --CurrentChunkIndex_;
+        RequestChunkInfo();
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +167,7 @@ public:
     { }
 
 private:
-    typedef TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode> TBase;
+    using TBase = TCypressNodeProxyBase<TChunkOwnerNodeProxy, IEntityNode, TJournalNode>;
 
     virtual void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
@@ -64,7 +189,6 @@ private:
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         auto* node = GetThisImpl();
-        auto statistics = node->ComputeTotalStatistics();
 
         switch (key) {
             case EInternedAttributeKey::ReadQuorum:
@@ -91,7 +215,7 @@ private:
 
     virtual TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
-        const auto* node = GetThisImpl();
+        auto* node = GetThisImpl();
         auto isExternal = node->IsExternal();
 
         switch (key) {
@@ -99,22 +223,10 @@ private:
                 if (isExternal) {
                     break;
                 }
-                const auto* chunkList = node->GetChunkList();
-                if (chunkList->Children().empty()) {
-                    return MakeFuture(ConvertToYsonString(0));
-                }
 
-                auto* chunk = chunkList->Children().back()->AsChunk();
-                const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
-                i64 penultimateRowCount = cumulativeStatistics.Size() == 1
-                    ? 0
-                    : cumulativeStatistics[cumulativeStatistics.Size() - 2].RowCount;
-
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                return chunkManager
-                    ->GetChunkQuorumInfo(chunk)
-                    .Apply(BIND([=] (const NChunkClient::NProto::TMiscExt& miscExt) {
-                        return ConvertToYsonString(penultimateRowCount + miscExt.row_count());
+                return New<TJournalQuorumRowCountSession>(node, Bootstrap_)->Run().Apply(
+                    BIND([] (i64 count) {
+                        return ConvertToYsonString(count);
                     }));
             }
 
@@ -154,11 +266,18 @@ private:
         for (const auto& range : context->Ranges) {
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
+            // XXX: other types
             if (upperLimit.HasKey() || lowerLimit.HasKey()) {
                 THROW_ERROR_EXCEPTION("Key selectors are not supported for journals");
             }
             if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {
                 THROW_ERROR_EXCEPTION("Offset selectors are not supported for journals");
+            }
+            if (upperLimit.HasChunkIndex() || lowerLimit.HasChunkIndex()) {
+                THROW_ERROR_EXCEPTION("Chunk selectors are not supported for journals");
+            }
+            if (upperLimit.HasTabletIndex() || lowerLimit.HasTabletIndex()) {
+                THROW_ERROR_EXCEPTION("Tablet selectors are not supported for journals");
             }
         }
     }
@@ -186,13 +305,13 @@ private:
 
         DeclareMutating();
 
+        ValidateNoTransaction();
+
         context->SetRequestInfo();
 
         auto* journal = GetThisImpl();
-        YT_VERIFY(journal->IsTrunk());
-
         const auto& journalManager = Bootstrap_->GetJournalManager();
-        journalManager->SealJournal(journal->GetTrunkNode(), &request->statistics());
+        journalManager->SealJournal(journal, &request->statistics());
 
         context->Reply();
     }
@@ -208,10 +327,8 @@ private:
         context->SetRequestInfo("RowCount: %v", request->row_count());
 
         auto* journal = LockThisImpl();
-        YT_VERIFY(journal->IsTrunk());
-
         const auto& journalManager = Bootstrap_->GetJournalManager();
-        journalManager->TruncateJournal(journal->GetTrunkNode(), request->row_count());
+        journalManager->TruncateJournal(journal, request->row_count());
 
         context->Reply();
     }

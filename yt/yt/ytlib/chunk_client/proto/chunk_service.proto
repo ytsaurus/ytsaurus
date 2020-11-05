@@ -171,6 +171,16 @@ message TRspGetChunkOwningNodes
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TChunkSealInfo
+{
+    optional int64 first_overlayed_row_index = 1;
+    required int64 row_count = 2;
+    required int64 uncompressed_data_size = 3;
+    required int64 compressed_data_size = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqExecuteBatch
 {
     message TCreateChunkSubrequest
@@ -209,6 +219,9 @@ message TReqExecuteBatch
 
         // Validate that there is enough disk space available.
         optional bool validate_resource_usage_increase = 12 [default = true];
+
+        // If true then the writer will be appending this chunk to an overlayed journal.
+        optional bool overlayed = 13 [default = false];
     }
 
     repeated TCreateChunkSubrequest create_chunk_subrequests = 1;
@@ -228,7 +241,8 @@ message TReqExecuteBatch
     message TSealChunkSubrequest
     {
         required NYT.NProto.TGuid chunk_id = 1;
-        required TMiscExt misc = 2;
+        required TChunkSealInfo info = 3;
+        reserved 2;
     }
 
     repeated TSealChunkSubrequest seal_chunk_subrequests = 3;

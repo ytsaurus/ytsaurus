@@ -127,6 +127,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, WriteQuorum_);
     Save(context, GetErasureCodec());
     Save(context, GetMovable());
+    Save(context, GetOverlayed());
     {
         // COMPAT(shakurov)
         SmallVector<TChunkTree*, TypicalChunkParentCount> parents;
@@ -172,6 +173,10 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetWriteQuorum(Load<i8>(context));
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
+    // COMPAT(babenko)
+    if (context.GetVersion() >= EMasterReign::OverlayedJournals) {
+        SetOverlayed(Load<bool>(context));
+    }
 
     auto parents = Load<SmallVector<TChunkTree*, TypicalChunkParentCount>>(context);
     for (auto* parent : parents) {
@@ -349,6 +354,26 @@ void TChunk::Confirm(
     YT_VERIFY(IsConfirmed());
 }
 
+bool TChunk::GetMovable() const
+{
+    return Flags_.Movable;
+}
+
+void TChunk::SetMovable(bool value)
+{
+    Flags_.Movable = value;
+}
+
+bool TChunk::GetOverlayed() const
+{
+    return Flags_.Overlayed;
+}
+
+void TChunk::SetOverlayed(bool value)
+{
+    Flags_.Overlayed = value;
+}
+
 bool TChunk::IsConfirmed() const
 {
     return EChunkType(ChunkMeta_.type()) != EChunkType::Unknown;
@@ -413,11 +438,9 @@ i64 TChunk::GetSealedRowCount() const
     return MiscExt_.row_count();
 }
 
-void TChunk::Seal(const TMiscExt& info)
+void TChunk::Seal(const TChunkSealInfo& info)
 {
     YT_VERIFY(IsConfirmed() && !IsSealed());
-
-    // NB: Just a sanity check.
     YT_VERIFY(!MiscExt_.sealed());
     YT_VERIFY(MiscExt_.row_count() == 0);
     YT_VERIFY(MiscExt_.uncompressed_data_size() == 0);
@@ -425,6 +448,9 @@ void TChunk::Seal(const TMiscExt& info)
     YT_VERIFY(ChunkInfo_.disk_space() == 0);
 
     MiscExt_.set_sealed(true);
+    if (info.has_first_overlayed_row_index()) {
+        MiscExt_.set_first_overlayed_row_index(info.first_overlayed_row_index());
+    }
     MiscExt_.set_row_count(info.row_count());
     MiscExt_.set_uncompressed_data_size(info.uncompressed_data_size());
     MiscExt_.set_compressed_data_size(info.compressed_data_size());

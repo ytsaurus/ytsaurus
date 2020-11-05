@@ -134,8 +134,8 @@ void CanonizeCellTags(TCellTagList* cellTags)
 
 void BuildChunkSpec(
     TChunk* chunk,
-    i64 rowIndex,
-    std::optional<i32> tabletIndex,
+    std::optional<i64> rowIndex,
+    std::optional<int> tabletIndex,
     const TReadLimit& lowerLimit,
     const TReadLimit& upperLimit,
     TTransactionId timestampTransactionId,
@@ -149,7 +149,10 @@ void BuildChunkSpec(
     const auto& configManager = bootstrap->GetConfigManager();
     const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
 
-    chunkSpec->set_table_row_index(rowIndex);
+    if (rowIndex) {
+        chunkSpec->set_table_row_index(*rowIndex);
+    }
+
     if (tabletIndex) {
         chunkSpec->set_tablet_index(*tabletIndex);
     }
@@ -337,11 +340,11 @@ private:
 
     void TraverseCurrentRange()
     {
-        auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+        auto context = CreateAsyncChunkTraverserContext(
             Bootstrap_,
             NCellMaster::EAutomatonThreadQueue::ChunkFetchingTraverser);
         TraverseChunkTree(
-            std::move(callbacks),
+            std::move(context),
             this,
             ChunkList_,
             FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
@@ -354,52 +357,15 @@ private:
         YT_VERIFY(!Finished_);
         Finished_ = true;
 
-        try {
-            // Update upper limits for all returned journal chunks.
-            auto& response = RpcContext_->Response();
-            auto* chunkSpecs = response.mutable_chunks();
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            for (auto& chunkSpec : *chunkSpecs) {
-                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-                if (IsJournalChunkId(chunkId)) {
-                    auto* chunk = chunkManager->FindChunk(chunkId);
-                    if (!IsObjectAlive(chunk)) {
-                        THROW_ERROR_EXCEPTION(
-                            NChunkClient::EErrorCode::OptimisticLockFailure,
-                            "Optimistic locking failed for chunk %v",
-                            chunkId);
-                    }
-
-                    auto result = WaitFor(chunkManager->GetChunkQuorumInfo(chunk))
-                        .ValueOrThrow();
-                    i64 quorumRowCount = result.row_count();
-
-                    auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
-                    if (!lowerLimit.HasRowIndex()) {
-                        lowerLimit.SetRowIndex(0);
-                    }
-                    ToProto(chunkSpec.mutable_lower_limit(), lowerLimit);
-
-                    auto upperLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
-                    i64 upperLimitRowIndex = upperLimit.HasRowIndex() ? upperLimit.GetRowIndex() : std::numeric_limits<i64>::max();
-                    upperLimit.SetRowIndex(std::min(upperLimitRowIndex, quorumRowCount));
-                    ToProto(chunkSpec.mutable_upper_limit(), upperLimit);
-                }
-            }
-
-            RpcContext_->SetResponseInfo("ChunkCount: %v", chunkSpecs->size());
-
-            RpcContext_->Reply();
-        } catch (const std::exception& ex) {
-            RpcContext_->Reply(ex);
-        }
+        RpcContext_->SetResponseInfo("ChunkCount: %v", RpcContext_->Response().chunks_size());
+        RpcContext_->Reply();
     }
 
     void ReplyError(const TError& error)
     {
-        if (Finished_)
+        if (Finished_) {
             return;
-
+        }
         Finished_ = true;
 
         RpcContext_->Reply(error);
@@ -407,8 +373,8 @@ private:
 
     virtual bool OnChunk(
         TChunk* chunk,
-        i64 rowIndex,
-        std::optional<i32> tabletIndex,
+        std::optional<i64> rowIndex,
+        std::optional<int> tabletIndex,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
         TTransactionId timestampTransactionId) override
@@ -1161,7 +1127,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         newChunkList->GetId(),
                         snapshotChunkList->GetId(),
                         deltaChunkList->GetId());
-
                 } else if (snapshotChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
                     auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicRoot);
                     newChunkList->AddOwningNode(lockedNode);
@@ -1175,7 +1140,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
 
                     snapshotChunkList->RemoveOwningNode(lockedNode);
                     objectManager->UnrefObject(snapshotChunkList);
-
                 } else {
                     YT_ABORT();
                 }
@@ -1290,45 +1254,57 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
     ValidateInUpdate();
 
     auto* node = GetThisImpl<TChunkOwnerBase>();
-    if (node->GetChunkList()->GetKind() == EChunkListKind::Static) {
-        auto* snapshotChunkList = node->GetSnapshotChunkList();
-        auto* deltaChunkList = node->GetDeltaChunkList();
+    auto* chunkList = node->GetChunkList();
+    switch (chunkList->GetKind()) {
+        case EChunkListKind::Static:
+        case EChunkListKind::JournalRoot: {
+            auto* snapshotChunkList = node->GetSnapshotChunkList();
+            auto* deltaChunkList = node->GetDeltaChunkList();
 
-        const auto& uploadChunkListId = deltaChunkList->GetId();
-        ToProto(response->mutable_chunk_list_id(), uploadChunkListId);
+            const auto& uploadChunkListId = deltaChunkList->GetId();
+            ToProto(response->mutable_chunk_list_id(), uploadChunkListId);
 
-        if (fetchLastKey) {
-            TLegacyOwningKey lastKey;
-            if (!IsEmpty(snapshotChunkList)) {
-                lastKey = GetUpperBoundKeyOrThrow(snapshotChunkList);
+            if (fetchLastKey) {
+                TLegacyOwningKey lastKey;
+                if (!IsEmpty(snapshotChunkList)) {
+                    lastKey = GetUpperBoundKeyOrThrow(snapshotChunkList);
+                }
+                ToProto(response->mutable_last_key(), lastKey);
             }
-            ToProto(response->mutable_last_key(), lastKey);
+
+            response->set_row_count(snapshotChunkList->Statistics().RowCount);
+
+            std::optional<TMD5Hasher> md5Hasher;
+            node->GetUploadParams(&md5Hasher);
+            ToProto(response->mutable_md5_hasher(), md5Hasher);
+
+            context->SetResponseInfo("UploadChunkListId: %v, HasLastKey: %v, RowCount: %v",
+                uploadChunkListId,
+                response->has_last_key(),
+                response->row_count());
+            break;
         }
 
-        std::optional<TMD5Hasher> md5Hasher;
-        node->GetUploadParams(&md5Hasher);
-        ToProto(response->mutable_md5_hasher(), md5Hasher);
+        case EChunkListKind::SortedDynamicRoot: {
+            auto* trunkChunkList = node->GetTrunkNode()->As<TChunkOwnerBase>()->GetChunkList();
 
-        context->SetResponseInfo("UploadChunkListId: %v, HasLastKey: %v",
-            uploadChunkListId,
-            response->has_last_key());
+            for (auto* tabletList : trunkChunkList->Children()) {
+                ToProto(response->add_pivot_keys(), tabletList->AsChunkList()->GetPivotKey());
+            }
 
-    } else if (node->GetChunkList()->GetKind() == EChunkListKind::SortedDynamicRoot) {
-        auto* chunkList = node->GetChunkList();
-        auto* trunkChunkList = node->GetTrunkNode()->As<TChunkOwnerBase>()->GetChunkList();
+            for (auto* tabletList : chunkList->Children()) {
+                YT_VERIFY(
+                    tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
+                    tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicTablet);
+                ToProto(response->add_tablet_chunk_list_ids(), tabletList->GetId());
+            }
 
-        for (auto* tabletList : trunkChunkList->Children()) {
-            ToProto(response->add_pivot_keys(), tabletList->AsChunkList()->GetPivotKey());
+            break;
         }
 
-        for (auto* tabletList : chunkList->Children()) {
-            YT_VERIFY(
-                tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
-                tabletList->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicTablet);
-            ToProto(response->add_tablet_chunk_list_ids(), tabletList->GetId());
-        }
-    } else {
-        THROW_ERROR_EXCEPTION("Unsupported chunk list kind");
+        default:
+            THROW_ERROR_EXCEPTION("Unsupported chunk list kind %Qlv",
+                chunkList->GetKind());
     }
 
     response->set_max_heavy_columns(Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->MaxHeavyColumns);

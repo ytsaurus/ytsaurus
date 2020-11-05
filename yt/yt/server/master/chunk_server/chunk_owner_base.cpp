@@ -131,7 +131,7 @@ void TChunkOwnerBase::EndUpload(const TEndUploadContext& context)
     }
 
     std::optional<TDataStatistics> updateStatistics;
-    if (!IsExternal() && GetChunkList()->GetKind() == EChunkListKind::Static) {
+    if (!IsExternal() && GetChunkList()->HasAppendableCumulativeStatistics()) {
         updateStatistics = ComputeUpdateStatistics();
     }
 
