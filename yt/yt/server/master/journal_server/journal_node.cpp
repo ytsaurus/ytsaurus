@@ -39,19 +39,6 @@ void TJournalNode::BeginUpload(const TBeginUploadContext& context)
     GetTrunkNode()->Sealed_ = false;
 }
 
-TChunk* TJournalNode::GetTrailingChunk() const
-{
-    if (!ChunkList_) {
-        return nullptr;
-    }
-
-    if (ChunkList_->Children().empty()) {
-        return nullptr;
-    }
-
-    return ChunkList_->Children().back()->AsChunk();
-}
-
 TJournalNode* TJournalNode::GetTrunkNode()
 {
     return TrunkNode_->As<TJournalNode>();

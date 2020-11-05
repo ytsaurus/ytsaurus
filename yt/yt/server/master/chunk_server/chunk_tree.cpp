@@ -7,10 +7,13 @@
 
 #include <yt/ytlib/tablet_client/helpers.h>
 
+#include <yt/yt/client/chunk_client/chunk_replica.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
 using namespace NTabletClient;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,21 +23,13 @@ TChunkTree::TChunkTree(TChunkTreeId id)
 
 TChunk* TChunkTree::AsChunk()
 {
-    YT_ASSERT(
-        GetType() == EObjectType::Chunk ||
-        GetType() == EObjectType::ErasureChunk ||
-        GetType() == EObjectType::JournalChunk ||
-        GetType() == EObjectType::ErasureJournalChunk);
+    YT_ASSERT(IsPhysicalChunkType(GetType()));
     return As<TChunk>();
 }
 
 const TChunk* TChunkTree::AsChunk() const
 {
-    YT_ASSERT(
-        GetType() == EObjectType::Chunk ||
-        GetType() == EObjectType::ErasureChunk ||
-        GetType() == EObjectType::JournalChunk ||
-        GetType() == EObjectType::ErasureJournalChunk);
+    YT_ASSERT(IsPhysicalChunkType(GetType()));
     return As<TChunk>();
 }
 
@@ -72,6 +67,18 @@ const TChunkList* TChunkTree::AsChunkList() const
 {
     YT_ASSERT(GetType() == EObjectType::ChunkList);
     return As<TChunkList>();
+}
+
+bool TChunkTree::IsSealed() const
+{
+    auto type = GetType();
+    if (IsPhysicalChunkType(type)) {
+        return AsChunk()->IsSealed();
+    } else if (type == EObjectType::ChunkList) {
+        return AsChunkList()->IsSealed();
+    } else {
+        return true;
+    }
 }
 
 void TChunkTree::Save(NCellMaster::TSaveContext& context) const

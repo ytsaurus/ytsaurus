@@ -21,11 +21,11 @@ TFuture<TYsonString> TChunkVisitorBase::Run()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto callbacks = CreatePreemptableChunkTraverserCallbacks(
+    auto context = CreateAsyncChunkTraverserContext(
         Bootstrap_,
         NCellMaster::EAutomatonThreadQueue::ChunkStatisticsTraverser);
     TraverseChunkTree(
-        std::move(callbacks),
+        std::move(context),
         this,
         ChunkList_);
 
@@ -56,8 +56,8 @@ TChunkIdsAttributeVisitor::TChunkIdsAttributeVisitor(
 
 bool TChunkIdsAttributeVisitor::OnChunk(
     TChunk* chunk,
-    i64 /*rowIndex*/,
-    std::optional<i32> /*tabletIndex*/,
+    std::optional<i64> /*rowIndex*/,
+    std::optional<int> /*tabletIndex*/,
     const TReadLimit& /*startLimit*/,
     const TReadLimit& /*endLimit*/,
     TTransactionId /*timestampTransactionId*/)

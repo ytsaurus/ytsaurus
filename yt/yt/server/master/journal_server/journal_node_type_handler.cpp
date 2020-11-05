@@ -10,6 +10,7 @@
 #include <yt/server/master/chunk_server/chunk_owner_type_handler.h>
 #include <yt/server/master/chunk_server/chunk_list.h>
 #include <yt/server/master/chunk_server/medium.h>
+#include <yt/server/master/chunk_server/helpers.h>
 
 #include <yt/ytlib/journal_client/helpers.h>
 
@@ -89,7 +90,8 @@ protected:
             context,
             replicationFactor,
             NCompression::ECodec::None,
-            erasureCodec);
+            erasureCodec,
+            EChunkListKind::JournalRoot);
         auto* node = nodeHolder.get();
 
         node->SetReadQuorum(readQuorum);
@@ -250,20 +252,22 @@ protected:
         }
 
         auto* trunkNode = branchedNode->GetTrunkNode();
-        if (!trunkNode->IsExternal()) {
-            auto* trailingChunk = trunkNode->GetTrailingChunk();
-            if (trailingChunk && !trailingChunk->IsSealed()) {
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
-                    "Waiting for the trailing journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
-                    trunkNode->GetId(),
-                    trailingChunk->GetId());
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                chunkManager->ScheduleChunkSeal(trailingChunk);
-            } else {
-                const auto& journalManager = Bootstrap_->GetJournalManager();
-                journalManager->SealJournal(trunkNode, nullptr);
-            }
+        if (trunkNode->IsExternal()) {
+            return;
+        }
+
+        auto* chunkList = trunkNode->GetChunkList();
+        if (auto* unsealedChunk = chunkList ? FindFirstUnsealedChild(chunkList)->As<TChunk>() : nullptr) {
+            YT_LOG_DEBUG_IF(
+                IsMutationLoggingEnabled(),
+                "Waiting for journal chunk to become sealed (NodeId: %v, ChunkId: %v)",
+                trunkNode->GetId(),
+                unsealedChunk->GetId());
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            chunkManager->ScheduleChunkSeal(unsealedChunk);
+        } else {
+            const auto& journalManager = Bootstrap_->GetJournalManager();
+            journalManager->SealJournal(trunkNode, nullptr);
         }
     }
 };

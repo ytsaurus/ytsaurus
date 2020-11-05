@@ -29,7 +29,14 @@ void VisitUniqueAncestors(TChunkList* chunkList, F functor, TChunkTree* child = 
 template <class F>
 void VisitAncestors(TChunkList* chunkList, F functor);
 
+int GetChildIndex(const TChunkList* chunkList, const TChunkTree* child);
+
+TChunkTree* FindFirstUnsealedChild(const TChunkList* chunkList);
+
+i64 GetJournalChunkStartRowIndex(const TChunk* chunk);
+
 TChunkList* GetUniqueParent(const TChunkTree* chunkTree);
+TChunkList* GetUniqueParentOrThrow(const TChunkTree* chunkTree);
 int GetParentCount(const TChunkTree* chunkTree);
 bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent);
 

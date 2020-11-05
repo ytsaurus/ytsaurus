@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/ytlib/node_tracker_client/channel.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -45,12 +45,29 @@ TFuture<std::vector<TChunkReplicaDescriptor>> AbortSessionsQuorum(
     int quorum,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
-TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
+struct TChunkQuorumInfo
+{
+    //! The index (w.r.t. the whole journal) of the first row, for overlayed chunks.
+    //! Null for non-overlayed chunks or overlayed chunks with all replicas empty.
+    std::optional<i64> FirstOverlayedRowIndex;
+
+    //! The quorum number of rows (across all chunk replicas).
+    i64 RowCount = 0;
+
+    //! Some approximation for the uncompressed data size of the journal chunk.
+    i64 UncompressedDataSize = 0;
+
+    //! Some approximation for the compressed data size of the journal chunk.
+    i64 CompressedDataSize = 0;
+};
+
+TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
     NChunkClient::TChunkId chunkId,
+    bool overlayed,
     NErasure::ECodec codecId,
+    int quorum,
     std::vector<TChunkReplicaDescriptor> replicas,
     TDuration timeout,
-    int quorum,
     NNodeTrackerClient::INodeChannelFactoryPtr channelFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +75,9 @@ TFuture<NChunkClient::NProto::TMiscExt> ComputeQuorumInfo(
 std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
     NErasure::ECodec codecId,
     const std::vector<TSharedRef>& rows);
+std::vector<TSharedRef> EncodeErasureJournalRow(
+    NErasure::ECodec codecId,
+    const TSharedRef& row);
 
 std::vector<TSharedRef> DecodeErasureJournalRows(
     NErasure::ECodec codecId,

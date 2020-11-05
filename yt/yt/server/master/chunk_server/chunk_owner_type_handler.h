@@ -38,7 +38,8 @@ protected:
         const NCypressServer::TCreateNodeContext& context,
         int replicationFactor,
         NCompression::ECodec compressionCodec,
-        NErasure::ECodec erasureCodec);
+        NErasure::ECodec erasureCodec,
+        NChunkServer::EChunkListKind rootChunkListKind = NChunkServer::EChunkListKind::Static);
 
     virtual void DoDestroy(TChunkOwner* node) override;
 

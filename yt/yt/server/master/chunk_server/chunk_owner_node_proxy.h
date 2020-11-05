@@ -16,8 +16,8 @@ namespace NYT::NChunkServer {
 
 void BuildChunkSpec(
     TChunk* chunk,
-    i64 rowIndex,
-    std::optional<i32> tabletIndex,
+    std::optional<i64> rowIndex,
+    std::optional<int> tabletIndex,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
     TTransactionId timestampTransactionId,

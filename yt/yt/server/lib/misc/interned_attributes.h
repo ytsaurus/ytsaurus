@@ -150,6 +150,7 @@
     XX(ForbidImmediateOperationsInRoot, forbid_immediate_operations_in_root) \
     XX(Foreign, foreign) \
     XX(NativeCellTag, native_cell_tag) \
+    XX(FirstOverlayedRowIndex, first_overlayed_row_index) \
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
@@ -198,7 +199,6 @@
     XX(LogFairShareRatioDisagreementThreshold, log_fair_share_ratio_disagreement_threshold) \
     XX(LowerLimit, lower_limit) \
     XX(MasterCacheNodes, master_cache_nodes) \
-    XX(TimestampProviderNodes, timestamp_provider_nodes) \
     XX(MasterMetaSize, master_meta_size) \
     XX(MaxBlockSize, max_block_size) \
     XX(MaxChangelogId, max_changelog_id) \
@@ -251,6 +251,7 @@
     XX(OptimizeFor, optimize_for) \
     XX(OptimizeForStatistics, optimize_for_statistics) \
     XX(Options, options) \
+    XX(Overlayed, overlayed) \
     XX(Owner, owner) \
     XX(OwningNodes, owning_nodes) \
     XX(Partitions, partitions) \
@@ -282,6 +283,7 @@
     XX(ProfilingMode, profiling_mode) \
     XX(ProfilingTag, profiling_tag) \
     XX(ProjectId, project_id) \
+    XX(QuorumInfo, quorum_info) \
     XX(QuorumRowCount, quorum_row_count) \
     XX(Rack, rack) \
     XX(Racks, racks) \
@@ -365,6 +367,7 @@
     XX(ThresholdToEnableMaxPossibleUsageRegularization, threshold_to_enable_max_possible_usage_regularization) \
     XX(Timeout, timeout) \
     XX(Timestamp, timestamp) \
+    XX(TimestampProviderNodes, timestamp_provider_nodes) \
     XX(Title, title) \
     XX(TotalAccountStatistics, total_account_statistics) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \

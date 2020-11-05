@@ -164,6 +164,7 @@ DEFINE_ENUM(EChunkListKind,
     ((OrderedDynamicRoot)     (3))
     ((OrderedDynamicTablet)   (4))
     ((SortedDynamicSubtablet) (5))
+    ((JournalRoot)            (6))
 );
 
 DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,

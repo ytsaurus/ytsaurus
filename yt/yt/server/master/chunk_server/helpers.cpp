@@ -28,6 +28,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/misc/algorithm_helpers.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NYTree;
@@ -53,14 +55,55 @@ static const double ChunkListTombstoneAbsoluteThreshold = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-int GetChildIndex(TChunkList* parentChunkList, TChunkTree* child)
+int GetChildIndex(const TChunkList* chunkList, const TChunkTree* child)
 {
-    return GetOrCrash(parentChunkList->ChildToIndex(), child);
+    const auto& children = chunkList->Children();
+    if (chunkList->HasChildToIndexMapping()) {
+        int index = GetOrCrash(chunkList->ChildToIndex(), const_cast<TChunkTree*>(child));
+        YT_VERIFY(children[index] == child);
+        return index;
+    } else {
+        // Typically called for the trailing chunks.
+        for (int index = static_cast<int>(children.size()) - 1; index >= 0; --index) {
+            if (children[index] == child) {
+                return index;
+            }
+        }
+        YT_ABORT();
+    }
 }
 
-} // namespace
+TChunkTree* FindFirstUnsealedChild(const TChunkList* chunkList)
+{
+    const auto& children = chunkList->Children();
+    auto index = BinarySearch(0, children.size(), [&] (size_t index) {
+        return children[index]->IsSealed();
+    });
+    return index < children.size() ? children[index] : nullptr;
+}
+
+i64 GetJournalChunkStartRowIndex(const TChunk* chunk)
+{
+    if (!chunk->IsJournal()) {
+        THROW_ERROR_EXCEPTION("%v is not a journal chunk",
+            chunk->GetId());
+    }
+
+    auto* chunkList = GetUniqueParentOrThrow(chunk)->AsChunkList();
+
+    auto chunkIndex = GetChildIndex(chunkList, chunk);
+    if (chunkIndex == 0) {
+        return 0;
+    }
+
+    if (!chunkList->Children()[chunkIndex - 1]->IsSealed()) {
+        THROW_ERROR_EXCEPTION("%v is not the first unsealed chunk in chunk list %v",
+            chunk->GetId(),
+            chunkList->GetId());
+    }
+
+    return chunkList->CumulativeStatistics().GetPreviousSum(chunkIndex).RowCount;
+}
 
 TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
 {
@@ -111,6 +154,16 @@ TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
         default:
             YT_ABORT();
     }
+}
+
+TChunkList* GetUniqueParentOrThrow(const TChunkTree* chunkTree)
+{
+    if (auto parentCount = GetParentCount(chunkTree); parentCount != 1) {
+        THROW_ERROR_EXCEPTION("Improper number of parents of chunk tree %v: expected 1, actual %v",
+            chunkTree->GetId(),
+            parentCount);
+    }
+    return GetUniqueParent(chunkTree);
 }
 
 int GetParentCount(const TChunkTree* chunkTree)
@@ -177,10 +230,27 @@ void AttachToChunkList(
         return;
     }
 
+    bool childrenSealed = childrenBegin[0]->IsSealed();
+    for (auto it = childrenBegin; it != childrenEnd; ++it) {
+        const auto* child = *it;
+        bool childSealed = child->IsSealed();
+        if (childSealed != childrenSealed) {
+            THROW_ERROR_EXCEPTION("Improper sealed flag for child %v: expected %v, actual %v",
+                child->GetId(),
+                childrenSealed,
+                childSealed);
+        }
+    }
+
+    if (childrenSealed && !chunkList->IsSealed()) {
+        THROW_ERROR_EXCEPTION("Cannot append an unsealed child %v to chunk list %v since the latter is not sealed",
+            childrenBegin[0]->GetId(),
+            chunkList->GetId());
+    }
+
     // NB: Accumulate statistics from left to right to get Sealed flag correct.
     TChunkTreeStatistics statisticsDelta;
     for (auto it = childrenBegin; it != childrenEnd; ++it) {
-        chunkList->ValidateSealed();
         auto* child = *it;
         AppendChunkTreeChild(chunkList, child, &statisticsDelta);
         SetChunkTreeParent(chunkList, child);
@@ -382,7 +452,7 @@ void AppendChunkTreeChild(
         });
     }
 
-    if (child && !chunkList->IsOrdered()) {
+    if (child && chunkList->HasChildToIndexMapping()) {
         int index = static_cast<int>(chunkList->Children().size());
         YT_VERIFY(chunkList->ChildToIndex().emplace(child, index).second);
     }
@@ -399,6 +469,7 @@ void AccumulateUniqueAncestorsStatistics(
     if (!parent) {
         return;
     }
+
     auto mutableStatisticsDelta = statisticsDelta;
     VisitUniqueAncestors(
         parent,
@@ -410,10 +481,7 @@ void AccumulateUniqueAncestorsStatistics(
                 auto& cumulativeStatistics = parent->CumulativeStatistics();
                 TCumulativeStatisticsEntry entry{mutableStatisticsDelta};
 
-                int index = parent->IsOrdered()
-                    ? parent->Children().size() - 1
-                    : GetChildIndex(parent, child);
-                YT_VERIFY(parent->Children()[index] == child);
+                int index = GetChildIndex(parent, child);
                 cumulativeStatistics.Update(index, entry);
             }
         },
@@ -660,22 +728,10 @@ bool IsEmpty(const TChunkTree* chunkTree)
 {
     if (!chunkTree) {
         return true;
-    }
-    switch (chunkTree->GetType()) {
-        case EObjectType::Chunk:
-        case EObjectType::ErasureChunk:
-        case EObjectType::JournalChunk:
-        case EObjectType::ErasureJournalChunk:
-        case EObjectType::ChunkView:
-        case EObjectType::SortedDynamicTabletStore:
-        case EObjectType::OrderedDynamicTabletStore:
-            return false;
-
-        case EObjectType::ChunkList:
-            return IsEmpty(chunkTree->AsChunkList());
-
-        default:
-            YT_ABORT();
+    } else if (chunkTree->GetType() == EObjectType::ChunkList) {
+        return IsEmpty(chunkTree->AsChunkList());
+    } else {
+        return false;
     }
 }
 

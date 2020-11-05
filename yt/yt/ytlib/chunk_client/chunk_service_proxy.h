@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
+#include <yt/ytlib/object_client/public.h>
+
 #include <yt/core/rpc/client.h>
 
 namespace NYT::NChunkClient {
@@ -15,7 +17,8 @@ class TChunkServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TChunkServiceProxy, ChunkService,
-        .SetProtocolVersion(6));
+        .SetProtocolVersion(6)
+        .SetFeaturesType<NObjectClient::EMasterFeature>());
 
     DEFINE_RPC_PROXY_METHOD(NProto, LocateChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, LocateDynamicStores);

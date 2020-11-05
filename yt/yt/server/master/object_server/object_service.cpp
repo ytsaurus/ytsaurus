@@ -171,6 +171,8 @@ public:
             .SetPooled(false));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
 
+        DeclareServerFeature(EMasterFeature::OverlayedJournals);
+
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->SubscribeUserCharged(BIND(&TObjectService::OnUserCharged, MakeStrong(this)));
 

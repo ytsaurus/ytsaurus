@@ -141,10 +141,9 @@ private:
         newChunkList->AddOwningNode(trunkNode);
         objectManager->RefObject(newChunkList);
 
-        auto desiredRowCount = rowCount;
-
+        auto remainingRowCount = rowCount;
         for (auto* child : chunkList->Children()) {
-            if (desiredRowCount <= 0) {
+            if (remainingRowCount == 0) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Dropping chunk when truncating journal (NodeId: %v, ChunkId: %v)",
                     trunkNode->GetId(),
                     child->GetId());
@@ -155,17 +154,18 @@ private:
             const auto& miscExt = chunk->MiscExt();
             YT_VERIFY(miscExt.has_row_count());
             auto childRowCount = miscExt.row_count();
-            if (childRowCount <= desiredRowCount) {
-                desiredRowCount -= childRowCount;
+            if (childRowCount <= remainingRowCount) {
+                remainingRowCount -= childRowCount;
             } else {
-                child->AsChunk()->MiscExt().set_row_count(desiredRowCount);
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Truncating trailing journal chunk (NodeId: %v, ChunkId: %v, PrevRowCount: %v, NewRowCount: %v)",
                     trunkNode->GetId(),
                     child->GetId(),
                     childRowCount,
-                    desiredRowCount);
-                desiredRowCount = 0;
+                    remainingRowCount);
+                chunk->MiscExt().set_row_count(remainingRowCount);
+                remainingRowCount = 0;
             }
+
             chunkManager->AttachToChunkList(newChunkList, child);
         }
 
@@ -200,8 +200,8 @@ void TJournalManager::SealJournal(
 }
 
 void TJournalManager::TruncateJournal(
-        TJournalNode* trunkNode,
-        i64 rowCount)
+    TJournalNode* trunkNode,
+    i64 rowCount)
 {
     Impl_->TruncateJournal(trunkNode, rowCount);
 }

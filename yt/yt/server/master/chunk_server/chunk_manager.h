@@ -14,8 +14,12 @@
 
 #include <yt/server/master/object_server/public.h>
 
+#include <yt/ytlib/journal_client/helpers.h>
+
 #include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/client/chunk_client/read_limit.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -23,7 +27,6 @@
 #include <yt/core/misc/small_vector.h>
 
 #include <yt/core/rpc/service_detail.h>
-#include <yt/client/object_client/helpers.h>
 
 namespace NYT::NChunkServer {
 
@@ -183,9 +186,16 @@ public:
 
     TMediumMap<EChunkStatus> ComputeChunkStatuses(TChunk* chunk);
 
-    //! Computes misc extension of a given journal chunk
-    //! by querying a quorum of replicas (if the chunk is not sealed).
-    TFuture<NChunkClient::NProto::TMiscExt> GetChunkQuorumInfo(NChunkServer::TChunk* chunk);
+    //! Computes quorum info for a given journal chunk
+    //! by querying a quorum of replicas.
+    TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+        NChunkServer::TChunk* chunk);
+    TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
+        TChunkId chunkId,
+        bool overlayed,
+        NErasure::ECodec codecId,
+        int readQuorum,
+        const std::vector<NJournalClient::TChunkReplicaDescriptor>& replicaDescriptors);
 
     //! Returns the medium with a given id (throws if none).
     TMedium* GetMediumOrThrow(TMediumId id) const;

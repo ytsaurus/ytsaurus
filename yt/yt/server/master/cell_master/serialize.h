@@ -145,6 +145,7 @@ DEFINE_ENUM(EMasterReign,
     ((CombineStateHash)                                             (1418))  // aleksandra-zh
     ((EnableForcedRotationBackingMemoryAccounting)                  (1419))  // babenko
     ((RemovePartitionedTables)                                      (1420))  // max42
+    ((OverlayedJournals)                                            (1421))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

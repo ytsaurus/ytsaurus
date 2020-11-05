@@ -6,6 +6,8 @@
 #include <yt/ytlib/chunk_client/session_id.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/ytlib/journal_client/proto/format.pb.h>
+
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/client/misc/workload.h>
@@ -15,6 +17,8 @@
 #include <yt/core/misc/string.h>
 
 #include <yt/core/rpc/dispatcher.h>
+
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/library/erasure/codec.h>
 
@@ -222,6 +226,13 @@ std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
     return encodedRowLists;
 }
 
+std::vector<TSharedRef> EncodeErasureJournalRow(
+    NErasure::ECodec codecId,
+    const TSharedRef& row)
+{
+    return EncodeErasureJournalRows(codecId, {row})[0];
+}
+
 std::vector<TSharedRef> DecodeErasureJournalRows(
     NErasure::ECodec codecId,
     const std::vector<std::vector<TSharedRef>>& encodedRowLists)
@@ -373,6 +384,8 @@ protected:
     const INodeChannelFactoryPtr ChannelFactory_;
 
     const NLogging::TLogger Logger;
+
+    const IInvokerPtr Invoker_ = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,7 +411,7 @@ public:
     TFuture<std::vector<TChunkReplicaDescriptor>> Run()
     {
         BIND(&TAbortSessionsQuorumSession::DoRun, MakeStrong(this))
-            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+            .AsyncVia(Invoker_)
             .Run();
         return Promise_;
     }
@@ -440,7 +453,7 @@ private:
             ToProto(req->mutable_session_id(), sessionId);
 
             req->Invoke().Subscribe(BIND(&TAbortSessionsQuorumSession::OnResponse, MakeStrong(this), replica)
-                .Via(GetCurrentInvoker()));
+                .Via(Invoker_));
         }
     }
 
@@ -511,10 +524,11 @@ class TComputeQuorumInfoSession
 public:
     TComputeQuorumInfoSession(
         TChunkId chunkId,
+        bool overlayed,
         NErasure::ECodec codecId,
+        int quorum,
         std::vector<TChunkReplicaDescriptor> replicas,
         TDuration timeout,
-        int quorum,
         INodeChannelFactoryPtr channelFactory)
         : TQuorumSessionBase(
             chunkId,
@@ -522,30 +536,35 @@ public:
             timeout,
             quorum,
             std::move(channelFactory))
+        , Overlayed_(overlayed)
         , CodecId_(codecId)
     { }
 
-    TFuture<TMiscExt> Run()
+    TFuture<TChunkQuorumInfo> Run()
     {
         BIND(&TComputeQuorumInfoSession::DoRun, MakeStrong(this))
-            .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
+            .AsyncVia(Invoker_)
             .Run();
         return Promise_;
     }
 
 private:
+    const bool Overlayed_;
     const NErasure::ECodec CodecId_;
 
-    struct TResult
+    struct TChunkMetaResult
     {
         TString Address;
         TMiscExt MiscExt;
         TLocationUuid LocationUuid;
     };
-    std::vector<TResult> Results_;
+    std::vector<TChunkMetaResult> ChunkMetaResults_;
+
+    std::optional<NJournalClient::NProto::TOverlayedJournalChunkHeader> Header_;
+    
     std::vector<TError> InnerErrors_;
 
-    const TPromise<TMiscExt> Promise_ = NewPromise<TMiscExt>();
+    const TPromise<TChunkQuorumInfo> Promise_ = NewPromise<TChunkQuorumInfo>();
 
 
     void DoRun()
@@ -573,55 +592,111 @@ private:
             auto chunkIdWithIndex = TChunkIdWithIndex(ChunkId_, replica.ReplicaIndex);
             auto partChunkId = EncodeChunkId(chunkIdWithIndex);
 
-            auto req = proxy.GetChunkMeta();
-            ToProto(req->mutable_chunk_id(), partChunkId);
-            req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
-            ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
+            // Request chunk meta.
+            {
+                auto req = proxy.GetChunkMeta();
+                ToProto(req->mutable_chunk_id(), partChunkId);
+                req->add_extension_tags(TProtoExtensionTag<TMiscExt>::Value);
+                ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
 
-            futures.push_back(req->Invoke().Apply(
-                BIND(&TComputeQuorumInfoSession::OnResponse, MakeStrong(this), replica)
-                    .AsyncVia(GetCurrentInvoker())));
+                futures.push_back(req->Invoke().Apply(
+                    BIND(&TComputeQuorumInfoSession::OnGetChunkMetaResponse, MakeStrong(this), replica)
+                        .AsyncVia(Invoker_)));
+            }
+
+            // Request header block.
+            if (Overlayed_) {
+                auto req = proxy.GetBlockSet();
+                ToProto(req->mutable_chunk_id(), partChunkId);
+                req->add_block_indexes(0);
+                ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery));
+
+                futures.push_back(req->Invoke().Apply(
+                    BIND(&TComputeQuorumInfoSession::OnGetHeaderBlockResponse, MakeStrong(this), replica)
+                        .AsyncVia(Invoker_)));
+            }
         }
 
         AllSucceeded(futures).Subscribe(
             BIND(&TComputeQuorumInfoSession::OnComplete, MakeStrong(this))
-                .Via(GetCurrentInvoker()));
+                .Via(Invoker_));
     }
 
-    void OnResponse(
+    void OnGetChunkMetaResponse(
         const TChunkReplicaDescriptor& replica,
         const TDataNodeServiceProxy::TErrorOrRspGetChunkMetaPtr& rspOrError)
     {
-        if (rspOrError.IsOK()) {
-            const auto& rsp = rspOrError.Value();
-            const auto& address = replica.NodeDescriptor.GetDefaultAddress();
-            auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
-            auto locationUuid = FromProto<TLocationUuid>(rsp->location_uuid());
-
-            Results_.push_back({
-                address,
-                miscExt,
-                locationUuid,
-            });
-
-            YT_LOG_DEBUG("Received info for journal chunk (Replica: %v, LocationUuid: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-                replica,
-                locationUuid,
-                miscExt.row_count(),
-                miscExt.uncompressed_data_size(),
-                miscExt.compressed_data_size());
-        } else {
-            InnerErrors_.push_back(rspOrError);
-
-            YT_LOG_WARNING(rspOrError, "Failed to get journal info (Replica: %v)",
-                replica);
+        if (!rspOrError.IsOK()) {
+            auto error = TError("Failed to get chunk meta for replica %v", replica)
+                << rspOrError;
+            InnerErrors_.push_back(error);
+            YT_LOG_WARNING(error);
+            return;
         }
+
+        const auto& rsp = rspOrError.Value();
+        const auto& address = replica.NodeDescriptor.GetDefaultAddress();
+        auto miscExt = GetProtoExtension<TMiscExt>(rsp->chunk_meta().extensions());
+        auto locationUuid = FromProto<TLocationUuid>(rsp->location_uuid());
+
+        ChunkMetaResults_.push_back({
+            address,
+            miscExt,
+            locationUuid,
+        });
+
+        YT_LOG_DEBUG("Received chunk meta for journal chunk (Replica: %v, LocationUuid: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            replica,
+            locationUuid,
+            miscExt.row_count(),
+            miscExt.uncompressed_data_size(),
+            miscExt.compressed_data_size());
+    }
+
+    void OnGetHeaderBlockResponse(
+        const TChunkReplicaDescriptor& replica,
+        const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError)
+    {
+        if (!rspOrError.IsOK()) {
+            auto error = TError("Failed to get chunk header block for replica %v", replica)
+                << rspOrError;
+            InnerErrors_.push_back(error);
+            YT_LOG_WARNING(error);
+            return;
+        }
+
+        if (Header_) {
+            return;
+        }
+        
+        const auto& rsp = rspOrError.Value();
+
+        if (rsp->Attachments().size() < 1) {
+            YT_LOG_DEBUG("Journal chunk replica is missing header block (Replica: %v)",
+                replica);
+            return;
+        }
+
+        NJournalClient::NProto::TOverlayedJournalChunkHeader header;
+        if (!TryDeserializeProto(&header, rsp->Attachments()[0])) {
+            auto error = TError("Error parsing header block received from replica %v", replica)
+                << rspOrError;
+            InnerErrors_.push_back(error);
+            YT_LOG_WARNING(error);
+            return;
+        }
+
+        YT_LOG_DEBUG("Received header block for journal chunk (Replica: %v, FirstOverlayedRowIndex: %v)",
+            replica,
+            header.first_row_index());
+
+        Header_.emplace(std::move(header));
     }
 
     void OnComplete(const TError& /*error*/)
     {
         THashMap<TLocationUuid, TString> locationUuidToAddress;
-        for (const auto& result : Results_) {
+        for (const auto& result : ChunkMetaResults_) {
             if (!result.LocationUuid) {
                 continue;
             }
@@ -637,10 +712,10 @@ private:
             }
         }
 
-        if (Results_.size() < Quorum_) {
+        if (ChunkMetaResults_.size() < Quorum_) {
             Promise_.Set(TError("Unable to compute quorum info for journal chunk %v: too few replicas alive, %v found, %v needed",
                 ChunkId_,
-                Results_.size(),
+                ChunkMetaResults_.size(),
                 Quorum_)
                 << InnerErrors_);
             return;
@@ -649,60 +724,76 @@ private:
         const auto& quorumResult = GetQuorumResult();
         const auto& miscExt = quorumResult.MiscExt;
 
-        YT_LOG_DEBUG("Quorum info for journal chunk computed successfully (RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+        YT_LOG_DEBUG("Quorum info for journal chunk computed successfully (ChunkRowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
             miscExt.row_count(),
             miscExt.uncompressed_data_size(),
             miscExt.compressed_data_size());
 
-        Promise_.Set(miscExt);
+        TChunkQuorumInfo result;
+        if (Overlayed_) {
+            if (Header_) {
+                result.FirstOverlayedRowIndex = Header_->first_row_index();
+                result.RowCount = miscExt.row_count() - 1;
+            } else {
+                result.RowCount = 0;
+            }
+        } else {
+            result.RowCount = miscExt.row_count();
+        }
+        result.UncompressedDataSize = miscExt.uncompressed_data_size();
+        result.CompressedDataSize = miscExt.compressed_data_size();
+
+        Promise_.Set(result);
     }
 
-    const TResult& GetQuorumResult()
+    const TChunkMetaResult& GetQuorumResult()
     {
         return IsErasureChunkId(ChunkId_)
             ? GetErasureQuorumResult()
             : GetRegularQuorumResult();
     }
 
-    const TResult& GetErasureQuorumResult()
+    const TChunkMetaResult& GetErasureQuorumResult()
     {
         std::sort(
-            Results_.begin(),
-            Results_.end(),
+            ChunkMetaResults_.begin(),
+            ChunkMetaResults_.end(),
             [] (const auto& lhs, const auto& rhs) {
                 return lhs.MiscExt.row_count() > rhs.MiscExt.row_count();
             });
         auto* codec = NErasure::GetCodec(CodecId_);
-        return Results_[codec->GetGuaranteedRepairablePartCount() - 1];
+        return ChunkMetaResults_[codec->GetGuaranteedRepairablePartCount() - 1];
     }
 
-    const TResult& GetRegularQuorumResult()
+    const TChunkMetaResult& GetRegularQuorumResult()
     {
         std::sort(
-            Results_.begin(),
-            Results_.end(),
+            ChunkMetaResults_.begin(),
+            ChunkMetaResults_.end(),
             [] (const auto& lhs, const auto& rhs) {
                 return lhs.MiscExt.row_count() < rhs.MiscExt.row_count();
             });
-        return Results_[Quorum_ - 1];
+        return ChunkMetaResults_[Quorum_ - 1];
     }
 };
 
-TFuture<TMiscExt> ComputeQuorumInfo(
+TFuture<TChunkQuorumInfo> ComputeQuorumInfo(
     TChunkId chunkId,
+    bool overlayed,
     NErasure::ECodec codecId,
+    int quorum,
     std::vector<TChunkReplicaDescriptor> replicas,
     TDuration timeout,
-    int quorum,
     INodeChannelFactoryPtr channelFactory)
 {
     return
         New<TComputeQuorumInfoSession>(
             chunkId,
+            overlayed,
             codecId,
+            quorum,
             std::move(replicas),
             timeout,
-            quorum,
             std::move(channelFactory))
         ->Run();
 }

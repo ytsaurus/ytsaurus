@@ -708,9 +708,7 @@ def write_table(path, value=None, is_raw=False, **kwargs):
         if not is_raw:
             if not isinstance(value, list):
                 value = [value]
-            value = yson.dumps(value)
-            # remove surrounding [ ]
-            value = value[1:-1]
+            value = yson.dumps(value, yson_type="list_fragment")
         input_stream = StringIO(value)
 
     attributes = {}
@@ -959,20 +957,17 @@ def read_journal(path, **kwargs):
     return list(yson.loads(output.getvalue(), yson_type="list_fragment"))
 
 
-def write_journal(path, value, is_raw=False, **kwargs):
+def write_journal(path, rows=None, input_stream=None, is_raw=False, **kwargs):
     kwargs["path"] = path
 
-    if "input_stream" in kwargs:
-        assert value is None
-        input_stream = kwargs["input_stream"]
-        del kwargs["input_stream"]
+    if input_stream is not None:
+        assert rows is None
+    elif rows is not None:
+        assert input_stream is None
+        yson_rows = yson.dumps(rows, yson_type="list_fragment")
+        input_stream = StringIO(yson_rows)
     else:
-        if not isinstance(value, list):
-            value = [value]
-        value = yson.dumps(value)
-        # remove surrounding [ ]
-        value = value[1:-1]
-        input_stream = StringIO(value)
+        assert False
 
     return execute_command("write_journal", kwargs, input_stream=input_stream)
 

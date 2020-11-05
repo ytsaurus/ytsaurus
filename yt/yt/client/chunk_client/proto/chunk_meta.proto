@@ -54,11 +54,14 @@ message TMiscExt
     optional int64 max_block_size = 9 [default = 0];
 
     // Min/max timestamps for versioned table chunks.
-    optional int64 min_timestamp = 10 [default = 0];
-    optional int64 max_timestamp = 11 [default = 0];
+    optional uint64 min_timestamp = 10 [default = 0];
+    optional uint64 max_timestamp = 11 [default = 0];
 
     // Is the chunk sealed (journals only)?
     optional bool sealed = 13;
+
+    // For overlayed journal chunks, contains the journal-wide index of the first row.
+    optional int64 first_overlayed_row_index = 19 [default = 0];
 
     // Does this chunk belong to Eden (dynamic tables only)?
     optional bool eden = 14 [default = false];
@@ -72,7 +75,7 @@ message TMiscExt
     // Chunk creation time.
     optional uint64 creation_time = 17 [default = 0];
 
-    // When set, datanode allow downloading this chunk by http.
+    // When set, data nodes allow downloading this chunk by HTTP.
     optional bool shared_to_skynet = 18 [default = false];
 }
 

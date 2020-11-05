@@ -156,7 +156,7 @@ private:
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching journals for table %v",
+            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for journal %v",
                 Path_);
             const auto& rsp = rspOrError.Value();
 
@@ -208,6 +208,13 @@ private:
                     Client_->GetNativeConnection()->GetBlockCache());
 
                 // NB: Lower/upper limits are mandatory for journal chunks.
+                if (!chunkSpec.has_lower_limit()) {
+                    THROW_ERROR_EXCEPTION("Lower limit is missing in chunk spec");
+                }
+                if (!chunkSpec.has_upper_limit()) {
+                    THROW_ERROR_EXCEPTION("Upper limit is missing in chunk spec");
+                }
+
                 auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
                 BeginRowIndex_ = lowerLimit.GetRowIndex();
 
@@ -215,6 +222,11 @@ private:
                 EndRowIndex_ = upperLimit.GetRowIndex();
 
                 CurrentRowIndex_ = BeginRowIndex_;
+
+                YT_LOG_DEBUG("Switched to another journal chunk (ChunkId: %v, RowIndexes: %v-%v)",
+                    chunkId,
+                    BeginRowIndex_,
+                    EndRowIndex_ - 1);
             }
 
             // TODO(savrus): profile chunk reader statistics.
@@ -231,7 +243,6 @@ private:
             const auto& rowsBlocks = rowsOrError.Value();
             if (!rowsBlocks.empty()) {
                 CurrentRowIndex_ += rowsBlocks.size();
-
                 return TBlock::Unwrap(rowsBlocks);
             }
 

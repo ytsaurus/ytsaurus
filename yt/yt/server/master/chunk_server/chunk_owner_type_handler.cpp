@@ -100,7 +100,8 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     const TCreateNodeContext& context,
     int replicationFactor,
     NCompression::ECodec compressionCodec,
-    NErasure::ECodec erasureCodec)
+    NErasure::ECodec erasureCodec,
+    EChunkListKind rootChunkListKind)
 {
     const auto& chunkManager = this->Bootstrap_->GetChunkManager();
 
@@ -135,7 +136,7 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
         if (!node->IsExternal()) {
             // Create an empty chunk list and reference it from the node.
-            auto* chunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+            auto* chunkList = chunkManager->CreateChunkList(rootChunkListKind);
             node->SetChunkList(chunkList);
             chunkList->AddOwningNode(node);
 

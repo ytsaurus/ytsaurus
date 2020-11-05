@@ -12,8 +12,8 @@ namespace NYT::NApi::NNative {
 
 IJournalWriterPtr CreateJournalWriter(
     IClientPtr client,
-    const NYPath::TYPath& path,
-    const TJournalWriterOptions& options = TJournalWriterOptions());
+    NYPath::TYPath path,
+    TJournalWriterOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
