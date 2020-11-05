@@ -332,7 +332,7 @@ class TestDiskMediumsPorto(YTEnvSetup):
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
 
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
 
         node = nodes[0]
@@ -375,7 +375,7 @@ class TestDiskMediumsPorto(YTEnvSetup):
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
 
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
 
         node = nodes[0]
@@ -502,7 +502,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
         create("table", "//tmp/in")
         write_table("//tmp/in", [{"foo": "bar"}])
 
-        nodes = ls("//sys/nodes")
+        nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
 
         node = nodes[0]

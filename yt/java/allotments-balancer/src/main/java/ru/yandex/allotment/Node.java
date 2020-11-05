@@ -85,7 +85,7 @@ public class Node {
     }
 
     public Node(String addr, Yt yt) {
-        this(addr, yt.cypress().get(YPath.simple("//sys/nodes").child(addr).allAttributes()).asMap());
+        this(addr, yt.cypress().get(YPath.simple("//sys/cluster_nodes").child(addr).allAttributes()).asMap());
     }
 
 
@@ -102,7 +102,7 @@ public class Node {
         System.out.println(String.format("%s -> %s", addr, allotmentAssignment));
 
         if (!dryRun) {
-            yt.cypress().set(Optional.of(tx), true, YPath.simple("//sys/nodes").child(addr).attribute("allotments_assignment"),
+            yt.cypress().set(Optional.of(tx), true, YPath.simple("//sys/cluster_nodes").child(addr).attribute("allotments_assignment"),
                     YTree.builder().value(allotmentAssignment).build());
         }
     }

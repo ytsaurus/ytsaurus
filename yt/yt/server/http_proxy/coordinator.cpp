@@ -806,7 +806,7 @@ void TDiscoverVersionsHandlerV1::HandleRequest(
                 .Item("controller_agents").Value(FormatInstances(
                     GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent")
                 ))
-                .Item("nodes").Value(FormatInstances(ListComponent("nodes", "node")))
+                .Item("nodes").Value(FormatInstances(ListComponent("cluster_nodes", "node")))
                 .Item("http_proxies").Value(FormatInstances(ListProxies("proxies", "http_proxy")))
                 .Item("rpc_proxies").Value(FormatInstances(ListProxies("rpc_proxies", "rpc_proxy")))
             .EndMap();
@@ -872,7 +872,7 @@ void TDiscoverVersionsHandlerV2::HandleRequest(
     add(GetAttributes("//sys/secondary_masters", GetInstances("//sys/secondary_masters", true), "secondary_master"));
     add(GetAttributes("//sys/scheduler/instances", GetInstances("//sys/scheduler/instances"), "scheduler"));
     add(GetAttributes("//sys/controller_agents/instances", GetInstances("//sys/controller_agents/instances"), "controller_agent"));
-    add(ListComponent("nodes", "node"));
+    add(ListComponent("cluster_nodes", "node"));
     add(ListProxies("proxies", "http_proxy"));
     add(ListProxies("rpc_proxies", "rpc_proxy"));
 
