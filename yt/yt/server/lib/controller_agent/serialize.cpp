@@ -14,7 +14,8 @@ ESnapshotVersion GetCurrentSnapshotVersion()
 bool ValidateSnapshotVersion(int version)
 {
     // NB: Version can be not valid enum value, so we do not cast version to enum here.
-    return version >= ToUnderlying(ESnapshotVersion::RemovePartitionedTables) &&
+    return
+        version >= ToUnderlying(ESnapshotVersion::RemovePartitionedTables) &&
         version <= ToUnderlying(GetCurrentSnapshotVersion());
 }
 

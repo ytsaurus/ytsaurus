@@ -54,18 +54,12 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, Timestamp);
     Persist(context, CellTag);
     Persist(context, ImmediatelyUnstageChunkLists);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ESnapshotVersion::DynamicTableWriterConfig) {
-        Persist(context, IsOutputTableDynamic);
-    }
+    Persist(context, IsOutputTableDynamic);
     Persist(context, IsFinalOutput);
     Persist(context, LivePreviewIndex);
     Persist(context, TargetDescriptor);
     Persist(context, PartitionTag);
-    // COMPAT(levysotsky)
-    if (context.GetVersion() >= ESnapshotVersion::SchemafulMapReduce) {
-        Persist<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>(context, StreamSchemas);
-    }
+    Persist<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>(context, StreamSchemas);
 }
 
 TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
@@ -208,7 +202,7 @@ private:
                         .Value(this_->TeleportDataStatistics_);
                 }
             })));
-            
+
         service->SetOpaque(false);
         Service_ = std::move(service);
     }
