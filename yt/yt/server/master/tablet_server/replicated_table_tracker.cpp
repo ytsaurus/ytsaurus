@@ -336,11 +336,17 @@ private:
                 return NoClientResult;
             }
 
-            return AllSucceeded(std::vector<TFuture<void>>{
-                CheckClusterState(),
-                CheckTableExists(),
-                CheckBundleHealth()
-            });
+            return CheckClusterState()
+                .Apply(BIND([=, weakThis_ = MakeWeak(this)] {
+                    if (auto this_ = weakThis_.Lock()) {
+                        return AllSucceeded(std::vector<TFuture<void>>{
+                            CheckTableExists(),
+                            CheckBundleHealth()
+                        });
+                    } else {
+                        return VoidFuture;
+                    }
+                }));
         }
 
         TFuture<void> SetMode(TBootstrap* const bootstrap, ETableReplicaMode mode)
@@ -650,7 +656,7 @@ private:
                         }
 
                         return AllSucceeded(futures)
-                            .Apply(BIND([switchCount] () {
+                            .Apply(BIND([switchCount] {
                                 return switchCount;
                             }));
                     }));
@@ -770,16 +776,18 @@ private:
         auto switchCountTables = WaitFor(AllSet(futures))
             .ValueOrThrow();
 
-        THashMap<NProfiling::TTagId, int> switchCount;
+        THashMap<NProfiling::TTagId, int> switchCountByTag;
         for (int index = 0; index < switchCountTables.size(); index++) {
-            int switchCountTable = switchCountTables[index].Value();
-            switchCount[profilingTags[index]] += switchCountTable;
+            if (switchCountTables[index].IsOK()) {
+                int switchCountTable = switchCountTables[index].Value();
+                switchCountByTag[profilingTags[index]] += switchCountTable;
+            }
         }
 
-        for (auto [profilingTag, switchMoves] : switchCount) {
+        for (auto [profilingTag, switchCount] : switchCountByTag) {
             Profiler.Enqueue(
                 "/switch_tablet_replica_mode",
-                switchMoves,
+                switchCount,
                 NProfiling::EMetricType::Counter,
                 {profilingTag}
             );
@@ -883,7 +891,6 @@ private:
 
         auto id = object->GetId();
         const auto& config = object->GetReplicatedTableOptions();
-        auto tabletCellBundle = object->GetTabletCellBundle();
 
         TTablePtr table;
 
@@ -893,7 +900,7 @@ private:
             auto guard = Guard(Lock_);
             auto it = Tables_.find(id);
             if (it == Tables_.end()) {
-                table = New<TTable>(id, tabletCellBundle->GetProfilingTag(), config);
+                table = New<TTable>(id, object->GetTabletCellBundle()->GetProfilingTag(), config);
                 Tables_.emplace(id, table);
                 newTable = true;
             } else {
