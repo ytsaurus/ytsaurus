@@ -357,16 +357,6 @@ private:
                         .EndMap()
                     .EndMap());
 
-            // COMPAT(babenko): YT-4558
-            ScheduleCreateNode(
-                "//sys/nodes",
-                transactionId,
-                EObjectType::Link,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("target_path").Value("//sys/cluster_nodes")
-                    .EndMap());
-
             ScheduleCreateNode(
                 "//sys/racks",
                 transactionId,

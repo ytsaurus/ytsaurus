@@ -1811,17 +1811,17 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
         remove("//tmp/t2")
         if eviction_type == "remove_cell":
             remove("#{}".format(cell2))
-            node = ls("//sys/nodes")[0]
-            wait(lambda: cell2 not in ls("//sys/nodes/{}/orchid/tablet_cells".format(node)))
+            node = ls("//sys/cluster_nodes")[0]
+            wait(lambda: cell2 not in ls("//sys/cluster_nodes/{}/orchid/tablet_cells".format(node)))
         elif eviction_type == "update_weight":
             set(
                 "//sys/tablet_cell_bundles/b1/@dynamic_options/dynamic_memory_pool_weight",
                 1000,
             )
-            node = ls("//sys/nodes")[0]
+            node = ls("//sys/cluster_nodes")[0]
             wait(
                 lambda: get(
-                    "//sys/nodes/{}/orchid/tablet_cells/{}/dynamic_options/dynamic_memory_pool_weight".format(
+                    "//sys/cluster_nodes/{}/orchid/tablet_cells/{}/dynamic_options/dynamic_memory_pool_weight".format(
                         node, cell1
                     )
                 )
@@ -1832,10 +1832,10 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
                 "//sys/tablet_cell_bundles/b1/@dynamic_options/enable_tablet_dynamic_memory_limit",
                 False,
             )
-            node = ls("//sys/nodes")[0]
+            node = ls("//sys/cluster_nodes")[0]
 
             def limit_applied():
-                orchid_path = "//sys/nodes/{}/orchid/tablet_cells/{}/dynamic_options/enable_tablet_dynamic_memory_limit".format(
+                orchid_path = "//sys/cluster_nodes/{}/orchid/tablet_cells/{}/dynamic_options/enable_tablet_dynamic_memory_limit".format(
                     node, cell1
                 )
 
@@ -1869,7 +1869,7 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
         address = get_tablet_leader_address(tablet_id)
         node = get_tablet_leader_address(tablet_id)
-        orchid_root = "//sys/nodes/{}/orchid/tablet_cells/{}/tablets/{}".format(node, cell_id, tablet_id)
+        orchid_root = "//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}".format(node, cell_id, tablet_id)
 
         for store_id in ls(orchid_root + "/eden/stores"):
             if get(orchid_root + "/eden/stores/{}/store_state".format(store_id)) == "active_dynamic":

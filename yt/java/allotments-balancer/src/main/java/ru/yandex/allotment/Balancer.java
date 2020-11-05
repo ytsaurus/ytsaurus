@@ -203,7 +203,7 @@ public class Balancer {
     }
 
     private List<Node> loadNodes() {
-        List<YTreeStringNode> nodes = yt.cypress().list(YPath.simple("//sys/nodes"));
+        List<YTreeStringNode> nodes = yt.cypress().list(YPath.simple("//sys/cluster_nodes"));
         List<Node> result = Cf.arrayList();
 
         for (YTreeStringNode node : nodes) {

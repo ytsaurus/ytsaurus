@@ -3392,7 +3392,7 @@ class TestSchedulingSegments(YTEnvSetup):
         node_segment_orchid_path = scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment"
         large_gpu_segment_nodes = self._get_nodes_for_segment_in_tree("large_gpu")
         assert len(large_gpu_segment_nodes) == 1
-        for node in ls("//sys/nodes"):
+        for node in ls("//sys/cluster_nodes"):
             expected_segment = "large_gpu" \
                 if node in large_gpu_segment_nodes \
                 else "default"
@@ -3428,7 +3428,7 @@ class TestSchedulingSegments(YTEnvSetup):
             set("//sys/scheduler/config/scheduling_segments_initialization_timeout", 30000)
 
         node_segment_orchid_path = scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment"
-        for node in ls("//sys/nodes"):
+        for node in ls("//sys/cluster_nodes"):
             expected_segment = "large_gpu" \
                 if node == expected_node \
                 else "default"
@@ -3451,7 +3451,7 @@ class TestSchedulingSegments(YTEnvSetup):
         assert len(large_nodes) == 1
         node = large_nodes[0]
 
-        set("//sys/nodes/{}/@user_tags/end".format(node), "other")
+        set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "other")
         wait(lambda: get(scheduler_orchid_pool_path("<Root>", tree="other") + "/resource_limits/cpu") > 0)
 
         wait(lambda: get(scheduler_orchid_node_path(node) + "/scheduling_segment") == "default")
