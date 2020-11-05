@@ -26,9 +26,9 @@ import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
 
 public class HttpProxyGetterTest {
     AsyncHttpClient httpClient;
@@ -49,7 +49,7 @@ public class HttpProxyGetterTest {
     @After
     public void after() throws IOException {
         httpClient.close();
-        eventLoopGroup.shutdownGracefully(100, 100, TimeUnit.MILLISECONDS);
+        eventLoopGroup.shutdownGracefully(1, 3, TimeUnit.SECONDS);
     }
 
     @Test
@@ -65,7 +65,7 @@ public class HttpProxyGetterTest {
                 .thenComparing(HostPort::getPort);
 
         var proxies = getter.getProxies();
-        var proxiesFromGetter = proxies.get(100, TimeUnit.MILLISECONDS)
+        var proxiesFromGetter = proxies.get(2, TimeUnit.SECONDS)
                 .stream()
                 .sorted(hostPortComparator)
                 .collect(Collectors.toList());
@@ -87,7 +87,7 @@ public class HttpProxyGetterTest {
                     .setHeader("X-YT-Header-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT))
                     .setHeader("X-YT-Output-Format", YTreeTextSerializer.serialize(YtFormat.YSON_TEXT));
             CompletableFuture<Response> responseFuture = httpClient.executeRequest(requestBuilder.build()).toCompletableFuture();
-            var response = responseFuture.get(100, TimeUnit.MILLISECONDS);
+            var response = responseFuture.get(2, TimeUnit.SECONDS);
 
             assertThat(response.getStatusCode(), is(200));
             YTreeNode node = YTreeTextSerializer.deserialize(response.getResponseBodyAsStream());
