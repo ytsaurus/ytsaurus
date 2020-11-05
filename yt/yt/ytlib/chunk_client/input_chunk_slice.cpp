@@ -21,7 +21,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputSliceLimit::TInputSliceLimit(const TReadLimit& other)
+TLegacyInputSliceLimit::TLegacyInputSliceLimit(const TReadLimit& other)
 {
     YT_VERIFY(!other.HasChunkIndex());
     YT_VERIFY(!other.HasOffset());
@@ -33,7 +33,7 @@ TInputSliceLimit::TInputSliceLimit(const TReadLimit& other)
     }
 }
 
-TInputSliceLimit::TInputSliceLimit(
+TLegacyInputSliceLimit::TLegacyInputSliceLimit(
     const NProto::TReadLimit& other,
     const TRowBufferPtr& rowBuffer,
     TRange<TLegacyKey> keySet)
@@ -43,43 +43,43 @@ TInputSliceLimit::TInputSliceLimit(
     if (other.has_row_index()) {
         RowIndex = other.row_index();
     }
-    if (other.has_key()) {
-        NTableClient::FromProto(&Key, other.key(), rowBuffer);
+    if (other.has_legacy_key()) {
+        NTableClient::FromProto(&Key, other.legacy_key(), rowBuffer);
     }
     if (other.has_key_index()) {
         Key = rowBuffer->Capture(keySet[other.key_index()]);
     }
 }
 
-void TInputSliceLimit::MergeLowerRowIndex(i64 rowIndex)
+void TLegacyInputSliceLimit::MergeLowerRowIndex(i64 rowIndex)
 {
     if (!RowIndex || *RowIndex < rowIndex) {
         RowIndex = rowIndex;
     }
 }
 
-void TInputSliceLimit::MergeUpperRowIndex(i64 rowIndex)
+void TLegacyInputSliceLimit::MergeUpperRowIndex(i64 rowIndex)
 {
     if (!RowIndex || *RowIndex > rowIndex) {
         RowIndex = rowIndex;
     }
 }
 
-void TInputSliceLimit::MergeLowerKey(NTableClient::TLegacyKey key)
+void TLegacyInputSliceLimit::MergeLowerKey(NTableClient::TLegacyKey key)
 {
     if (!Key || Key < key) {
         Key = key;
     }
 }
 
-void TInputSliceLimit::MergeUpperKey(NTableClient::TLegacyKey key)
+void TLegacyInputSliceLimit::MergeUpperKey(NTableClient::TLegacyKey key)
 {
     if (!Key || Key > key) {
         Key = key;
     }
 }
 
-void TInputSliceLimit::MergeLowerLimit(const TInputSliceLimit& limit)
+void TLegacyInputSliceLimit::MergeLowerLimit(const TLegacyInputSliceLimit& limit)
 {
     if (limit.RowIndex) {
         MergeLowerRowIndex(*limit.RowIndex);
@@ -89,7 +89,7 @@ void TInputSliceLimit::MergeLowerLimit(const TInputSliceLimit& limit)
     }
 }
 
-void TInputSliceLimit::MergeUpperLimit(const TInputSliceLimit& limit)
+void TLegacyInputSliceLimit::MergeUpperLimit(const TLegacyInputSliceLimit& limit)
 {
     if (limit.RowIndex) {
         MergeUpperRowIndex(*limit.RowIndex);
@@ -99,7 +99,7 @@ void TInputSliceLimit::MergeUpperLimit(const TInputSliceLimit& limit)
     }
 }
 
-void TInputSliceLimit::Persist(const TPersistenceContext& context)
+void TLegacyInputSliceLimit::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -107,21 +107,97 @@ void TInputSliceLimit::Persist(const TPersistenceContext& context)
     Persist(context, Key);
 }
 
-TString ToString(const TInputSliceLimit& limit)
+TString ToString(const TLegacyInputSliceLimit& limit)
 {
     return Format("RowIndex: %v, Key: %v", limit.RowIndex, limit.Key);
 }
 
-void FormatValue(TStringBuilderBase* builder, const TInputSliceLimit& limit, TStringBuf /*format*/)
+void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf /*format*/)
 {
     builder->AppendFormat("{RowIndex: %v, Key: %v}",
         limit.RowIndex,
         limit.Key);
 }
 
-bool IsTrivial(const TInputSliceLimit& limit)
+bool IsTrivial(const TLegacyInputSliceLimit& limit)
 {
     return !limit.RowIndex && !limit.Key;
+}
+
+void ToProto(NProto::TReadLimit* protoLimit, const TLegacyInputSliceLimit& limit)
+{
+    if (limit.RowIndex) {
+        protoLimit->set_row_index(*limit.RowIndex);
+    } else {
+        protoLimit->clear_row_index();
+    }
+
+    if (limit.Key) {
+        ToProto(protoLimit->mutable_legacy_key(), limit.Key);
+    } else {
+        protoLimit->clear_legacy_key();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInputSliceLimit::TInputSliceLimit(
+    const NProto::TReadLimit& other,
+    const TRowBufferPtr& rowBuffer,
+    TRange<TLegacyKey> keySet,
+    int keyLength,
+    bool isUpper)
+{
+    YT_VERIFY(!other.has_chunk_index());
+    YT_VERIFY(!other.has_offset());
+    if (other.has_row_index()) {
+        RowIndex = other.row_index();
+    }
+    TUnversionedRow row;
+
+    if (other.has_key_bound_prefix()) {
+        NTableClient::FromProto(&KeyBound.Prefix, other.key_bound_prefix(), rowBuffer);
+        KeyBound.IsInclusive = other.key_bound_is_inclusive();
+        KeyBound.IsUpper = isUpper;
+    } else {
+        // Build from legacy-serialized read limit.
+        if (other.has_legacy_key()) {
+            NTableClient::FromProto(&row, other.legacy_key(), rowBuffer);
+        }
+        if (other.has_key_index()) {
+            row = rowBuffer->Capture(keySet[other.key_index()]);
+        }
+        if (row) {
+            KeyBound = KeyBoundFromLegacyRow(row, isUpper, keyLength, rowBuffer);
+        } else {
+            KeyBound = TKeyBound::MakeUniversal(isUpper);
+        }
+    }
+}
+
+void TInputSliceLimit::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, RowIndex);
+    Persist(context, KeyBound);
+}
+
+TString ToString(const TInputSliceLimit& limit)
+{
+    return Format("RowIndex: %v, KeyBound: %v", limit.RowIndex, limit.KeyBound);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TInputSliceLimit& limit, TStringBuf /*format*/)
+{
+    builder->AppendFormat("{RowIndex: %v, KeyBound: %v}",
+        limit.RowIndex,
+        limit.KeyBound);
+}
+
+bool IsTrivial(const TInputSliceLimit& limit)
+{
+    return !limit.RowIndex && limit.KeyBound.IsUniversal();
 }
 
 void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit)
@@ -132,10 +208,14 @@ void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit)
         protoLimit->clear_row_index();
     }
 
-    if (limit.Key) {
-        ToProto(protoLimit->mutable_key(), limit.Key);
+    protoLimit->set_key_bound_is_inclusive(limit.KeyBound.IsInclusive);
+
+    if (limit.KeyBound.IsUniversal()) {
+        protoLimit->clear_legacy_key();
+        protoLimit->clear_key_bound_prefix();
     } else {
-        protoLimit->clear_key();
+        ToProto(protoLimit->mutable_legacy_key(), KeyBoundToLegacyRow(limit.KeyBound));
+        ToProto(protoLimit->mutable_key_bound_prefix(), limit.KeyBound.Prefix);
     }
 }
 
@@ -150,14 +230,14 @@ TInputChunkSlice::TInputChunkSlice(
     , RowCount_(inputChunk->GetRowCount())
 {
     if (inputChunk->LowerLimit()) {
-        LowerLimit_ = TInputSliceLimit(*inputChunk->LowerLimit());
+        LowerLimit_ = TLegacyInputSliceLimit(*inputChunk->LowerLimit());
     }
     if (lowerKey) {
         LowerLimit_.MergeLowerKey(lowerKey);
     }
 
     if (inputChunk->UpperLimit()) {
-        UpperLimit_ = TInputSliceLimit(*inputChunk->UpperLimit());
+        UpperLimit_ = TLegacyInputSliceLimit(*inputChunk->UpperLimit());
     }
     if (upperKey) {
         UpperLimit_.MergeUpperKey(upperKey);
@@ -208,12 +288,12 @@ TInputChunkSlice::TInputChunkSlice(
     , PartIndex_(partIndex)
 {
     if (inputChunk->LowerLimit()) {
-        LowerLimit_ = TInputSliceLimit(*inputChunk->LowerLimit());
+        LowerLimit_ = TLegacyInputSliceLimit(*inputChunk->LowerLimit());
     }
     LowerLimit_.MergeLowerRowIndex(lowerRowIndex);
 
     if (inputChunk->UpperLimit()) {
-        UpperLimit_ = TInputSliceLimit(*inputChunk->UpperLimit());
+        UpperLimit_ = TLegacyInputSliceLimit(*inputChunk->UpperLimit());
     }
     UpperLimit_.MergeUpperRowIndex(upperRowIndex);
 
@@ -227,8 +307,8 @@ TInputChunkSlice::TInputChunkSlice(
     TRange<TLegacyKey> keySet)
     : TInputChunkSlice(inputChunk)
 {
-    LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet));
-    UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet));
+    LowerLimit_.MergeLowerLimit(TLegacyInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet));
+    UpperLimit_.MergeUpperLimit(TLegacyInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet));
     PartIndex_ = DefaultPartIndex;
 
     if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
@@ -244,8 +324,8 @@ TInputChunkSlice::TInputChunkSlice(
     : TInputChunkSlice(inputChunk)
 {
     static TRange<TLegacyKey> DummyKeys;
-    LowerLimit_.MergeLowerLimit(TInputSliceLimit(protoChunkSpec.lower_limit(), rowBuffer, DummyKeys));
-    UpperLimit_.MergeUpperLimit(TInputSliceLimit(protoChunkSpec.upper_limit(), rowBuffer, DummyKeys));
+    LowerLimit_.MergeLowerLimit(TLegacyInputSliceLimit(protoChunkSpec.lower_limit(), rowBuffer, DummyKeys));
+    UpperLimit_.MergeUpperLimit(TLegacyInputSliceLimit(protoChunkSpec.upper_limit(), rowBuffer, DummyKeys));
     PartIndex_ = DefaultPartIndex;
 
     if (protoChunkSpec.has_row_count_override() || protoChunkSpec.has_data_weight_override()) {
@@ -481,7 +561,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
             && inputSlice->LowerLimit().Key <= inputSlice->GetInputChunk()->BoundaryKeys()->MinKey;
 
         if (pruneKeyLimit && inputSlice->LowerLimit().RowIndex) {
-            TInputSliceLimit inputSliceLimit;
+            TLegacyInputSliceLimit inputSliceLimit;
             inputSliceLimit.RowIndex = inputSlice->LowerLimit().RowIndex;
             ToProto(chunkSpec->mutable_lower_limit(), inputSliceLimit);
         } else if (!pruneKeyLimit) {
@@ -498,7 +578,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
             && inputSlice->UpperLimit().Key > inputSlice->GetInputChunk()->BoundaryKeys()->MaxKey;
 
         if (pruneKeyLimit && inputSlice->UpperLimit().RowIndex) {
-            TInputSliceLimit inputSliceLimit;
+            TLegacyInputSliceLimit inputSliceLimit;
             inputSliceLimit.RowIndex = inputSlice->UpperLimit().RowIndex;
             ToProto(chunkSpec->mutable_upper_limit(), inputSliceLimit);
         } else if (!pruneKeyLimit) {

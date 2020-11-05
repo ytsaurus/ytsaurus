@@ -9,6 +9,7 @@
 #include <yt/ytlib/chunk_client/proto/chunk_slice.pb.h>
 
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/key_bound.h>
 
 #include <yt/core/misc/new.h>
 #include <yt/core/misc/optional.h>
@@ -18,11 +19,11 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A lightweight representation of NProto::TReadLimit for input slices.
-struct TInputSliceLimit
+struct TLegacyInputSliceLimit
 {
-    TInputSliceLimit() = default;
-    explicit TInputSliceLimit(const TReadLimit& other);
-    TInputSliceLimit(
+    TLegacyInputSliceLimit() = default;
+    explicit TLegacyInputSliceLimit(const TReadLimit& other);
+    TLegacyInputSliceLimit(
         const NProto::TReadLimit& other,
         const NTableClient::TRowBufferPtr& rowBuffer,
         TRange<NTableClient::TLegacyKey> keySet);
@@ -36,8 +37,36 @@ struct TInputSliceLimit
     void MergeLowerKey(NTableClient::TLegacyKey key);
     void MergeUpperKey(NTableClient::TLegacyKey key);
 
-    void MergeLowerLimit(const TInputSliceLimit& limit);
-    void MergeUpperLimit(const TInputSliceLimit& limit);
+    void MergeLowerLimit(const TLegacyInputSliceLimit& limit);
+    void MergeUpperLimit(const TLegacyInputSliceLimit& limit);
+
+    void Persist(const NTableClient::TPersistenceContext& context);
+};
+
+TString ToString(const TLegacyInputSliceLimit& limit);
+
+void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf format);
+
+bool IsTrivial(const TLegacyInputSliceLimit& limit);
+
+void ToProto(NProto::TReadLimit* protoLimit, const TLegacyInputSliceLimit& limit);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A lightweight representation of NProto::TReadLimit for input slices.
+//! This version uses TKeyBound instead of TLegacyKey to represent slices by key.
+struct TInputSliceLimit
+{
+    TInputSliceLimit() = default;
+    TInputSliceLimit(
+        const NProto::TReadLimit& other,
+        const NTableClient::TRowBufferPtr& rowBuffer,
+        TRange<NTableClient::TLegacyKey> keySet,
+        int keyLength,
+        bool isUpper);
+
+    std::optional<i64> RowIndex;
+    NTableClient::TKeyBound KeyBound;
 
     void Persist(const NTableClient::TPersistenceContext& context);
 };
@@ -64,8 +93,8 @@ public:
     DECLARE_BYVAL_RO_PROPERTY(i64, MaxBlockSize);
 
     DEFINE_BYVAL_RW_PROPERTY(TInputChunkPtr, InputChunk);
-    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, LowerLimit);
-    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, UpperLimit);
+    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, UpperLimit);
 
 public:
     TInputChunkSlice() = default;

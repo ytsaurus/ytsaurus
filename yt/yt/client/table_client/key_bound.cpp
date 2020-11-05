@@ -1,5 +1,8 @@
 #include "key_bound.h"
 
+#include "row_buffer.h"
+#include "serialize.h"
+
 namespace NYT::NTableClient {
 
 using namespace NLogging;
@@ -74,6 +77,12 @@ TKeyBound TKeyBoundImpl<TRow, TKeyBound>::FromRowUnchecked(TRow&& row, bool isIn
 }
 
 template <class TRow, class TKeyBound>
+TKeyBound TKeyBoundImpl<TRow, TKeyBound>::MakeUniversal(bool isUpper)
+{
+    return TKeyBoundImpl<TRow, TKeyBound>::FromRow(EmptyKey(), /* isInclusive */ true, isUpper);
+}
+
+template <class TRow, class TKeyBound>
 void TKeyBoundImpl<TRow, TKeyBound>::ValidateValueTypes(const TRow& row)
 {
     for (const auto& value : row) {
@@ -105,12 +114,6 @@ bool TKeyBoundImpl<TRow, TKeyBound>::TestKey(const TKeyClass& key) const
 }
 
 template <class TRow, class TKeyBound>
-bool TKeyBoundImpl<TRow, TKeyBound>::operator==(const TKeyBoundImpl<TRow, TKeyBound>& other) const
-{
-    return Prefix == other.Prefix && IsInclusive == other.IsInclusive && IsUpper == other.IsUpper;
-}
-
-template <class TRow, class TKeyBound>
 void TKeyBoundImpl<TRow, TKeyBound>::FormatValue(TStringBuilderBase* builder) const
 {
     builder->AppendChar(IsUpper ? '<' : '>');
@@ -118,6 +121,22 @@ void TKeyBoundImpl<TRow, TKeyBound>::FormatValue(TStringBuilderBase* builder) co
         builder->AppendChar('=');
     }
     builder->AppendFormat("%v", Prefix);
+}
+
+template <class TRow, class TKeyBound>
+bool TKeyBoundImpl<TRow, TKeyBound>::IsUniversal() const
+{
+    return IsInclusive && Prefix.GetCount() == 0;
+}
+
+template <class TRow, class TKeyBound>
+void TKeyBoundImpl<TRow, TKeyBound>::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, Prefix);
+    Persist(context, IsInclusive);
+    Persist(context, IsUpper);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -167,7 +186,20 @@ TString ToString(const TKeyBound& keyBound)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength)
+bool operator ==(const TKeyBound& lhs, const TKeyBound& rhs)
+{
+    return
+        lhs.Prefix == rhs.Prefix &&
+        lhs.IsInclusive == rhs.IsInclusive &&
+        lhs.IsUpper == rhs.IsUpper;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Common implementation for owning case and non-owning case over row buffer.
+// Returns pair {prefixKeyLength, isInclusive} describing how to transform
+// legacy key into key bound.
+std::pair<int, bool> KeyBoundFromLegacyRowImpl(TUnversionedRow row, bool isUpper, int keyLength)
 {
     // Flag indicating that row starts with #keyLength non-sentinel values followed by at least one arbitrary value.
     bool isLongRow = false;
@@ -175,22 +207,22 @@ TOwningKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int key
     // If row contains at least one sentinel on first #keyLength positions, type of leftmost of them.
     std::optional<EValueType> leftmostSentinelType;
 
-    // Builder for the longest prefix of row which is free of sentinels. Prefix length is limited by #keyLength.
-    TUnversionedOwningRowBuilder prefixBuilder;
+    // Length of the longest prefix of row which is free of sentinels. Prefix length is limited by #keyLength.
+    int prefixLength = 0;
     for (int index = 0; index < row.GetCount() && index <= keyLength; ++index) {
         if (index == keyLength) {
             isLongRow = true;
             break;
         }
         if (row[index].Type != EValueType::Min && row[index].Type != EValueType::Max) {
-            prefixBuilder.AddValue(row[index]);
+            ++prefixLength;
         } else {
             leftmostSentinelType = row[index].Type;
             break;
         }
     }
 
-    // When dealing with unversioned rows, upper limit is always exclusive and lower limit is always inclusive.
+    // When dealing with legacy rows, upper limit is always exclusive and lower limit is always inclusive.
     // We will call this kind of inclusiveness standard. This implies following cases for key bounds.
     //
     // (A) If row is long, upper limit will be inclusive and lower limit will be exclusive, i.e. inclusiveness is toggled.
@@ -214,11 +246,25 @@ TOwningKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int key
 
     bool isInclusive = (isUpper && toggleInclusiveness) || (!isUpper && !toggleInclusiveness);
 
-    TOwningKeyBound result;
-    result.Prefix = prefixBuilder.FinishRow();
-    result.IsUpper = isUpper;
-    result.IsInclusive = isInclusive;
-    return result;
+    return {prefixLength, isInclusive};
+}
+
+TOwningKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength)
+{
+    auto [prefixLength, isInclusive] = KeyBoundFromLegacyRowImpl(row, isUpper, keyLength);
+    return TOwningKeyBound::FromRow(
+        TUnversionedOwningRow(row.Begin(), row.Begin() + prefixLength),
+        isInclusive,
+        isUpper);
+}
+
+TKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength, const TRowBufferPtr& rowBuffer)
+{
+    auto [prefixLength, isInclusive] = KeyBoundFromLegacyRowImpl(row, isUpper, keyLength);
+    return TKeyBound::FromRow(
+        rowBuffer->Capture(row.Begin(), prefixLength),
+        isInclusive,
+        isUpper);
 }
 
 TUnversionedOwningRow KeyBoundToLegacyRow(TKeyBound keyBound)

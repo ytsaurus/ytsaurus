@@ -2,13 +2,17 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
-#include <yt/client/chunk_client/read_limit.h>
-
-#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+
+#include <yt/client/chunk_client/read_limit.h>
+
+#include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/ypath_client.h>
@@ -464,6 +468,48 @@ TEST_F(TChunkSliceTest, Chunk2WithLimitLargeSlice)
     EXPECT_THAT(rowSlices[1], HasLowerLimit(R"_({"key"=["10268";];"row_index"=237;})_"));
     EXPECT_THAT(rowSlices[1], HasUpperLimit(R"_({"key"=["10280";];"row_index"=240;})_"));
     EXPECT_THAT(rowSlices[1], HasRowCount(3));
+}
+
+TUnversionedOwningRow MakeRow(const std::vector<TUnversionedValue>& values)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (const auto& value : values) {
+        builder.AddValue(value);
+    }
+    return builder.FinishRow();
+}
+
+TOwningKeyBound MakeKeyBound(const std::vector<TUnversionedValue>& values, bool isInclusive, bool isUpper)
+{
+    return TOwningKeyBound::FromRow(MakeRow(values), isInclusive, isUpper);
+}
+
+TEST(TChunkSliceLimitTest, LegacyNewInterop)
+{
+    auto rowBuffer = New<TRowBuffer>();
+
+    TLegacyInputSliceLimit legacyLimit;
+    legacyLimit.RowIndex = 42;
+
+    constexpr int KeyLength = 2;
+    auto intValue = MakeUnversionedInt64Value(27);
+    auto maxValue = MakeUnversionedSentinelValue(EValueType::Max);
+
+    legacyLimit.Key = rowBuffer->Capture(MakeRow({intValue, maxValue, maxValue}));
+
+    NProto::TReadLimit protoLimit;
+    ToProto(&protoLimit, legacyLimit);
+
+    TInputSliceLimit newLimit(protoLimit, rowBuffer, TRange<TLegacyKey>(), KeyLength, /* isUpper */ true);
+
+    EXPECT_EQ(std::make_optional(42), newLimit.RowIndex);
+    EXPECT_EQ(MakeKeyBound({intValue}, /* isInclusive */ true, /* isUpper */ true), newLimit.KeyBound);
+
+    ToProto(&protoLimit, newLimit);
+
+    legacyLimit = TLegacyInputSliceLimit(protoLimit, rowBuffer, TRange<TLegacyKey>());
+    EXPECT_EQ(std::make_optional(42), legacyLimit.RowIndex);
+    EXPECT_EQ(MakeRow({intValue, maxValue}), legacyLimit.Key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

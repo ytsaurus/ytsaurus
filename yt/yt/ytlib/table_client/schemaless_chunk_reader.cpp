@@ -317,7 +317,7 @@ protected:
             auto& chunk = unreadDescriptors[0].ChunkSpecs[0];
             chunk.mutable_lower_limit()->set_row_index(rowIndex);
             if (firstUnreadKey) {
-                ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+                ToProto(chunk.mutable_lower_limit()->mutable_legacy_key(), firstUnreadKey);
             }
             i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + static_cast<i64>(unreadRows.Size()));
             rowCount = std::min(rowCount, upperRowIndex - rowIndex);
