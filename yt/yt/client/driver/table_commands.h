@@ -223,6 +223,7 @@ public:
 
 private:
     TString Query;
+    bool EnableStatistics = false;
 
     virtual void DoExecute(ICommandContextPtr context) override;
     virtual bool HasResponseParameters() const override;

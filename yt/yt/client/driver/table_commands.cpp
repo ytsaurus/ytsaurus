@@ -586,6 +586,8 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("workload_descriptor", Options.WorkloadDescriptor)
         .Optional();
+    RegisterParameter("enable_statistics", EnableStatistics)
+        .Optional();
 }
 
 bool TSelectRowsCommand::HasResponseParameters() const
@@ -604,9 +606,11 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 
     YT_LOG_INFO("Query result statistics (%v)", statistics);
 
-    ProduceResponseParameters(context, [&] (NYson::IYsonConsumer* consumer) {
-        Serialize(statistics, consumer);
-    });
+    if (EnableStatistics) {
+        ProduceResponseParameters(context, [&] (NYson::IYsonConsumer* consumer) {
+            Serialize(statistics, consumer);
+        });
+    }
 
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
