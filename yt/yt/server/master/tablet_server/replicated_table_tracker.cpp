@@ -894,7 +894,7 @@ private:
             auto it = Tables_.find(id);
             if (it == Tables_.end()) {
                 table = New<TTable>(id, tabletCellBundle->GetProfilingTag(), config);
-                Tables_.insert(std::make_pair(id, table));
+                Tables_.emplace(id, table);
                 newTable = true;
             } else {
                 table = it->second;

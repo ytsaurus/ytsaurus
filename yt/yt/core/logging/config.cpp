@@ -36,7 +36,7 @@ TLogManagerConfigPtr TLogManagerConfig::CreateLogFile(const TString& path)
 
     auto config = New<TLogManagerConfig>();
     config->Rules.push_back(rule);
-    config->WriterConfigs.insert(std::make_pair("FileWriter", fileWriterConfig));
+    config->WriterConfigs.emplace("FileWriter", fileWriterConfig);
 
     config->MinDiskSpace = 0;
     config->HighBacklogWatermark = 100000;
@@ -103,7 +103,7 @@ TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentN
             logLevel == ELogLevel::Info ? "" : "." + FormatEnum(logLevel));
 
         config->Rules.push_back(rule);
-        config->WriterConfigs.insert(std::make_pair(ToString(logLevel), fileWriterConfig));
+        config->WriterConfigs.emplace(ToString(logLevel), fileWriterConfig);
     }
 
     return config;
@@ -182,7 +182,7 @@ TLogManagerConfigPtr TLogManagerConfig::TryCreateFromEnv()
     auto stderrWriter = New<TWriterConfig>();
     stderrWriter->Type = EWriterType::Stderr;
 
-    config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
+    config->WriterConfigs.emplace(stderrWriterName, std::move(stderrWriter));
 
     return config;
 }

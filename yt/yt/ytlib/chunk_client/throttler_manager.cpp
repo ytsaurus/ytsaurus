@@ -51,7 +51,7 @@ IThroughputThrottlerPtr TThrottlerManager::GetThrottler(TCellTag cellTag)
         logger,
         Profiler_.AddTags(tagIds));
 
-    YT_VERIFY(ThrottlerMap_.insert(std::make_pair(cellTag, throttler)).second);
+    YT_VERIFY(ThrottlerMap_.emplace(cellTag, throttler).second);
 
     return throttler;
 }

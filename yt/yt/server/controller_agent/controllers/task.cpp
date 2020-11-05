@@ -871,7 +871,7 @@ void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary
                 YT_LOG_DEBUG("Job is going to be split (JobId: %v)", jobId);
                 TaskHost_->InterruptJob(jobId, EInterruptReason::JobSplit);
             } else if (verdict == EJobSplitterVerdict::LaunchSpeculative) {
-                YT_LOG_DEBUG("Job can be speculated (JobId: %v)", jobId);    
+                YT_LOG_DEBUG("Job can be speculated (JobId: %v)", jobId);
                 if (TryRegisterSpeculativeJob(joblet)) {
                     UpdateTask();
                 }
@@ -882,9 +882,9 @@ void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary
 
 void TTask::OnJobLost(TCompletedJobPtr completedJob)
 {
-    YT_VERIFY(LostJobCookieMap.insert(std::make_pair(
+    YT_VERIFY(LostJobCookieMap.emplace(
         TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
-        completedJob->InputCookie)).second);
+        completedJob->InputCookie).second);
 }
 
 void TTask::OnStripeRegistrationFailed(

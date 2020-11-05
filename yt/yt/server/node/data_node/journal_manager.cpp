@@ -264,7 +264,7 @@ private:
                     YT_VERIFY(RemoveChunkIds_.find(chunkId) == RemoveChunkIds_.end());
                     auto it = ChunkIdToFirstRelevantVersion_.find(chunkId);
                     if (it == ChunkIdToFirstRelevantVersion_.end()) {
-                        YT_VERIFY(ChunkIdToFirstRelevantVersion_.insert(std::make_pair(chunkId, version)).second);
+                        YT_VERIFY(ChunkIdToFirstRelevantVersion_.emplace(chunkId, version).second);
                     }
                     AppendChunkIds_.insert(chunkId);
                     break;
@@ -375,9 +375,9 @@ private:
                 YT_LOG_FATAL("Journal chunk %v is missing but has relevant records in the multiplexed changelog",
                     chunkId);
             }
-            it = SplitMap_.insert(std::make_pair(
+            it = SplitMap_.emplace(
                 chunkId,
-                TSplitEntry(chunkId, changelog))).first;
+                TSplitEntry(chunkId, changelog)).first;
         }
 
         auto& splitEntry = it->second;
@@ -440,9 +440,9 @@ private:
             return;
         }
 
-        YT_VERIFY(SplitMap_.insert(std::make_pair(
+        YT_VERIFY(SplitMap_.emplace(
             chunkId,
-            TSplitEntry(chunkId, changelog))).second);
+            TSplitEntry(chunkId, changelog)).second);
 
         YT_LOG_INFO("Replay created journal chunk (ChunkId: %v)",
             chunkId);
@@ -566,7 +566,7 @@ public:
     IChangelogPtr OpenMultiplexedChangelog(int changelogId)
     {
         // NB: May be called multiple times for the same #changelogId.
-        MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(changelogId, NewPromise<void>()));
+        MultiplexedChangelogIdToCleanResult_.emplace(changelogId, NewPromise<void>());
         auto path = GetMultiplexedChangelogPath(changelogId);
         return MultiplexedChangelogDispatcher_->OpenChangelog(path, Config_);
     }
@@ -728,7 +728,7 @@ private:
         YT_LOG_INFO("Finished creating new multiplexed changelog (ChangelogId: %v)",
             id);
 
-        YT_VERIFY(MultiplexedChangelogIdToCleanResult_.insert(std::make_pair(id, NewPromise<void>())).second);
+        YT_VERIFY(MultiplexedChangelogIdToCleanResult_.emplace(id, NewPromise<void>()).second);
 
         return changelog;
     }

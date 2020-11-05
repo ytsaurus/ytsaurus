@@ -266,7 +266,7 @@ public:
 
         SlotManager_->ValidateTabletAccess(tabletSnapshot, timestamp);
 
-        Map_.insert(std::make_pair(tabletId, tabletSnapshot));
+        Map_.emplace(tabletId, tabletSnapshot);
 
         if (!MultipleTables_) {
             if (TableId_ && tabletSnapshot->TableId != TableId_) {

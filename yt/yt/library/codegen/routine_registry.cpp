@@ -54,8 +54,8 @@ void TRoutineRegistry::RegisterRoutineImpl(
     TValueTypeBuilder typeBuilder)
 {
     auto mangledSymbol = MangleSymbol(symbol);
-    YT_VERIFY(SymbolToAddress_.insert(std::make_pair(mangledSymbol, address)).second);
-    YT_VERIFY(SymbolToTypeBuilder_.insert(std::make_pair(mangledSymbol, std::move(typeBuilder))).second);
+    YT_VERIFY(SymbolToAddress_.emplace(mangledSymbol, address).second);
+    YT_VERIFY(SymbolToTypeBuilder_.emplace(mangledSymbol, std::move(typeBuilder)).second);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

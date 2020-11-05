@@ -640,7 +640,7 @@ public:
             spec->Alias,
             spec->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree);
 
-        IdToStartingOperation_.insert(std::make_pair(operationId, operation));
+        IdToStartingOperation_.emplace(operationId, operation);
 
         if (!spec->Owners.empty()) {
             operation->SetAlert(

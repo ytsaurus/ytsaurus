@@ -145,7 +145,7 @@ private:
     {
         MinSegmentTimestamp_ = std::min(MinSegmentTimestamp_, timestamp);
         MaxSegmentTimestamp_ = std::max(MaxSegmentTimestamp_, timestamp);
-        auto result = UniqueTimestamps_.insert(std::make_pair(timestamp, Dictionary_.size()));
+        auto result = UniqueTimestamps_.emplace(timestamp, Dictionary_.size());
         if (result.second) {
             Dictionary_.push_back(timestamp);
         }

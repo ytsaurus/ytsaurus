@@ -307,12 +307,12 @@ public:
 
     void AddChild(const TString& key, IYPathServicePtr service)
     {
-        YT_VERIFY(Services_.insert(std::make_pair(key, service)).second);
+        YT_VERIFY(Services_.emplace(key, service).second);
     }
 
     void AddAttribute(TInternedAttributeKey key, TYsonCallback producer)
     {
-        YT_VERIFY(Attributes_.insert(std::make_pair(key, producer)).second);
+        YT_VERIFY(Attributes_.emplace(key, producer).second);
     }
 
 private:

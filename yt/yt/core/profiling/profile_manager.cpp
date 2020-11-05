@@ -145,7 +145,7 @@ public:
 
         auto id = static_cast<TTagId>(IdToTag_.size());
         IdToTag_.push_back(tag);
-        YT_VERIFY(TagToId_.insert(std::make_pair(pair, id)).second);
+        YT_VERIFY(TagToId_.emplace(pair, id).second);
         TagKeyToValues_[tag.Key].push_back(tag.Value);
         ++RegisteredTagCount_;
 
@@ -531,7 +531,7 @@ private:
 
         YT_LOG_DEBUG("Creating bucket %v", path);
         auto bucket = New<TBucket>(GlobalTags_, Config_);
-        YT_VERIFY(PathToBucket_.insert(std::make_pair(path, bucket)).second);
+        YT_VERIFY(PathToBucket_.emplace(path, bucket).second);
 
         auto node = CreateVirtualNode(bucket);
         ForceYPath(Root_, path);
@@ -557,7 +557,7 @@ private:
                 TGuard<TForkAwareSpinLock> guard(TagSpinLock_);
                 for (auto tagId : storedSample.TagIds) {
                     const auto& tag = GetTag(tagId);
-                    tags.insert(std::make_pair(tag.Key, tag.Value));
+                    tags.emplace(tag.Key, tag.Value);
                 }
             }
             YT_LOG_DEBUG("Profiling sample dropped (Path: %v, Tags: %v)",

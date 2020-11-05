@@ -596,7 +596,7 @@ void TServerBase::RegisterService(IServicePtr service)
 
     {
         TWriterGuard guard(ServicesLock_);
-        YT_VERIFY(ServiceMap_.insert(std::make_pair(serviceId, service)).second);
+        YT_VERIFY(ServiceMap_.emplace(serviceId, service).second);
         if (Config_) {
             auto it = Config_->Services.find(serviceId.ServiceName);
             if (it != Config_->Services.end()) {

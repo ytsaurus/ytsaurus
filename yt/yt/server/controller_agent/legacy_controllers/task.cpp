@@ -820,9 +820,9 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 
 void TTask::OnJobLost(TCompletedJobPtr completedJob)
 {
-    YT_VERIFY(LostJobCookieMap.insert(std::make_pair(
+    YT_VERIFY(LostJobCookieMap.emplace(
         TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
-        completedJob->InputCookie)).second);
+        completedJob->InputCookie).second);
 }
 
 void TTask::OnStripeRegistrationFailed(

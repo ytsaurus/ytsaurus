@@ -804,7 +804,7 @@ private:
         int index = static_cast<int>(RegisteredMasterMap_.size());
         RegisteredMasterCellTags_.push_back(cellTag);
 
-        auto [it, inserted] = RegisteredMasterMap_.insert(std::make_pair(cellTag, TMasterEntry()));
+        auto [it, inserted] = RegisteredMasterMap_.emplace(cellTag, TMasterEntry());
         YT_VERIFY(inserted);
 
         auto& entry = it->second;

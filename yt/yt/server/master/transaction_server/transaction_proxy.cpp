@@ -381,7 +381,7 @@ private:
         const auto* transaction = GetThisImpl();
         TAccountResourcesMap result;
         for (const auto& pair : transaction->AccountResourceUsage()) {
-            YT_VERIFY(result.insert(std::make_pair(pair.first->GetName(), pair.second)).second);
+            YT_VERIFY(result.emplace(pair.first->GetName(), pair.second).second);
         }
         return MakeFuture(std::make_pair(cellTag, result));
     }
@@ -424,7 +424,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto serializableAccountResources = ConvertTo<THashMap<TString, TSerializableClusterResourcesPtr>>(value);
         for (const auto& pair : serializableAccountResources) {
-            result.insert(std::make_pair(pair.first, pair.second->ToClusterResources(chunkManager)));
+            result.emplace(pair.first, pair.second->ToClusterResources(chunkManager));
         }
         return result;
     }

@@ -85,7 +85,7 @@ bool TSummary::operator ==(const TSummary& other) const
 
 TSummary& TStatistics::GetSummary(const NYPath::TYPath& path)
 {
-    auto result = Data_.insert(std::make_pair(path, TSummary()));
+    auto result = Data_.emplace(path, TSummary());
     auto it = result.first;
     if (result.second) {
         // This is a new statistic, check validity.

@@ -92,7 +92,7 @@ TSortedStoreManager::TSortedStoreManager(
     for (const auto& pair : Tablet_->StoreIdMap()) {
         auto store = pair.second->AsSorted();
         if (store->GetStoreState() != EStoreState::ActiveDynamic) {
-            MaxTimestampToStore_.insert(std::make_pair(store->GetMaxTimestamp(), store));
+            MaxTimestampToStore_.emplace(store->GetMaxTimestamp(), store);
         }
     }
 
@@ -512,7 +512,7 @@ void TSortedStoreManager::AddStore(IStorePtr store, bool onMount)
     TStoreManagerBase::AddStore(store, onMount);
 
     auto sortedStore = store->AsSorted();
-    MaxTimestampToStore_.insert(std::make_pair(sortedStore->GetMaxTimestamp(), sortedStore));
+    MaxTimestampToStore_.emplace(sortedStore->GetMaxTimestamp(), sortedStore);
 
     SchedulePartitionSampling(sortedStore->GetPartition());
 }
@@ -603,7 +603,7 @@ void TSortedStoreManager::ResetActiveStore()
 
 void TSortedStoreManager::OnActiveStoreRotated()
 {
-    MaxTimestampToStore_.insert(std::make_pair(ActiveStore_->GetMaxTimestamp(), ActiveStore_));
+    MaxTimestampToStore_.emplace(ActiveStore_->GetMaxTimestamp(), ActiveStore_);
 }
 
 TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(

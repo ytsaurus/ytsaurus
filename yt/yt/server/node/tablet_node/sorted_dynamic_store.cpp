@@ -1733,7 +1733,7 @@ ui32 TSortedDynamicStore::CaptureTimestamp(
     auto it = timestampToRevision->find(timestamp);
     if (it == timestampToRevision->end()) {
         ui32 revision = RegisterRevision(timestamp);
-        YT_VERIFY(timestampToRevision->insert(std::make_pair(timestamp, revision)).second);
+        YT_VERIFY(timestampToRevision->emplace(timestamp, revision).second);
         return revision;
     } else {
         return it->second;

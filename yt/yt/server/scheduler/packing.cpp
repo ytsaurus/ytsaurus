@@ -39,7 +39,7 @@ TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& s
         i64 freeDiskSpace = locationResources.limit() - locationResources.usage();
         auto it = diskQuota.DiskSpacePerMedium.find(mediumIndex);
         if (it == diskQuota.DiskSpacePerMedium.end()) {
-            diskQuota.DiskSpacePerMedium.insert(std::make_pair(mediumIndex, freeDiskSpace));
+            diskQuota.DiskSpacePerMedium.emplace(mediumIndex, freeDiskSpace);
         } else {
             it->second = std::max(it->second, freeDiskSpace);
         }

@@ -31,7 +31,7 @@ void TRegistry::Register(ui32 tag)
     entry.Tag = tag;
     entry.TypeInfo = &typeid(TIdClass);
     entry.Factory = std::bind(&DoInstantiate<T>);
-    YT_VERIFY(TypeInfoToEntry_.insert(std::make_pair(entry.TypeInfo, &entry)).second);
+    YT_VERIFY(TypeInfoToEntry_.emplace(entry.TypeInfo, &entry).second);
 }
 
 template <class T>

@@ -91,7 +91,7 @@ private:
             }
 
             auto result = tagFilter.IsSatisfiedBy(Node_->Tags());
-            YT_VERIFY(Cache_.insert(std::make_pair(formula, result)).second);
+            YT_VERIFY(Cache_.emplace(formula, result).second);
             return result;
         }
 
@@ -189,7 +189,7 @@ private:
             Queues_[bundle].erase(it);
 
             if (spare > 0) {
-                it = Queues_[bundle].insert(std::make_pair(std::make_pair(count, -spare), index));
+                it = Queues_[bundle].emplace(std::make_pair(count, -spare), index);
             } else {
                 remove.push_back(bundle);
             }

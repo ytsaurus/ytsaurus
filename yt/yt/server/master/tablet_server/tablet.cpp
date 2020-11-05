@@ -344,7 +344,7 @@ TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase(
         if (medium->GetCache()) {
             continue;
         }
-        YT_VERIFY(DiskSpacePerMediumMap_.insert(std::make_pair(medium->GetName(), mediumDiskSpace)).second);
+        YT_VERIFY(DiskSpacePerMediumMap_.emplace(medium->GetName(), mediumDiskSpace).second);
         DiskSpace_ += mediumDiskSpace;
     }
 }

@@ -296,7 +296,7 @@ public:
         int index = RegisterSchedulingTagFilter(TSchedulingTagFilter(clonedSpec->SchedulingTagFilter));
         operationElement->SetSchedulingTagFilterIndex(index);
 
-        YT_VERIFY(OperationIdToElement_.insert(std::make_pair(operationId, operationElement)).second);
+        YT_VERIFY(OperationIdToElement_.emplace(operationId, operationElement).second);
 
         auto poolName = state->GetPoolNameByTreeId(TreeId_);
         auto pool = GetOrCreatePool(poolName, state->GetHost()->GetAuthenticatedUser());
@@ -1666,8 +1666,8 @@ private:
     {
         int index = RegisterSchedulingTagFilter(pool->GetSchedulingTagFilter());
         pool->SetSchedulingTagFilterIndex(index);
-        YT_VERIFY(Pools_.insert(std::make_pair(pool->GetId(), pool)).second);
-        YT_VERIFY(PoolToMinUnusedSlotIndex_.insert(std::make_pair(pool->GetId(), 0)).second);
+        YT_VERIFY(Pools_.emplace(pool->GetId(), pool).second);
+        YT_VERIFY(PoolToMinUnusedSlotIndex_.emplace(pool->GetId(), 0).second);
 
         DoRegisterPoolProfilingCounters(pool->GetId(), pool->GetProfilingTag());
     }
@@ -1841,7 +1841,7 @@ private:
 
         auto it = PoolToSpareSlotIndices_.find(poolName);
         if (it == PoolToSpareSlotIndices_.end()) {
-            YT_VERIFY(PoolToSpareSlotIndices_.insert(std::make_pair(poolName, THashSet<int>{*slotIndex})).second);
+            YT_VERIFY(PoolToSpareSlotIndices_.emplace(poolName, THashSet<int>{*slotIndex}).second);
         } else {
             it->second.insert(*slotIndex);
         }

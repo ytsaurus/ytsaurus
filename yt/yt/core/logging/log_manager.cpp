@@ -686,7 +686,7 @@ private:
             writers.push_back(GetOrCrash(Writers_, writerId));
         }
 
-        auto pair = CachedWriters_.insert(std::make_pair(cacheKey, writers));
+        auto pair = CachedWriters_.emplace(cacheKey, writers);
         YT_VERIFY(pair.second);
 
         return pair.first->second;
@@ -841,7 +841,7 @@ private:
             writer->SetRateLimit(config->RateLimit);
             writer->SetCategoryRateLimits(Config_->CategoryRateLimits);
 
-            YT_VERIFY(Writers_.insert(std::make_pair(name, std::move(writer))).second);
+            YT_VERIFY(Writers_.emplace(name, std::move(writer)).second);
 
             if (watch) {
                 if (watch->GetWD() >= 0) {

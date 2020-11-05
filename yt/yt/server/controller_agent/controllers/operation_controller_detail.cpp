@@ -3577,7 +3577,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
 
             bool ratioViolated = memoryUsageRatio + Config->OperationAlerts->MemoryUsageAlertMaxUnusedRatio < 1.0;
             bool sizeViolated = memoryUsage + Config->OperationAlerts->MemoryUsageAlertMaxUnusedSize < memoryInfo.MemoryReserve;
-            
+
             auto maxJobCount = Config->OperationAlerts->MemoryUsageAlertMaxJobCount;
             bool maxJobCountViolated = maxJobCount && GetTotalJobCount() < *maxJobCount;
             if (ratioViolated && sizeViolated && !maxJobCountViolated) {
@@ -4140,7 +4140,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     schedulerJobSpecExt->set_yt_alloc_min_large_unreclaimable_bytes(GetYTAllocMinLargeUnreclaimableBytes());
     schedulerJobSpecExt->set_yt_alloc_max_large_unreclaimable_bytes(GetYTAllocMaxLargeUnreclaimableBytes());
-    
+
     if (OutputTransaction) {
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }
@@ -7271,7 +7271,7 @@ void TOperationControllerBase::ReleaseChunkTrees(
 
 void TOperationControllerBase::RegisterJoblet(const TJobletPtr& joblet)
 {
-    YT_VERIFY(JobletMap.insert(std::make_pair(joblet->JobId, joblet)).second);
+    YT_VERIFY(JobletMap.emplace(joblet->JobId, joblet).second);
 }
 
 TJobletPtr TOperationControllerBase::FindJoblet(TJobId jobId) const
@@ -7795,7 +7795,7 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
 
         auto it = JobMetricsDeltaPerTree_.find(joblet->TreeId);
         if (it == JobMetricsDeltaPerTree_.end()) {
-            YT_VERIFY(JobMetricsDeltaPerTree_.insert(std::make_pair(joblet->TreeId, delta)).second);
+            YT_VERIFY(JobMetricsDeltaPerTree_.emplace(joblet->TreeId, delta).second);
         } else {
             it->second += delta;
         }
@@ -8641,9 +8641,9 @@ void TOperationControllerBase::RegisterLivePreviewChunk(
     int index,
     const TInputChunkPtr& chunk)
 {
-    YT_VERIFY(LivePreviewChunks_.insert(std::make_pair(
+    YT_VERIFY(LivePreviewChunks_.emplace(
         chunk,
-        TLivePreviewChunkDescriptor{vertexDescriptor, index})).second);
+        TLivePreviewChunkDescriptor{vertexDescriptor, index}).second);
 
     DataFlowGraph_->RegisterLivePreviewChunk(vertexDescriptor, index, chunk);
 }

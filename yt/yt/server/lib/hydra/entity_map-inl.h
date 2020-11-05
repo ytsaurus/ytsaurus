@@ -194,7 +194,7 @@ TValue* TEntityMap<TValue, TTraits>::Insert(const TKey& key, std::unique_ptr<TVa
     auto* value = valueHolder.release();
     YT_ASSERT(value);
 
-    YT_VERIFY(this->Map_.insert(std::make_pair(key, value)).second);
+    YT_VERIFY(this->Map_.emplace(key, value).second);
     value->SetDynamicData(AllocateDynamicData());
 
     return value;
@@ -324,7 +324,7 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 
             value->SetDynamicData(AllocateDynamicData());
 
-            YT_VERIFY(this->Map_.insert(std::make_pair(key, value.release())).second);
+            YT_VERIFY(this->Map_.emplace(key, value.release()).second);
 
             SERIALIZATION_DUMP_WRITE(context, "%v aka %v", key, serializationKey.Index);
         }

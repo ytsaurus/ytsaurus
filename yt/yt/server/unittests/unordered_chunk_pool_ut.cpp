@@ -744,7 +744,7 @@ TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 if (chunkIdToOutputCookie.contains(chunkId)) {
                     ASSERT_EQ(chunkIdToOutputCookie.at(chunkId), outputCookie);
                 } else {
-                    ASSERT_TRUE(chunkIdToOutputCookie.insert(std::make_pair(chunkId, outputCookie)).second);
+                    ASSERT_TRUE(chunkIdToOutputCookie.emplace(chunkId, outputCookie).second);
                 }
                 if (lostChunks.contains(chunkId)) {
                     ASSERT_TRUE(lostChunks.erase(chunkId));

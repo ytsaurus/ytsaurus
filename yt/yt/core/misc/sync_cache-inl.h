@@ -156,7 +156,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(const TValuePtr& value, 
     }
 
     auto* item = new TItem(value);
-    YT_VERIFY(shard->ItemMap.insert(std::make_pair(key, item)).second);
+    YT_VERIFY(shard->ItemMap.emplace(key, item).second);
     ++Size_;
 
     Profiler.Increment(MissedWeightCounter_, weight);

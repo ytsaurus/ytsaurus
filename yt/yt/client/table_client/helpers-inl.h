@@ -384,7 +384,7 @@ void FromUnversionedValue(
     map->clear();
     UnversionedValueToMapImpl(
         [&] (TString key) {
-            auto pair = map->insert(std::make_pair(FromString<TKey>(std::move(key)), TValue()));
+            auto pair = map->emplace(FromString<TKey>(std::move(key)), TValue());
             return &pair.first->second;
         },
         NYson::ReflectProtobufMessageType<TValue>(),
