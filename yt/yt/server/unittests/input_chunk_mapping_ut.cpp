@@ -277,10 +277,10 @@ TEST_F(TInputChunkMappingTest, TestChunkSliceLimits)
     ChunkMapping_->OnStripeRegenerated(42, stripeB);
 
     auto stripeAWithLimits = CreateStripe({chunkA});
-    TInputSliceLimit lowerLimit;
+    TLegacyInputSliceLimit lowerLimit;
     lowerLimit.Key = BuildRow({12});
     lowerLimit.RowIndex = 34;
-    TInputSliceLimit upperLimit;
+    TLegacyInputSliceLimit upperLimit;
     upperLimit.Key = BuildRow({56});
     upperLimit.RowIndex = 78;
     stripeAWithLimits->DataSlices[0]->LowerLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit() = lowerLimit;

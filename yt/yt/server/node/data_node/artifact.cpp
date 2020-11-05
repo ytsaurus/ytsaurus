@@ -77,8 +77,8 @@ TArtifactKey::operator size_t() const
         if (limit.has_offset()) {
             HashCombine(result, limit.offset());
         }
-        if (limit.has_key()) {
-            HashCombine(result, limit.key());
+        if (limit.has_legacy_key()) {
+            HashCombine(result, limit.legacy_key());
         }
     };
 
@@ -156,10 +156,10 @@ bool TArtifactKey::operator == (const TArtifactKey& other) const
         if (lhs.has_offset() && lhs.offset() != rhs.offset())
             return false;
 
-        if (lhs.has_key() != rhs.has_key())
+        if (lhs.has_legacy_key() != rhs.has_legacy_key())
             return false;
 
-        if (lhs.has_key() && lhs.key() != rhs.key())
+        if (lhs.has_legacy_key() && lhs.legacy_key() != rhs.legacy_key())
             return false;
 
         return true;

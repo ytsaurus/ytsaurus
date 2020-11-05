@@ -405,9 +405,9 @@ void TSortedStoreManager::Mount(
             if (descriptor.has_chunk_view_descriptor()
                 && chunkView.has_read_range()
                 && chunkView.read_range().has_lower_limit()
-                && chunkView.read_range().lower_limit().has_key())
+                && chunkView.read_range().lower_limit().has_legacy_key())
             {
-                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkView.read_range().lower_limit().key());
+                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkView.read_range().lower_limit().legacy_key());
 
                 // COMPAT(ifsmirnov)
                 if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {
@@ -424,9 +424,9 @@ void TSortedStoreManager::Mount(
             if (descriptor.has_chunk_view_descriptor()
                 && chunkView.has_read_range()
                 && chunkView.read_range().has_upper_limit()
-                && chunkView.read_range().upper_limit().has_key())
+                && chunkView.read_range().upper_limit().has_legacy_key())
             {
-                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkView.read_range().upper_limit().key());
+                auto chunkViewLimit = FromProto<TLegacyOwningKey>(chunkView.read_range().upper_limit().legacy_key());
 
                 // COMPAT(ifsmirnov)
                 if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {

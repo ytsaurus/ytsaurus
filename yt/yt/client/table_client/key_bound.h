@@ -36,14 +36,22 @@ public:
     //! Same as previous but for rvalue refs.
     static TKeyBound FromRowUnchecked(TRow&& row, bool isInclusive, bool isUpper);
 
-    static void ValidateValueTypes(const TRow& row);
-
-    bool operator==(const TKeyBoundImpl<TRow, TKeyBound>& other) const;
+    //! Return a key bound that allows any key.
+    static TKeyBound MakeUniversal(bool isUpper);
 
     void FormatValue(TStringBuilderBase* builder) const;
 
+    //! Test if #key belongs to the ray defined by this key bound.
     template <class TKeyClass>
     bool TestKey(const TKeyClass& key) const;
+
+    //! Test if this key bound allows any key.
+    bool IsUniversal() const;
+
+    void Persist(const TPersistenceContext& context);
+
+private:
+    static void ValidateValueTypes(const TRow& row);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -73,11 +81,18 @@ TString ToString(const TOwningKeyBound& keyBound);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool operator ==(const TKeyBound& lhs, const TKeyBound& rhs);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Interop functions.
 
 //! Convert legacy key bound expressed as a row possibly containing Min/Max to owning key bound.
 //! NB: key length is needed to properly distinguish if K + [min] is an inclusive K or exclusive K.
 TOwningKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength);
+
+//! Same as previous, but non-owning variant over row buffer.
+TKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength, const TRowBufferPtr& rowBuffer);
 
 //! Convert key bound to legacy key bound.
 TUnversionedOwningRow KeyBoundToLegacyRow(TKeyBound keyBound);

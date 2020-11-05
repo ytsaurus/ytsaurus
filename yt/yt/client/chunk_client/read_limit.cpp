@@ -92,20 +92,20 @@ const TLegacyOwningKey& TReadLimit::GetKey() const
 
 bool TReadLimit::HasKey() const
 {
-    return ReadLimit_.has_key();
+    return ReadLimit_.has_legacy_key();
 }
 
 TReadLimit& TReadLimit::SetKey(const TLegacyOwningKey& key)
 {
     Key_ = key;
-    ToProto(ReadLimit_.mutable_key(), Key_);
+    ToProto(ReadLimit_.mutable_legacy_key(), Key_);
     return *this;
 }
 
 TReadLimit& TReadLimit::SetKey(TLegacyOwningKey&& key)
 {
     swap(Key_, key);
-    ToProto(ReadLimit_.mutable_key(), Key_);
+    ToProto(ReadLimit_.mutable_legacy_key(), Key_);
     return *this;
 }
 
@@ -219,8 +219,8 @@ void TReadLimit::MergeUpperRowIndex(i64 rowIndex)
 
 void TReadLimit::InitKey()
 {
-    if (ReadLimit_.has_key()) {
-        FromProto(&Key_, ReadLimit_.key());
+    if (ReadLimit_.has_legacy_key()) {
+        FromProto(&Key_, ReadLimit_.legacy_key());
     }
 }
 
@@ -297,7 +297,7 @@ bool IsTrivial(const NProto::TReadLimit& limit)
 {
     return
         !limit.has_row_index() &&
-        !limit.has_key() &&
+        !limit.has_legacy_key() &&
         !limit.has_offset() &&
         !limit.has_chunk_index() &&
         !limit.has_tablet_index();

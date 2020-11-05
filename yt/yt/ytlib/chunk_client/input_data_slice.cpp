@@ -19,8 +19,8 @@ using namespace NTableClient;
 TInputDataSlice::TInputDataSlice(
     EDataSourceType type,
     TChunkSliceList chunkSlices,
-    TInputSliceLimit lowerLimit,
-    TInputSliceLimit upperLimit,
+    TLegacyInputSliceLimit lowerLimit,
+    TLegacyInputSliceLimit upperLimit,
     std::optional<i64> tag)
     : LowerLimit_(std::move(lowerLimit))
     , UpperLimit_(std::move(upperLimit))
@@ -160,8 +160,8 @@ TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSl
     YT_VERIFY(!inputChunkSlices.empty());
     TInputDataSlice::TChunkSliceList chunkSlices;
     std::optional<int> tableIndex;
-    TInputSliceLimit lowerLimit;
-    TInputSliceLimit upperLimit;
+    TLegacyInputSliceLimit lowerLimit;
+    TLegacyInputSliceLimit upperLimit;
     for (const auto& inputChunkSlice : inputChunkSlices) {
         if (!tableIndex) {
             tableIndex = inputChunkSlice->GetInputChunk()->GetTableIndex();
@@ -198,10 +198,10 @@ TInputDataSlicePtr CreateInputDataSlice(
         chunkSlices.push_back(CreateInputChunkSlice(*inputChunk, lowerKey, upperKey));
     }
 
-    TInputSliceLimit lowerLimit;
+    TLegacyInputSliceLimit lowerLimit;
     lowerLimit.Key = lowerKey;
 
-    TInputSliceLimit upperLimit;
+    TLegacyInputSliceLimit upperLimit;
     upperLimit.Key = upperKey;
 
     return New<TInputDataSlice>(

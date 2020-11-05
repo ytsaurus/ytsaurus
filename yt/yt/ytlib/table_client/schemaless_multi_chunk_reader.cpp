@@ -761,12 +761,12 @@ public:
             // TODO: Estimate row count and data size.
             for (auto& descriptor : unreadDescriptors) {
                 for (auto& chunk : descriptor.ChunkSpecs) {
-                    ToProto(chunk.mutable_lower_limit()->mutable_key(), firstUnreadKey);
+                    ToProto(chunk.mutable_lower_limit()->mutable_legacy_key(), firstUnreadKey);
                 }
             }
             for (auto& descriptor : readDescriptors) {
                 for (auto& chunk : descriptor.ChunkSpecs) {
-                    ToProto(chunk.mutable_upper_limit()->mutable_key(), firstUnreadKey);
+                    ToProto(chunk.mutable_upper_limit()->mutable_legacy_key(), firstUnreadKey);
                 }
             }
         }

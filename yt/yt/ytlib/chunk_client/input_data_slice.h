@@ -19,16 +19,16 @@ struct TInputDataSlice
 public:
     using TChunkSliceList = SmallVector<TInputChunkSlicePtr, 1>;
 
-    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, LowerLimit);
-    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, UpperLimit);
+    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, UpperLimit);
 
 public:
     TInputDataSlice() = default;
     TInputDataSlice(
         EDataSourceType type,
         TChunkSliceList chunkSlices,
-        TInputSliceLimit lowerLimit = TInputSliceLimit(),
-        TInputSliceLimit upperLimit = TInputSliceLimit(),
+        TLegacyInputSliceLimit lowerLimit = TLegacyInputSliceLimit(),
+        TLegacyInputSliceLimit upperLimit = TLegacyInputSliceLimit(),
         std::optional<i64> tag = std::nullopt);
 
     int GetChunkCount() const;
