@@ -51,12 +51,6 @@ void TTabletCell::Load(TLoadContext& context)
     TCellBase::Load(context);
 
     using NYT::Load;
-    // COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::CellServer) {
-        Tablets_ = std::move(CompatTablets_);
-        return;
-    }
-
     Load(context, Tablets_);
     Load(context, GossipStatistics_);
 }

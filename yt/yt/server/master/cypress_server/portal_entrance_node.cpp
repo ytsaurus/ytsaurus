@@ -25,10 +25,7 @@ void TPortalEntranceNode::Load(NCellMaster::TLoadContext& context)
     TCypressNode::Load(context);
 
     using NYT::Load;
-    // COMPAT(babenko)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::TwoSidedPortalRemoval) {
-        Load(context, RemovalStarted_);
-    }
+    Load(context, RemovalStarted_);
     Load(context, ExitCellTag_);
 }
 

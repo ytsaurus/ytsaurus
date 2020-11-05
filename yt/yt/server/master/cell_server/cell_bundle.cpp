@@ -69,25 +69,8 @@ void TCellBundle::Load(TLoadContext& context)
     Load(context, *DynamicOptions_);
     Load(context, DynamicConfigVersion_);
     Load(context, NodeTagFilter_);
-    // COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::CellServer) {
-        Load<THashSet<NTabletServer::TTabletCell*>>(context);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::CellServer) {
-        YT_VERIFY(GetType() == EObjectType::TabletCellBundle);
-        auto* tabletCellBundle = this->As<TTabletCellBundle>();
-        Load(context, *tabletCellBundle->TabletBalancerConfig());
-        CellBalancerConfig()->EnableTabletCellSmoothing = tabletCellBundle->TabletBalancerConfig()->EnableTabletCellSmoothing;
-    } else {
-        Load(context, *CellBalancerConfig_);
-    }
+    Load(context, *CellBalancerConfig_);
     Load(context, Health_);
-    // COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::CellServer) {
-        Load<THashSet<NTabletServer::TTabletAction*>>(context);
-        Load<int>(context);
-    }
 
     FillProfilingTag();
 }

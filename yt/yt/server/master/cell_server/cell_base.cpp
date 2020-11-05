@@ -107,28 +107,15 @@ void TCellBase::Load(TLoadContext& context)
     TNonversionedObjectBase::Load(context);
 
     using NYT::Load;
-
     Load(context, LeadingPeerId_);
     Load(context, Peers_);
     Load(context, ConfigVersion_);
     Load(context, *Config_);
-    // COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::CellServer) {
-        Load(context, CompatTablets_);
-        Load<TTabletCellStatistics>(context);
-        Load<THashMap<NObjectClient::TCellTag, NTabletServer::TTabletCellStatistics>>(context);
-    }
     Load(context, PrerequisiteTransaction_);
     Load(context, CellBundle_);
     Load(context, CellLifeStage_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::CellServer) {
-        Load(context, GossipStatus_);
-    }
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::DynamicPeerCount) {
-        Load(context, PeerCount_);
-    }
+    Load(context, GossipStatus_);
+    Load(context, PeerCount_);
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::ExtraPeerDroppingDelay) {
         Load(context, LastLeaderChangeTime_);

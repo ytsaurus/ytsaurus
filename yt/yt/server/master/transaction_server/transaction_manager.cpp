@@ -1095,9 +1095,6 @@ private:
 
     THashMap<TTransactionId, TTimestampHolder> TimestampHolderMap_;
 
-    // COMPAT(babenko)
-    bool AddRefsFromTransactionToUsageAccounts_ = false;
-
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(TrackerThread);
 
@@ -1527,19 +1524,10 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         TransactionMap_.LoadValues(context);
-
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EMasterReign::BulkInsert) {
-            Load(context, TimestampHolderMap_);
-        }
+        Load(context, TimestampHolderMap_);
 
         if (context.GetVersion() >= EMasterReign::ShardedTransactions) {
             BoomerangTracker_->Load(context);
-        }
-
-        // COMPAT(babenko)
-        if (context.GetVersion() < EMasterReign::AddRefsFromTransactionToUsageAccounts) {
-            AddRefsFromTransactionToUsageAccounts_ = true;
         }
     }
 
@@ -1568,20 +1556,6 @@ private:
                 CacheTransactionStarted(transaction);
             }
         }
-
-        // COMPAT(babenko)
-        if (AddRefsFromTransactionToUsageAccounts_) {
-            for (auto [id, transaction] : TransactionMap_) {
-                if (transaction->GetState() == ETransactionState::Committed ||
-                    transaction->GetState() == ETransactionState::Aborted)
-                {
-                    continue;
-                }
-                for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
-                    account->RefObject();
-                }
-            }
-        }
     }
 
     virtual void Clear() override
@@ -1594,7 +1568,6 @@ private:
         NativeTopmostTransactions_.clear();
         NativeTransactions_.clear();
         TransactionPresenceCache_->Clear();
-        AddRefsFromTransactionToUsageAccounts_ = false;
     }
 
     virtual void OnStartLeading() override

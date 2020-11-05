@@ -79,10 +79,7 @@ void TTabletCellBundle::Load(TLoadContext& context)
 
     using NYT::Load;
 
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::CellServer) {
-        Load(context, *TabletBalancerConfig_);
-    }
+    Load(context, *TabletBalancerConfig_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

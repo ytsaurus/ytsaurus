@@ -2388,16 +2388,6 @@ public:
     }
 
 
-    TEntityMap<TTabletCellBundle>& CompatTabletCellBundleMap()
-    {
-        return CompatTabletCellBundleMap_;
-    }
-
-    TEntityMap<TTabletCell>& CompatTabletCellMap()
-    {
-        return CompatTabletCellMap_;
-    }
-
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
@@ -2410,8 +2400,6 @@ private:
     const TTabletCellDecommissionerPtr TabletCellDecommissioner_;
     const TTabletActionManagerPtr TabletActionManager_;
 
-    TEntityMap<TTabletCellBundle> CompatTabletCellBundleMap_;
-    TEntityMap<TTabletCell> CompatTabletCellMap_;
     TEntityMap<TTablet> TabletMap_;
     TEntityMap<TTableReplica> TableReplicaMap_;
     TEntityMap<TTabletAction> TabletActionMap_;
@@ -2428,7 +2416,7 @@ private:
             using NYT::Persist;
 
             // COMPAT(savrus)
-            if ((context.GetVersion() >= EMasterReign::TuneTabletStatisticsUpdate_19_8 && context.GetVersion() <= EMasterReign::TruncateJournals) ||
+            if (context.GetVersion() <= EMasterReign::TruncateJournals ||
                 context.GetVersion() >= EMasterReign::TuneTabletStatisticsUpdate_20_2)
             {
                 Persist(context, UpdateDataStatistics);
@@ -2468,7 +2456,6 @@ private:
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
-    bool RecomputeTabletCellStatistics_ = false;
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
     bool RecomputeAggregateTabletStatistics_ = false;
 
@@ -4003,11 +3990,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(savrus)
-        if (context.GetVersion() < EMasterReign::CellServer) {
-            CompatTabletCellBundleMap_.LoadKeys(context);
-            CompatTabletCellMap_.LoadKeys(context);
-        }
         TabletMap_.LoadKeys(context);
         TableReplicaMap_.LoadKeys(context);
         TabletActionMap_.LoadKeys(context);
@@ -4017,18 +3999,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(savrus)
-        if (context.GetVersion() < EMasterReign::CellServer) {
-            CompatTabletCellBundleMap_.LoadValues(context);
-            CompatTabletCellMap_.LoadValues(context);
-        }
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
         Load(context, TabletStatistisUpdateRequests_);
-
-        // COMPAT(savrus)
-        RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterReign::CellServer);
 
         // COMPAT(ifsmirnov)
         RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::AggregateTabletStatistics);
@@ -4065,11 +4039,6 @@ private:
             cell->GossipStatistics().Initialize(Bootstrap_);
         }
 
-        // COMPAT(savrus)
-        if (RecomputeTabletCellStatistics_) {
-            RecomputeAllTabletCellStatistics();
-        }
-
         for (auto [actionId, action] : TabletActionMap_) {
             // NB: Process non-alive objects to pair with DestroyTabletAction.
             auto bundle = action->GetTabletCellBundle();
@@ -4086,8 +4055,6 @@ private:
 
         TMasterAutomatonPart::Clear();
 
-        CompatTabletCellBundleMap_.Clear();
-        CompatTabletCellMap_.Clear();
         TabletMap_.Clear();
         TableReplicaMap_.Clear();
         TabletActionMap_.Clear();
@@ -6722,16 +6689,6 @@ void TTabletManager::MergeTable(TTableNode* originatingNode, NTableServer::TTabl
 void TTabletManager::SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
 {
     Impl_->SendTableStatisticsUpdates(chunkOwner);
-}
-
-TEntityMap<TTabletCellBundle>& TTabletManager::CompatTabletCellBundleMap()
-{
-    return Impl_->CompatTabletCellBundleMap();
-}
-
-TEntityMap<TTabletCell>& TTabletManager::CompatTabletCellMap()
-{
-    return Impl_->CompatTabletCellMap();
 }
 
 void TTabletManager::RecomputeTabletCellStatistics(TCellBase* cellBase)

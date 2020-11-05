@@ -48,13 +48,10 @@ void TNode::TCellSlot::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Cell);
     Persist(context, PeerState);
     Persist(context, PeerId);
-
-    if (context.GetVersion() >= EMasterReign::DynamicPeerCount) {
-        Persist(context, IsResponseKeeperWarmingUp);
-        Persist(context, PreloadPendingStoreCount);
-        Persist(context, PreloadCompletedStoreCount);
-        Persist(context, PreloadFailedStoreCount);
-    }
+    Persist(context, IsResponseKeeperWarmingUp);
+    Persist(context, PreloadPendingStoreCount);
+    Persist(context, PreloadCompletedStoreCount);
+    Persist(context, PreloadFailedStoreCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -398,11 +395,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
-
-    // COMPAT(aleksandra-zh)
-    if (context.GetVersion() >= EMasterReign::DestroyedChunkRemoval) {
-        Load(context, DestroyedReplicas_);
-    }
+    Load(context, DestroyedReplicas_);
 
     // NB: This code does not load the replicas per se; it just
     // reserves the appropriate hashtables. Once the snapshot is fully loaded,

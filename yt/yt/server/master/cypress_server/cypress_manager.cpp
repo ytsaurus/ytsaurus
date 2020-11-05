@@ -1982,12 +1982,6 @@ private:
     const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
 
     // COMPAT(babenko)
-    bool NeedBindNodesToRootShard_ = false;
-    // COMPAT(babenko)
-    bool NeedBindNodesToAncestorShard_ = false;
-    // COMPAT(babenko)
-    bool NeedSuggestShardNames_ = false;
-    // COMPAT(babenko)
     bool NeedSetJournalChunkListKinds_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -2014,10 +2008,7 @@ private:
 
         NodeMap_.LoadKeys(context);
         LockMap_.LoadKeys(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= EMasterReign::CypressShards) {
-            ShardMap_.LoadKeys(context);
-        }
+        ShardMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2026,17 +2017,8 @@ private:
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
-        // COMPAT(babenko)
-        if (context.GetVersion() >= EMasterReign::CypressShards) {
-            ShardMap_.LoadValues(context);
-        }
+        ShardMap_.LoadValues(context);
 
-        // COMPAT(babenko)
-        NeedBindNodesToRootShard_ = context.GetVersion() < EMasterReign::CypressShards;
-        // COMPAT(babenko)
-        NeedBindNodesToAncestorShard_ = context.GetVersion() < EMasterReign::FixSetShardInClone;
-        // COMPAT(babenko)
-        NeedSuggestShardNames_ = context.GetVersion() < EMasterReign::CypressShardName;
         // COMPAT(babenko)
         NeedSetJournalChunkListKinds_ = context.GetVersion() < EMasterReign::OverlayedJournals;
     }
@@ -2073,9 +2055,6 @@ private:
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
-        NeedBindNodesToRootShard_ = false;
-        NeedBindNodesToAncestorShard_ = false;
-        NeedSuggestShardNames_ = false;
         NeedSetJournalChunkListKinds_ = false;
     }
 
@@ -2176,37 +2155,6 @@ private:
         InitBuiltins();
 
         // COMPAT(babenko)
-        if (NeedBindNodesToRootShard_) {
-            for (auto [nodeId, node] : NodeMap_) {
-                if (node->IsTrunk() && node->IsNative() && !node->GetShard()) {
-                    SetShard(node, RootShard_);
-                }
-            }
-        }
-
-        // COMPAT(babenko)
-        if (NeedBindNodesToAncestorShard_) {
-            for (auto [nodeId, node] : NodeMap_) {
-                if (!node->IsTrunk()) {
-                    continue;
-                }
-
-                if (node->GetShard()) {
-                    continue;
-                }
-
-                auto* ancestorNode = node;
-                while (ancestorNode->GetParent() && !ancestorNode->GetShard()) {
-                    ancestorNode = ancestorNode->GetParent();
-                }
-
-                if (auto* shard = ancestorNode->GetShard()) {
-                    SetShard(node, shard);
-                }
-            }
-        }
-
-        // COMPAT(babenko)
         if (NeedSetJournalChunkListKinds_) {
             for (auto [nodeId, node] : NodeMap_) {
                 if (node->GetType() != EObjectType::Journal) {
@@ -2260,13 +2208,6 @@ private:
             ShardMap_.Insert(RootShardId_, std::move(rootShardHolder));
 
             SetShard(RootNode_, RootShard_);
-        }
-
-        // COMPAT(babenko)
-        if (NeedSuggestShardNames_) {
-            for (auto [shardId, shard] : ShardMap_) {
-                shard->SetName(SuggestCypressShardName(shard));
-            }
         }
     }
 

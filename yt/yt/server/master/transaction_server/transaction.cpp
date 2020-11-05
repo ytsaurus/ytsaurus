@@ -105,10 +105,7 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, Timeout_);
     Load(context, Title_);
     Load(context, ReplicatedToCellTags_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::ExternalizedTransactions) {
-        Load(context, ExternalizedToCellTags_);
-    }
+    Load(context, ExternalizedToCellTags_);
     Load(context, NestedTransactions_);
     Load(context, Parent_);
     Load(context, StartTime_);
@@ -124,14 +121,8 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, PrerequisiteTransactions_);
     Load(context, DependentTransactions_);
     Load(context, Deadline_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::BulkInsert) {
-        Load(context, LockedDynamicTables_);
-    }
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::TransactionDepth) {
-        Load(context, Depth_);
-    }
+    Load(context, LockedDynamicTables_);
+    Load(context, Depth_);
     // COMPAT(shakurov)
     if (context.GetVersion() < EMasterReign::OptionalDedicatedUploadTxObjectTypes) {
         auto type = TypeFromId(Id_);

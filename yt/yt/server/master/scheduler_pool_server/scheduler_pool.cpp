@@ -107,20 +107,8 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     TBase::Load(context);
 
     using NYT::Load;
-
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::SpecifiedAttributeFix) {
-        auto oldSpecifiedAttributes = Load<THashMap<int, NYson::TYsonString>>(context);
-        SpecifiedAttributes_.reserve(oldSpecifiedAttributes.size());
-        for (auto& [k, v] : oldSpecifiedAttributes) {
-            YT_VERIFY(SpecifiedAttributes_.emplace(TInternedAttributeKey(k), std::move(v)).second);
-        }
-    } else {
-        Load(context, SpecifiedAttributes_);
-    }
-
+    Load(context, SpecifiedAttributes_);
     Load(context, MaybePoolTree_);
-
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
 
     // COMPAT(mrkastep)
@@ -234,17 +222,8 @@ void TSchedulerPoolTree::Load(NCellMaster::TLoadContext& context)
     Load(context, TreeName_);
     Load(context, RootPool_);
 
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::SpecifiedAttributeFix) {
-        auto oldSpecifiedAttributes = Load<THashMap<int, NYson::TYsonString>>(context);
-        auto attributes = CreateEphemeralAttributes();
-        for (auto& [k, v] : oldSpecifiedAttributes) {
-            attributes->SetYson(TInternedAttributeKey(k).Unintern(), std::move(v));
-        }
-        SpecifiedConfig_ = ConvertToYsonString(attributes);
-
     // COMPAT(renadeen)
-    } else if (context.GetVersion() < EMasterReign::NestPoolTreeConfig) {
+    if (context.GetVersion() < EMasterReign::NestPoolTreeConfig) {
         auto oldSpecifiedAttributes = Load<TSpecifiedAttributesMap>(context);
         auto attributes = CreateEphemeralAttributes();
         for (auto& [k, v] : oldSpecifiedAttributes) {

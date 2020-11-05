@@ -170,22 +170,15 @@ bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
             context->GetMode() == ENodeCloneMode::Copy ? ELockMode::Snapshot : ELockMode::Exclusive);
     }
 
-    // COMPAT(gritukan)
-    if (static_cast<EMasterReign>(context->GetVersion()) >= EMasterReign::GranularCypressTreeCopy) {
-        bool opaqueChild = false;
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        if (node->GetOpaque() && node != context->GetRootNode()) {
-            context->RegisterOpaqueChildPath(cypressManager->GetNodePath(node, context->GetTransaction()));
-            opaqueChild = true;
-        }
-
-        Save(*context, opaqueChild);
-
-        return !opaqueChild;
+    bool opaqueChild = false;
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    if (node->GetOpaque() && node != context->GetRootNode()) {
+        context->RegisterOpaqueChildPath(cypressManager->GetNodePath(node, context->GetTransaction()));
+        opaqueChild = true;
     }
+    Save(*context, opaqueChild);
 
-    return true;
+    return !opaqueChild;
 }
 
 TCypressNode* TNontemplateCypressNodeTypeHandlerBase::EndCopyCore(
@@ -316,13 +309,8 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
         }
     }
 
-    // COMPAT(gritukan)
-    if (static_cast<EMasterReign>(context->GetVersion()) >= EMasterReign::GranularCypressTreeCopy) {
-        auto opaqueChild = Load<bool>(*context);
-        return !opaqueChild;
-    }
-
-    return true;
+    auto opaqueChild = Load<bool>(*context);
+    return !opaqueChild;
 }
 
 void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
