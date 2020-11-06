@@ -41,10 +41,6 @@ public:
 
     void FormatValue(TStringBuilderBase* builder) const;
 
-    //! Test if #key belongs to the ray defined by this key bound.
-    template <class TKeyClass>
-    bool TestKey(const TKeyClass& key) const;
-
     //! Test if this key bound allows any key.
     bool IsUniversal() const;
 

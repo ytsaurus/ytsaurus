@@ -2,6 +2,7 @@
 
 #include "logical_type.h"
 #include "row_base.h"
+#include "comparator.h"
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/optional.h>
@@ -16,10 +17,6 @@
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(ESortOrder,
-    (Ascending)
-)
 
 constexpr int PrimaryLockIndex = 0;
 
@@ -250,6 +247,8 @@ public:
     TTableSchemaPtr ToUnversionedUpdate(bool sorted = true) const;
 
     TTableSchemaPtr ToModifiedSchema(ETableSchemaModification schemaModification) const;
+
+    TComparator ToComparator() const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);

@@ -49,6 +49,8 @@ private:
 using TKey = NDetail::TKeyImpl<TUnversionedRow>;
 using TOwningKey = NDetail::TKeyImpl<TUnversionedOwningRow>;
 
+TKey AsNonOwningKey(const TOwningKey& owningKey);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
