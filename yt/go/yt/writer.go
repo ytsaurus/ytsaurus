@@ -33,6 +33,12 @@ func WithCreateOptions(opts ...CreateTableOption) WriteTableOption {
 	}
 }
 
+func WithTableWriterConfig(config map[string]interface{}) WriteTableOption {
+	return func(w *tableWriter) {
+		w.tableWriterConfig = config
+	}
+}
+
 // WithExisting table disables automatic table creation.
 func WithExistingTable() WriteTableOption {
 	return func(w *tableWriter) {
@@ -62,6 +68,7 @@ type (
 		createOptions           []CreateTableOption
 		batchSize               int
 		lazyCreate, eagerCreate bool
+		tableWriterConfig       map[string]interface{}
 
 		encoder *yson.Writer
 		buffer  *bytes.Buffer
@@ -130,7 +137,8 @@ func (w *tableWriter) Flush() error {
 		return w.err
 	}
 
-	if w.err = w.rawWriter.WriteTableRaw(w.ctx, w.path, nil, w.buffer); w.err != nil {
+	opts := &WriteTableOptions{TableWriter: w.tableWriterConfig}
+	if w.err = w.rawWriter.WriteTableRaw(w.ctx, w.path, opts, w.buffer); w.err != nil {
 		return w.err
 	}
 
