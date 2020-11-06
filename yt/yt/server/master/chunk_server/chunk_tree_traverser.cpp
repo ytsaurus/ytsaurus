@@ -494,21 +494,6 @@ protected:
                 ? chunkList->Children()[entry->ChildIndex + 1]->AsChunkList()->GetPivotKey()
                 : MaxKey();
 
-            // Row index.
-            if (isOrdered) {
-                i64 childLimit = cumulativeStatistics.GetPreviousSum(entry->ChildIndex).RowCount;
-                if (entry->UpperBound.HasRowIndex()) {
-                    if (entry->UpperBound.GetRowIndex() <= childLimit) {
-                        PopStack();
-                        return;
-                    }
-                    childLowerBound.SetRowIndex(childLimit);
-                    childUpperBound.SetRowIndex(cumulativeStatistics.GetCurrentSum(entry->ChildIndex).RowCount);
-                } else if (entry->LowerBound.HasRowIndex()) {
-                    childLowerBound.SetRowIndex(childLimit);
-                }
-            }
-
             // Tablet index.
             {
                 if (entry->UpperBound.HasTabletIndex() && entry->UpperBound.GetTabletIndex() < entry->ChildIndex) {
@@ -544,7 +529,7 @@ protected:
 
                 if (entry->UpperBound.HasKey()) {
                     // NB: It's OK here without key widening, however there may be some inefficiency,
-                    // e.g. with 2 key columns, pivotKey = [0] and upperBound = [0, #Min] we could have return.
+                    // e.g. with 2 key columns, pivotKey = [0] and upperBound = [0, #Min] we could have returned.
                     if (entry->UpperBound.GetKey() <= pivotKey) {
                         PopStack();
                         return;
@@ -571,6 +556,23 @@ protected:
                     subtreeEndLimit.SetKey(nextPivotKey);
                 }
             }
+
+            // NB: Row index is tablet-wise for ordered tables.
+            if (chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot) {
+                if (entry->LowerBound.HasTabletIndex() &&
+                    entry->LowerBound.GetTabletIndex() == *tabletIndex &&
+                    entry->LowerBound.HasRowIndex())
+                {
+                    subtreeStartLimit.SetRowIndex(entry->LowerBound.GetRowIndex());
+                }
+                if (entry->UpperBound.HasTabletIndex() &&
+                    entry->UpperBound.GetTabletIndex() == *tabletIndex &&
+                    entry->UpperBound.HasRowIndex())
+                {
+                    subtreeEndLimit.SetRowIndex(entry->UpperBound.GetRowIndex());
+                }
+            }
+
         }
 
         ++entry->ChildIndex;
@@ -897,7 +899,6 @@ protected:
 
         if (EnforceBounds_) {
             const auto& statistics = chunkList->Statistics();
-            const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
             bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot;
 
             // Offset.
@@ -916,24 +917,7 @@ protected:
             // Row index.
             if (lowerBound.HasRowIndex() || upperBound.HasRowIndex()) {
                 YT_VERIFY(isOrdered);
-                if (lowerBound.HasRowIndex() &&
-                    lowerBound.GetTabletIndex() < chunkList->Children().size())
-                {
-                    // We want user to operate with pairs (tabletIndex, rowIndex), however rowIndex in traverser is global.
-                    i64 tabletLowerBound = cumulativeStatistics.GetPreviousSum(lowerBound.GetTabletIndex()).RowCount;
-                    i64 tabletUpperBound = cumulativeStatistics.GetCurrentSum(lowerBound.GetTabletIndex()).RowCount;
-
-                    // This is necessary in case when rowIndex is greater than rowCount of the current tablet.
-                    auto lowerBoundRowIndex = std::min(lowerBound.GetRowIndex() + tabletLowerBound, tabletUpperBound);
-                    lowerBound.SetRowIndex(lowerBoundRowIndex);
-                }
-                if (upperBound.HasRowIndex()) {
-                    // This is necessary in case when upperBoundTabletIndex > maxTabletIndex.
-                    auto upperTabletIndex = std::min(upperBound.GetTabletIndex(), static_cast<int>(chunkList->Children().size()));
-                    i64 tabletLowerBound = cumulativeStatistics.GetPreviousSum(upperTabletIndex).RowCount;
-
-                    upperBound.SetRowIndex(upperBound.GetRowIndex() + tabletLowerBound);
-                }
+                // Row indices remain tablet-wise, nothing to change here.
             }
 
             // Chunk index.
@@ -1046,18 +1030,20 @@ protected:
         YT_VERIFY(EnforceBounds_);
 
         // Row index.
-        if (entry.LowerBound.HasRowIndex()) {
-            i64 newLowerBound = entry.LowerBound.GetRowIndex() - childLowerBound.GetRowIndex();
-            if (newLowerBound > 0) {
-                startLimit->SetRowIndex(newLowerBound);
+        if (entry.ChunkList->GetKind() != EChunkListKind::OrderedDynamicRoot) {
+            if (entry.LowerBound.HasRowIndex()) {
+                i64 newLowerBound = entry.LowerBound.GetRowIndex() - childLowerBound.GetRowIndex();
+                if (newLowerBound > 0) {
+                    startLimit->SetRowIndex(newLowerBound);
+                }
             }
-        }
-        if (entry.UpperBound.HasRowIndex() &&
-            entry.UpperBound.GetRowIndex() < childUpperBound.GetRowIndex())
-        {
-            i64 newUpperBound = entry.UpperBound.GetRowIndex() - childLowerBound.GetRowIndex();
-            YT_ASSERT(newUpperBound > 0);
-            endLimit->SetRowIndex(newUpperBound);
+            if (entry.UpperBound.HasRowIndex() &&
+                entry.UpperBound.GetRowIndex() < childUpperBound.GetRowIndex())
+            {
+                i64 newUpperBound = entry.UpperBound.GetRowIndex() - childLowerBound.GetRowIndex();
+                YT_ASSERT(newUpperBound > 0);
+                endLimit->SetRowIndex(newUpperBound);
+            }
         }
 
         // Adjust for journal chunks.

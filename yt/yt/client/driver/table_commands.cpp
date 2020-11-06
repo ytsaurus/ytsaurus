@@ -73,6 +73,7 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
     Options.EnableTableIndex = ControlAttributes->EnableTableIndex;
     Options.EnableRowIndex = ControlAttributes->EnableRowIndex;
     Options.EnableRangeIndex = ControlAttributes->EnableRangeIndex;
+    Options.EnableTabletIndex = ControlAttributes->EnableTabletIndex;
     Options.Config = UpdateYsonSerializable(
         context->GetConfig()->TableReader,
         TableReader);
