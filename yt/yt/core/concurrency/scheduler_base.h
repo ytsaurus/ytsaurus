@@ -34,14 +34,7 @@ public:
     { }
 
     virtual void OnThreadStart()
-    {
-    #ifdef _unix_
-        // Set empty sigmask for all threads.
-        sigset_t sigset;
-        SigEmptySet(&sigset);
-        SigProcMask(SIG_SETMASK, &sigset, nullptr);
-    #endif
-    }
+    { }
 
     virtual void OnThreadShutdown()
     { }
