@@ -92,26 +92,26 @@ std::vector<TChunkTreeId> TOutputOrder::ArrangeOutputChunkTrees(
         return {};
     }
 
-    std::vector<TChunkTreeId> chunkTreeByPosition;
-    chunkTreeByPosition.resize(Pool_.size());
-    for (const auto& pair : chunkTrees) {
+    std::vector<TChunkTreeId> chunkTreeIdByPosition;
+    chunkTreeIdByPosition.resize(Pool_.size());
+    for (const auto& [entry, chunkTreeId] : chunkTrees) {
         int position = -1;
-        if (pair.first.IsCookie()) {
-            YT_ASSERT(0 <= pair.first.GetCookie() && pair.first.GetCookie() < CookieToPosition_.size());
-            position = CookieToPosition_[pair.first.GetCookie()];
+        if (entry.IsCookie()) {
+            YT_ASSERT(0 <= entry.GetCookie() && entry.GetCookie() < CookieToPosition_.size());
+            position = CookieToPosition_[entry.GetCookie()];
         } else {
-            auto iterator = TeleportChunkToPosition_.find(pair.first.GetTeleportChunk());
+            auto iterator = TeleportChunkToPosition_.find(entry.GetTeleportChunk());
             YT_ASSERT(iterator != TeleportChunkToPosition_.end());
             position = iterator->second;
         }
-        chunkTreeByPosition[position] = pair.second;
+        chunkTreeIdByPosition[position] = chunkTreeId;
     }
 
     std::vector<TChunkTreeId> arrangedChunkTrees;
     arrangedChunkTrees.reserve(Pool_.size());
     for (int position = 0; position != -1; position = NextPosition_[position]) {
-        if (chunkTreeByPosition[position]) {
-            arrangedChunkTrees.emplace_back(chunkTreeByPosition[position]);
+        if (chunkTreeIdByPosition[position]) {
+            arrangedChunkTrees.emplace_back(chunkTreeIdByPosition[position]);
         }
     }
 

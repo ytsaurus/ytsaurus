@@ -179,8 +179,8 @@ public:
 
     virtual void Clear() override
     {
-        for (const auto& pair : KeyToChild_) {
-            pair.second->SetParent(nullptr);
+        for (const auto& [key, child] : KeyToChild_) {
+            child->SetParent(nullptr);
         }
         KeyToChild_.clear();
         ChildToKey_.clear();
@@ -200,8 +200,8 @@ public:
     {
         std::vector<TString> result;
         result.reserve(KeyToChild_.size());
-        for (const auto& pair : KeyToChild_) {
-            result.push_back(pair.first);
+        for (const auto& [key, child] : KeyToChild_) {
+            result.push_back(key);
         }
         return result;
     }

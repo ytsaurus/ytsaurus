@@ -124,10 +124,10 @@ TUnversionedOwningRow YsonToSchemafulRow(
     }
 
     // Variable values
-    for (const auto& pair : rowParts) {
-        int id = nameTable->GetIdOrRegisterName(pair.first);
+    for (const auto& [name, value] : rowParts) {
+        int id = nameTable->GetIdOrRegisterName(name);
         if (id >= tableSchema.Columns().size()) {
-            YTreeNodeToUnversionedValue(&rowBuilder, pair.second, id, false);
+            YTreeNodeToUnversionedValue(&rowBuilder, value, id, false);
         }
     }
 

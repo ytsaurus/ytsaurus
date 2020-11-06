@@ -1443,11 +1443,10 @@ private:
                 groupedJobEvents[operation].push_back(protoEvent);
             });
 
-        for (auto& pair : groupedJobEvents) {
-            const auto& operation = pair.first;
+        for (auto& [operation, protoEvents] : groupedJobEvents) {
             auto controller = operation->GetController();
             controller->GetCancelableInvoker(Config_->JobEventsControllerQueue)->Invoke(
-                BIND([rsp, controller, this_ = MakeStrong(this), protoEvents = std::move(pair.second)] {
+                BIND([rsp, controller, this_ = MakeStrong(this), protoEvents = std::move(protoEvents)] {
                     for (auto* protoEvent : protoEvents) {
                         auto eventType = static_cast<ESchedulerToAgentJobEventType>(protoEvent->event_type());
                         bool abortedByScheduler = protoEvent->aborted_by_scheduler();
@@ -1705,7 +1704,7 @@ private:
                         .Item("tags").Value(tags);
                 })
             .EndMap();
-        
+
         YT_LOG_DEBUG("Static orchid built");
     }
 

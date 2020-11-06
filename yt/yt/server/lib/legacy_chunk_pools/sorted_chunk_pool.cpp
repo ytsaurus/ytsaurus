@@ -525,11 +525,8 @@ private:
         // Some chunks will be dropped due to sampling.
         int droppedTeleportChunkCount = 0;
 
-        for (const auto& pair : teleportCandidates) {
+        for (const auto& [teleportCandidate, cookie] : teleportCandidates) {
             yielder.TryYield();
-
-            const auto& teleportCandidate = pair.first;
-            auto cookie = pair.second;
 
             // NB: minKey and maxKey are inclusive, in contrast to the lower/upper limits.
             auto minKey = GetKeyPrefix(teleportCandidate->BoundaryKeys()->MinKey, PrimaryPrefixLength_, RowBuffer_);

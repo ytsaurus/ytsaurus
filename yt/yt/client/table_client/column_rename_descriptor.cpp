@@ -19,10 +19,10 @@ void Deserialize(TColumnRenameDescriptors& value, INodePtr node)
 {
     auto mapNode = node->AsMap();
     value.clear();
-    for (const auto& pair : mapNode->GetChildren()) {
+    for (const auto& [key, child] : mapNode->GetChildren()) {
         value.push_back(TColumnRenameDescriptor());
-        value.back().OriginalName = pair.first;
-        Deserialize(value.back().NewName, pair.second);
+        value.back().OriginalName = key;
+        Deserialize(value.back().NewName, child);
     }
 }
 

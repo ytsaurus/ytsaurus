@@ -55,8 +55,7 @@ void TJobStub::AddPreliminaryForeignDataSlice(const TInputDataSlicePtr& dataSlic
 
 void TJobStub::Finalize(bool sortByPosition)
 {
-    for (auto& pair : StripeMap_) {
-        auto& stripe = pair.second;
+    for (const auto& [_, stripe] : StripeMap_) {
         const auto& statistics = stripe->GetStatistics();
         StripeList_->TotalDataWeight += statistics.DataWeight;
         StripeList_->TotalRowCount += statistics.RowCount;
@@ -66,7 +65,7 @@ void TJobStub::Finalize(bool sortByPosition)
             // are not only sorted by key, but additionally by their position
             // in the original table.
 
-            auto lessThan = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) -> bool {
+            auto lessThan = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
                 if (lhs->UpperLimit().Key <= rhs->LowerLimit().Key) {
                     return true;
                 }

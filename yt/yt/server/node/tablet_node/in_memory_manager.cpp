@@ -223,8 +223,7 @@ private:
     void ScanSlot(const TTabletSlotPtr& slot)
     {
         const auto& tabletManager = slot->GetTabletManager();
-        for (const auto& pair : tabletManager->Tablets()) {
-            auto* tablet = pair.second;
+        for (auto [tabletId, tablet] : tabletManager->Tablets()) {
             ScanTablet(slot, tablet);
         }
     }
@@ -689,9 +688,9 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                 auto results = WaitFor(AllSucceeded(asyncUncompressedBlocks))
                     .ValueOrThrow();
 
-                for (const auto& pair : results) {
-                    cachedBlocks.emplace_back(std::move(pair.first));
-                    decompressionTime += pair.second;
+                for (const auto& [block, duration] : results) {
+                    cachedBlocks.emplace_back(block);
+                    decompressionTime += duration;
                 }
 
                 break;

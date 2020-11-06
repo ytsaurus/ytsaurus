@@ -109,9 +109,9 @@ private:
         YT_LOG_DEBUG("Started updating monitoring state");
         PROFILE_TIMING ("/update_time") {
             auto newRoot = GetEphemeralNodeFactory()->CreateMap();
-            for (const auto& pair : PathToProducer_) {
-                auto value = ConvertToYsonString(pair.second);
-                SyncYPathSet(newRoot, pair.first, value);
+            for (const auto& [path, producer] : PathToProducer_) {
+                auto value = ConvertToYsonString(producer);
+                SyncYPathSet(newRoot, path, value);
             }
 
             if (Started_) {

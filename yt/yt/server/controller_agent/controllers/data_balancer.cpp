@@ -59,9 +59,7 @@ bool TDataBalancer::CanScheduleJob(const TJobNodeDescriptor& descriptor, i64 dat
 
 void TDataBalancer::OnExecNodesUpdated(const TExecNodeDescriptorMap& newExecNodes)
 {
-    for (auto& pair : IdToNode_) {
-        const auto& nodeId = pair.first;
-        auto& node = pair.second;
+    for (auto& [nodeId, node] : IdToNode_) {
         if (node.Active && !newExecNodes.contains(nodeId)) {
             node.Active = false;
             ActiveNodeTotalIOWeight_ -= node.Descriptor.IOWeight;

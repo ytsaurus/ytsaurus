@@ -272,8 +272,7 @@ private:
     {
         std::vector<TString> keys;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        for (const auto& pair : chunkManager->Media()) {
-            const auto* medium = pair.second;
+        for (auto [mediumId, medium] : chunkManager->Media()) {
             keys.push_back(medium->GetName());
         }
         return keys;

@@ -311,7 +311,7 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto diskSpace = chunk->GetInfo().disk_space();
-    
+
     const auto& location = chunk->GetLocation();
     location->UpdateChunkCount(+1);
     location->UpdateUsedSpace(+diskSpace);
@@ -372,7 +372,7 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
 
         newChunkEntry = DoUpdateChunk(oldChunkEntry.Chunk, chunk);
     }
-    
+
     location->UpdateUsedSpace(newChunkEntry.DiskSpace - oldChunkEntry.DiskSpace);
 
     ChunkAdded_.Fire(chunk);
@@ -437,8 +437,8 @@ std::vector<IChunkPtr> TChunkStore::GetChunks() const
     TReaderGuard guard(ChunkMapLock_);
     std::vector<IChunkPtr> result;
     result.reserve(ChunkMap_.size());
-    for (const auto& pair : ChunkMap_) {
-        result.push_back(pair.second.Chunk);
+    for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
+        result.push_back(chunkEntry.Chunk);
     }
     return result;
 }
@@ -476,7 +476,7 @@ TStoreLocationPtr TChunkStore::GetNewChunkLocation(
 
     std::vector<int> candidates;
     candidates.reserve(Locations_.size());
-    
+
     int minCount = std::numeric_limits<int>::max();
     for (int index = 0; index < static_cast<int>(Locations_.size()); ++index) {
         const auto& location = Locations_[index];

@@ -237,8 +237,8 @@ std::vector<std::pair<typename T::key_type, typename T::mapped_type>> SortHashMa
 {
     std::vector<std::pair<typename T::key_type, typename T::mapped_type>> vector;
     vector.reserve(hashMap.size());
-    for (const auto& pair : hashMap) {
-        vector.emplace_back(pair.first, pair.second);
+    for (const auto& [key, value] : hashMap) {
+        vector.emplace_back(key, value);
     }
     SortByFirst(vector);
     return vector;

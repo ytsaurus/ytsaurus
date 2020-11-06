@@ -231,10 +231,8 @@ TEST(TYsonSerializableTest, UnrecognizedSimple)
     auto unrecognizedRecursivelyNode = config->GetUnrecognizedRecursively();
     EXPECT_TRUE(AreNodesEqual(unrecognizedNode, unrecognizedRecursivelyNode));
     EXPECT_EQ(1, unrecognizedNode->GetChildCount());
-    for (const auto& pair : unrecognizedNode->GetChildren()) {
-        const auto& name = pair.first;
-        auto child = pair.second;
-        EXPECT_EQ("option", name);
+    for (const auto& [key, child] : unrecognizedNode->GetChildren()) {
+        EXPECT_EQ("option", key);
         EXPECT_EQ(1, child->AsInt64()->GetValue());
     }
 
@@ -259,13 +257,11 @@ TEST(TYsonSerializableTest, UnrecognizedRecursive)
 
     auto unrecognizedRecursivelyNode = config->GetUnrecognizedRecursively();
     EXPECT_EQ(2, unrecognizedRecursivelyNode->GetChildCount());
-    for (const auto& pair : unrecognizedRecursivelyNode->GetChildren()) {
-        const auto& name = pair.first;
-        auto child = pair.second;
-        if (name == "option") {
+    for (const auto& [key, child] : unrecognizedRecursivelyNode->GetChildren()) {
+        if (key == "option") {
             EXPECT_EQ(1, child->AsInt64()->GetValue());
         } else {
-            EXPECT_EQ("sub", name);
+            EXPECT_EQ("sub", key);
             EXPECT_EQ(42, child->AsMap()->GetChildOrThrow("sub_option")->AsInt64()->GetValue());
         }
     }

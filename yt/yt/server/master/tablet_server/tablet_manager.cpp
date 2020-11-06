@@ -3167,10 +3167,7 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto resourceUsageBefore = table->GetTabletResourceUsage();
         const auto& allTablets = table->Tablets();
-        for (const auto& pair : assignment) {
-            auto* tablet = pair.first;
-            auto* cell = pair.second;
-
+        for (auto [tablet, cell] : assignment) {
             YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
 
             if (!IsCellActive(cell)) {
@@ -3257,11 +3254,11 @@ private:
                     FillStoreDescriptor(chunkOrView, storeType, descriptor, &startingRowIndex);
                 }
 
-                for (const auto& pair : table->DynamicTableLocks()) {
-                    auto* lock = req.add_locks();
-                    lock->mutable_transaction_id();
-                    ToProto(lock->mutable_transaction_id(), pair.first);
-                    lock->set_timestamp(static_cast<i64>(pair.second.Timestamp));
+                for (auto [transactionId, lock] : table->DynamicTableLocks()) {
+                    auto* protoLock = req.add_locks();
+                    protoLock->mutable_transaction_id();
+                    ToProto(protoLock->mutable_transaction_id(), transactionId);
+                    protoLock->set_timestamp(static_cast<i64>(lock.Timestamp));
                 }
 
                 if (!freeze && IsDynamicStoreReadEnabled(table)) {

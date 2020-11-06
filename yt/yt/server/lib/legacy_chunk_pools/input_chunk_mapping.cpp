@@ -174,9 +174,7 @@ void TInputChunkMapping::OnChunkDisappeared(const TInputChunkPtr& chunk)
 
 void TInputChunkMapping::Reset(IChunkPoolInput::TCookie resetCookie, const TChunkStripePtr& resetStripe)
 {
-    for (auto& pair : OriginalStripes_) {
-        auto cookie = pair.first;
-        auto& stripe = pair.second;
+    for (auto& [cookie, stripe] : OriginalStripes_) {
         if (cookie == resetCookie) {
             stripe = resetStripe;
         } else {

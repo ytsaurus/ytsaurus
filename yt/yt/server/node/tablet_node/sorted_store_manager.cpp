@@ -89,10 +89,10 @@ TSortedStoreManager::TSortedStoreManager(
         std::move(client))
     , KeyColumnCount_(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())
 {
-    for (const auto& pair : Tablet_->StoreIdMap()) {
-        auto store = pair.second->AsSorted();
-        if (store->GetStoreState() != EStoreState::ActiveDynamic) {
-            MaxTimestampToStore_.emplace(store->GetMaxTimestamp(), store);
+    for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
+        auto sortedStore = store->AsSorted();
+        if (sortedStore->GetStoreState() != EStoreState::ActiveDynamic) {
+            MaxTimestampToStore_.emplace(sortedStore->GetMaxTimestamp(), sortedStore);
         }
     }
 
@@ -1019,8 +1019,7 @@ void TSortedStoreManager::StartEpoch(TTabletSlotPtr slot)
 {
     TStoreManagerBase::StartEpoch(std::move(slot));
 
-    for (const auto& pair : Tablet_->StoreIdMap()) {
-        const auto& store = pair.second;
+    for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
         if (store->GetType() == EStoreType::SortedDynamic) {
             auto sortedDynamicStore = store->AsSortedDynamic();
             sortedDynamicStore->SetRowBlockedHandler(CreateRowBlockedHandler(store));
@@ -1030,8 +1029,7 @@ void TSortedStoreManager::StartEpoch(TTabletSlotPtr slot)
 
 void TSortedStoreManager::StopEpoch()
 {
-    for (const auto& pair : Tablet_->StoreIdMap()) {
-        const auto& store = pair.second;
+    for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
         if (store->GetType() == EStoreType::SortedDynamic) {
             store->AsSortedDynamic()->ResetRowBlockedHandler();
         }

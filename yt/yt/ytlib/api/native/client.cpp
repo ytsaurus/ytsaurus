@@ -205,8 +205,7 @@ void TClient::Terminate()
     auto error = TError("Client terminated");
 
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-        for (const auto& pair : MasterChannels_[kind]) {
-            auto channel = pair.second;
+        for (const auto& [cellTag, channel]  : MasterChannels_[kind]) {
             channel->Terminate(error);
         }
     }
@@ -419,7 +418,7 @@ void TClient::ValidateSuperuserPermissions()
     YT_LOG_DEBUG("User group membership info received (Name: %v, Groups: %v)",
         Options_.User,
         groups);
-    
+
     if (!groups.contains(NSecurityClient::SuperusersGroupName)) {
         THROW_ERROR_EXCEPTION("Superuser permissions required");
     }

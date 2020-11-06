@@ -121,8 +121,7 @@ int TNodeHolder::GetCellCount(const TCellBundle* bundle) const
 
 void TNodeHolder::UpdateCellCounts()
 {
-    for (const auto& pair : Slots_) {
-        const auto* cell = pair.first;
+    for (auto [cell, _] : Slots_) {
         CellCount_[cell->GetCellBundle()] += 1;
     }
 }
@@ -387,9 +386,7 @@ private:
                 }
             }
 
-            for (const auto& pair : node.GetSlots()) {
-                const auto* cell = pair.first;
-                int peerId = pair.second;
+            for (auto [cell, peerId] : node.GetSlots()) {
                 PeerTracker_.AddPeer(cell, peerId, node.GetNode());
             }
         }
@@ -484,8 +481,7 @@ private:
         int srcIndex = *srcNode->FindCell(cell);
 
         int dstIndex = 0;
-        for (const auto& pair : dstNode->GetSlots()) {
-            const auto* dstCell = pair.first;
+        for (auto [dstCell, _] : dstNode->GetSlots()) {
             if (NodeInPeers(dstCell, srcNode) ||
                 !Provider_->IsPossibleHost(srcNode->GetNode(), dstCell->GetCellBundle()))
             {

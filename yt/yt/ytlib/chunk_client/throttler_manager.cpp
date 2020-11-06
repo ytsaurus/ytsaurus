@@ -25,8 +25,8 @@ void TThrottlerManager::Reconfigure(TThroughputThrottlerConfigPtr config)
 {
     TGuard<TAdaptiveLock> guard(SpinLock_);
     Config_ = config;
-    for (auto& pair : ThrottlerMap_) {
-        pair.second->Reconfigure(config);
+    for (const auto& [cellTag, throttler] : ThrottlerMap_) {
+        throttler->Reconfigure(config);
     }
 }
 

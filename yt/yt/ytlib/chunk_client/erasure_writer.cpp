@@ -401,8 +401,8 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks()
 
     return BIND([=, this_ = MakeStrong(this)] () {
         // Access to PlacementExt_ must be from WriterInvoker only.
-        for (const auto& pair : partChecksums) {
-            PlacementExt_.mutable_part_checksums()->Set(pair.first, pair.second);
+        for (auto [index, checksum] : partChecksums) {
+            PlacementExt_.mutable_part_checksums()->Set(index, checksum);
         }
     })
     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())

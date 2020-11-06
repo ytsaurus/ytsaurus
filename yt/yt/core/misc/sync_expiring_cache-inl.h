@@ -114,9 +114,9 @@ void TSyncExpiringCache<TKey, TValue>::DeleteExpiredItems()
     std::vector<TKey> keysToRemove;
     {
         NConcurrency::TReaderGuard guard(MapLock_);
-        for (const auto& pair : Map_) {
-            if (pair.second.LastAccessTime < deadline) {
-                keysToRemove.push_back(pair.first);
+        for (const auto& [key, entry] : Map_) {
+            if (entry.LastAccessTime < deadline) {
+                keysToRemove.push_back(key);
             }
         }
     }

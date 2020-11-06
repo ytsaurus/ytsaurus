@@ -191,12 +191,11 @@ void LoadFromNode(
         case EMergeStrategy::Overwrite: {
             auto mapNode = node->AsMap();
             parameter.clear();
-            for (const auto& pair : mapNode->GetChildren()) {
-                const auto& key = pair.first;
+            for (const auto& [key, child] : mapNode->GetChildren()) {
                 M value;
                 LoadFromNode(
                     value,
-                    pair.second,
+                    child,
                     path + "/" + NYPath::ToYPathLiteral(key),
                     EMergeStrategy::Overwrite,
                     keepUnrecognizedRecursively);
@@ -206,12 +205,11 @@ void LoadFromNode(
         }
         case EMergeStrategy::Combine: {
             auto mapNode = node->AsMap();
-            for (const auto& pair : mapNode->GetChildren()) {
-                const auto& key = pair.first;
+            for (const auto& [key, child] : mapNode->GetChildren()) {
                 M value;
                 LoadFromNode(
                     value,
-                    pair.second,
+                    child,
                     path + "/" + NYPath::ToYPathLiteral(key),
                     EMergeStrategy::Combine,
                     keepUnrecognizedRecursively);
@@ -297,10 +295,10 @@ inline void InvokeForComposites(
     const NYPath::TYPath& path,
     const F& func)
 {
-    for (const auto& pair : *parameter) {
+    for (const auto& [key, value] : *parameter) {
         InvokeForComposites(
-            &pair.second,
-            path + "/" + NYPath::ToYPathLiteral(pair.first),
+            &value,
+            path + "/" + NYPath::ToYPathLiteral(key),
             func);
     }
 }
@@ -334,8 +332,8 @@ inline void InvokeForComposites(const std::vector<T...>* parameter, const F& fun
 template <template<typename...> class Map, class... T, class F, class M = typename Map<T...>::mapped_type>
 inline void InvokeForComposites(const Map<T...>* parameter, const F& func)
 {
-    for (const auto& pair : *parameter) {
-        InvokeForComposites(&pair.second, func);
+    for (const auto& [key, value] : *parameter) {
+        InvokeForComposites(&value, func);
     }
 }
 

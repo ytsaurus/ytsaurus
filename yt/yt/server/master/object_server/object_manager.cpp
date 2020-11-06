@@ -957,8 +957,7 @@ void TObjectManager::TImpl::Clear()
 
 void TObjectManager::TImpl::InitSchemas()
 {
-    for (auto& pair : TypeToEntry_) {
-        auto& entry = pair.second;
+    for (auto& [_, entry] : TypeToEntry_) {
         entry.SchemaObject = nullptr;
         entry.SchemaProxy.Reset();
     }
@@ -1155,11 +1154,11 @@ void TObjectManager::TImpl::MergeAttributes(
         return;
 
     auto* originatingAttributes = originatingObject->GetMutableAttributes();
-    for (const auto& pair : branchedAttributes->Attributes()) {
-        if (!pair.second && originatingObject->IsTrunk()) {
-            originatingAttributes->Remove(pair.first);
+    for (const auto& [key, value] : branchedAttributes->Attributes()) {
+        if (!value && originatingObject->IsTrunk()) {
+            originatingAttributes->Remove(key);
         } else {
-            originatingAttributes->Set(pair.first, pair.second);
+            originatingAttributes->Set(key, value);
         }
     }
 
@@ -1261,8 +1260,8 @@ TObject* TObjectManager::TImpl::CreateObject(
     IAttributeDictionaryPtr attributeHolder;
     if (auto* attributeSet = schema->GetAttributes()) {
         attributeHolder = CreateEphemeralAttributes();
-        for (const auto& pair : attributeSet->Attributes()) {
-            attributeHolder->SetYson(pair.first, pair.second);
+        for (const auto& [key, value] : attributeSet->Attributes()) {
+            attributeHolder->SetYson(key, value);
         }
         if (attributes) {
             auto attributeMap = PatchNode(attributeHolder->ToMap(), attributes->ToMap());
@@ -2103,8 +2102,8 @@ IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
     // Check custom attributes.
     const auto* customAttributes = object->GetAttributes();
     if (customAttributes) {
-        for (const auto& pair : object->GetAttributes()->Attributes()) {
-            replicateKey(pair.first, pair.second);
+        for (const auto& [key, value] : object->GetAttributes()->Attributes()) {
+            replicateKey(key, value);
         }
     }
     return attributes;

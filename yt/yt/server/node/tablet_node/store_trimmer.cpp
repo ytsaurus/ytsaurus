@@ -68,8 +68,7 @@ private:
             return;
         }
         const auto& tabletManager = slot->GetTabletManager();
-        for (const auto& pair : tabletManager->Tablets()) {
-            auto* tablet = pair.second;
+        for (auto [tabletId, tablet] : tabletManager->Tablets()) {
             ScanTablet(slot, tablet);
         }
     }
@@ -130,8 +129,7 @@ private:
         i64 trimmedRowCount = 0;
         i64 remainingRowCount = tablet->GetTotalRowCount() - tablet->GetTrimmedRowCount();
         std::vector<TOrderedChunkStorePtr> result;
-        for (const auto& pair : tablet->StoreRowIndexMap()) {
-            const auto& store = pair.second;
+        for (const auto& [_, store] : tablet->StoreRowIndexMap()) {
             if (!store->IsChunk()) {
                 break;
             }
@@ -234,8 +232,7 @@ private:
     {
         i64 trimmedRowCount = tablet->GetTrimmedRowCount();
         std::vector<TOrderedChunkStorePtr> result;
-        for (const auto& pair : tablet->StoreRowIndexMap()) {
-            const auto& store = pair.second;
+        for (const auto& [_, store] : tablet->StoreRowIndexMap()) {
             if (!store->IsChunk()) {
                 break;
             }

@@ -118,14 +118,14 @@ TNode::TNode(TObjectId objectId)
 void TNode::ComputeAggregatedState()
 {
     std::optional<ENodeState> result;
-    for (const auto& pair : MulticellDescriptors_) {
+    for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
         if (result) {
-            if (*result != pair.second.State) {
+            if (*result != descriptor.State) {
                 result = ENodeState::Mixed;
                 break;
             }
         } else {
-            result = pair.second.State;
+            result = descriptor.State;
         }
     }
     AggregatedState_ = *result;
@@ -316,8 +316,8 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
         using TMulticellStates = THashMap<NObjectClient::TCellTag, ENodeState>;
         TMulticellStates multicellStates;
         multicellStates.reserve(MulticellDescriptors_.size());
-        for (const auto& pair : MulticellDescriptors_) {
-            multicellStates.emplace(pair.first, pair.second.State);
+        for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
+            multicellStates.emplace(cellTag, descriptor.State);
         }
 
         Save(context, multicellStates);
@@ -919,16 +919,16 @@ TCellNodeStatistics TNode::ComputeClusterStatistics() const
     // Local (primary) cell statistics aren't stored in MulticellStatistics_.
     TCellNodeStatistics result = ComputeCellStatistics();
 
-    for (const auto& pair : MulticellDescriptors_) {
-        result += pair.second.Statistics;
+    for (const auto& [cellTag, descriptor] : MulticellDescriptors_) {
+        result += descriptor.Statistics;
     }
     return result;
 }
 
 void TNode::ClearCellStatistics()
 {
-    for (auto& pair : MulticellDescriptors_) {
-        pair.second.Statistics = TCellNodeStatistics();
+    for (auto& [_, descriptor] : MulticellDescriptors_) {
+        descriptor.Statistics = TCellNodeStatistics();
     }
 }
 

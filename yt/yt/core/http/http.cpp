@@ -135,10 +135,10 @@ void THeaders::WriteTo(
     IOutputStream* out,
     const THashSet<TString, TCaseInsensitiveStringHasher, TCaseInsensitiveStringEqualityComparer>* filtered) const
 {
-    for (const auto& pair : NameToEntry_) {
+    for (const auto& [name, entry] : NameToEntry_) {
         // TODO(prime): sanitize headers
-        const auto& header = pair.second.OriginalHeaderName;
-        const auto& values = pair.second.Values;
+        const auto& header = entry.OriginalHeaderName;
+        const auto& values = entry.Values;
 
         if (filtered && filtered->find(header) != filtered->end()) {
             continue;
@@ -159,9 +159,9 @@ THeadersPtr THeaders::Duplicate() const
 
 void THeaders::MergeFrom(const THeadersPtr& headers)
 {
-    for (const auto& pair : headers->NameToEntry_) {
-        for (const auto& value : pair.second.Values) {
-            Add(pair.second.OriginalHeaderName, value);
+    for (const auto& [name, entry] : headers->NameToEntry_) {
+        for (const auto& value : entry.Values) {
+            Add(entry.OriginalHeaderName, value);
         }
     }
 }
@@ -170,9 +170,9 @@ std::vector<std::pair<TString, TString>> THeaders::Dump() const
 {
     std::vector<std::pair<TString, TString>> result;
 
-    for (const auto& pair : NameToEntry_) {
-        for (const auto& value : pair.second.Values) {
-            result.emplace_back(pair.second.OriginalHeaderName, value);
+    for (const auto& [name, entry] : NameToEntry_) {
+        for (const auto& value : entry.Values) {
+            result.emplace_back(entry.OriginalHeaderName, value);
         }
     }
 

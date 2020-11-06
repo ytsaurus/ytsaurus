@@ -914,10 +914,10 @@ std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDi
     std::vector<TString> keys;
     if (attributes) {
         keys.reserve(attributes->Attributes().size());
-        for (const auto& pair : attributes->Attributes()) {
+        for (const auto& [key, value] : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
-            YT_ASSERT(pair.second);
-            keys.push_back(pair.first);
+            YT_ASSERT(value);
+            keys.push_back(key);
         }
     }
     return keys;
@@ -930,10 +930,10 @@ std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateNonversionedObjectP
     std::vector<TKeyValuePair> pairs;
     if (attributes) {
         pairs.reserve(attributes->Attributes().size());
-        for (const auto& pair : attributes->Attributes()) {
+        for (const auto& [key, value] : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
-            YT_ASSERT(pair.second);
-            pairs.push_back(pair);
+            YT_ASSERT(value);
+            pairs.push_back(std::make_pair(key, value));
         }
     }
     return pairs;

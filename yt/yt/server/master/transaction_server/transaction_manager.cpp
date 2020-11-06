@@ -1595,8 +1595,7 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        for (const auto& pair : TransactionMap_) {
-            auto* transaction = pair.second;
+        for (auto [transactionId, transaction] : TransactionMap_) {
             if (transaction->GetState() == ETransactionState::Active ||
                 transaction->GetState() == ETransactionState::PersistentCommitPrepared)
             {
@@ -1618,8 +1617,7 @@ private:
         BoomerangTracker_->Stop();
 
         // Reset all transiently prepared transactions back into active state.
-        for (const auto& pair : TransactionMap_) {
-            auto* transaction = pair.second;
+        for (auto [transactionId, transaction] : TransactionMap_) {
             transaction->SetState(transaction->GetPersistentState());
         }
 

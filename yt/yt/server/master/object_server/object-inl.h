@@ -223,10 +223,9 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
     std::vector<TValue*> values;
     values.reserve(entities.size());
 
-    for (const auto& pair : entities) {
-        auto* object = pair.second;
-        if (IsObjectAlive(object)) {
-            values.push_back(object);
+    for (const auto& [key, entity] : entities) {
+        if (IsObjectAlive(entity)) {
+            values.push_back(entity);
         }
     }
     std::sort(values.begin(), values.end(), TObjectRefComparer::Compare);

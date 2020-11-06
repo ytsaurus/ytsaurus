@@ -1317,14 +1317,14 @@ private:
 
         int index = 0;
         THashSet<TArtifactKey> newArtifacts;
-        for (auto& pair : CachedLayerDescriptors_) {
+        for (auto& [_, fetchedKey] : CachedLayerDescriptors_) {
             const auto& fetchResult = fetchResultsOrError.Value()[index];
             if (fetchResult.ArtifactKey) {
-                pair.second = fetchResult;
+                fetchedKey = fetchResult;
             }
             ++index;
-            YT_VERIFY(pair.second.ArtifactKey);
-            newArtifacts.insert(*pair.second.ArtifactKey);
+            YT_VERIFY(fetchedKey.ArtifactKey);
+            newArtifacts.insert(*fetchedKey.ArtifactKey);
         }
 
         YT_LOG_DEBUG("Listed unique tmpfs layers (Count: %v)", newArtifacts.size());

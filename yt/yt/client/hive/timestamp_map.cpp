@@ -12,9 +12,9 @@ using namespace NObjectClient;
 
 TTimestamp TTimestampMap::GetTimestamp(TCellTag cellTag) const
 {
-    for (const auto& pair : Timestamps) {
-        if (pair.first == cellTag) {
-            return pair.second;
+    for (auto [someCellTag, someTimestamp] : Timestamps) {
+        if (someCellTag == cellTag) {
+            return someTimestamp;
         }
     }
     YT_ABORT();
@@ -32,9 +32,9 @@ void ToProto(NProto::TTimestampMap* protoMap, const TTimestampMap& map)
 {
     protoMap->clear_cell_tags();
     protoMap->clear_timestamps();
-    for (const auto& pair : map.Timestamps) {
-        protoMap->add_cell_tags(pair.first);
-        protoMap->add_timestamps(pair.second);
+    for (auto [cellTag, timestamp] : map.Timestamps) {
+        protoMap->add_cell_tags(cellTag);
+        protoMap->add_timestamps(timestamp);
     }
 }
 
@@ -53,11 +53,11 @@ void FormatValue(TStringBuilderBase* builder, const TTimestampMap& map, TStringB
 {
     builder->AppendChar('{');
     bool first = true;
-    for (const auto& pair : map.Timestamps) {
+    for (auto [cellTag, timestamp] : map.Timestamps) {
         if (!first) {
             builder->AppendString(TStringBuf(", "));
         }
-        builder->AppendFormat("%v => %llx", pair.first, pair.second);
+        builder->AppendFormat("%v => %llx", cellTag, timestamp);
         first = false;
     }
     builder->AppendChar('}');

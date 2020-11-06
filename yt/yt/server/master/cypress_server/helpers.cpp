@@ -250,12 +250,12 @@ THashMap<TString, NYson::TYsonString> GetNodeAttributes(
     for (const auto* node : originators) {
         const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {
-            for (const auto& pair : userAttributes->Attributes()) {
-                if (pair.second) {
-                    result[pair.first] = pair.second;
+            for (const auto& [key, value] : userAttributes->Attributes()) {
+                if (value) {
+                    result[key] = value;
                 } else {
                     // NB: key may be absent.
-                    result.erase(pair.first);
+                    result.erase(key);
                 }
             }
         }
@@ -275,12 +275,12 @@ THashSet<TString> ListNodeAttributes(
     for (const auto* node : originators) {
         const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {
-            for (const auto& pair : userAttributes->Attributes()) {
-                if (pair.second) {
-                    result.insert(pair.first);
+            for (const auto& [key, value] : userAttributes->Attributes()) {
+                if (value) {
+                    result.insert(key);
                 } else {
                     // NB: key may be absent.
-                    result.erase(pair.first);
+                    result.erase(key);
                 }
             }
         }

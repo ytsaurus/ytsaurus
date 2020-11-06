@@ -137,8 +137,8 @@ void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDi
         }
     }
 
-    for (const auto& pair : nameToConfig) {
-        UpdateCluster(pair.first, pair.second);
+    for (const auto& [name, config] : nameToConfig) {
+        UpdateCluster(name, config);
     }
 }
 

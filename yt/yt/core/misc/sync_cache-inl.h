@@ -128,8 +128,8 @@ TSyncSlruCacheBase<TKey, TValue, THash>::GetAll()
     result.reseve(GetSize());
     for (const auto& shard : Shards_) {
         NConcurrency::TReaderGuard guard(shard->SpinLock);
-        for (const auto& pair : shard->ItemMap) {
-            result.push_back(pair.second->Value);
+        for (const auto& [key, item] : shard->ItemMap) {
+            result.push_back(item->Value);
         }
     }
     return result;

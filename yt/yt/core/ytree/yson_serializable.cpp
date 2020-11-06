@@ -28,9 +28,7 @@ IMapNodePtr TYsonSerializableLite::GetUnrecognizedRecursively() const
     // Take a copy of `Unrecognized` and add parameter->GetUnrecognizedRecursively()
     // for all parameters that are TYsonSerializable's themselves.
     auto result = Unrecognized ? ConvertTo<IMapNodePtr>(Unrecognized) : GetEphemeralNodeFactory()->CreateMap();
-    for (const auto& pair : Parameters) {
-        const auto& parameter = pair.second;
-        const auto& name = pair.first;
+    for (const auto& [name, parameter] : Parameters) {
         auto unrecognized = parameter->GetUnrecognizedRecursively();
         if (unrecognized && unrecognized->AsMap()->GetChildCount() > 0) {
             result->AddChild(name, unrecognized);
@@ -43,8 +41,8 @@ void TYsonSerializableLite::SetUnrecognizedStrategy(EUnrecognizedStrategy strate
 {
     UnrecognizedStrategy = strategy;
     if (strategy == EUnrecognizedStrategy::KeepRecursive) {
-        for (const auto& pair : Parameters) {
-            pair.second->SetKeepUnrecognizedRecursively();
+        for (const auto& [name, parameter] : Parameters) {
+            parameter->SetKeepUnrecognizedRecursively();
         }
     }
 }
@@ -52,10 +50,10 @@ void TYsonSerializableLite::SetUnrecognizedStrategy(EUnrecognizedStrategy strate
 THashSet<TString> TYsonSerializableLite::GetRegisteredKeys() const
 {
     THashSet<TString> result(Parameters.size());
-    for (const auto& pair : Parameters) {
-        result.insert(pair.first);
-        for (const auto& key : pair.second->GetAliases()) {
-            result.insert(key);
+    for (const auto& [name, parameter] : Parameters) {
+        result.insert(name);
+        for (const auto& alias : parameter->GetAliases()) {
+            result.insert(alias);
         }
     }
     return result;
@@ -74,9 +72,7 @@ void TYsonSerializableLite::Load(
     }
 
     auto mapNode = node->AsMap();
-    for (const auto& pair : Parameters) {
-        auto name = pair.first;
-        auto& parameter = pair.second;
+    for (const auto& [name, parameter] : Parameters) {
         TString key = name;
         auto child = mapNode->FindChild(name); // can be NULL
         for (const auto& alias : parameter->GetAliases()) {
@@ -100,9 +96,7 @@ void TYsonSerializableLite::Load(
         if (!Unrecognized) {
             Unrecognized = GetEphemeralNodeFactory()->CreateMap();
         }
-        for (const auto& pair : mapNode->GetChildren()) {
-            const auto& key = pair.first;
-            auto child = pair.second;
+        for (const auto& [key, child] : mapNode->GetChildren()) {
             if (registeredKeys.find(key) == registeredKeys.end()) {
                 Unrecognized->RemoveChild(key);
                 YT_VERIFY(Unrecognized->AddChild(key, ConvertToNode(child)));
@@ -135,19 +129,17 @@ void TYsonSerializableLite::Save(
     }
 
     consumer->OnBeginMap();
-    for (const auto& pair : parameters) {
-        const auto& key = pair.first;
-        const auto& parameter = pair.second;
+    for (const auto& [name, parameter] : parameters) {
         if (!parameter->CanOmitValue()) {
-            consumer->OnKeyedItem(key);
+            consumer->OnKeyedItem(name);
             parameter->Save(consumer);
         }
     }
 
     if (Unrecognized) {
-        for (const auto& pair : Unrecognized->GetChildren()) {
-            consumer->OnKeyedItem(pair.first);
-            Serialize(pair.second, consumer);
+        for (const auto& [key, child] : Unrecognized->GetChildren()) {
+            consumer->OnKeyedItem(key);
+            Serialize(child, consumer);
         }
     }
 
@@ -156,8 +148,8 @@ void TYsonSerializableLite::Save(
 
 void TYsonSerializableLite::Postprocess(const TYPath& path) const
 {
-    for (const auto& pair : Parameters) {
-        pair.second->Postprocess(path + "/" + pair.first);
+    for (const auto& [name, parameter] : Parameters) {
+        parameter->Postprocess(path + "/" + name);
     }
 
     try {
@@ -173,8 +165,8 @@ void TYsonSerializableLite::Postprocess(const TYPath& path) const
 
 void TYsonSerializableLite::SetDefaults()
 {
-    for (const auto& pair : Parameters) {
-        pair.second->SetDefaults();
+    for (const auto& [name, parameter] : Parameters) {
+        parameter->SetDefaults();
     }
     for (const auto& initializer : Preprocessors) {
         initializer();

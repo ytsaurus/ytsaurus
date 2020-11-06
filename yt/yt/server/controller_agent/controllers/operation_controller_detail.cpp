@@ -1634,8 +1634,8 @@ void TOperationControllerBase::ReinstallLivePreview()
         for (const auto& table : OutputTables_) {
             std::vector<TChunkTreeId> childIds;
             childIds.reserve(table->OutputChunkTreeIds.size());
-            for (const auto& pair : table->OutputChunkTreeIds) {
-                childIds.push_back(pair.second);
+            for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
+                childIds.push_back(chunkTreeId);
             }
             Host->AttachChunkTreesToLivePreview(
                 AsyncTransaction->GetId(),
@@ -2062,11 +2062,10 @@ void TOperationControllerBase::TeleportOutputChunks()
         Logger);
 
     for (auto& table : OutputTables_) {
-        for (const auto& pair : table->OutputChunkTreeIds) {
-            const auto& id = pair.second;
-            if (TypeFromId(id) == EObjectType::ChunkList)
-                continue;
-            teleporter->RegisterChunk(id, table->ExternalCellTag);
+        for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
+            if (IsPhysicalChunkType(TypeFromId(chunkTreeId))) {
+                teleporter->RegisterChunk(chunkTreeId, table->ExternalCellTag);
+            }
         }
     }
 
@@ -2206,8 +2205,8 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
             }
 
             if (!table->Dynamic) {
-                for (auto& pair : table->OutputChunkTreeIds) {
-                    addChunkTree(pair.second);
+                for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
+                    addChunkTree(chunkTreeId);
                 }
             } else {
                 std::vector<std::vector<TChunkTreeId>> tabletChunks(table->PivotKeys.size());
@@ -2250,8 +2249,8 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 table->OutputChunkTreeIds.size(),
                 path);
             std::vector<std::pair<TOutputOrder::TEntry, TChunkTreeId>> chunkTreeIds;
-            for (auto& pair : table->OutputChunkTreeIds) {
-                chunkTreeIds.emplace_back(std::move(pair.first.AsOutputOrderEntry()), pair.second);
+            for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
+                chunkTreeIds.emplace_back(std::move(key.AsOutputOrderEntry()), chunkTreeId);
             }
 
             auto outputChunkTreeIds = outputOrder->ArrangeOutputChunkTrees(std::move(chunkTreeIds));
@@ -2270,8 +2269,8 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     return lhsKey < rhsKey;
                 }
             );
-            for (const auto& pair : table->OutputChunkTreeIds) {
-                addChunkTree(pair.second);
+            for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
+                addChunkTree(chunkTreeId);
             }
         }
 
@@ -5935,8 +5934,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
         Logger);
 
     // Collect columnar statistics for table files with column selectors.
-    for (auto& pair : UserJobFiles_) {
-        auto& files = pair.second;
+    for (auto& [_, files] : UserJobFiles_) {
         for (auto& file : files) {
             if (file.Type == EObjectType::Table) {
                 for (const auto& chunkSpec : file.ChunkSpecs) {
@@ -5959,8 +5957,7 @@ void TOperationControllerBase::ValidateUserFileSizes()
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
     }
 
-    for (auto& pair : UserJobFiles_) {
-        auto& files = pair.second;
+    for (auto& [_, files] : UserJobFiles_) {
         for (const auto& file : files) {
             YT_LOG_DEBUG("Validating user file (FileName: %v, Path: %v, Type: %v, HasColumns: %v)",
                 file.FileName,
@@ -6132,9 +6129,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
     auto getLinkAttributesRspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGetKey>("get_link_attributes");
 
     int index = 0;
-    for (auto& pair : UserJobFiles_) {
-        const auto& userJobSpec = pair.first;
-        auto& files = pair.second;
+    for (auto& [userJobSpec, files] : UserJobFiles_) {
         THashSet<TString> userFileNames;
         try {
             for (auto& file : files) {
@@ -7156,9 +7151,7 @@ TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
     }
 
     TOperationJobMetrics result;
-    for (auto& pair : JobMetricsDeltaPerTree_) {
-        const auto& treeId = pair.first;
-        auto& delta = pair.second;
+    for (auto& [treeId, delta] : JobMetricsDeltaPerTree_) {
         if (!delta.IsEmpty()) {
             result.push_back({treeId, delta});
             delta = TJobMetrics();

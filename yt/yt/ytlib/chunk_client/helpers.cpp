@@ -728,10 +728,7 @@ void LocateChunks(
         cellChunkList.push_back(chunkSpec);
     }
 
-    for (auto& pair : chunkMap) {
-        auto cellTag = pair.first;
-        auto& chunkSpecs = pair.second;
-
+    for (auto& [cellTag, chunkSpecs] : chunkMap) {
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
         TChunkServiceProxy proxy(channel);
 
@@ -851,8 +848,8 @@ void DumpCodecStatistics(
     const NYPath::TYPath& path,
     TStatistics* statistics)
 {
-    for (const auto& pair : codecStatistics.CodecToDuration()) {
-        statistics->AddSample(path + '/' + FormatEnum(pair.first), pair.second);
+    for (auto [codecId, duration] : codecStatistics.CodecToDuration()) {
+        statistics->AddSample(path + '/' + FormatEnum(codecId), duration);
     }
 }
 

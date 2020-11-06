@@ -274,8 +274,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
 
     std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncRspsOrErrors;
     std::vector<const TSubrequest*> subrequests;
-    for (const auto& pair : cellIdToSubrequest) {
-        const auto& subrequest = pair.second;
+    for (const auto& [cellId, subrequest] : cellIdToSubrequest) {
         subrequests.push_back(&subrequest);
         asyncRspsOrErrors.push_back(subrequest.Request->Invoke());
     }

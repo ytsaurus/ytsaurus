@@ -119,9 +119,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
             }
         }
 
-        for (const auto& pair : replicaIdToCount) {
-            auto replicaId = pair.first;
-            auto count = pair.second;
+        for (auto [replicaId, count] : replicaIdToCount) {
             if (count == tabletIds.size()) {
                 replicaIds.push_back(replicaId);
             }
@@ -143,8 +141,7 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
 {
     THashMap<TCellId, std::vector<TTabletId>> cellIdToTabletIds;
     THashSet<TTabletId> tabletIds;
-    for (const auto& pair : keys) {
-        auto key = pair.first;
+    for (const auto& [key, _] : keys) {
         auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
         auto tabletId = tabletInfo->TabletId;
         if (tabletIds.insert(tabletId).second) {
@@ -172,8 +169,8 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
 {
     size_t cellCount = cellIdToTabletIds.size();
     size_t tabletCount = 0;
-    for (const auto& pair : cellIdToTabletIds) {
-        tabletCount += pair.second.size();
+    for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
+        tabletCount += tabletIds.size();
     }
 
     YT_LOG_DEBUG("Looking for in-sync replicas (Path: %v, CellCount: %v, TabletCount: %v)",
@@ -184,8 +181,8 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
     const auto& channelFactory = Connection_->GetChannelFactory();
     const auto& cellDirectory = Connection_->GetCellDirectory();
     std::vector<TFuture<TQueryServiceProxy::TRspGetTabletInfoPtr>> asyncResults;
-    for (const auto& pair : cellIdToTabletIds) {
-        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(pair.first);
+    for (const auto& [cellId, tabletIds] : cellIdToTabletIds) {
+        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         auto channel = CreateTabletReadChannel(
             channelFactory,
             cellDescriptor,
@@ -196,7 +193,7 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
         proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultGetInSyncReplicasTimeout));
 
         auto req = proxy.GetTabletInfo();
-        ToProto(req->mutable_tablet_ids(), pair.second);
+        ToProto(req->mutable_tablet_ids(), tabletIds);
         asyncResults.push_back(req->Invoke());
     }
 
@@ -292,9 +289,9 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
     }
 
     SmallVector<TString, TypicalReplicaCount> inSyncClusterNames;
-    for (const auto& pair : clusterNameToCount) {
-        if (pair.second == paths.size()) {
-            inSyncClusterNames.push_back(pair.first);
+    for (const auto& [name, count] : clusterNameToCount) {
+        if (count == paths.size()) {
+            inSyncClusterNames.push_back(name);
         }
     }
 

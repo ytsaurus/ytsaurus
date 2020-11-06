@@ -133,8 +133,8 @@ std::vector<const TValue*> TTopCollector::GetRows() const
 {
     std::vector<const TValue*> result;
     result.reserve(Rows_.size());
-    for (const auto& pair : Rows_) {
-        result.push_back(pair.first);
+    for (const auto& [value, _] : Rows_) {
+        result.push_back(value);
     }
     std::sort(result.begin(), result.end(), Comparer_);
     return result;

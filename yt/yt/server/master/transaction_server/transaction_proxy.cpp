@@ -380,8 +380,8 @@ private:
     {
         const auto* transaction = GetThisImpl();
         TAccountResourcesMap result;
-        for (const auto& pair : transaction->AccountResourceUsage()) {
-            YT_VERIFY(result.emplace(pair.first->GetName(), pair.second).second);
+        for (const auto& [account, resources] : transaction->AccountResourceUsage()) {
+            YT_VERIFY(result.emplace(account->GetName(), resources).second);
         }
         return MakeFuture(std::make_pair(cellTag, result));
     }
@@ -423,8 +423,8 @@ private:
         TAccountResourcesMap result;
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto serializableAccountResources = ConvertTo<THashMap<TString, TSerializableClusterResourcesPtr>>(value);
-        for (const auto& pair : serializableAccountResources) {
-            result.emplace(pair.first, pair.second->ToClusterResources(chunkManager));
+        for (const auto& [id, resources] : serializableAccountResources) {
+            result.emplace(id, resources->ToClusterResources(chunkManager));
         }
         return result;
     }
@@ -518,8 +518,8 @@ private:
             }),
             BIND([] (const TSessionPtr& session, const TYsonString& yson) {
                 auto map = ConvertTo<THashMap<TString, INodePtr>>(yson);
-                for (const auto& pair : map) {
-                    session->Map.emplace(pair.first, ConvertToYsonString(pair.second));
+                for (const auto& [key, value] : map) {
+                    session->Map.emplace(key, ConvertToYsonString(value));
                 }
             }),
             BIND([] (const TSessionPtr& session) {

@@ -648,9 +648,7 @@ void TServerBase::Configure(TServerConfigPtr config)
     Config_ = config;
 
     // Apply configuration to all existing services.
-    for (const auto& pair : config->Services) {
-        const auto& serviceName = pair.first;
-        const auto& serviceConfig = pair.second;
+    for (const auto& [serviceName, serviceConfig] : config->Services) {
         auto services = DoFindServices(serviceName);
         for (auto service : services) {
             service->Configure(serviceConfig);
@@ -698,8 +696,8 @@ TFuture<void> TServerBase::DoStop(bool graceful)
         std::vector<IServicePtr> services;
         {
             TReaderGuard guard(ServicesLock_);
-            for (const auto& pair : ServiceMap_) {
-                services.push_back(pair.second);
+            for (const auto& [serviceId, service] : ServiceMap_) {
+                services.push_back(service);
             }
         }
 
@@ -722,9 +720,9 @@ void TServerBase::DoUnregisterService(const IServicePtr& service)
 std::vector<IServicePtr> TServerBase::DoFindServices(const TString& serviceName)
 {
     std::vector<IServicePtr> result;
-    for (const auto& pair : ServiceMap_) {
-        if (pair.first.ServiceName == serviceName) {
-            result.push_back(pair.second);
+    for (const auto& [serviceId, service] : ServiceMap_) {
+        if (serviceId.ServiceName == serviceName) {
+            result.push_back(service);
         }
     }
 

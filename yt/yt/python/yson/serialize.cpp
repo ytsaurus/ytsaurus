@@ -126,8 +126,8 @@ void SerializeMapFragment(
         }
 
         std::sort(itemsSortedByKey.begin(), itemsSortedByKey.end());
-        for (const auto& pair : itemsSortedByKey) {
-            onItem(pair.second);
+        for (const auto& [_, object] : itemsSortedByKey) {
+            onItem(object);
         }
     } else {
         while (auto* item = PyIter_Next(*iterator)) {

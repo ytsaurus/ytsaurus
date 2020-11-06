@@ -53,8 +53,7 @@ public:
         LazyInitialization();
 
         auto* bundle = cell->GetCellBundle();
-        for (const auto& pair : Queues_[bundle]) {
-            int index = pair.second;
+        for (const auto& [_, index] : Queues_[bundle]) {
             auto& node = Nodes_[index];
             if (forbiddenAddresses.count(node.Node->GetDefaultAddress()) == 0) {
                 ChargeNode(index, cell);
@@ -151,8 +150,7 @@ private:
         }
 
         auto hostilityChecker = THostilityChecker(node);
-        for (const auto& pair : tabletManager->CellBundles()) {
-            auto* bundle = pair.second;
+        for (auto [bundleId, bundle] : tabletManager->CellBundles()) {
             if (!hostilityChecker.IsPossibleHost(bundle)) {
                 continue;
             }
@@ -175,9 +173,7 @@ private:
         auto& node = Nodes_[index];
         SmallVector<TCellBundle*, TypicalTabletSlotCount> remove;
 
-        for (auto& pair : node.Iterators) {
-            auto* bundle = pair.first;
-            auto& it = pair.second;
+        for (auto& [bundle, it] : node.Iterators) {
             YT_VERIFY(it->second == index);
 
             int count = it->first.first;
@@ -220,8 +216,7 @@ void TCellTrackerImplOld::ScanCells()
     TCandidatePool pool(Bootstrap_);
 
     auto tabletManger = Bootstrap_->GetTamedCellManager();
-    for (const auto& pair : tabletManger->Cells()) {
-        auto* cell = pair.second;
+    for (auto [cellId, cell] : tabletManger->Cells()) {
         if (!IsObjectAlive(cell))
             continue;
 

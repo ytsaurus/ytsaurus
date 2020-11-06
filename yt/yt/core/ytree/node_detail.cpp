@@ -329,11 +329,9 @@ void TMapNodeMixin::ListSelf(
     i64 counter = 0;
 
     writer.OnBeginList();
-    for (const auto& pair : children) {
-        const auto& key = pair.first;
-        const auto& node = pair.second;
+    for (const auto& [key, child] : children) {
         writer.OnListItem();
-        node->WriteAttributes(&writer, attributeKeys, false);
+        child->WriteAttributes(&writer, attributeKeys, false);
         writer.OnStringScalar(key);
         if (limit && ++counter >= *limit) {
             break;

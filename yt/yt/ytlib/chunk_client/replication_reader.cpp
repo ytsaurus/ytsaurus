@@ -1320,8 +1320,8 @@ private:
 
         PeerBlocksMap_.clear();
         auto blockIndexes = GetUnfetchedBlockIndexes();
-        for (const auto& pair : Peers_) {
-            PeerBlocksMap_[pair.first] = THashSet<int>(blockIndexes.begin(), blockIndexes.end());
+        for (const auto& [address, peer] : Peers_) {
+            PeerBlocksMap_[address] = THashSet<int>(blockIndexes.begin(), blockIndexes.end());
         }
 
         RequestBlocks();

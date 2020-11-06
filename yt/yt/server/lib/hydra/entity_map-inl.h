@@ -250,8 +250,7 @@ void TEntityMap<TValue, TTraits>::Clear()
 template <class TValue, class TTraits>
 void TEntityMap<TValue, TTraits>::DoClear()
 {
-    for (const auto& pair : this->Map_) {
-        auto* entity = pair.second;
+    for (const auto& [key, entity] : this->Map_) {
         FreeDynamicData(entity->GetDynamicData());
         delete entity;
     }

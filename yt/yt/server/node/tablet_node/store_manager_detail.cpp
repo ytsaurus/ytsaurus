@@ -87,8 +87,7 @@ void TStoreManagerBase::StopEpoch()
 {
     Tablet_->StopEpoch();
 
-    for (const auto& pair : Tablet_->StoreIdMap()) {
-        const auto& store = pair.second;
+    for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
         if (store->IsDynamic()) {
             store->AsDynamic()->SetFlushState(EStoreFlushState::None);
         }
@@ -634,8 +633,7 @@ void TStoreManagerBase::UpdateInMemoryMode()
     Tablet_->PreloadStoreIds().clear();
 
     auto mode = GetInMemoryMode();
-    for (const auto& pair : Tablet_->StoreIdMap()) {
-        const auto& store = pair.second;
+    for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
         if (store->IsChunk()) {
             auto chunkStore = store->AsChunk();
             chunkStore->SetInMemoryMode(mode);

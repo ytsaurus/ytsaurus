@@ -177,8 +177,8 @@ TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)
 void TAccount::RecomputeClusterStatistics()
 {
     ClusterStatistics_ = TAccountStatistics();
-    for (const auto& pair : MulticellStatistics_) {
-        ClusterStatistics_ += pair.second;
+    for (const auto& [cellTag, statistics] : MulticellStatistics_) {
+        ClusterStatistics_ += statistics;
     }
 }
 

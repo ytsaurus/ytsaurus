@@ -1256,8 +1256,7 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryStarted();
 
-        for (const auto& pair : NodeMap_) {
-            auto* node = pair.second;
+        for (auto [nodeId, node] : NodeMap_) {
             node->Reset();
         }
 
@@ -1722,16 +1721,16 @@ private:
     void InsertToAddressMaps(TNode* node)
     {
         YT_VERIFY(AddressToNodeMap_.emplace(node->GetDefaultAddress(), node).second);
-        for (const auto& pair : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
-            HostNameToNodeMap_.emplace(TString(GetServiceHostName(pair.second)), node);
+        for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
+            HostNameToNodeMap_.emplace(TString(GetServiceHostName(address)), node);
         }
     }
 
     void RemoveFromAddressMaps(TNode* node)
     {
         YT_VERIFY(AddressToNodeMap_.erase(node->GetDefaultAddress()) == 1);
-        for (const auto& pair : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
-            auto hostNameRange = HostNameToNodeMap_.equal_range(TString(GetServiceHostName(pair.second)));
+        for (const auto& [_, address] : node->GetAddressesOrThrow(EAddressType::InternalRpc)) {
+            auto hostNameRange = HostNameToNodeMap_.equal_range(TString(GetServiceHostName(address)));
             for (auto it = hostNameRange.first; it != hostNameRange.second; ++it) {
                 if (it->second == node) {
                     HostNameToNodeMap_.erase(it);
@@ -1834,11 +1833,11 @@ private:
 
         NodeGroups_.clear();
 
-        for (const auto& pair : GetDynamicConfig()->NodeGroups) {
+        for (const auto& [id, config] : GetDynamicConfig()->NodeGroups) {
             NodeGroups_.emplace_back();
             auto& group = NodeGroups_.back();
-            group.Id = pair.first;
-            group.Config = pair.second;
+            group.Id = id;
+            group.Config = config;
         }
 
         {

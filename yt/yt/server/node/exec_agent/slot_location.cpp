@@ -88,7 +88,7 @@ TFuture<void> TSlotLocation::Initialize()
                 for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                     auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
 
-                    try { 
+                    try {
                         if (!NFS::Exists(sandboxPath)) {
                             continue;
                         }
@@ -276,7 +276,7 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
     auto sandboxPath = GetSandboxPath(slotIndex, kind);
     auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
 
-    bool useLightInvoker = (canUseLightInvoker && IsInsideTmpfs(destinationPath)); 
+    bool useLightInvoker = (canUseLightInvoker && IsInsideTmpfs(destinationPath));
     const auto& invoker = useLightInvoker
         ? LightInvoker_
         : HeavyInvoker_;
@@ -315,7 +315,7 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
                     "Failed to build file %Qv in sandbox %v: tmpfs is too small",
                     destinationName,
                     sandboxPath)
-                    << ex;                
+                    << ex;
             } else if (slotWithQuota && noSpace) {
                 THROW_ERROR_EXCEPTION(
                     "Failed to build file %Qv in sandbox %v: disk space limit is too small",
@@ -509,7 +509,7 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
             slotIndex);
     })
     // NB(gritukan): Job proxy config is written to the disk, but it should be fast
-    // under reasonable circumstances, so we use light invoker here. 
+    // under reasonable circumstances, so we use light invoker here.
     .AsyncVia(LightInvoker_)
     .Run();
 }
@@ -720,9 +720,7 @@ void TSlotLocation::UpdateDiskResources()
             occupiedSlotToDiskLimit = OccupiedSlotToDiskLimit_;
         }
 
-        for (const auto& pair : occupiedSlotToDiskLimit) {
-            auto slotIndex = pair.first;
-            const auto& slotDiskLimit = pair.second;
+        for (const auto& [slotIndex, slotDiskLimit] : occupiedSlotToDiskLimit) {
             if (!slotDiskLimit) {
                 for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
                     auto path = GetSandboxPath(slotIndex, sandboxKind);

@@ -150,11 +150,11 @@ void DeserializeMap(T& value, INodePtr node)
 {
     auto mapNode = node->AsMap();
     value.clear();
-    for (const auto& pair : mapNode->GetChildren()) {
+    for (const auto& [serializedKey, serializedItem] : mapNode->GetChildren()) {
         typename T::key_type key;
-        TMapKeyHelper<typename T::key_type>::Deserialize(key, pair.first);
+        TMapKeyHelper<typename T::key_type>::Deserialize(key, serializedKey);
         typename T::mapped_type item;
-        Deserialize(item, pair.second);
+        Deserialize(item, serializedItem);
         value.emplace(std::move(key), std::move(item));
     }
 }
@@ -558,13 +558,13 @@ void Deserialize(TEnumIndexedVector<E, T, Min, Max>& vector, INodePtr node)
 {
     vector = {};
     auto mapNode = node->AsMap();
-    for (const auto& pair : mapNode->GetChildren()) {
-        auto key = TEnumTraits<E>::FromString(DecodeEnumValue(pair.first));
+    for (const auto& [stringKey, child] : mapNode->GetChildren()) {
+        auto key = TEnumTraits<E>::FromString(DecodeEnumValue(stringKey));
         if (!vector.IsDomainValue(key)) {
             THROW_ERROR_EXCEPTION("Enum value %Qlv is out of supported range",
                 key);
         }
-        Deserialize(vector[key], pair.second);
+        Deserialize(vector[key], child);
     }
 }
 

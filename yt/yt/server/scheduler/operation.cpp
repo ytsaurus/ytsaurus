@@ -250,8 +250,8 @@ void TOperation::SetFinished()
 {
     FinishedPromise_.Set();
     Suspended_ = false;
-    for (auto& pair : Alerts_) {
-        NConcurrency::TDelayedExecutor::CancelAndClear(pair.second.ResetCookie);
+    for (auto& [_, alert] : Alerts_) {
+        NConcurrency::TDelayedExecutor::CancelAndClear(alert.ResetCookie);
     }
     Alerts_.clear();
 }
