@@ -19,72 +19,51 @@ class TSchedulerThreadBase
 public:
     ~TSchedulerThreadBase();
 
-    // TODO: Start in constructor?
     void Start();
-
     virtual void Shutdown() override;
 
-    virtual void OnStart()
-    { }
+    TThreadId GetId() const;
 
-    virtual void BeforeShutdown()
-    { }
-
-    virtual void AfterShutdown()
-    { }
-
-    virtual void OnThreadStart()
-    { }
-
-    virtual void OnThreadShutdown()
-    { }
-
-    TThreadId GetId() const
-    {
-        return ThreadId_;
-    }
-
-    bool IsShutdown() const
-    {
-        return Epoch_.load(std::memory_order_relaxed) & StoppingEpochMask;
-    }
+    bool IsStarted() const;
+    bool IsShutdown() const;
 
 protected:
-    TSchedulerThreadBase(
-        std::shared_ptr<TEventCount> callbackEventCount,
-        const TString& threadName,
-        bool enableLogging)
-        : CallbackEventCount_(std::move(callbackEventCount))
-        , ThreadName_(threadName)
-        , EnableLogging_(enableLogging)
-        , Thread_(ThreadTrampoline, (void*) this)
-    { }
-
-    virtual bool OnLoop(TEventCount::TCookie* cookie) = 0;
-
-    static void* ThreadTrampoline(void* opaque)
-    {
-        static_cast<TSchedulerThreadBase*>(opaque)->ThreadMain();
-        return nullptr;
-    }
-
-    void ThreadMain();
-
-    std::atomic<ui64> Epoch_ = 0;
-    static constexpr ui64 StartingEpochMask = 0x1;
-    static constexpr ui64 StoppingEpochMask = 0x2;
-    TEvent ThreadStartedEvent_;
-    TEvent ThreadShutdownEvent_;
-
     const std::shared_ptr<TEventCount> CallbackEventCount_;
     const TString ThreadName_;
     const bool EnableLogging_;
 
+    TSchedulerThreadBase(
+        std::shared_ptr<TEventCount> callbackEventCount,
+        const TString& threadName,
+        bool enableLogging);
+
+    virtual void OnStart();
+    virtual void BeforeShutdown();
+    virtual void AfterShutdown();
+
+    virtual void OnThreadStart();
+    virtual void OnThreadShutdown();
+
+    virtual bool OnLoop(TEventCount::TCookie* cookie) = 0;
+
+private:
+    std::atomic<ui64> Epoch_ = 0;
+    static constexpr ui64 StartingEpochMask = 0x1;
+    static constexpr ui64 StoppingEpochMask = 0x2;
+
+    TEvent ThreadStartedEvent_;
+    TEvent ThreadShutdownEvent_;
+
     TThreadId ThreadId_ = InvalidThreadId;
     TThread Thread_;
+
+    static void* ThreadTrampoline(void* opaque);
+    void ThreadMain();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerThreadBase)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TFiberReusingAdapter
     : public TSchedulerThreadBase
@@ -93,42 +72,25 @@ public:
     TFiberReusingAdapter(
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
-        bool enableLogging = true)
-        : TSchedulerThreadBase(
-            callbackEventCount,
-            threadName,
-            enableLogging)
-    { }
-
+        bool enableLogging = true);
     TFiberReusingAdapter(
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
         const NProfiling::TTagIdList&,
         bool enableLogging = true,
-        bool enableProfiling = true)
-        : TFiberReusingAdapter(
-            std::move(callbackEventCount),
-            std::move(threadName),
-            enableLogging)
-    {
-        Y_UNUSED(enableProfiling);
-    }
+        bool enableProfiling = true);
 
     void CancelWait();
-
     void PrepareWait();
-
     void Wait();
 
-    virtual bool OnLoop(TEventCount::TCookie* cookie) override;
-
     virtual TClosure BeginExecute() = 0;
-
     virtual void EndExecute() = 0;
 
 private:
     std::optional<TEventCount::TCookie> Cookie_;
 
+    virtual bool OnLoop(TEventCount::TCookie* cookie) override;
 };
 
 /////////////////////////////////////////////////////////////////////////////

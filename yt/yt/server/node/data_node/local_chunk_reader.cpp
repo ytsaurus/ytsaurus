@@ -190,9 +190,8 @@ private:
                 int localIndex = localIndexes[responseIndex];
                 int blockIndex =  session->BlockIndexes[localIndex];
                 if (!block) {
-                    ThrowError(TError("Block %v:%v cannot be read",
-                        Chunk_->GetId(),
-                        blockIndex));
+                    ThrowError(TError("Block %v cannot be read",
+                        TBlockId(Chunk_->GetId(), blockIndex)));
                 }
                 session->Blocks[localIndex] = block;
             }
