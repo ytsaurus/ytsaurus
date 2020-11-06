@@ -344,3 +344,62 @@ func TestTimeTables(t *testing.T) {
 
 	require.Equal(t, rows, outRows)
 }
+
+func TestBigRow(t *testing.T) {
+	t.Parallel()
+
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	bigRow := map[string]interface{}{
+		"row": make([]byte, 20*(1<<20)),
+	}
+	config := map[string]interface{}{
+		"max_row_weight": 32 * (1 << 20),
+	}
+	opts := &yt.WriteTableOptions{TableWriter: config}
+
+	t.Run("Error", func(t *testing.T) {
+		tmpTableName := tmpPath()
+
+		_, err := yt.CreateTable(env.Ctx, env.YT, tmpTableName)
+		require.NoError(t, err)
+
+		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName, yt.WithExistingTable())
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		require.NoError(t, w.Write(bigRow))
+		require.Error(t, w.Commit())
+	})
+
+	t.Run("RawWriterConfig", func(t *testing.T) {
+		tmpTableName := tmpPath()
+
+		_, err := yt.CreateTable(env.Ctx, env.YT, tmpTableName)
+		require.NoError(t, err)
+
+		w, err := env.YT.WriteTable(env.Ctx, tmpTableName, opts)
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		require.NoError(t, w.Write(bigRow))
+		require.NoError(t, w.Commit())
+	})
+
+	t.Run("HighLevelConfig", func(t *testing.T) {
+		tmpTableName := tmpPath()
+
+		_, err := yt.CreateTable(env.Ctx, env.YT, tmpTableName)
+		require.NoError(t, err)
+
+		w, err := yt.WriteTable(env.Ctx, env.YT, tmpTableName,
+			yt.WithExistingTable(),
+			yt.WithTableWriterConfig(config))
+		require.NoError(t, err)
+		defer func() { _ = w.Rollback() }()
+
+		require.NoError(t, w.Write(bigRow))
+		require.NoError(t, w.Commit())
+	})
+}
