@@ -572,6 +572,7 @@ private:
     IChangelogStorePtr ChangelogStore_;
     std::optional<TVersion> ReachableVersion_;
     bool EnablePriorityBoost_ = false;
+    TPromise<void> ParticipationPromise_ = NewPromise<void>();
 
     TDecoratedAutomatonPtr DecoratedAutomaton_;
 
@@ -1043,7 +1044,7 @@ private:
                     TError("Leader switch did not complete within timeout"));
             }),
             Config_->LeaderSwitchTimeout);
-        
+
         TMutationRequest mutationRequest;
         mutationRequest.Reign = GetCurrentReign();
         mutationRequest.Type = HeartbeatMutationType;
@@ -1135,10 +1136,16 @@ private:
 
         ScheduleRestart(ControlEpochContext_, reason);
 
+        if (armPriorityBoost) {
+            YT_LOG_DEBUG("Waiting for participation");
+            WaitFor(ParticipationPromise_.ToFuture())
+                .ThrowOnError();
+        }
+
         context->Reply();
     }
 
-    
+
     void SetPriorityBoost(bool value)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1280,6 +1287,9 @@ private:
                     Config_->MaxPersistentStoreInitializationBackoffTime);
             }
         }
+
+        ParticipationPromise_.Set();
+        ParticipationPromise_ = NewPromise<void>();
 
         ElectionManager_->Participate();
     }
@@ -2047,7 +2057,7 @@ private:
         CheckForPendingLeaderSync();
 
         auto currentSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
-        
+
         if (Config_->EnableStateHashChecker) {
             ReportMutationStateHashesToLeader(lastSequenceNumber, currentSequenceNumber);
         }
