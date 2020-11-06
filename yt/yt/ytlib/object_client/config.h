@@ -96,4 +96,32 @@ DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReqExecuteBatchWithRetriesConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration StartBackoff;
+    TDuration MaxBackoff;
+    double BackoffMultiplier;
+    int RetryCount;
+
+    TReqExecuteBatchWithRetriesConfig()
+    {
+        RegisterParameter("base_backoff", StartBackoff)
+            .Default(TDuration::Seconds(1));
+        RegisterParameter("max_backoff", MaxBackoff)
+            .Default(TDuration::Seconds(20));
+        RegisterParameter("backoff_multiplier", BackoffMultiplier)
+            .GreaterThanOrEqual(1)
+            .Default(2);
+        RegisterParameter("retry_count", RetryCount)
+            .GreaterThanOrEqual(0)
+            .Default(5);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TReqExecuteBatchWithRetriesConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NObjectClient

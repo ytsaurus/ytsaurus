@@ -68,8 +68,10 @@
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/action.h>
 
+#include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/transaction.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
@@ -5228,8 +5230,7 @@ void TOperationControllerBase::LockInputTables()
     auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
     TObjectServiceProxy proxy(channel);
 
-    YT_VERIFY(Config->LockInputTablesRetries);
-    auto batchReq = proxy.ExecuteBatchWithRetries(Config->LockInputTablesRetries);
+    auto batchReq = proxy.ExecuteBatchWithRetries(InputClient->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
     for (const auto& table : InputTables_) {
         auto req = TTableYPathProxy::Lock(table->GetPath());

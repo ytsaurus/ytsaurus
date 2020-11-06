@@ -36,11 +36,11 @@ TOperationAlertsConfig::TOperationAlertsConfig()
     RegisterParameter("tmpfs_alert_memory_usage_mute_ratio", TmpfsAlertMemoryUsageMuteRatio)
         .InRange(0.0, 1.0)
         .Default(0.8);
-    
+
     RegisterParameter("memory_usage_alert_max_unused_size", MemoryUsageAlertMaxUnusedSize)
         .Default(8_GB)
         .GreaterThan(0);
-    
+
     RegisterParameter("memory_usage_alert_max_unused_ratio", MemoryUsageAlertMaxUnusedRatio)
         .InRange(0.0, 1.0)
         .Default(0.2);
@@ -714,9 +714,6 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("custom_job_metrics", CustomJobMetrics)
         .Default();
 
-    RegisterParameter("lock_input_tables_retries", LockInputTablesRetries)
-        .Default(nullptr);
-
     RegisterParameter("dynamic_table_lock_checking_attempt_count_limit", DynamicTableLockCheckingAttemptCountLimit)
         .Default(10);
     RegisterParameter("dynamic_table_lock_checking_interval_scale", DynamicTableLockCheckingIntervalScale)
@@ -804,12 +801,6 @@ TControllerAgentConfig::TControllerAgentConfig()
                          customJobMetricDescription.ProfilingName);
                 }
             }
-        }
-
-        if (!LockInputTablesRetries) {
-            LockInputTablesRetries = New<NObjectClient::TReqExecuteBatchWithRetriesConfig>();
-            LockInputTablesRetries->RetriableErrorCodes.push_back(
-                static_cast<TErrorCode::TUnderlying>(NTabletClient::EErrorCode::InvalidTabletState));
         }
     });
 }

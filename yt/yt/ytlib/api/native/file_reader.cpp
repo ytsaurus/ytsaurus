@@ -189,6 +189,8 @@ private:
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
             TObjectServiceProxy proxy(channel);
 
+            auto batchReq = proxy.ExecuteBatchWithRetries(Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
+
             auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
             AddCellTagToSyncWith(req, userObject.ObjectId);
 
@@ -212,9 +214,13 @@ private:
             SetSuppressExpirationTimeoutRenewal(req, Options_.SuppressExpirationTimeoutRenewal);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
-            auto rspOrError = WaitFor(proxy.Execute(req));
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for file %v",
+            batchReq->AddRequest(req);
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching chunks for file %v",
                 Path_);
+
+            const auto& batchRsp = batchRspOrError.Value();
+            const auto& rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>(0);
             const auto& rsp = rspOrError.Value();
 
             ProcessFetchResponse(

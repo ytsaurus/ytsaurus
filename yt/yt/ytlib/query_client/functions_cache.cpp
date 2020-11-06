@@ -4,6 +4,7 @@
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/client/api/file_reader.h>
 
@@ -160,10 +161,6 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
     YT_LOG_DEBUG("Looking for UDFs in Cypress");
 
-    auto attributeFilter = std::vector<TString>{
-        FunctionDescriptorAttribute,
-        AggregateDescriptorAttribute};
-
     TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
     auto batchReq = proxy.ExecuteBatch();
 
@@ -171,8 +168,10 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
         auto path = GetUdfDescriptorPath(item.first, item.second);
 
         auto getReq = TYPathProxy::Get(path);
-
-        ToProto(getReq->mutable_attributes()->mutable_keys(), attributeFilter);
+        ToProto(getReq->mutable_attributes()->mutable_keys(), std::vector<TString>{
+            FunctionDescriptorAttribute,
+            AggregateDescriptorAttribute
+        });
         batchReq->AddRequest(getReq, "get_attributes");
 
         auto basicAttributesReq = TObjectYPathProxy::GetBasicAttributes(path);
@@ -186,7 +185,6 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     auto basicAttributesRspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspGetBasicAttributes>("get_basic_attributes");
 
     THashMap<NObjectClient::TCellTag, std::vector<std::pair<NObjectClient::TObjectId, size_t>>> externalCellTagToInfo;
-
     for (int index = 0; index < functionNames.size(); ++index) {
         const auto& function = functionNames[index];
         auto path = GetUdfDescriptorPath(function.first, function.second);
@@ -222,8 +220,10 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     }
 
     for (const auto& [externalCellTag, infos] : externalCellTagToInfo) {
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag));
-        auto fetchBatchReq = proxy.ExecuteBatch();
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
+        TObjectServiceProxy proxy(channel);
+
+        auto fetchBatchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
         for (auto [objectId, index] : infos) {
             auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(objectId));

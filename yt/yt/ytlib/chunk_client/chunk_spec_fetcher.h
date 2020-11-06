@@ -61,7 +61,7 @@ private:
 
     struct TCellState
     {
-        NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr BatchReq;
+        NObjectClient::TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr BatchReq;
         int ReqCount = 0;
         std::vector<int> TableIndices;
         std::vector<int> RangeIndices;
@@ -74,7 +74,6 @@ private:
     TCellState& GetCellState(NObjectClient::TCellTag cellTag);
 
     void DoFetch();
-
     void DoFetchFromCell(NObjectClient::TCellTag cellTag);
 };
 

@@ -772,8 +772,6 @@ TLockNodeResult TClient::DoLockNode(
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
 
     auto batchReqConfig = New<TReqExecuteBatchWithRetriesConfig>();
-    batchReqConfig->RetriableErrorCodes.push_back(
-        static_cast<TErrorCode::TUnderlying>(NTabletClient::EErrorCode::InvalidTabletState));
     auto batchReq = proxy->ExecuteBatchWithRetries(std::move(batchReqConfig));
 
     SetPrerequisites(batchReq, options);

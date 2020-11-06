@@ -1,6 +1,8 @@
 #include "chunk_spec_fetcher.h"
 
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
@@ -86,6 +88,7 @@ void TChunkSpecFetcher::Add(
             AddCellTagToSyncWith(req, objectId);
             InitializeFetchRequest_(req.Get(), tableIndex);
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
+
             state.BatchReq->AddRequest(req, "fetch");
             ++state.ReqCount;
             state.RangeIndices.push_back(rangeIndex);
@@ -132,7 +135,8 @@ TChunkSpecFetcher::TCellState& TChunkSpecFetcher::GetCellState(TCellTag cellTag)
         it = CellTagToState_.insert({cellTag, TCellState()}).first;
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
         TObjectServiceProxy proxy(channel);
-        it->second.BatchReq = proxy.ExecuteBatch();
+        it->second.BatchReq = proxy.ExecuteBatchWithRetries(
+            Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
     }
     return it->second;
 }

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "public.h"
+#include "helpers.h"
 
 #include <yt/ytlib/object_client/proto/object_service.pb.h>
 
@@ -22,38 +23,6 @@ namespace NYT::NObjectClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int DefaultSubbatchSize = 100;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TReqExecuteBatchWithRetriesConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    // Since #TErrorCode is an opaque |int|, let's use |int| for serialization
-    std::vector<TErrorCode::TUnderlying> RetriableErrorCodes;
-    TDuration StartBackoff;
-    TDuration MaxBackoff;
-    double BackoffMultiplier;
-    int RetryCount;
-
-    TReqExecuteBatchWithRetriesConfig()
-    {
-        RegisterParameter("retriable_errors", RetriableErrorCodes)
-            .Default({});
-        RegisterParameter("base_backoff", StartBackoff)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("max_backoff", MaxBackoff)
-            .Default(TDuration::Seconds(20));
-        RegisterParameter("backoff_multiplier", BackoffMultiplier)
-            .GreaterThanOrEqual(1)
-            .Default(2);
-        RegisterParameter("retry_count", RetryCount)
-            .GreaterThanOrEqual(0)
-            .Default(5);
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TReqExecuteBatchWithRetriesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -263,12 +232,7 @@ public:
             NRpc::IChannelPtr channel,
             TReqExecuteBatchWithRetriesConfigPtr config,
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            TCallback<bool(int, const TError&)>,
-            int subbatchSize = DefaultSubbatchSize);
-        TReqExecuteBatchWithRetries(
-            NRpc::IChannelPtr channel,
-            TReqExecuteBatchWithRetriesConfigPtr config,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
+            TCallback<bool(int, const TError&)> needRetry,
             int subbatchSize = DefaultSubbatchSize);
 
         DECLARE_NEW_FRIEND();
@@ -278,7 +242,7 @@ public:
         void Initialize();
         void OnBatchResponse(const TErrorOr<TRspExecuteBatchPtr>& batchRspOrErr);
         void OnRetryDelayFinished();
-        bool IsRetryNeeded(const TError& err);
+        bool IsRetryNeeded(const TError& error);
         TDuration GetCurrentDelay();
 
 
@@ -439,10 +403,7 @@ public:
     //! Same as ExecuteBatch, but additionally retries any subrequest that results a retriable error.
     TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(
         TReqExecuteBatchWithRetriesConfigPtr config,
-        int subbatchSize = DefaultSubbatchSize);
-    TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(
-        TReqExecuteBatchWithRetriesConfigPtr config,
-        TCallback<bool(int, const TError&)> needRetry,
+        TCallback<bool(int, const TError&)> needRetry = BIND(IsRetriableObjectServiceError),
         int subbatchSize = DefaultSubbatchSize);
 
     template <class TBatchReqPtr>

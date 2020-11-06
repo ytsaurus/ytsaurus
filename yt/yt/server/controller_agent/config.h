@@ -84,7 +84,7 @@ public:
 
     // Alert can be set only if unused memory greater than this number of bytes.
     i64 MemoryUsageAlertMaxUnusedSize;
-    
+
     // Alert can be set only if unused memory ratio greater than this threshold.
     double MemoryUsageAlertMaxUnusedRatio;
 
@@ -806,8 +806,6 @@ public:
     bool AllowUsersGroupReadIntermediateData;
 
     std::vector<NScheduler::TCustomJobMetricDescription> CustomJobMetrics;
-
-    NObjectClient::TReqExecuteBatchWithRetriesConfigPtr LockInputTablesRetries;
 
     int DynamicTableLockCheckingAttemptCountLimit;
     double DynamicTableLockCheckingIntervalScale;

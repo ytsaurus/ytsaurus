@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/hydra/config.h>
 
-#include <yt/ytlib/object_client/public.h>
+#include <yt/ytlib/object_client/config.h>
 
 #include <yt/ytlib/query_client/config.h>
 
@@ -138,6 +138,8 @@ public:
     TDuration NestedInputTransactionPingPeriod;
 
     TDuration ClusterLivenessCheckTimeout;
+
+    NObjectClient::TReqExecuteBatchWithRetriesConfigPtr ChunkFetchRetries;
 
     TConnectionConfig();
 };
