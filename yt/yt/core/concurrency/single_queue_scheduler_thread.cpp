@@ -20,8 +20,6 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
     , Queue(std::move(queue))
 { }
 
-TSingleQueueSchedulerThread::~TSingleQueueSchedulerThread() = default;
-
 TClosure TSingleQueueSchedulerThread::BeginExecute()
 {
     return Queue->BeginExecute(&CurrentAction);
@@ -30,6 +28,11 @@ TClosure TSingleQueueSchedulerThread::BeginExecute()
 void TSingleQueueSchedulerThread::EndExecute()
 {
     Queue->EndExecute(&CurrentAction);
+}
+
+void TSingleQueueSchedulerThread::OnStart()
+{
+    Queue->SetThreadId(GetId());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

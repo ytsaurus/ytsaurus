@@ -20,8 +20,6 @@ public:
         bool enableLogging,
         bool enableProfiling);
 
-    ~TSingleQueueSchedulerThread();
-
 protected:
     const TInvokerQueuePtr Queue;
 
@@ -29,6 +27,8 @@ protected:
 
     virtual TClosure BeginExecute() override;
     virtual void EndExecute() override;
+
+    virtual void OnStart() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSingleQueueSchedulerThread)

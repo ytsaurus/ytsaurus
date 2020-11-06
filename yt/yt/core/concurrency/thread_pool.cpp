@@ -50,56 +50,38 @@ public:
     {
         YT_VERIFY(threadCount > 0);
 
+        decltype(Threads_) threadsToStart;
+        decltype(Threads_) threadsToShutdown;
         {
             TGuard<TAdaptiveLock> guard(SpinLock_);
 
-            for (int i = Threads_.size(); i < threadCount; ++i) {
-                Threads_.emplace_back(SpawnThread(i));
+            while (static_cast<int>(Threads_.size()) < threadCount) {
+                auto thread = SpawnThread(static_cast<int>(Threads_.size()));
+                threadsToStart.push_back(thread);
+                Threads_.push_back(thread);
             }
 
-            for (int i = threadCount; i < Threads_.size(); ++i) {
-                Threads_.back()->Shutdown();
-                Threads_.back().Reset();
+            while (static_cast<int>(Threads_.size()) > threadCount) {
+                threadsToShutdown.push_back(Threads_.back());
                 Threads_.pop_back();
             }
         }
 
-        if (StartFlag_.load(std::memory_order_relaxed)) {
-            DoStart();
-        }
-    }
-
-    void Start()
-    {
-        bool expected = false;
-        if (StartFlag_.compare_exchange_strong(expected, true)) {
-            DoStart();
-        }
-    }
-
-    void DoStart()
-    {
-        decltype(Threads_) threads;
-        {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
-            threads = Threads_;
-        }
-
-        for (auto& thread : threads) {
+        for (const auto& thread : threadsToStart) {
             thread->Start();
+        }
+        for (const auto& thread : threadsToShutdown) {
+            thread->Shutdown();
         }
     }
 
     void Shutdown()
     {
         bool expected = false;
-        if (ShutdownFlag_.compare_exchange_strong(expected, true)) {
-            DoShutdown();
+        if (!ShutdownFlag_.compare_exchange_strong(expected, true)) {
+            return;
         }
-    }
 
-    void DoShutdown()
-    {
         StartFlag_ = true;
 
         Queue_->Shutdown();
@@ -121,9 +103,7 @@ public:
 
     const IInvokerPtr& GetInvoker()
     {
-        if (Y_UNLIKELY(!StartFlag_.load(std::memory_order_relaxed))) {
-            Start();
-        }
+        EnsureStarted();
         return Invoker_;
     }
 
@@ -132,10 +112,8 @@ private:
     const bool EnableLogging_;
     const bool EnableProfiling_;
 
-    std::atomic<bool> StartFlag_ = {false};
-    std::atomic<bool> ShutdownFlag_ = {false};
-
-    TAdaptiveLock SpinLock_;
+    std::atomic<bool> StartFlag_ = false;
+    std::atomic<bool> ShutdownFlag_ = false;
 
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
@@ -143,7 +121,26 @@ private:
 
     IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
+    TAdaptiveLock SpinLock_;
     std::vector<TSchedulerThreadPtr> Threads_;
+
+    void EnsureStarted()
+    {
+        bool expected = false;
+        if (!StartFlag_.compare_exchange_strong(expected, true)) {
+            return;
+        }
+
+        decltype(Threads_) threads;
+        {
+            TGuard<TAdaptiveLock> guard(SpinLock_);
+            threads = Threads_;
+        }
+
+        for (const auto& thread : threads) {
+            thread->Start();
+        }
+    }
 
     TSchedulerThreadPtr SpawnThread(int index)
     {

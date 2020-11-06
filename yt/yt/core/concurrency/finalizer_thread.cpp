@@ -55,6 +55,11 @@ private:
         TFinalizerThread* Owner_;
     };
 
+    bool IsSameProcess()
+    {
+        return getpid() == OwningPid_;
+    }
+
 public:
     TFinalizerThread()
         : ThreadName_("Finalizer")
@@ -76,18 +81,6 @@ public:
     ~TFinalizerThread()
     {
         Shutdown();
-    }
-
-    bool IsSameProcess()
-    {
-        return getpid() == OwningPid_;
-    }
-
-    void Start()
-    {
-        Thread_->Start();
-        // XXX(sandello): Racy! Fix me by moving this into OnThreadStart().
-        Queue_->SetThreadId(Thread_->GetId());
     }
 
     void Shutdown()
@@ -136,23 +129,16 @@ public:
         ShutdownFinished = true;
     }
 
-    bool IsStarted() const
-    {
-        return Thread_->IsStarted();
-    }
-
     void Invoke(TClosure callback)
     {
         YT_VERIFY(!ShutdownFinished);
-        if (!Y_UNLIKELY(IsStarted())) {
-            Start();
-        }
+        EnsureStarted();
         Queue_->Invoke(std::move(callback));
     }
 
     IInvokerPtr GetInvoker()
     {
-        // XXX(sandello): Better-than-static lifetime for TFinalizerThread?
+        EnsureStarted();
         return New<TInvoker>(this);
     }
 
@@ -165,7 +151,12 @@ private:
     const TSingleQueueSchedulerThreadPtr Thread_;
 
     int OwningPid_ = 0;
-    std::atomic<int> Refs_ = {1};
+    std::atomic<int> Refs_ = 1;
+
+    void EnsureStarted()
+    {
+        Thread_->Start();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

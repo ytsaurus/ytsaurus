@@ -48,8 +48,8 @@ void CheckedAction(std::atomic<ui64>* atomicEpoch, ui64 mask, TAction&& action)
 
 void TSchedulerThreadBase::Start()
 {
-    CheckedAction(&Epoch_, StartedEpochMask, [&] (ui64 epoch) {
-        if (!(epoch & ShutdownEpochMask)) {
+    CheckedAction(&Epoch_, StartingEpochMask, [&] (ui64 epoch) {
+        if (!(epoch & StoppingEpochMask)) {
             YT_LOG_DEBUG_IF(EnableLogging_, "Starting thread (Name: %v)", ThreadName_);
 
             try {
@@ -76,8 +76,8 @@ void TSchedulerThreadBase::Start()
 
 void TSchedulerThreadBase::Shutdown()
 {
-    CheckedAction(&Epoch_, ShutdownEpochMask, [&] (ui64 epoch) {
-        if (epoch & StartedEpochMask) {
+    CheckedAction(&Epoch_, StoppingEpochMask, [&] (ui64 epoch) {
+        if (epoch & StartingEpochMask) {
             // There is a tiny chance that thread is not started yet, and call to TThread::Join may fail
             // in this case. Ensure proper event sequencing by synchronizing with thread startup.
             ThreadStartedEvent_.Wait();

@@ -44,14 +44,9 @@ public:
         return ThreadId_;
     }
 
-    bool IsStarted() const
-    {
-        return Epoch_.load(std::memory_order_relaxed) & StartedEpochMask;
-    }
-
     bool IsShutdown() const
     {
-        return Epoch_.load(std::memory_order_relaxed) & ShutdownEpochMask;
+        return Epoch_.load(std::memory_order_relaxed) & StoppingEpochMask;
     }
 
 protected:
@@ -75,9 +70,9 @@ protected:
 
     void ThreadMain();
 
-    std::atomic<ui64> Epoch_ = {0};
-    static constexpr ui64 StartedEpochMask = 0x1;
-    static constexpr ui64 ShutdownEpochMask = 0x2;
+    std::atomic<ui64> Epoch_ = 0;
+    static constexpr ui64 StartingEpochMask = 0x1;
+    static constexpr ui64 StoppingEpochMask = 0x2;
     TEvent ThreadStartedEvent_;
     TEvent ThreadShutdownEvent_;
 
@@ -87,7 +82,6 @@ protected:
 
     TThreadId ThreadId_ = InvalidThreadId;
     TThread Thread_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerThreadBase)

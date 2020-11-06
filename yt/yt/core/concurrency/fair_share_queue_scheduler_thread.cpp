@@ -38,6 +38,11 @@ void TFairShareQueueSchedulerThread::EndExecute()
     Queue_->EndExecute(&CurrentAction_);
 }
 
+void TFairShareQueueSchedulerThread::OnStart()
+{
+    Queue_->SetThreadId(GetId());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
