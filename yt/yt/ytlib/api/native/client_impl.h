@@ -552,6 +552,11 @@ private:
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         const TVersionedLookupRowsOptions& options);
 
+    static NTabletClient::TTableReplicaInfoPtr PickRandomReplica(
+        const TTableReplicaInfoPtrList& replicas);
+    static TString PickRandomCluster(
+        const std::vector<TString>& clusterNames);
+
     TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const TTabletReadOptions& options,
@@ -563,6 +568,7 @@ private:
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const TTabletReadOptions& options,
         const THashMap<NObjectClient::TCellId, std::vector<NTabletClient::TTabletId>>& cellIdToTabletIds);
+
     std::optional<TString> PickInSyncClusterAndPatchQuery(
         const TTabletReadOptions& options,
         NQueryClient::NAst::TQuery* query);
@@ -594,7 +600,6 @@ private:
     static bool IsReplicaInSync(
         const NQueryClient::NProto::TReplicaInfo& replicaInfo,
         const NQueryClient::NProto::TTabletInfo& tabletInfo);
-
     static bool IsReplicaInSync(
         const NQueryClient::NProto::TReplicaInfo& replicaInfo,
         const NQueryClient::NProto::TTabletInfo& tabletInfo,

@@ -14,6 +14,8 @@
 
 #include <yt/client/table_client/row_buffer.h>
 
+#include <util/random/random.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NTableClient;
@@ -132,6 +134,20 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
         options.Timestamp);
 
     return replicaIds;
+}
+
+TTableReplicaInfoPtr TClient::PickRandomReplica(
+    const TTableReplicaInfoPtrList& replicas)
+{
+    YT_VERIFY(!replicas.empty());
+    return replicas[RandomNumber<size_t>() % replicas.size()];
+}
+
+TString TClient::PickRandomCluster(
+    const std::vector<TString>& clusterNames)
+{
+    YT_VERIFY(!clusterNames.empty());
+    return clusterNames[RandomNumber<size_t>() % clusterNames.size()];
 }
 
 TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
@@ -277,7 +293,7 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
 
     THashMap<TString, int> clusterNameToCount;
     for (const auto& replicaInfos : candidates) {
-        SmallVector<TString, TypicalReplicaCount> clusterNames;
+        std::vector<TString> clusterNames;
         for (const auto& replicaInfo : replicaInfos) {
             clusterNames.push_back(replicaInfo->ClusterName);
         }
@@ -288,7 +304,7 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
         }
     }
 
-    SmallVector<TString, TypicalReplicaCount> inSyncClusterNames;
+    std::vector<TString> inSyncClusterNames;
     for (const auto& [name, count] : clusterNameToCount) {
         if (count == paths.size()) {
             inSyncClusterNames.push_back(name);
@@ -300,8 +316,7 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
             paths);
     }
 
-    // TODO(babenko): break ties in a smarter way
-    const auto& inSyncClusterName = inSyncClusterNames[0];
+    auto inSyncClusterName = PickRandomCluster(inSyncClusterNames);
     YT_LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v)",
         paths,
         inSyncClusterName);

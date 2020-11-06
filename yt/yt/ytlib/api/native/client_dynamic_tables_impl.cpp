@@ -482,8 +482,7 @@ TRowset TClient::DoLookupRowsOnce(
     if (tableInfo->IsReplicated()) {
         auto inSyncReplicaInfos = WaitFor(PickInSyncReplicas(tableInfo, options, sortedKeys))
             .ValueOrThrow();
-        // TODO(babenko): break ties in a smarter way
-        const auto& inSyncReplicaInfo = inSyncReplicaInfos[0];
+        auto inSyncReplicaInfo = PickRandomReplica(inSyncReplicaInfos);
         auto replicaClient = CreateReplicaClient(inSyncReplicaInfo->ClusterName);
         auto asyncResult = replicaFallbackHandler(replicaClient, inSyncReplicaInfo);
         return WaitFor(asyncResult)
