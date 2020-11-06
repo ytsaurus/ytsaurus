@@ -44,10 +44,10 @@ public class FailureDetectingRpcClient extends RpcClientWrapper {
             @Override
             public void onError(Throwable error) {
                 if (isError.apply(error)) {
-                    logger.error("Unrecoverable error in RPC response", error);
+                    logger.error("Unrecoverable error in RPC response: {}", error.toString());
                     errorHandler.accept(error);
                 } else {
-                    logger.info("Error in RPC response", error);
+                    logger.info("Error in RPC response: {}", error.toString());
                 }
                 handler.onError(error);
             }
