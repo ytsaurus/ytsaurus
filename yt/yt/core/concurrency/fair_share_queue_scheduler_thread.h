@@ -23,7 +23,6 @@ public:
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
-
     ~TFairShareQueueSchedulerThread();
 
     IInvokerPtr GetInvoker(int index);
@@ -35,6 +34,8 @@ protected:
 
     virtual TClosure BeginExecute() override;
     virtual void EndExecute() override;
+
+    virtual void OnStart() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareQueueSchedulerThread)

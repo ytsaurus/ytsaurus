@@ -27,7 +27,7 @@ class TActionQueue::TImpl
     : public TRefCounted
 {
 public:
-    explicit TImpl(
+    TImpl(
         const TString& threadName,
         bool enableLogging,
         bool enableProfiling)
@@ -51,31 +51,14 @@ public:
         Shutdown();
     }
 
-    void Start()
-    {
-        bool expected = false;
-        if (StartFlag_.compare_exchange_strong(expected, true)) {
-            DoStart();
-        }
-    }
-
-    void DoStart()
-    {
-        Thread_->Start();
-        // XXX(sandello): Racy! Fix me by moving this into OnThreadStart().
-        Queue_->SetThreadId(Thread_->GetId());
-    }
-
     void Shutdown()
     {
         bool expected = false;
-        if (ShutdownFlag_.compare_exchange_strong(expected, true)) {
-            DoShutdown();
+        if (!StopFlag_.compare_exchange_strong(expected, true)) {
+            return;
         }
-    }
 
-    void DoShutdown()
-    {
+
         StartFlag_ = true;
 
         Queue_->Shutdown();
@@ -89,9 +72,7 @@ public:
 
     const IInvokerPtr& GetInvoker()
     {
-        if (Y_UNLIKELY(!StartFlag_.load(std::memory_order_relaxed))) {
-            Start();
-        }
+        EnsureStarted();
         return Invoker_;
     }
 
@@ -101,10 +82,20 @@ private:
     const IInvokerPtr Invoker_;
     const TSingleQueueSchedulerThreadPtr Thread_;
 
-    std::atomic<bool> StartFlag_ = {false};
-    std::atomic<bool> ShutdownFlag_ = {false};
+    std::atomic<bool> StartFlag_ = false;
+    std::atomic<bool> StopFlag_ = false;
 
     IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
+
+    void EnsureStarted()
+    {
+        bool expected = false;
+        if (!StartFlag_.compare_exchange_strong(expected, true)) {
+            return;
+        }
+
+        Thread_->Start();
+    }
 };
 
 TActionQueue::TActionQueue(
