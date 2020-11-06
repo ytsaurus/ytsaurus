@@ -4,6 +4,10 @@
 
 #include <yt/ytlib/object_client/proto/object_ypath.pb.h>
 
+#include <yt/client/chunk_client/public.h>
+
+#include <yt/client/tablet_client/public.h>
+
 #include <yt/client/object_client/helpers.h>
 
 namespace NYT::NObjectClient {
@@ -24,6 +28,13 @@ void AddCellTagToSyncWith(const IClientRequestPtr& request, TObjectId objectId)
     if (objectId) {
         AddCellTagToSyncWith(request, CellTagFromId(objectId));
     }
+}
+
+bool IsRetriableObjectServiceError(int attempt, const TError& error)
+{
+    return
+        error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState) ||
+        error.FindMatching(NChunkClient::EErrorCode::OptimisticLockFailure);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

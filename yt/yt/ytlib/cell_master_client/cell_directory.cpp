@@ -387,10 +387,6 @@ private:
         const TConnectionOptions& options)
     {
         auto isRetriableError = BIND([options] (const TError& error) {
-            if (error.FindMatching(NChunkClient::EErrorCode::OptimisticLockFailure)) {
-                return true;
-            }
-
             if (options.RetryRequestQueueSizeLimitExceeded &&
                 error.GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
             {

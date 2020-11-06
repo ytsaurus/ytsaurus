@@ -291,11 +291,10 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
         chunkSpecs.reserve(static_cast<size_t>(chunkCount));
     }
 
-    auto channel = client->GetMasterChannelOrThrow(
-        EMasterChannelKind::Follower,
-        userObject.ExternalCellTag);
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
     TObjectServiceProxy proxy(channel);
-    auto batchReq = proxy.ExecuteBatch();
+
+    auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
     for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
         // XXX(babenko): YT-11825

@@ -5,6 +5,8 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -121,25 +123,31 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         objectId,
         userObject.ContentRevision);
 
-    auto channel = bootstrap->GetMasterClient()->GetMasterChannelOrThrow(
-        EMasterChannelKind::Cache,
-        userObject.ExternalCellTag);
+    const auto& client = bootstrap->GetMasterClient();
+
+    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache, userObject.ExternalCellTag);
     TObjectServiceProxy proxy(channel);
 
-    auto req = TFileYPathProxy::Fetch(objectIdPath);
+    auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
-    ToProto(req->mutable_ranges(), std::vector<TReadRange>{ {} });
+    auto req = TFileYPathProxy::Fetch(objectIdPath);
+    ToProto(req->mutable_ranges(), std::vector<TReadRange>{{}});
     SetSuppressAccessTracking(req, true);
     SetSuppressExpirationTimeoutRenewal(req, true);
     req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
-    auto rspOrError = WaitFor(proxy.Execute(req));
-    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching chunks for layer %v", path);
+    batchReq->AddRequest(req);
+    auto batchRspOrError = WaitFor(batchReq->Invoke());
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching chunks for layer %v",
+        path);
+
+    const auto& batchRsp = batchRspOrError.Value();
+    const auto& rspOrError = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>(0);
     const auto& rsp = rspOrError.Value();
 
     std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
     ProcessFetchResponse(
-        bootstrap->GetMasterClient(),
+        client,
         rsp,
         userObject.ExternalCellTag,
         bootstrap->GetNodeDirectory(),

@@ -192,6 +192,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("cluster_liveness_check_timeout", ClusterLivenessCheckTimeout)
         .Default(TDuration::Seconds(15));
 
+    RegisterParameter("chunk_fetch_retries", ChunkFetchRetries)
+        .DefaultNew();
+
     RegisterPreprocessor([&] {
         FunctionImplCache->Capacity = 100;
 
