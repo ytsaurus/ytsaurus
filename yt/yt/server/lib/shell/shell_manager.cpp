@@ -98,7 +98,7 @@ public:
 
         Deserialize(parameters, ConvertToNode(serializedParameters));
         if (parameters.Operation != EShellOperation::Spawn) {
-            shell = GetShellOrThrow(parameters.ShellId);
+            shell = GetShellOrThrow(parameters.ShellId, parameters.ShellIndex);
         }
         if (Terminated_) {
             THROW_ERROR_EXCEPTION(
@@ -140,8 +140,9 @@ public:
                     options->InactivityTimeout = parameters.InactivityTimeout;
                 }
                 options->Id = TGuid::Create();
+                options->Index = NextShellIndex_++;
                 auto subcontainerAbsoluteName = RootInstance_->GetAbsoluteName() + jobShellDescriptor.Subcontainer;
-                options->ContainerName = Format("%v/js-%v", subcontainerAbsoluteName, options->Id.Parts32[3]);
+                options->ContainerName = Format("%v/js-%v", subcontainerAbsoluteName, options->Index);
 #ifdef _linux_
                 options->ContainerUser = *WaitFor(PortoExecutor_->GetContainerProperty(subcontainerAbsoluteName, "user"))
                     .ValueOrThrow();
@@ -178,7 +179,8 @@ public:
                 if (pollResult.FindMatching(NYT::EErrorCode::Timeout)) {
                     if (shell->Terminated()) {
                         THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
-                            << TErrorAttribute("shell_id", parameters.ShellId);
+                            << TErrorAttribute("shell_id", parameters.ShellId)
+                            << TErrorAttribute("shell_index", parameters.ShellIndex);
                     }
                     result.Output = "";
                     break;
@@ -188,11 +190,13 @@ public:
                         EErrorCode::ShellManagerShutDown,
                         "Shell manager was shut down")
                         << TErrorAttribute("shell_id", parameters.ShellId)
+                        << TErrorAttribute("shell_index", parameters.ShellIndex)
                         << pollResult;
                 }
                 if (!pollResult.IsOK() || pollResult.Value().Empty()) {
                     THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
                         << TErrorAttribute("shell_id", parameters.ShellId)
+                        << TErrorAttribute("shell_index", parameters.ShellIndex)
                         << pollResult;
                 }
                 result.Output = ToString(pollResult.Value());
@@ -212,6 +216,7 @@ public:
         }
 
         result.ShellId = shell->GetId();
+        result.ShellIndex = shell->GetIndex();
         return ConvertToYsonString(result);
     }
 
@@ -225,6 +230,7 @@ public:
             shell.second->Terminate(error);
         }
         IdToShell_.clear();
+        IndexToShell_.clear();
     }
 
     virtual TFuture<void> GracefulShutdown(const TError& error) override
@@ -249,7 +255,10 @@ private:
 
     std::vector<TString> Environment_;
     THashMap<TShellId, IShellPtr> IdToShell_;
+    THashMap<int, IShellPtr> IndexToShell_;
     bool Terminated_ = false;
+
+    int NextShellIndex_ = 1;
 
     const NLogging::TLogger Logger = ShellLogger;
 
@@ -259,24 +268,44 @@ private:
     void Register(IShellPtr shell)
     {
         YT_VERIFY(IdToShell_.emplace(shell->GetId(), shell).second);
+        YT_VERIFY(IndexToShell_.emplace(shell->GetIndex(), shell).second);
 
-        YT_LOG_DEBUG("Shell registered (ShellId: %v)",
-            shell->GetId());
+        YT_LOG_DEBUG("Shell registered (ShellId: %v, ShellIndex: %v)",
+            shell->GetId(),
+            shell->GetIndex());
     }
 
-    IShellPtr Find(TShellId shellId)
+    IShellPtr Find(TShellId shellId) const
     {
         auto it = IdToShell_.find(shellId);
         return it == IdToShell_.end() ? nullptr : it->second;
     }
 
-    IShellPtr GetShellOrThrow(TShellId shellId)
+    IShellPtr Find(int shellIndex) const
     {
-        auto shell = Find(shellId);
-        if (!shell) {
-            THROW_ERROR_EXCEPTION("No such shell %v", shellId);
+        auto it = IndexToShell_.find(shellIndex);
+        return it == IndexToShell_.end() ? nullptr : it->second;
+    }
+
+    IShellPtr GetShellOrThrow(
+        std::optional<TShellId> shellId,
+        std::optional<int> shellIndex)
+    {
+        if (shellId) {
+            auto shell = Find(*shellId);
+            if (shell) {
+                return shell;
+            }
         }
-        return shell;
+
+        if (shellIndex) {
+            auto shell = Find(*shellIndex);
+            if (shell) {
+                return shell;
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("No such shell %v", shellId);
     }
 };
 
