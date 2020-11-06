@@ -105,8 +105,8 @@ void TSimulatorNodeShard::BuildNodesYson(TFluentMap fluent)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-    for (const auto& pair : IdToNode_) {
-        BuildNodeYson(pair.second, fluent);
+    for (const auto& [id, node] : IdToNode_) {
+        BuildNodeYson(node, fluent);
     }
 }
 

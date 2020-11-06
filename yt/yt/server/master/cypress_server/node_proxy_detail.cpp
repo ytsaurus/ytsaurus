@@ -962,9 +962,9 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
                 node->As<TMapNode>(),
                 Transaction_,
                 &keyToChildMapStorage);
-            for (const auto& pair : keyToChildMap) {
-                Writer_.OnKeyedItem(pair.first);
-                VisitAny(node, pair.second);
+            for (const auto& [key, child] : keyToChildMap) {
+                Writer_.OnKeyedItem(key);
+                VisitAny(node, child);
             }
             Writer_.OnEndMap();
         }
@@ -2424,16 +2424,14 @@ void TMapNodeProxy::Clear()
     typedef std::pair<TString, TCypressNode*> TChild;
     std::vector<TChild> children;
     children.reserve(keyToChildList.size());
-    for (const auto& pair : keyToChildList) {
-        LockThisImpl(TLockRequest::MakeSharedChild(pair.first));
-        auto* childImpl = LockImpl(pair.second);
-        children.push_back(std::make_pair(pair.first, childImpl));
+    for (const auto& [key, child] : keyToChildList) {
+        LockThisImpl(TLockRequest::MakeSharedChild(key));
+        auto* childImpl = LockImpl(child);
+        children.push_back(std::make_pair(key, childImpl));
     }
 
     // Insert tombstones (if in transaction).
-    for (const auto& pair : children) {
-        const auto& key = pair.first;
-        auto* child = pair.second;
+    for (const auto& [key, child] : children) {
         DoRemoveChild(impl, key, child);
     }
 
@@ -2468,8 +2466,8 @@ std::vector<std::pair<TString, INodePtr>> TMapNodeProxy::GetChildren() const
 
     std::vector<std::pair<TString, INodePtr>> result;
     result.reserve(keyToChildMap.size());
-    for (const auto& pair : keyToChildMap) {
-        result.push_back(std::make_pair(pair.first, GetProxy(pair.second)));
+    for (const auto& [key, child] : keyToChildMap) {
+        result.emplace_back(key, GetProxy(child));
     }
 
     return result;
@@ -2485,8 +2483,8 @@ std::vector<TString> TMapNodeProxy::GetKeys() const
         &keyToChildStorage);
 
     std::vector<TString> result;
-    for (const auto& pair : keyToChildMap) {
-        result.push_back(pair.first);
+    for (const auto& [key, child] : keyToChildMap) {
+        result.push_back(key);
     }
 
     return result;
@@ -2707,9 +2705,7 @@ void TMapNodeProxy::ListSelf(
     i64 counter = 0;
 
     writer.OnBeginList();
-    for (const auto& pair : keyToChildMap) {
-        const auto& key = pair.first;
-        auto* trunkChild  = pair.second;
+    for (const auto& [key, trunkChild] : keyToChildMap) {
         writer.OnListItem();
 
         if (CheckItemReadPermissions(TrunkNode_, trunkChild, securityManager)) {

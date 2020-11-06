@@ -285,20 +285,14 @@ auto TSimulatorOperationController::InitializeJobBuckets(const TOperationDescrip
 
     TJobBuckets jobBuckets;
 
-    for (const auto& pair : jobsByType) {
-        auto jobType = pair.first;
-        const auto& jobs = pair.second;
-
+    for (const auto& [jobType, jobs] : jobsByType) {
         jobBuckets[jobType] = std::make_unique<TJobBucket>(
             jobType,
             jobs,
             /* host */ this);
     }
 
-    for (auto& pair : jobBuckets) {
-        auto jobType = pair.first;
-        auto& bucket = pair.second;
-
+    for (const auto& [jobType, bucket] : jobBuckets) {
         auto dependencyTableIt = dependencyTable.find(jobType);
         if (dependencyTableIt == dependencyTable.end()) {
             THROW_ERROR_EXCEPTION("Unknown job type: %v" , jobType);
@@ -325,8 +319,7 @@ TSimulatorOperationController::TSimulatorOperationController(
     , ScheduleJobDelay_(scheduleJobDelay)
     , Logger("OperationController")
 {
-    for (auto& pair : JobBuckets_) {
-        auto& bucket = pair.second;
+    for (const auto& [_, bucket] : JobBuckets_) {
         bucket->FinishInitialization();
     }
 }

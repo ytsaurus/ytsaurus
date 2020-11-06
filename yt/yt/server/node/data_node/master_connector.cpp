@@ -574,9 +574,7 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
         }
     }
 
-    for (const auto& pair : mediaStatistics) {
-        int mediumIndex = pair.first;
-        const auto& mediumStatistics = pair.second;
+    for (const auto& [mediumIndex, mediumStatistics] : mediaStatistics) {
         auto* protoStatistics = result->add_media();
         protoStatistics->set_medium_index(mediumIndex);
         protoStatistics->set_io_weight(mediumStatistics.IOWeight);
@@ -902,9 +900,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             }
             protoTabletInfo->set_error_count(tabletErrorCount);
 
-            for (const auto& pair : tabletSnapshot->Replicas) {
-                auto replicaId = pair.first;
-                const auto& replicaSnapshot = pair.second;
+            for (const auto& [replicaId, replicaSnapshot] : tabletSnapshot->Replicas) {
                 auto* protoReplicaInfo = protoTabletInfo->add_replicas();
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
                 replicaSnapshot->RuntimeData->Populate(protoReplicaInfo->mutable_statistics());

@@ -142,9 +142,7 @@ TYPath RewritePath(const TYPath& path, bool rewriteOperationPath)
     NYPath::TTokenizer tokenizer(path);
     tokenizer.Advance();
 
-    for (const auto& pair : expectedTokens) {
-        auto expectedTokenType = pair.first;
-        const auto& expectedTokenValue = pair.second;
+    for (const auto& [expectedTokenType, expectedTokenValue] : expectedTokens) {
         if (expectedTokenType != tokenizer.GetType() ||
             expectedTokenValue != tokenizer.GetToken())
         {

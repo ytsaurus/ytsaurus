@@ -448,8 +448,7 @@ public:
         // cell. Also, this makes the code deterministic which is a must.
         std::vector<TMedium*> media;
         media.reserve(MediumMap_.size());
-        for (auto pair : MediumMap_) {
-            auto* medium = pair.second;
+        for (auto [mediumId, medium] : MediumMap_) {
             if (IsObjectAlive(medium)) {
                 media.push_back(medium);
             }
@@ -1910,8 +1909,8 @@ private:
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& pair : nodeTracker->DataCenters()) {
-            RegisterTagsForDataCenter(pair.second);
+        for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
+            RegisterTagsForDataCenter(dataCenter);
         }
         RegisterTagsForDataCenter(nullptr);
 
@@ -2076,9 +2075,7 @@ private:
             }
         }
 
-        for (auto& pair : crossCellRequestMap) {
-            auto cellTag = pair.first;
-            auto& request = pair.second;
+        for (auto& [cellTag, request] : crossCellRequestMap) {
             FillChunkRequisitionDict(&request, *requisitionRegistry);
             multicellManager->PostToMaster(request, cellTag);
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Requesting to update requisition of imported chunks (CellTag: %v, Count: %v)",
@@ -2641,8 +2638,7 @@ private:
             }
         }
 
-        for (const auto& pair : MediumMap_) {
-            auto* medium = pair.second;
+        for (auto [mediumId, medium] : MediumMap_) {
             InitMediumProfiling(medium);
             RegisterMedium(medium);
         }
@@ -2897,8 +2893,7 @@ private:
         };
 
         // Sort chunk lists in topological order
-        for (const auto& pair : ChunkListMap_) {
-            auto* chunkList = pair.second;
+        for (auto [chunkListId, chunkList] : ChunkListMap_) {
             visit(chunkList);
 
             while (!stack.empty()) {

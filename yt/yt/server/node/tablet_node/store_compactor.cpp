@@ -423,8 +423,8 @@ private:
         }
 
         const auto& tabletManager = slot->GetTabletManager();
-        for (const auto& pair : tabletManager->Tablets()) {
-            ScanTablet(slot.Get(), pair.second);
+        for (auto [tabletId, tablet] : tabletManager->Tablets()) {
+            ScanTablet(slot.Get(), tablet);
         }
     }
 

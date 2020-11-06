@@ -371,8 +371,7 @@ private:
     {
         std::vector<TString> keys;
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& pair : nodeTracker->Racks()) {
-            const auto* rack = pair.second;
+        for (auto [rackId, rack] : nodeTracker->Racks()) {
             keys.push_back(rack->GetName());
         }
         return keys;
@@ -428,9 +427,8 @@ private:
     {
         std::vector<TString> keys;
         auto nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& pair : nodeTracker->DataCenters()) {
-            const auto* dc = pair.second;
-            keys.push_back(dc->GetName());
+        for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
+            keys.push_back(dataCenter->GetName());
         }
         return keys;
     }

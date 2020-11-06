@@ -68,20 +68,19 @@ private:
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         const auto now = TInstant::Now();
 
-        std::vector<TTabletActionId> actionsPendingRemoval;
-        for (const auto& pair : tabletManager->TabletActions()) {
-            const auto* action = pair.second;
+        std::vector<TTabletActionId> actionIdsPendingRemoval;
+        for (auto [actionId, action] : tabletManager->TabletActions()) {
             if (IsObjectAlive(action) && action->IsFinished() && action->GetExpirationTime() <= now) {
-                actionsPendingRemoval.push_back(pair.first);
+                actionIdsPendingRemoval.push_back(actionId);
             }
         }
 
-        if (!actionsPendingRemoval.empty()) {
+        if (!actionIdsPendingRemoval.empty()) {
             YT_LOG_DEBUG("Destroying expired tablet actions (TabletActionIds: %v)",
-                actionsPendingRemoval);
+                actionIdsPendingRemoval);
 
             TReqDestroyTabletActions request;
-            ToProto(request.mutable_tablet_action_ids(), actionsPendingRemoval);
+            ToProto(request.mutable_tablet_action_ids(), actionIdsPendingRemoval);
 
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             CreateMutation(hydraManager, request)

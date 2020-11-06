@@ -831,10 +831,8 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 
             // Set builtin attributes.
             if (builtinAttributeProvider) {
-                for (const auto& pair : descriptorMap) {
-                    auto internedKey = pair.first;
+                for (const auto& [internedKey, descriptor] : descriptorMap) {
                     const auto& key = internedKey.Unintern();
-                    const auto& descriptor = pair.second;
 
                     if (descriptor.Custom) {
                         continue;

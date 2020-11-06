@@ -58,8 +58,8 @@ public:
     {
         std::vector<TString> keys;
         keys.reserve(Map_.size());
-        for (const auto& pair : Map_) {
-            keys.push_back(pair.first);
+        for (const auto& [key, value] : Map_) {
+            keys.push_back(key);
         }
         return keys;
     }

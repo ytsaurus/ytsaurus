@@ -291,9 +291,7 @@ private:
                     batch->BatchRequest->GetRequestId());
             }
 
-            for (const auto& pair : batch->ContextsWithStates) {
-                const auto& context = pair.first;
-                const auto& state = pair.second;
+            for (const auto& [context, state] : batch->ContextsWithStates) {
                 if (responseOrError.IsOK()) {
                     UnbatchResponse(&context->Response(), responseOrError.Value().Get(), state);
                     context->Reply();

@@ -50,11 +50,11 @@ public:
         std::vector<TString> keys;
         if (auto collection = Collection_.lock()) {
             keys.reserve(limit);
-            for (const auto& pair : *collection) {
+            for (const auto& [key, value] : *collection) {
                 if (static_cast<i64>(keys.size()) >= limit) {
                     break;
                 }
-                keys.emplace_back(TConversionTraits::ConvertKeyToString(pair.first));
+                keys.emplace_back(TConversionTraits::ConvertKeyToString(key));
             }
         }
         return keys;

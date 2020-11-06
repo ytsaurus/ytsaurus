@@ -262,9 +262,7 @@ private:
         TablesWithActiveActions_.clear();
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        for (const auto& pair : tabletManager->TabletActions()) {
-            const auto* action = pair.second;
-
+        for (auto [actionId, action] : tabletManager->TabletActions()) {
             if (!action->IsFinished()) {
                 for (const auto* tablet : action->Tablets()) {
                     TablesWithActiveActions_.insert(tablet->GetTable());
@@ -374,9 +372,9 @@ private:
     int ApplyMoveActions()
     {
         int actionCount = 0;
-        for (const auto& pair : TabletToTargetCellMap_) {
-            if (pair.first->GetCell() != pair.second) {
-                CreateMoveAction(pair.first, pair.second->GetId());
+        for (auto [tablet, cell] : TabletToTargetCellMap_) {
+            if (tablet->GetCell() != cell) {
+                CreateMoveAction(tablet, cell->GetId());
                 ++actionCount;
             }
         }
@@ -416,14 +414,14 @@ private:
         const std::vector<const TTabletCell*>& bundleCells,
         THashMap<const TTabletCell*, std::vector<TTablet*>>* slackTablets)
     {
-        THashMap<const TTabletCell*, std::vector<TTablet*>> tabletsByCell;
+        THashMap<const TTabletCell*, std::vector<TTablet*>> cellToTablets;
         for (auto* tablet : tablets) {
-            tabletsByCell[tablet->GetCell()].push_back(tablet);
+            cellToTablets[tablet->GetCell()].push_back(tablet);
         }
 
         std::vector<std::pair<int, const TTabletCell*>> cells;
-        for (const auto& pair : tabletsByCell) {
-            cells.emplace_back(pair.second.size(), pair.first);
+        for (const auto& [cell, tablets] : cellToTablets) {
+            cells.emplace_back(tablets.size(), cell);
         }
 
         // Cells with the same number of tablets of current table should be distributed
@@ -438,7 +436,7 @@ private:
             if (cells.size() == expectedCellCount) {
                 break;
             }
-            if (!tabletsByCell.contains(cell)) {
+            if (!cellToTablets.contains(cell)) {
                 cells.emplace_back(0, cell);
             }
         }
@@ -453,7 +451,7 @@ private:
 
         auto moveTablets = [&] (int srcIndex, int dstIndex, int limit) {
             int moveCount = 0;
-            auto& srcTablets = tabletsByCell[cells[srcIndex].second];
+            auto& srcTablets = cellToTablets[cells[srcIndex].second];
             while (moveCount < limit && !srcTablets.empty()) {
                 auto* tablet = srcTablets.back();
                 srcTablets.pop_back();
@@ -488,11 +486,10 @@ private:
         }
 
         if (slackTablets) {
-            for (const auto& pair : cells) {
-                const auto* cell = pair.second;
-                auto& tablets = tabletsByCell[cell];
+            for (auto [cellid, cell] : cells) {
+                auto& tablets = cellToTablets[cell];
                 if (tablets.size() > minCellSize) {
-                    slackTablets->at(cell).push_back(tabletsByCell[cell].back());
+                    slackTablets->at(cell).push_back(cellToTablets[cell].back());
                 } else {
                     break;
                 }
@@ -516,12 +513,12 @@ private:
         std::vector<THashSet<const TTableNode*>> presentTables;
         std::vector<int> tabletCount;
         int totalTabletCount = 0;
-        for (const auto& pair : cellTablets) {
-            totalTabletCount += pair.second.size();
-            tabletCount.push_back(pair.second.size());
+        for (const auto& [cell, tablets] : cellTablets) {
+            totalTabletCount += tablets.size();
+            tabletCount.push_back(tablets.size());
 
             presentTables.emplace_back();
-            for (auto* tablet : pair.second) {
+            for (auto* tablet : tablets) {
                 YT_VERIFY(presentTables.back().insert(tablet->GetTable()).second);
             }
         }
@@ -631,9 +628,9 @@ private:
         for (const auto* cell : bundleCells) {
             slackTablets[cell] = {};
         }
-        for (const auto& pair : tabletsByTable) {
+        for (const auto& [node, tablets] : tabletsByTable) {
             ReassignExtMemoryTabletsOfTable(
-                pair.second,
+                tablets,
                 bundleCells,
                 haveEmptyCells ? &slackTablets : nullptr);
         }

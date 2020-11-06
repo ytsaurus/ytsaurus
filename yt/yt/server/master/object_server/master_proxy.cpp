@@ -186,8 +186,7 @@ private:
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-            for (const auto& pair : nodeTracker->Nodes()) {
-                const auto* node = pair.second;
+            for (auto [nodeId, node] : nodeTracker->Nodes()) {
                 if (!IsObjectAlive(node)) {
                     continue;
                 }
@@ -200,18 +199,17 @@ private:
             const auto& rootService = objectManager->GetRootService();
             auto mapNode = ConvertToNode(SyncYPathGet(rootService, NTabletClient::GetCypressClustersPath()))->AsMap();
             auto* protoClusterDirectory = response->mutable_cluster_directory();
-            for (const auto& pair : mapNode->GetChildren()) {
+            for (const auto& [key, child] : mapNode->GetChildren()) {
                 auto* protoItem = protoClusterDirectory->add_items();
-                protoItem->set_name(pair.first);
-                protoItem->set_config(ConvertToYsonString(pair.second).GetData());
+                protoItem->set_name(key);
+                protoItem->set_config(ConvertToYsonString(child).GetData());
             }
         }
 
         if (populateMediumDirectory) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto* protoMediumDirectory = response->mutable_medium_directory();
-            for (const auto& pair : chunkManager->Media()) {
-                const auto* medium = pair.second;
+            for (auto [mediumId, medium] : chunkManager->Media()) {
                 auto* protoItem = protoMediumDirectory->add_items();
                 protoItem->set_index(medium->GetIndex());
                 protoItem->set_name(medium->GetName());

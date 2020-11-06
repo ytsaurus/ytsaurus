@@ -274,8 +274,8 @@ TFuture<TYsonString> TVirtualMulticellMapBase::GetBuiltinAttributeAsync(TInterne
         case EInternedAttributeKey::Count:
             return FetchSizes().Apply(BIND([] (const std::vector<std::pair<TCellTag, i64>>& multicellSizes) {
                 i64 result = 0;
-                for (const auto& pair : multicellSizes) {
-                    result += pair.second;
+                for (auto [cellId, size] : multicellSizes) {
+                    result += size;
                 }
                 return ConvertToYsonString(result);
             }));

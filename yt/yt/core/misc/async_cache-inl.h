@@ -116,9 +116,8 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::GetAll()
 
     std::vector<TValuePtr> result;
     result.reserve(ValueMap_.size());
-    for (const auto& pair : ValueMap_) {
-        auto value = DangerousGetPtr<TValue>(pair.second);
-        if (value) {
+    for (const auto& [key, rawValue] : ValueMap_) {
+        if (auto value = DangerousGetPtr<TValue>(rawValue)) {
             result.push_back(value);
         }
     }

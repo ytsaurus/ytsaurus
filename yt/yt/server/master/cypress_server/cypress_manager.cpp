@@ -2464,8 +2464,8 @@ private:
                         ELockMode::Exclusive,
                         transaction->GetId());
                 }
-                for (const auto& pair : transactionAndKeyToSharedLocks) {
-                    const auto& lockTransaction = pair.first.first;
+                for (const auto& [transactionAndKey, lock] : transactionAndKeyToSharedLocks) {
+                    const auto& lockTransaction = transactionAndKey.first;
                     if (transaction == lockTransaction) {
                         return TError(
                             NCypressClient::EErrorCode::SameTransactionLockConflict,
@@ -2548,8 +2548,7 @@ private:
             }
         };
 
-        for (const auto& pair : transactionToExclusiveLocks) {
-            const auto* existingLock = pair.second;
+        for (auto [transaction, existingLock] : transactionToExclusiveLocks) {
             auto error = checkExistingLock(existingLock);
             if (!error.IsOK()) {
                 return error;
@@ -2558,8 +2557,8 @@ private:
 
         switch (request.Mode) {
             case ELockMode::Exclusive:
-                for (const auto& pair : transactionAndKeyToSharedLocks) {
-                    auto error = checkExistingLock(pair.second);
+                for (const auto& [_, lock] : transactionAndKeyToSharedLocks) {
+                    auto error = checkExistingLock(lock);
                     if (!error.IsOK()) {
                         return error;
                     }
@@ -3106,18 +3105,18 @@ private:
                 THashMap<TString, TCypressNode*> children;
                 for (const auto* node : originators) {
                     const auto* mapNode = node->As<TMapNode>();
-                    for (const auto& pair : mapNode->KeyToChild()) {
-                        if (pair.second) {
-                            children[pair.first] = pair.second;
+                    for (const auto& [key, child] : mapNode->KeyToChild()) {
+                        if (child) {
+                            children[key] = child;
                         } else {
                             // NB: erase may fail.
-                            children.erase(pair.first);
+                            children.erase(key);
                         }
                     }
                 }
 
-                for (const auto& pair : children) {
-                    ListSubtreeNodes(pair.second, transaction, true, subtreeNodes);
+                for (const auto& [key, child] : children) {
+                    ListSubtreeNodes(child, transaction, true, subtreeNodes);
                 }
 
                 break;

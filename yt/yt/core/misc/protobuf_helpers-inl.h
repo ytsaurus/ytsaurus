@@ -261,7 +261,7 @@ void FromProtoArrayImpl(
             (*originalArray)[key] = T{};
         }
     }
-    for (const auto& pair: serializedArray) {
+    for (const auto& pair : serializedArray) {
         const auto& key = static_cast<E>(pair.key());
         if (originalArray->IsDomainValue(key)) {
             FromProto(&(*originalArray)[key], pair.value());

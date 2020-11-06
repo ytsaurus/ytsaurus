@@ -299,11 +299,11 @@ public:
     std::vector<TTransaction*> GetTransactions()
     {
         std::vector<TTransaction*> transactions;
-        for (const auto& pair : TransientTransactionMap_) {
-            transactions.push_back(pair.second);
+        for (auto [transactionId, transaction] : TransientTransactionMap_) {
+            transactions.push_back(transaction);
         }
-        for (const auto& pair : PersistentTransactionMap_) {
-            transactions.push_back(pair.second);
+        for (auto [transactionId, transaction] : PersistentTransactionMap_) {
+            transactions.push_back(transaction);
         }
         return transactions;
     }
@@ -683,8 +683,7 @@ private:
         TTabletAutomatonPart::OnAfterSnapshotLoaded();
 
         SerializingTransactionHeaps_.clear();
-        for (const auto& pair : PersistentTransactionMap_) {
-            auto* transaction = pair.second;
+        for (auto [transactionId, transaction] : PersistentTransactionMap_) {
             if (transaction->GetState() == ETransactionState::Committed && transaction->IsSerializationNeeded()) {
                 SerializingTransactionHeaps_[transaction->GetCellTag()].push_back(transaction);
             }
@@ -692,8 +691,7 @@ private:
                 RegisterPrepareTimestamp(transaction);
             }
         }
-        for (auto& pair : SerializingTransactionHeaps_) {
-            auto& heap = pair.second;
+        for (auto& [_, heap] : SerializingTransactionHeaps_) {
             MakeHeap(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
             UpdateMinCommitTimestamp(heap);
         }
@@ -708,8 +706,7 @@ private:
         YT_VERIFY(TransientTransactionMap_.GetSize() == 0);
 
         // Recreate leases for all active transactions.
-        for (const auto& pair : PersistentTransactionMap_) {
-            auto* transaction = pair.second;
+        for (auto [transactionId, transaction] : PersistentTransactionMap_) {
             if (transaction->GetState() == ETransactionState::Active ||
                 transaction->GetState() == ETransactionState::PersistentCommitPrepared)
             {
@@ -751,8 +748,7 @@ private:
         }
 
         // Drop all transient transactions.
-        for (const auto& pair : TransientTransactionMap_) {
-            auto* transaction = pair.second;
+        for (auto [transactionId, transaction] : TransientTransactionMap_) {
             transaction->ResetFinished();
             TransactionTransientReset_.Fire(transaction);
             UnregisterPrepareTimestamp(transaction);
@@ -761,8 +757,7 @@ private:
 
         // Reset all transiently prepared persistent transactions back into active state.
         // Mark all transactions as finished to release pending readers.
-        for (const auto& pair : PersistentTransactionMap_) {
-            auto* transaction = pair.second;
+        for (auto [transactionId, transaction] : PersistentTransactionMap_) {
             if (transaction->GetState() == ETransactionState::TransientCommitPrepared) {
                 UnregisterPrepareTimestamp(transaction);
                 transaction->SetPrepareTimestamp(NullTimestamp);
@@ -800,17 +795,16 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         std::vector<std::pair<TTransactionId, TCallback<void(TSaveContext&)>>> capturedTransactions;
-        for (const auto& pair : PersistentTransactionMap_) {
-            auto* transaction = pair.second;
+        for (auto [transactionId, transaction] : PersistentTransactionMap_) {
             capturedTransactions.push_back(std::make_pair(transaction->GetId(), transaction->AsyncSave()));
         }
 
         return BIND([capturedTransactions = std::move(capturedTransactions)] (TSaveContext& context) {
                 using NYT::Save;
                 // NB: This is not stable.
-                for (const auto& pair : capturedTransactions) {
-                    Save(context, pair.first);
-                    pair.second.Run(context);
+                for (const auto& [transactionId, callback] : capturedTransactions) {
+                    Save(context, transactionId);
+                    callback.Run(context);
                 }
             });
     }
@@ -918,9 +912,7 @@ private:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Handling transaction barrier (Timestamp: %llx)",
             barrierTimestamp);
 
-        for (auto& pair : SerializingTransactionHeaps_) {
-            auto& heap = pair.second;
-
+        for (auto& [_, heap ]: SerializingTransactionHeaps_) {
             while (!heap.empty()) {
                 auto* transaction = heap.front();
                 auto commitTimestamp = transaction->GetCommitTimestamp();

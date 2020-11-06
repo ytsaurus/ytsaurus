@@ -858,8 +858,7 @@ void TChunkReplicator::ScheduleJobs(
 void TChunkReplicator::OnNodeUnregistered(TNode* node)
 {
     auto idToJob = node->IdToJob();
-    for (const auto& pair : idToJob) {
-        const auto& job = pair.second;
+    for (const auto& [jobId, job] : idToJob) {
         YT_LOG_DEBUG("Job canceled (JobId: %v)", job->GetJobId());
         UnregisterJob(job);
     }
@@ -1025,8 +1024,7 @@ void TChunkReplicator::ProcessExistingJobs(
     // Check for missing jobs
     THashSet<TJobPtr> currentJobSet(currentJobs.begin(), currentJobs.end());
     std::vector<TJobPtr> missingJobs;
-    for (const auto& pair : node->IdToJob()) {
-        const auto& job = pair.second;
+    for (const auto& [jobId, job] : node->IdToJob()) {
         if (currentJobSet.find(job) == currentJobSet.end()) {
             missingJobs.push_back(job);
             YT_LOG_WARNING("Job is missing (JobId: %v, JobType: %v, Address: %v)",
@@ -2549,8 +2547,7 @@ void TChunkReplicator::OnNodeDataCenterChanged(TNode* node, TDataCenter* oldData
 {
     YT_ASSERT(node->GetDataCenter() != oldDataCenter);
 
-    for (const auto& pair : node->IdToJob()) {
-        const auto& job = pair.second;
+    for (const auto& [jobId, job] : node->IdToJob()) {
         UpdateInterDCEdgeConsumption(job, oldDataCenter, -1);
         UpdateInterDCEdgeConsumption(job, node->GetDataCenter(), +1);
     }
@@ -2621,17 +2618,17 @@ void TChunkReplicator::UpdateInterDCEdgeCapacities(bool force)
         };
 
         updateForDstDC(nullptr);
-        for (const auto& pair : nodeTracker->DataCenters()) {
-            if (IsObjectAlive(pair.second)) {
-                updateForDstDC(pair.second);
+        for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
+            if (IsObjectAlive(dataCenter)) {
+                updateForDstDC(dataCenter);
             }
         }
     };
 
     updateForSrcDC(nullptr);
-    for (const auto& pair : nodeTracker->DataCenters()) {
-        if (IsObjectAlive(pair.second)) {
-            updateForSrcDC(pair.second);
+    for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
+        if (IsObjectAlive(dataCenter)) {
+            updateForSrcDC(dataCenter);
         }
     }
 
@@ -2659,17 +2656,17 @@ void TChunkReplicator::InitUnsaturatedInterDCEdges()
         };
 
         updateForDstDC(nullptr);
-        for (const auto& pair : nodeTracker->DataCenters()) {
-            if (IsObjectAlive(pair.second)) {
-                updateForDstDC(pair.second);
+        for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
+            if (IsObjectAlive(dataCenter)) {
+                updateForDstDC(dataCenter);
             }
         }
     };
 
     updateForSrcDC(nullptr);
-    for (const auto& pair : nodeTracker->DataCenters()) {
-        if (IsObjectAlive(pair.second)) {
-            updateForSrcDC(pair.second);
+    for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
+        if (IsObjectAlive(dataCenter)) {
+            updateForSrcDC(dataCenter);
         }
     }
 }

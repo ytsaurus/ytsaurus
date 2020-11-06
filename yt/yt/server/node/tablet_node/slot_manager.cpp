@@ -219,8 +219,8 @@ public:
         TReaderGuard guard(TabletSnapshotsSpinLock_);
         std::vector<TTabletSnapshotPtr> snapshots;
         snapshots.reserve(TabletIdToSnapshot_.size());
-        for (const auto& pair : TabletIdToSnapshot_) {
-            snapshots.push_back(pair.second);
+        for (const auto& [tabletId, snapshot] : TabletIdToSnapshot_) {
+            snapshots.push_back(snapshot);
         }
         return snapshots;
     }

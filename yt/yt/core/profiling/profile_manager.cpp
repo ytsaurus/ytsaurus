@@ -394,8 +394,8 @@ private:
             {
                 const auto& profilingManager = TProfileManager::Get()->Impl_;
                 TGuard<TForkAwareSpinLock> tagGuard(profilingManager->GetTagSpinLock());
-                for (auto& pair : tagIdToValue) {
-                    pair.second = profilingManager->GetTag(pair.first);
+                for (auto& [tagId, tag] : tagIdToValue) {
+                    tag = profilingManager->GetTag(tagId);
                 }
             }
 

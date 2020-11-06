@@ -1059,12 +1059,12 @@ private:
         CustomStatistics_.AddSample("/custom", sample);
 
         size_t customStatisticsCount = 0;
-        for (const auto& pair : CustomStatistics_.Data()) {
-            if (HasPrefix(pair.first, "/custom")) {
-                if (pair.first.size() > MaxCustomStatisticsPathLength) {
+        for (const auto& [path, summary] : CustomStatistics_.Data()) {
+            if (HasPrefix(path, "/custom")) {
+                if (path.size() > MaxCustomStatisticsPathLength) {
                     THROW_ERROR_EXCEPTION(
                         "Custom statistics path is too long: %v > %v",
-                        pair.first.size(),
+                        path.size(),
                         MaxCustomStatisticsPathLength);
                 }
                 ++customStatisticsCount;

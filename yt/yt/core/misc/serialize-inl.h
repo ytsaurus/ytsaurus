@@ -1486,9 +1486,9 @@ struct TMapSerializer
         TSizeSerializer::Save(context, map.size());
 
         typename TSorterSelector<TMapType, C, TSortTag>::TSorter sorter(map);
-        for (const auto& pair : sorter) {
-            TKeySerializer::Save(context, pair.first);
-            TValueSerializer::Save(context, pair.second);
+        for (const auto& [key, value] : sorter) {
+            TKeySerializer::Save(context, key);
+            TValueSerializer::Save(context, value);
         }
     }
 

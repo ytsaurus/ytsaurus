@@ -284,8 +284,8 @@ TSerializableClusterResources::TSerializableClusterResources(bool serializeDiskS
         .Optional();
 
     RegisterPostprocessor([&] {
-        for (const auto& pair : DiskSpacePerMedium_) {
-            ValidateDiskSpace(pair.second);
+        for (const auto& [medium, diskSpace] : DiskSpacePerMedium_) {
+            ValidateDiskSpace(diskSpace);
         }
     });
 }

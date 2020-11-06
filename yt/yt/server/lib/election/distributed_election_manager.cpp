@@ -495,8 +495,8 @@ private:
     int CountVotesFor(TPeerId candidateId, TEpochId epochId) const
     {
         int result = 0;
-        for (const auto& pair : StatusTable_) {
-            if (pair.second.VoteId == candidateId && pair.second.VoteEpochId == epochId) {
+        for (const auto& [peerId, peerStatus] : StatusTable_) {
+            if (peerStatus.VoteId == candidateId && peerStatus.VoteEpochId == epochId) {
                 ++result;
             }
         }
@@ -784,7 +784,7 @@ void TDistributedElectionManager::StartVoting()
     EpochContext_ = New<TEpochContext>();
     TentativeEpochContext_.Store(EpochContext_);
     EpochContext_->CellManager = CellManager_;
-    
+
     EpochControlInvoker_ = EpochContext_->CancelableContext->CreateInvoker(ControlInvoker_);
 
     SetState(EPeerState::Voting);

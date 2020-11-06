@@ -104,9 +104,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
     std::vector<TKey> updatesToRemove;
     std::vector<TFuture<void>> asyncResults;
     std::vector<TKey> requestKeys;
-    for (auto& pair : Updates_) {
-        const auto& key = pair.first;
-        auto& updateRecord = pair.second;
+    for (auto& [key, updateRecord] : Updates_) {
         if (ShouldRemoveUpdateAction_(&updateRecord.UpdateParameters)) {
             updatesToRemove.push_back(key);
         } else {

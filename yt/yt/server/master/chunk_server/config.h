@@ -27,14 +27,14 @@ public:
             .Default();
 
         RegisterPostprocessor([&] () {
-            for (const auto& pair : Capacities_) {
-                for (const auto& pair2 : pair.second) {
-                    if (pair2.second < 0) {
+            for (const auto& [srcName, srcMap] : Capacities_) {
+                for (const auto& [dstName, capacity] : srcMap) {
+                    if (capacity < 0) {
                         THROW_ERROR_EXCEPTION(
                             "Negative capacity %v for inter-DC edge %v->%v",
-                            pair2.second,
-                            pair.first,
-                            pair2.first);
+                            capacity,
+                            srcName,
+                            dstName);
                     }
                 }
             }
@@ -46,12 +46,12 @@ public:
     THashMap<std::optional<TString>, THashMap<std::optional<TString>, i64>> GetCapacities() const
     {
         THashMap<std::optional<TString>, THashMap<std::optional<TString>, i64>> result;
-        for (const auto& pair : Capacities_) {
-            auto srcDataCenter = pair.first.empty() ? std::nullopt : std::make_optional(pair.first);
+        for (const auto& [srcName, srcMap] : Capacities_) {
+            auto srcDataCenter = srcName.empty() ? std::nullopt : std::make_optional(srcName);
             auto& srcDataCenterCapacities = result[srcDataCenter];
-            for (const auto& pair2 : pair.second) {
-                auto dstDataCenter = pair2.first.empty() ? std::nullopt : std::make_optional(pair2.first);
-                srcDataCenterCapacities.emplace(dstDataCenter, pair2.second);
+            for (const auto& [dstName, capacity] : srcMap) {
+                auto dstDataCenter = srcName.empty() ? std::nullopt : std::make_optional(srcName);
+                srcDataCenterCapacities.emplace(dstDataCenter, capacity);
             }
         }
         return result;
@@ -441,7 +441,7 @@ public:
 
         RegisterParameter("deprecated_codec_ids", DeprecatedCodecIds)
             .Default();
-    
+
         RegisterParameter("deprecated_codec_name_to_alias", DeprecatedCodecNameToAlias)
             .Default();
 

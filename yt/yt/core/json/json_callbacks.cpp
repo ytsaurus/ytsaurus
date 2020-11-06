@@ -181,20 +181,19 @@ void TJsonCallbacksBuildingNodesImpl::ConsumeNode(INodePtr node)
 
 void TJsonCallbacksBuildingNodesImpl::ConsumeMapFragment(IMapNodePtr map)
 {
-    for (const auto& pair : map->GetChildren()) {
-        auto key = TStringBuf(pair.first);
-        const auto& value = pair.second;
-        if (AttributesMode_ != EJsonAttributesMode::Never && IsSpecialJsonKey(key)) {
-            if (key.size() < 2 || key[1] != '$') {
+    for (const auto& [key, value] : map->GetChildren()) {
+        auto adjustedKey = TStringBuf(key);
+        if (AttributesMode_ != EJsonAttributesMode::Never && IsSpecialJsonKey(adjustedKey)) {
+            if (adjustedKey.size() < 2 || key[1] != '$') {
                 THROW_ERROR_EXCEPTION(
                     "Key \"%v\" starts with single \"$\"; use \"$%v\" "
                     "to encode this key in JSON format",
-                    key,
-                    key);
+                    adjustedKey,
+                    adjustedKey);
             }
-            key = key.substr(1);
+            adjustedKey = adjustedKey.substr(1);
         }
-        Consumer_->OnKeyedItem(key);
+        Consumer_->OnKeyedItem(adjustedKey);
         ConsumeNode(value);
     }
 }

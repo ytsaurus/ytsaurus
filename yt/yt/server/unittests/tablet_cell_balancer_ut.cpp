@@ -71,22 +71,21 @@ public:
         int tabletSlotCount,
         const THashMap<TString, std::vector<int>>& cellDistribution)
     {
-        for (auto& pair : peersPerCell) {
-            auto* bundle = GetBundle(pair.first);
-            bundle->GetOptions()->PeerCount = pair.second;
+        for (const auto& [bundleName, peerCount] : peersPerCell) {
+            auto* bundle = GetBundle(bundleName);
+            bundle->GetOptions()->PeerCount = peerCount;
         }
 
-        for (auto& pair : cellLists) {
-            auto* bundle = GetBundle(pair.first);
-            auto& list = pair.second;
+        for (const auto& [bundleName, list] : cellLists) {
+            auto* bundle = GetBundle(bundleName);
             for (int index : list) {
                 CreateCell(bundle, index);
             }
         }
 
-        for (auto& pair : nodeFeasibility) {
-            auto* node = GetNode(pair.first);
-            for (auto& bundleName : pair.second) {
+        for (const auto& [nodeName, bundleNames] : nodeFeasibility) {
+            auto* node = GetNode(nodeName);
+            for (const auto& bundleName : bundleNames) {
                 auto* bundle = GetBundle(bundleName, false);
                 YT_VERIFY(FeasibilityMap_[node].insert(bundle).second);
             }
@@ -95,32 +94,29 @@ public:
         THashSet<const TNode*> seenNodes;
         THashMap<const TCellBase*, int> peers;
 
-        for (auto& pair : cellDistribution) {
-            auto* node = GetNode(pair.first);
+        for (const auto& [nodeName, cellIndexes] : cellDistribution) {
+            auto* node = GetNode(nodeName);
             YT_VERIFY(seenNodes.insert(node).second);
 
             TCellSet cellSet;
-
-            for (int index : pair.second) {
+            for (int index : cellIndexes) {
                 auto* cell = GetCell(index);
                 int peer = peers[cell]++;
-                cell->Peers()[peer].Descriptor = TNodeDescriptor(pair.first);
+                cell->Peers()[peer].Descriptor = TNodeDescriptor(nodeName);
                 cellSet.emplace_back(cell, peer);
             }
 
             NodeHolders_.emplace_back(node, tabletSlotCount, cellSet);
         }
 
-        for (auto& pair : NodeMap_) {
-            auto* node = pair.second;
+        for (auto [nodeId, node] : NodeMap_) {
             if (!seenNodes.contains(node)) {
                 seenNodes.insert(node);
                 NodeHolders_.emplace_back(node, tabletSlotCount, TCellSet{});
             }
         }
 
-        for (auto& pair : CellMap_) {
-            auto* cell = pair.second;
+        for (auto [cellId, cell] : CellMap_) {
             for (int peer = peers[cell]; peer < cell->GetCellBundle()->GetOptions()->PeerCount; ++peer) {
                 UnassignedPeers_.emplace_back(cell, peer);
             }
@@ -330,8 +326,7 @@ private:
                 }
             }
 
-            for (const auto& pair : CellMap_) {
-                auto* cell = pair.second;
+            for (auto [cellId, cell] : CellMap_) {
                 for (int peer = 0; peer < cell->GetCellBundle()->GetOptions()->PeerCount; ++peer) {
                     if (!cellSet.contains(std::make_pair(cell, peer))) {
                         THROW_ERROR_EXCEPTION("Peer %v of cell %v is not assigned to any node",
@@ -359,8 +354,7 @@ private:
 
     void ValidateSmoothness()
     {
-        for (const auto& pair : CellBundleMap_) {
-            auto* bundle = pair.second;
+        for (auto [bundleId, bundle] : CellBundleMap_) {
             THashMap<const TNode*, int> cellsPerNode;
             int feasibleNodes = 0;
             int cells = 0;
@@ -386,11 +380,11 @@ private:
             int lower = cells / feasibleNodes;
             int upper = (cells + feasibleNodes - 1) / feasibleNodes;
 
-            for (const auto& pair : cellsPerNode) {
-                if (pair.second < lower || pair.second > upper) {
+            for (auto [node, count] : cellsPerNode) {
+                if (count < lower || count> upper) {
                     THROW_ERROR_EXCEPTION("Node %v has %v cells of bundle %v which violates smooth interval [%v, %v]",
-                        NodeToName_[pair.first],
-                        pair.second,
+                        NodeToName_[node],
+                        count,
                         bundle->GetName(),
                         lower,
                         upper);

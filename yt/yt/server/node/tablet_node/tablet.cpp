@@ -550,8 +550,7 @@ void TTablet::Save(TSaveContext& context) const
 
     TSizeSerializer::Save(context, StoreIdMap_.size());
     // NB: This is not stable.
-    for (const auto& pair : StoreIdMap_) {
-        const auto& store = pair.second;
+    for (const auto& [storeId, store] : StoreIdMap_) {
         Save(context, store->GetType());
         Save(context, store->GetId());
         store->Save(context);
@@ -594,8 +593,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, RuntimeData_->LastCommitTimestamp);
     Load(context, RuntimeData_->LastWriteTimestamp);
     Load(context, Replicas_);
-    for (auto& pair : Replicas_) {
-        auto& replicaInfo = pair.second;
+    for (auto& [_, replicaInfo] : Replicas_) {
         replicaInfo.SetTablet(this);
     }
     Load(context, RetainedTimestamp_);
@@ -620,8 +618,8 @@ void TTablet::Load(TLoadContext& context)
     }
 
     if (IsPhysicallyOrdered()) {
-        for (const auto& pair : StoreIdMap_) {
-            auto orderedStore = pair.second->AsOrdered();
+        for (const auto& [storeId, store] : StoreIdMap_) {
+            auto orderedStore = store->AsOrdered();
             YT_VERIFY(StoreRowIndexMap_.emplace(orderedStore->GetStartingRowIndex(), orderedStore).second);
         }
     }
@@ -680,8 +678,7 @@ void TTablet::Load(TLoadContext& context)
 TCallback<void(TSaveContext&)> TTablet::AsyncSave()
 {
     std::vector<std::pair<TStoreId, TCallback<void(TSaveContext&)>>> capturedStores;
-    for (const auto& pair : StoreIdMap_) {
-        const auto& store = pair.second;
+    for (const auto& [storeId, store] : StoreIdMap_) {
         capturedStores.push_back(std::make_pair(store->GetId(), store->AsyncSave()));
     }
 
@@ -713,9 +710,9 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
             }
 
             // NB: This is not stable.
-            for (const auto& pair : capturedStores) {
-                Save(context, pair.first);
-                pair.second.Run(context);
+            for (const auto& [storeId, store] : capturedStores) {
+                Save(context, storeId);
+                store.Run(context);
             }
         });
 }
@@ -1272,9 +1269,9 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     if (IsPhysicallyOrdered()) {
         // TODO(babenko): optimize
         snapshot->OrderedStores.reserve(StoreRowIndexMap_.size());
-        for (const auto& pair : StoreRowIndexMap_) {
-            snapshot->OrderedStores.push_back(pair.second);
-            addStoreStatistics(pair.second);
+        for (const auto& [_, store] : StoreRowIndexMap_) {
+            snapshot->OrderedStores.push_back(store);
+            addStoreStatistics(store);
         }
     }
 
@@ -1296,8 +1293,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     snapshot->ColumnEvaluator = ColumnEvaluator_;
     snapshot->TabletRuntimeData = RuntimeData_;
 
-    for (const auto& pair : Replicas_) {
-        YT_VERIFY(snapshot->Replicas.emplace(pair.first, pair.second.BuildSnapshot()).second);
+    for (const auto& [replicaId, replicaInfo] : Replicas_) {
+        YT_VERIFY(snapshot->Replicas.emplace(replicaId, replicaInfo.BuildSnapshot()).second);
     }
 
     UpdateUnflushedTimestamp();
@@ -1523,9 +1520,9 @@ void TTablet::UpdateUnflushedTimestamp() const
 {
     auto unflushedTimestamp = MaxTimestamp;
 
-    for (const auto& pair : StoreIdMap()) {
-        if (pair.second->IsDynamic()) {
-            auto timestamp = pair.second->GetMinTimestamp();
+    for (const auto& [storeId, store] : StoreIdMap()) {
+        if (store->IsDynamic()) {
+            auto timestamp = store->GetMinTimestamp();
             unflushedTimestamp = std::min(unflushedTimestamp, timestamp);
         }
     }

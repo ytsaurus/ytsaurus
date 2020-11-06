@@ -311,8 +311,7 @@ private:
                 endpoint.Type,
                 endpoint.DataSlice.Get());
         }
-        for (const auto& pair : DataSliceToInputCookie_) {
-            const auto& dataSlice = pair.first;
+        for (const auto& [dataSlice, cookie] : DataSliceToInputCookie_) {
             std::vector<TChunkId> chunkIds;
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 chunkIds.emplace_back(chunkSlice->GetInputChunk()->ChunkId());

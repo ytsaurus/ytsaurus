@@ -366,8 +366,7 @@ void TGarbageCollector::ClearWeakGhosts()
     YT_LOG_INFO("Started deleting weak ghost objects (Count: %v)",
         WeakGhosts_.size());
 
-    for (const auto& pair : WeakGhosts_) {
-        auto* object = pair.second;
+    for (auto [objectId, object] : WeakGhosts_) {
         YT_VERIFY(object->IsDestroyed());
         delete object;
     }

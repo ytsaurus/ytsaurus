@@ -312,8 +312,7 @@ private:
 
     void FlushSplitChangelogs()
     {
-        for (const auto& pair : SplitMap_) {
-            const auto& entry = pair.second;
+        for (const auto& [chunkId, entry] : SplitMap_) {
             Callbacks_->FlushSplitChangelog(entry.ChunkId);
         }
     }
@@ -345,8 +344,7 @@ private:
             }
         });
 
-        for (auto& pair : SplitMap_) {
-            auto& entry = pair.second;
+        for (auto& [chunkId, entry] : SplitMap_) {
             if (entry.RecordsAdded == 0)
                 continue;
 
@@ -354,7 +352,7 @@ private:
                 .ThrowOnError();
 
             YT_LOG_INFO("Replay appended to journal chunk (ChunkId: %v, RecordCount: %v, RecordsAdded: %v)",
-                pair.first,
+                chunkId,
                 entry.Changelog->GetRecordCount(),
                 entry.RecordsAdded);
 

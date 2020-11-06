@@ -43,21 +43,17 @@ void TIncrementalTopologicalOrdering<TVertexDescriptor>::Rebuild()
     THashMap<TVertexDescriptor, int> inDegree;
 
     // Initialize in-degrees of all vertices.
-    for (const auto& pair : OutgoingEdges_) {
-        auto vertex = pair.first;
+    for (const auto& [srcVertex, dstVertices] : OutgoingEdges_) {
         // Make an entry for the vertex appear in the inDegree.
-        inDegree[vertex];
-        const auto& vertexList = pair.second;
-        for (const auto& nextVertex : vertexList) {
-            ++inDegree[nextVertex];
+        inDegree[srcVertex];
+        for (const auto& dstVertex : dstVertices) {
+            ++inDegree[dstVertex];
         }
     }
 
     // Put all sources in the queue.
-    for (const auto& pair : inDegree) {
-        const auto& vertex = pair.first;
-        int inDegree = pair.second;
-        if (inDegree == 0) {
+    for (const auto& [vertex, degree] : inDegree) {
+        if (degree == 0) {
             queue.push(vertex);
         }
     }

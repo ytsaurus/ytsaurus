@@ -69,8 +69,7 @@ THashMap<TOperationId, TMutable<TOperationStatistics>> CreateOperationsStorage(
 {
     THashMap<TOperationId, TMutable<TOperationStatistics>> operationStorage;
 
-    for (const auto& pair : operationDescriptionById) {
-        auto operationId = pair.first;
+    for (const auto& [operationId, description] : operationDescriptionById) {
         operationStorage.emplace(operationId, TOperationStatistics());
     }
 

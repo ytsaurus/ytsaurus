@@ -796,10 +796,7 @@ private:
             SuppressedRequestIdQueue_.DequeueAll();
         }
 
-        for (const auto& pair : Config_->WriterConfigs) {
-            const auto& name = pair.first;
-            const auto& config = pair.second;
-
+        for (const auto& [name, config] : Config_->WriterConfigs) {
             ILogWriterPtr writer;
             std::unique_ptr<ILogFormatter> formatter;
             std::unique_ptr<TNotificationWatch> watch;

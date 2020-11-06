@@ -2455,8 +2455,7 @@ private:
     {
         auto doLogOperationsInfo = [&] (const auto& operationIdToElement) {
             // Using structured bindings directly in the for-statement causes an ICE in GCC build.
-            for (const auto& pair : operationIdToElement) {
-                const auto& [operationId, element] = pair;
+            for (const auto& [operationId, element] : operationIdToElement) {
                 YT_LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
                     element->GetLoggingString(GetDynamicAttributes(rootElementSnapshot, element)),
                     operationId);

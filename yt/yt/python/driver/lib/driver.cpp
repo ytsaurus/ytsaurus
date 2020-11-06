@@ -308,12 +308,12 @@ void TDriverModuleBase::Initialize(
     RegisterAfterFinalizeShutdownCallback(
         BIND([] () {
             YT_LOG_INFO("Module shutdown started");
-            for (const auto& pair : ActiveDrivers) {
-                auto driver = pair.second.Lock();
+            for (const auto& [driverId, weakDriver] : ActiveDrivers) {
+                auto driver = weakDriver.Lock();
                 if (!driver) {
                     continue;
                 }
-                YT_LOG_INFO("Terminating leaked driver (DriverId: %v)", pair.first);
+                YT_LOG_INFO("Terminating leaked driver (DriverId: %v)", driverId);
                 driver->Terminate();
             }
             ActiveDrivers.clear();

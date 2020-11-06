@@ -131,12 +131,12 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
             break;
 
         case ENodeType::Map:
-            for (auto& pair : sample->AsMap()->GetChildren()) {
-                if (pair.first.empty()) {
+            for (const auto& [key, child] : sample->AsMap()->GetChildren()) {
+                if (key.empty()) {
                     THROW_ERROR_EXCEPTION("Statistic cannot have an empty name")
                         << TErrorAttribute("path_prefix", path);
                 }
-                AddSample(path + "/" + ToYPathLiteral(pair.first), pair.second);
+                AddSample(path + "/" + ToYPathLiteral(key), child);
             }
             break;
 
@@ -150,16 +150,16 @@ void TStatistics::AddSample(const NYPath::TYPath& path, const INodePtr& sample)
 
 void TStatistics::Update(const TStatistics& statistics)
 {
-    for (const auto& pair : statistics.Data()) {
-        GetSummary(pair.first).Update(pair.second);
+    for (const auto& [path, summary] : statistics.Data()) {
+        GetSummary(path).Update(summary);
     }
 }
 
 void TStatistics::AddSuffixToNames(const TString& suffix)
 {
     TSummaryMap newData;
-    for (const auto& pair : Data_) {
-        newData[pair.first + suffix] = pair.second;
+    for (const auto& [path, summary] : Data_) {
+        newData[path + suffix] = summary;
     }
 
     std::swap(Data_, newData);
@@ -195,8 +195,7 @@ void Serialize(const TStatistics& statistics, IYsonConsumer* consumer)
     // Depth of the previous key defined as a number of nested maps before the summary itself.
     int previousDepth = 0;
     TYPath previousKey;
-    for (const auto& pair : statistics.Data()) {
-        const auto& currentKey = pair.first;
+    for (const auto& [currentKey, summary] : statistics.Data()) {
         NYPath::TTokenizer previousTokenizer(previousKey);
         NYPath::TTokenizer currentTokenizer(currentKey);
 
@@ -255,7 +254,7 @@ void Serialize(const TStatistics& statistics, IYsonConsumer* consumer)
             }
         }
         // Serialize summary.
-        Serialize(pair.second, consumer);
+        Serialize(summary, consumer);
 
         previousDepth = currentDepth;
         previousKey = currentKey;

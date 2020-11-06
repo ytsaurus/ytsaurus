@@ -138,12 +138,12 @@ private:
                     return lhs.first < rhs.first;
                 });
         }
-        for (const auto& pair : children) {
-            if (SkipEntityMapChildren && pair.second->GetType() == ENodeType::Entity) {
+        for (const auto& [key, child] : children) {
+            if (SkipEntityMapChildren && child->GetType() == ENodeType::Entity) {
                 continue;
             }
-            Consumer->OnKeyedItem(pair.first);
-            VisitAny(pair.second);
+            Consumer->OnKeyedItem(key);
+            VisitAny(child);
         }
         Consumer->OnEndMap();
     }

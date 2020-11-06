@@ -2064,8 +2064,7 @@ private:
         ParticipantCleanupExecutor_->Stop();
 
         YT_VERIFY(TransientCommitMap_.GetSize() == 0);
-        for (const auto& pair : PersistentCommitMap_) {
-            auto* commit = pair.second;
+        for (auto [transactionId, commit] : PersistentCommitMap_) {
             ChangeCommitTransientState(commit, commit->GetPersistentState());
         }
     }
@@ -2081,15 +2080,13 @@ private:
 
         auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
 
-        for (const auto& pair : TransientCommitMap_) {
-            auto* commit = pair.second;
+        for (auto [transactionId, commit] : TransientCommitMap_) {
             SetCommitFailed(commit, error);
         }
         TransientCommitMap_.Clear();
 
-        for (auto& pair : TransientAbortMap_) {
-            auto* abort = &pair.second;
-            SetAbortFailed(abort, error);
+        for (auto& [transactionId, abort] : TransientAbortMap_) {
+            SetAbortFailed(&abort, error);
         }
         TransientAbortMap_.clear();
 

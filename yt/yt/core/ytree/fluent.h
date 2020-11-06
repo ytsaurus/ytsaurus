@@ -450,9 +450,9 @@ public:
 
         TThis& Items(const IMapNodePtr& map)
         {
-            for (const auto& pair : map->GetChildren()) {
-                this->Consumer->OnKeyedItem(pair.first);
-                VisitTree(pair.second, this->Consumer, true);
+            for (const auto& [key, child] : map->GetChildren()) {
+                this->Consumer->OnKeyedItem(key);
+                VisitTree(child, this->Consumer, true);
             }
             return *this;
         }
@@ -560,9 +560,9 @@ public:
 
         TThis& Items(const IMapNodePtr& map)
         {
-            for (const auto& pair : map->GetChildren()) {
-                this->Consumer->OnKeyedItem(pair.first);
-                VisitTree(pair.second, this->Consumer, true);
+            for (const auto& [key, child] : map->GetChildren()) {
+                this->Consumer->OnKeyedItem(key);
+                VisitTree(child, this->Consumer, true);
             }
             return *this;
         }

@@ -188,10 +188,10 @@ void TSerializableChunkReplication::ToChunkReplication(
 {
     replication->ClearEntries();
 
-    for (const auto& pair : Entries_) {
-        auto* medium = chunkManager->GetMediumByNameOrThrow(pair.first);
+    for (const auto& [name, policy] : Entries_) {
+        auto* medium = chunkManager->GetMediumByNameOrThrow(name);
         auto mediumIndex = medium->GetIndex();
-        replication->Set(mediumIndex, pair.second);
+        replication->Set(mediumIndex, policy);
     }
 }
 
@@ -658,9 +658,9 @@ void TChunkRequisitionRegistry::Load(NCellMaster::TLoadContext& context)
     IndexToItem_.reserve(sortedIndex.size());
     RequisitionToIndex_.reserve(sortedIndex.size());
 
-    for (const auto& pair : sortedIndex) {
-        IndexToItem_.emplace(pair.first, pair.second);
-        RequisitionToIndex_.emplace(pair.second.Requisition, pair.first);
+    for (const auto& [requisitionIndex, indexedItem] : sortedIndex) {
+        IndexToItem_.emplace(requisitionIndex, indexedItem);
+        RequisitionToIndex_.emplace(indexedItem.Requisition, requisitionIndex);
     }
 
     YT_VERIFY(IndexToItem_.contains(EmptyChunkRequisitionIndex));

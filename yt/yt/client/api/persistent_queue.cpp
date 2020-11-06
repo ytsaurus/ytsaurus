@@ -292,35 +292,31 @@ private:
 
         TGuard<TAdaptiveLock> guard(state->SpinLock);
 
-        for (auto& pair : state->TabletMap) {
-            auto& tablet = pair.second;
-            tablet.FetchRowIndex = 0;
-            tablet.LastTrimmedRowIndex = -1;
+        for (auto& [tabletId, tabletState] : state->TabletMap) {
+            tabletState.FetchRowIndex = 0;
+            tabletState.LastTrimmedRowIndex = -1;
         }
 
         for (const auto& row : stateRows) {
-            auto& tablet = GetOrCrash(state->TabletMap, row.TabletIndex);
+            auto& tabletState = GetOrCrash(state->TabletMap, row.TabletIndex);
 
-            tablet.ConsumedRowIndexes.insert(row.RowIndex);
-            tablet.MaxConsumedRowIndex = std::max(tablet.MaxConsumedRowIndex, row.RowIndex);
+            tabletState.ConsumedRowIndexes.insert(row.RowIndex);
+            tabletState.MaxConsumedRowIndex = std::max(tabletState.MaxConsumedRowIndex, row.RowIndex);
 
             if (row.State == ERowState::ConsumedAndTrimmed) {
-                tablet.FetchRowIndex = row.RowIndex;
-                tablet.LastTrimmedRowIndex = std::max(tablet.LastTrimmedRowIndex, row.RowIndex);
+                tabletState.FetchRowIndex = row.RowIndex;
+                tabletState.LastTrimmedRowIndex = std::max(tabletState.LastTrimmedRowIndex, row.RowIndex);
             }
         }
 
-        for (auto& pair : state->TabletMap) {
-            auto& tablet = pair.second;
+        for (auto& [tabletId, tablet] : state->TabletMap) {
             while (tablet.ConsumedRowIndexes.find(tablet.FetchRowIndex) != tablet.ConsumedRowIndexes.end()) {
                 YT_VERIFY(tablet.ConsumedRowIndexes.erase(tablet.FetchRowIndex) == 1);
                 ++tablet.FetchRowIndex;
             }
         }
 
-        for (const auto& pair : state->TabletMap) {
-            int tabletIndex = pair.first;
-            const auto& tablet = pair.second;
+        for (const auto& [tabletIndex, tablet] : state->TabletMap) {
             YT_LOG_DEBUG("Tablet state collected (TabletIndex: %v, ConsumedRowIndexes: %v, FetchRowIndex: %v)",
                 tabletIndex,
                 tablet.ConsumedRowIndexes,
@@ -760,9 +756,7 @@ private:
 
         {
             TGuard<TAdaptiveLock> guard(state->SpinLock);
-            for (const auto& pair : tabletStatisticsMap) {
-                int tabletIndex = pair.first;
-                const auto& statistics = pair.second;
+            for (const auto& [tabletIndex, statistics] : tabletStatisticsMap) {
                 auto& tablet = GetOrCrash(state->TabletMap, tabletIndex);
                 tablet.LastTrimmedRowIndex = statistics.LastTrimmedRowIndex;
             }
@@ -774,10 +768,7 @@ private:
             auto rowIndexColumnId = nameTable->RegisterName(TStateTable::RowIndexColumnName);
             auto stateColumnId = nameTable->RegisterName(TStateTable::StateColumnName);
 
-            for (auto& pair : tabletStatisticsMap) {
-                int tabletIndex = pair.first;
-                auto& statistics = pair.second;
-
+            for (auto& [tabletIndex, statistics] : tabletStatisticsMap) {
                 i64 stateTrimRowIndex = statistics.LastTrimmedRowIndex;
                 while (statistics.ConsumedRowIndexes.find(stateTrimRowIndex + 1) != statistics.ConsumedRowIndexes.end()) {
                     ++stateTrimRowIndex;
@@ -834,9 +825,7 @@ private:
         YT_LOG_DEBUG("State trim transaction committed");
 
         std::vector<TFuture<void>> dataTrimAsyncResults;
-        for (const auto& pair : tabletStatisticsMap) {
-            int tabletIndex = pair.first;
-            const auto& statistics = pair.second;
+        for (const auto& [tabletIndex, statistics] : tabletStatisticsMap) {
             if (statistics.TrimmedRowCountRequest > 0) {
                 dataTrimAsyncResults.push_back(Client_->TrimTable(
                     DataTablePath_,
@@ -961,8 +950,7 @@ TFuture<THashMap<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsSt
                 }
             }
 
-            for (auto& pair : tabletMap) {
-                auto& tabletState = pair.second;
+            for (auto& [tabetId, tabletState] : tabletMap) {
                 tabletState.ConsumedRowCount = tabletState.FirstUntrimmedRowIndex;
             }
 
@@ -1036,9 +1024,7 @@ TFuture<void> UpdatePersistentQueueTabletsState(
                 });
             }
 
-            for (const auto& pair : tabletMap) {
-                int tabletIndex = pair.first;
-                const auto& tabletUpdate = pair.second;
+            for (const auto& [tabletIndex, tabletUpdate] : tabletMap) {
                 YT_ASSERT(tabletUpdate.FirstUnconsumedRowIndex >= 0);
                 if (tabletUpdate.FirstUnconsumedRowIndex > 0) {
                     auto rowToWrite = rowBuffer->AllocateUnversioned(3);

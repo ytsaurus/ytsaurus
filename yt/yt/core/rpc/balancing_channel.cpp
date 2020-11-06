@@ -132,8 +132,8 @@ public:
         std::vector<TBalancingChannelSubproviderPtr> subproviders;
         {
             TReaderGuard guard(SpinLock_);
-            for (const auto& pair : SubproviderMap_) {
-                subproviders.push_back(pair.second);
+            for (const auto& [_, subprovider] : SubproviderMap_) {
+                subproviders.push_back(subprovider);
             }
         }
 

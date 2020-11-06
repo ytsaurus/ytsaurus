@@ -135,8 +135,8 @@ public:
 
         if (context.IsLoad()) {
             SharedQueue_.clear();
-            for (const auto& pair : Transactions_) {
-                SharedQueue_.emplace(pair.second, NewPromise<void>());
+            for (auto [transactionId, timestamp] : Transactions_) {
+                SharedQueue_.emplace(timestamp, NewPromise<void>());
             }
         }
 

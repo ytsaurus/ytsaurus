@@ -251,7 +251,7 @@ public:
             auto rsp = rspOrError.ValueOrThrow();
             Tags_ = ConvertTo<std::vector<TString>>(TYsonString(rsp->value()));
             YT_LOG_DEBUG("Tags fetched from Cypress (Tags: %v)",
-                Tags_);            
+                Tags_);
         }
 
         return *Tags_;
@@ -887,7 +887,7 @@ private:
         batchReq->AddRequest(multisetReq, "update_op_node");
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-        
+
         YT_LOG_DEBUG("Operation progress in Cypress updated (OperationId: %v)",
             operationId);
     }
@@ -1298,10 +1298,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        for (auto& pair : CellTagToUnstageList_) {
-            const auto& cellTag = pair.first;
-            auto& unstageRequests = pair.second;
-
+        for (auto& [cellTag, unstageRequests] : CellTagToUnstageList_) {
             if (unstageRequests.empty()) {
                 continue;
             }
@@ -1326,7 +1323,7 @@ private:
                 cellTag);
 
             batchReq->Invoke().Apply(
-                BIND([=] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                BIND([=, this_ = MakeStrong(this), cellTag = cellTag] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                     if (!batchRspOrError.IsOK()) {
                         YT_LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees (CellTag: %v)", cellTag);
                     }

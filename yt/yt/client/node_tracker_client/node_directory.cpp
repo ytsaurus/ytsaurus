@@ -224,10 +224,10 @@ namespace NProto {
 
 void ToProto(NNodeTrackerClient::NProto::TAddressMap* protoAddresses, const NNodeTrackerClient::TAddressMap& addresses)
 {
-    for (const auto& pair : addresses) {
+    for (const auto& [networkName, networkAddress] : addresses) {
         auto* entry = protoAddresses->add_entries();
-        entry->set_network(pair.first);
-        entry->set_address(pair.second);
+        entry->set_network(networkName);
+        entry->set_address(networkAddress);
     }
 }
 
@@ -242,10 +242,10 @@ void FromProto(NNodeTrackerClient::TAddressMap* addresses, const NNodeTrackerCli
 
 void ToProto(NNodeTrackerClient::NProto::TNodeAddressMap* proto, const NNodeTrackerClient::TNodeAddressMap& nodeAddresses)
 {
-    for (const auto& pair : nodeAddresses) {
+    for (const auto& [addressType, addresses] : nodeAddresses) {
         auto* entry = proto->add_entries();
-        entry->set_address_type(static_cast<int>(pair.first));
-        ToProto(entry->mutable_addresses(), pair.second);
+        entry->set_address_type(static_cast<int>(addressType));
+        ToProto(entry->mutable_addresses(), addresses);
     }
 }
 
@@ -404,10 +404,10 @@ void TNodeDirectory::MergeFrom(const TNodeDirectoryPtr& source)
 void TNodeDirectory::DumpTo(NProto::TNodeDirectory* destination)
 {
     NConcurrency::TReaderGuard guard(SpinLock_);
-    for (const auto& pair : IdToDescriptor_) {
+    for (auto [id, descriptor] : IdToDescriptor_) {
         auto* item = destination->add_items();
-        item->set_node_id(pair.first);
-        ToProto(item->mutable_node_descriptor(), *pair.second);
+        item->set_node_id(id);
+        ToProto(item->mutable_node_descriptor(), *descriptor);
     }
 }
 
@@ -512,9 +512,8 @@ std::vector<std::pair<TNodeId, TNodeDescriptor>> TNodeDirectory::GetAllDescripto
 
     std::vector<std::pair<TNodeId, TNodeDescriptor>> result;
     result.reserve(IdToDescriptor_.size());
-    for (const auto& pair : IdToDescriptor_) {
-        const auto* descriptor = pair.second;
-        result.emplace_back(pair.first, *descriptor);
+    for (auto [id, descriptor] : IdToDescriptor_) {
+        result.emplace_back(id, *descriptor);
     }
     return result;
 }
@@ -538,8 +537,8 @@ void TNodeDirectory::Save(TStreamSaveContext& context) const
     THashMap<TNodeId, TNodeDescriptor> idToDescriptor;
     {
         NConcurrency::TReaderGuard guard(SpinLock_);
-        for (const auto& pair : IdToDescriptor_) {
-            YT_VERIFY(idToDescriptor.emplace(pair.first, *pair.second).second);
+        for (auto [id, descriptor] : IdToDescriptor_) {
+            YT_VERIFY(idToDescriptor.emplace(id, *descriptor).second);
         }
     }
     using NYT::Save;
@@ -631,9 +630,9 @@ size_t THash<NYT::NNodeTrackerClient::TNodeDescriptor>::operator()(
     HashCombine(result, nodeDescriptor.GetDefaultAddress());
     HashCombine(result, nodeDescriptor.GetRack());
     HashCombine(result, nodeDescriptor.GetDataCenter());
-    for (const auto& pair : nodeDescriptor.Addresses()) {
-        HashCombine(result, pair.first);
-        HashCombine(result, pair.second);
+    for (const auto& [network, address] : nodeDescriptor.Addresses()) {
+        HashCombine(result, network);
+        HashCombine(result, address);
     }
     for (const auto& tag : NYT::NNodeTrackerClient::GetSortedTags(nodeDescriptor.GetTags())) {
         HashCombine(result, tag);

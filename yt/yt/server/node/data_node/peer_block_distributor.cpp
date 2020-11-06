@@ -393,7 +393,7 @@ std::vector<std::pair<TNodeId, const TNodeDescriptor*>> TPeerBlockDistributor::C
             return false;
         }
 
-        destinationNodes[nodeId] = &(it->second);                
+        destinationNodes[nodeId] = &(it->second);
         return destinationNodes.size() >= Config_->DestinationNodeCount;
     };
 
@@ -431,9 +431,7 @@ void TPeerBlockDistributor::UpdateTransmittedBytes()
     }
 
     TransmittedBytes_ = 0;
-    for (const auto& pair : interfaceToStatistics) {
-        const auto& interface = pair.first;
-        const auto& statistics = pair.second;
+    for (const auto& [interface, statistics] : interfaceToStatistics) {
         if (NRe2::TRe2::FullMatch(NRe2::StringPiece(interface), *Config_->NetOutInterfaces)) {
             TransmittedBytes_ += statistics.Tx.Bytes;
         }
