@@ -19,10 +19,7 @@ static const auto& Logger = ConcurrencyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerThreadBase::~TSchedulerThreadBase()
-{
-    Shutdown();
-}
+namespace {
 
 template <class TAction>
 void CheckedAction(std::atomic<ui64>* atomicEpoch, ui64 mask, TAction&& action)
@@ -44,6 +41,61 @@ void CheckedAction(std::atomic<ui64>* atomicEpoch, ui64 mask, TAction&& action)
     if (!alreadyDone) {
         action(epoch);
     }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchedulerThreadBase::TSchedulerThreadBase(
+    std::shared_ptr<TEventCount> callbackEventCount,
+    const TString& threadName,
+    bool enableLogging)
+    : CallbackEventCount_(std::move(callbackEventCount))
+    , ThreadName_(threadName)
+    , EnableLogging_(enableLogging)
+    , Thread_(ThreadTrampoline, (void*) this)
+{ }
+
+TSchedulerThreadBase::~TSchedulerThreadBase()
+{
+    Shutdown();
+}
+
+void TSchedulerThreadBase::OnStart()
+{ }
+
+void TSchedulerThreadBase::BeforeShutdown()
+{ }
+
+void TSchedulerThreadBase::AfterShutdown()
+{ }
+
+void TSchedulerThreadBase::OnThreadStart()
+{ }
+
+void TSchedulerThreadBase::OnThreadShutdown()
+{ }
+
+TThreadId TSchedulerThreadBase::GetId() const
+{
+    return ThreadId_;
+}
+
+bool TSchedulerThreadBase::IsStarted() const
+{
+    return Epoch_.load(std::memory_order_relaxed) & StartingEpochMask;
+}
+
+bool TSchedulerThreadBase::IsShutdown() const
+{
+    return Epoch_.load(std::memory_order_relaxed) & StoppingEpochMask;
+}
+
+void* TSchedulerThreadBase::ThreadTrampoline(void* opaque)
+{
+    static_cast<TSchedulerThreadBase*>(opaque)->ThreadMain();
+    return nullptr;
 }
 
 void TSchedulerThreadBase::Start()
@@ -143,7 +195,6 @@ void TSchedulerThreadBase::ThreadMain()
 ////////////////////////////////////////////////////////////////////////////////
 
 thread_local TFiberReusingAdapter* CurrentThread = nullptr;
-
 
 DECLARE_REFCOUNTED_STRUCT(TRefCountedGauge)
 
@@ -549,42 +600,6 @@ REGISTER_SHUTDOWN_CALLBACK(0, DestroyIdleFibers)
 
 #endif
 
-bool TFiberReusingAdapter::OnLoop(TEventCount::TCookie* cookie)
-{
-    Cookie_ = *cookie;
-
-    TFiberContext fiberContext;
-
-    fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
-        "/waiting_fibers",
-        GetThreadTagIds(true, ThreadName_));
-
-    CurrentThread = this;
-    FiberContext = &fiberContext;
-    auto finally = Finally([] {
-        CurrentThread = nullptr;
-        CurrentThread = nullptr;
-        FiberContext = nullptr;
-    });
-
-    TFiberPtr fiber = New<TDerivedFiber>();
-
-    SwitchFromThread(std::move(fiber));
-    // Can return from WaitFor if there are no idle fibers.
-
-    // Used when fiber yielded.
-    EndExecute();
-
-    // Result depends on last BeginExecute result (CancelWait called or not)
-    // should set proper cookie
-
-    if (Cookie_) {
-        *cookie = *Cookie_;
-    }
-
-    return !Cookie_;
-}
-
 void ResumeFiber(TFiberPtr fiber)
 {
     YT_LOG_TRACE("Resuming fiber (TargetFiberId: %llx)", fiber->GetId());
@@ -685,7 +700,6 @@ void BaseYield(TClosure afterSwitch)
     YT_VERIFY(ResumerFiber());
 }
 
-
 void Yield(TClosure afterSwitch)
 {
     auto* currentFiber = CurrentFiber().Get();
@@ -749,6 +763,66 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
         YT_LOG_DEBUG("Throwing fiber cancelation exception");
         throw TFiberCanceledException();
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFiberReusingAdapter::TFiberReusingAdapter(
+    std::shared_ptr<TEventCount> callbackEventCount,
+    const TString& threadName,
+    bool enableLogging)
+    : TSchedulerThreadBase(
+        callbackEventCount,
+        threadName,
+        enableLogging)
+{ }
+
+TFiberReusingAdapter::TFiberReusingAdapter(
+    std::shared_ptr<TEventCount> callbackEventCount,
+    const TString& threadName,
+    const NProfiling::TTagIdList& /*tagIds*/,
+    bool enableLogging,
+    bool /*enableProfiling*/)
+    : TFiberReusingAdapter(
+        std::move(callbackEventCount),
+        std::move(threadName),
+        enableLogging)
+{ }
+
+bool TFiberReusingAdapter::OnLoop(TEventCount::TCookie* cookie)
+{
+    Cookie_ = *cookie;
+
+    TFiberContext fiberContext;
+
+    fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
+        "/waiting_fibers",
+        GetThreadTagIds(true, ThreadName_));
+
+    CurrentThread = this;
+    FiberContext = &fiberContext;
+    auto finally = Finally([] {
+        CurrentThread = nullptr;
+        CurrentThread = nullptr;
+        FiberContext = nullptr;
+    });
+
+    TFiberPtr fiber = New<TDerivedFiber>();
+
+    SwitchFromThread(std::move(fiber));
+    // Can return from WaitFor if there are no idle fibers.
+
+    // Used when fiber yielded.
+    EndExecute();
+
+    // Result depends on last BeginExecute result (CancelWait called or not)
+    // should set proper cookie
+
+    if (Cookie_) {
+        *cookie = *Cookie_;
+    }
+
+    return !Cookie_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
