@@ -417,11 +417,11 @@ public:
         UsePortoMemoryTracking_ = true;
     }
 
-    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) override
+    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(TGuid jobId) override
     {
         auto containerName = Config_->UseShortContainerNames
             ? Format("%v/uj", SlotAbsoluteName_)
-            : Format("%v/uj_%v", SlotAbsoluteName_, jobId);
+            : Format("%v/uj_%v-%v", SlotAbsoluteName_, IntToString<16>(jobId.Parts32[3]), IntToString<16>(jobId.Parts32[2]));
 
         auto instance = CreatePortoInstance(containerName, PortoExecutor_);
 
