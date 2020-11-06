@@ -109,8 +109,6 @@ bool operator != (const TLogicalType& lhs, const TLogicalType& rhs);
 bool operator == (const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs) = delete;
 bool operator != (const TLogicalTypePtr& lhs, const TLogicalTypePtr& rhs) = delete;
 
-void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& newType);
-
 void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor);
 
 // Function converts new type to old typesystem.

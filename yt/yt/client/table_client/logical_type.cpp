@@ -996,23 +996,6 @@ void ValidateLogicalType(const TComplexTypeFieldDescriptor& descriptor)
     });
 }
 
-void ValidateAlterType(const TLogicalTypePtr& oldType, const TLogicalTypePtr& newType)
-{
-    if (*oldType == *newType) {
-        return;
-    }
-    const auto& [simplifiedOldLogicalType, oldRequired] = CastToV1Type(oldType);
-    const auto& [simplifiedNewLogicalType, newRequired] = CastToV1Type(newType);
-    if (simplifiedOldLogicalType != simplifiedNewLogicalType ||
-        !IsV1Type(oldType) || !IsV1Type(newType) || // NB. types are different (we already checked this) and are complex
-        !oldRequired && newRequired)
-    {
-        THROW_ERROR_EXCEPTION("Cannot alter type %Qv to type %Qv",
-            *oldType,
-            *newType);
-    }
-}
-
 void ToProto(NProto::TLogicalType* protoLogicalType, const TLogicalTypePtr& logicalType)
 {
     switch (logicalType->GetMetatype()) {
