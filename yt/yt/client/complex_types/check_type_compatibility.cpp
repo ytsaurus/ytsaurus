@@ -109,7 +109,11 @@ template <ESimpleTypeClass typeClass>
 static constexpr ESchemaCompatibility CheckCompatibilityUsingClass(ESimpleLogicalValueType oldType, ESimpleLogicalValueType newType)
 {
     int oldRank = GetSimpleTypeRank<typeClass>(oldType);
-    YT_VERIFY(oldRank > 0);
+    if (oldRank <= 0) {
+        THROW_ERROR_EXCEPTION("Internal error; unexpected rank %v of type %Qlv",
+            oldRank,
+            oldType);
+    }
     int newRank = GetSimpleTypeRank<typeClass>(newType);
     if (newRank < 0) {
         return ESchemaCompatibility::Incompatible;
@@ -218,7 +222,8 @@ static TCompatibilityPair CheckTypeCompatibilitySimple(
             return CreateResultPair(compatibility, oldDescriptor, newDescriptor);
         }
     }
-    YT_ABORT();
+    THROW_ERROR_EXCEPTION("Internal error: unknown logical type: %Qlv",
+        oldElement);
 }
 
 TCompatibilityPair CheckElementsCompatibility(
@@ -392,7 +397,7 @@ static TCompatibilityPair CheckTypeCompatibilityImpl(
         case ELogicalMetatype::Optional:
         case ELogicalMetatype::Tagged:
             // Optional and Tagged cases were checked earlier in this function.
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Internal error; unexpected optional or tagged");
         case ELogicalMetatype::List:
             return CheckTypeCompatibilityImpl(oldDescriptor.ListElement(), newDescriptor.ListElement());
         case ELogicalMetatype::VariantStruct:
@@ -420,7 +425,7 @@ static TCompatibilityPair CheckTypeCompatibilityImpl(
         case ELogicalMetatype::Decimal:
             return CheckDecimalTypeCompatibility(oldDescriptor, newDescriptor);
     }
-    YT_ABORT();
+    THROW_ERROR_EXCEPTION("Internal error; unexpected metatype: %Qlv", oldMetatype);
 }
 
 TCompatibilityPair CheckTypeCompatibility(

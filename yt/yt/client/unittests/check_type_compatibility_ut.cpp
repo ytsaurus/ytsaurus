@@ -116,6 +116,11 @@ TEST(TCheckTypeCompatibilityTest, Optional)
         CheckTypeCompatibility(
             Int32(),
             Optional(Int16())).first);
+
+    EXPECT_EQ(ESchemaCompatibility::RequireValidation,
+        CheckTypeCompatibility(
+            Optional(List(Int64())),
+            List(Int64())).first);
 }
 
 TEST(TCheckTypeCompatibilityTest, List)

@@ -30,8 +30,18 @@ using namespace NTabletClient;
 void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSchema& newColumn)
 {
     YT_VERIFY(oldColumn.Name() == newColumn.Name());
+    auto compatibility = NComplexTypes::CheckTypeCompatibility(
+        oldColumn.LogicalType(),
+        newColumn.LogicalType());
     try {
-        ValidateAlterType(oldColumn.LogicalType(), newColumn.LogicalType());
+        if (oldColumn.GetPhysicalType() != newColumn.GetPhysicalType()) {
+            THROW_ERROR_EXCEPTION("Cannot change physical type from %Qlv to Qlv",
+                oldColumn.GetPhysicalType(),
+                newColumn.GetPhysicalType());
+        }
+        if (compatibility.first != ESchemaCompatibility::FullyCompatible) {
+            THROW_ERROR compatibility.second;
+        }
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Type mismatch for column %Qv",
             oldColumn.Name())
