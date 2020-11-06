@@ -79,6 +79,9 @@ public class FailoverRpcExecutor {
         serializedExecutorService.execute(() -> mutableState.executeImpl(new FailoverResponseHandler()));
 
         result.whenComplete((result, error) -> {
+            if (error != null) {
+                logger.warn("Request {} failed with error: {}", request, error.toString());
+            }
             serializedExecutorService.submit(mutableState::cancel);
             handleResult(result, error);
         });
@@ -108,7 +111,9 @@ public class FailoverRpcExecutor {
     }
 
     private void onGlobalTimeout() {
-        result.completeExceptionally(new TimeoutException("Request timeout"));
+        result.completeExceptionally(
+                new TimeoutException(String.format("Request %s has timed out", requestId))
+        );
     }
 
     static private class Result {
