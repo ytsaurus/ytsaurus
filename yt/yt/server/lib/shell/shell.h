@@ -29,6 +29,7 @@ struct TShellOptions
     std::optional<TString> Command;
     TString ContainerName;
     TGuid Id;
+    int Index;
     TString ContainerUser;
     bool EnablePorto = false;
 };
@@ -39,7 +40,8 @@ struct TShellOptions
 struct IShell
     : public virtual TRefCounted
 {
-    virtual TShellId GetId() = 0;
+    virtual TShellId GetId() const = 0;
+    virtual int GetIndex() const = 0;
     virtual void ResizeWindow(int height, int width) = 0;
     //! Inserts keys into input sequence at specified offset.
     //! Returns consumed offset of the input sequence.

@@ -56,6 +56,7 @@ public:
         : PortoExecutor_(std::move(portoExecutor))
         , Options_(std::move(options))
         , Id_(Options_->Id)
+        , Index_(Options_->Index)
         , CurrentHeight_(Options_->Height)
         , CurrentWidth_(Options_->Width)
         , InactivityTimeout_(Options_->InactivityTimeout)
@@ -63,7 +64,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Logger.AddTag("ShellId: %v", Id_);
+        Logger.AddTag("ShellId: %v, ShellIndex: %v", Id_, Index_);
     }
 
     void Spawn()
@@ -255,9 +256,14 @@ public:
         return TerminatedPromise_;
     }
 
-    virtual TShellId GetId() override
+    virtual TShellId GetId() const override
     {
         return Id_;
+    }
+
+    virtual int GetIndex() const override
+    {
+        return Index_;
     }
 
     virtual bool Terminated() const override
@@ -269,6 +275,7 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
     const std::unique_ptr<TShellOptions> Options_;
     const TShellId Id_;
+    const int Index_;
     int CurrentHeight_;
     int CurrentWidth_;
 

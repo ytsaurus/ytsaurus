@@ -11,7 +11,9 @@ namespace NYT::NShell {
 struct TShellParameters
     : public NYTree::TYsonSerializableLite
 {
-    TShellId ShellId;
+    // TODO(gritukan): Deprecate ShellId someday;
+    std::optional<TShellId> ShellId;
+    std::optional<int> ShellIndex;
     EShellOperation Operation;
     std::optional<TString> Term;
     TString Keys;
@@ -27,6 +29,8 @@ struct TShellParameters
     TShellParameters()
     {
         RegisterParameter("shell_id", ShellId)
+            .Default();
+        RegisterParameter("shell_index", ShellIndex)
             .Default();
         RegisterParameter("operation", Operation);
         RegisterParameter("term", Term)
@@ -66,13 +70,16 @@ struct TShellParameters
 struct TShellResult
     : public NYTree::TYsonSerializableLite
 {
+    // TODO(gritukan): Deprecate ShellId someday.
     TShellId ShellId;
+    int ShellIndex;
     std::optional<TString> Output;
     std::optional<ui64> ConsumedOffset;
 
     TShellResult()
     {
         RegisterParameter("shell_id", ShellId);
+        RegisterParameter("shell_index", ShellIndex);
         RegisterParameter("output", Output);
         RegisterParameter("consumed_offset", ConsumedOffset);
     }
