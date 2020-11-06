@@ -850,6 +850,16 @@ TTableSchemaPtr TTableSchema::ToModifiedSchema(ETableSchemaModification schemaMo
     }
 }
 
+TComparator TTableSchema::ToComparator() const
+{
+    std::vector<ESortOrder> sortOrders(KeyColumnCount_);
+    for (int index = 0; index < KeyColumnCount_; ++index) {
+        YT_VERIFY(Columns_[index].SortOrder());
+        sortOrders[index] = *Columns_[index].SortOrder();
+    }
+    return TComparator(std::move(sortOrders));
+}
+
 void TTableSchema::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;

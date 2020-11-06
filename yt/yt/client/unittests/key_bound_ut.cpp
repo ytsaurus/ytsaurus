@@ -1,6 +1,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/client/table_client/key_bound.h>
+#include <yt/client/table_client/comparator.h>
 #include <yt/client/table_client/helpers.h>
 
 #include <library/cpp/iterator/zip.h>
@@ -198,6 +199,7 @@ TEST(TKeyBoundTest, StressNewAndLegacyEquivalence)
     auto maxValue = MakeUnversionedSentinelValue(EValueType::Max);
     auto minValue = MakeUnversionedSentinelValue(EValueType::Min);
     const int KeyLength = 3;
+    const TComparator Comparator(std::vector<ESortOrder>(KeyLength, ESortOrder::Ascending));
 
     std::vector<TUnversionedValue> allValues = {
         intValue1,
@@ -230,7 +232,7 @@ TEST(TKeyBoundTest, StressNewAndLegacyEquivalence)
         bool isUpper = keyBound.IsUpper;
         for (const auto& key : allKeys) {
             auto legacyTest = isUpper ? key < legacyRow : key >= legacyRow;
-            auto newTest = keyBound.TestKey(key);
+            auto newTest = Comparator.TestKey(AsNonOwningKey(key), keyBound);
 
             if (legacyTest != newTest) {
                 Cerr

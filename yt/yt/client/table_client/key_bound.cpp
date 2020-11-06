@@ -91,29 +91,6 @@ void TKeyBoundImpl<TRow, TKeyBound>::ValidateValueTypes(const TRow& row)
 }
 
 template <class TRow, class TKeyBound>
-template <class TKeyClass>
-bool TKeyBoundImpl<TRow, TKeyBound>::TestKey(const TKeyClass& key) const
-{
-    YT_LOG_FATAL_IF(
-        key.GetCount() < Prefix.GetCount(),
-        "Key bound is tested against longer key (Key: %v, Prefix: %v)",
-        key.AsRow(),
-        Prefix);
-
-    auto comparisonResult = CompareRows(key.AsRow(), Prefix, Prefix.GetCount());
-
-    if (IsUpper && IsInclusive) {
-        return comparisonResult <= 0;
-    } else if (IsUpper && !IsInclusive) {
-        return comparisonResult < 0;
-    } else if (!IsUpper && IsInclusive) {
-        return comparisonResult >= 0;
-    } else /* if (!IsUpper && !IsInclusive) */ {
-        return comparisonResult > 0;
-    }
-}
-
-template <class TRow, class TKeyBound>
 void TKeyBoundImpl<TRow, TKeyBound>::FormatValue(TStringBuilderBase* builder) const
 {
     builder->AppendChar(IsUpper ? '<' : '>');
@@ -143,9 +120,6 @@ void TKeyBoundImpl<TRow, TKeyBound>::Persist(const TPersistenceContext& context)
 
 template class TKeyBoundImpl<TUnversionedRow, TKeyBound>;
 template class TKeyBoundImpl<TUnversionedOwningRow, TOwningKeyBound>;
-
-template bool TKeyBoundImpl<TUnversionedRow, TKeyBound>::TestKey(const TKey& key) const;
-template bool TKeyBoundImpl<TUnversionedRow, TKeyBound>::TestKey(const TOwningKey& key) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 
