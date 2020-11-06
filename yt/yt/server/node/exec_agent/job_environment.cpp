@@ -520,7 +520,7 @@ private:
         if (!JobProxyInstances_[slotIndex]) {
             TString jobProxyContainerName = Config_->UseShortContainerNames
                 ? "/jp"
-                : ("/jp_" + ToString(jobId));
+                : Format("/jp-%v-%v", IntToString<16>(jobId.Parts32[3]), IntToString<16>(jobId.Parts32[2]));
 
             JobProxyInstances_[slotIndex] = CreatePortoInstance(
                 GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + jobProxyContainerName,
@@ -550,7 +550,7 @@ private:
     {
         TString setupCommandContainerJobPart = Config_->UseShortContainerNames
             ? "/sc"
-            : ("/sc_" + ToString(jobId));
+            : Format("/jp-%v-%v", IntToString<16>(jobId.Parts32[3]), IntToString<16>(jobId.Parts32[2]));
         auto setupCommandContainerName = setupCommandContainerJobPart + "_" + ToString(index);
 
         auto instance = CreatePortoInstance(

@@ -780,7 +780,7 @@ TStatistics TJobProxy::GetStatistics() const
 IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment() const
 {
     if (auto environment = FindJobProxyEnvironment()) {
-        return environment->CreateUserJobEnvironment(ToString(JobId_));
+        return environment->CreateUserJobEnvironment(JobId_);
     } else {
         return nullptr;
     }
