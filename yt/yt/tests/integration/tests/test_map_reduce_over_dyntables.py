@@ -726,6 +726,76 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 
         self._validate_output(expected_content)
 
+    @authors("ifsmirnov")
+    def test_ordered_tablet_index_stress(self):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t", schema=[{"name": "key", "type": "int64"}])
+
+        random.seed(152314)
+
+        tablet_count = 10
+        max_row_count_per_chunk = 100
+        chunk_count_per_tablet = 10
+        request_count = 200
+
+        sync_reshard_table("//tmp/t", tablet_count)
+        sync_mount_table("//tmp/t")
+
+        data = [[] for i in range(tablet_count)]
+
+        data_gen = (i for i in xrange(10**9))
+
+        for wave in range(chunk_count_per_tablet):
+            rows = []
+            for tablet_index in range(tablet_count):
+                row_count = random.randint(0, max_row_count_per_chunk)
+                for i in range(row_count):
+                    x = data_gen.next()
+                    data[tablet_index].append(x)
+                    rows.append({"$tablet_index": tablet_index, "key": x})
+            insert_rows("//tmp/t", rows)
+            sync_flush_table("//tmp/t")
+
+        def _validate(start_tablet_index, start_row_index, end_tablet_index, end_row_index):
+            expected = []
+            if start_tablet_index == end_tablet_index:
+                if start_tablet_index < tablet_count:
+                    expected.extend(data[start_tablet_index][start_row_index:end_row_index])
+            elif start_tablet_index < end_tablet_index:
+                if start_tablet_index < tablet_count:
+                    expected.extend(data[start_tablet_index][start_row_index:])
+                for tablet_index in range(start_tablet_index + 1, min(tablet_count, end_tablet_index)):
+                    expected.extend(data[tablet_index])
+                if end_tablet_index < tablet_count:
+                    expected.extend(data[end_tablet_index][:end_row_index])
+
+            read_range = {
+                "lower_limit": {"tablet_index": start_tablet_index, "row_index": start_row_index},
+                "upper_limit": {"tablet_index": end_tablet_index, "row_index": end_row_index}}
+            rows = read_table("<ranges=[{}]>//tmp/t".format(yson.dumps(read_range)), verbose=False)
+            actual = [row["key"] for row in rows]
+
+            assert expected == actual
+
+        for iter in range(request_count):
+            if iter % 20 == 0:
+                print_debug("Iteration {} of {}".format(iter, request_count))
+
+            # Off-by-one error is intentional. start > end is also possible.
+            start_tablet_index = random.randint(0, tablet_count + 1)
+            end_tablet_index = random.randint(0, tablet_count + 1)
+
+            if start_tablet_index < tablet_count:
+                start_row_index = random.randint(0, len(data[start_tablet_index]) * 2)
+            else:
+                start_row_index = random.randint(0, 100)
+            if end_tablet_index < tablet_count:
+                end_row_index = random.randint(0, len(data[end_tablet_index]) * 2)
+            else:
+                end_row_index = random.randint(0, 100)
+
+            _validate(start_tablet_index, start_row_index, end_tablet_index, end_row_index)
+
 
 ##################################################################
 
