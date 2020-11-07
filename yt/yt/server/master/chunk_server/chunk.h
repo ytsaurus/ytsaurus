@@ -279,21 +279,17 @@ public:
     i64 GetMasterMemoryUsage() const;
 
 private:
-    TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
-
-    TChunkDynamicData::TMediumToRepairQueueIterator* SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const;
-
     ui8 ReadQuorum_ = 0;
     ui8 WriteQuorum_ = 0;
     NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
-    union
+
+    struct
     {
         bool Movable : 1;
         bool Overlayed : 1;
     } Flags_ = {};
 
     TChunkRequisitionIndex AggregatedRequisitionIndex_;
-
     TChunkRequisitionIndex LocalRequisitionIndex_;
 
     //! The number of non-empty entries in #ExportDataList_.
@@ -322,6 +318,9 @@ private:
     //! It also separates relatively mutable data from static one,
     //! which helps to avoid excessive CoW during snapshot construction.
     std::unique_ptr<TReplicasData> ReplicasData_;
+
+    TChunkRequisition ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry);
+    TChunkDynamicData::TMediumToRepairQueueIterator* SelectRepairQueueIteratorMap(EChunkRepairQueue queue) const;
 
     const TReplicasData& ReplicasData() const;
     TReplicasData* MutableReplicasData();

@@ -500,11 +500,6 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
 {
     ResetChunkListStatistics(chunkList);
 
-    // TODO(ifsmirnov): looks like this function is called only for empty
-    // chunk lists. Check it and add YT_VERIFY in TChunkList::SetKind
-    // that it is called only for empty chunk lists.
-    YT_VERIFY(chunkList->Children().empty());
-
     if (chunkList->HasAppendableCumulativeStatistics()) {
         chunkList->CumulativeStatistics().DeclareAppendable();
     } else if (chunkList->HasModifyableCumulativeStatistics()) {
