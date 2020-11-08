@@ -90,7 +90,6 @@ public:
 
     void SetKind(EChunkListKind kind);
 
-    bool IsOrdered() const;
     bool IsSealed() const;
 
     bool HasCumulativeStatistics() const;

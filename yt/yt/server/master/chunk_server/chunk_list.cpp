@@ -135,7 +135,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, TrimmedChildCount_);
     Load(context, PivotKey_);
 
-    if (!IsOrdered()) {
+    if (HasChildToIndexMapping()) {
         for (int index = 0; index < Children_.size(); ++index) {
             YT_VERIFY(ChildToIndex_.emplace(Children_[index], index).second);
         }
@@ -206,14 +206,6 @@ void TChunkList::SetKind(EChunkListKind kind)
     RecomputeChunkListStatistics(this);
 }
 
-bool TChunkList::IsOrdered() const
-{
-    return
-        Kind_ == EChunkListKind::Static ||
-        Kind_ == EChunkListKind::OrderedDynamicTablet ||
-        Kind_ == EChunkListKind::JournalRoot;
-}
-
 bool TChunkList::IsSealed() const
 {
     if (Children_.empty()) {
@@ -259,8 +251,8 @@ bool TChunkList::HasChildToIndexMapping() const
     return
         Kind_ == EChunkListKind::SortedDynamicRoot ||
         Kind_ == EChunkListKind::SortedDynamicTablet ||
-        Kind_ == EChunkListKind::OrderedDynamicRoot ||
         Kind_ == EChunkListKind::SortedDynamicSubtablet ||
+        Kind_ == EChunkListKind::OrderedDynamicRoot ||
         Kind_ == EChunkListKind::JournalRoot;
 }
 
