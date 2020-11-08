@@ -488,6 +488,17 @@ protected:
 
         virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
+            // COMPAT(gritukan, levysotsky): Remove it when nodes will be fresh enough.
+            auto* jobResult = &jobSummary.Result;
+            auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            auto* outputChunkSpecs = schedulerJobResultExt->mutable_output_chunk_specs();
+            for (int chunkSpecIndex = 0; chunkSpecIndex < outputChunkSpecs->size(); ++chunkSpecIndex) {
+                auto* chunkSpec = outputChunkSpecs->Mutable(chunkSpecIndex);
+                if (chunkSpec->table_index() == -1) {
+                    chunkSpec->set_table_index(0);
+                }
+            }
+
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
