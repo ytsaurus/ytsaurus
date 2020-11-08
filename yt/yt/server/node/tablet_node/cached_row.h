@@ -77,6 +77,40 @@ TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersio
     return cachedRow;
 }
 
+template <class TAlloc>
+TCachedRowPtr CachedKeyFromVersionedRow(TAlloc* allocator, NTableClient::TVersionedRow row)
+{
+    auto rowSize = sizeof(NTableClient::TVersionedRowHeader) + sizeof(NTableClient::TUnversionedValue) * row.GetKeyCount();
+
+    int stringDataSize = 0;
+    for (auto it = row.BeginKeys(); it != row.EndKeys(); ++it) {
+        if (IsStringLikeType(it->Type)) {
+            stringDataSize += it->Length;
+        }
+    }
+
+    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, rowSize + stringDataSize);
+    auto capturedRow = cachedRow->GetVersionedRow();
+
+    *capturedRow.GetHeader() = {0, ui32(row.GetKeyCount()), 0, 0};
+
+    memcpy(capturedRow.BeginKeys(), row.BeginKeys(), sizeof(NTableClient::TUnversionedValue) * row.GetKeyCount());
+
+    char* dest = const_cast<char*>(capturedRow.GetMemoryEnd());
+
+    for (auto it = capturedRow.BeginKeys(); it != capturedRow.EndKeys(); ++it) {
+        if (IsStringLikeType(it->Type)) {
+            memcpy(dest, it->Data.String, it->Length);
+            it->Data.String = dest;
+            dest += it->Length;
+        }
+    }
+
+    cachedRow->Hash = GetFarmFingerprint(row.BeginKeys(), row.EndKeys());
+
+    return cachedRow;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

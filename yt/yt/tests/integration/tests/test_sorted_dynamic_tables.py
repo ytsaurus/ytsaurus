@@ -307,7 +307,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert select_rows("* from [//tmp/t] where key in (1)") == []
 
     @authors("lukyan")
-    def test_row_cache(self):
+    def test_lookup_cache(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", lookup_cache_rows_per_tablet=50)
 
@@ -316,13 +316,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000, 2)]
         insert_rows("//tmp/t", rows)
 
-        sync_unmount_table("//tmp/t")
-        sync_mount_table("//tmp/t")
+        sync_flush_table("//tmp/t")
 
         for step in xrange(1, 5):
-            rows = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2 * step)]
+            expected = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2 * step)]
             actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2 * step)], use_lookup_cache=True)
-            assert_items_equal(actual, rows)
+            assert_items_equal(actual, expected)
 
         # Lookup non-existent key without polluting cache.
         lookup_rows("//tmp/t", [{"key": 1}])
@@ -351,6 +350,32 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         wait(lambda: get(path) > 51)
         assert get(path) == 53
+
+    @authors("lukyan")
+    def test_lookup_cache_flush(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", lookup_cache_rows_per_tablet=50)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000, 2)]
+        insert_rows("//tmp/t", rows)
+
+        expected = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2)]
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
+        assert_items_equal(actual, expected)
+
+        sync_flush_table("//tmp/t")
+
+        # Lookup again. Check that rows are in cache.
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
+
+        # Lookup non-existent key without polluting cache.
+        lookup_rows("//tmp/t", [{"key": 1}])
+
+        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        wait(lambda: get(path) > 0)
+        assert get(path) == 1
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
