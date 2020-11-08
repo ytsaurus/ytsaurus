@@ -19,16 +19,30 @@ struct TInputDataSlice
 public:
     using TChunkSliceList = SmallVector<TInputChunkSlicePtr, 1>;
 
-    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LowerLimit);
-    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, UpperLimit);
+public:
+    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LegacyLowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LegacyUpperLimit);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, UpperLimit);
+
+    bool IsLegacy = true;
 
 public:
     TInputDataSlice() = default;
+
+    // COMPAT(max42): Legacy.
     TInputDataSlice(
         EDataSourceType type,
         TChunkSliceList chunkSlices,
         TLegacyInputSliceLimit lowerLimit = TLegacyInputSliceLimit(),
         TLegacyInputSliceLimit upperLimit = TLegacyInputSliceLimit(),
+        std::optional<i64> tag = std::nullopt);
+
+    TInputDataSlice(
+        EDataSourceType type,
+        TChunkSliceList chunkSlices,
+        TInputSliceLimit lowerLimit,
+        TInputSliceLimit upperLimit = TInputSliceLimit(/* isUpper */ true),
         std::optional<i64> tag = std::nullopt);
 
     int GetChunkCount() const;
@@ -56,6 +70,9 @@ public:
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
     std::pair<TInputDataSlicePtr, TInputDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
+
+    void TransformToLegacy(const NTableClient::TRowBufferPtr& rowBuffer);
+    void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, int keyLength);
 
     TChunkSliceList ChunkSlices;
     EDataSourceType Type;
@@ -85,10 +102,21 @@ TInputDataSlicePtr CreateInputDataSlice(
     NTableClient::TLegacyKey lowerKey,
     NTableClient::TLegacyKey upperKey);
 
+//! Copy given input data slice. Suitable both for legacy and new data slices.
+TInputDataSlicePtr CreateInputDataSlice(const TInputDataSlicePtr& dataSlice);
+
+//! Copy given input data slice, possibly restricting it to the given legacy key range.
 TInputDataSlicePtr CreateInputDataSlice(
     const TInputDataSlicePtr& dataSlice,
-    NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
+    NTableClient::TLegacyKey lowerKey,
     NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
+
+//! Copy given input data slice, possible restricting it to the given key bounds.
+TInputDataSlicePtr CreateInputDataSlice(
+    const TInputDataSlicePtr& dataSlice,
+    const NTableClient::TComparator& comparator,
+    NTableClient::TKeyBound lowerKeyBound,
+    NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ true));
 
 TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice);
 

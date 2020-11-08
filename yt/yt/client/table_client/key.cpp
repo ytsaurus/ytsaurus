@@ -97,4 +97,32 @@ TKey AsNonOwningKey(const TOwningKey& owningKey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const TKey& key, TStringBuf format)
+{
+    builder->AppendString(ToString(key));
+}
+
+void FormatValue(TStringBuilderBase* builder, const TOwningKey& key, TStringBuf format)
+{
+    builder->AppendString(ToString(key));
+}
+
+TString ToString(const TKey& key)
+{
+    return ToStringViaBuilder(key);
+}
+
+TString ToString(const TOwningKey& key)
+{
+    return ToStringViaBuilder(key);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
 } // namespace NYT::NTableClient

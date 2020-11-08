@@ -65,6 +65,8 @@ struct TInputSliceLimit
         int keyLength,
         bool isUpper);
 
+    explicit TInputSliceLimit(bool isUpper);
+
     std::optional<i64> RowIndex;
     NTableClient::TKeyBound KeyBound;
 
@@ -93,8 +95,12 @@ public:
     DECLARE_BYVAL_RO_PROPERTY(i64, MaxBlockSize);
 
     DEFINE_BYVAL_RW_PROPERTY(TInputChunkPtr, InputChunk);
-    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LowerLimit);
-    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, UpperLimit);
+    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LegacyLowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TLegacyInputSliceLimit, LegacyUpperLimit);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TInputSliceLimit, UpperLimit);
+
+    bool IsLegacy = true;
 
 public:
     TInputChunkSlice() = default;
@@ -105,10 +111,20 @@ public:
         NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
         NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
 
-    explicit TInputChunkSlice(
+    // Suitable both for legacy and new data slices.
+    explicit TInputChunkSlice(const TInputChunkSlice& inputSlice);
+
+    // COMPAT(max42): Legacy.
+    TInputChunkSlice(
         const TInputChunkSlice& inputSlice,
-        NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
+        NTableClient::TLegacyKey lowerKey,
         NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
+
+    TInputChunkSlice(
+        const TInputChunkSlice& inputSlice,
+        const NTableClient::TComparator& comparator,
+        NTableClient::TKeyBound lowerKeyBound,
+        NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ true));
 
     TInputChunkSlice(
         const TInputChunkSlice& inputSlice,
@@ -150,6 +166,9 @@ public:
 
     void ApplySamplingSelectivityFactor(double samplingSelectivityFactor);
 
+    void TransformToLegacy(const NTableClient::TRowBufferPtr& rowBuffer);
+    void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, int keyLength);
+
 private:
     int PartIndex_ = DefaultPartIndex;
 
@@ -173,12 +192,24 @@ TInputChunkSlicePtr CreateInputChunkSlice(
     NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
     NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
 
+//! Constructs a copy of a chunk slice. Suitable both for legacy and new chunk slices.
+TInputChunkSlicePtr CreateInputChunkSlice(const TInputChunkSlice& inputSlice);
+
+// COMPAT(max42): Legacy.
 //! Constructs a new chunk slice from another slice, restricting
 //! it to a given range. The original chunk may already contain non-trivial limits.
 TInputChunkSlicePtr CreateInputChunkSlice(
     const TInputChunkSlice& inputSlice,
-    NTableClient::TLegacyKey lowerKey = NTableClient::TLegacyKey(),
+    NTableClient::TLegacyKey lowerKey,
     NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
+
+//! Constructs a new chunk slice from another slice, restricting
+//! it to a given range. The original chunk may already contain non-trivial limits.
+TInputChunkSlicePtr CreateInputChunkSlice(
+    const TInputChunkSlice& inputSlice,
+    const NTableClient::TComparator& comparator,
+    NTableClient::TKeyBound lowerKeyBound,
+    NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ true));
 
 //! Constructs a new chunk slice based on inputChunk with limits from protoChunkSpec.
 TInputChunkSlicePtr CreateInputChunkSlice(

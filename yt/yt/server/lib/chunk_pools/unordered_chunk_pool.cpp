@@ -528,8 +528,8 @@ private:
                     auto newDataSlice = New<TInputDataSlice>(
                         EDataSourceType::UnversionedTable,
                         TInputDataSlice::TChunkSliceList{slice},
-                        slice->LowerLimit(),
-                        slice->UpperLimit());
+                        slice->LegacyLowerLimit(),
+                        slice->LegacyUpperLimit());
                     newDataSlice->CopyPayloadFrom(*dataSlice);
                     AddStripe(New<TChunkStripe>(newDataSlice));
                 }

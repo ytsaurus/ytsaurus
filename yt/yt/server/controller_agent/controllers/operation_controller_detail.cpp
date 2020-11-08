@@ -6507,8 +6507,8 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
         for (auto& dataSlice : dataSlices) {
             YT_LOG_TRACE("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
                 InputTables_[dataSlice->GetTableIndex()]->GetPath(),
-                dataSlice->LowerLimit(),
-                dataSlice->UpperLimit(),
+                dataSlice->LegacyLowerLimit(),
+                dataSlice->LegacyUpperLimit(),
                 dataSlice->ChunkSlices);
             result.emplace_back(std::move(dataSlice));
         }

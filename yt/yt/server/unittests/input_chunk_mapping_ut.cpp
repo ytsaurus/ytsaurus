@@ -283,18 +283,18 @@ TEST_F(TInputChunkMappingTest, TestChunkSliceLimits)
     TLegacyInputSliceLimit upperLimit;
     upperLimit.Key = BuildRow({56});
     upperLimit.RowIndex = 78;
-    stripeAWithLimits->DataSlices[0]->LowerLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit() = lowerLimit;
-    stripeAWithLimits->DataSlices[0]->UpperLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit() = upperLimit;
+    stripeAWithLimits->DataSlices[0]->LegacyLowerLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyLowerLimit() = lowerLimit;
+    stripeAWithLimits->DataSlices[0]->LegacyUpperLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyUpperLimit() = upperLimit;
 
     auto mappedStripeAWithLimits = ChunkMapping_->GetMappedStripe(stripeAWithLimits);
 
-    auto oldLowerLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit();
-    auto newLowerLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit();
+    auto oldLowerLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyLowerLimit();
+    auto newLowerLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyLowerLimit();
     EXPECT_EQ(oldLowerLimit.Key, newLowerLimit.Key);
     EXPECT_EQ(oldLowerLimit.RowIndex, newLowerLimit.RowIndex);
 
-    auto oldUpperLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit();
-    auto newUpperLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit();
+    auto oldUpperLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyUpperLimit();
+    auto newUpperLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyUpperLimit();
     EXPECT_EQ(oldUpperLimit.Key, newUpperLimit.Key);
     EXPECT_EQ(oldUpperLimit.RowIndex, newUpperLimit.RowIndex);
 

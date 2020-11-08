@@ -28,7 +28,23 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
+    //! Test if key #key belongs to the ray defined by #keyBound.
     bool TestKey(const TKey& key, const TKeyBound& keyBound) const;
+
+    //! Compare key bounds according to their logical position on a line of all possible keys.
+    //! If lhs and rhs belong to the same point, compare lower limit against upper limit as
+    //! defined by #lowerVsUpperResult (i.e. if 0, lower == upper; if < 0, lower < upper; if > 0, lower > upper) .
+    int CompareKeyBounds(const TKeyBound& lhs, const TKeyBound& rhs, int lowerVsUpperResult = 0) const;
+
+    //! Compare two values belonging to the index #index of the key.
+    int CompareValues(int index, const TUnversionedValue& lhs, const TUnversionedValue& rhs) const;
+
+    //! Returns the strongest of two key bounds. Key bounds should be of same direction
+    //! (but possibly of different inclusiveness).
+    TKeyBound StrongerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const;
+
+    //! Check if the range defined by two key bounds is empty.
+    bool IsRangeEmpty(const TKeyBound& lowerBound, const TKeyBound& upperBound) const;
 
     int GetLength() const;
 

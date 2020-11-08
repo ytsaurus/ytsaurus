@@ -1,6 +1,6 @@
-#include <yt/core/test_framework/framework.h>
-
 #include <yt/client/table_client/key.h>
+
+#include <yt/core/test_framework/framework.h>
 
 namespace NYT::NTableClient {
 namespace {

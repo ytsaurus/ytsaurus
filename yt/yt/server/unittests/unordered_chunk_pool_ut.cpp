@@ -281,13 +281,13 @@ protected:
             std::sort(chunkSlices.begin(), chunkSlices.end(), CompareChunkSlicesByLowerLimit);
 
             for (const auto& chunkSlice : chunkSlices) {
-                TLegacyKey chunkSliceLowerKey = chunkSlice->LowerLimit().Key;
-                TLegacyKey chunkSliceUpperKey = chunkSlice->UpperLimit().Key;
-                i64 chunkSliceLowerRowIndex = chunkSlice->LowerLimit().RowIndex
-                    ? *chunkSlice->LowerLimit().RowIndex
+                TLegacyKey chunkSliceLowerKey = chunkSlice->LegacyLowerLimit().Key;
+                TLegacyKey chunkSliceUpperKey = chunkSlice->LegacyUpperLimit().Key;
+                i64 chunkSliceLowerRowIndex = chunkSlice->LegacyLowerLimit().RowIndex
+                    ? *chunkSlice->LegacyLowerLimit().RowIndex
                     : chunkLowerRowIndex;
-                i64 chunkSliceUpperRowIndex = chunkSlice->UpperLimit().RowIndex
-                    ? *chunkSlice->UpperLimit().RowIndex
+                i64 chunkSliceUpperRowIndex = chunkSlice->LegacyUpperLimit().RowIndex
+                    ? *chunkSlice->LegacyUpperLimit().RowIndex
                     : chunkUpperRowIndex;
 
                 bool keysCoincide = lastUpperKey == chunkSliceLowerKey;
@@ -319,11 +319,11 @@ protected:
             if (lhsChunk != rhsChunk) {
                 return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
             } else {
-                return lhs->LowerLimit().Key <= rhs->LowerLimit().Key;
+                return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
             }
         };
         auto versionedDataSliceComparator = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-            return lhs->LowerLimit().Key <= rhs->LowerLimit().Key;
+            return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
         };
 
         for (const auto& stripeList : stripeLists) {
