@@ -44,6 +44,14 @@ public:
     //! Test if this key bound allows any key.
     bool IsUniversal() const;
 
+    //! Return key bound which is complementary to current.
+    TKeyBound Invert() const;
+
+    //! Return key bound that is upper among {*this, this->Invert()}.
+    TKeyBound UpperCounterpart() const;
+    //! Return key bound that is lower among {*this, this->Invert()}.
+    TKeyBound LowerCounterpart() const;
+
     void Persist(const TPersistenceContext& context);
 
 private:
@@ -92,6 +100,13 @@ TKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength
 
 //! Convert key bound to legacy key bound.
 TUnversionedOwningRow KeyBoundToLegacyRow(TKeyBound keyBound);
+
+//! Same as previous, but non-owning variant over row buffer.
+TUnversionedRow KeyBoundToLegacyRow(TKeyBound keyBound, const TRowBufferPtr& rowBuffer);
+
+//! Build the most accurate key bound of length #length corresponding to the ray containing
+//! ray corresponding to #keyBound.
+TKeyBound ShortenKeyBound(TKeyBound keyBound, int length, const TRowBufferPtr& rowBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

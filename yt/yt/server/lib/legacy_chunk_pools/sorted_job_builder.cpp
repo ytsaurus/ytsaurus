@@ -63,14 +63,14 @@ public:
         TEndpoint leftEndpoint = {
             EEndpointType::ForeignLeft,
             dataSlice,
-            GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
-            dataSlice->LowerLimit().RowIndex.value_or(0)
+            GetStrictKey(dataSlice->LegacyLowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
+            dataSlice->LegacyLowerLimit().RowIndex.value_or(0)
         };
         TEndpoint rightEndpoint = {
             EEndpointType::ForeignRight,
             dataSlice,
-            GetStrictKeySuccessor(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_),
-            dataSlice->UpperLimit().RowIndex.value_or(0)
+            GetStrictKeySuccessor(dataSlice->LegacyUpperLimit().Key, Options_.PrimaryPrefixLength + 1, RowBuffer_),
+            dataSlice->LegacyUpperLimit().RowIndex.value_or(0)
         };
 
         try {
@@ -89,7 +89,7 @@ public:
 
     virtual void AddPrimaryDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
     {
-        if (dataSlice->LowerLimit().Key >= dataSlice->UpperLimit().Key) {
+        if (dataSlice->LegacyLowerLimit().Key >= dataSlice->LegacyUpperLimit().Key) {
             // This can happen if ranges were specified.
             // Chunk slice fetcher can produce empty slices.
             return;
@@ -104,26 +104,26 @@ public:
             leftEndpoint = {
                 EEndpointType::Left,
                 dataSlice,
-                GetKeyPrefix(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
+                GetKeyPrefix(dataSlice->LegacyLowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_),
                 0LL /* RowIndex */
             };
 
             rightEndpoint = {
                 EEndpointType::Right,
                 dataSlice,
-                GetKeySuccessor(GetKeyPrefix(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_), RowBuffer_),
+                GetKeySuccessor(GetKeyPrefix(dataSlice->LegacyUpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_), RowBuffer_),
                 0LL /* RowIndex */
             };
         } else {
-            int leftRowIndex = dataSlice->LowerLimit().RowIndex.value_or(0);
+            int leftRowIndex = dataSlice->LegacyLowerLimit().RowIndex.value_or(0);
             leftEndpoint = {
                 EEndpointType::Left,
                 dataSlice,
-                GetStrictKey(dataSlice->LowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Min),
+                GetStrictKey(dataSlice->LegacyLowerLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Min),
                 leftRowIndex
             };
 
-            int rightRowIndex = dataSlice->UpperLimit().RowIndex.value_or(
+            int rightRowIndex = dataSlice->LegacyUpperLimit().RowIndex.value_or(
                 dataSlice->Type == EDataSourceType::UnversionedTable
                 ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
                 : 0);
@@ -131,7 +131,7 @@ public:
             rightEndpoint = {
                 EEndpointType::Right,
                 dataSlice,
-                GetStrictKey(dataSlice->UpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Min),
+                GetStrictKey(dataSlice->LegacyUpperLimit().Key, Options_.PrimaryPrefixLength, RowBuffer_, EValueType::Min),
                 rightRowIndex
             };
         }
@@ -385,7 +385,7 @@ private:
                     inputCookie,
                     true /* isPrimary */);
                 lowerLimit = upperLimit;
-                if (lowerLimit >= dataSlice->UpperLimit().Key) {
+                if (lowerLimit >= dataSlice->LegacyUpperLimit().Key) {
                     openedSlicesLowerLimits.erase(iterator);
                 }
                 iterator = nextIterator;
@@ -547,7 +547,7 @@ private:
                     if (job->GetIsBarrier()) {
                         // Job is a barrier, ignore it.
                         ++startJobIndex;
-                    } else if (CompareRows(job->UpperPrimaryKey(), foreignDataSlice->LowerLimit().Key, Options_.ForeignPrefixLength) < 0) {
+                    } else if (CompareRows(job->UpperPrimaryKey(), foreignDataSlice->LegacyLowerLimit().Key, Options_.ForeignPrefixLength) < 0) {
                         // Job's rightmost key is to the left of the slice's leftmost key.
                         ++startJobIndex;
                     } else {
@@ -570,7 +570,7 @@ private:
                         continue;
                     }
 
-                    if (CompareRows(job->LowerPrimaryKey(), foreignDataSlice->UpperLimit().Key, Options_.ForeignPrefixLength) <= 0) {
+                    if (CompareRows(job->LowerPrimaryKey(), foreignDataSlice->LegacyUpperLimit().Key, Options_.ForeignPrefixLength) <= 0) {
                         // Job's key range intersects with foreign slice's key range, add foreign data slice into the job.
                         auto exactForeignDataSlice = CreateInputDataSlice(
                             foreignDataSlice,

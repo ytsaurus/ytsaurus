@@ -264,9 +264,11 @@ protected:
                 : GetKeySuccessor(chunk->BoundaryKeys()->MaxKey, RowBuffer_));
             slices.emplace_back(New<TInputChunkSlice>(chunk, lastKey, upperLimit));
             if (!internalPoints.empty()) {
-                slices.back()->LowerLimit().RowIndex = currentRow;
+                slices.back()
+                    ->LegacyLowerLimit().RowIndex = currentRow;
                 currentRow += sliceRowCounts[index];
-                slices.back()->UpperLimit().RowIndex = currentRow;
+                slices.back()
+                    ->LegacyUpperLimit().RowIndex = currentRow;
                 slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index]);
             }
             lastKey = upperLimit;
@@ -464,13 +466,13 @@ protected:
             ASSERT_TRUE(chunkSlicesByInputChunk.end() != it);
             auto& chunkSlices = it->second;
             for (const auto& chunkSlice : chunkSlices) {
-                TLegacyKey chunkSliceLowerKey = chunkSlice->LowerLimit().Key;
-                TLegacyKey chunkSliceUpperKey = chunkSlice->UpperLimit().Key;
-                i64 chunkSliceLowerRowIndex = chunkSlice->LowerLimit().RowIndex
-                    ? *chunkSlice->LowerLimit().RowIndex
+                TLegacyKey chunkSliceLowerKey = chunkSlice->LegacyLowerLimit().Key;
+                TLegacyKey chunkSliceUpperKey = chunkSlice->LegacyUpperLimit().Key;
+                i64 chunkSliceLowerRowIndex = chunkSlice->LegacyLowerLimit().RowIndex
+                    ? *chunkSlice->LegacyLowerLimit().RowIndex
                     : chunkLowerRowIndex;
-                i64 chunkSliceUpperRowIndex = chunkSlice->UpperLimit().RowIndex
-                    ? *chunkSlice->UpperLimit().RowIndex
+                i64 chunkSliceUpperRowIndex = chunkSlice->LegacyUpperLimit().RowIndex
+                    ? *chunkSlice->LegacyUpperLimit().RowIndex
                     : chunkUpperRowIndex;
 
                 bool keysCoincide = lastUpperKey == chunkSliceLowerKey;
@@ -502,11 +504,11 @@ protected:
             if (lhsChunk != rhsChunk) {
                 return lhsChunk->GetTableRowIndex() < rhsChunk->GetTableRowIndex();
             } else {
-                return lhs->LowerLimit().Key <= rhs->LowerLimit().Key;
+                return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
             }
         };
         auto versionedDataSliceComparator = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-            return lhs->LowerLimit().Key <= rhs->LowerLimit().Key;
+            return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
         };
 
         for (const auto& stripeList : stripeLists) {
@@ -557,11 +559,11 @@ protected:
             TLegacyKey upperKey = MinKey();
             for (const auto& stripe : stripeList->Stripes) {
                 for (const auto& dataSlice : stripe->DataSlices) {
-                    if (lowerKey > dataSlice->LowerLimit().Key) {
-                        lowerKey = dataSlice->LowerLimit().Key;
+                    if (lowerKey > dataSlice->LegacyLowerLimit().Key) {
+                        lowerKey = dataSlice->LegacyLowerLimit().Key;
                     }
-                    if (upperKey < dataSlice->UpperLimit().Key) {
-                        upperKey = dataSlice->UpperLimit().Key;
+                    if (upperKey < dataSlice->LegacyUpperLimit().Key) {
+                        upperKey = dataSlice->LegacyUpperLimit().Key;
                     }
                 }
             }
@@ -1900,9 +1902,13 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     auto newStripeList = ChunkPool_->GetStripeList(ExtractedCookies_.back());
     ASSERT_EQ(newStripeList->Stripes.size(), 3);
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices.size(), 1);
-    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices.front()->LowerLimit().Key, BuildRow({13}));
+    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices
+                  .front()
+                  ->LegacyLowerLimit().Key, BuildRow({13}));
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices.size(), 1);
-    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices.front()->LowerLimit().Key, BuildRow({14}));
+    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices
+                  .front()
+                  ->LegacyLowerLimit().Key, BuildRow({14}));
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 3)->DataSlices.size(), 1);
 }
 
@@ -2100,8 +2106,10 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     std::vector<TInputChunkSlicePtr> slices;
     for (int index = 0; index < 100; ++index) {
         slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /* partIndex */, 10 * index, 10 * (index + 1), 1_KB));
-        slices.back()->LowerLimit().Key = BuildRow({10});
-        slices.back()->UpperLimit().Key = BuildRow({20});
+        slices.back()
+            ->LegacyLowerLimit().Key = BuildRow({10});
+        slices.back()
+            ->LegacyUpperLimit().Key = BuildRow({20});
     }
     shuffle(slices.begin(), slices.end(), Gen_);
 
@@ -2120,7 +2128,7 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     const auto& stripe = stripeList->Stripes.front();
     ASSERT_EQ(stripe->DataSlices.size(), 100);
     for (int index = 0; index + 1 < stripe->DataSlices.size(); ++index) {
-        ASSERT_EQ(*stripe->DataSlices[index]->UpperLimit().RowIndex, *stripe->DataSlices[index + 1]->LowerLimit().RowIndex);
+        ASSERT_EQ(*stripe->DataSlices[index]->LegacyUpperLimit().RowIndex, *stripe->DataSlices[index + 1]->LegacyLowerLimit().RowIndex);
     }
 }
 
@@ -2140,7 +2148,7 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase)
     auto chunkA = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 12_KB);
     auto chunkB = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3_KB);
     auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9_KB, 3_KB}, {500, 500});
-    chunkASlices[1]->LowerLimit().Key = BuildRow({100});
+    chunkASlices[1]->LegacyLowerLimit().Key = BuildRow({100});
     CurrentMock().RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
 
@@ -2187,7 +2195,7 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
     auto chunkB = CreateChunk(BuildRow({100}), BuildRow({100}), 0, 1_KB / 10);
     auto chunkC = CreateChunk(BuildRow({100}), BuildRow({200}), 0, 3_KB);
     auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({100})}, {9_KB, 3_KB}, {500, 500});
-    chunkASlices[1]->LowerLimit().Key = BuildRow({100});
+    chunkASlices[1]->LegacyLowerLimit().Key = BuildRow({100});
     CurrentMock().RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
@@ -2472,7 +2480,7 @@ TEST_F(TSortedChunkPoolTest, TestPivotKeys2)
     EXPECT_EQ(4, stripeLists.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(BuildRow({2}), stripeLists[0]->Stripes[0]->DataSlices[0]->LowerLimit().Key);
+    EXPECT_EQ(BuildRow({2}), stripeLists[0]->Stripes[0]->DataSlices[0]->LegacyLowerLimit().Key);
     EXPECT_EQ(1, stripeLists[1]->Stripes.size());
     EXPECT_EQ(1, stripeLists[2]->Stripes.size());
     EXPECT_EQ(1, stripeLists[3]->Stripes.size());
@@ -2844,15 +2852,15 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
 
     auto chunk = CreateChunk(BuildRow({0xA}), BuildRow({0xD}), 0);
     auto chunkSlice1 = CreateInputChunkSlice(chunk);
-    chunkSlice1->LowerLimit().RowIndex = 0;
-    chunkSlice1->UpperLimit().RowIndex = 20;
-    chunkSlice1->LowerLimit().Key = BuildRow({0xA});
-    chunkSlice1->UpperLimit().Key = BuildRow({0xB});
+    chunkSlice1->LegacyLowerLimit().RowIndex = 0;
+    chunkSlice1->LegacyUpperLimit().RowIndex = 20;
+    chunkSlice1->LegacyLowerLimit().Key = BuildRow({0xA});
+    chunkSlice1->LegacyUpperLimit().Key = BuildRow({0xB});
     auto chunkSlice2 = CreateInputChunkSlice(chunk);
-    chunkSlice2->LowerLimit().RowIndex = 0;
-    chunkSlice2->UpperLimit().RowIndex = 20;
-    chunkSlice2->LowerLimit().Key = BuildRow({0xB});
-    chunkSlice2->UpperLimit().Key = BuildRow({0xC});
+    chunkSlice2->LegacyLowerLimit().RowIndex = 0;
+    chunkSlice2->LegacyUpperLimit().RowIndex = 20;
+    chunkSlice2->LegacyLowerLimit().Key = BuildRow({0xB});
+    chunkSlice2->LegacyUpperLimit().Key = BuildRow({0xC});
 
     CurrentMock().RegisterSliceableUnversionedChunk(chunk, {chunkSlice1, chunkSlice2});
 
@@ -2865,13 +2873,13 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
     EXPECT_EQ(2, stripeList->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->UpperLimit().Key);
+    EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->LegacyUpperLimit().Key);
 
     std::vector<TInputDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[0]),
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[1]),
     };
-    unreadDataSlices[0]->LowerLimit().RowIndex = 15;
+    unreadDataSlices[0]->LegacyLowerLimit().RowIndex = 15;
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptReason = EInterruptReason::Preemption;
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
@@ -2882,7 +2890,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
     EXPECT_EQ(2, stripeList->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->UpperLimit().Key);
+    EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->LegacyUpperLimit().Key);
 }
 
 // YTADMINREQ-19334
@@ -2903,15 +2911,15 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
 
     auto chunk = CreateChunk(BuildRow({0xA}), BuildRow({0xD}), 0);
     auto chunkSlice1 = CreateInputChunkSlice(chunk);
-    chunkSlice1->LowerLimit().RowIndex = 0;
-    chunkSlice1->UpperLimit().RowIndex = 10;
-    chunkSlice1->LowerLimit().Key = BuildRow({0xA});
-    chunkSlice1->UpperLimit().Key = BuildRow({0xD});
+    chunkSlice1->LegacyLowerLimit().RowIndex = 0;
+    chunkSlice1->LegacyUpperLimit().RowIndex = 10;
+    chunkSlice1->LegacyLowerLimit().Key = BuildRow({0xA});
+    chunkSlice1->LegacyUpperLimit().Key = BuildRow({0xD});
     auto chunkSlice2 = CreateInputChunkSlice(chunk);
-    chunkSlice2->LowerLimit().RowIndex = 10;
-    chunkSlice2->UpperLimit().RowIndex = 20;
-    chunkSlice2->LowerLimit().Key = BuildRow({0xA});
-    chunkSlice2->UpperLimit().Key = BuildRow({0xD});
+    chunkSlice2->LegacyLowerLimit().RowIndex = 10;
+    chunkSlice2->LegacyUpperLimit().RowIndex = 20;
+    chunkSlice2->LegacyLowerLimit().Key = BuildRow({0xA});
+    chunkSlice2->LegacyUpperLimit().Key = BuildRow({0xD});
 
     CurrentMock().RegisterSliceableUnversionedChunk(chunk, {chunkSlice1, chunkSlice2});
 
@@ -2924,14 +2932,14 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
     EXPECT_EQ(2, stripeList->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(10, stripeList->Stripes[0]->DataSlices[0]->UpperLimit().RowIndex);
+    EXPECT_EQ(10, stripeList->Stripes[0]->DataSlices[0]->LegacyUpperLimit().RowIndex);
 
     std::vector<TInputDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[0]),
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[1]),
     };
-    unreadDataSlices[0]->LowerLimit().RowIndex = 5;
-    unreadDataSlices[0]->LowerLimit().Key = BuildRow({0xB});
+    unreadDataSlices[0]->LegacyLowerLimit().RowIndex = 5;
+    unreadDataSlices[0]->LegacyLowerLimit().Key = BuildRow({0xB});
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptReason = EInterruptReason::Preemption;
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
@@ -2942,8 +2950,8 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
     EXPECT_EQ(2, stripeList->Stripes[0]->DataSlices.size());
-    EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->LowerLimit().Key);
-    EXPECT_EQ(5, stripeList->Stripes[0]->DataSlices[0]->LowerLimit().RowIndex);
+    EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->LegacyLowerLimit().Key);
+    EXPECT_EQ(5, stripeList->Stripes[0]->DataSlices[0]->LegacyLowerLimit().RowIndex);
 }
 
 TEST_F(TSortedChunkPoolTest, JoinReduceForeignChunkSlicing)

@@ -9,6 +9,7 @@ namespace NYT::NControllerAgent {
 DEFINE_ENUM(ESnapshotVersion,
     // 20.3 start here
     ((RemovePartitionedTables)              (300426))
+    ((NewSlices)                            (300427))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

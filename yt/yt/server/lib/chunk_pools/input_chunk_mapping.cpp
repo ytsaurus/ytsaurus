@@ -51,13 +51,13 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
                     YT_VERIFY(substitutes.size() == 1);
                     auto substituteChunk = substitutes.front();
                     auto chunkSlice = CreateInputChunkSlice(substituteChunk);
-                    chunkSlice->LowerLimit() = dataSlice->ChunkSlices[0]->LowerLimit();
-                    chunkSlice->UpperLimit() = dataSlice->ChunkSlices[0]->UpperLimit();
+                    chunkSlice->LegacyLowerLimit() = dataSlice->ChunkSlices[0]->LegacyLowerLimit();
+                    chunkSlice->LegacyUpperLimit() = dataSlice->ChunkSlices[0]->LegacyUpperLimit();
                     mappedStripe->DataSlices.emplace_back(New<TInputDataSlice>(
                         dataSlice->Type,
                         TInputDataSlice::TChunkSliceList{std::move(chunkSlice)},
-                        dataSlice->LowerLimit(),
-                        dataSlice->UpperLimit()));
+                        dataSlice->LegacyLowerLimit(),
+                        dataSlice->LegacyUpperLimit()));
                     mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
                 } else {
                     for (const auto& substituteChunk : substitutes) {

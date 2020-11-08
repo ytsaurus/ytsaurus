@@ -499,14 +499,14 @@ private:
                     teleportCandidates.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow(), inputCookie);
                 }
 
-                lowerLimits.emplace_back(GetKeyPrefix(dataSlice->LowerLimit().Key, PrimaryPrefixLength_, RowBuffer_));
-                if (dataSlice->UpperLimit().Key.GetCount() > PrimaryPrefixLength_) {
-                    upperLimits.emplace_back(GetKeySuccessor(GetKeyPrefix(dataSlice->UpperLimit().Key, PrimaryPrefixLength_, RowBuffer_), RowBuffer_));
+                lowerLimits.emplace_back(GetKeyPrefix(dataSlice->LegacyLowerLimit().Key, PrimaryPrefixLength_, RowBuffer_));
+                if (dataSlice->LegacyUpperLimit().Key.GetCount() > PrimaryPrefixLength_) {
+                    upperLimits.emplace_back(GetKeySuccessor(GetKeyPrefix(dataSlice->LegacyUpperLimit().Key, PrimaryPrefixLength_, RowBuffer_), RowBuffer_));
                 } else {
-                    upperLimits.emplace_back(dataSlice->UpperLimit().Key);
+                    upperLimits.emplace_back(dataSlice->LegacyUpperLimit().Key);
                 }
 
-                if (CompareRows(dataSlice->LowerLimit().Key, dataSlice->UpperLimit().Key, PrimaryPrefixLength_) == 0) {
+                if (CompareRows(dataSlice->LegacyLowerLimit().Key, dataSlice->LegacyUpperLimit().Key, PrimaryPrefixLength_) == 0) {
                     ++singleKeySliceNumber[lowerLimits.back()];
                 }
             }
@@ -607,10 +607,10 @@ private:
 
             // In most cases the foreign table stripes follow in sorted order, but still let's ensure that.
             auto cmpStripesByKey = [&] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-                const auto& lhsLowerLimit = lhs->LowerLimit().Key;
-                const auto& lhsUpperLimit = lhs->UpperLimit().Key;
-                const auto& rhsLowerLimit = rhs->LowerLimit().Key;
-                const auto& rhsUpperLimit = rhs->UpperLimit().Key;
+                const auto& lhsLowerLimit = lhs->LegacyLowerLimit().Key;
+                const auto& lhsUpperLimit = lhs->LegacyUpperLimit().Key;
+                const auto& rhsLowerLimit = rhs->LegacyLowerLimit().Key;
+                const auto& rhsUpperLimit = rhs->LegacyUpperLimit().Key;
                 if (lhsLowerLimit != rhsLowerLimit) {
                     return lhsLowerLimit < rhsLowerLimit;
                 } else if (lhsUpperLimit != rhsUpperLimit) {

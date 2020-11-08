@@ -642,8 +642,8 @@ private:
                     auto dataSlice = New<TInputDataSlice>(
                         EDataSourceType::UnversionedTable,
                         TInputDataSlice::TChunkSliceList{slice},
-                        slice->LowerLimit(),
-                        slice->UpperLimit());
+                        slice->LegacyLowerLimit(),
+                        slice->LegacyUpperLimit());
                     dataSlice->Tag = inputCookie;
                     AddStripe(New<TChunkStripe>(dataSlice));
                 }

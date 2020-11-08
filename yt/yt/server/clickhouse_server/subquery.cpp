@@ -205,13 +205,13 @@ private:
             auto& dataSlices = stripe->DataSlices;
 
             auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TInputDataSlicePtr& dataSlice) {
-                if (!dataSlice->LowerLimit().Key && !dataSlice->UpperLimit().Key) {
+                if (!dataSlice->LegacyLowerLimit().Key && !dataSlice->LegacyUpperLimit().Key) {
                     return false;
                 }
                 return !GetRangeMask(
                     EKeyConditionScale::TopLevelDataSlice,
-                    dataSlice->LowerLimit().Key,
-                    dataSlice->UpperLimit().Key,
+                    dataSlice->LegacyLowerLimit().Key,
+                    dataSlice->LegacyUpperLimit().Key,
                     dataSlice->InputStreamIndex).can_be_true;
             });
             dataSlices.resize(it - dataSlices.begin());

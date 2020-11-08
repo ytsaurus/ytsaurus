@@ -28,11 +28,11 @@ void TJobStub::AddDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput
     }
 
     if (isPrimary) {
-        if (LowerPrimaryKey_ > dataSlice->LowerLimit().Key) {
-            LowerPrimaryKey_ = dataSlice->LowerLimit().Key;
+        if (LowerPrimaryKey_ > dataSlice->LegacyLowerLimit().Key) {
+            LowerPrimaryKey_ = dataSlice->LegacyLowerLimit().Key;
         }
-        if (UpperPrimaryKey_ < dataSlice->UpperLimit().Key) {
-            UpperPrimaryKey_ = dataSlice->UpperLimit().Key;
+        if (UpperPrimaryKey_ < dataSlice->LegacyUpperLimit().Key) {
+            UpperPrimaryKey_ = dataSlice->LegacyUpperLimit().Key;
         }
 
         ++PrimarySliceCount_;
@@ -65,13 +65,13 @@ void TJobStub::Finalize(bool sortByPosition)
             // in the original table.
 
             auto lessThan = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
-                if (lhs->UpperLimit().Key <= rhs->LowerLimit().Key) {
+                if (lhs->LegacyUpperLimit().Key <= rhs->LegacyLowerLimit().Key) {
                     return true;
                 }
 
-                if (lhs->UpperLimit().RowIndex &&
-                    rhs->LowerLimit().RowIndex &&
-                    *lhs->UpperLimit().RowIndex <= *rhs->LowerLimit().RowIndex)
+                if (lhs->LegacyUpperLimit().RowIndex &&
+                    rhs->LegacyLowerLimit().RowIndex &&
+                    *lhs->LegacyUpperLimit().RowIndex <= *rhs->LegacyLowerLimit().RowIndex)
                 {
                     return true;
                 }
@@ -172,8 +172,8 @@ TString TJobStub::GetDebugString() const
             }
             builder.AppendFormat("{DataWeight: %v, LowerLimit: %v, UpperLimit: %v, InputStreamIndex: %v, ChunkIds: %v}",
                 dataSlice->GetDataWeight(),
-                dataSlice->LowerLimit(),
-                dataSlice->UpperLimit(),
+                dataSlice->LegacyLowerLimit(),
+                dataSlice->LegacyUpperLimit(),
                 dataSlice->InputStreamIndex,
                 chunkIds);
         }
