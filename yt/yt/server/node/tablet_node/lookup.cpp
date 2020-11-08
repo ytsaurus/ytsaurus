@@ -455,32 +455,31 @@ private:
         const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
         const std::function<std::pair<bool, size_t>()>& onRow)
     {
-        auto processSessions = [&] (TReadSessionList& sessions, bool populateCache) {
+        std::optional<TConcurrentCache<TCachedRow>::TInsertAccessor> accessor;
+
+        if (UseLookupCache_) {
+            accessor.emplace(TabletSnapshot_->RowCache->Cache.GetInsertAccessor());
+        }
+
+        auto processSessions = [&] (TReadSessionList& sessions) {
             for (auto& session : sessions) {
                 auto row = session.FetchRow();
                 onPartialRow(row, MaxTimestamp);
-                if (populateCache) {
+                if (accessor) {
                     CacheRowMerger_->AddPartialRow(row);
                 }
             }
         };
 
-        std::optional<TConcurrentCache<TCachedRow>::TInsertAccessor> accessor;
-
-        bool populateCache = UseLookupCache_;
-
-        if (populateCache) {
-            accessor.emplace(TabletSnapshot_->RowCache->Cache.GetInsertAccessor());
-        }
-
         for (int index = startKeyIndex; index < endKeyIndex; ++index) {
             auto rowFromCache = std::move(RowsFromCache_[index]);
             if (rowFromCache) {
                 YT_LOG_TRACE("Using row from cache (Row: %v)", rowFromCache->GetVersionedRow());
+                // Consider only versions before unflushed timestamp.
                 onPartialRow(rowFromCache->GetVersionedRow(), UnflushedTimestamp_);
             } else {
-                processSessions(*partitionSessions, populateCache);
-                processSessions(ChunkEdenSessions_, populateCache);
+                processSessions(*partitionSessions);
+                processSessions(ChunkEdenSessions_);
 
                 if (accessor) {
                     auto mergedRow = CacheRowMerger_->BuildMergedRow();
@@ -498,7 +497,21 @@ private:
                 }
             }
 
-            processSessions(DynamicEdenSessions_, false);
+            for (auto& session : DynamicEdenSessions_) {
+                auto row = session.FetchRow();
+                onPartialRow(row, MaxTimestamp);
+
+                // Row not present in cache but present in dynamic store.
+                if (row && accessor && !rowFromCache) {
+                    auto cachedRow = CachedKeyFromVersionedRow(
+                        &TabletSnapshot_->RowCache->Allocator,
+                        row);
+
+                    YT_LOG_TRACE("Populating cache (Row: %v)", cachedRow->GetVersionedRow());
+
+                    accessor->Insert(std::move(cachedRow));
+                }
+            }
 
             auto statistics = onRow();
             FoundRowCount_ += statistics.first;
