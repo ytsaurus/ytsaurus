@@ -283,58 +283,69 @@ void DetachFromChunkList(
     }
 
     auto& children = chunkList->Children();
-    if (chunkList->IsOrdered()) {
-        // Can only handle a prefix of non-trimmed children.
-        // Used in ordered tablet trim.
-        int childIndex = chunkList->GetTrimmedChildCount();
-        for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt, ++childIndex) {
-            auto* child = *childIt;
-            YT_VERIFY(child == children[childIndex]);
-            children[childIndex] = nullptr;
-        }
-        int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
-        if (newTrimmedChildCount > ChunkListTombstoneAbsoluteThreshold &&
-            newTrimmedChildCount > children.size() * ChunkListTombstoneRelativeThreshold)
-        {
-            children.erase(
-                children.begin(),
-                children.begin() + newTrimmedChildCount);
+    switch (chunkList->GetKind()) {
+        case EChunkListKind::OrderedDynamicTablet: {
+            // Can only handle a prefix of non-trimmed children.
+            // Used in ordered tablet trim.
+            int childIndex = chunkList->GetTrimmedChildCount();
+            for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt, ++childIndex) {
+                auto* child = *childIt;
+                YT_VERIFY(child == children[childIndex]);
+                children[childIndex] = nullptr;
+            }
+            int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + static_cast<int>(childrenEnd - childrenBegin);
+            if (newTrimmedChildCount > ChunkListTombstoneAbsoluteThreshold &&
+                newTrimmedChildCount > children.size() * ChunkListTombstoneRelativeThreshold)
+            {
+                children.erase(
+                    children.begin(),
+                    children.begin() + newTrimmedChildCount);
 
-            chunkList->CumulativeStatistics().TrimFront(newTrimmedChildCount);
+                chunkList->CumulativeStatistics().TrimFront(newTrimmedChildCount);
 
-            chunkList->SetTrimmedChildCount(0);
-        } else {
-            chunkList->SetTrimmedChildCount(newTrimmedChildCount);
-        }
-
-        // NB: Do not change logical row and chunk count.
-        statisticsDelta.LogicalRowCount = 0;
-        statisticsDelta.LogicalChunkCount = 0;
-    } else {
-        // Can handle arbitrary children.
-        // Used in sorted tablet compaction.
-        auto& childToIndex = chunkList->ChildToIndex();
-        for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt) {
-            auto* child = *childIt;
-            auto indexIt = childToIndex.find(child);
-            YT_VERIFY(indexIt != childToIndex.end());
-            int index = indexIt->second;
-
-            // To remove child from the middle we swap it with the last one and update
-            // cumulative statistics accordingly.
-            if (index != children.size() - 1) {
-                auto delta = TCumulativeStatisticsEntry(GetChunkTreeStatistics(children.back())) -
-                    TCumulativeStatisticsEntry(GetChunkTreeStatistics(children[index]));
-                chunkList->CumulativeStatistics().Update(index, delta);
-
-                children[index] = children.back();
-                childToIndex[children[index]] = index;
+                chunkList->SetTrimmedChildCount(0);
+            } else {
+                chunkList->SetTrimmedChildCount(newTrimmedChildCount);
             }
 
-            chunkList->CumulativeStatistics().PopBack();
-            childToIndex.erase(indexIt);
-            children.pop_back();
+            // NB: Do not change logical row and chunk count.
+            statisticsDelta.LogicalRowCount = 0;
+            statisticsDelta.LogicalChunkCount = 0;
+            break;
         }
+
+        case EChunkListKind::SortedDynamicTablet:
+        case EChunkListKind::SortedDynamicSubtablet: {
+            // Can handle arbitrary children.
+            // Used in sorted tablet compaction.
+            YT_VERIFY(chunkList->HasChildToIndexMapping());
+            auto& childToIndex = chunkList->ChildToIndex();
+            for (auto childIt = childrenBegin; childIt != childrenEnd; ++childIt) {
+                auto* child = *childIt;
+                auto indexIt = childToIndex.find(child);
+                YT_VERIFY(indexIt != childToIndex.end());
+                int index = indexIt->second;
+
+                // To remove child from the middle we swap it with the last one and update
+                // cumulative statistics accordingly.
+                if (index != children.size() - 1) {
+                    auto delta = TCumulativeStatisticsEntry(GetChunkTreeStatistics(children.back())) -
+                        TCumulativeStatisticsEntry(GetChunkTreeStatistics(children[index]));
+                    chunkList->CumulativeStatistics().Update(index, delta);
+
+                    children[index] = children.back();
+                    childToIndex[children[index]] = index;
+                }
+
+                chunkList->CumulativeStatistics().PopBack();
+                childToIndex.erase(indexIt);
+                children.pop_back();
+            }
+            break;
+        }
+
+        default:
+            YT_ABORT();
     }
 
     // Go upwards and recompute statistics.
@@ -354,20 +365,19 @@ void DetachFromChunkList(
 void ReplaceChunkListChild(TChunkList* chunkList, int childIndex, TChunkTree* newChild)
 {
     auto& children = chunkList->Children();
-    auto& childToIndex = chunkList->ChildToIndex();
-
     auto* oldChild = children[childIndex];
+    children[childIndex] = newChild;
+
     ResetChunkTreeParent(chunkList, oldChild);
     SetChunkTreeParent(chunkList, newChild);
 
-    if (!chunkList->IsOrdered()) {
+    if (chunkList->HasChildToIndexMapping()) {
+        auto& childToIndex = chunkList->ChildToIndex();
         auto oldChildIt = childToIndex.find(oldChild);
         YT_VERIFY(oldChildIt != childToIndex.end());
         childToIndex.erase(oldChildIt);
         YT_VERIFY(childToIndex.emplace(newChild, childIndex).second);
     }
-
-    children[childIndex] = newChild;
 }
 
 void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)

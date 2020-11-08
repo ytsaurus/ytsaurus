@@ -1095,98 +1095,103 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ->LockNode(TrunkNode_, uploadTransaction, lockMode, false, true)
         ->As<TChunkOwnerBase>();
 
-    switch (uploadContext.Mode) {
-        case EUpdateMode::Append: {
-            if (node->IsExternal() || node->GetType() == EObjectType::Journal) {
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
-                    "Node is switched to \"append\" mode (NodeId: %v)",
-                    lockedNode->GetId());
-            } else {
+    if (!node->IsExternal()) {
+        switch (uploadContext.Mode) {
+            case EUpdateMode::Append: {
                 auto* snapshotChunkList = lockedNode->GetChunkList();
+                switch (snapshotChunkList->GetKind()) {
+                    case EChunkListKind::Static: {
+                        auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+                        newChunkList->AddOwningNode(lockedNode);
 
-                if (snapshotChunkList->GetKind() == EChunkListKind::Static) {
-                    auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
-                    newChunkList->AddOwningNode(lockedNode);
+                        snapshotChunkList->RemoveOwningNode(lockedNode);
+                        lockedNode->SetChunkList(newChunkList);
+                        objectManager->RefObject(newChunkList);
 
-                    snapshotChunkList->RemoveOwningNode(lockedNode);
-                    lockedNode->SetChunkList(newChunkList);
-                    objectManager->RefObject(newChunkList);
+                        chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
 
-                    chunkManager->AttachToChunkList(newChunkList, snapshotChunkList);
+                        auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
+                        chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
 
-                    auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::Static);
-                    chunkManager->AttachToChunkList(newChunkList, deltaChunkList);
+                        objectManager->UnrefObject(snapshotChunkList);
 
-                    objectManager->UnrefObject(snapshotChunkList);
-
-                    YT_LOG_DEBUG_IF(
-                        IsMutationLoggingEnabled(),
-                        "Node is switched to \"append\" mode (NodeId: %v, NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v)",
-                        node->GetId(),
-                        newChunkList->GetId(),
-                        snapshotChunkList->GetId(),
-                        deltaChunkList->GetId());
-                } else if (snapshotChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
-                    auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicRoot);
-                    newChunkList->AddOwningNode(lockedNode);
-                    lockedNode->SetChunkList(newChunkList);
-                    objectManager->RefObject(newChunkList);
-
-                    for (int index = 0; index < snapshotChunkList->Children().size(); ++index) {
-                        auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
-                        chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                        context->SetIncrementalResponseInfo("NewChunkListId: %v, SnapshotChunkListId: %v, DeltaChunkListId: %v",
+                            newChunkList->GetId(),
+                            snapshotChunkList->GetId(),
+                            deltaChunkList->GetId());
+                        break;
                     }
 
-                    snapshotChunkList->RemoveOwningNode(lockedNode);
-                    objectManager->UnrefObject(snapshotChunkList);
-                } else {
-                    YT_ABORT();
+                    case EChunkListKind::SortedDynamicRoot: {
+                        auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicRoot);
+                        newChunkList->AddOwningNode(lockedNode);
+                        lockedNode->SetChunkList(newChunkList);
+                        objectManager->RefObject(newChunkList);
+
+                        for (int index = 0; index < snapshotChunkList->Children().size(); ++index) {
+                            auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
+                            chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                        }
+
+                        snapshotChunkList->RemoveOwningNode(lockedNode);
+                        objectManager->UnrefObject(snapshotChunkList);
+
+                        context->SetIncrementalResponseInfo("NewChunkListId: %v, SnapshotChunkListId: %v",
+                            newChunkList->GetId(),
+                            snapshotChunkList->GetId());
+                        break;
+                    }
+
+                    case EChunkListKind::JournalRoot:
+                        break;
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unsupported chunk list kind %Qlv",
+                            snapshotChunkList->GetKind());
                 }
-
+                break;
             }
-            break;
-        }
 
-        case EUpdateMode::Overwrite: {
-            if (node->IsExternal() || node->GetType() == EObjectType::Journal) {
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
-                    "Node is switched to \"overwrite\" mode (NodeId: %v)",
-                    node->GetId());
-            } else {
+            case EUpdateMode::Overwrite: {
                 auto* oldChunkList = lockedNode->GetChunkList();
+                switch (oldChunkList->GetKind()) {
+                    case EChunkListKind::Static:
+                    case EChunkListKind::SortedDynamicRoot: {
+                        oldChunkList->RemoveOwningNode(lockedNode);
 
-                YT_VERIFY(oldChunkList->GetKind() == EChunkListKind::Static ||
-                    oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot);
+                        auto* newChunkList = chunkManager->CreateChunkList(oldChunkList->GetKind());
+                        newChunkList->AddOwningNode(lockedNode);
+                        lockedNode->SetChunkList(newChunkList);
+                        objectManager->RefObject(newChunkList);
 
-                oldChunkList->RemoveOwningNode(lockedNode);
+                        if (oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
+                            for (int index = 0; index < oldChunkList->Children().size(); ++index) {
+                                auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
+                                chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                            }
+                        }
 
-                auto* newChunkList = chunkManager->CreateChunkList(oldChunkList->GetKind());
-                newChunkList->AddOwningNode(lockedNode);
-                lockedNode->SetChunkList(newChunkList);
-                objectManager->RefObject(newChunkList);
+                        objectManager->UnrefObject(oldChunkList);
 
-                if (oldChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
-                    for (int index = 0; index < oldChunkList->Children().size(); ++index) {
-                        auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
-                        chunkManager->AttachToChunkList(newChunkList, appendChunkList);
+                        context->SetIncrementalResponseInfo("NewChunkListId: %v",
+                            newChunkList->GetId());
+                        break;
                     }
+
+                    case EChunkListKind::JournalRoot:
+                        break;
+
+                    default:
+                        THROW_ERROR_EXCEPTION("Unsupported chunk list kind %Qlv",
+                            oldChunkList->GetKind());
                 }
-
-                objectManager->UnrefObject(oldChunkList);
-
-                YT_LOG_DEBUG_IF(
-                    IsMutationLoggingEnabled(),
-                    "Node is switched to \"overwrite\" mode (NodeId: %v, NewChunkListId: %v)",
-                    node->GetId(),
-                    newChunkList->GetId());
+                break;
             }
-            break;
-        }
 
-        default:
-            YT_ABORT();
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported update mode %Qlv",
+                    uploadContext.Mode);
+        }
     }
 
     lockedNode->BeginUpload(uploadContext);
@@ -1238,7 +1243,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         }
     }
 
-    context->SetResponseInfo("UploadTransactionId: %v", uploadTransactionId);
+    context->SetIncrementalResponseInfo("UploadTransactionId: %v",
+        uploadTransactionId);
     context->Reply();
 }
 
@@ -1278,7 +1284,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
             node->GetUploadParams(&md5Hasher);
             ToProto(response->mutable_md5_hasher(), md5Hasher);
 
-            context->SetResponseInfo("UploadChunkListId: %v, HasLastKey: %v, RowCount: %v",
+            context->SetIncrementalResponseInfo("UploadChunkListId: %v, HasLastKey: %v, RowCount: %v",
                 uploadChunkListId,
                 response->has_last_key(),
                 response->row_count());
