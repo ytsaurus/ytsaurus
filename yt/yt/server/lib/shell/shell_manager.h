@@ -37,6 +37,7 @@ IShellManagerPtr CreateShellManager(
     const TString& preparationDir,
     const TString& workingDir,
     std::optional<int> userId,
+    std::optional<int> groupId,
     std::optional<TString> messageOfTheDay,
     std::vector<TString> environment);
 

@@ -79,15 +79,18 @@ public:
 
         int uid = Options_->Uid.value_or(::getuid());
         auto user = SafeGetUsernameByUid(uid);
+        auto gid = Options_->Gid;
         auto preparationDir = Options_->PreparationDir;
         auto workingDir = Options_->WorkingDir;
 
-        YT_LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, PreparationDir: %v, WorkingDir: %v, InactivityTimeout: %v, Command: %v)",
+        YT_LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, "
+            "Gid: %v, PreparationDir: %v, WorkingDir: %v, InactivityTimeout: %v, Command: %v)",
             Options_->Term,
             CurrentHeight_,
             CurrentWidth_,
             uid,
             user,
+            gid,
             preparationDir,
             workingDir,
             InactivityTimeout_,
@@ -100,7 +103,12 @@ public:
         Instance_->SetStdOut(tty);
         Instance_->SetStdErr(tty);
 
-        Instance_->SetUser(Options_->ContainerUser);
+        // NB(gritukan, psushin): Porto is unable to resolve username inside subcontainer
+        // so we pass uid instead.
+        Instance_->SetUser(ToString(uid));
+        if (gid) {
+            Instance_->SetGroup(*gid);
+        }
 
         Instance_->SetEnablePorto(Options_->EnablePorto ? EEnablePorto::Full : EEnablePorto::None);
         Instance_->SetIsolate(false);

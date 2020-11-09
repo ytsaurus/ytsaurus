@@ -70,6 +70,7 @@ public:
         const TString& preparationDir,
         const TString& workingDir,
         std::optional<int> userId,
+        std::optional<int> groupId,
         std::optional<TString> messageOfTheDay,
         std::vector<TString> environment)
         : PortoExecutor_(std::move(portoExecutor))
@@ -77,6 +78,7 @@ public:
         , PreparationDir_(preparationDir)
         , WorkingDir_(workingDir)
         , UserId_(userId)
+        , GroupId_(groupId)
         , MessageOfTheDay_(messageOfTheDay)
         , Environment_(std::move(environment))
     {
@@ -113,6 +115,7 @@ public:
                     options->Term = *parameters.Term;
                 }
                 options->Uid = UserId_;
+                options->Gid = GroupId_;
                 if (parameters.Height != 0) {
                     options->Height = parameters.Height;
                 }
@@ -251,6 +254,7 @@ private:
     const TString PreparationDir_;
     const TString WorkingDir_;
     std::optional<int> UserId_;
+    std::optional<int> GroupId_;
     std::optional<TString> MessageOfTheDay_;
 
     std::vector<TString> Environment_;
@@ -317,6 +321,7 @@ IShellManagerPtr CreateShellManager(
     const TString& preparationDir,
     const TString& workingDir,
     std::optional<int> userId,
+    std::optional<int> groupId,
     std::optional<TString> messageOfTheDay,
     std::vector<TString> environment)
 {
@@ -326,6 +331,7 @@ IShellManagerPtr CreateShellManager(
         preparationDir,
         workingDir,
         userId,
+        groupId,
         messageOfTheDay,
         std::move(environment));
 }
@@ -338,6 +344,7 @@ IShellManagerPtr CreateShellManager(
     const TString& preparationDir,
     const TString& workingDir,
     std::optional<int> userId,
+    std::optional<int> groupId,
     std::optional<TString> messageOfTheDay,
     std::vector<TString> environment)
 {
