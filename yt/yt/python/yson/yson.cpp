@@ -368,18 +368,31 @@ public:
         auto kwargs = kwargs_;
 
         auto stringObject = Py::Bytes(ExtractArgument(args, kwargs, "string"));
-        auto protoClassObject = Py::Callable(ExtractArgument(args, kwargs, "proto_class"));
+        Py::Callable protoClassObject;
+        bool hasProtoClass = HasArgument(args, kwargs, "proto_class");
+        if (hasProtoClass) {
+            protoClassObject = Py::Callable(ExtractArgument(args, kwargs, "proto_class"));
+        }
 
         std::optional<bool> skipUnknownFields;
         if (HasArgument(args, kwargs, "skip_unknown_fields")) {
             auto arg = ExtractArgument(args, kwargs, "skip_unknown_fields");
             skipUnknownFields = Py::Boolean(arg);
         }
+        Py::Object protoObject;
+        bool hasProtoObject = HasArgument(args, kwargs, "proto_object");
+        if (hasProtoObject && !hasProtoClass) {
+            protoObject = Py::Object(ExtractArgument(args, kwargs, "proto_object"));
+        } else if (!hasProtoObject && hasProtoClass) {
+            protoObject = protoClassObject.apply(Py::Tuple());
+        } else {
+            throw Py::RuntimeError("Exactly one argument: 'proto_class' or 'proto_object' must be given");
+        }
 
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
-            return LoadsProtoImpl(stringObject, protoClassObject, skipUnknownFields);
+            return LoadsProtoImpl(stringObject, protoObject, skipUnknownFields);
         } CATCH_AND_CREATE_YSON_ERROR("Yson loads_proto failed");
     }
 
@@ -652,9 +665,9 @@ private:
         }
     }
 
-    Py::Object LoadsProtoImpl(Py::Object stringObject, Py::Object protoClassObject, std::optional<bool> skipUnknownFields)
+    Py::Object LoadsProtoImpl(Py::Object stringObject, Py::Object protoObject, std::optional<bool> skipUnknownFields)
     {
-        auto descriptorObject = GetAttr(protoClassObject, "DESCRIPTOR");
+        auto descriptorObject = GetAttr(protoObject, "DESCRIPTOR");
         RegisterFileDescriptor(GetAttr(descriptorObject, "file"));
 
         auto fullName = ConvertStringObjectToString(GetAttr(descriptorObject, "full_name"));
@@ -672,9 +685,8 @@ private:
 
         ParseYsonStringBuffer(ConvertToStringBuf(stringObject), EYsonType::Node, writer.get());
 
-        return Py::Callable(GetAttr(protoClassObject, "FromString")).apply(
-            Py::TupleN(Py::ConvertToPythonString(result)),
-            Py::Dict());
+        Py::Callable(GetAttr(protoObject, "ParseFromString")).apply(Py::TupleN(Py::ConvertToPythonString(result)));
+        return protoObject;
     }
 
 };
