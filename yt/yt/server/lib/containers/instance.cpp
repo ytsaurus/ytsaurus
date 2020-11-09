@@ -532,6 +532,11 @@ public:
         User_ = user;
     }
 
+    virtual void SetGroup(int groupId) override
+    {
+        GroupId_ = groupId;
+    }
+
     virtual TString GetName() const override
     {
         return Name_;
@@ -605,6 +610,10 @@ public:
             SetProperty("user", ToString(::getuid()));
         }
 
+        if (GroupId_) {
+            SetProperty("group", ToString(*GroupId_));
+        }
+
         // Enable core dumps for all container instances.
         SetProperty("ulimit", "core: unlimited");
 
@@ -675,6 +684,7 @@ private:
     bool Isolate_ = false;
     bool RequireMemoryController_ = false;
     std::optional<TString> User_;
+    std::optional<int> GroupId_;
 
     mutable TAdaptiveLock ContextSwitchMapLock_;
     mutable i64 TotalContextSwitches_ = 0;

@@ -17,6 +17,7 @@ struct TShellOptions
 {
     TString ExePath = "/bin/bash";
     std::optional<int> Uid;
+    std::optional<int> Gid;
     TString Term = "xterm";
     int Height = 24;
     int Width = 80;

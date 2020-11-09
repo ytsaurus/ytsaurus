@@ -560,13 +560,20 @@ private:
                 shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
             }
 
+            std::optional<int> shellManagerGid;
+            // YT-13790.
+            if (Host_->GetConfig()->RootPath) {
+                shellManagerGid = 1001;
+            }
+
             ShellManager_ = CreateShellManager(
                 portoExecutor,
                 UserJobEnvironment_->GetUserJobInstance(),
                 Host_->GetPreparationPath(),
                 Host_->GetSlotPath(),
                 shellManagerUid,
-                Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, TStringBuf("\n"))),
+                shellManagerGid,
+                Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, AsStringBuf("\n"))),
                 std::move(shellEnvironment)
             );
 #endif
