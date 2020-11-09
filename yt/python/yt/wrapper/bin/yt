@@ -781,8 +781,14 @@ def add_alter_table_replica_parser(add_parser):
     parser.add_argument("--mode", help='alternation mode, can be "sync" or "async"')
 
 @copy_docstring_from(yt.select_rows)
-def select_rows(**kwargs):
-    write_silently(chunk_iter_stream(yt.select_rows(raw=True, **kwargs), yt.config["read_buffer_size"]))
+def select_rows(print_statistics=None, **kwargs):
+    response_parameters = None
+    if print_statistics:
+        response_parameters = {}
+
+    write_silently(chunk_iter_stream(yt.select_rows(raw=True, response_parameters=response_parameters, **kwargs), yt.config["read_buffer_size"]))
+    if print_statistics:
+        print("{}".format(response_parameters), file=sys.stderr)
 
 def add_select_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
@@ -804,6 +810,7 @@ def add_select_rows_parser(add_parser):
         group.add_argument("--forbid-join-without-index", dest="allow_join_without_index", default=None, action="store_false")
         parser.add_argument("--execution-pool", type=str)
         parser.add_argument("--format", action=ParseFormat)
+        parser.add_argument("--print-statistics", default=None, action="store_true")
 
 @copy_docstring_from(yt.explain_query)
 def explain_query(**args):
