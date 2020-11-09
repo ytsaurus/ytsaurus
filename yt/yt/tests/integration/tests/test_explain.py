@@ -123,7 +123,7 @@ class TestExplainQuery(YTEnvSetup):
                 assert joins[index]["foreign_key_prefix"] == foreign_key_prefixes[index]
                 assert joins[index]["common_key_prefix"] == common_key_prefixes[index]
 
-        query_string = """* from [//tmp/first] D
+        query_string = """S.value, P.value from [//tmp/first] D
             left join [//tmp/fourth] C on D.cid = C.cid
             left join [//tmp/second] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
             left join [//tmp/third] P on (D.pid,D.__shard__) = (P.pid,P.__shard__)"""
