@@ -596,6 +596,9 @@ public:
     //! Period of controller static orchid part update.
     TDuration ControllerStaticOrchidUpdatePeriod;
 
+    //! Period of controller orchid key update.
+    TDuration ControllerOrchidKeysUpdatePeriod;
+
     //! Limit on the number of concurrent core dumps that can be written because
     //! of failed safe assertions inside controllers.
     int MaxConcurrentSafeCoreDumps;
