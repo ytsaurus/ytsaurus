@@ -38,6 +38,7 @@ public:
         TSamplingConfigPtr samplingConfig = nullptr)
         : InputDataWeight_(inputDataWeight)
         , PrimaryInputDataWeight_(primaryInputDataWeight)
+        , ForeignInputDataWeight_(InputDataWeight_ - PrimaryInputDataWeight_)
         , InputChunkCount_(inputChunkCount)
         , InputRowCount_(inputRowCount)
         , MergeInputTableCount_(mergeInputTableCount)
@@ -48,6 +49,8 @@ public:
         , Spec_(std::move(spec))
         , SamplingConfig_(std::move(samplingConfig))
     {
+        YT_VERIFY(ForeignInputDataWeight_ >= 0);
+
         if (SamplingConfig_ && SamplingConfig_->SamplingRate) {
             InitializeSampling();
         }
@@ -103,12 +106,9 @@ public:
 
     virtual i64 GetForeignSliceDataWeight() const override
     {
-        auto foreignInputDataWeight = InputDataWeight_ - PrimaryInputDataWeight_;
-        YT_VERIFY(foreignInputDataWeight >= 0);
-
         auto jobCount = GetJobCount();
         auto foreignDataWeightPerJob = jobCount > 0
-            ? std::max<i64>(1, DivCeil<i64>(foreignInputDataWeight, jobCount))
+            ? std::max<i64>(1, DivCeil<i64>(ForeignInputDataWeight_, jobCount))
             : 1;
 
         auto foreignSliceDataWeight = Clamp<i64>(
@@ -157,6 +157,7 @@ public:
         Persist(context, Spec_);
         Persist(context, InputDataWeight_);
         Persist(context, PrimaryInputDataWeight_);
+        Persist(context, ForeignInputDataWeight_);
         Persist(context, InitialInputDataWeight_);
         Persist(context, InputChunkCount_);
         Persist(context, JobCount_);
@@ -172,6 +173,7 @@ public:
 protected:
     i64 InputDataWeight_ = -1;
     i64 PrimaryInputDataWeight_ = -1;
+    i64 ForeignInputDataWeight_ = -1;
     i64 InputChunkCount_ = -1;
     i64 JobCount_ = -1;
     i64 InputRowCount_ = -1;
