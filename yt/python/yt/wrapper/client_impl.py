@@ -1260,7 +1260,7 @@ class YtClient(ClientState):
         """
         return client_api.freeze_table(path, client=self, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, sync=sync)
 
-    def select_rows(self, query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None, fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None, execution_pool=None):
+    def select_rows(self, query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None, fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None, execution_pool=None, response_parameters=None):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -1273,7 +1273,7 @@ class YtClient(ClientState):
     :param bool raw: don't parse response to rows.
     
         """
-        return client_api.select_rows(query, client=self, timestamp=timestamp, input_row_limit=input_row_limit, output_row_limit=output_row_limit, range_expansion_limit=range_expansion_limit, fail_on_incomplete_result=fail_on_incomplete_result, verbose_logging=verbose_logging, enable_code_cache=enable_code_cache, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format, raw=raw, execution_pool=execution_pool)
+        return client_api.select_rows(query, client=self, timestamp=timestamp, input_row_limit=input_row_limit, output_row_limit=output_row_limit, range_expansion_limit=range_expansion_limit, fail_on_incomplete_result=fail_on_incomplete_result, verbose_logging=verbose_logging, enable_code_cache=enable_code_cache, max_subqueries=max_subqueries, workload_descriptor=workload_descriptor, allow_full_scan=allow_full_scan, allow_join_without_index=allow_join_without_index, format=format, raw=raw, execution_pool=execution_pool, response_parameters=response_parameters)
 
     def add_member(self, member, group):
         """

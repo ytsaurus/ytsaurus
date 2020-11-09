@@ -123,7 +123,7 @@ def get_dynamic_table_retriable_errors():
         ])
 
 class DynamicTableRequestRetrier(Retrier):
-    def __init__(self, retry_config, command, params, data=None, client=None):
+    def __init__(self, retry_config, command, params, return_content=True, data=None, client=None):
         request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
         super(DynamicTableRequestRetrier, self).__init__(
@@ -137,6 +137,7 @@ class DynamicTableRequestRetrier(Retrier):
         self.command = command
         self.client = client
         self.data = data
+        self.return_content = return_content
 
     def action(self):
         kwargs = {}
@@ -146,14 +147,14 @@ class DynamicTableRequestRetrier(Retrier):
         response = _make_transactional_request(
             self.command,
             self.params,
-            return_content=True,
+            return_content=self.return_content,
             use_heavy_proxy=True,
             timeout=self.request_timeout,
             client=self.client,
             **kwargs)
 
         if response is not None:
-            return BytesIO(response)
+            return BytesIO(response) if self.return_content else response
 
     def except_action(self, error, attempt):
         logger.warning('Request %s failed with error %s',
@@ -162,7 +163,7 @@ class DynamicTableRequestRetrier(Retrier):
 def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
                 fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
                 workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None, raw=None,
-                execution_pool=None, client=None):
+                execution_pool=None, response_parameters=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
     .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
@@ -193,6 +194,8 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "allow_join_without_index", allow_join_without_index)
     set_param(params, "execution_pool", execution_pool)
     set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
+    if response_parameters is not None:
+        set_param(params, "enable_statistics", True)
 
     _check_transaction_type(client)
 
@@ -200,7 +203,11 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
         get_config(client)["dynamic_table_retries"],
         "select_rows",
         params,
+        return_content=False,
         client=client).run()
+
+    if response_parameters is not None:
+        response_parameters.update(response.response_parameters)
 
     if raw:
         return response
