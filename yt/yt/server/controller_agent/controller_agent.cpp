@@ -269,7 +269,8 @@ public:
             std::vector<IYPathServicePtr>{
                 staticOrchidService->Via(Bootstrap_->GetControlInvoker()),
                 std::move(dynamicOrchidService)
-            });
+            },
+            Config_->ControllerOrchidKeysUpdatePeriod);
     }
 
     bool IsConnected() const

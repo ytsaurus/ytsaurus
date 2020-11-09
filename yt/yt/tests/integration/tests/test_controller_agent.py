@@ -21,6 +21,21 @@ import __builtin__
 ##################################################################
 
 
+class TestControllerAgentOrchid(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+
+    @authors("levysotsky")
+    def test_controller_agent_orchid(self):
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+
+        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(
+            controller_agents[0]
+        )
+
+        wait(lambda: exists(controller_agent_orchid + "/incarnation_id"))
+
+
 class TestControllerMemoryUsage(YTEnvSetup):
     NUM_SCHEDULERS = 1
 

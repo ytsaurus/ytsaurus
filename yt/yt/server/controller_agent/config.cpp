@@ -449,6 +449,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("controller_static_orchid_update_period", ControllerStaticOrchidUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("controller_orchid_keys_update_period", ControllerOrchidKeysUpdatePeriod)
+        .Default(TDuration::Seconds(10));
+
     RegisterParameter("max_concurrent_safe_core_dumps", MaxConcurrentSafeCoreDumps)
         .Default(1)
         .GreaterThanOrEqual(0);
