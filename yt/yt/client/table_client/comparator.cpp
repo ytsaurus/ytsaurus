@@ -168,6 +168,21 @@ int TComparator::CompareKeyBounds(const TKeyBound& lhs, const TKeyBound& rhs, in
     return comparisonResult;
 }
 
+int TComparator::CompareKeys(const TKey& lhs, const TKey& rhs) const
+{
+    ValidateKey(lhs);
+    ValidateKey(rhs);
+
+    for (int index = 0; index < lhs.GetCount(); ++index) {
+        auto valueComparisonResult = CompareValues(index, lhs[index], rhs[index]);
+        if (valueComparisonResult != 0) {
+            return valueComparisonResult;
+        }
+    }
+
+    return 0;
+}
+
 void FormatValue(TStringBuilderBase* builder, const TComparator& comparator, TStringBuf /* spec */)
 {
     builder->AppendFormat("{Length: %v}", comparator.GetLength());

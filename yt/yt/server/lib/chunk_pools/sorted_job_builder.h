@@ -1,10 +1,9 @@
 #pragma once
 
-#include "chunk_pool.h"
 #include "private.h"
-#include "job_manager.h"
 
-#include <yt/ytlib/table_client/public.h>
+#include "chunk_pool.h"
+#include "job_manager.h"
 
 namespace NYT::NChunkPools {
 
@@ -31,7 +30,7 @@ struct TSortedJobOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An interface for the class that incapsulates the whole logic of building sorted* jobs.
+//! An interface for the class that encapsulates the whole logic of building sorted* jobs.
 //! This class defines a transient object (it is never persisted).
 struct ISortedJobBuilder
     : public TRefCounted
@@ -47,17 +46,6 @@ struct ISortedJobBuilder
 };
 
 DEFINE_REFCOUNTED_TYPE(ISortedJobBuilder);
-
-////////////////////////////////////////////////////////////////////////////////
-
-ISortedJobBuilderPtr CreateSortedJobBuilder(
-    const TSortedJobOptions& options,
-    NControllerAgent::IJobSizeConstraintsPtr jobSizeConstraints,
-    const NTableClient::TRowBufferPtr& rowBuffer,
-    const std::vector<NChunkClient::TInputChunkPtr>& teleportChunks,
-    bool inSplit,
-    int reftryIndex,
-    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
