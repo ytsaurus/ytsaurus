@@ -39,6 +39,9 @@ public:
     //! Compare two values belonging to the index #index of the key.
     int CompareValues(int index, const TUnversionedValue& lhs, const TUnversionedValue& rhs) const;
 
+    //! Compare keys.
+    int CompareKeys(const TKey& lhs, const TKey& rhs) const;
+
     //! Returns the strongest of two key bounds. Key bounds should be of same direction
     //! (but possibly of different inclusiveness).
     TKeyBound StrongerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const;

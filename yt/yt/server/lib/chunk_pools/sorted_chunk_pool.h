@@ -3,7 +3,7 @@
 #include "chunk_pool.h"
 #include "input_stream.h"
 #include "private.h"
-#include "sorted_job_builder.h"
+#include "new_sorted_job_builder.h"
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -16,6 +16,8 @@ namespace NYT::NChunkPools {
 struct TSortedChunkPoolOptions
 {
     TSortedJobOptions SortedJobOptions;
+    bool UseNewJobBuilder = false;
+
     i64 MinTeleportChunkSize = 0;
     bool SupportLocality = false;
     bool SliceForeignChunks = false;

@@ -3,6 +3,8 @@
 #include "job_manager.h"
 #include "helpers.h"
 #include "input_chunk_mapping.h"
+#include "legacy_sorted_job_builder.h"
+#include "new_sorted_job_builder.h"
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 #include <yt/server/lib/controller_agent/structs.h>
@@ -62,22 +64,6 @@ IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(TCallback<IC
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSortedJobOptions::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, EnableKeyGuarantee);
-    Persist(context, PrimaryPrefixLength);
-    Persist(context, ForeignPrefixLength);
-    Persist(context, MaxTotalSliceCount);
-    Persist(context, EnablePeriodicYielder);
-    Persist(context, PivotKeys);
-    Persist(context, LogDetails);
-    Persist(context, ShouldSlicePrimaryTableByKeys);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSortedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithJobManagerBase
@@ -93,6 +79,7 @@ public:
         IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
         TInputStreamDirectory inputStreamDirectory)
         : SortedJobOptions_(options.SortedJobOptions)
+        , UseNewJobBuilder_(options.UseNewJobBuilder)
         , ChunkSliceFetcherFactory_(std::move(chunkSliceFetcherFactory))
         , EnableKeyGuarantee_(options.SortedJobOptions.EnableKeyGuarantee)
         , InputStreamDirectory_(std::move(inputStreamDirectory))
@@ -228,6 +215,7 @@ public:
 
         using NYT::Persist;
         Persist(context, SortedJobOptions_);
+        Persist(context, UseNewJobBuilder_);
         Persist(context, ChunkSliceFetcherFactory_);
         Persist(context, EnableKeyGuarantee_);
         Persist(context, InputStreamDirectory_);
@@ -266,6 +254,9 @@ private:
 
     //! All options necessary for sorted job builder.
     TSortedJobOptions SortedJobOptions_;
+
+    //! Use new sorted job builder.
+    bool UseNewJobBuilder_;
 
     //! A factory that is used to spawn chunk slice fetcher.
     IChunkSliceFetcherFactoryPtr ChunkSliceFetcherFactory_;
@@ -673,7 +664,7 @@ private:
         std::vector<TError> errors;
         for (int retryIndex = 0; retryIndex < JobSizeConstraints_->GetMaxBuildRetryCount(); ++retryIndex) {
             try {
-                builder = CreateSortedJobBuilder(
+                builder = (UseNewJobBuilder_ ? CreateNewSortedJobBuilder : CreateLegacySortedJobBuilder)(
                     SortedJobOptions_,
                     JobSizeConstraints_,
                     RowBuffer_,
@@ -763,7 +754,7 @@ private:
         // We do not want to yield during job splitting because it may potentially lead
         // to snapshot creation that will catch pool in inconsistent state.
         splitSortedJobOptions.EnablePeriodicYielder = false;
-        auto builder = CreateSortedJobBuilder(
+        auto builder = (UseNewJobBuilder_ ? CreateNewSortedJobBuilder : CreateLegacySortedJobBuilder)(
             splitSortedJobOptions,
             std::move(jobSizeConstraints),
             RowBuffer_,

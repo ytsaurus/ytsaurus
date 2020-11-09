@@ -1054,6 +1054,7 @@ TReduceOperationSpec::TReduceOperationSpec()
     RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
         .Default();
 
+    // XXX(max42): validate pivot keys!
     RegisterParameter("pivot_keys", PivotKeys)
         .Default();
 

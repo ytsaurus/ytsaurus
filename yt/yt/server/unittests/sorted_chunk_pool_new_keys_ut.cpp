@@ -1,4 +1,4 @@
-#include "chunk_slice_fetcher_legacy_mock.h"
+#include "chunk_slice_fetcher_mock.h"
 
 #include <yt/core/test_framework/framework.h>
 
@@ -6,9 +6,9 @@
 #include <yt/server/controller_agent/job_size_constraints.h>
 #include <yt/server/controller_agent/operation_controller.h>
 
-#include <yt/server/lib/legacy_chunk_pools/input_chunk_mapping.h>
-#include <yt/server/lib/legacy_chunk_pools/multi_chunk_pool.h>
-#include <yt/server/lib/legacy_chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
+#include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -25,7 +25,7 @@
 
 #include <random>
 
-namespace NYT::NLegacyChunkPools {
+namespace NYT::NChunkPools {
 namespace {
 
 using namespace NControllerAgent;
@@ -46,7 +46,7 @@ static constexpr i64 Inf64 = std::numeric_limits<i64>::max();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedChunkPoolLegacyTest
+class TSortedChunkPoolNewKeysTest
     : public Test
 {
 protected:
@@ -55,8 +55,9 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
-        Options_.SortedJobOptions.LogDetails = true;
+        Options_.UseNewJobBuilder = true;
         Options_.Task = "TestTask";
+        Options_.SortedJobOptions.LogDetails = true;
         DataSizePerJob_ = Inf64;
         MaxBuildRetryCount_ = 1;
         MaxDataSlicesPerJob_ = Inf32;
@@ -87,7 +88,7 @@ protected:
 
     struct TMockChunkSliceFetcherBuilder
     {
-        TMockChunkSliceFetcherBuilder(TSortedChunkPoolLegacyTest* owner)
+        TMockChunkSliceFetcherBuilder(TSortedChunkPoolNewKeysTest* owner)
             : Owner(owner)
         { }
 
@@ -119,7 +120,7 @@ protected:
         ExpectationSet AllChunksAreAdded;
         TStrictMockChunkSliceFetcherPtr ChunkSliceFetcher = New<StrictMock<TMockChunkSliceFetcher>>();
         std::vector<TInputChunkSlicePtr> ChunkSlices;
-        TSortedChunkPoolLegacyTest* Owner;
+        TSortedChunkPoolNewKeysTest* Owner;
     };
 
     std::vector<TMockChunkSliceFetcherBuilder> MockBuilders_;
@@ -171,9 +172,33 @@ protected:
         inputChunk->SetCompressedDataSize(size);
         inputChunk->SetTotalUncompressedDataSize(size);
         inputChunk->SetTotalDataWeight(size);
+
+        // NB: YT-7358. We behave similarly to controller here by not employing
+        // too long boundary keys. Boundar keys should correspond to the prefix length
+        // of a corresponding input stream (primary/foreign).
+
+        TLegacyOwningKey owningMinBoundaryKey;
+        TLegacyOwningKey owningMaxBoundaryKey;
+
+        if (InputTables_[tableIndex].IsForeign()) {
+            owningMinBoundaryKey = TLegacyOwningKey(
+                minBoundaryKey.Begin(),
+                minBoundaryKey.Begin() + Options_.SortedJobOptions.ForeignPrefixLength);
+            owningMaxBoundaryKey = TLegacyOwningKey(
+                maxBoundaryKey.Begin(),
+                maxBoundaryKey.Begin() + Options_.SortedJobOptions.ForeignPrefixLength);
+        } else {
+            owningMinBoundaryKey = TLegacyOwningKey(
+                minBoundaryKey.Begin(),
+                minBoundaryKey.Begin() + Options_.SortedJobOptions.PrimaryPrefixLength);
+            owningMaxBoundaryKey = TLegacyOwningKey(
+                maxBoundaryKey.Begin(),
+                maxBoundaryKey.Begin() + Options_.SortedJobOptions.PrimaryPrefixLength);
+        }
+
         inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys {
-            TLegacyOwningKey(minBoundaryKey),
-            TLegacyOwningKey(maxBoundaryKey)
+            std::move(owningMinBoundaryKey),
+            std::move(owningMaxBoundaryKey)
         });
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
@@ -351,7 +376,7 @@ protected:
 
     void ExtractOutputCookiesWhilePossible()
     {
-        while (ChunkPool_->GetPendingJobCount()) {
+        while (ChunkPool_->GetJobCounter()->GetPending()) {
             ExtractedCookies_.emplace_back(ExtractCookie(TNodeId(0)));
         }
     }
@@ -373,6 +398,7 @@ protected:
         saveContext.SetOutput(&output);
         Save(saveContext, ChunkPool_);
         Save(saveContext, MultiChunkPool_);
+        Save(saveContext, UnderlyingPools__);
         auto blob = output.Flush();
         ChunkPool_.Reset();
 
@@ -383,6 +409,7 @@ protected:
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);
         Load(loadContext, MultiChunkPool_);
+        Load(loadContext, UnderlyingPools__);
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
@@ -632,6 +659,8 @@ protected:
     IChunkPoolPtr ChunkPool_;
     IMultiChunkPoolPtr MultiChunkPool_;
 
+    std::vector<IChunkPoolPtr> UnderlyingPools__;
+
     //! Set containing all unversioned primary input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
     //! Set containing all unversioned foreign input chunks that have ever been created.
@@ -678,7 +707,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedMergeTeleports1)
+TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_SortedMergeTeleports1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -715,7 +744,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedMergeTeleports1)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedMergeTeleports2)
+TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_SortedMergeTeleports2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -754,7 +783,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedMergeTeleports2)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedMergeTeleports3)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports3)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -788,7 +817,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedMergeTeleports3)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedMergeTeleports4)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeTeleports4)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -827,7 +856,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedMergeTeleports4)
 
 // NB(max42): completely getting into this test may take several hours of your life.
 // Double-think before reading it :)
-TEST_F(TSortedChunkPoolLegacyTest, SortedMergeAllKindOfTeleports)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeAllKindOfTeleports)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1125,7 +1154,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedMergeAllKindOfTeleports)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedMergeSimple)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1162,7 +1191,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedMergeSimple)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedMergeWithPersistBeforeFinish)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeWithPersistBeforeFinish)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1195,7 +1224,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedMergeWithPersistBeforeFinish)
     EXPECT_EQ(3, stripeLists.front()->Stripes.size());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedMergeSimpleWithGenericInputStreamDirectory)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeSimpleWithGenericInputStreamDirectory)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1232,7 +1261,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedMergeSimpleWithGenericInputStreamDirect
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SlicingManiacs)
+TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_SlicingManiacs)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1278,7 +1307,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SlicingManiacs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedReduceSimple)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -1308,16 +1337,20 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedReduceSimple)
     auto stripeLists = GetAllStripeLists();
 
     EXPECT_THAT(TeleportChunks_, IsEmpty());
-    ASSERT_EQ(2, stripeLists.size());
+
     // At least one stripe list should be responsible for the shared key {2}.
-    EXPECT_TRUE(
-        (stripeLists[0]->Stripes[0] && stripeLists[0]->Stripes[1]) ||
-        (stripeLists[0]->Stripes[1] && stripeLists[1]->Stripes[1]));
+    bool anyCovers2 = false;
+    for (const auto& stripeList : stripeLists) {
+        if (stripeList->Stripes.size() == 2) {
+            anyCovers2 = true;
+        }
+    }
+    EXPECT_TRUE(anyCovers2);
 
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedReduceManiacs)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceManiacs)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -1350,7 +1383,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedReduceManiacs)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedReduceAllKindOfTeleports)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceAllKindOfTeleports)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -1684,7 +1717,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedReduceAllKindOfTeleports)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SortedReduceWithJoin)
+TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceWithJoin)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -1723,7 +1756,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SortedReduceWithJoin)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, JoinReduce)
+TEST_F(TSortedChunkPoolNewKeysTest, JoinReduce)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1762,7 +1795,7 @@ TEST_F(TSortedChunkPoolLegacyTest, JoinReduce)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, ManiacIsSliced)
+TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_ManiacIsSliced)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1785,10 +1818,10 @@ TEST_F(TSortedChunkPoolLegacyTest, ManiacIsSliced)
     AddChunk(chunkA);
 
     ChunkPool_->Finish();
-    EXPECT_GE(ChunkPool_->GetPendingJobCount(), 100 / 2);
+    EXPECT_GE(ChunkPool_->GetJobCounter()->GetPending(), 100 / 2);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, MaxTotalSliceCountExceeded)
+TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountExceeded)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1818,7 +1851,7 @@ TEST_F(TSortedChunkPoolLegacyTest, MaxTotalSliceCountExceeded)
     EXPECT_THROW(ChunkPool_->Finish(), std::exception);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, MaxTotalSliceCountRetries)
+TEST_F(TSortedChunkPoolNewKeysTest, MaxTotalSliceCountRetries)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1849,7 +1882,7 @@ TEST_F(TSortedChunkPoolLegacyTest, MaxTotalSliceCountRetries)
     ChunkPool_->Finish();
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestJobInterruption)
+TEST_F(TSortedChunkPoolNewKeysTest, TestJobInterruption)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1858,6 +1891,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestJobInterruption)
         {false, false, false, false} /* isVersioned */
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.SortedJobOptions.ForeignPrefixLength = 1;
     InitJobConstraints();
     PrepareNewMock();
 
@@ -1899,17 +1933,13 @@ TEST_F(TSortedChunkPoolLegacyTest, TestJobInterruption)
     auto newStripeList = ChunkPool_->GetStripeList(ExtractedCookies_.back());
     ASSERT_EQ(newStripeList->Stripes.size(), 3);
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices.size(), 1);
-    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices
-                  .front()
-                  ->LegacyLowerLimit().Key, BuildRow({13}));
+    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 0)->DataSlices.front()->LegacyLowerLimit().Key, BuildRow({13}));
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices.size(), 1);
-    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices
-                  .front()
-                  ->LegacyLowerLimit().Key, BuildRow({14}));
+    ASSERT_EQ(GetStripeByTableIndex(newStripeList, 1)->DataSlices.front()->LegacyLowerLimit().Key, BuildRow({14}));
     ASSERT_EQ(GetStripeByTableIndex(newStripeList, 3)->DataSlices.size(), 1);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestJobSplitSimple)
+TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -1955,7 +1985,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestJobSplitSimple)
     ASSERT_LE(stripeLists.size(), 12);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestJobSplitWithForeign)
+TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2021,7 +2051,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestJobSplitWithForeign)
     }
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestJobSplitStripeSuspension)
+TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2075,18 +2105,18 @@ TEST_F(TSortedChunkPoolLegacyTest, TestJobSplitStripeSuspension)
 
     OutputCookies_.clear();
 
-    int pendingJobCount = ChunkPool_->GetPendingJobCount();
+    int pendingJobCount = ChunkPool_->GetJobCounter()->GetPending();
     ASSERT_LE(8, pendingJobCount);
     ASSERT_LE(pendingJobCount, 12);
     SuspendChunk(0);
-    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), pendingJobCount - 1);
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), pendingJobCount - 1);
     for (int cookie = chunkCount; cookie < chunkCount + foreignChunkCount; ++cookie) {
         SuspendChunk(cookie);
     }
-    ASSERT_EQ(0, ChunkPool_->GetPendingJobCount());
+    ASSERT_EQ(0, ChunkPool_->GetJobCounter()->GetPending());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestCorrectOrderInsideStripe)
+TEST_F(TSortedChunkPoolNewKeysTest, TestCorrectOrderInsideStripe)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2129,7 +2159,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestCorrectOrderInsideStripe)
     }
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestTrickyCase)
+TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2175,7 +2205,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestTrickyCase)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestTrickyCase2)
+TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2224,7 +2254,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestTrickyCase2)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestTrickyCase3)
+TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase3)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2256,7 +2286,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestTrickyCase3)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestTrickyCase4)
+TEST_F(TSortedChunkPoolNewKeysTest, TestTrickyCase4)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2308,7 +2338,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestTrickyCase4)
     }
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestNoChunkSliceFetcher)
+TEST_F(TSortedChunkPoolNewKeysTest, TestNoChunkSliceFetcher)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2340,7 +2370,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestNoChunkSliceFetcher)
     CheckEverything(stripeLists);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestStripeListStatisticsAreSet)
+TEST_F(TSortedChunkPoolNewKeysTest, TestStripeListStatisticsAreSet)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2374,7 +2404,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestStripeListStatisticsAreSet)
     EXPECT_GT(stripeLists[0]->TotalDataWeight, 0);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestSeveralSlicesInInputStripe)
+TEST_F(TSortedChunkPoolNewKeysTest, TestSeveralSlicesInInputStripe)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2407,7 +2437,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestSeveralSlicesInInputStripe)
     EXPECT_EQ(2, stripeLists[0]->Stripes[1]->DataSlices.size());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestPivotKeys1)
+TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys1)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -2450,7 +2480,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestPivotKeys1)
     EXPECT_EQ(1, stripeLists[3]->Stripes[1]->DataSlices.size());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TestPivotKeys2)
+TEST_F(TSortedChunkPoolNewKeysTest, TestPivotKeys2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -2484,7 +2514,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TestPivotKeys2)
 }
 
 
-TEST_F(TSortedChunkPoolLegacyTest, SuspendFinishResumeTest)
+TEST_F(TSortedChunkPoolNewKeysTest, SuspendFinishResumeTest)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2522,7 +2552,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SuspendFinishResumeTest)
     EXPECT_EQ(3, stripeLists[0]->Stripes[0]->DataSlices.size());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SliceByPrimaryDataSize)
+TEST_F(TSortedChunkPoolNewKeysTest, SliceByPrimaryDataSize)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2559,7 +2589,7 @@ TEST_F(TSortedChunkPoolLegacyTest, SliceByPrimaryDataSize)
     EXPECT_GE(20, stripeLists.size());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, ExtractByDataSize)
+TEST_F(TSortedChunkPoolNewKeysTest, ExtractByDataSize)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
@@ -2596,7 +2626,7 @@ TEST_F(TSortedChunkPoolLegacyTest, ExtractByDataSize)
     EXPECT_GT(stripeListDataSizes[1], stripeListDataSizes[2]);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, MaximumDataWeightPerJobViolation)
+TEST_F(TSortedChunkPoolNewKeysTest, MaximumDataWeightPerJobViolation)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     MaxDataWeightPerJob_ = 10_KB;
@@ -2620,7 +2650,7 @@ TEST_F(TSortedChunkPoolLegacyTest, MaximumDataWeightPerJobViolation)
     EXPECT_THROW(ChunkPool_->Finish(), std::exception);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, CartesianProductViaJoinReduce)
+TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_CartesianProductViaJoinReduce)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2657,7 +2687,7 @@ TEST_F(TSortedChunkPoolLegacyTest, CartesianProductViaJoinReduce)
     EXPECT_LE(stripeLists.size(), 110);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, ResetBeforeFinish)
+TEST_F(TSortedChunkPoolNewKeysTest, ResetBeforeFinish)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2694,7 +2724,7 @@ TEST_F(TSortedChunkPoolLegacyTest, ResetBeforeFinish)
     EXPECT_EQ(1, stripeLists.size());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, TeleportChunkAndShortReadLimits)
+TEST_F(TSortedChunkPoolNewKeysTest, TeleportChunkAndShortReadLimits)
 {
     // YT-8836.
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
@@ -2723,12 +2753,12 @@ TEST_F(TSortedChunkPoolLegacyTest, TeleportChunkAndShortReadLimits)
     auto stripeLists = GetAllStripeLists();
 
     EXPECT_EQ(1, TeleportChunks_.size());
-    EXPECT_EQ(2, stripeLists.size());
+    ASSERT_EQ(2, stripeLists.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes.size());
     EXPECT_EQ(1, stripeLists[1]->Stripes.size());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, Sampling)
+TEST_F(TSortedChunkPoolNewKeysTest, Sampling)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2755,18 +2785,18 @@ TEST_F(TSortedChunkPoolLegacyTest, Sampling)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
-    EXPECT_LE(40, ChunkPool_->GetPendingJobCount());
-    EXPECT_GE(60, ChunkPool_->GetPendingJobCount());
+    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    EXPECT_LE(40, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_GE(60, ChunkPool_->GetJobCounter()->GetPending());
 
     ResetChunk(42, chunk42);
 
-    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
-    EXPECT_LE(40, ChunkPool_->GetPendingJobCount());
-    EXPECT_GE(60, ChunkPool_->GetPendingJobCount());
+    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    EXPECT_LE(40, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_GE(60, ChunkPool_->GetJobCounter()->GetPending());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, SamplingWithEnlarging)
+TEST_F(TSortedChunkPoolNewKeysTest, SamplingWithEnlarging)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2793,18 +2823,18 @@ TEST_F(TSortedChunkPoolLegacyTest, SamplingWithEnlarging)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
-    EXPECT_LE(3, ChunkPool_->GetPendingJobCount());
-    EXPECT_GE(7, ChunkPool_->GetPendingJobCount());
+    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    EXPECT_LE(3, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_GE(7, ChunkPool_->GetJobCounter()->GetPending());
 
     ResetChunk(42, chunk42);
 
-    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
-    EXPECT_LE(3, ChunkPool_->GetPendingJobCount());
-    EXPECT_GE(7, ChunkPool_->GetPendingJobCount());
+    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    EXPECT_LE(3, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_GE(7, ChunkPool_->GetJobCounter()->GetPending());
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, EnlargingWithTeleportation)
+TEST_F(TSortedChunkPoolNewKeysTest, EnlargingWithTeleportation)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2828,11 +2858,11 @@ TEST_F(TSortedChunkPoolLegacyTest, EnlargingWithTeleportation)
     ChunkPool_->Finish();
 
     EXPECT_EQ(1, TeleportChunks_.size());
-    EXPECT_EQ(2, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(2, ChunkPool_->GetJobCounter()->GetPending());
 }
 
 // YT-9791
-TEST_F(TSortedChunkPoolLegacyTest, TrickySliceSortOrder)
+TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2865,7 +2895,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TrickySliceSortOrder)
 
     ChunkPool_->Finish();
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     auto outputCookie = ChunkPool_->Extract(0);
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -2882,7 +2912,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TrickySliceSortOrder)
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
     ChunkPool_->Completed(outputCookie, jobSummary);
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     outputCookie = ChunkPool_->Extract(0);
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -2891,7 +2921,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TrickySliceSortOrder)
 }
 
 // YTADMINREQ-19334
-TEST_F(TSortedChunkPoolLegacyTest, TrickySliceSortOrder2)
+TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2924,7 +2954,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TrickySliceSortOrder2)
 
     ChunkPool_->Finish();
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     auto outputCookie = ChunkPool_->Extract(0);
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -2942,7 +2972,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TrickySliceSortOrder2)
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
     ChunkPool_->Completed(outputCookie, jobSummary);
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     outputCookie = ChunkPool_->Extract(0);
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -2951,7 +2981,7 @@ TEST_F(TSortedChunkPoolLegacyTest, TrickySliceSortOrder2)
     EXPECT_EQ(5, stripeList->Stripes[0]->DataSlices[0]->LegacyLowerLimit().RowIndex);
 }
 
-TEST_F(TSortedChunkPoolLegacyTest, JoinReduceForeignChunkSlicing)
+TEST_F(TSortedChunkPoolNewKeysTest, DISABLED_JoinReduceForeignChunkSlicing)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -2991,23 +3021,23 @@ TEST_F(TSortedChunkPoolLegacyTest, JoinReduceForeignChunkSlicing)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSortedChunkPoolLegacyTestRandomized
+class TSortedChunkPoolNewKeysTestRandomized
     : public WithParamInterface<std::tuple<int, bool>>
-    , public TSortedChunkPoolLegacyTest
+    , public TSortedChunkPoolNewKeysTest
 {
 public:
-    TSortedChunkPoolLegacyTestRandomized() = default;
+    TSortedChunkPoolNewKeysTestRandomized() = default;
 
     virtual void SetUp() override final
     {
-        TSortedChunkPoolLegacyTest::SetUp();
+        TSortedChunkPoolNewKeysTest::SetUp();
         Gen_.seed(get<0>(GetParam()));
     }
 };
 
-static constexpr int NumberOfRepeats = 15;
+static constexpr int NumberOfRepeats = 100;
 
-TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
+TEST_P(TSortedChunkPoolNewKeysTestRandomized, VariousOperationsWithPoolTest)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = false;
     InitTables(
@@ -3019,9 +3049,12 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
     DataSizePerJob_ = 1_KB;
     InitJobConstraints();
 
-    constexpr int chunkCount = 50;
+    constexpr int maxChunkCount = 100;
     constexpr int maxUnderlyingPoolCount = 10;
     constexpr int maxJobLosts = 50;
+    constexpr int maxInvalidationCount = 10;
+
+    int chunkCount = std::uniform_int_distribution<>(0, maxChunkCount)(Gen_);
 
     for (int index = 0; index < chunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
@@ -3029,22 +3062,24 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
 
     bool useMultiPool = get<1>(GetParam());
     int underlyingPoolCount = 0;
-    std::vector<IChunkPoolPtr> underlyingPools;
-    int addedUnderlyingPoolCount = 0;
+    std::vector<IChunkPoolPtr> UnderlyingPools_;
+    THashSet<int> pendingUnderlyingPoolIndexes;
 
     if (useMultiPool) {
         // Multi pool created of several sorted subpools.
-        underlyingPoolCount = std::uniform_int_distribution<>(1, maxUnderlyingPoolCount)(Gen_);
-        underlyingPools.reserve(underlyingPoolCount);
+        underlyingPoolCount = std::uniform_int_distribution<>(2, maxUnderlyingPoolCount)(Gen_);
+        UnderlyingPools_.reserve(underlyingPoolCount);
         for (int poolIndex = 0; poolIndex < underlyingPoolCount; ++poolIndex) {
-            underlyingPools.push_back(CreateSortedChunkPool(
+            UnderlyingPools_.push_back(CreateSortedChunkPool(
                 Options_,
                 nullptr,
                 TInputStreamDirectory(InputTables_)));
+            if (poolIndex != 0) {
+                pendingUnderlyingPoolIndexes.insert(poolIndex);
+            }
         }
-        MultiChunkPool_ = CreateMultiChunkPool({underlyingPools[0]});
+        MultiChunkPool_ = CreateMultiChunkPool({UnderlyingPools_[0]});
         ChunkPool_ = MultiChunkPool_;
-        addedUnderlyingPoolCount = 1;
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
@@ -3122,14 +3157,13 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
         ChunkPool_->Finish();
     }
 
-    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), stripesByPoolIndex[0].size());
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), stripesByPoolIndex[0].size());
 
     // Set this to true when debugging locally. It helps a lot to understand what happens.
     constexpr bool EnableDebugOutput = false;
     IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 
     int invalidationCount = 0;
-    const int MaxInvalidationCount = 5;
 
     auto invalidate = [&] (std::optional<int> underlyingPoolIndex) {
         std::vector<TChunkId> toDeleteInStarted;
@@ -3194,7 +3228,7 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
     int jobLosts = 0;
 
     while (completedChunks.size() < chunkCount) {
-        YT_VERIFY(!ChunkPool_->IsCompleted());
+        EXPECT_FALSE(ChunkPool_->IsCompleted());
 
         // 0..0 - pool is persisted and restored;
         // 1..19 - chunk is suspended;
@@ -3208,8 +3242,8 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
         // 98..99 - add new pool to multi pool if multi pool is used.
         int eventType = dice(Gen_);
         if (eventType <= 0) {
-            Cdebug << "Persisting and restoring the pool" << Endl;
-            PersistAndRestore();
+           Cdebug << "Persisting and restoring the pool" << Endl;
+           PersistAndRestore();
         } else if (eventType <= 19) {
             if (auto randomElement = chooseRandomElement(resumedCookies)) {
                 auto cookie = *randomElement;
@@ -3236,7 +3270,7 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(resumedChunks.insert(chunkId).second);
                 ResumeChunk(cookie);
             }
-        } else if (eventType <= 49 && invalidationCount < MaxInvalidationCount && completedChunks.size() > chunkCount / 2) {
+        } else if (eventType <= 49 && invalidationCount < maxInvalidationCount && completedChunks.size() > chunkCount / 2) {
             if (auto randomElement = chooseRandomElement(suspendedCookies)) {
                 auto cookie = *randomElement;
                 Cdebug << Format("Resetting cookie %v", cookie);
@@ -3249,7 +3283,7 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
                 invalidate(useMultiPool ? std::make_optional(ChunkIdToUnderlyingPoolIndex_[chunkId]) : std::nullopt);
             }
         } else if (eventType <= 59) {
-            if (ChunkPool_->GetPendingJobCount()) {
+            if (ChunkPool_->GetJobCounter()->GetPending()) {
                 auto outputCookie = ExtractCookie(TNodeId(0));
                 Cdebug << Format("Extracted cookie %v...", outputCookie);
                 // TODO(max42): why the following line leads to the linkage error?
@@ -3317,23 +3351,32 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
                 ChunkPool_->Failed(outputCookie);
             }
         } else /* eventType <= 99 */ {
-            if (useMultiPool && addedUnderlyingPoolCount < underlyingPools.size()) {
-                auto poolIndex = addedUnderlyingPoolCount++;
+            if (useMultiPool && !pendingUnderlyingPoolIndexes.empty()) {
+                auto poolIndex = *chooseRandomElement(pendingUnderlyingPoolIndexes);
+                pendingUnderlyingPoolIndexes.erase(poolIndex);
                 Cdebug << Format("Adding pool %v to multi pool", poolIndex) << Endl;
-                MultiChunkPool_->AddPool(underlyingPools[poolIndex]);
+                MultiChunkPool_->AddPool(UnderlyingPools_[poolIndex], poolIndex);
                 for (const auto& stripe : stripesByPoolIndex[poolIndex]) {
                     registerStripe(stripe);
                 }
                 MultiChunkPool_->FinishPool(poolIndex);
-                if (addedUnderlyingPoolCount == underlyingPools.size()) {
-                    // Finilize output part.
-                    MultiChunkPool_->Finalize();
-                }
             }
         }
     }
+    if (useMultiPool) {
+        // Add empty underlying pools.
+        for (auto poolIndex : pendingUnderlyingPoolIndexes) {
+            MultiChunkPool_->AddPool(UnderlyingPools_[poolIndex], poolIndex);
+            MultiChunkPool_->FinishPool(poolIndex);
+        }
+        MultiChunkPool_->Finalize();
+    }
+
     ASSERT_TRUE(ChunkPool_->IsCompleted());
-    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), 0);
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 0);
+    ASSERT_EQ(ChunkPool_->GetDataWeightCounter()->GetTotal(), 1024 * chunkCount);
+    ASSERT_EQ(ChunkPool_->GetRowCounter()->GetTotal(), 1000 * chunkCount);
+    ASSERT_EQ(ChunkPool_->GetDataSliceCounter()->GetTotal(), chunkCount);
     ASSERT_EQ(completedChunks.size(), chunkCount);
     ASSERT_EQ(pendingChunks.size(), 0);
     ASSERT_EQ(startedChunks.size(), 0);
@@ -3344,10 +3387,10 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
 }
 
 INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
-    TSortedChunkPoolLegacyTestRandomized,
+    TSortedChunkPoolNewKeysTestRandomized,
     ::testing::Combine(::testing::Range(0, NumberOfRepeats), ::testing::Bool()));
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NLegacyChunkPools
+} // namespace NYT::NChunkPools

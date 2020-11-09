@@ -55,6 +55,7 @@ protected:
         Options_.MinTeleportChunkSize = Inf64;
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
+        Options_.UseNewJobBuilder = false;
         Options_.Task = "TestTask";
         DataSizePerJob_ = Inf64;
         MaxBuildRetryCount_ = 1;
