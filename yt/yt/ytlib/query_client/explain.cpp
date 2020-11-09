@@ -35,7 +35,7 @@ void GetQueryInfo(
     std::vector<TRange<TConstJoinClausePtr>> groupedJoins;
 
     size_t joinIndex = 0;
-    for (size_t joinGroupSize : GetJoinGroups(query->JoinClauses, query->GetTableSchema())) {
+    for (size_t joinGroupSize : GetJoinGroups(query->JoinClauses, query->GetRenamedSchema())) {
         groupedJoins.emplace_back(query->JoinClauses.data() + joinIndex, joinGroupSize);
         joinIndex += joinGroupSize;
     }
