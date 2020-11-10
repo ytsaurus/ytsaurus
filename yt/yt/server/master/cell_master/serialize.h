@@ -101,6 +101,7 @@ DEFINE_ENUM(EMasterReign,
     ((EnableForcedRotationBackingMemoryAccounting)                  (1419))  // babenko
     ((RemovePartitionedTables)                                      (1420))  // max42
     ((OverlayedJournals)                                            (1421))  // babenko
+    ((YT_12193_BetterAlterTable)                                    (1422))  // ermolovd
 );
 
 ////////////////////////////////////////////////////////////////////////////////
