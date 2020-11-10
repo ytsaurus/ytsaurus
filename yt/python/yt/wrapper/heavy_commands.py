@@ -4,7 +4,7 @@ from .cypress_commands import get
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .retries import Retrier, IteratorRetrier, default_chaos_monkey
 from .errors import YtMasterCommunicationError, YtChunkUnavailable, YtAllTargetNodesFailed
-from .ypath import YPathSupportingAppend
+from .ypath import YPathSupportingAppend, YPath
 from .progress_bar import SimpleProgressBar, FakeProgressReporter
 from .stream import RawStream, ItemStream
 from .transaction import Transaction, add_transaction_to_abort
@@ -227,7 +227,7 @@ def _get_read_response(command_name, params, transaction_id, client=None):
     return response
 
 class ReadIterator(IteratorRetrier):
-    def __init__(self, command_name, transaction, process_response_action, retriable_state_class, client=None):
+    def __init__(self, command_name, transaction, process_response_action, retriable_state, client=None):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
         retriable_errors = join_exceptions(get_retriable_errors(), YtChunkUnavailable, YtFormatReadError)
         retry_config = get_config(client)["read_retries"]
@@ -239,7 +239,7 @@ class ReadIterator(IteratorRetrier):
         self.command_name = command_name
         self.transaction = transaction
         self.process_response_action = process_response_action
-        self.retriable_state = retriable_state_class()
+        self.retriable_state = retriable_state
         self.response = None
         self.start_response = None
         self.last_response = None
@@ -320,8 +320,10 @@ def _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False
 
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client,
                       filename_hint=None, request_size=False):
+    assert isinstance(path, YPath)
+
     if get_config(client)["read_retries"]["create_transaction_and_take_snapshot_lock"]:
-        title = "Python wrapper: read {0}".format(str(YPathSupportingAppend(path, client=client)))
+        title = "Python wrapper: read {0}".format(str(path))
         tx = Transaction(attributes={"title": title}, interrupt_on_failed=False, client=client)
     else:
         tx = FakeTransaction()
@@ -329,7 +331,13 @@ def make_read_request(command_name, path, params, process_response_action, retri
     try:
         if tx:
             with Transaction(transaction_id=tx.transaction_id, attributes={"title": title}, client=client):
-                lock(path, mode="snapshot", client=client)
+                lock_result = lock(path, mode="snapshot", client=client)
+                if get_config(client)["read_retries"]["use_locked_node_id"]:
+                    if get_config(client)["api_version"] == "v4":
+                        node_id = lock_result["node_id"]
+                    else:
+                        node_id = get(path + "/@id", client=client)
+                    params["path"] = YPath("#" + node_id, attributes=path.attributes)
                 size_hint = _try_get_size(path, client, request_size)
         else:
             size_hint = _try_get_size(path, client, request_size)
@@ -347,7 +355,8 @@ def make_read_request(command_name, path, params, process_response_action, retri
             reporter.__enter__()
             return reporter.wrap_file(response)
         else:
-            iterator = ReadIterator(command_name, tx, process_response_action, retriable_state_class, client)
+            retriable_state = retriable_state_class(params, client, process_response_action)
+            iterator = ReadIterator(command_name, tx, process_response_action, retriable_state, client)
             reporter = _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False)
 
             # NB: __exit__() is done in __del__()
