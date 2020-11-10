@@ -3496,22 +3496,21 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
         TUserJobSpecPtr JobSpec;
     };
 
-    THashMap<TString, TMemoryInfo> memoryInfoPerJobType;
+    THashMap<TTaskPtr, TMemoryInfo> memoryInfoPerTask;
 
     for (const auto& task : Tasks) {
         if (!task->IsSimpleTask()) {
             continue;
         }
 
-        auto jobType = task->GetVertexDescriptor();
         const auto& userJobSpec = task->GetUserJobSpec();
         if (!userJobSpec) {
             continue;
         }
 
-        auto memoryInfoIt = memoryInfoPerJobType.find(jobType);
-        if (memoryInfoIt == memoryInfoPerJobType.end()) {
-            memoryInfoIt = memoryInfoPerJobType.emplace(jobType, TMemoryInfo()).first;
+        auto memoryInfoIt = memoryInfoPerTask.find(task);
+        if (memoryInfoIt == memoryInfoPerTask.end()) {
+            memoryInfoIt = memoryInfoPerTask.emplace(task, TMemoryInfo()).first;
         }
 
         auto& memoryInfo = memoryInfoIt->second;
@@ -3559,7 +3558,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& [jobType, memoryInfo] : memoryInfoPerJobType) {
+    for (const auto& [task, memoryInfo] : memoryInfoPerTask) {
         const auto& jobSpec = memoryInfo.JobSpec;
         const auto& tmpfsVolumes = jobSpec->TmpfsVolumes;
 
@@ -3584,7 +3583,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
             if (ratioViolated && sizeViolated && !maxJobCountViolated) {
                 memoryErrors.push_back(TError(
                     "Jobs of type %Qlv use less than %.1f%% of requested memory",
-                    jobType,
+                    task->GetVertexDescriptor(),
                     1.0 - Config->OperationAlerts->MemoryUsageAlertMaxUnusedRatio)
                     << TErrorAttribute("memory_reserve", memoryInfo.MemoryReserve)
                     << TErrorAttribute("memory_usage", memoryUsage));
@@ -3613,7 +3612,7 @@ void TOperationControllerBase::AnalyzeMemoryAndTmpfsUsage()
             if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
                 auto error = TError(
                     "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size in volume %Qv",
-                    jobType,
+                    task->GetVertexDescriptor(),
                     minUnusedSpaceRatio * 100.0,
                     tmpfsVolumes[index]->Path)
                     << TErrorAttribute("max_used_tmpfs_size", *maxTmpfsUsage)
