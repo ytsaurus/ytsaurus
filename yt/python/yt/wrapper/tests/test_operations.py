@@ -1,8 +1,9 @@
 from __future__ import print_function
 
-from .conftest import authors
+from .conftest import authors, ASAN_USER_JOB_MEMORY_LIMIT
 from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
-                      dumps_yt_config, get_python, wait, get_operation_path, random_string)
+                      dumps_yt_config, get_python, wait, get_operation_path, random_string,
+                      yatest_common)
 
 # Necessary for tests.
 try:
@@ -1466,7 +1467,9 @@ class TestOperationsTmpfs(object):
                 diff = -diff
             assert tmpfs_size > 8 * 1024
             assert diff < dynamic_libraries_size_correction + 2 * 1024 * 1024  # TMPFS_ADDEND + TMPFS_MULTIPLIER * archive_size + {rounded up file sizes}
-            assert memory_limit - tmpfs_size == 512 * 1024 * 1024
+            
+            memory_limit_addend = ASAN_USER_JOB_MEMORY_LIMIT if yatest_common.context.sanitize == "address" else 512 * 1024 * 1024
+            assert memory_limit - tmpfs_size == memory_limit_addend
             assert get_spec_option(op.id, "mapper/tmpfs_path") == "."
 
     @authors("ignat")
