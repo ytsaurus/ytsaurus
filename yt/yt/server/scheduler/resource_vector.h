@@ -14,8 +14,9 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr double RatioComputationPrecision = 1e-9;  // std::numeric_limits<double>::epsilon();
+static constexpr double RatioComputationPrecision = 1e-9;
 static constexpr double RatioComparisonPrecision = 1e-4;
+static constexpr double InfiniteResourceAmount = 1e10;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -91,7 +92,7 @@ public:
 
     static constexpr TResourceVector Infinity()
     {
-        return FromDouble(1e10);
+        return FromDouble(InfiniteResourceAmount);
     }
 
     Y_FORCE_INLINE static constexpr int GetIdByResourceType(EJobResourceType resourceType)

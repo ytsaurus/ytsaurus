@@ -91,13 +91,13 @@ struct TSchedulableAttributes
 {
     EJobResourceType DominantResource = EJobResourceType::Cpu;
 
-    TDetailedFairShare FairShare = {};
-    TResourceVector UsageShare = {};
-    TResourceVector DemandShare = {};
-    TResourceVector LimitsShare = TResourceVector::Ones();
-    TResourceVector MinShare = {};
-    TResourceVector ProposedIntegralShare = {};
-    TResourceVector UnlimitedDemandFairShare = {};
+    TDetailedFairShare FairShare;
+    TResourceVector UsageShare;
+    TResourceVector DemandShare;
+    TResourceVector LimitsShare;
+    TResourceVector MinShare;
+    TResourceVector ProposedIntegralShare;
+    TResourceVector UnlimitedDemandFairShare;
 
     double BurstRatio = 0.0;
     double TotalBurstRatio = 0.0;

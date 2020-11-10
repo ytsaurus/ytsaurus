@@ -23,7 +23,7 @@ import __builtin__
 
 
 def get_from_tree_orchid(tree, path, **kwargs):
-    return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/{}".format(tree, path), **kwargs)
+    return get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/{}".format(tree, path), default=None, **kwargs)
 
 
 ##################################################################
@@ -1001,10 +1001,11 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
                     "nodes_filter": tree + "_tag",
                     "total_resource_limits_consider_delay": 1000
                 })
-            create_pool("research", pool_tree=tree)
+            create_pool("research", pool_tree=tree, wait_for_orchid=False)
             # Create "prodX" pools to spread guaranteed resources ratio.
             for i in range(9):
-                create_pool("prod" + str(i), pool_tree=tree)
+                create_pool("prod" + str(i), pool_tree=tree, wait_for_orchid=False)
+            wait(lambda: exists(scheduler_orchid_pool_tree_path(tree)))
 
     def _get_tree_for_job(self, job):
         node = job["address"]
@@ -1145,6 +1146,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 3})
         wait(lambda: get_from_tree_orchid("nirvana", "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
         other_op = run_sleeping_vanilla(spec={"pool_trees": ["nirvana"], "pool": "research"}, job_count=2)
+        wait(lambda: other_op.get_job_count(state="running") == 2)
 
         spec = {
             "pool_trees": ["default", "nirvana"],
