@@ -38,6 +38,8 @@ warnings.filterwarnings(action="ignore", module="cryptography.hazmat.primitives.
 
 yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
 
+ASAN_USER_JOB_MEMORY_LIMIT = 1280 * MB
+
 def authors(*the_authors):
     return pytest.mark.authors(the_authors)
 
@@ -226,7 +228,7 @@ class YtTestEnvironment(object):
         self.config["allow_fallback_to_native_driver"] = False
 
         if yatest_common.context.sanitize == "address":
-            self.config["user_job_spec_defaults"] = {"memory_limit": 1280 * MB}
+            self.config["user_job_spec_defaults"] = {"memory_limit": ASAN_USER_JOB_MEMORY_LIMIT}
 
         # Interrupt main in tests is unrelaible and can cause 'Test crashed' or other errors in case of flaps.
         self.config["ping_failed_mode"] = "pass"
