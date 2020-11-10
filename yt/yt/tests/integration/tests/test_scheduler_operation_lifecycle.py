@@ -221,36 +221,20 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     @authors("ignat")
     def test_operation_time_limit(self):
         self._create_table("//tmp/in")
-        self._create_table("//tmp/out1")
-        self._create_table("//tmp/out2")
+        self._create_table("//tmp/out")
 
         write_table("//tmp/in", [{"foo": i} for i in xrange(5)])
-
-        # Default infinite time limit.
-        op1 = map(
-            track=False,
-            command="sleep 1.0; cat >/dev/null",
-            in_=["//tmp/in"],
-            out="//tmp/out1",
-        )
 
         # Operation specific time limit.
         op2 = map(
             track=False,
             command="sleep 3.0; cat >/dev/null",
             in_=["//tmp/in"],
-            out="//tmp/out2",
+            out="//tmp/out",
             spec={"time_limit": 1000},
         )
 
-        # Have to wait for process termination, job proxy can't kill user process when cgroups are not enabled.
-        time.sleep(4.0)
-        assert op1.get_state() not in ["failing", "failed"]
-        assert op2.get_state() in ["failing", "failed"]
-
-        op1.track()
-        with pytest.raises(YtError):
-            op2.track()
+        wait(lambda: op2.get_state() == "failed")
 
     @authors("ignat")
     def test_operation_suspend_with_account_limit_exceeded(self):
