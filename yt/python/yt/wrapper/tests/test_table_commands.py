@@ -999,8 +999,9 @@ class TestTableCommandsFraming(object):
         yt.create("table", suspending_path)
         yt.write_table(suspending_path, [{"column_1": 1, "column_2": "foo"}])
         start = datetime.now()
-        with set_config_option("proxy/heavy_request_timeout", self.REQUEST_TIMEOUT):
-            read_rows = yt.read_table(suspending_path)
+        with set_config_option("read_retries/use_locked_node_id", False):
+            with set_config_option("proxy/heavy_request_timeout", self.REQUEST_TIMEOUT):
+                read_rows = yt.read_table(suspending_path)
         check([{"column_1": 1, "column_2": "foo"}], read_rows)
         assert datetime.now() - start > timedelta(milliseconds=delay_before_command)
 
@@ -1013,10 +1014,11 @@ class TestTableCommandsFraming(object):
         rows.append({"b": 12})
         yt.write_table(suspending_path, rows)
         start = datetime.now()
-        with set_config_option("proxy/heavy_request_timeout", self.REQUEST_TIMEOUT):
-            with pytest.raises(yt.YtResponseError):
-                for _ in yt.read_table(suspending_path, format=yt.SchemafulDsvFormat(columns=["a"])):
-                    pass
+        with set_config_option("read_retries/use_locked_node_id", False):
+            with set_config_option("proxy/heavy_request_timeout", self.REQUEST_TIMEOUT):
+                with pytest.raises(yt.YtResponseError):
+                    for _ in yt.read_table(suspending_path, format=yt.SchemafulDsvFormat(columns=["a"])):
+                        pass
         assert datetime.now() - start > timedelta(milliseconds=delay_before_command)
 
     @authors("levysotsky")

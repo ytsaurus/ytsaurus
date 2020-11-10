@@ -176,7 +176,7 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
     table = TablePath(table, client=client)
     format = _prepare_command_format(format, raw, client)
     table_writer = _prepare_table_writer(table_writer, client)
-    
+
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:
         chunk_size = DEFAULT_WRITE_CHUNK_SIZE
@@ -280,6 +280,28 @@ def _prepare_table_path_for_read_blob_table(table, part_index_column_name, clien
     range["lower_limit"]["key"].append(0)
     return table
 
+class _ReadBlobTableRetriableState(object):
+    def __init__(self, params, client, process_response_action):
+        self.params = params
+        self.client = client
+        self.part_size = self.params["part_size"]
+        self.offset = 0
+
+    def prepare_params_for_retry(self):
+        part_index = self.offset // self.part_size
+        offset = self.offset - self.part_size * part_index
+
+        self.params["start_part_index"] = part_index
+        self.params["offset"] = offset
+        self.params["path"].attributes["ranges"][0]["lower_limit"]["key"][-1] = part_index
+        return self.params
+
+    def iterate(self, response):
+        for chunk in chunk_iter_stream(response, get_config(self.client)["read_buffer_size"]):
+            self.offset += len(chunk)
+            yield chunk
+
+
 def read_blob_table(table, part_index_column_name=None, data_column_name=None,
                     part_size=None, table_reader=None, client=None):
     """Reads file from blob table.
@@ -316,33 +338,12 @@ def read_blob_table(table, part_index_column_name=None, data_column_name=None,
     }
     set_param(params, "table_reader", table_reader)
 
-    def process_response(response):
-        pass
-
-    class RetriableState(object):
-        def __init__(self):
-            self.offset = 0
-
-        def prepare_params_for_retry(self):
-            part_index = self.offset // part_size
-            offset = self.offset - part_size * part_index
-
-            params["start_part_index"] = part_index
-            params["offset"] = offset
-            table.attributes["ranges"][0]["lower_limit"]["key"][-1] = part_index
-            return params
-
-        def iterate(self, response):
-            for chunk in chunk_iter_stream(response, get_config(client)["read_buffer_size"]):
-                self.offset += len(chunk)
-                yield chunk
-
     response = make_read_request(
         "read_blob_table",
         table,
         params,
-        process_response_action=process_response,
-        retriable_state_class=RetriableState,
+        process_response_action=lambda response: None,
+        retriable_state_class=_ReadBlobTableRetriableState,
         client=client,
         filename_hint=str(table))
 
@@ -380,6 +381,174 @@ def _prepare_params_for_parallel_read(params, range):
     params["path"].attributes["ranges"] = [{"lower_limit": {"row_index": range[0]},
                                             "upper_limit": {"row_index": range[1]}}]
     return params
+
+class _ReadTableRetriableState(object):
+    def __init__(self, params, client, process_response_action):
+        self.params = params
+        self.client = client
+        self.process_response_action = process_response_action
+
+        self.format = self.params["output_format"]
+
+        # Whether reading started, it is used only for reading without ranges in <= 0.17.3 versions.
+        self.started = False
+
+        # Row and range indices.
+        self.next_row_index = None
+        self.current_range_index = 0
+
+        # It is true if and only if we read control attributes of the current range
+        # and the next range isn't started yet.
+        self.range_started = None
+
+        # We should know whether row with range/row index printed.
+        self.range_index_row_yielded = None
+        self.row_index_row_yielded = None
+
+        self.multiple_ranges_allowed = get_config(client)["read_retries"]["allow_multiple_ranges"]
+
+        control_attributes = self.params.get("control_attributes")
+
+        self.is_row_index_initially_enabled = False
+        if control_attributes and control_attributes.get("enable_row_index"):
+            self.is_row_index_initially_enabled = True
+
+        self.is_range_index_initially_enabled = False
+        if control_attributes and control_attributes.get("enable_range_index"):
+            self.is_range_index_initially_enabled = True
+
+        if params.get("unordered"):
+            raise YtError("Unordered read cannot be performed with retries, try ordered read or disable retries")
+
+    def prepare_params_for_retry(self):
+        def fix_range(range):
+            if "exact" in range:
+                if self.range_started:
+                    del range["exact"]
+                    range["lower_limit"] = range["upper_limit"] = {"row_index": 0}
+            else:
+                range["lower_limit"] = {"row_index": self.next_row_index}
+
+        if "ranges" not in self.params["path"].attributes:
+            if self.started:
+                fix_range(self.params["path"].attributes)
+        else:
+            if len(self.params["path"].attributes["ranges"]) > 1:
+                if self.multiple_ranges_allowed:
+                    if "control_attributes" not in self.params:
+                        self.params["control_attributes"] = {}
+                    self.params["control_attributes"]["enable_row_index"] = True
+                    self.params["control_attributes"]["enable_range_index"] = True
+                else:
+                    raise YtError(
+                        "Read table with multiple ranges using retries is disabled, "
+                        "turn on read_retries/allow_multiple_ranges")
+
+                if self.format.name() not in ["json", "yson"]:
+                    raise YtError("Read table with multiple ranges using retries "
+                                  "is supported only in YSON and JSON formats")
+                if self.format.name() == "json" and self.format.attributes.get("format") == "pretty":
+                    raise YtError("Read table with multiple ranges using retries "
+                                  "is not supported for pretty JSON format")
+
+            if self.range_started and self.params["path"].attributes["ranges"]:
+                fix_range(self.params["path"].attributes["ranges"][0])
+            self.range_started = False
+
+        return self.params
+
+    def iterate(self, response):
+        format_for_raw_load = deepcopy(self.format)
+        if isinstance(format_for_raw_load, YsonFormat) and format_for_raw_load.attributes["lazy"]:
+            format_for_raw_load.attributes["lazy"] = False
+
+        format_for_raw_load_name = format_for_raw_load.name()
+
+        def is_control_row(row):
+            if format_for_raw_load_name == "yson":
+                return row.strip().endswith(b"#;")
+            elif format_for_raw_load_name == "json":
+                if b"$value" not in row:
+                    return False
+                loaded_row = json.loads(row)
+                return "$value" in loaded_row and loaded_row["$value"] is None
+            else:
+                return False
+
+        def load_control_row(row):
+            if format_for_raw_load_name == "yson":
+                return next(yson.loads(row, yson_type="list_fragment"))
+            elif format_for_raw_load_name == "json":
+                return yson.json_to_yson(json.loads(row))
+            else:
+                assert False, "Incorrect format"
+
+        def dump_control_row(row):
+            if format_for_raw_load_name == "yson":
+                return yson.dumps([row], yson_type="list_fragment")
+            elif format_for_raw_load_name == "json":
+                row = json.dumps(yson.yson_to_json(row))
+                if PY3:
+                    row = row.encode("utf-8")
+                return row + b"\n"
+            else:
+                assert False, "Incorrect format"
+
+        range_index = 0
+
+        chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", self.client)
+        chaos_monkey = default_chaos_monkey(chaos_monkey_enabled)
+
+        if not self.started:
+            self.process_response_action(response)
+            self.next_row_index = response.response_parameters.get("start_row_index", None)
+            self.started = True
+
+        for row in format_for_raw_load.load_rows(response, raw=True):
+            run_chaos_monkey(chaos_monkey)
+
+            # NB: Low level check for optimization purposes. Only YSON and JSON format supported!
+            if is_control_row(row):
+                row = load_control_row(row)
+
+                # NB: row with range index must go before row with row index.
+                if hasattr(row, "attributes") and "range_index" in row.attributes:
+                    self.range_started = False
+                    ranges_to_skip = row.attributes["range_index"] - range_index
+                    self.params["path"].attributes["ranges"] = self.params["path"].attributes["ranges"][ranges_to_skip:]
+                    self.current_range_index += ranges_to_skip
+                    range_index = row.attributes["range_index"]
+                    if not self.is_range_index_initially_enabled:
+                        del row.attributes["range_index"]
+                        assert not row.attributes
+                        continue
+                    else:
+                        if self.range_index_row_yielded:
+                            continue
+                        row.attributes["range_index"] = self.current_range_index
+                        self.range_index_row_yielded = True
+
+                if hasattr(row, "attributes") and "row_index" in row.attributes:
+                    self.next_row_index = row.attributes["row_index"]
+                    if not self.is_row_index_initially_enabled:
+                        del row.attributes["row_index"]
+                        assert not row.attributes
+                        continue
+                    else:
+                        if self.row_index_row_yielded:
+                            continue
+                        self.row_index_row_yielded = True
+
+                row = dump_control_row(row)
+            else:
+                if not self.range_started:
+                    self.range_started = True
+                    self.range_index_row_yielded = False
+                    self.row_index_row_yielded = False
+                self.next_row_index += 1
+
+            yield row
+
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
                raw=None, response_parameters=None, enable_read_parallel=None, client=None):
@@ -421,7 +590,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
     params = {
         "path": table,
-        "output_format": format.to_yson_type()
+        "output_format": format,
     }
     set_param(params, "table_reader", table_reader)
     set_param(params, "unordered", unordered)
@@ -478,166 +647,6 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
             raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response._get_response())
         set_response_parameters(response.response_parameters)
 
-    chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
-    chaos_monkey = default_chaos_monkey(chaos_monkey_enabled)
-
-    multiple_ranges_allowed = get_config(client)["read_retries"]["allow_multiple_ranges"]
-
-    class RetriableState(object):
-        def __init__(self):
-            # Whether reading started, it is used only for reading without ranges in <= 0.17.3 versions.
-            self.started = False
-
-            # Row and range indices.
-            self.next_row_index = None
-            self.current_range_index = 0
-
-            # It is true if and only if we read control attributes of the current range
-            # and the next range isn't started yet.
-            self.range_started = None
-
-            # We should know whether row with range/row index printed.
-            self.range_index_row_yielded = None
-            self.row_index_row_yielded = None
-
-            self.is_row_index_initially_enabled = False
-            if control_attributes and control_attributes.get("enable_row_index"):
-                self.is_row_index_initially_enabled = True
-
-            self.is_range_index_initially_enabled = False
-            if control_attributes and control_attributes.get("enable_range_index"):
-                self.is_range_index_initially_enabled = True
-
-            if unordered:
-                raise YtError("Unordered read cannot be performed with retries, try ordered read or disable retries")
-
-        def prepare_params_for_retry(self):
-            def fix_range(range):
-                if "exact" in range:
-                    if self.range_started:
-                        del range["exact"]
-                        range["lower_limit"] = range["upper_limit"] = {"row_index": 0}
-                else:
-                    range["lower_limit"] = {"row_index": self.next_row_index}
-
-            if "ranges" not in table.attributes:
-                if self.started:
-                    fix_range(table.attributes)
-            else:
-                if len(table.attributes["ranges"]) > 1:
-                    if multiple_ranges_allowed:
-                        if "control_attributes" not in params:
-                            params["control_attributes"] = {}
-                        params["control_attributes"]["enable_row_index"] = True
-                        params["control_attributes"]["enable_range_index"] = True
-                    else:
-                        raise YtError(
-                            "Read table with multiple ranges using retries is disabled, "
-                            "turn on read_retries/allow_multiple_ranges")
-
-                    if format.name() not in ["json", "yson"]:
-                        raise YtError("Read table with multiple ranges using retries "
-                                      "is supported only in YSON and JSON formats")
-                    if format.name() == "json" and format.attributes.get("format") == "pretty":
-                        raise YtError("Read table with multiple ranges using retries "
-                                      "is not supported for pretty JSON format")
-
-                if self.range_started and table.attributes["ranges"]:
-                    fix_range(table.attributes["ranges"][0])
-                self.range_started = False
-
-            params["path"] = table
-
-            return params
-
-        def iterate(self, response):
-            format_for_raw_load = deepcopy(format)
-            if isinstance(format_for_raw_load, YsonFormat) and format_for_raw_load.attributes["lazy"]:
-                format_for_raw_load.attributes["lazy"] = False
-
-            format_for_raw_load_name = format_for_raw_load.name()
-
-            def is_control_row(row):
-                if format_for_raw_load_name == "yson":
-                    return row.strip().endswith(b"#;")
-                elif format_for_raw_load_name == "json":
-                    if b"$value" not in row:
-                        return False
-                    loaded_row = json.loads(row)
-                    return "$value" in loaded_row and loaded_row["$value"] is None
-                else:
-                    return False
-
-            def load_control_row(row):
-                if format_for_raw_load_name == "yson":
-                    return next(yson.loads(row, yson_type="list_fragment"))
-                elif format_for_raw_load_name == "json":
-                    return yson.json_to_yson(json.loads(row))
-                else:
-                    assert False, "Incorrect format"
-
-            def dump_control_row(row):
-                if format_for_raw_load_name == "yson":
-                    return yson.dumps([row], yson_type="list_fragment")
-                elif format_for_raw_load_name == "json":
-                    row = json.dumps(yson.yson_to_json(row))
-                    if PY3:
-                        row = row.encode("utf-8")
-                    return row + b"\n"
-                else:
-                    assert False, "Incorrect format"
-
-            range_index = 0
-
-            if not self.started:
-                process_response(response)
-                self.next_row_index = response.response_parameters.get("start_row_index", None)
-                self.started = True
-
-            for row in format_for_raw_load.load_rows(response, raw=True):
-                run_chaos_monkey(chaos_monkey)
-
-                # NB: Low level check for optimization purposes. Only YSON and JSON format supported!
-                if is_control_row(row):
-                    row = load_control_row(row)
-
-                    # NB: row with range index must go before row with row index.
-                    if hasattr(row, "attributes") and "range_index" in row.attributes:
-                        self.range_started = False
-                        ranges_to_skip = row.attributes["range_index"] - range_index
-                        table.attributes["ranges"] = table.attributes["ranges"][ranges_to_skip:]
-                        self.current_range_index += ranges_to_skip
-                        range_index = row.attributes["range_index"]
-                        if not self.is_range_index_initially_enabled:
-                            del row.attributes["range_index"]
-                            assert not row.attributes
-                            continue
-                        else:
-                            if self.range_index_row_yielded:
-                                continue
-                            row.attributes["range_index"] = self.current_range_index
-                            self.range_index_row_yielded = True
-
-                    if hasattr(row, "attributes") and "row_index" in row.attributes:
-                        self.next_row_index = row.attributes["row_index"]
-                        if not self.is_row_index_initially_enabled:
-                            del row.attributes["row_index"]
-                            assert not row.attributes
-                            continue
-                        else:
-                            if self.row_index_row_yielded:
-                                continue
-                            self.row_index_row_yielded = True
-
-                    row = dump_control_row(row)
-                else:
-                    if not self.range_started:
-                        self.range_started = True
-                        self.range_index_row_yielded = False
-                        self.row_index_row_yielded = False
-                    self.next_row_index += 1
-
-                yield row
 
     allow_retries = not attributes.get("dynamic")
 
@@ -647,7 +656,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         table,
         params,
         process_response_action=process_response,
-        retriable_state_class=RetriableState if allow_retries else None,
+        retriable_state_class=_ReadTableRetriableState if allow_retries else None,
         client=client,
         filename_hint=str(table))
 

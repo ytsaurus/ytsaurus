@@ -478,7 +478,8 @@ default_config = {
         .update_template_dict({
             "allow_multiple_ranges": True,
             "create_transaction_and_take_snapshot_lock": True,
-            "change_proxy_period": None
+            "change_proxy_period": None,
+            "use_locked_node_id": True,
         }),
 
     # Retries for write commands. It split data stream into chunks and writes it separately under transactions.

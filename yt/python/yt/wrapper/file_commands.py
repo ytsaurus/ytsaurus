@@ -112,6 +112,28 @@ def _prepare_params_for_parallel_read(params, range):
     params["offset"], params["length"] = range[0], range[1]
     return params
 
+class _ReadFileRetriableState(object):
+    def __init__(self, params, client, process_response_action=None):
+        self.offset = params.get("offset", 0)
+        self.length = params.get("length")
+        self.client = client
+        self.params = params
+
+    def prepare_params_for_retry(self):
+        self.params["offset"] = self.offset
+        if self.length is not None:
+            self.params["length"] = self.length
+        return self.params
+
+    def iterate(self, response):
+        for chunk in chunk_iter_stream(response, get_config(self.client)["read_buffer_size"]):
+            if self.offset is not None:
+                self.offset += len(chunk)
+            if self.length is not None:
+                self.length -= len(chunk)
+            yield chunk
+
+
 def read_file(path, file_reader=None, offset=None, length=None, enable_read_parallel=None, client=None):
     """Downloads file from path in Cypress to local machine.
 
@@ -147,37 +169,12 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
             response_parameters=None,
             client=client)
 
-    def process_response(response):
-        pass
-
-    class RetriableState(object):
-        def __init__(self):
-            if offset is not None:
-                self.offset = offset
-            else:
-                self.offset = 0
-            self.length = length
-
-        def prepare_params_for_retry(self):
-            params["offset"] = self.offset
-            if self.length is not None:
-                params["length"] = self.length
-            return params
-
-        def iterate(self, response):
-            for chunk in chunk_iter_stream(response, get_config(client)["read_buffer_size"]):
-                if self.offset is not None:
-                    self.offset += len(chunk)
-                if self.length is not None:
-                    self.length -= len(chunk)
-                yield chunk
-
     return make_read_request(
         "read_file",
         path,
         params,
-        process_response_action=process_response,
-        retriable_state_class=RetriableState,
+        process_response_action=lambda response: None,
+        retriable_state_class=_ReadFileRetriableState,
         client=client,
         filename_hint=str(path),
         request_size=True)
