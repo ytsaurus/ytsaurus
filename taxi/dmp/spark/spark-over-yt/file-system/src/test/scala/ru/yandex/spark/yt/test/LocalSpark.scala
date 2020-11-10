@@ -10,6 +10,7 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtRpcClient
 
 import scala.annotation.tailrec
+import org.apache.spark.sql.internal.SQLConf.FILE_COMMIT_PROTOCOL_CLASS
 
 trait LocalSpark extends LocalYtClient {
   self: TestSuite =>
@@ -26,7 +27,7 @@ trait LocalSpark extends LocalYtClient {
     .set("spark.hadoop.yt.token", "")
     .set("spark.hadoop.yt.timeout", "300")
     .set("spark.yt.write.batchSize", "10")
-    .set("spark.sql.sources.commitProtocolClass", "ru.yandex.spark.yt.format.YtOutputCommitter")
+    .set(FILE_COMMIT_PROTOCOL_CLASS.key, "ru.yandex.spark.yt.format.YtOutputCommitter")
     .set("spark.ui.enabled", "false")
     .set("spark.hadoop.yt.read.arrow.enabled", "true")
     .set("spark.sql.adaptive.enabled", "true")

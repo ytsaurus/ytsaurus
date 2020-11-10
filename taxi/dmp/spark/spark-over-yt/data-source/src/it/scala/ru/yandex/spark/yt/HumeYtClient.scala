@@ -28,8 +28,9 @@ object HumeYtClient {
         EmptyWorkersListStrategy.Default
       )
     ),
-    masterWrapperUrl = None
+    masterWrapperUrl = None,
+    extendedFileTimeout = true
   )
 
-  lazy val ytClient = YtWrapper.createRpcClient(conf)
+  lazy val ytClient = YtWrapper.createRpcClient("test", conf)
 }

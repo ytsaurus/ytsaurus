@@ -19,7 +19,7 @@ class YtFsInputStream(in: YtFileInputStream) extends FSInputStream {
   override def seekToNewSource(targetPos: Long): Boolean = ???
 
   override def read(): Int = {
-    if (in.hasNext) in.next() else -1
+    if (in.hasNext) in.next() & 0xff else -1
   }
 
   override def read(b: Array[Byte], off: Int, len: Int): Int = {
