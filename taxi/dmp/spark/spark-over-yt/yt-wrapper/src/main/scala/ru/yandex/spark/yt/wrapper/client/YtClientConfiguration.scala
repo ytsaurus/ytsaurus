@@ -35,13 +35,13 @@ object YtClientConfiguration {
     strategyFromConf.getOrElse(EmptyWorkersListStrategy.Default)
   }
 
-  def apply(getByName: String => Option[String]): YtClientConfiguration = {
+  def apply(getByName: String => Option[String], proxy: Option[String] = None): YtClientConfiguration = {
     val byopEnabled = getByName("byop.enabled").forall(_.toBoolean)
 
     YtClientConfiguration(
-      getByName("proxy").orElse(sys.env.get("YT_PROXY")).getOrElse(
+      proxy.getOrElse(getByName("proxy").orElse(sys.env.get("YT_PROXY")).getOrElse(
         throw new IllegalArgumentException("Proxy must be specified")
-      ),
+      )),
       getByName("user").orElse(sys.env.get("YT_SECURE_VAULT_YT_USER")).getOrElse(DefaultRpcCredentials.user),
       getByName("token").orElse(sys.env.get("YT_SECURE_VAULT_YT_TOKEN")).getOrElse(DefaultRpcCredentials.token),
       getByName("timeout").map(Utils.parseDuration).getOrElse(60 seconds),

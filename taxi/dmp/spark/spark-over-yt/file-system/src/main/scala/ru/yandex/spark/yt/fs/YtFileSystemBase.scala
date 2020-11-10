@@ -30,7 +30,7 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
     super.initialize(uri, conf)
     setConf(conf)
     this._uri = uri
-    this._ytConf = ytClientConfiguration(getConf)
+    this._ytConf = ytClientConfiguration(getConf, Option(uri.getAuthority).filter(_.nonEmpty))
   }
 
   lazy val yt: YtClient = YtClientProvider.ytClient(_ytConf, id)
@@ -77,7 +77,11 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
     true
   }
 
-  override def mkdirs(f: Path, permission: FsPermission): Boolean = ???
+  override def mkdirs(f: Path, permission: FsPermission): Boolean = {
+    log.debugLazy(s"Create $f")
+    YtWrapper.createDir(ytPath(f), ignoreExisting = true)(yt)
+    true
+  }
 
 
   override def delete(f: Path, recursive: Boolean): Boolean = {

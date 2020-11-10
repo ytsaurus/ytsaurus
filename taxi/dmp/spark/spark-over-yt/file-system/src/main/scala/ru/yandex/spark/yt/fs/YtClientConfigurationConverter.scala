@@ -12,8 +12,8 @@ object YtClientConfigurationConverter {
     ytClientConfiguration(spark.sparkContext.hadoopConfiguration)
   }
 
-  def ytClientConfiguration(conf: Configuration): YtClientConfiguration = {
-    YtClientConfiguration(conf.getYtConf(_))
+  def ytClientConfiguration(conf: Configuration, proxy: Option[String] = None): YtClientConfiguration = {
+    YtClientConfiguration(conf.getYtConf(_), proxy)
   }
 
   def ytClientConfiguration(conf: SparkConf): YtClientConfiguration = {
