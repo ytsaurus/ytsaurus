@@ -653,7 +653,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     }
 
     {
-        TDynamicAttributesList dynamicAttributes = {};
+        TDynamicAttributesList dynamicAttributes;
 
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
@@ -709,9 +709,9 @@ TEST_F(TFairShareTreeTest, TestAttributes)
         EXPECT_EQ(0.0, dynamicAttributes[operationElements[3]->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(0.0, dynamicAttributes[poolA->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(InfiniteSatisfactionRatio, dynamicAttributes[poolB->GetTreeIndex()].SatisfactionRatio);
-        // NB(eshcherbin): Here it's 0.5 because in FIFO pools we don't search for the least satisfied child;
-        // instead we take the first child from the queue.
-        EXPECT_EQ(0.5, dynamicAttributes[poolC->GetTreeIndex()].SatisfactionRatio);
+        // NB(eshcherbin): Here it's 1/3 because in FIFO pools we don't search for the least satisfied child;
+        // in this case, we take the minimum of the pool's local satisfaction (1/3) and the first child's satisfaction (0.5).
+        EXPECT_NEAR(1.0 / 3.0, dynamicAttributes[poolC->GetTreeIndex()].SatisfactionRatio, 1e-7);
         EXPECT_EQ(InfiniteSatisfactionRatio, dynamicAttributes[poolD->GetTreeIndex()].SatisfactionRatio);
     }
 
@@ -742,8 +742,6 @@ TEST_F(TFairShareTreeTest, TestAttributes)
         EXPECT_EQ(0.5, dynamicAttributes[operationElements[3]->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(0.5, dynamicAttributes[poolA->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(InfiniteSatisfactionRatio, dynamicAttributes[poolB->GetTreeIndex()].SatisfactionRatio);
-        // NB(eshcherbin): Here it's 0.5 because in FIFO pools we don't search for the least satisfied child;
-        // instead we take the first child from the queue.
         EXPECT_EQ(0.5, dynamicAttributes[poolC->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(InfiniteSatisfactionRatio, dynamicAttributes[poolD->GetTreeIndex()].SatisfactionRatio);
     }
@@ -1502,6 +1500,64 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShareFunctionIsLe
     EXPECT_RV_NEAR(operationElement1->GetFairShare(), TResourceVector({0.0001, 0.1, 0.0, 0.1, 0.4}));
     // Operation 2 uses 0.04 CPU, 0.04 Memory, and 0.0 Network.
     EXPECT_RV_NEAR(operationElement2->GetFairShare(), TResourceVector({0.00004, 0.04, 0.0, 0.04, 0.0}));
+}
+
+TEST_F(TFairShareTreeTest, TestVectorFairShareImpreciseComposition)
+{
+    // NB: This test is reconstructed from a core dump. Don't be surprised by precise resource demands. See YT-13864.
+
+    // Create a cluster with 1 large node.
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(3);
+    nodeResources.SetCpu(3);
+    nodeResources.SetMemory(8316576848);
+
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto poolConfig = New<TPoolConfig>();
+    poolConfig->MinShareResources->Cpu = 3;
+    auto pool = CreateTestPool(host.Get(), "Pool", poolConfig);
+    pool->AttachParent(rootElement.Get());
+
+    TJobResourcesWithQuota jobResourcesA;
+    jobResourcesA.SetUserSlots(2);
+    jobResourcesA.SetCpu(2);
+    jobResourcesA.SetMemory(805306368);
+    jobResourcesA.SetNetwork(0);
+
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    operationOptions->Weight = 1.0;
+
+    auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList{});
+    auto operationElementA = CreateTestOperationElement(host.Get(), operationA.Get(), operationOptions);
+
+    operationElementA->AttachParent(pool.Get(), true);
+    operationElementA->Enable();
+
+    TJobResourcesWithQuota jobResourcesB;
+    jobResourcesB.SetUserSlots(3);
+    jobResourcesB.SetCpu(3);
+    jobResourcesB.SetMemory(1207959552);
+
+    auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResourcesB));
+    auto operationElementB = CreateTestOperationElement(host.Get(), operationB.Get(), operationOptions);
+
+    operationElementB->AttachParent(pool.Get(), true);
+    operationElementB->Enable();
+
+    operationElementA->OnJobStarted(
+        TGuid::Create(),
+        jobResourcesA.ToJobResources(),
+        /* precommitedResources */ {});
+
+    TDynamicAttributesList dynamicAttributes;
+    TUpdateFairShareContext updateContext;
+    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
+
+    EXPECT_FALSE(Dominates(TResourceVector::Ones(), pool->Attributes().GetFairShare()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

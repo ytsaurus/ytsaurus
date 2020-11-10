@@ -261,6 +261,7 @@ TPiecewiseLinearFunction<TValue> PointwiseMin(
 {
     double resultLeftBound = std::max(lhs.LeftFunctionBound(), rhs.LeftFunctionBound());
     double resultRightBound = std::min(lhs.RightFunctionBound(), rhs.RightFunctionBound());
+    YT_VERIFY(resultLeftBound <= resultRightBound);
 
     auto sampleResult = [
             lhsTraverser = lhs.GetLeftToRightTraverser(),
@@ -876,6 +877,7 @@ TPiecewiseLinearFunction<TValue> TPiecewiseLinearFunction<TValue>::Sum(
         resultLeftBound = std::max(resultLeftBound, func.LeftFunctionBound());
         resultRightBound = std::min(resultRightBound, func.RightFunctionBound());
     }
+    YT_VERIFY(resultLeftBound <= resultRightBound);
 
     std::vector<double> criticalPoints;
     for (const auto& func : funcs) {
