@@ -48,14 +48,14 @@ def write_silently(strings, force_use_text_stdout=False):
             finally:
                 pass
 
-def print_to_stdout(string_or_bytes, eoln=True):
+def print_to_output(string_or_bytes, output_stream=sys.stdout, eoln=True):
     if isinstance(string_or_bytes, binary_type):
-        get_binary_std_stream(sys.stdout).write(string_or_bytes)
+        get_binary_std_stream(output_stream).write(string_or_bytes)
     else:
-        sys.stdout.write(string_or_bytes)
+        output_stream.write(string_or_bytes)
 
     if eoln:
-        sys.stdout.write("\n")
+        output_stream.write("\n")
 
 def die(message=None, return_code=1):
     if message is not None:

@@ -22,7 +22,7 @@
 from __future__ import print_function
 
 from yt.wrapper.yamr_mode import set_yamr_prefix
-from yt.wrapper.cli_helpers import write_silently, print_to_stdout, run_main, die
+from yt.wrapper.cli_helpers import write_silently, print_to_output, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _get_format_from_tables, _create_table
 from yt.wrapper.table_helpers import _remove_locks
 from yt.wrapper.cypress_commands import remove_with_empty_dirs
@@ -846,7 +846,7 @@ Examples:
         print(bool_to_string(yt.exists(args.exists)))
 
     if args.get is not None:
-        print_to_stdout(yt.get(args.get, format=yt.JsonFormat(attributes=dict(format="pretty"))), eoln=False)
+        print_to_output(yt.get(args.get, format=yt.JsonFormat(attributes=dict(format="pretty"))), eoln=False)
     if args.set is not None:
         if args.value is None:
             die("Value option is necessary for set command")

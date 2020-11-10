@@ -501,6 +501,8 @@ test_dynamic_table_commands()
 
     check '{"x"="b"}' "$($YT select-rows "x FROM [$table]" --format "<format=text>yson" | tr -d ";\n")"
 
+    $YT select-rows "x FROM [$table]" --print-statistics --format "<format=text>yson"
+
     $YT unmount-table "$table" --sync
 }
 
