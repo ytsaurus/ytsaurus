@@ -629,13 +629,13 @@ private:
                         std::vector<TFuture<void>> futures;
                         futures.reserve(syncReplicas.size() + asyncReplicas.size());
 
-                        int switchCount;
+                        int switchCount = 0;
                         int totalSyncReplicas;
                         {
                             int index;
                             for (index = static_cast<int>(goodSyncReplicas.size()); index < maxSyncReplicas && !goodAsyncReplicas.empty(); ++index) {
                                 futures.push_back(goodAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
-                                switchCount++;
+                                ++switchCount;
                                 goodAsyncReplicas.pop_back();
                             }
 
@@ -648,11 +648,11 @@ private:
 
                         for (int index = Max(0, minSyncReplicas - totalSyncReplicas); index < static_cast<int>(badSyncReplicas.size()); ++index) {
                             futures.push_back(badSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
-                            switchCount++;
+                            ++switchCount;
                         }
                         for (int index = maxSyncReplicas; index < static_cast<int>(goodSyncReplicas.size()); ++index) {
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
-                            switchCount++;
+                            ++switchCount;
                         }
 
                         return AllSucceeded(futures)
@@ -788,7 +788,7 @@ private:
             Profiler.Enqueue(
                 "/switch_tablet_replica_mode",
                 switchCount,
-                NProfiling::EMetricType::Counter,
+                NProfiling::EMetricType::Gauge,
                 {profilingTag}
             );
         }
