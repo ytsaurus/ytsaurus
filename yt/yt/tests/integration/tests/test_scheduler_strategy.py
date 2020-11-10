@@ -2840,7 +2840,15 @@ class TestSchedulingSegments(YTEnvSetup):
         super(TestSchedulingSegments, self).setup_method(method)
         # NB(eshcherbin): This is done to reset node segments.
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            remove("//sys/scheduler/segments_state", force=True)
+            requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "remove",
+                    path="//sys/cluster_nodes/{}/@scheduling_segment".format(node),
+                    force=True
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
         create_pool("cpu", wait_for_orchid=False)
         create_pool("small_gpu", wait_for_orchid=False)
         create_pool("large_gpu")
@@ -3458,6 +3466,47 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu", tree="other")) == 0)
         wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu", tree="default")) == 1)
 
+    @authors("eshcherbin")
+    def test_manual_move_node_from_segment_and_back(self):
+        node = list(ls("//sys/cluster_nodes"))[0]
+        set("//sys/cluster_nodes/{}/@scheduling_segment".format(node), "large_gpu")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
+        set("//sys/cluster_nodes/{}/@scheduling_segment".format(node), "default")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
+
+    @authors("eshcherbin")
+    def test_freeze_node_segment(self):
+        set("//sys/pools/large_gpu/@min_share_resources", {"gpu": 80})
+
+        blocking_op = run_sleeping_vanilla(
+            job_count=10,
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        op = run_sleeping_vanilla(
+            job_count=8,
+            spec={"pool": "small_gpu"},
+            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+        )
+        time.sleep(3.0)
+        assert are_almost_equal(self._get_usage_ratio(op.id), 0.0)
+
+        node = list(ls("//sys/cluster_nodes"))[0]
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
+        set("//sys/cluster_nodes/{}/@scheduling_segment".format(node), "default")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+        op.complete()
+        time.sleep(3.0)
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.9))
+
+        remove("//sys/cluster_nodes/{}/@scheduling_segment".format(node))
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
 ##################################################################
 

@@ -47,7 +47,8 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
         ResourceLimits_,
         Tags_,
         RunningJobStatistics_,
-        SchedulingSegment_);
+        SchedulingSegment_,
+        SchedulingSegmentFrozen_);
 }
 
 void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)

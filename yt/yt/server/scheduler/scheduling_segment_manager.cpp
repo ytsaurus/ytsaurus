@@ -161,6 +161,7 @@ void TSchedulingSegmentManager::ResetTree(TManageSchedulingSegmentsContext *cont
     for (auto nodeId : context->NodeIdsPerTree[treeId]) {
         const auto& node = GetOrCrash(*context->ExecNodeDescriptors, nodeId);
         if (node.SchedulingSegment != ESchedulingSegment::Default) {
+            // NB(eshcherbin): Nodes with frozen segments won't be moved to the default segment by this.
             auto nodeShardId = context->NodeShardHost->GetNodeShardId(nodeId);
             context->MovedNodesPerNodeShard[nodeShardId].push_back(TSetNodeSchedulingSegmentOptions{
                 .NodeId = nodeId,
@@ -305,13 +306,14 @@ std::vector<TExecNodeDescriptor> TSchedulingSegmentManager::GetMovableNodesInTre
 
             for (const auto& node : segmentNodes) {
                 auto resourceAmountOnNode = GetNodeResourceLimit(node, keyResource);
-
                 if (resourceAmount - resourceAmountOnNode < fairResourceAmount) {
                     break;
                 }
 
-                resourceAmount -= resourceAmountOnNode;
-                movableNodes.push_back(node);
+                if (!node.SchedulingSegmentFrozen) {
+                    resourceAmount -= resourceAmountOnNode;
+                    movableNodes.push_back(node);
+                }
             }
         }
     }

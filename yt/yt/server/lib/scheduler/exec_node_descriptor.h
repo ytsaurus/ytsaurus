@@ -49,7 +49,8 @@ struct TExecNodeDescriptor
         const TJobResources& resourceLimits,
         const THashSet<TString>& tags,
         const TRunningJobStatistics& runningJobStatistics,
-        ESchedulingSegment schedulingSegment);
+        ESchedulingSegment schedulingSegment,
+        bool schedulingSegmentFrozen);
 
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
@@ -62,6 +63,7 @@ struct TExecNodeDescriptor
     THashSet<TString> Tags;
     TRunningJobStatistics RunningJobStatistics;
     ESchedulingSegment SchedulingSegment;
+    bool SchedulingSegmentFrozen;
 
     void Persist(const TStreamPersistenceContext& context);
 };

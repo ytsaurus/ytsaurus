@@ -116,6 +116,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TRunningJobStatistics, RunningJobStatistics);
 
     DEFINE_BYVAL_RW_PROPERTY(ESchedulingSegment, SchedulingSegment, ESchedulingSegment::Default);
+    DEFINE_BYVAL_RW_PROPERTY(bool, SchedulingSegmentFrozen, false);
 
 public:
     TExecNode(

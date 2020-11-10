@@ -2330,7 +2330,8 @@ private:
             "id",
             "tags",
             "state",
-            "io_weights"
+            "io_weights",
+            "scheduling_segment"
         });
         batchReq->AddRequest(req, "get_nodes");
     }
