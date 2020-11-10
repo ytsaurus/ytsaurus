@@ -801,6 +801,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<NNodeTrackerClient::ENodeState>("state");
         auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
+        auto specifiedSchedulingSegment = attributes.Find<ESchedulingSegment>("scheduling_segment");
 
         YT_LOG_DEBUG("Handling node attributes (NodeId: %v, NodeAddress: %v, ObjectId: %v, NewState: %v)",
             nodeId,
@@ -844,6 +845,12 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         }
 
         execNode->SetIOWeights(ioWeights);
+
+        execNode->SetSchedulingSegmentFrozen(false);
+        if (specifiedSchedulingSegment) {
+            SetNodeSchedulingSegment(execNode, *specifiedSchedulingSegment, /* abortAllJobs */ true);
+            execNode->SetSchedulingSegmentFrozen(true);
+        }
 
         auto oldState = execNode->GetMasterState();
         auto tags = attributes.Get<THashSet<TString>>("tags");
@@ -1394,24 +1401,31 @@ void TNodeShard::SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOp
             missingNodeIdsWithSegments.emplace_back(nodeId, segment);
             continue;
         }
-        auto node = it->second;
 
-        if (node->GetSchedulingSegment() == segment) {
-            continue;
-        }
+        const auto& node = it->second;
+        SetNodeSchedulingSegment(node, segment, abortAllJobs);
+    }
 
-        YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v)",
-            node->GetDefaultAddress(), segment);
+    YT_LOG_DEBUG_UNLESS(missingNodeIdsWithSegments.empty(),
+        "Trying to set scheduling segments for missing nodes (MissingNodeIdsWithSegments: %v)",
+        missingNodeIdsWithSegments);
+}
+
+void TNodeShard::SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment, bool abortAllJobs)
+{
+    YT_VERIFY(!node->GetSchedulingSegmentFrozen());
+
+    if (node->GetSchedulingSegment() != segment) {
+        YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v, AbortAllJobs: %v)",
+            node->GetDefaultAddress(),
+            segment,
+            abortAllJobs);
 
         node->SetSchedulingSegment(segment);
         if (abortAllJobs) {
             AbortAllJobsAtNode(node, EAbortReason::NodeSchedulingSegmentChanged);
         }
     }
-
-    YT_LOG_DEBUG_UNLESS(missingNodeIdsWithSegments.empty(),
-        "Trying to set scheduling segments for missing nodes (MissingNodeIdsWithSegments: %v)",
-        missingNodeIdsWithSegments);
 }
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor, ENodeState state)
@@ -1485,7 +1499,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
         if (now < SchedulingSegmentInitializationDeadline_) {
             auto it = InitialSchedulingSegmentsState_->NodeStates.find(nodeId);
             if (it != InitialSchedulingSegmentsState_->NodeStates.end()) {
-                node->SetSchedulingSegment(it->second.Segment);
+                SetNodeSchedulingSegment(node, it->second.Segment, /* abortAllJobs */ false);
                 InitialSchedulingSegmentsState_->NodeStates.erase(it);
             }
         } else {
@@ -1589,13 +1603,8 @@ void TNodeShard::AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reaso
         OnJobAborted(job, &status, /* byScheduler */ true);
     }
 
-    if (reason == EAbortReason::NodeFairShareTreeChanged) {
-        YT_LOG_DEBUG_IF(node->GetSchedulingSegment() != ESchedulingSegment::Default,
-            "Moving node to the default segment because its fair share tree changed (Address: %v, OldSegment: %v)",
-            node->GetDefaultAddress(),
-            node->GetSchedulingSegment());
-
-        node->SetSchedulingSegment(ESchedulingSegment::Default);
+    if (reason == EAbortReason::NodeFairShareTreeChanged && !node->GetSchedulingSegmentFrozen()) {
+        SetNodeSchedulingSegment(node, ESchedulingSegment::Default, /* abortAllJobs */ false);
     }
 }
 

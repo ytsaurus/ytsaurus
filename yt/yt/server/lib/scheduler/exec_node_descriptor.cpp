@@ -34,7 +34,8 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     const TJobResources& resourceLimits,
     const THashSet<TString>& tags,
     const TRunningJobStatistics& runningJobStatistics,
-    ESchedulingSegment schedulingSegment)
+    ESchedulingSegment schedulingSegment,
+    bool schedulingSegmentFrozen)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)
@@ -44,6 +45,7 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     , Tags(tags)
     , RunningJobStatistics(runningJobStatistics)
     , SchedulingSegment(schedulingSegment)
+    , SchedulingSegmentFrozen(schedulingSegmentFrozen)
 { }
 
 bool TExecNodeDescriptor::CanSchedule(const TSchedulingTagFilter& filter) const
