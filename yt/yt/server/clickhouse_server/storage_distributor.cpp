@@ -68,13 +68,9 @@ DB::Settings PrepareLeafJobSettings(const DB::Settings& settings)
     newSettings.max_concurrent_queries_for_user = 0;
     newSettings.max_memory_usage_for_user = 0;
 
-    // This setting is really not for user and should not be sent to remote server.
-    newSettings.max_memory_usage_for_all_queries = 0;
-
     // Set as unchanged to avoid sending to remote server.
     newSettings.max_concurrent_queries_for_user.changed = false;
     newSettings.max_memory_usage_for_user.changed = false;
-    newSettings.max_memory_usage_for_all_queries.changed = false;
 
     newSettings.max_query_size = 0;
 
@@ -202,7 +198,7 @@ class TDistributionPreparer
 public:
     TDistributionPreparer(
         const DB::Names& columnNames,
-        const DB::SelectQueryInfo& queryInfo,
+        DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
         TQueryContext* queryContext,
         TStorageContext* storageContext,
@@ -530,7 +526,7 @@ public:
     virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
         const DB::Context& context,
         DB::QueryProcessingStage::Enum toStage,
-        const DB::ASTPtr &) const override
+        DB::SelectQueryInfo &) const override
     {
         // If we use WithMergeableState while using single node, caller would process aggregation functions incorrectly.
         // See also: need_second_distinct_pass at DB::InterpreterSelectQuery::executeImpl().
@@ -552,7 +548,7 @@ public:
     virtual DB::Pipe read(
         const DB::Names& columnNames,
         const DB::StorageMetadataPtr& /*metadata_snapshot*/,
-        const DB::SelectQueryInfo& queryInfo,
+        DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
         DB::QueryProcessingStage::Enum processedStage,
         size_t /* maxBlockSize */,

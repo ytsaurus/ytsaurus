@@ -57,7 +57,7 @@ public:
     DB::Pipe read(
         const DB::Names& columnNames,
         const DB::StorageMetadataPtr& /* metadata_snapshot */,
-        const DB::SelectQueryInfo& queryInfo,
+        DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
         DB::QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
@@ -211,7 +211,7 @@ public:
     virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
         const DB::Context& /* context */,
         DB::QueryProcessingStage::Enum /* toStage */,
-        const DB::ASTPtr &) const override
+        DB::SelectQueryInfo &) const override
     {
         return DB::QueryProcessingStage::Enum::FetchColumns;
     }

@@ -46,7 +46,7 @@ public:
     DB::Pipe read(
         const DB::Names& /* columnNames */,
         const DB::StorageMetadataPtr& metadata_snapshot,
-        const DB::SelectQueryInfo& /* queryInfo */,
+        DB::SelectQueryInfo& /* queryInfo */,
         const DB::Context& /* context */,
         DB::QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
