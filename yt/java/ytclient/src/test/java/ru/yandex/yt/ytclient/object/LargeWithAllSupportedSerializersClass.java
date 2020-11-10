@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.object;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +79,7 @@ public class LargeWithAllSupportedSerializersClass {
     private Instant instantValue;
     private java.time.Instant javaInstantValue;
     private Duration durationValue;
+    private OffsetDateTime offsetDateTimeValue;
     private List<Long> longListValue;
     private List<Duration> durationListValue;
     private List<InternalObject1> internalObjectListValue;
@@ -190,6 +192,14 @@ public class LargeWithAllSupportedSerializersClass {
 
     public void setDurationValue(Duration durationValue) {
         this.durationValue = durationValue;
+    }
+
+    public OffsetDateTime getOffsetDateTimeValue() {
+        return offsetDateTimeValue;
+    }
+
+    public void setOffsetDateTimeValue(OffsetDateTime offsetDateTimeValue) {
+        this.offsetDateTimeValue = offsetDateTimeValue;
     }
 
     public List<Long> getLongListValue() {
@@ -524,6 +534,7 @@ public class LargeWithAllSupportedSerializersClass {
                 Objects.equals(instantValue, that.instantValue) &&
                 Objects.equals(javaInstantValue, that.javaInstantValue) &&
                 Objects.equals(durationValue, that.durationValue) &&
+                Objects.equals(offsetDateTimeValue, that.offsetDateTimeValue) &&
                 Objects.equals(longListValue, that.longListValue) &&
                 Objects.equals(durationListValue, that.durationListValue) &&
                 Objects.equals(internalObjectListValue, that.internalObjectListValue) &&
@@ -564,9 +575,9 @@ public class LargeWithAllSupportedSerializersClass {
     @Override
     public int hashCode() {
         int result = Objects.hash(unsignedLongValue, longValue, longObjectValue, instantValue, javaInstantValue,
-                durationValue, longListValue, durationListValue, internalObjectListValue, longListValueCustom,
-                durationListValueCustom, internalObjectListValueCustom, stringEnumValue, longSetValue,
-                durationSetValue, internalObjectSetValue, longSetValueCustom, durationSetValueCustom,
+                durationValue, offsetDateTimeValue, longListValue, durationListValue, internalObjectListValue,
+                longListValueCustom, durationListValueCustom, internalObjectListValueCustom, stringEnumValue,
+                longSetValue, durationSetValue, internalObjectSetValue, longSetValueCustom, durationSetValueCustom,
                 internalObjectSetValueCustom, booleanValue, booleanObjectValue, localDateTimeValue, intEnumValue,
                 intEnumSerialized, longMapValue, durationMapValue, internalObjectMapValue, longMapValueCustom,
                 durationMapValueCustom, internalObjectMapValueCustom, internalObject, internalFlattenObject,
@@ -590,6 +601,7 @@ public class LargeWithAllSupportedSerializersClass {
                 ", instantValue=" + instantValue +
                 ", javaInstantValue=" + javaInstantValue +
                 ", durationValue=" + durationValue +
+                ", offsetDateTimeValue=" + offsetDateTimeValue +
                 ", longListValue=" + longListValue +
                 ", durationListValue=" + durationListValue +
                 ", internalObjectListValue=" + internalObjectListValue +

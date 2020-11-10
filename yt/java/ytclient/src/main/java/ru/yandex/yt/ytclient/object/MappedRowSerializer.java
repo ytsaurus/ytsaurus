@@ -26,6 +26,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeInte
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeJavaInstantSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLocalDateTimeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeLongSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeOffsetDateTimeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringEnumSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeUnsignedLongSerializer;
@@ -89,7 +90,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         return builder.build();
     }
 
-    public static YTreeSerializer<?> unwrap(YTreeSerializer serializer) {
+    public static YTreeSerializer<?> unwrap(YTreeSerializer<?> serializer) {
         if (serializer instanceof YTreeOptionSerializer) {
             return unwrap(((YTreeOptionSerializer<?>) serializer).getDelegate());
         } else if (serializer instanceof YTreeOptionalSerializer) {
@@ -102,9 +103,10 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     }
 
     static ColumnValueType asType(YTreeSerializer<?> serializer) {
-        if (serializer instanceof YTreeIntegerSerializer || serializer instanceof YTreeLongSerializer
-                || serializer instanceof YTreeIntEnumSerializer || serializer instanceof YTreeInstantSerializer ||
-                serializer instanceof YTreeDurationSerializer || serializer instanceof YTreeJavaInstantSerializer) {
+        if (serializer instanceof YTreeIntegerSerializer || serializer instanceof YTreeLongSerializer ||
+                serializer instanceof YTreeIntEnumSerializer || serializer instanceof YTreeInstantSerializer ||
+                serializer instanceof YTreeDurationSerializer || serializer instanceof YTreeJavaInstantSerializer||
+                serializer instanceof YTreeOffsetDateTimeSerializer) {
             return ColumnValueType.INT64;
         } else if (serializer instanceof YTreeDoubleSerializer || serializer instanceof YTreeFloatSerializer) {
             return ColumnValueType.DOUBLE;
