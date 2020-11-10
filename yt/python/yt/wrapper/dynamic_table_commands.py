@@ -194,8 +194,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "allow_join_without_index", allow_join_without_index)
     set_param(params, "execution_pool", execution_pool)
     set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
-    if response_parameters is not None:
-        set_param(params, "enable_statistics", True)
+    set_param(params, "enable_statistics", response_parameters is not None)
 
     _check_transaction_type(client)
 
