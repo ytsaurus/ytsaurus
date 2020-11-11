@@ -330,6 +330,8 @@ private:
     double GetUserJobMemoryReserveFactor() const;
 
     int EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet);
+
+    TString GetOrCacheSerializedSchema(const NTableClient::TTableSchemaPtr& schema);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

@@ -59,6 +59,7 @@ void TStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, LivePreviewIndex);
     Persist(context, TargetDescriptor);
     Persist(context, PartitionTag);
+    Persist<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>(context, StreamSchemas);
 }
 
 TStreamDescriptor& TStreamDescriptor::operator =(const TStreamDescriptor& other)
@@ -76,6 +77,7 @@ TStreamDescriptor& TStreamDescriptor::operator =(const TStreamDescriptor& other)
     IsOutputTableDynamic = other.IsOutputTableDynamic;
     LivePreviewIndex = other.LivePreviewIndex;
     TargetDescriptor = other.TargetDescriptor;
+    StreamSchemas = other.StreamSchemas;
 
     return *this;
 }
