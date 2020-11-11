@@ -217,10 +217,11 @@ def raise_for_token(response, request_info):
 
     response_error = YtHttpResponseError(error=response.error(), **request_info)
     raise YtTokenError(
-        "Your authentication token was rejected by the server (X-YT-Request-ID: {0}, X-YT-Proxy: {1})\n"
-        "Please refer to oauth.yt.yandex.net for obtaining a valid token\n"
-        "if it will not fix error please kindly submit a request to "
-        "https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
+	"Your request {0} has failed to authenticate at {1}. "
+	"Make sure that you have provided an OAuth token with the request. "
+	"In case you do not have a valid token, please refer to oauth.yt.yandex.net for obtaining one. "
+	"If the error persists and system keeps rejecting your token, "
+	"please kindly submit a request to https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
         .format(request_id, proxy),
         inner_errors=[response_error])
 
