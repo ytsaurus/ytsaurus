@@ -183,6 +183,30 @@ int TComparator::CompareKeys(const TKey& lhs, const TKey& rhs) const
     return 0;
 }
 
+std::optional<TKey> TComparator::TryAsSingletonKey(const TKeyBound& lowerBound, const TKeyBound& upperBound) const
+{
+    ValidateKeyBound(lowerBound);
+    ValidateKeyBound(upperBound);
+    YT_VERIFY(!lowerBound.IsUpper);
+    YT_VERIFY(upperBound.IsUpper);
+
+    if (lowerBound.Prefix.GetCount() != GetLength() || upperBound.Prefix.GetCount() != GetLength()) {
+        return std::nullopt;
+    }
+
+    if (!lowerBound.IsInclusive || !upperBound.IsInclusive) {
+        return std::nullopt;
+    }
+
+    for (int index = 0; index < lowerBound.Prefix.GetCount(); ++index) {
+        if (CompareValues(index, lowerBound.Prefix[index], upperBound.Prefix[index]) != 0) {
+            return std::nullopt;
+        }
+    }
+
+    return TKey::FromRowUnchecked(lowerBound.Prefix);
+}
+
 void FormatValue(TStringBuilderBase* builder, const TComparator& comparator, TStringBuf /* spec */)
 {
     builder->AppendFormat("{Length: %v}", comparator.GetLength());

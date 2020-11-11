@@ -113,6 +113,12 @@ TKeyBound TKeyBoundImpl<TRow, TKeyBound>::Invert() const
 }
 
 template <class TRow, class TKeyBound>
+TKeyBound TKeyBoundImpl<TRow, TKeyBound>::ToggleInclusiveness() const
+{
+    return TKeyBound::FromRowUnchecked(Prefix, !IsInclusive, IsUpper);
+}
+
+template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::UpperCounterpart() const
 {
     return IsUpper ? *static_cast<const TKeyBound*>(this) : Invert();

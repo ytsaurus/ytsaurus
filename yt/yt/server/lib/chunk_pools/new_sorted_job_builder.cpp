@@ -69,15 +69,9 @@ public:
         }
     }
 
-    virtual void AddForeignDataSlice(const TInputDataSlicePtr& legacyDataSlice, IChunkPoolInput::TCookie cookie) override
+    virtual void AddForeignDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
     {
-        // COMPAT(max42): I am not sure if caller would expect that passed data slice is transformed to new
-        // data slice, so better copy it here.
-        auto dataSlice = CreateInputDataSlice(legacyDataSlice);
-        dataSlice->TransformToNew(RowBuffer_, Comparator_.GetLength());
-        dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, Options_.ForeignPrefixLength, RowBuffer_);
-        dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, Options_.ForeignPrefixLength, RowBuffer_);
-
+        YT_VERIFY(!dataSlice->IsLegacy);
         DataSliceToInputCookie_[dataSlice] = cookie;
 
         if (dataSlice->InputStreamIndex >= InputStreamIndexToForeignDataSlices_.size()) {
@@ -105,14 +99,9 @@ public:
         Endpoints_.emplace_back(rightEndpoint);
     }
 
-    virtual void AddPrimaryDataSlice(const TInputDataSlicePtr& legacyDataSlice, IChunkPoolInput::TCookie cookie) override
+    virtual void AddPrimaryDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
     {
-        // COMPAT(max42): I am not sure if caller would expect that passed data slice is transformed to new
-        // data slice, so better copy it here.
-        auto dataSlice = CreateInputDataSlice(legacyDataSlice);
-        dataSlice->TransformToNew(RowBuffer_, Comparator_.GetLength());
-        dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, Options_.PrimaryPrefixLength, RowBuffer_);
-        dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, Options_.PrimaryPrefixLength, RowBuffer_);
+        YT_VERIFY(!dataSlice->IsLegacy);
 
         TEndpoint leftEndpoint;
         TEndpoint rightEndpoint;

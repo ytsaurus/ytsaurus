@@ -1,15 +1,15 @@
 #include "chunk_pools_helpers.h"
 
-namespace NYT::NChunkClient {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! We intentionally suppress the default output for TInputChunk as they are
-//! identified by their addresses (already printed from the template function
-//! for TIntrusivePtr) pretty well.
-void PrintTo(const TInputChunk& /* chunk */, std::ostream* /* os */)
-{ }
+template <>
+void PrintTo(const TIntrusivePtr<NChunkClient::TInputChunk>& chunk, std::ostream* os)
+{
+    *os << ToString(chunk->ChunkId());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient:
+} // namespace NYT

@@ -69,3 +69,13 @@ TString ToString(const TOwningKey& key);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
+
+//! A hasher for TKey and TOwningKey.
+template <class TRow>
+struct THash<NYT::NTableClient::NDetail::TKeyImpl<TRow>>
+{
+    inline size_t operator()(const NYT::NTableClient::NDetail::TKeyImpl<TRow>& key) const
+    {
+        return THash<TRow>()(static_cast<const TRow&>(key));
+    }
+};
