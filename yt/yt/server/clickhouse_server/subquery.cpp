@@ -13,7 +13,7 @@
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/server/lib/chunk_pools/helpers.h>
 #include <yt/server/lib/chunk_pools/unordered_chunk_pool.h>
-#include <yt/server/lib/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
@@ -682,7 +682,7 @@ std::vector<TSubquery> BuildSubqueries(
             TInputStreamDirectory({TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)}));
     } else if (poolKind == EPoolKind::Sorted) {
         YT_VERIFY(keyColumnCount);
-        chunkPool = CreateSortedChunkPool(
+        chunkPool = CreateLegacySortedChunkPool(
             TSortedChunkPoolOptions{
                 .SortedJobOptions = TSortedJobOptions{
                     .EnableKeyGuarantee = true,

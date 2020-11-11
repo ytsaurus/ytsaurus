@@ -49,7 +49,13 @@ public:
     //! Check if the range defined by two key bounds is empty.
     bool IsRangeEmpty(const TKeyBound& lowerBound, const TKeyBound& upperBound) const;
 
+    //! Return length of the primary key to which this comparator corresponds.
+    //! In particular, any key bound length passed as an argument must not exceed GetLength()
+    //! and any key length should be equal to GetLength().
     int GetLength() const;
+
+    //! If there exists such key K that #lhs == ">= K" and #rhs == "<= K", return it.
+    std::optional<TKey> TryAsSingletonKey(const TKeyBound& lhs, const TKeyBound& rhs) const;
 
 private:
     void ValidateKey(const TKey& key) const;

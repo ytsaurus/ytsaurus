@@ -3,7 +3,7 @@
 #include "chunk_pool.h"
 #include "input_stream.h"
 #include "private.h"
-#include "new_sorted_job_builder.h"
+#include "sorted_job_builder.h"
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -55,13 +55,6 @@ IChunkSliceFetcherFactoryPtr CreateCallbackChunkSliceFetcherFactory(
     TCallback<NTableClient::IChunkSliceFetcherPtr()> factoryCallback);
 
 DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory);
-
-////////////////////////////////////////////////////////////////////////////////
-
-ISortedChunkPoolPtr CreateSortedChunkPool(
-    const TSortedChunkPoolOptions& options,
-    IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
-    TInputStreamDirectory dataSourceDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

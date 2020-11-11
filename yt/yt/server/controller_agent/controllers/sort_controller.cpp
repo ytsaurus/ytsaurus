@@ -17,10 +17,10 @@
 #include <yt/server/controller_agent/config.h>
 
 #include <yt/server/lib/chunk_pools/chunk_pool.h>
+#include <yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
 #include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
 #include <yt/server/lib/chunk_pools/ordered_chunk_pool.h>
 #include <yt/server/lib/chunk_pools/shuffle_chunk_pool.h>
-#include <yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 #include <yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
 #include <yt/client/api/client.h>
@@ -2793,7 +2793,7 @@ protected:
             Logger,
             GetOutputTablePaths().size());
         chunkPoolOptions.Task = taskId;
-        return CreateSortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
+        return CreateLegacySortedChunkPool(chunkPoolOptions, nullptr /* chunkSliceFetcher */, IntermediateInputStreamDirectory);
     }
 
     void AccountRows(const std::optional<TStatistics>& statistics)

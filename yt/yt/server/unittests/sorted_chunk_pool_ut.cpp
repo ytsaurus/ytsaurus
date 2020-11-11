@@ -8,7 +8,7 @@
 
 #include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
 #include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
-#include <yt/server/lib/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -279,7 +279,7 @@ protected:
 
     void CreateChunkPool(bool useGenericInputStreamDirectory = false)
     {
-        ChunkPool_ = CreateSortedChunkPool(
+        ChunkPool_ = CreateLegacySortedChunkPool(
             Options_,
             !MockBuilders_.empty() ? BuildMockChunkSliceFetcherFactory() : nullptr,
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
@@ -3044,7 +3044,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         underlyingPoolCount = std::uniform_int_distribution<>(2, maxUnderlyingPoolCount)(Gen_);
         UnderlyingPools_.reserve(underlyingPoolCount);
         for (int poolIndex = 0; poolIndex < underlyingPoolCount; ++poolIndex) {
-            UnderlyingPools_.push_back(CreateSortedChunkPool(
+            UnderlyingPools_.push_back(CreateLegacySortedChunkPool(
                 Options_,
                 nullptr,
                 TInputStreamDirectory(InputTables_)));

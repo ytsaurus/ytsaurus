@@ -47,6 +47,9 @@ public:
     //! Return key bound which is complementary to current.
     TKeyBound Invert() const;
 
+    //! Return key bound with same prefix and direction but toggled inclusiveness.
+    TKeyBound ToggleInclusiveness() const;
+
     //! Return key bound that is upper among {*this, this->Invert()}.
     TKeyBound UpperCounterpart() const;
     //! Return key bound that is lower among {*this, this->Invert()}.

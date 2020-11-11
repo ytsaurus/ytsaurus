@@ -4,12 +4,13 @@
 
 #pragma once
 
-namespace NYT::NChunkClient {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PrintTo(const TInputChunk& /* chunk */, std::ostream* /* os */);
+template <>
+void PrintTo(const TIntrusivePtr<NChunkClient::TInputChunk>& chunk, std::ostream* os);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient
+} // namespace NYT

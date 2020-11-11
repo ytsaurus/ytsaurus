@@ -14,7 +14,7 @@
 #include <yt/server/controller_agent/config.h>
 
 #include <yt/server/lib/chunk_pools/chunk_pool.h>
-#include <yt/server/lib/chunk_pools/sorted_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -134,7 +134,7 @@ protected:
         {
             auto options = controller->GetSortedChunkPoolOptions();
             options.Task = GetTitle();
-            ChunkPool_ = CreateSortedChunkPool(
+            ChunkPool_ = CreateLegacySortedChunkPool(
                 options,
                 controller->CreateChunkSliceFetcherFactory(),
                 controller->GetInputStreamDirectory());
