@@ -1282,3 +1282,20 @@ class TestResolveCache(YTEnvSetup):
         assert get("//tmp/l-bad&/@broken")
         link("//tmp/p/t", "//tmp/l-ok")
         assert not get("//tmp/l-ok&/@broken")
+
+    @authors("shakurov")
+    def test_link_resolution_by_resolve_cache_yt_13909(self):
+        create("portal_entrance", "//tmp/d/p", recursive=True, attributes={"exit_cell_tag": 1})
+        link("//tmp/d", "//tmp/d1")
+
+        # Make sure paths are cached.
+        get("//tmp/d/p/@id")
+        get("//tmp/d1/p/@id")
+
+        assert get("//tmp/d/@resolve_cached")
+        assert get("//tmp/d1/@resolve_cached")
+        assert get("//tmp/d1&/@resolve_cached")
+
+        assert get("//tmp/d/@type") == "map_node"
+        assert get("//tmp/d1/@type") == "map_node"  # Must not throw.
+        assert get("//tmp/d1&/@type") == "link"

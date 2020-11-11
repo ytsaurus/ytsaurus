@@ -45,7 +45,6 @@ TResolveCache::TResolveCache(TNodeId rootNodeId)
 std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYPath& path)
 {
     TTokenizer tokenizer(path);
-    tokenizer.Advance();
 
     static const auto EmptyYPath = TYPath();
     static const auto SlashYPath = TYPath("/");
@@ -55,7 +54,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
     TResolveCacheNodePtr currentNode;
 
     auto resolveRoot = [&] () -> TResolveCacheNodePtr {
-
+        tokenizer.Advance();
         tokenizer.Skip(NYPath::ETokenType::Ampersand);
 
         switch (tokenizer.GetType()) {
