@@ -18,7 +18,9 @@ ITransactionPtr IStickyTransactionPool::GetTransactionAndRenewLeaseOrThrow(
     if (!transaction) {
         THROW_ERROR_EXCEPTION(
             NTransactionClient::EErrorCode::NoSuchTransaction,
-            "Sticky transaction %v is not found",
+            "Sticky transaction %v is not found, "
+            "this usually means that you use tablet transactions within HTTP API; "
+            "consider using RPC API instead",
             transactionId);
     }
 
