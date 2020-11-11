@@ -2088,7 +2088,7 @@ private:
         THydraServiceProxy proxy(std::move(channel));
         auto request = proxy.ReportMutationsStateHashes();
 
-        for (int sequenceNumber = startSequenceNumber; sequenceNumber <= endSequenceNumber; sequenceNumber += rate) {
+        for (auto sequenceNumber = startSequenceNumber; sequenceNumber <= endSequenceNumber; sequenceNumber += rate) {
             auto stateHash = StateHashChecker_->GetStateHash(sequenceNumber);
             if (stateHash) {
                 auto mutationInfo = request->add_mutations_info();
