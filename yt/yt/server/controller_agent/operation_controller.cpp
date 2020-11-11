@@ -454,15 +454,6 @@ static bool ShouldUseLegacyController(
     const TControllerAgentConfigPtr& config,
     TOperation* operation)
 {
-    // COMPAT(levysotsky): Remove when new controllers can handle schemaful map_reduce.
-    if (operation->GetType() == EOperationType::MapReduce &&
-        ParseOperationSpec<TMapReduceOperationSpec>(operation->GetSpec())->HasSchemafulIntermediateStreams())
-    {
-        YT_LOG_INFO("Using legacy controller because the operation is schemaful MapReduce (OperationId: %v)",
-            operation->GetId());
-        return true;
-    }
-
     auto specTemplate = [&] {
         switch (operation->GetType()) {
             case EOperationType::Map:

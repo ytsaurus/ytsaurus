@@ -8573,7 +8573,8 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     options->CompressionCodec = Spec_->IntermediateCompressionCodec;
     // Distribute intermediate chunks uniformly across storage locations.
     options->PlacementId = GetOperationId();
-    options->TableIndex = 0;
+    // NB(levysotsky): Don't set table_index for intermediate streams
+    // as we store table indices directly in rows of intermediate chunk.
     return options;
 }
 

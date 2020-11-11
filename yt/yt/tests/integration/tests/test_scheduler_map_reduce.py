@@ -69,6 +69,17 @@ for l in sys.stdin:
         second_struct_a="a",
     )
 
+    DROP_TABLE_INDEX_REDUCER = """
+import sys, json
+for l in sys.stdin:
+    row = json.loads(l)
+    if "$attributes" in row:
+        assert row["$value"] is None
+        assert "table_index" in row["$attributes"]
+        continue
+    sys.stdout.write(json.dumps(row) + "\\n")
+"""
+
     @pytest.mark.parametrize(
         "method",
         [
@@ -1265,7 +1276,7 @@ for l in sys.stdin:
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", mapper)
 
-        op = map_reduce(
+        map_reduce(
             in_="//tmp/t1",
             out="//tmp/t2",
             mapper_file=["//tmp/mapper.py"],
@@ -1288,8 +1299,6 @@ for l in sys.stdin:
                 "force_reduce_combiners": True,
             },
         )
-        # Controller is always switched to legacy for schemaful map_reduce.
-        assert get(op.get_path() + "/@progress/legacy_controller")
 
         result_rows = read_table("//tmp/t2")
         expected_rows = [{"a": r["a"], "struct": {"a": r["a"], "b": r["b"], "c": True}} for r in rows]
@@ -1346,7 +1355,7 @@ for l in sys.stdin:
         create("file", "//tmp/reducer.py")
         write_file("//tmp/reducer.py", self.TWO_INPUT_SCHEMAFUL_REDUCER)
 
-        op = map_reduce(
+        map_reduce(
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
@@ -1362,8 +1371,6 @@ for l in sys.stdin:
                 "max_failed_job_count": 1,
             },
         )
-        # Controller is always switched to legacy for schemaful map_reduce.
-        assert get(op.get_path() + "/@progress/legacy_controller")
 
         result_rows = read_table("//tmp/out")
         expected_rows = []
@@ -1371,111 +1378,6 @@ for l in sys.stdin:
             row = {"a": a, "struct2": {"a2": a ** 2 + a ** 3, "b2": 3 * str(a)}}
             expected_rows.append(row)
         assert sorted(expected_rows) == sorted(result_rows)
-
-    @authors("gritukan")
-    def test_job_splitting(self):
-        if self.USE_LEGACY_CONTROLLERS:
-            return
-
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-        expected = []
-        for i in range(20):
-            row = {"a": str(i), "b": "x" * 10**6}
-            write_table("<append=%true>//tmp/t_in", row)
-            expected.append({"a": str(i)})
-
-        slow_cat = """
-while read ROW; do
-    if [ "$YT_JOB_COOKIE" == 0 ]; then
-        sleep 5
-    else
-        sleep 0.1
-    fi
-    echo "$ROW"
-done
-"""
-        op = map_reduce(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            mapper_command=slow_cat,
-            reducer_command="cat",
-            sort_by=["key"],
-            spec={
-                "mapper": {"format": "dsv"},
-                "reducer": {"format": "dsv"},
-                "data_size_per_map_job": 14 * 1024 * 1024,
-                "partition_count": 2,
-                "map_job_io": {
-                    "buffer_row_count": 1,
-                },
-            })
-
-        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
-        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/job_counter/completed/interrupted/job_split") == 1
-
-        assert sorted(read_table("//tmp/t_out{a}", verbose=False)) == sorted(expected)
-
-    @authors("gritukan")
-    def test_job_speculation(self):
-        if self.USE_LEGACY_CONTROLLERS:
-            return
-
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-        expected = []
-        for i in range(20):
-            row = {"a": str(i), "b": "x" * 10**6}
-            write_table("<append=%true>//tmp/t_in", row)
-            expected.append({"a": str(i)})
-
-        mapper = """
-while read ROW; do
-    if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 5
-    else
-        sleep 0.1
-    fi
-    echo "$ROW"
-done
-"""
-        op = map_reduce(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            mapper_command=mapper,
-            reducer_command="cat",
-            sort_by=["a"],
-            spec={
-                "mapper": {"format": "dsv"},
-                "reducer": {"format": "dsv"},
-                "data_size_per_map_job": 14 * 1024 * 1024,
-                "partition_count": 2,
-                "enable_job_splitting": False,
-                "reduce_job_io": {
-                    "testing_options": {"pipe_delay": 1000},
-                    "buffer_row_count": 1,
-                }
-            })
-
-        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
-        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won") == 1
-
-##################################################################
-
-
-class TestSchedulerMapReduceCommandsLegacy(TestSchedulerMapReduceCommands):
-    USE_LEGACY_CONTROLLERS = True
-
-    DROP_TABLE_INDEX_REDUCER = """
-import sys, json
-for l in sys.stdin:
-    row = json.loads(l)
-    if "$attributes" in row:
-        assert row["$value"] is None
-        assert "table_index" in row["$attributes"]
-        continue
-    sys.stdout.write(json.dumps(row) + "\\n")
-"""
 
     @authors("levysotsky")
     def test_several_intermediate_schemas(self):
@@ -2311,6 +2213,93 @@ for l in sys.stdin:
             ],
         )
 
+    @authors("gritukan")
+    def test_job_splitting(self):
+        if self.USE_LEGACY_CONTROLLERS:
+            return
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        expected = []
+        for i in range(20):
+            row = {"a": str(i), "b": "x" * 10**6}
+            write_table("<append=%true>//tmp/t_in", row)
+            expected.append({"a": str(i)})
+
+        slow_cat = """
+while read ROW; do
+    if [ "$YT_JOB_COOKIE" == 0 ]; then
+        sleep 5
+    else
+        sleep 0.1
+    fi
+    echo "$ROW"
+done
+"""
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            mapper_command=slow_cat,
+            reducer_command="cat",
+            sort_by=["key"],
+            spec={
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+                "data_size_per_map_job": 14 * 1024 * 1024,
+                "partition_count": 2,
+                "map_job_io": {
+                    "buffer_row_count": 1,
+                },
+            })
+
+        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
+        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/job_counter/completed/interrupted/job_split") == 1
+
+        assert sorted(read_table("//tmp/t_out{a}", verbose=False)) == sorted(expected)
+
+    @authors("gritukan")
+    def test_job_speculation(self):
+        if self.USE_LEGACY_CONTROLLERS:
+            return
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        expected = []
+        for i in range(20):
+            row = {"a": str(i), "b": "x" * 10**6}
+            write_table("<append=%true>//tmp/t_in", row)
+            expected.append({"a": str(i)})
+
+        mapper = """
+while read ROW; do
+    if [ "$YT_JOB_INDEX" == 0 ]; then
+        sleep 5
+    else
+        sleep 0.1
+    fi
+    echo "$ROW"
+done
+"""
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            mapper_command=mapper,
+            reducer_command="cat",
+            sort_by=["a"],
+            spec={
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+                "data_size_per_map_job": 14 * 1024 * 1024,
+                "partition_count": 2,
+                "enable_job_splitting": False,
+                "reduce_job_io": {
+                    "testing_options": {"pipe_delay": 1000},
+                    "buffer_row_count": 1,
+                }
+            })
+
+        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/task_name") == "partition_map(0)"
+        assert get(op.get_path() + "/controller_orchid/progress/tasks/0/speculative_job_counter/aborted/scheduled/speculative_run_won") == 1
 
 ##################################################################
 

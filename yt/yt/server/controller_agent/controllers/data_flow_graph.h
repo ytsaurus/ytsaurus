@@ -90,7 +90,10 @@ struct TStreamDescriptor
     bool ImmediatelyUnstageChunkLists = false;
     bool IsFinalOutput = false;
     bool IsOutputTableDynamic = false;
-    // In most situations coincides with the index of a stream descriptor,
+
+    std::vector<NTableClient::TTableSchemaPtr> StreamSchemas;
+
+    // In most situations coincides with the index of an stream descriptor,
     // but in some situations may differ. For example, an auto merge task
     // may have the only output descriptor, but we would like to attach
     // its output chunks to the live preview with an index corresponding to the
