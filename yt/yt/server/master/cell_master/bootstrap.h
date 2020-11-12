@@ -191,6 +191,7 @@ private:
     void OnProfiling();
 
     void DoInitialize();
+    void InitializeTimestampProvider();
     void DoRun();
     void DoLoadSnapshot(
         const TString& fileName,

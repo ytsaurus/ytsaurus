@@ -79,6 +79,9 @@ DEFINE_ENUM(EMasterReign,
     ((ExtraPeerDroppingDelay)                                       (1333))  // gritukan
     ((CellPeerLastSeenState)                                        (1334))  // gritukan
     ((ReservedAttributes)                                           (1335))  // ifsmirnov
+    ((RecognizeSchedulerPoolCustomAttributesOnLoad)                 (1336))  // renadeen
+    ((OptOutTabletDynamicMemoryLimit)                               (1337))  // ifsmirnov
+    ((EnableForcedRotationBackingMemoryAccounting_20_2)             (1338))  // babenko
     // 20.3
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
@@ -102,6 +105,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemovePartitionedTables)                                      (1420))  // max42
     ((OverlayedJournals)                                            (1421))  // babenko
     ((YT_12193_BetterAlterTable)                                    (1422))  // ermolovd
+    ((YT_12559_AbortStuckExternalizedTransactions)                  (1423))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1385,7 +1385,7 @@ private:
     }
 
 public:
-    void FinishTransaction(TTransaction* transaction)
+    void FinishTransaction(TTransaction* transaction, bool cachePresence = true)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1446,7 +1446,9 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ResetTransactionAccountResourceUsage(transaction);
 
-        CacheTransactionFinished(transaction);
+        if (cachePresence) {
+            CacheTransactionFinished(transaction);
+        }
 
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
@@ -1792,9 +1794,9 @@ TTransactionId TTransactionManager::GetNearestExternalizedTransactionAncestor(
 }
 
 // COMPAT(shakurov)
-void TTransactionManager::FinishTransaction(TTransaction* transaction)
+void TTransactionManager::FinishTransaction(TTransaction* transaction, bool cachePresence)
 {
-    Impl_->FinishTransaction(transaction);
+    Impl_->FinishTransaction(transaction, cachePresence);
 }
 
 TTransaction* TTransactionManager::GetTransactionOrThrow(TTransactionId transactionId)

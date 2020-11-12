@@ -104,6 +104,7 @@
 
 #include <yt/ytlib/distributed_throttler/distributed_throttler.h>
 
+#include <yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/client/transaction_client/remote_timestamp_provider.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
@@ -694,23 +695,14 @@ void TBootstrap::DoInitialize()
 
     SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
 
-    auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, ChannelFactory_);
-    if (MulticellManager_->IsPrimaryMaster() && !Config_->EnableTimestampManager) {
-        TimestampProvider_ = CreateBatchingRemoteTimestampProvider(
-            Config_->TimestampProvider,
-            std::move(timestampProviderChannel));
-        RpcServer_->RegisterService(CreateTimestampProxyService(TimestampProvider_));
-    } else {
-        TimestampProvider_ = CreateRemoteTimestampProvider(
-            Config_->TimestampProvider,
-            std::move(timestampProviderChannel));
-        if (MulticellManager_->IsPrimaryMaster()) {
-            TimestampManager_ = New<TTimestampManager>(
-                Config_->TimestampManager,
-                HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
-                HydraFacade_->GetHydraManager(),
-                HydraFacade_->GetAutomaton());
-        }
+    InitializeTimestampProvider();
+
+    if (MulticellManager_->IsPrimaryMaster() && Config_->EnableTimestampManager) {
+        TimestampManager_ = New<TTimestampManager>(
+            Config_->TimestampManager,
+            HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
+            HydraFacade_->GetHydraManager(),
+            HydraFacade_->GetAutomaton());
     }
 
     TransactionSupervisor_ = CreateTransactionSupervisor(
@@ -830,6 +822,26 @@ void TBootstrap::DoInitialize()
         BIND(&TBootstrap::OnProfiling, this),
         ProfilingPeriod);
     ProfilingExecutor_->Start();
+}
+
+void TBootstrap::InitializeTimestampProvider()
+{
+    if (!Config_->EnableNetworking) {
+        TimestampProvider_ = CreateNoopTimestampProvider();
+        return;
+    }
+
+    auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, ChannelFactory_);
+    if (MulticellManager_->IsPrimaryMaster() && !Config_->EnableTimestampManager) {
+        TimestampProvider_ = CreateBatchingRemoteTimestampProvider(
+            Config_->TimestampProvider,
+            std::move(timestampProviderChannel));
+        RpcServer_->RegisterService(CreateTimestampProxyService(TimestampProvider_));
+    } else {
+        TimestampProvider_ = CreateRemoteTimestampProvider(
+            Config_->TimestampProvider,
+            std::move(timestampProviderChannel));
+    }
 }
 
 void TBootstrap::DoRun()
