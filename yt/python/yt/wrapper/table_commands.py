@@ -1,5 +1,5 @@
 from .common import (flatten, require, update, get_value, set_param, datetime_to_string,
-                     MB, chunk_iter_stream, deprecated)
+                     MB, chunk_iter_stream, deprecated, merge_blobs_by_size)
 from .compression import try_enable_parallel_write_gzip
 from .config import get_config, get_option
 from .cypress_commands import (exists, remove, get_attribute, copy,
@@ -417,6 +417,8 @@ class _ReadTableRetriableState(object):
         if control_attributes and control_attributes.get("enable_range_index"):
             self.is_range_index_initially_enabled = True
 
+        self._max_row_buffer_size = get_config(client)["read_buffer_size"]
+
         if params.get("unordered"):
             raise YtError("Unordered read cannot be performed with retries, try ordered read or disable retries")
 
@@ -458,41 +460,68 @@ class _ReadTableRetriableState(object):
         return self.params
 
     def iterate(self, response):
+        row_generator = self._iterate(response)
+        return merge_blobs_by_size(row_generator, self._max_row_buffer_size)
+
+    class YsonControlRowFormat:
+        @staticmethod
+        def is_control_row(row):
+            # First check is fast-path.
+            return not row.endswith(b"};") and row.strip().endswith(b"#;")
+
+        @staticmethod
+        def load_control_row(row):
+            return next(yson.loads(row, yson_type="list_fragment"))
+
+        @staticmethod
+        def dump_control_row(row):
+            return yson.dumps([row], yson_type="list_fragment")
+
+    class JsonControlRowFormat:
+        @staticmethod
+        def is_control_row(row):
+            if b"$value" not in row:
+                return False
+            loaded_row = json.loads(row)
+            return "$value" in loaded_row and loaded_row["$value"] is None
+
+        @staticmethod
+        def load_control_row(row):
+            return yson.json_to_yson(json.loads(row))
+
+        @staticmethod
+        def dump_control_row(row):
+            row = json.dumps(yson.yson_to_json(row))
+            if PY3:
+                row = row.encode("utf-8")
+            return row + b"\n"
+
+    class DummyControlRowFormat:
+        @staticmethod
+        def is_control_row(row):
+            return False
+
+        @staticmethod
+        def load_control_row(row):
+            assert False, "Incorrect format"
+
+        @staticmethod
+        def dump_control_row(row):
+            assert False, "Incorrect format"
+
+    def _iterate(self, response):
         format_for_raw_load = deepcopy(self.format)
         if isinstance(format_for_raw_load, YsonFormat) and format_for_raw_load.attributes["lazy"]:
             format_for_raw_load.attributes["lazy"] = False
 
         format_for_raw_load_name = format_for_raw_load.name()
 
-        def is_control_row(row):
-            if format_for_raw_load_name == "yson":
-                return row.strip().endswith(b"#;")
-            elif format_for_raw_load_name == "json":
-                if b"$value" not in row:
-                    return False
-                loaded_row = json.loads(row)
-                return "$value" in loaded_row and loaded_row["$value"] is None
-            else:
-                return False
-
-        def load_control_row(row):
-            if format_for_raw_load_name == "yson":
-                return next(yson.loads(row, yson_type="list_fragment"))
-            elif format_for_raw_load_name == "json":
-                return yson.json_to_yson(json.loads(row))
-            else:
-                assert False, "Incorrect format"
-
-        def dump_control_row(row):
-            if format_for_raw_load_name == "yson":
-                return yson.dumps([row], yson_type="list_fragment")
-            elif format_for_raw_load_name == "json":
-                row = json.dumps(yson.yson_to_json(row))
-                if PY3:
-                    row = row.encode("utf-8")
-                return row + b"\n"
-            else:
-                assert False, "Incorrect format"
+        if format_for_raw_load_name == "yson":
+            control_row_format = self.YsonControlRowFormat
+        elif format_for_raw_load_name == "json":
+            control_row_format = self.JsonControlRowFormat
+        else:
+            control_row_format = self.DummyControlRowFormat
 
         range_index = 0
 
@@ -505,11 +534,12 @@ class _ReadTableRetriableState(object):
             self.started = True
 
         for row in format_for_raw_load.load_rows(response, raw=True):
-            run_chaos_monkey(chaos_monkey)
+            if chaos_monkey_enabled:
+                run_chaos_monkey(chaos_monkey)
 
             # NB: Low level check for optimization purposes. Only YSON and JSON format supported!
-            if is_control_row(row):
-                row = load_control_row(row)
+            if control_row_format.is_control_row(row):
+                row = control_row_format.load_control_row(row)
 
                 # NB: row with range index must go before row with row index.
                 if hasattr(row, "attributes") and "range_index" in row.attributes:
@@ -539,7 +569,7 @@ class _ReadTableRetriableState(object):
                             continue
                         self.row_index_row_yielded = True
 
-                row = dump_control_row(row)
+                row = control_row_format.dump_control_row(row)
             else:
                 if not self.range_started:
                     self.range_started = True
@@ -646,7 +676,6 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         if response.response_parameters is None:
             raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response._get_response())
         set_response_parameters(response.response_parameters)
-
 
     allow_retries = not attributes.get("dynamic")
 

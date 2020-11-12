@@ -4,7 +4,7 @@ from .conftest import authors
 
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth, bool_to_string,
-                               is_prefix, prefix, first_not_none, group_blobs_by_size,
+                               is_prefix, prefix, first_not_none, merge_blobs_by_size,
                                datetime_to_string, date_string_to_timestamp, chunk_iter_list,
                                escape_c)
 
@@ -81,14 +81,13 @@ def test_first_not_none():
     with pytest.raises(StopIteration):
         first_not_none([])
 
-@authors("asaitgalin", "ostyakov")
-def test_group_blobs_by_size():
-    # Is it right behaviour?
-    lines = ["ab", "abc", "def", "ghijklmn", "op"]
-    assert list(group_blobs_by_size(lines, 100)) == [lines]
-    assert list(group_blobs_by_size(lines, 3)) == \
-           [["ab", "abc"], ["def"], ["ghijklmn"], ["op"]]
-    assert list(group_blobs_by_size(["abcdef"], 2)) == [["abcdef"]]
+@authors("levysotsky")
+def test_merge_blobs_by_size():
+    lines = [b"ab", b"abc", b"def", b"ghijklmn", b"op"]
+    assert list(merge_blobs_by_size(lines, 100)) == [b"".join(lines)]
+    assert list(merge_blobs_by_size(lines, 3)) == \
+        [b"ababc", b"def", b"ghijklmn", b"op"]
+    assert list(merge_blobs_by_size([b"abcdef"], 2)) == [b"abcdef"]
 
 @authors("ignat")
 def test_time_functions():
