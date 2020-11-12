@@ -136,7 +136,6 @@ struct TSnapshotCookie
 struct TOperationSnapshot
 {
     int Version = -1;
-    bool IsLegacy = false;
     std::vector<TSharedRef> Blocks;
 };
 
@@ -575,8 +574,6 @@ struct IOperationController
     virtual std::optional<int> GetRowCountLimitTableIndex() = 0;
 
     virtual void LoadSnapshot(const TOperationSnapshot& snapshot) = 0;
-
-    virtual bool IsLegacy() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

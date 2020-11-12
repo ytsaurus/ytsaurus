@@ -28,7 +28,6 @@ struct TSnapshotJob
     std::unique_ptr<TFile> OutputFile;
     TSnapshotCookie Cookie;
     bool Suspended = false;
-    bool IsLegacy = false;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSnapshotJob)

@@ -1504,10 +1504,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             },
         )
 
-        if self.USE_LEGACY_CONTROLLERS:
-            wait(lambda: exists(op.get_path() + "/controller_orchid/job_splitter"))
-        else:
-            wait(lambda: exists(op.get_path() + "/controller_orchid/progress/tasks/0/job_splitter"))
+        wait(lambda: exists(op.get_path() + "/controller_orchid/progress/tasks/0/job_splitter"))
 
         op.track()
 
@@ -1789,27 +1786,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 spec={"schema_inference_mode": "from_output"},
             )
 
-    @authors("gritukan")
-    @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
-    def test_legacy_controller_flag(self, merge_mode):
-        create(
-            "table",
-            "//tmp/t1",
-            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
-        )
-        create(
-            "table",
-            "//tmp/t2",
-            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
-        )
-        write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
-        write_table("//tmp/t2", [{"a": 3}, {"a": 4}])
-
-        create("table", "//tmp/t_out")
-        op = merge(mode=merge_mode, in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t_out")
-
-        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
-
     @authors("ermolovd")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_merge_lose_composite_type(self, optimize_for):
@@ -1904,13 +1880,6 @@ class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
         op.track()
         for chunk_id in get("//tmp/out/@chunk_ids"):
             assert 5 <= get("#" + chunk_id + "/@row_count") <= 15
-
-
-##################################################################
-
-
-class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
-    USE_LEGACY_CONTROLLERS = True
 
 
 ##################################################################

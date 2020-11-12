@@ -17,9 +17,6 @@ def get_operation_job_types(opid):
 
 def check_operation_tasks(op, expected):
     data_flow_path = op.get_path() + "/@progress/data_flow"
-    # TODO(gritukan): Drop it after USE_LEGACY_CONTROLLERS removal.
-    if not exists(data_flow_path):
-        return True
     data_flow = get(data_flow_path)
     tasks = []
     for direction in data_flow:
@@ -1412,8 +1409,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_pivot_keys_hierarchical_partitions(self):
-        if self.USE_LEGACY_CONTROLLERS:
-            return
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
 
@@ -1497,7 +1492,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_data_flow_graph(self):
-        partition_vertex = "partition" if self.USE_LEGACY_CONTROLLERS else "partition(0)"
+        partition_vertex = "partition(0)"
 
         create("table", "//tmp/in")
         create("table", "//tmp/in2")
@@ -1681,16 +1676,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
         sort_func("//tmp/in", "//tmp/out", sort_by="key")
 
     @authors("gritukan")
-    def test_legacy_controller_flag(self):
-        v1 = {"key": "aaa"}
-        create("table", "//tmp/t_in")
-        write_table("//tmp/t_in", [v1])
-        create("table", "//tmp/t_out")
-        op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key")
-
-        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
-
-    @authors("gritukan")
     def test_simple_sort_with_many_data_slices(self):
         # N here is max_data_slices_per_job + 1.
         N = 101
@@ -1723,9 +1708,6 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
     @authors("gritukan")
     def test_hierarchical_partitions(self):
-        if self.USE_LEGACY_CONTROLLERS:
-            return
-
         p = [x for x in range(100)]
         random.shuffle(p)
         create("table", "//tmp/t_in")
@@ -1839,10 +1821,3 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-
-##################################################################
-
-
-class TestSchedulerSortCommandsLegacy(TestSchedulerSortCommands):
-    USE_LEGACY_CONTROLLERS = True

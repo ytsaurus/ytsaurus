@@ -103,7 +103,6 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
         job->Reader = pipe.CreateAsyncReader();
         job->OutputFile = std::make_unique<TFile>(FHANDLE(pipe.ReleaseWriteFD()));
         job->Suspended = false;
-        job->IsLegacy = controller->IsLegacy();
 
         Jobs_.push_back(job);
 
@@ -371,7 +370,6 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("version", ToUnderlying(GetCurrentSnapshotVersion()));
-            attributes->Set("is_legacy", job->IsLegacy);
             options.Attributes = std::move(attributes);
             options.Force = true;
             options.Recursive = true;

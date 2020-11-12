@@ -773,9 +773,6 @@ public:
 
     TJobCpuMonitorConfigPtr JobCpuMonitor;
 
-    //! Operation will use legacy controller with probability x/256.
-    int LegacyControllerFraction;
-
     //! If explicitly false, then data from dynamic stores of dynamic tables should not be read.
     std::optional<bool> EnableDynamicStoreRead;
 
@@ -1225,9 +1222,6 @@ public:
 
     TDuration SimpleSortLocalityTimeout;
     TDuration SimpleMergeLocalityTimeout;
-
-    // Used in legacy controllers only.
-    TDuration SortAssignmentTimeout;
 
     TDuration PartitionLocalityTimeout;
     TDuration SortLocalityTimeout;

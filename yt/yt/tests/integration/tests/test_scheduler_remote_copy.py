@@ -583,18 +583,6 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         assert get("//tmp/t2/@schema_mode") == "strong"
 
     @authors("gritukan")
-    def test_legacy_controller_flag(self):
-        create("table", "//tmp/t1", driver=self.remote_driver)
-        create("table", "//tmp/t2")
-        op = remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-        )
-
-        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
-
-    @authors("gritukan")
     @pytest.mark.timeout(300)
     def test_erasure_repair(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -725,13 +713,6 @@ class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
         )
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
-
-
-##################################################################
-
-
-class TestSchedulerRemoteCopyCommandsLegacy(TestSchedulerRemoteCopyCommands):
-    USE_LEGACY_CONTROLLERS = 2
 
 
 ##################################################################

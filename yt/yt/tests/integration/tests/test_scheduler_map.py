@@ -1495,14 +1495,6 @@ done
         assert edges[("auto_merge", "sink")]["statistics"]["row_count"] == 1
 
     @authors("gritukan")
-    def test_legacy_controller_flag(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        op = map(in_="//tmp/t1", out="//tmp/t2", command="cat")
-
-        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
-
-    @authors("gritukan")
     def test_end_of_stream(self):
         create("table", "//tmp/in1")
         create("table", "//tmp/in2")
@@ -1544,13 +1536,6 @@ done
 
 class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
     USE_PORTO = True
-
-
-##################################################################
-
-
-class TestSchedulerMapCommandsLegacy(TestSchedulerMapCommands):
-    USE_LEGACY_CONTROLLERS = True
 
 
 ##################################################################
