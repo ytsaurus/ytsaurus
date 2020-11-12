@@ -45,11 +45,14 @@ struct TChunkDynamicData
 {
     using TMediumToRepairQueueIterator = TSmallFlatMap<int, TChunkRepairQueueIterator, 2>;
 
-    //! Indicates that certain background scans were scheduled for this chunk.
-    EChunkScanKind ScanFlags = EChunkScanKind::None;
+    //! The time since this chunk needs repairing.
+    NProfiling::TCpuInstant EpochPartLossTime = {};
 
-    //! Indicates for which epoch #ScanFlags are valid.
-    NObjectServer::TEpoch ScanEpoch = 0;
+    //! Indicates that certain background scans were scheduled for this chunk.
+    EChunkScanKind EpochScanFlags = EChunkScanKind::None;
+
+    //! Indicates for which epoch #EpochScanFlags and #EpochPartLossTime are valid.
+    NObjectServer::TEpoch Epoch = 0;
 
     //! For each medium, contains a valid iterator for those chunks belonging to the repair queue
     //! and null (default iterator value) for others.
@@ -150,6 +153,10 @@ public:
     void SetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
     void ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
     TChunk* GetNextScannedChunk() const;
+
+    std::optional<NProfiling::TCpuInstant> GetPartLossTime(NObjectServer::TEpoch epoch) const;
+    void SetPartLossTime(NProfiling::TCpuInstant partLossTime, NObjectServer::TEpoch epoch);
+    void ResetPartLossTime(NObjectServer::TEpoch epoch);
 
     TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const;
     void SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value);
@@ -328,6 +335,8 @@ private:
     void UpdateAggregatedRequisitionIndex(
         TChunkRequisitionRegistry* registry,
         const NObjectServer::TObjectManagerPtr& objectManager);
+
+    void MaybeResetObsoleteEpochData(NObjectServer::TEpoch epoch);
 
     static const TCachedReplicas EmptyCachedReplicas;
     static const TReplicasData EmptyReplicasData;

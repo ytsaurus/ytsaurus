@@ -9,6 +9,7 @@
     XX(AccessCounter, access_counter) \
     XX(AccessTime, access_time) \
     XX(Account, account) \
+    XX(AccountStatistics, account_statistics) \
     XX(Acl, acl) \
     XX(ActionId, action_id) \
     XX(ActionIds, action_ids) \
@@ -86,8 +87,10 @@
     XX(DecommissionedNodeCount, decommissioned_node_count) \
     XX(DefaultParentPool, default_parent_pool) \
     XX(DependentTransactionIds, dependent_transaction_ids) \
+    XX(Depth, depth) \
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \
+    XX(DestroyedChunkReplicaCount, destroyed_chunk_replica_count) \
     XX(DisableSchedulerJobs, disable_scheduler_jobs) \
     XX(DisableTabletBalancer, disable_tablet_balancer) \
     XX(DisableTabletCells, disable_tablet_cells) \
@@ -134,6 +137,7 @@
     XX(ExportedObjects, exported_objects) \
     XX(Exports, exports) \
     XX(External, external) \
+    XX(ExternalizedToCellTags, externalized_to_cell_tags) \
     XX(ExternalCellTag, external_cell_tag) \
     XX(ExternalRequisitionIndexes, external_requisition_indexes) \
     XX(ExternalRequisitions, external_requisitions) \
@@ -260,6 +264,7 @@
     XX(ParentId, parent_id) \
     XX(ParentIds, parent_ids) \
     XX(ParentName, parent_name) \
+    XX(PartLossTime, part_loss_time) \
     XX(Path, path) \
     XX(PeerCount, peer_count) \
     XX(Peers, peers) \
@@ -313,6 +318,7 @@
     XX(ResourceUsage, resource_usage) \
     XX(RetainedTimestamp, retained_timestamp) \
     XX(Revision, revision) \
+    XX(RootNodeId, root_node_id) \
     XX(RowCount, row_count) \
     XX(ScanFlags, scan_flags) \
     XX(SchedulingSegments, scheduling_segments) \
@@ -323,7 +329,9 @@
     XX(SchemaMode, schema_mode) \
     XX(Sealed, sealed) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \
-    XX(ExternalizedToCellTags, externalized_to_cell_tags) \
+    XX(ResolveCached, resolve_cached) \
+    XX(SecurityTags, security_tags) \
+    XX(ShardId, shard_id) \
     XX(SkipFreezing, skip_freezing) \
     XX(Sorted, sorted) \
     XX(SortedBy, sorted_by) \
@@ -409,13 +417,6 @@
     XX(WithAlertsNodeCount, with_alerts_node_count) \
     XX(WriteQuorum, write_quorum) \
     XX(WriteRequestRateLimit, write_request_rate_limit) \
-    XX(SecurityTags, security_tags) \
-    XX(ShardId, shard_id) \
-    XX(RootNodeId, root_node_id) \
-    XX(AccountStatistics, account_statistics) \
-    XX(ResolveCached, resolve_cached) \
-    XX(Depth, depth) \
-    XX(DestroyedChunkReplicaCount, destroyed_chunk_replica_count) \
 
 namespace NYT {
 

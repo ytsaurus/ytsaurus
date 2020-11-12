@@ -40,6 +40,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
 using namespace NChunkClient;
+using namespace NProfiling;
 using namespace NTableClient;
 using namespace NJournalClient;
 using namespace NNodeTrackerServer;
@@ -168,6 +169,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CreationTime)
             .SetPresent(miscExt.has_creation_time()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Job)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PartLossTime)
             .SetOpaque(true));
     }
 
@@ -708,6 +711,19 @@ private:
                             .Item("address").Value(job->GetNode()->GetDefaultAddress())
                             .Item("state").Value(job->GetState())
                         .EndMap();
+                } else {
+                    BuildYsonFluently(consumer)
+                        .Entity();
+                }
+                return true;
+            }
+
+            case EInternedAttributeKey::PartLossTime: {
+                RequireLeader();
+                auto epoch = objectManager->GetCurrentEpoch();
+                if (auto partLossTime = chunk->GetPartLossTime(epoch)) {
+                    BuildYsonFluently(consumer)
+                        .Value(CpuInstantToInstant(*partLossTime));
                 } else {
                     BuildYsonFluently(consumer)
                         .Entity();

@@ -58,6 +58,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, LostVitalChunks);
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, DataMissingChunks);
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, ParityMissingChunks);
+    DEFINE_BYREF_RO_PROPERTY(TOldestPartMissingChunkSet, OldestPartMissingChunks, TChunkPartLossTimeComparer(0));
     // Medium-wise unsafely placed chunks: all replicas are on transient media
     // (and requisitions of these chunks demand otherwise).
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, PrecariousChunks);
@@ -270,6 +271,8 @@ private:
     void RemoveChunkFromQueuesOnRefresh(TChunk* chunk);
     void RemoveChunkFromQueuesOnDestroy(TChunk* chunk);
     void CancelChunkJobs(TChunk* chunk);
+
+    void MaybeRememberPartMissingChunk(TChunk* chunk);
 
     TChunkStatistics ComputeChunkStatistics(const TChunk* chunk);
 

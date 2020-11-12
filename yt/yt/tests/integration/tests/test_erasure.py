@@ -1,7 +1,10 @@
 import pytest
 
+import datetime
 import time
 
+from datetime import datetime
+from datetime import timedelta
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 from yt_driver_bindings import BufferedStream
@@ -394,6 +397,39 @@ class TestErasure(TestErasureBase):
         with pytest.raises(YtError):
             write_file("<append=true;compression_codec=none>//tmp/f", "a")
 
+    @authors("shakurov")
+    def test_part_loss_time(self):
+        # Ban 4 nodes so that banning any more would result in an inability to repair.
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes[:4]:
+            set_node_banned(node, True)
+
+        create("table", "//tmp/t1", attributes={"erasure_codec": "lrc_12_2_2"})
+        write_table("//tmp/t1", {"a": "b"})
+
+        chunk_id = get_singular_chunk_id("//tmp/t1")
+
+        replicas = get("#%s/@stored_replicas" % chunk_id)
+        assert len(replicas) == 16
+
+        assert self._is_chunk_ok(chunk_id)
+
+        now = datetime.utcnow()
+        set_node_banned(str(replicas[0]), True)
+        wait(lambda: get("#" + chunk_id + "/@part_loss_time") != None) # noqa
+        part_loss_time = get("#" + chunk_id + "/@part_loss_time")
+        # You gotta love python's datetime for this.
+        part_loss_time = part_loss_time.strip("Z")
+        part_loss_time = datetime.strptime(part_loss_time, "%Y-%m-%dT%H:%M:%S.%f")
+        assert part_loss_time > now
+        assert part_loss_time < now + timedelta(seconds=30.0)
+
+        assert exists("//sys/oldest_part_missing_chunks/" + chunk_id)
+
+        set_node_banned(str(replicas[0]), False)
+        wait(lambda: get("#" + chunk_id + "/@part_loss_time") == None) # noqa
+
+        assert not exists("//sys/oldest_part_missing_chunks/" + chunk_id)
 
 ##################################################################
 

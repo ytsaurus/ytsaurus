@@ -175,6 +175,7 @@ public:
     const THashSet<TChunk*>& UnderreplicatedChunks() const;
     const THashSet<TChunk*>& DataMissingChunks() const;
     const THashSet<TChunk*>& ParityMissingChunks() const;
+    const TOldestPartMissingChunkSet& OldestPartMissingChunks() const;
     const THashSet<TChunk*>& PrecariousChunks() const;
     const THashSet<TChunk*>& PrecariousVitalChunks() const;
     const THashSet<TChunk*>& QuorumMissingChunks() const;
