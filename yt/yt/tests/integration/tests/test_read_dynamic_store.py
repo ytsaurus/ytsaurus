@@ -482,8 +482,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         expected = range(50000)
         assert actual == expected
 
-    @pytest.mark.parametrize("use_legacy_controller", [True, False])
-    def test_map_without_dynamic_stores(self, use_legacy_controller):
+    def test_map_without_dynamic_stores(self):
         sync_create_cells(1)
         self._prepare_simple_table("//tmp/t", enable_store_rotation=False)
         create("table", "//tmp/p")
@@ -493,7 +492,6 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             command="cat",
             ordered=True,
             spec={
-                "legacy_controller_fraction": 256 if use_legacy_controller else 0,
                 "enable_dynamic_store_read": False,
             },
         )

@@ -536,10 +536,6 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("job_cpu_monitor", JobCpuMonitor)
         .DefaultNew();
 
-    RegisterParameter("legacy_controller_fraction", LegacyControllerFraction)
-        .Default(256)
-        .InRange(0, 256);
-
     RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
         .Default();
 
@@ -1125,8 +1121,6 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(0.9)
         .InRange(0.0, 1.0);
     RegisterParameter("sort_locality_timeout", SortLocalityTimeout)
-        .Default(TDuration::Seconds(5));
-    RegisterParameter("sort_assignment_timeout", SortAssignmentTimeout)
         .Default(TDuration::Seconds(5));
     RegisterParameter("shuffle_network_limit", ShuffleNetworkLimit)
         .Default(0);

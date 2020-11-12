@@ -459,10 +459,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
         } else {
             YT_LOG_INFO("Snapshot successfully downloaded");
             Snapshot = snapshotOrError.Value();
-            if (Snapshot.IsLegacy) {
-                YT_LOG_INFO("Snapshot is legacy, will use clean start");
-                CleanStart = true;
-            }
             if (Snapshot.Blocks.empty()) {
                 YT_LOG_WARNING("Snapshot is empty, will use clean start");
                 CleanStart = true;
@@ -7446,8 +7442,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
                 .BeginList()
                     .Do(BIND(&TDataFlowGraph::BuildDataFlowYson, DataFlowGraph_))
                 .EndList();
-        })
-        .Item("legacy_controller").Value(false);
+        });
 }
 
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
@@ -8922,11 +8917,6 @@ void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
 const NChunkClient::TMediumDirectoryPtr& TOperationControllerBase::GetMediumDirectory() const
 {
     return MediumDirectory_;
-}
-
-bool TOperationControllerBase::IsLegacy() const
-{
-    return false;
 }
 
 TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() const

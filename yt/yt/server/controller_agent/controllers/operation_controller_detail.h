@@ -376,8 +376,6 @@ public:
 
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const override;
 
-    virtual bool IsLegacy() const override;
-
     virtual TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const override;
 
 protected:

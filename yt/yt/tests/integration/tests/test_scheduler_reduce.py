@@ -2398,29 +2398,6 @@ for line in sys.stdin:
 
         assert sorted(list(read_table("//tmp/output"))) == sorted(expected)
 
-    @authors("gritukan")
-    def test_legacy_controller_flag(self):
-        create(
-            "table",
-            "//tmp/t_in",
-            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
-        )
-        create(
-            "table",
-            "//tmp/t_out",
-            attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]},
-        )
-        op = reduce(
-            in_=["//tmp/t_in"],
-            out=["//tmp/t_out"],
-            command="cat >/dev/null",
-            reduce_by=["key"],
-            spec={"job_count": 1},
-        )
-
-        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
-
-
 ##################################################################
 
 
@@ -2494,10 +2471,3 @@ class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-
-##################################################################
-
-
-class TestSchedulerReduceCommandsLegacy(TestSchedulerReduceCommands):
-    USE_LEGACY_CONTROLLERS = True
