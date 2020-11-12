@@ -54,6 +54,8 @@ public:
     virtual void ValidateStorageParametersUpdate();
     virtual void ValidateLockPossible();
 
+    virtual void GetBasicAttributes(TGetBasicAttributesContext* context) override;
+
 protected:
     class TCustomAttributeDictionary
         : public NYTree::IAttributeDictionary

@@ -169,6 +169,7 @@ struct TUserObject
     NObjectClient::EObjectType Type = NObjectClient::EObjectType::Null;
     NHydra::TRevision Revision = NHydra::NullRevision;
     NHydra::TRevision ContentRevision = NHydra::NullRevision;
+    NHydra::TRevision AttributeRevision = NHydra::NullRevision;
     std::vector<TString> OmittedInaccessibleColumns;
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
     i64 ChunkCount = -1;

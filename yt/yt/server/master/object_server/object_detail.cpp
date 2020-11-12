@@ -149,7 +149,12 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, GetBasicAttributes)
     if (getBasicAttributesContext.SecurityTags) {
         ToProto(response->mutable_security_tags()->mutable_items(), getBasicAttributesContext.SecurityTags->Items);
     }
+
     ToProto(response->mutable_external_transaction_id(), getBasicAttributesContext.ExternalTransactionId);
+
+    response->set_revision(getBasicAttributesContext.Revision);
+    response->set_attribute_revision(getBasicAttributesContext.AttributeRevision);
+    response->set_content_revision(getBasicAttributesContext.ContentRevision);
 
     context->SetResponseInfo("ExternalCellTag: %v, ExternalTransactionId: %v",
         getBasicAttributesContext.ExternalCellTag,

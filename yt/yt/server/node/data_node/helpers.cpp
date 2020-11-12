@@ -39,6 +39,31 @@ using namespace NYTree;
 
 static constexpr int MaxChunksPerLocateRequest = 10000;
 
+namespace {
+
+void FetchContentRevision(
+    NClusterNode::TBootstrap const* bootstrap,
+    TUserObject* userObject)
+{
+    auto objectIdPath = FromObjectId(userObject->ObjectId);
+
+    TObjectServiceProxy proxy(bootstrap->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Cache));
+    auto batchReq = proxy.ExecuteBatch();
+    auto req = TYPathProxy::Get(objectIdPath + "/@content_revision");
+    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString> {"content_revision"});
+    batchReq->AddRequest(req);
+
+    auto resultYson = WaitFor(batchReq->Invoke())
+        .ValueOrThrow()
+        ->GetResponse<TYPathProxy::TRspGet>(0)
+        .ValueOrThrow()
+        ->value();
+
+    userObject->ContentRevision = ConvertTo<NHydra::TRevision>(NYson::TYsonString(resultYson));
+}
+
+} // namespace
+
 TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const NYPath::TYPath& path,
     NHydra::TRevision contentRevision,
@@ -81,26 +106,11 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     auto objectId = userObject.ObjectId;
     auto objectIdPath = FromObjectId(objectId);
 
-    // TODO(max42): YT-13605.
-    {
-        YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %llx)",
-            path,
-            contentRevision);
-
-        TObjectServiceProxy proxy(bootstrap->GetMasterClient()->GetMasterChannelOrThrow(EMasterChannelKind::Cache));
-        auto batchReq = proxy.ExecuteBatch();
-        auto req = TYPathProxy::Get(objectIdPath + "/@content_revision");
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{"content_revision"});
-        batchReq->AddRequest(req);
-
+    // COMPAT(shakurov): remove this once YT-13605 is deployed everywhere.
+    if (userObject.ContentRevision == NHydra::NullRevision) {
+        YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %llx)", path, contentRevision);
         try {
-            auto resultYson = WaitFor(batchReq->Invoke())
-                .ValueOrThrow()
-                ->GetResponse<TYPathProxy::TRspGet>(0)
-                .ValueOrThrow()
-                ->value();
-
-            userObject.ContentRevision = ConvertTo<NHydra::TRevision>(NYson::TYsonString(resultYson));
+            FetchContentRevision(bootstrap, &userObject);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error fetching revision for layer %v", path)
                 << ex;
@@ -129,7 +139,6 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
-
     auto req = TFileYPathProxy::Fetch(objectIdPath);
     ToProto(req->mutable_ranges(), std::vector<TReadRange>{{}});
     SetSuppressAccessTracking(req, true);

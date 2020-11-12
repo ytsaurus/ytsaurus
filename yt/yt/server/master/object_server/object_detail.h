@@ -67,6 +67,9 @@ protected:
         std::optional<std::vector<TString>> OmittedInaccessibleColumns;
         bool PopulateSecurityTags = false;
         std::optional<NSecurityServer::TSecurityTags> SecurityTags;
+        NHydra::TRevision Revision = NHydra::NullRevision;
+        NHydra::TRevision AttributeRevision = NHydra::NullRevision;
+        NHydra::TRevision ContentRevision = NHydra::NullRevision;
     };
 
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);

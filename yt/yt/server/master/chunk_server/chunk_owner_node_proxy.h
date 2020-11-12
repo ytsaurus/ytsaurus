@@ -81,6 +81,8 @@ protected:
     DECLARE_YPATH_SERVICE_METHOD(NChunkClient::NProto, EndUpload);
 
 private:
+    using TBase = NCypressServer::TNontemplateCypressNodeProxyBase;
+
     class TFetchChunkVisitor;
 
     void SetReplicationFactor(int replicationFactor);
