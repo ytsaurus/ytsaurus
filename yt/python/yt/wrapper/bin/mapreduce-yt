@@ -714,7 +714,7 @@ Examples:
                     yt.TablePath(args.read, lower_key=args.lowerkey, upper_key=args.upperkey),
                     format=inputformat,
                     raw=True)
-        if hasattr(stream, "read_rows"):
+        if hasattr(stream, "_read_rows"):
             iterator = chunk_iter_rows(stream, 16 * MB)
         else:
             iterator = chunk_iter_stream(stream, 16 * MB)

@@ -154,7 +154,7 @@ class ResponseStreamWithReadRow(ResponseStreamWithDel):
     def __init__(self, *args, **kwargs):
         super(ResponseStreamWithReadRow, self).__init__(*args, **kwargs)
 
-    def read_rows(self):
+    def _read_rows(self):
         iterator = self.chunk_iter()
         while True:
             assert self._pos == 0 or self._pos == self._buffer_length
