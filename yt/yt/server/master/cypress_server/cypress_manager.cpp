@@ -2272,7 +2272,7 @@ private:
         node->SetCreationTime(mutationContext->GetTimestamp());
         node->SetModificationTime(mutationContext->GetTimestamp());
         node->SetAccessTime(mutationContext->GetTimestamp());
-        node->SetAttributesRevision(mutationContext->GetVersion().ToRevision());
+        node->SetAttributeRevision(mutationContext->GetVersion().ToRevision());
         node->SetContentRevision(mutationContext->GetVersion().ToRevision());
 
         if (node->IsExternal()) {

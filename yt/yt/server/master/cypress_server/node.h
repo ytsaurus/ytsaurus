@@ -152,7 +152,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i64, ChargedMasterMemoryUsage);
     DEFINE_BYVAL_RW_PROPERTY(i64, AccessCounter);
 
-    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributesRevision);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributeRevision);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, ContentRevision);
 
     DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);

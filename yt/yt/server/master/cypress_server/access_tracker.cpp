@@ -76,7 +76,7 @@ void TAccessTracker::SetModified(
 
     switch (modificationType) {
         case EModificationType::Attributes:
-            node->SetAttributesRevision(mutationContext->GetVersion().ToRevision());
+            node->SetAttributeRevision(mutationContext->GetVersion().ToRevision());
             break;
         case EModificationType::Content:
             node->SetContentRevision(mutationContext->GetVersion().ToRevision());

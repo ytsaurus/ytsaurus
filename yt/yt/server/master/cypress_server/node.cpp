@@ -136,7 +136,7 @@ i64 TCypressNode::GetMasterMemoryUsage() const
 
 NHydra::TRevision TCypressNode::GetRevision() const
 {
-    return Max(AttributesRevision_, ContentRevision_);
+    return Max(AttributeRevision_, ContentRevision_);
 }
 
 bool TCypressNode::IsBeingCreated() const
@@ -179,7 +179,7 @@ void TCypressNode::Save(TSaveContext& context) const
     Save(context, ExpirationTimeout_);
     Save(context, CreationTime_);
     Save(context, ModificationTime_);
-    Save(context, AttributesRevision_);
+    Save(context, AttributeRevision_);
     Save(context, ContentRevision_);
     Save(context, Account_);
     Save(context, Acd_);
@@ -209,7 +209,7 @@ void TCypressNode::Load(TLoadContext& context)
     }
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
-    Load(context, AttributesRevision_);
+    Load(context, AttributeRevision_);
     Load(context, ContentRevision_);
     Load(context, Account_);
     Load(context, Acd_);

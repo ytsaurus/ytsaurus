@@ -964,7 +964,7 @@ void TChunkOwnerNodeProxy::ValidateStorageParametersUpdate()
 
 void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
 {
-    TObjectProxyBase::GetBasicAttributes(context);
+    TBase::GetBasicAttributes(context);
 
     const auto* node = GetThisImpl<TChunkOwnerBase>();
     if (node->IsExternal()) {

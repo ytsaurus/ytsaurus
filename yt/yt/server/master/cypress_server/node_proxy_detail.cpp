@@ -574,7 +574,7 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
     descriptors->push_back(EInternedAttributeKey::AccessTime);
     descriptors->push_back(EInternedAttributeKey::AccessCounter);
     descriptors->push_back(EInternedAttributeKey::Revision);
-    descriptors->push_back(EInternedAttributeKey::AttributesRevision);
+    descriptors->push_back(EInternedAttributeKey::AttributeRevision);
     descriptors->push_back(EInternedAttributeKey::ContentRevision);
     descriptors->push_back(EInternedAttributeKey::ResourceUsage);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RecursiveResourceUsage)
@@ -725,9 +725,9 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
                 .Value(node->GetRevision());
             return true;
 
-        case EInternedAttributeKey::AttributesRevision:
+        case EInternedAttributeKey::AttributeRevision:
             BuildYsonFluently(consumer)
-                .Value(node->GetAttributesRevision());
+                .Value(node->GetAttributeRevision());
             return true;
 
         case EInternedAttributeKey::ContentRevision:
@@ -803,6 +803,17 @@ void TNontemplateCypressNodeProxyBase::ValidateStorageParametersUpdate()
 
 void TNontemplateCypressNodeProxyBase::ValidateLockPossible()
 { }
+
+void TNontemplateCypressNodeProxyBase::GetBasicAttributes(TGetBasicAttributesContext* context)
+{
+    TObjectProxyBase::GetBasicAttributes(context);
+
+    auto* node = GetThisImpl();
+
+    context->Revision = node->GetRevision();
+    context->AttributeRevision = node->GetAttributeRevision();
+    context->ContentRevision = node->GetContentRevision();
+}
 
 void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& context)
 {

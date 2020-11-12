@@ -72,6 +72,9 @@ message TRspGetBasicAttributes
     optional NYT.NProto.TGuid external_transaction_id = 5;
     optional TColumns omitted_inaccessible_columns = 3;
     optional TSecurityTags security_tags = 4;
+    optional uint64 revision = 6;
+    optional uint64 content_revision = 7;
+    optional uint64 attribute_revision = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

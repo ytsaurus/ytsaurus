@@ -29,7 +29,7 @@
     XX(Annotations, annotations) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
-    XX(AttributesRevision, attributes_revision) \
+    XX(AttributeRevision, attribute_revision) \
     XX(Available, available) \
     XX(AvailableSpace, available_space) \
     XX(AvailableSpacePerMedium, available_space_per_medium) \
