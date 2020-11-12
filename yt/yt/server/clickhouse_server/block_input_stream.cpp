@@ -186,6 +186,11 @@ DB::Block TBlockInputStream::readImpl()
 {
     TTraceContextGuard guard(TraceContext_);
 
+    TNullTraceContextGuard nullGuard;
+    if (Settings_->EnableReaderTracing) {
+        nullGuard.Release();
+    }
+
     IdleTimer_.Stop();
     ++ReadCount_;
 
@@ -319,11 +324,12 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         traceContext,
         "ClickHouseYt.BlockInputStream");
     
-    if (!storageContext->Settings->EnableReaderTracing) {
-        blockInputStreamTraceContext->SetSampled(false);
-    }
-
     NTracing::TTraceContextGuard guard(blockInputStreamTraceContext);
+    // Readers capture context implicitly, so create NullTraceContextGuard if tracing is disabled.
+    NTracing::TNullTraceContextGuard nullGuard;
+    if (storageContext->Settings->EnableReaderTracing) {
+        nullGuard.Release();
+    }
 
     ISchemalessMultiChunkReaderPtr reader;
 
