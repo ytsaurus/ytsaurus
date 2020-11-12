@@ -136,6 +136,11 @@ void TClient::DoSwitchLeader(
 {
     ValidateSuperuserPermissions();
 
+    if (TypeFromId(cellId) != EObjectType::MasterCell) {
+        THROW_ERROR_EXCEPTION("%v is not a valid master cell id",
+            cellId);
+    }
+
     auto currentLeaderChannel = GetLeaderCellChannelOrThrow(cellId);
 
     auto cellDescriptor = GetCellDescriptorOrThrow(cellId);
@@ -159,7 +164,7 @@ void TClient::DoSwitchLeader(
         THydraServiceProxy proxy(currentLeaderChannel);
         auto req = proxy.PrepareLeaderSwitch();
         req->SetTimeout(options.Timeout);
-        
+
         WaitFor(req->Invoke())
             .ValueOrThrow();
     }
@@ -170,14 +175,15 @@ void TClient::DoSwitchLeader(
         THydraServiceProxy proxy(newLeaderChannel);
         auto req = proxy.ForceSyncWithLeader();
         req->SetTimeout(options.Timeout);
-        
+
         WaitFor(req->Invoke())
             .ValueOrThrow();
     }
 
     TError restartReason(
-        "Switching leader to %v by admin request",
-        cellDescriptor.Peers[newLeaderId].GetDefaultAddress());
+        "Switching leader to %v by %Qv request",
+        cellDescriptor.Peers[newLeaderId].GetDefaultAddress(),
+        Options_.User);
 
     {
         YT_LOG_INFO("Restarting new leader with priority boost armed");
@@ -187,11 +193,11 @@ void TClient::DoSwitchLeader(
         req->SetTimeout(options.Timeout);
         ToProto(req->mutable_reason(), restartReason);
         req->set_arm_priority_boost(true);
-        
+
         WaitFor(req->Invoke())
             .ValueOrThrow();
     }
-    
+
     {
         YT_LOG_INFO("Restarting all other peers");
 
@@ -204,7 +210,7 @@ void TClient::DoSwitchLeader(
             auto req = proxy.ForceRestart();
             req->SetTimeout(options.Timeout);
             ToProto(req->mutable_reason(), restartReason);
-            
+
             // Fire-and-forget.
             req->Invoke();
         }
@@ -235,7 +241,7 @@ void TClient::DoKillProcess(const TString& address, const TKillProcessOptions& o
     TAdminServiceProxy proxy(channel);
     auto req = proxy.Die();
     req->set_exit_code(options.ExitCode);
-    
+
     // NB: this will always throw an error since the service can
     // never reply to the request because it makes _exit immediately.
     // This is the intended behavior.
@@ -275,7 +281,7 @@ TString TClient::DoWriteOperationControllerCoreDump(
     TControllerAgentServiceProxy proxy(channel);
     auto req = proxy.WriteOperationControllerCoreDump();
     ToProto(req->mutable_operation_id(), operationId);
-    
+
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return rsp->path();

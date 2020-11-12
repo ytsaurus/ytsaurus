@@ -397,10 +397,14 @@ IChannelPtr TClient::GetLeaderCellChannelOrThrow(TCellId cellId)
 
 TCellDescriptor TClient::GetCellDescriptorOrThrow(TCellId cellId)
 {
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+    if (auto cellDescriptor = cellDirectory->FindDescriptor(cellId)) {
+        return *cellDescriptor;
+    }
+
     WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
         .ThrowOnError();
 
-    const auto& cellDirectory = Connection_->GetCellDirectory();
     return cellDirectory->GetDescriptorOrThrow(cellId);
 }
 
