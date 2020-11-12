@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/server/master/node_tracker_server/public.h>
+#include <yt/server/master/object_server/public.h>
 
 #include <yt/server/lib/hydra/public.h>
 
@@ -185,6 +186,18 @@ using TLoadFactorToNodeIterator = TLoadFactorToNodeMap::iterator;
 
 using TChunkExpirationMap = std::multimap<TInstant, TChunk*>;
 using TChunkExpirationMapIterator = TChunkExpirationMap::iterator;
+
+class TChunkPartLossTimeComparer
+{
+public:
+    explicit TChunkPartLossTimeComparer(NObjectServer::TEpoch epoch);
+    bool operator()(const TChunk* lhs, const TChunk* rhs) const;
+
+private:
+    NObjectServer::TEpoch Epoch_;
+};
+
+using TOldestPartMissingChunkSet = std::set<TChunk*, TChunkPartLossTimeComparer>;
 
 using TMediumSet = std::bitset<MaxMediumCount>;
 

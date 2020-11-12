@@ -448,6 +448,11 @@ private:
                 EObjectType::ParityMissingChunkMap);
 
             ScheduleCreateNode(
+                "//sys/oldest_part_missing_chunks",
+                transactionId,
+                EObjectType::OldestPartMissingChunkMap);
+
+            ScheduleCreateNode(
                 "//sys/quorum_missing_chunks",
                 transactionId,
                 EObjectType::QuorumMissingChunkMap);

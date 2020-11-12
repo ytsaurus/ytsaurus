@@ -37,34 +37,104 @@ public:
 private:
     const EObjectType Type_;
 
-
-    const THashSet<TChunk*>& GetFilteredChunks() const
+    std::vector<TObjectId> GetFilteredChunkIds(i64 sizeLimit) const
     {
         Bootstrap_->GetHydraFacade()->RequireLeader();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         switch (Type_) {
             case EObjectType::LostChunkMap:
-                return chunkManager->LostChunks();
+                return ToObjectIds(chunkManager->LostChunks(), sizeLimit);
             case EObjectType::LostVitalChunkMap:
-                return chunkManager->LostVitalChunks();
+                return ToObjectIds(chunkManager->LostVitalChunks(), sizeLimit);
             case EObjectType::PrecariousChunkMap:
-                return chunkManager->PrecariousChunks();
+                return ToObjectIds(chunkManager->PrecariousChunks(), sizeLimit);
             case EObjectType::PrecariousVitalChunkMap:
-                return chunkManager->PrecariousVitalChunks();
+                return ToObjectIds(chunkManager->PrecariousVitalChunks(), sizeLimit);
             case EObjectType::OverreplicatedChunkMap:
-                return chunkManager->OverreplicatedChunks();
+                return ToObjectIds(chunkManager->OverreplicatedChunks(), sizeLimit);
             case EObjectType::UnderreplicatedChunkMap:
-                return chunkManager->UnderreplicatedChunks();
+                return ToObjectIds(chunkManager->UnderreplicatedChunks(), sizeLimit);
             case EObjectType::DataMissingChunkMap:
-                return chunkManager->DataMissingChunks();
+                return ToObjectIds(chunkManager->DataMissingChunks(), sizeLimit);
             case EObjectType::ParityMissingChunkMap:
-                return chunkManager->ParityMissingChunks();
+                return ToObjectIds(chunkManager->ParityMissingChunks(), sizeLimit);
             case EObjectType::QuorumMissingChunkMap:
-                return chunkManager->QuorumMissingChunks();
+                return ToObjectIds(chunkManager->QuorumMissingChunks(), sizeLimit);
             case EObjectType::UnsafelyPlacedChunkMap:
-                return chunkManager->UnsafelyPlacedChunks();
+                return ToObjectIds(chunkManager->UnsafelyPlacedChunks(), sizeLimit);
             case EObjectType::ForeignChunkMap:
-                return chunkManager->ForeignChunks();
+                return ToObjectIds(chunkManager->ForeignChunks(), sizeLimit);
+            case EObjectType::OldestPartMissingChunkMap:
+                return ToObjectIds(chunkManager->OldestPartMissingChunks(), sizeLimit);
+            default:
+                YT_ABORT();
+        }
+    }
+
+    bool FilteredChunksContain(TChunk* chunk) const
+    {
+        Bootstrap_->GetHydraFacade()->RequireLeader();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        switch (Type_) {
+            case EObjectType::LostChunkMap:
+                return chunkManager->LostChunks().contains(chunk);
+            case EObjectType::LostVitalChunkMap:
+                return chunkManager->LostVitalChunks().contains(chunk);
+            case EObjectType::PrecariousChunkMap:
+                return chunkManager->PrecariousChunks().contains(chunk);
+            case EObjectType::PrecariousVitalChunkMap:
+                return chunkManager->PrecariousVitalChunks().contains(chunk);
+            case EObjectType::OverreplicatedChunkMap:
+                return chunkManager->OverreplicatedChunks().contains(chunk);
+            case EObjectType::UnderreplicatedChunkMap:
+                return chunkManager->UnderreplicatedChunks().contains(chunk);
+            case EObjectType::DataMissingChunkMap:
+                return chunkManager->DataMissingChunks().contains(chunk);
+            case EObjectType::ParityMissingChunkMap:
+                return chunkManager->ParityMissingChunks().contains(chunk);
+            case EObjectType::QuorumMissingChunkMap:
+                return chunkManager->QuorumMissingChunks().contains(chunk);
+            case EObjectType::UnsafelyPlacedChunkMap:
+                return chunkManager->UnsafelyPlacedChunks().contains(chunk);
+            case EObjectType::ForeignChunkMap:
+                return chunkManager->ForeignChunks().contains(chunk);
+            case EObjectType::OldestPartMissingChunkMap:
+                // std::set::contains is not a thing until C++20.
+                return chunkManager->OldestPartMissingChunks().count(chunk) != 0;
+            default:
+                YT_ABORT();
+        }
+    }
+
+    i64 GetFilteredChunkCount() const
+    {
+        Bootstrap_->GetHydraFacade()->RequireLeader();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        switch (Type_) {
+            case EObjectType::LostChunkMap:
+                return chunkManager->LostChunks().size();
+            case EObjectType::LostVitalChunkMap:
+                return chunkManager->LostVitalChunks().size();
+            case EObjectType::PrecariousChunkMap:
+                return chunkManager->PrecariousChunks().size();
+            case EObjectType::PrecariousVitalChunkMap:
+                return chunkManager->PrecariousVitalChunks().size();
+            case EObjectType::OverreplicatedChunkMap:
+                return chunkManager->OverreplicatedChunks().size();
+            case EObjectType::UnderreplicatedChunkMap:
+                return chunkManager->UnderreplicatedChunks().size();
+            case EObjectType::DataMissingChunkMap:
+                return chunkManager->DataMissingChunks().size();
+            case EObjectType::ParityMissingChunkMap:
+                return chunkManager->ParityMissingChunks().size();
+            case EObjectType::QuorumMissingChunkMap:
+                return chunkManager->QuorumMissingChunks().size();
+            case EObjectType::UnsafelyPlacedChunkMap:
+                return chunkManager->UnsafelyPlacedChunks().size();
+            case EObjectType::ForeignChunkMap:
+                return chunkManager->ForeignChunks().size();
+            case EObjectType::OldestPartMissingChunkMap:
+                return chunkManager->OldestPartMissingChunks().size();
             default:
                 YT_ABORT();
         }
@@ -76,9 +146,7 @@ private:
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             return ToObjectIds(GetValues(chunkManager->Chunks(), sizeLimit));
         } else {
-            const auto& chunks = GetFilteredChunks();
-            // NB: |chunks| contains all the matching chunks, enforce size limit.
-            return ToObjectIds(chunks, sizeLimit);
+            return GetFilteredChunkIds(sizeLimit);
         }
     }
 
@@ -98,8 +166,7 @@ private:
         }
 
         auto* chunk = object->As<TChunk>();
-        const auto& chunks = GetFilteredChunks();
-        return chunks.find(chunk) != chunks.end();
+        return FilteredChunksContain(chunk);
     }
 
     virtual i64 GetSize() const override
@@ -108,7 +175,7 @@ private:
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             return chunkManager->Chunks().GetSize();
         } else {
-            return GetFilteredChunks().size();
+            return GetFilteredChunkCount();
         }
     }
 
@@ -133,6 +200,8 @@ private:
                 return "//sys/data_missing_chunks";
             case EObjectType::ParityMissingChunkMap:
                 return "//sys/parity_missing_chunks";
+            case EObjectType::OldestPartMissingChunkMap:
+                return "//sys/oldest_part_missing_chunks";
             case EObjectType::QuorumMissingChunkMap:
                 return "//sys/quorum_missing_chunks";
             case EObjectType::UnsafelyPlacedChunkMap:

@@ -176,6 +176,10 @@ void TChunkReplicator::Start(
     TChunk* journalFrontChunk,
     int journalChunkCount)
 {
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto epoch = objectManager->GetCurrentEpoch();
+    OldestPartMissingChunks_ = TOldestPartMissingChunkSet(TChunkPartLossTimeComparer(epoch));
+
     BlobRefreshScanner_->Start(blobFrontChunk, blobChunkCount);
     JournalRefreshScanner_->Start(journalFrontChunk, journalChunkCount);
     BlobRequisitionUpdateScanner_->Start(blobFrontChunk, blobChunkCount);
@@ -1770,6 +1774,17 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
             YT_VERIFY(PrecariousVitalChunks_.insert(chunk).second);
         }
     }
+
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto epoch = objectManager->GetCurrentEpoch();
+    if (Any(allMediaStatistics.Status & (ECrossMediumChunkStatus::DataMissing | ECrossMediumChunkStatus::ParityMissing))) {
+        if (!chunk->GetPartLossTime(epoch)) {
+            chunk->SetPartLossTime(GetCpuInstant(), epoch);
+        }
+        MaybeRememberPartMissingChunk(chunk);
+    } else if (chunk->GetPartLossTime(epoch)) {
+        chunk->ResetPartLossTime(epoch);
+    }
 }
 
 void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
@@ -1786,11 +1801,42 @@ void TChunkReplicator::ResetChunkStatus(TChunk* chunk)
     if (chunk->IsErasure()) {
         DataMissingChunks_.erase(chunk);
         ParityMissingChunks_.erase(chunk);
+        OldestPartMissingChunks_.erase(chunk);
     }
 
     if (chunk->IsJournal()) {
         QuorumMissingChunks_.erase(chunk);
     }
+}
+
+void TChunkReplicator::MaybeRememberPartMissingChunk(TChunk* chunk)
+{
+    const auto& objectManager = Bootstrap_->GetObjectManager();
+    auto epoch = objectManager->GetCurrentEpoch();
+
+    YT_ASSERT(chunk->GetPartLossTime(epoch));
+
+    // A chunk from an earlier epoch couldn't have made it to OldestPartMissingChunks_.
+    YT_VERIFY(OldestPartMissingChunks_.empty() || (*OldestPartMissingChunks_.begin())->GetPartLossTime(epoch));
+
+    if (OldestPartMissingChunks_.size() >= GetDynamicConfig()->MaxOldestPartMissingChunks) {
+        return;
+    }
+
+    if (OldestPartMissingChunks_.empty()) {
+        OldestPartMissingChunks_.insert(chunk);
+        return;
+    }
+
+    auto* mostRecentPartMissingChunk = *OldestPartMissingChunks_.rbegin();
+    auto mostRecentPartLossTime = mostRecentPartMissingChunk->GetPartLossTime(epoch);
+
+    if (chunk->GetPartLossTime(epoch) >= mostRecentPartLossTime) {
+        return;
+    }
+
+    OldestPartMissingChunks_.erase(--OldestPartMissingChunks_.end());
+    OldestPartMissingChunks_.insert(chunk);
 }
 
 void TChunkReplicator::RemoveChunkFromQueuesOnRefresh(TChunk* chunk)

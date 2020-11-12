@@ -32,6 +32,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::UnderreplicatedChunkMap ||
         type == EObjectType::DataMissingChunkMap ||
         type == EObjectType::ParityMissingChunkMap ||
+        type == EObjectType::OldestPartMissingChunkMap ||
         type == EObjectType::QuorumMissingChunkMap ||
         type == EObjectType::UnsafelyPlacedChunkMap ||
         type == EObjectType::ForeignChunkMap ||

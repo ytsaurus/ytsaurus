@@ -318,6 +318,9 @@ public:
     //! Deprecated codec names and their alises, used values from yt/core/compression by default.
     std::optional<THashMap<TString, TString>> DeprecatedCodecNameToAlias;
 
+    //! The number of oldest part-missing chunks to be remembered by the replicator.
+    int MaxOldestPartMissingChunks;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -444,6 +447,9 @@ public:
 
         RegisterParameter("deprecated_codec_name_to_alias", DeprecatedCodecNameToAlias)
             .Default();
+
+        RegisterParameter("max_oldest_part_missing_chunks", MaxOldestPartMissingChunks)
+            .Default(100);
 
         RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;
