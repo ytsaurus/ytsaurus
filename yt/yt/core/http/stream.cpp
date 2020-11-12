@@ -378,14 +378,29 @@ bool THttpInput::ReceiveHeaders()
         MaybeLogSlowProgress();
 
         bool eof = false;
+        TErrorOr<size_t> readResult;
         if (UnconsumedData_.Empty()) {
             auto asyncReadResult = Connection_->Read(InputBuffer_);
-            auto readResult = WaitFor(asyncReadResult);
-            UnconsumedData_ = InputBuffer_.Slice(0, readResult.ValueOrThrow());
+            readResult = WaitFor(asyncReadResult);
+            if (readResult.IsOK()) {
+                UnconsumedData_ = InputBuffer_.Slice(0, readResult.ValueOrThrow());
+            } else {
+                UnconsumedData_ = InputBuffer_.Slice(static_cast<size_t>(0), static_cast<size_t>(0));
+            }
             eof = UnconsumedData_.Size() == 0;
         }
 
-        UnconsumedData_ = Parser_.Feed(UnconsumedData_);
+        try {
+            UnconsumedData_ = Parser_.Feed(UnconsumedData_);
+        } catch (const TErrorException& ex) {
+            if (!readResult.IsOK()) {
+                TErrorException augmented(ex);
+                throw augmented << readResult;
+            } else {
+                throw;
+            }
+        }
+
         if (Parser_.GetState() != EParserState::Initialized) {
             FinishHeaders();
             if (Parser_.GetState() == EParserState::MessageFinished) {
