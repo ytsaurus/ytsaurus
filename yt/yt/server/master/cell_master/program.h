@@ -107,11 +107,12 @@ protected:
             return;
         }
 
+        auto config = GetConfig();
+
         if (dumpSnapshot || validateSnapshot || exportSnapshot) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
+            config->EnableNetworking = false;
         }
-
-        auto config = GetConfig();
 
         if (dumpSnapshot) {
             config->Logging = NLogging::TLogManagerConfig::CreateSilent();

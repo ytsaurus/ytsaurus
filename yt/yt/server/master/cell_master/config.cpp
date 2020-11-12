@@ -67,7 +67,9 @@ TCellMasterConfig::TCellMasterConfig()
         ->AsMap());
     RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
         .Default(false);
-    
+    RegisterParameter("enable_networking", EnableNetworking)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
             THROW_ERROR_EXCEPTION("Too many secondary master cells");

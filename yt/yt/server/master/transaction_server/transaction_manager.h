@@ -74,8 +74,9 @@ public:
         TTransaction* transaction,
         NObjectClient::TCellTag dstCellTag);
 
-    // COMPAT(shakurov). Hide this to the impl once YT-10852 is resolved.
-    void FinishTransaction(TTransaction* transaction);
+    // COMPAT(shakurov). Hide this method to the impl and remove #cachePresence
+    // argument once YT-12559 is resolved.
+    void FinishTransaction(TTransaction* transaction, bool cachePresence);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 

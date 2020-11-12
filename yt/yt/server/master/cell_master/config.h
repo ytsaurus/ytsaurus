@@ -208,6 +208,8 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
+    bool EnableNetworking;
+
     TCellMasterConfig();
 };
 
