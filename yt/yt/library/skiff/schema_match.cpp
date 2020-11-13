@@ -336,6 +336,11 @@ EWireType TFieldDescription::ValidatedSimplify() const
     return *result;
 }
 
+bool TFieldDescription::IsNullable() const
+{
+    return !IsRequired();
+}
+
 bool TFieldDescription::IsRequired() const
 {
     return DeoptionalizeSchema(Schema_).second;
@@ -345,23 +350,12 @@ std::optional<EWireType> TFieldDescription::Simplify() const
 {
     const auto& [deoptionalized, required] = DeoptionalizeSchema(Schema_);
     auto wireType = deoptionalized->GetWireType();
-    switch (wireType) {
-        case EWireType::Yson32:
-        case EWireType::Int64:
-        case EWireType::Uint64:
-        case EWireType::Double:
-        case EWireType::Boolean:
-        case EWireType::String32:
+    if (NSkiff::IsSimpleType(wireType)) {
+        if (wireType != EWireType::Nothing || required) {
             return wireType;
-        case EWireType::Nothing:
-            if (required) {
-                return wireType;
-            } else {
-                std::nullopt;
-            }
-        default:
-            return std::nullopt;
+        }
     }
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

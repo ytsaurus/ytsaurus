@@ -384,12 +384,21 @@ TValidatorNodeList CreateUsageValidatorNodeList(const TSkiffSchemaList& skiffSch
 IValidatorNodePtr CreateUsageValidatorNode(const TSkiffSchemaPtr& skiffSchema)
 {
     switch (skiffSchema->GetWireType()) {
-        case EWireType::Yson32:
+        case EWireType::Int8:
+        case EWireType::Int16:
+        case EWireType::Int32:
         case EWireType::Int64:
+        case EWireType::Int128:
+
+        case EWireType::Uint8:
+        case EWireType::Uint16:
+        case EWireType::Uint32:
         case EWireType::Uint64:
-        case EWireType::String32:
+
         case EWireType::Double:
         case EWireType::Boolean:
+        case EWireType::String32:
+        case EWireType::Yson32:
             return New<TSimpleTypeUsageValidator>(skiffSchema->GetWireType());
         case EWireType::Nothing:
             return New<TNothingTypeValidator>();
@@ -403,9 +412,8 @@ IValidatorNodePtr CreateUsageValidatorNode(const TSkiffSchemaPtr& skiffSchema)
             return New<TRepeatedVariant8TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
         case EWireType::RepeatedVariant16:
             return New<TRepeatedVariant16TypeUsageValidator>(CreateUsageValidatorNodeList(skiffSchema->GetChildren()));
-        default:
-            YT_ABORT();
     }
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

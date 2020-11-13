@@ -4,12 +4,164 @@
 #include <yt/library/skiff/skiff_schema.h>
 
 #include <util/stream/buffer.h>
+#include <util/string/hex.h>
 
 using namespace NYT::NSkiff;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSkiffTest, TestInt)
+static TString HexEncode(const TBuffer& buffer)
+{
+    auto result = HexEncode(buffer.Data(), buffer.Size());
+    result.to_lower();
+    return result;
+}
+
+TEST(TSkiffTest, TestInt8)
+{
+    TBufferStream bufferStream;
+
+    auto schema = CreateSimpleTypeSchema(EWireType::Int8);
+
+    TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+    tokenWriter.WriteInt8(42);
+    tokenWriter.WriteInt8(-42);
+    tokenWriter.Finish();
+
+    ASSERT_EQ(HexEncode(bufferStream.Buffer()),
+        "2a"
+        "d6");
+
+    TCheckedSkiffParser parser(schema, &bufferStream);
+    ASSERT_EQ(parser.ParseInt8(), 42);
+    ASSERT_EQ(parser.ParseInt8(), -42);
+}
+
+TEST(TSkiffTest, TestInt16)
+{
+    TBufferStream bufferStream;
+
+    auto schema = CreateSimpleTypeSchema(EWireType::Int16);
+
+    TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+    tokenWriter.WriteInt16(0x1234);
+    tokenWriter.WriteInt16(-0x1234);
+    tokenWriter.Finish();
+
+    ASSERT_EQ(HexEncode(bufferStream.Buffer()),
+        "3412"
+        "cced");
+
+    TCheckedSkiffParser parser(schema, &bufferStream);
+    ASSERT_EQ(parser.ParseInt16(), 0x1234);
+    ASSERT_EQ(parser.ParseInt16(), -0x1234);
+}
+
+TEST(TSkiffTest, TestInt32)
+{
+    TBufferStream bufferStream;
+
+    auto schema = CreateSimpleTypeSchema(EWireType::Int32);
+
+    TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+    tokenWriter.WriteInt32(0x12345678);
+    tokenWriter.WriteInt32(-0x12345678);
+    tokenWriter.Finish();
+
+    ASSERT_EQ(HexEncode(bufferStream.Buffer()),
+        "78563412"
+        "88a9cbed");
+
+    TCheckedSkiffParser parser(schema, &bufferStream);
+    ASSERT_EQ(parser.ParseInt32(), 0x12345678);
+    ASSERT_EQ(parser.ParseInt32(), -0x12345678);
+}
+
+TEST(TSkiffTest, TestInt64)
+{
+    TBufferStream bufferStream;
+
+    auto schema = CreateSimpleTypeSchema(EWireType::Int64);
+
+    TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+    tokenWriter.WriteInt64(-42);
+    tokenWriter.WriteInt64(100500);
+    tokenWriter.WriteInt64(-0x123456789abcdef0);
+    tokenWriter.Finish();
+
+    ASSERT_EQ(HexEncode(bufferStream.Buffer()),
+        "d6ffffffffffffff"
+        "9488010000000000"
+        "1021436587a9cbed");
+
+    TCheckedSkiffParser parser(schema, &bufferStream);
+    ASSERT_EQ(parser.ParseInt64(), -42);
+    ASSERT_EQ(parser.ParseInt64(), 100500);
+    ASSERT_EQ(parser.ParseInt64(), -0x123456789abcdef0);
+}
+
+TEST(TSkiffTest, TestUint8)
+{
+    TBufferStream bufferStream;
+
+    auto schema = CreateSimpleTypeSchema(EWireType::Uint8);
+
+    TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+    tokenWriter.WriteUint8(42);
+    tokenWriter.WriteUint8(200);
+    tokenWriter.Finish();
+
+    ASSERT_EQ(HexEncode(bufferStream.Buffer()),
+        "2a"
+        "c8");
+
+    TCheckedSkiffParser parser(schema, &bufferStream);
+    ASSERT_EQ(parser.ParseUint8(), 42);
+    ASSERT_EQ(parser.ParseUint8(), 200);
+}
+
+TEST(TSkiffTest, TestUint16)
+{
+    TBufferStream bufferStream;
+
+    auto schema = CreateSimpleTypeSchema(EWireType::Uint16);
+
+    TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+    tokenWriter.WriteUint16(0x1234);
+    tokenWriter.WriteUint16(0xfedc);
+    tokenWriter.Finish();
+
+    ASSERT_EQ(HexEncode(bufferStream.Buffer()),
+        "3412"
+        "dcfe");
+
+    TCheckedSkiffParser parser(schema, &bufferStream);
+    ASSERT_EQ(parser.ParseUint16(), 0x1234);
+    ASSERT_EQ(parser.ParseUint16(), 0xfedc);
+}
+
+TEST(TSkiffTest, TestUint32)
+{
+    TBufferStream bufferStream;
+
+    auto schema = CreateSimpleTypeSchema(EWireType::Uint32);
+
+    TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+    tokenWriter.WriteUint32(0x12345678);
+    tokenWriter.WriteUint32(0x87654321);
+    tokenWriter.Finish();
+
+    ASSERT_EQ(HexEncode(bufferStream.Buffer()),
+        "78563412"
+        "21436587");
+
+    TCheckedSkiffParser parser(schema, &bufferStream);
+    ASSERT_EQ(parser.ParseUint32(), 0x12345678);
+    ASSERT_EQ(parser.ParseUint32(), 0x87654321);
+}
+
+
+TEST(TSkiffTest, TestUint64)
 {
     TBufferStream bufferStream;
 
@@ -18,13 +170,41 @@ TEST(TSkiffTest, TestInt)
     TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
     tokenWriter.WriteUint64(42);
     tokenWriter.WriteUint64(100500);
-
+    tokenWriter.WriteUint64(0x123456789abcdef0);
     tokenWriter.Finish();
 
-    TCheckedSkiffParser parser(schema, &bufferStream);
+    ASSERT_EQ(HexEncode(bufferStream.Buffer()),
+        "2a00000000000000"
+        "9488010000000000"
+        "f0debc9a78563412");
 
+    TCheckedSkiffParser parser(schema, &bufferStream);
     ASSERT_EQ(parser.ParseUint64(), 42);
     ASSERT_EQ(parser.ParseUint64(), 100500);
+    ASSERT_EQ(parser.ParseUint64(), 0x123456789abcdef0);
+}
+
+TEST(TSkiffTest, TestInt128)
+{
+    TBufferStream bufferStream;
+
+    auto schema = CreateSimpleTypeSchema(EWireType::Int128);
+
+    const TInt128 val1 = {0x1924cd4aeb9ced82,  0x0885e83f456d6a7e};
+    const TInt128 val2 = {0xe9ba36585eccae1a, -0x7854b6f9ce448be9};
+
+    TCheckedSkiffWriter writer(schema, &bufferStream);
+    writer.WriteInt128(val1);
+    writer.WriteInt128(val2);
+    writer.Finish();
+
+    ASSERT_EQ(HexEncode(bufferStream.Buffer()),
+        "82ed9ceb4acd2419" "7e6a6d453fe88508"
+        "1aaecc5e5836bae9" "1774bb310649ab87");
+
+    TCheckedSkiffParser parser(schema, &bufferStream);
+    ASSERT_EQ(parser.ParseInt128(), val1);
+    ASSERT_EQ(parser.ParseInt128(), val2);
 }
 
 TEST(TSkiffTest, TestBoolean)

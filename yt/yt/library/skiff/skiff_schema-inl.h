@@ -14,12 +14,21 @@ namespace NYT::NSkiff {
 inline bool IsSimpleType(EWireType type)
 {
     switch (type) {
-        case EWireType::Yson32:
+        case EWireType::Int8:
+        case EWireType::Int16:
+        case EWireType::Int32:
         case EWireType::Int64:
+        case EWireType::Int128:
+
+        case EWireType::Uint8:
+        case EWireType::Uint16:
+        case EWireType::Uint32:
         case EWireType::Uint64:
+
         case EWireType::Double:
         case EWireType::Boolean:
         case EWireType::String32:
+        case EWireType::Yson32:
         case EWireType::Nothing:
             return true;
         case EWireType::Tuple:
@@ -37,7 +46,7 @@ inline bool IsSimpleType(EWireType type)
 template <EWireType WireType>
 TComplexSchema<WireType>::TComplexSchema(TSkiffSchemaList elements)
     : TSkiffSchema(WireType)
-    , Elements_(elements)
+    , Elements_(std::move(elements))
 { }
 
 template <EWireType WireType>
