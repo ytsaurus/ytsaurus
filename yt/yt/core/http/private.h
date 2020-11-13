@@ -3,14 +3,14 @@
 #include "http.h"
 
 #include <yt/core/logging/log.h>
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger HttpLogger;
-extern const NProfiling::TProfiler HttpProfiler;
+extern const NProfiling::TRegistry HttpProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

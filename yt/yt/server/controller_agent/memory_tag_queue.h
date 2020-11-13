@@ -10,6 +10,8 @@
 
 #include <library/cpp/ytalloc/core/concurrency/rw_spinlock.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,6 +26,7 @@ constexpr double MemoryTagQueueLoadFactor = 0.5;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemoryTagQueue
+    : public NProfiling::ISensorProducer
 {
 public:
     TMemoryTagQueue(
@@ -66,15 +69,12 @@ private:
     //! Cached per-tag memory usage.
     THashMap<NYTAlloc::TMemoryTag, i64> CachedMemoryUsage_;
 
-    THashMap<NYTAlloc::TMemoryTag, NProfiling::TTagId> ProfilingTags_;
-    const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
-
     void AllocateNewTags();
 
     void UpdateStatistics();
     void UpdateStatisticsIfNeeded();
 
-    void OnProfiling();
+    virtual void Collect(NProfiling::ISensorWriter* writer) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

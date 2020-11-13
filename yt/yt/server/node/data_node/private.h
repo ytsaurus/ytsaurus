@@ -6,14 +6,17 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger DataNodeLogger;
 extern const NProfiling::TProfiler DataNodeProfiler;
+extern const NProfiling::TRegistry DataNodeProfilerRegistry;
 extern const NLogging::TLogger P2PLogger;
-extern const NProfiling::TProfiler P2PProfiler;
+extern const NProfiling::TRegistry P2PProfiler;
 
 extern const TString CellIdFileName;
 extern const TString LocationUuidFileName;

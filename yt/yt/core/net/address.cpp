@@ -14,7 +14,6 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/shutdown.h>
 
-#include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/timing.h>
 
 #include <util/generic/singleton.h>
@@ -44,7 +43,6 @@ using ::ToString;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const NLogging::TLogger Logger("Network");
-static const NProfiling::TProfiler Profiler("/network");
 
 ////////////////////////////////////////////////////////////////////////////////
 

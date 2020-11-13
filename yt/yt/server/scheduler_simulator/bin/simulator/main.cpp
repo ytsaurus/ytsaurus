@@ -254,7 +254,7 @@ protected:
 
             NMonitoring::TMonitoringManagerPtr monitoringManager;
             NYTree::IMapNodePtr orchidRoot;
-            NMonitoring::Initialize(httpServer, &monitoringManager, &orchidRoot);
+            NMonitoring::Initialize(httpServer, &monitoringManager, &orchidRoot, config->SolomonExporter);
 
             YT_LOG_INFO("Listening for HTTP requests on port %v", httpServer->GetAddress().GetPort());
             httpServer->Start();

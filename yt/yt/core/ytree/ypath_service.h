@@ -9,11 +9,11 @@
 
 #include <yt/core/misc/property.h>
 
-#include <yt/core/profiling/profiler.h>
-
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/yson/consumer.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <variant>
 
@@ -113,7 +113,7 @@ struct IYPathService
     IYPathServicePtr Cached(
         TDuration updatePeriod,
         IInvokerPtr workerInvoker = nullptr,
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+        const NProfiling::TRegistry& registry = {});
 
     //! Creates a wrapper that calls given callback on each invocation
     //! in order to validate user permission to query the ypath service.

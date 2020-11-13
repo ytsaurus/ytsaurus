@@ -6,8 +6,6 @@
 
 #include <yt/core/actions/invoker_detail.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <yt/core/ypath/token.h>
 
 #include <yt/core/misc/ring_queue.h>
@@ -33,7 +31,7 @@ public:
         bool enableProfiling)
         : Queue_(New<TInvokerQueue>(
             CallbackEventCount_,
-            GetThreadTagIds(enableProfiling, threadName),
+            GetThreadTags(enableProfiling, threadName),
             enableLogging,
             enableProfiling))
         , Invoker_(Queue_)
@@ -41,7 +39,7 @@ public:
             Queue_,
             CallbackEventCount_,
             threadName,
-            GetThreadTagIds(enableProfiling, threadName),
+            GetThreadTags(enableProfiling, threadName),
             enableLogging,
             enableProfiling))
     { }

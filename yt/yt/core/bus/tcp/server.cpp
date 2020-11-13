@@ -6,6 +6,7 @@
 
 #include <yt/core/bus/bus.h>
 #include <yt/core/bus/server.h>
+#include <yt/core/bus/private.h>
 
 #include <yt/core/logging/log.h>
 
@@ -27,12 +28,6 @@ namespace NYT::NBus {
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NNet;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Profiler = BusProfiler;
-
-static NProfiling::TShardedAggregateGauge AcceptTime("/accept_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,16 +171,15 @@ protected:
         while (true) {
             TNetworkAddress clientAddress;
             SOCKET clientSocket;
-            PROFILE_AGGREGATED_TIMING (AcceptTime) {
-                try {
-                    clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
-                    if (clientSocket == INVALID_SOCKET) {
-                        break;
-                    }
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Error accepting client connection");
+
+            try {
+                clientSocket = AcceptSocket(ServerSocket_, &clientAddress);
+                if (clientSocket == INVALID_SOCKET) {
                     break;
                 }
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Error accepting client connection");
+                break;
             }
 
             auto clientNetwork = GetNetworkNameForAddress(clientAddress);

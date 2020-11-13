@@ -36,6 +36,8 @@ DECLARE_REFCOUNTED_CLASS(TMulticellManager)
 DECLARE_REFCOUNTED_CLASS(TConfigManager)
 DECLARE_REFCOUNTED_CLASS(TEpochHistoryManager)
 DECLARE_REFCOUNTED_CLASS(TMultiPhaseCellSyncSession);
+DECLARE_REFCOUNTED_CLASS(TMultiPhaseCellSyncSession);
+DECLARE_REFCOUNTED_CLASS(TDiskSpaceProfiler);
 
 class TBootstrap;
 

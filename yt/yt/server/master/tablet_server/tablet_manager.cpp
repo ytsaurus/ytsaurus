@@ -182,7 +182,7 @@ public:
         , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
             New<TThroughputThrottlerConfig>(),
             TabletServerLogger,
-            TabletServerProfiler.AppendPath("/table_statistics_gossip_throttler")))
+            TabletServerProfilerRegistry.WithPrefix("/table_statistics_gossip_throttler")))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 

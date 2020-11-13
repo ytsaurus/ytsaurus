@@ -5,7 +5,7 @@ namespace NYT::NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger ConcurrencyLogger("Concurrency");
-const NProfiling::TProfiler ConcurrencyProfiler("/concurrency");
+const NProfiling::TRegistry ConcurrencyProfiler{"yt/concurrency"};
 
 ////////////////////////////////////////////////////////////////////////////////
 

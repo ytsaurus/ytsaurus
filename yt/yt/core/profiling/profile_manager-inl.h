@@ -36,7 +36,7 @@ struct TTagNameFormatter<T, typename std::enable_if<TEnumTraits<T>::IsEnum>::typ
 template <class T>
 TTagId TProfileManager::RegisterTag(const TString& key, const T& value)
 {
-    return RegisterTag(TTag{
+    return RegisterTag(TStringTag{
         key,
         TTagNameFormatter<T>::Do(value)
     });

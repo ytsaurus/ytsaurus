@@ -18,6 +18,8 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,6 +34,7 @@ public:
     NRpc::TDispatcherConfigPtr RpcDispatcher;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     NProfiling::TProfileManagerConfigPtr ProfileManager;
+    NProfiling::TSolomonExporterConfigPtr SolomonExporter;
     NLogging::TLogManagerConfigPtr Logging;
     NTracing::TTraceManagerConfigPtr Tracing;
 
@@ -48,6 +51,8 @@ public:
         RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
         RegisterParameter("profile_manager", ProfileManager)
+            .DefaultNew();
+        RegisterParameter("solomon_exporter", SolomonExporter)
             .DefaultNew();
         RegisterParameter("logging", Logging)
             .Default(NLogging::TLogManagerConfig::CreateDefault());

@@ -199,23 +199,28 @@ std::unique_ptr<IActionQueue> CreateActionQueue(EInvokerQueueType type)
 
 TInvokerQueue::TInvokerQueue(
     std::shared_ptr<TEventCount> callbackEventCount,
-    const TTagIdList& tagIds,
+    const TTagSet& tags,
     bool enableLogging,
     bool enableProfiling,
     EInvokerQueueType type)
     : CallbackEventCount(std::move(callbackEventCount))
     , EnableLogging(enableLogging)
     , Queue(CreateActionQueue(type))
-    , Profiler("/action_queue")
-    , EnqueuedCounter("/enqueued", tagIds)
-    , DequeuedCounter("/dequeued", tagIds)
-    , SizeGauge("/size", tagIds)
-    , WaitTimeGauge("/time/wait", tagIds)
-    , ExecTimeGauge("/time/exec", tagIds)
-    , CumulativeTimeCounter("/time/cumulative", tagIds)
-    , TotalTimeGauge("/time/total", tagIds)
 {
-    Profiler.SetEnabled(enableProfiling);
+    if (enableProfiling) {
+        TRegistry profiler("yt/action_queue", tags);
+
+        EnqueuedCounter = profiler.Counter("/enqueued");
+        DequeuedCounter = profiler.Counter("/dequeued");
+        profiler.AddFuncGauge("/size", MakeStrong(this), [this] {
+            return SizeGauge.load();
+        });
+        WaitTimer = profiler.Timer("/time/wait");
+        ExecTimer = profiler.Timer("/time/exec");
+        CumulativeTimeCounter = profiler.TimeCounter("/time/cumulative");
+        TotalTimer = profiler.Timer("/time/total");
+    }
+
     Y_UNUSED(EnableLogging);
 }
 
@@ -243,8 +248,8 @@ void TInvokerQueue::Invoke(TClosure callback)
 
     auto tscp = TTscp::Get();
 
-    Profiler.Increment(SizeGauge, +1, tscp);
-    Profiler.Increment(EnqueuedCounter, +1, tscp);
+    SizeGauge += 1;
+    EnqueuedCounter.Increment();
 
     TEnqueuedAction action;
     action.Finished = false;
@@ -278,7 +283,7 @@ void TInvokerQueue::Drain()
     YT_VERIFY(!Running.load(std::memory_order_relaxed));
 
     Queue.reset();
-    SizeGauge.Reset();
+    SizeGauge = 0;
 }
 
 TClosure TInvokerQueue::BeginExecute(TEnqueuedAction* action)
@@ -293,10 +298,10 @@ TClosure TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 
     action->StartedAt = tscp.Instant;
 
-    auto waitTime = CpuDurationToValue(action->StartedAt - action->EnqueuedAt);
+    auto waitTime = CpuDurationToDuration(action->StartedAt - action->EnqueuedAt);
 
-    Profiler.Increment(DequeuedCounter, +1, tscp);
-    Profiler.Update(WaitTimeGauge, waitTime, tscp);
+    DequeuedCounter.Increment();
+    WaitTimer.Record(waitTime);
 
     SetCurrentInvoker(this);
 
@@ -317,18 +322,18 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
     action->FinishedAt = tscp.Instant;
     action->Finished = true;
 
-    auto timeFromStart = CpuDurationToValue(action->FinishedAt - action->StartedAt);
-    auto timeFromEnqueue = CpuDurationToValue(action->FinishedAt - action->EnqueuedAt);
+    auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);
+    auto timeFromEnqueue = CpuDurationToDuration(action->FinishedAt - action->EnqueuedAt);
 
-    Profiler.Increment(SizeGauge, -1, tscp);
-    Profiler.Update(ExecTimeGauge, timeFromStart, tscp);
-    Profiler.Increment(CumulativeTimeCounter, timeFromStart, tscp);
-    Profiler.Update(TotalTimeGauge, timeFromEnqueue, tscp);
+    SizeGauge -= 1;
+    ExecTimer.Record(timeFromStart);
+    CumulativeTimeCounter.Add(timeFromStart);
+    TotalTimer.Record(timeFromEnqueue);
 }
 
 int TInvokerQueue::GetSize() const
 {
-    return SizeGauge.GetCurrent();
+    return SizeGauge;
 }
 
 bool TInvokerQueue::IsEmpty() const

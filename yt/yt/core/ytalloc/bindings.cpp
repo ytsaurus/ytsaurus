@@ -3,8 +3,8 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/library/profiling/producer.h>
 
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/string_builder.h>
@@ -16,8 +16,6 @@
 
 #include <yt/core/libunwind/libunwind.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
-
 #include <util/system/env.h>
 
 #include <cstdio>
@@ -25,7 +23,6 @@
 namespace NYT::NYTAlloc {
 
 using namespace NYTree;
-using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,111 +64,93 @@ void EnableYTLogging()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
-
-class TProfilingStatisticsPusher
-    : public TRefCounted
+class TProfilingStatisticsProducer
+    : public NProfiling::ISensorProducer
 {
 public:
-    TProfilingStatisticsPusher()
-        : Executor_(New<TPeriodicExecutor>(
-            GetSyncInvoker(),
-            BIND(&TProfilingStatisticsPusher::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod))
+    TProfilingStatisticsProducer()
     {
-        Executor_->Start();
+        NProfiling::TRegistry registry{"yt"};
+        registry.AddProducer("/yt_alloc", MakeStrong(this));
+    }
+
+    virtual void Collect(NProfiling::ISensorWriter* writer) override
+    {
+        PushSystemAllocationStatistics(writer);
+        PushTotalAllocationStatistics(writer);
+        PushSmallAllocationStatistics(writer);
+        PushLargeAllocationStatistics(writer);
+        PushHugeAllocationStatistics(writer);
+        PushUndumpableAllocationStatistics(writer);
+        PushTimingStatistics(writer);
     }
 
 private:
-    Y_DECLARE_SINGLETON_FRIEND()
-
-    const TPeriodicExecutorPtr Executor_;
-
-    const NProfiling::TEnumMemberTagCache<ETimingEventType> TimingEventTypeTagCache{"type"};
-    const NProfiling::TProfiler Profiler_{"/yt_alloc"};
-
-
-    void OnProfiling()
-    {
-        PushSystemAllocationStatistics();
-        PushTotalAllocationStatistics();
-        PushSmallAllocationStatistics();
-        PushLargeAllocationStatistics();
-        PushHugeAllocationStatistics();
-        PushUndumpableAllocationStatistics();
-        PushTimingStatistics();
-    }
-
-
     template <class TCounters>
-    static void PushAllocationCounterStatistics(const NProfiling::TProfiler& profiler, const TCounters& counters)
+    static void PushAllocationCounterStatistics(
+        NProfiling::ISensorWriter* writer,
+        const TString& prefix,
+        const TCounters& counters)
     {
-        using T = typename TCounters::TIndex;
-        for (auto counter : TEnumTraits<T>::GetDomainValues()) {
-            profiler.Enqueue("/" + FormatEnum(counter), counters[counter], NProfiling::EMetricType::Gauge);
+        for (auto counter : TEnumTraits<typename TCounters::TIndex>::GetDomainValues()) {
+            // TODO(prime@): Fix type.
+            writer->AddGauge(prefix + "/" + FormatEnum(counter), counters[counter]);
         }
     }
 
-    void PushSystemAllocationStatistics()
+    void PushSystemAllocationStatistics(NProfiling::ISensorWriter* writer)
     {
         auto counters = GetSystemAllocationCounters();
-        auto profiler = Profiler_.AppendPath("/system");
-        PushAllocationCounterStatistics(profiler, counters);
+        PushAllocationCounterStatistics(writer, "/system", counters);
     }
 
-    void PushTotalAllocationStatistics()
+    void PushTotalAllocationStatistics(NProfiling::ISensorWriter* writer)
     {
         auto counters = GetTotalAllocationCounters();
-        auto profiler = Profiler_.AppendPath("/total");
-        PushAllocationCounterStatistics(profiler, counters);
+        PushAllocationCounterStatistics(writer, "/total", counters);
     }
 
-    void PushHugeAllocationStatistics()
+    void PushHugeAllocationStatistics(NProfiling::ISensorWriter* writer)
     {
         auto counters = GetHugeAllocationCounters();
-        auto profiler = Profiler_.AppendPath("/huge");
-        PushAllocationCounterStatistics(profiler, counters);
+        PushAllocationCounterStatistics(writer, "/huge", counters);
     }
 
-    void PushUndumpableAllocationStatistics()
+    void PushUndumpableAllocationStatistics(NProfiling::ISensorWriter* writer)
     {
         auto counters = GetUndumpableAllocationCounters();
-        auto profiler = Profiler_.AppendPath("/undumpable");
-        PushAllocationCounterStatistics(profiler, counters);
+        PushAllocationCounterStatistics(writer, "/undumpable", counters);
     }
 
     void PushSmallArenaStatistics(
+        NProfiling::ISensorWriter* writer,
         size_t rank,
         const TEnumIndexedVector<ESmallArenaCounter, ssize_t>& counters)
     {
-        auto profiler = Profiler_.AppendPath("/small_arena").AddTags(
-            {
-                NProfiling::TProfileManager::Get()->RegisterTag("rank", rank)
-            });
-        PushAllocationCounterStatistics(profiler, counters);
+        writer->PushTag(std::pair<TString, TString>{"rank", ToString(rank)});
+        PushAllocationCounterStatistics(writer, "/small_arena", counters);
+        writer->PopTag();
     }
 
-    void PushSmallAllocationStatistics()
+    void PushSmallAllocationStatistics(NProfiling::ISensorWriter* writer)
     {
         auto counters = GetSmallAllocationCounters();
-        auto profiler = Profiler_.AppendPath("/small");
-        PushAllocationCounterStatistics(profiler, counters);
+        PushAllocationCounterStatistics(writer, "/small", counters);
 
         auto arenaCounters = GetSmallArenaAllocationCounters();
         for (size_t rank = 1; rank < SmallRankCount; ++rank) {
-            PushSmallArenaStatistics(rank, arenaCounters[rank]);
+            PushSmallArenaStatistics(writer, rank, arenaCounters[rank]);
         }
     }
 
     void PushLargeArenaStatistics(
+        NProfiling::ISensorWriter* writer,
         size_t rank,
         const TEnumIndexedVector<ELargeArenaCounter, ssize_t>& counters)
     {
-        auto profiler = Profiler_.AppendPath("/large_arena").AddTags(
-            {
-                NProfiling::TProfileManager::Get()->RegisterTag("rank", rank)
-            });
-        PushAllocationCounterStatistics(profiler, counters);
+        writer->PushTag(std::pair<TString, TString>{"rank", ToString(rank)});
+        PushAllocationCounterStatistics(writer, "/large_arena", counters);
+        writer->PopTag();
 
         auto bytesFreed = counters[ELargeArenaCounter::BytesFreed];
         auto bytesReleased = counters[ELargeArenaCounter::PagesReleased] * PageSize;
@@ -183,39 +162,38 @@ private:
         } else {
             poolHitRatio = 100 - bytesReleased * 100 / bytesFreed;
         }
-        profiler.Enqueue("/pool_hit_ratio", poolHitRatio, NProfiling::EMetricType::Gauge);
+
+        writer->AddGauge("/pool_hit_ratio", poolHitRatio);
     }
 
-    void PushLargeAllocationStatistics()
+    void PushLargeAllocationStatistics(NProfiling::ISensorWriter* writer)
     {
         auto counters = GetLargeAllocationCounters();
-        auto profiler = Profiler_.AppendPath("/large");
-        PushAllocationCounterStatistics(profiler, counters);
+        PushAllocationCounterStatistics(writer, "/large", counters);
 
         auto arenaCounters = GetLargeArenaAllocationCounters();
         for (size_t rank = MinLargeRank; rank < LargeRankCount; ++rank) {
-            PushLargeArenaStatistics(rank, arenaCounters[rank]);
+            PushLargeArenaStatistics(writer, rank, arenaCounters[rank]);
         }
     }
 
-    void PushTimingStatistics()
+    void PushTimingStatistics(NProfiling::ISensorWriter* writer)
     {
         auto timingEventCounters = GetTimingEventCounters();
         for (auto type : TEnumTraits<ETimingEventType>::GetDomainValues()) {
-            auto profiler = Profiler_.AppendPath("/timing_events").AddTags(
-                {
-                    TimingEventTypeTagCache.GetTag(type)
-                });
             const auto& counters = timingEventCounters[type];
-            profiler.Enqueue("/count", counters.Count, NProfiling::EMetricType::Gauge);
-            profiler.Enqueue("/size", counters.Size, NProfiling::EMetricType::Gauge);
+
+            writer->PushTag(std::pair<TString, TString>{"type", ToString(type)});
+            writer->AddGauge("/count", counters.Count);
+            writer->AddGauge("/size", counters.Size);
+            writer->PopTag();
         }
     }
 };
 
 void EnableYTProfiling()
 {
-    RefCountedSingleton<TProfilingStatisticsPusher>();
+    RefCountedSingleton<TProfilingStatisticsProducer>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

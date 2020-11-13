@@ -128,8 +128,6 @@
 
 #include <yt/core/ytalloc/statistics_producer.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/local_channel.h>
@@ -141,6 +139,8 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_service.h>
+
+#include <yt/yt/library/profiling/producer.h>
 
 namespace NYT::NCellMaster {
 
@@ -184,8 +184,6 @@ using NTransactionServer::TTransactionManagerPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const NLogging::TLogger Logger("Bootstrap");
-static const NProfiling::TProfiler BootstrapProfiler("");
-static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -386,11 +384,6 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return ControlQueue_->GetInvoker();
 }
 
-const IInvokerPtr& TBootstrap::GetProfilerInvoker() const
-{
-    return ProfilerQueue_->GetInvoker();
-}
-
 const INodeChannelFactoryPtr& TBootstrap::GetNodeChannelFactory() const
 {
     return NodeChannelFactory_;
@@ -418,7 +411,6 @@ void TBootstrap::Initialize()
     srand(time(nullptr));
 
     ControlQueue_ = New<TActionQueue>("Control");
-    ProfilerQueue_ = New<TActionQueue>("Profiler");
 
     BIND(&TBootstrap::DoInitialize, this)
         .AsyncVia(GetControlInvoker())
@@ -498,32 +490,38 @@ NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const
     return NNative::CreateConnection(config);
 }
 
-void TBootstrap::OnProfiling()
+class TDiskSpaceProfiler
+    : public NProfiling::ISensorProducer
 {
-    try {
-        auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);
-        Profiler_.Enqueue("/snapshots/free_space",
-            snapshotsStorageDiskSpaceStatistics.FreeSpace,
-            EMetricType::Gauge);
-        Profiler_.Enqueue("/snapshots/available_space",
-            snapshotsStorageDiskSpaceStatistics.AvailableSpace,
-            EMetricType::Gauge);
-    } catch (const std::exception& ex) {
-        YT_LOG_DEBUG(ex, "Failed to profile snapshots storage disk space");
+public:
+    TDiskSpaceProfiler(const TCellMasterConfigPtr& config)
+        : Config_(config)
+    { }
+
+    virtual void Collect(ISensorWriter* writer) override
+    {
+        try {
+            auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);
+            writer->AddGauge("/snapshots/free_space", snapshotsStorageDiskSpaceStatistics.FreeSpace);
+            writer->AddGauge("/snapshots/available_space", snapshotsStorageDiskSpaceStatistics.AvailableSpace);
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Failed to profile snapshots storage disk space");
+        }
+
+        try {
+            auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Changelogs->Path);
+            writer->AddGauge("/changelogs/free_space", changelogsStorageDiskSpaceStatistics.FreeSpace);
+            writer->AddGauge("/changelogs/available_space", changelogsStorageDiskSpaceStatistics.AvailableSpace);
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Failed to profile changelogs storage disk space");
+        }
     }
 
-    try {
-        auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Changelogs->Path);
-        Profiler_.Enqueue("/changelogs/free_space",
-            changelogsStorageDiskSpaceStatistics.FreeSpace,
-            EMetricType::Gauge);
-        Profiler_.Enqueue("/changelogs/available_space",
-            changelogsStorageDiskSpaceStatistics.AvailableSpace,
-            EMetricType::Gauge);
-    } catch (const std::exception& ex) {
-        YT_LOG_DEBUG(ex, "Failed to profile changelogs storage disk space");
-    }
-}
+private:
+    TCellMasterConfigPtr Config_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiskSpaceProfiler)
 
 void TBootstrap::DoInitialize()
 {
@@ -815,13 +813,8 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->Configure(Config_->RpcServer);
 
-    Profiler_ = BootstrapProfiler;
-
-    ProfilingExecutor_ = New<TPeriodicExecutor>(
-        GetProfilerInvoker(),
-        BIND(&TBootstrap::OnProfiling, this),
-        ProfilingPeriod);
-    ProfilingExecutor_->Start();
+    DiskSpaceProfiler_ = New<TDiskSpaceProfiler>(Config_);
+    TRegistry{"yt"}.AddProducer("", DiskSpaceProfiler_);
 }
 
 void TBootstrap::InitializeTimestampProvider()
@@ -859,7 +852,7 @@ void TBootstrap::DoRun()
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
     MonitoringManager_->Register(
         "/hydra",
         HydraFacade_->GetHydraManager()->GetMonitoringProducer());

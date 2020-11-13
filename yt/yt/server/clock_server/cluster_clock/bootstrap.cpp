@@ -278,7 +278,7 @@ void TBootstrap::DoRun()
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
     MonitoringManager_->Register(
         "/hydra",
         HydraFacade_->GetHydraManager()->GetMonitoringProducer());

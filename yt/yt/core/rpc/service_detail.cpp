@@ -10,6 +10,7 @@
 #include "authentication_identity.h"
 #include "stream.h"
 
+#include <atomic>
 #include <yt/core/bus/bus.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
@@ -25,12 +26,10 @@
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/misc/string.h>
-#include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/finally.h>
 
 #include <yt/core/ytalloc/memory_zone.h>
 
-#include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
 namespace NYT::NRpc {
@@ -49,12 +48,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = RpcServerProfiler;
-
-static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
-
-////////////////////////////////////////////////////////////////////////////////
-
 TServiceBase::TMethodDescriptor::TMethodDescriptor(
     const TString& method,
     TLiteHandler liteHandler,
@@ -64,32 +57,28 @@ TServiceBase::TMethodDescriptor::TMethodDescriptor(
     , HeavyHandler(std::move(heavyHandler))
 { }
 
-TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds)
-    : RequestCounter("/request_count", tagIds)
-    , CanceledRequestCounter("/canceled_request_count", tagIds)
-    , FailedRequestCounter("/failed_request_count", tagIds)
-    , TimedOutRequestCounter("/timed_out_request_count", tagIds)
-    , ExecutionTimeCounter("/request_time/execution", tagIds)
-    , RemoteWaitTimeCounter("/request_time/remote_wait", tagIds)
-    , LocalWaitTimeCounter("/request_time/local_wait", tagIds)
-    , TotalTimeCounter("/request_time/total", tagIds)
-    , HandlerFiberTimeCounter("/request_time/handler_fiber", tagIds)
-    , TraceContextTimeCounter("/request_time/trace_context", tagIds)
-    , RequestMessageBodySizeCounter("/request_message_body_bytes", tagIds)
-    , RequestMessageAttachmentSizeCounter("/request_message_attachment_bytes", tagIds)
-    , ResponseMessageBodySizeCounter("/response_message_body_bytes", tagIds)
-    , ResponseMessageAttachmentSizeCounter("/response_message_attachment_bytes", tagIds)
+TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TRegistry& registry)
+    : RequestCounter(registry.Counter("/request_count"))
+    , CanceledRequestCounter(registry.Counter("/canceled_request_count"))
+    , FailedRequestCounter(registry.Counter("/failed_request_count"))
+    , TimedOutRequestCounter(registry.Counter("/timed_out_request_count"))
+    , ExecutionTimeCounter(registry.Timer("/request_time/execution"))
+    , RemoteWaitTimeCounter(registry.Timer("/request_time/remote_wait"))
+    , LocalWaitTimeCounter(registry.Timer("/request_time/local_wait"))
+    , TotalTimeCounter(registry.Timer("/request_time/total"))
+    , HandlerFiberTimeCounter(registry.TimeCounter("/request_time/handler_fiber"))
+    , TraceContextTimeCounter(registry.TimeCounter("/request_time/trace_context"))
+    , RequestMessageBodySizeCounter(registry.Counter("/request_message_body_bytes"))
+    , RequestMessageAttachmentSizeCounter(registry.Counter("/request_message_attachment_bytes"))
+    , ResponseMessageBodySizeCounter(registry.Counter("/response_message_body_bytes"))
+    , ResponseMessageAttachmentSizeCounter(registry.Counter("/response_message_attachment_bytes"))
 { }
 
 TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     const TMethodDescriptor& descriptor,
-    const NProfiling::TTagIdList& tagIds)
+    const NProfiling::TRegistry& registry)
     : Descriptor(descriptor)
-    , TagIds(tagIds)
-    , QueueSizeCounter("/request_queue_size", tagIds)
-    , QueueSizeLimitCounter("/request_queue_size_limit", tagIds)
-    , ConcurrencyCounter("/concurrency", tagIds)
-    , ConcurrencyLimitCounter("/concurrency_limit", tagIds)
+    , Registry(registry.WithTag("method", descriptor.Method, -1))
     , RequestBytesThrottler(
         CreateReconfigurableThroughputThrottler(
             Descriptor.RequestBytesThrottlerConfig
@@ -99,7 +88,20 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , RequestBytesThrottlerSpecified(static_cast<bool>(Descriptor.RequestBytesThrottlerConfig))
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(TMethodConfig::DefaultLoggingSuppressionFailedRequestThrottler))
-{ }
+{
+    Registry.AddFuncGauge("/request_queue_size", MakeStrong(this), [this] {
+        return QueueSize.load(std::memory_order_relaxed);
+    });
+    Registry.AddFuncGauge("/request_queue_size_limit", MakeStrong(this), [this] {
+        return Descriptor.QueueSizeLimit;
+    });
+    Registry.AddFuncGauge("/concurrency", MakeStrong(this), [this] {
+        return ConcurrencySemaphore.load(std::memory_order_relaxed);
+    });
+    Registry.AddFuncGauge("/concurrency_limit", MakeStrong(this), [this] {
+        return Descriptor.ConcurrencyLimit;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -216,7 +218,7 @@ public:
             AbortStreamsUnlessClosed(CanceledError);
         }
 
-        Profiler.Increment(PerformanceCounters_->CanceledRequestCounter);
+        PerformanceCounters_->CanceledRequestCounter.Increment();
     }
 
     virtual void SetComplete() override
@@ -239,7 +241,7 @@ public:
         }
 
         Canceled_.Fire();
-        Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
+        PerformanceCounters_->TimedOutRequestCounter.Increment();
 
         // Guards from race with DoGuardedRun.
         // We can only mark as complete those requests that will not be run
@@ -373,12 +375,10 @@ private:
 
     void Initialize()
     {
-        Profiler.Increment(PerformanceCounters_->RequestCounter);
-        Profiler.Increment(
-            PerformanceCounters_->RequestMessageBodySizeCounter,
+        PerformanceCounters_->RequestCounter.Increment();
+        PerformanceCounters_->RequestMessageBodySizeCounter.Increment(
             GetMessageBodySize(RequestMessage_));
-        Profiler.Increment(
-            PerformanceCounters_->RequestMessageAttachmentSizeCounter,
+        PerformanceCounters_->RequestMessageAttachmentSizeCounter.Increment(
             GetTotalMessageAttachmentSize(RequestMessage_));
 
         if (RequestHeader_->has_start_time()) {
@@ -389,7 +389,7 @@ private:
             // Make sanity adjustments to account for possible clock skew.
             retryStart = std::min(retryStart, now);
 
-            Profiler.Update(PerformanceCounters_->RemoteWaitTimeCounter, DurationToValue(now - retryStart));
+            PerformanceCounters_->RemoteWaitTimeCounter.Record(now - retryStart);
         }
 
         {
@@ -567,7 +567,7 @@ private:
         TFiberWallTimer timer;
 
         auto finally = Finally([&] {
-            DoAfterRun(timer.GetElapsedValue());
+            DoAfterRun(timer.GetElapsedTime());
         });
 
         try {
@@ -582,7 +582,7 @@ private:
     {
         RunInstant_ = GetCpuInstant();
         LocalWaitTime_ = CpuDurationToDuration(RunInstant_ - ArriveInstant_);
-        Profiler.Update(PerformanceCounters_->LocalWaitTimeCounter, DurationToValue(LocalWaitTime_));
+        PerformanceCounters_->LocalWaitTimeCounter.Record(LocalWaitTime_);
     }
 
     void DoGuardedRun(const TLiteHandler& handler)
@@ -597,7 +597,7 @@ private:
         if (timeout && NProfiling::GetCpuInstant() > ArriveInstant_ + NProfiling::DurationToCpuDuration(*timeout)) {
             if (!TimedOutLatch_.test_and_set()) {
                 Reply(TError(NYT::EErrorCode::Timeout, "Request dropped due to timeout before being run"));
-                Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
+                PerformanceCounters_->TimedOutRequestCounter.Increment();
             }
             return;
         }
@@ -629,16 +629,16 @@ private:
         }
     }
 
-    void DoAfterRun(NProfiling::TValue handlerElapsedValue)
+    void DoAfterRun(TDuration handlerElapsedValue)
     {
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
-        Profiler.Increment(PerformanceCounters_->HandlerFiberTimeCounter, handlerElapsedValue);
+        PerformanceCounters_->HandlerFiberTimeCounter.Add(handlerElapsedValue);
 
         if (TraceContext_) {
             FlushCurrentTraceContextTime();
             auto traceContextTime = TraceContext_->GetElapsedTime();
-            Profiler.Increment(PerformanceCounters_->TraceContextTimeCounter, DurationToValue(traceContextTime));
+            PerformanceCounters_->TraceContextTimeCounter.Add(traceContextTime);
         }
     }
 
@@ -660,19 +660,17 @@ private:
             : TDuration();
         TotalTime_ = CpuDurationToDuration(ReplyInstant_ - ArriveInstant_);
 
-        Profiler.Update(PerformanceCounters_->ExecutionTimeCounter, DurationToValue(ExecutionTime_));
-        Profiler.Update(PerformanceCounters_->TotalTimeCounter, DurationToValue(TotalTime_));
+        PerformanceCounters_->ExecutionTimeCounter.Record(ExecutionTime_);
+        PerformanceCounters_->TotalTimeCounter.Record(TotalTime_);
         if (!Error_.IsOK()) {
-            Profiler.Increment(PerformanceCounters_->FailedRequestCounter);
+            PerformanceCounters_->FailedRequestCounter.Increment();
         }
 
         HandleLoggingSuppression();
 
-        Profiler.Increment(
-            PerformanceCounters_->ResponseMessageBodySizeCounter,
+        PerformanceCounters_->ResponseMessageBodySizeCounter.Increment(
             GetMessageBodySize(responseMessage));
-        Profiler.Increment(
-            PerformanceCounters_->ResponseMessageAttachmentSizeCounter,
+        PerformanceCounters_->ResponseMessageAttachmentSizeCounter.Increment(
             GetTotalMessageAttachmentSize(responseMessage));
 
         Finalize();
@@ -928,19 +926,18 @@ TServiceBase::TServiceBase(
     , Authenticator_(std::move(authenticator))
     , ServiceDescriptor_(descriptor)
     , ServiceId_(descriptor.GetFullServiceName(), realmId)
-    , ServiceTagId_(NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName))
-    , ProfilingExecutor_(New<TPeriodicExecutor>(
-        GetSyncInvoker(),
-        BIND(&TServiceBase::OnProfiling, MakeWeak(this)),
-        ProfilingPeriod))
-    , AuthenticationQueueSizeCounter_("/authentication_queue_size", {ServiceTagId_})
-    , AuthenticationTimeCounter_("/authentication_time", {ServiceTagId_})
+    , ProfilingRegistry_(RpcServerProfiler.WithTag("service", ServiceId_.ServiceName))
+    , AuthenticationTimer_(ProfilingRegistry_.Timer("/authentication_time"))
 {
     YT_VERIFY(DefaultInvoker_);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(GetSyncInvoker())
         .SetSystem(true));
+
+    ProfilingRegistry_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [this] {
+        return AuthenticationQueueSize_.load(std::memory_order_relaxed);
+    });
 }
 
 const TServiceId& TServiceBase::GetServiceId() const
@@ -1072,8 +1069,9 @@ void TServiceBase::OnRequestAuthenticated(
     TAcceptedRequest acceptedRequest,
     const TErrorOr<TAuthenticationResult>& authResultOrError)
 {
-    Profiler.Update(AuthenticationTimeCounter_, timer.GetElapsedValue());
+    AuthenticationTimer_.Record(timer.GetElapsedTime());
     --AuthenticationQueueSize_;
+
     if (authResultOrError.IsOK()) {
         const auto& authResult = authResultOrError.Value();
         const auto& Logger = RpcServerLogger;
@@ -1486,68 +1484,33 @@ void TServiceBase::OnPendingPayloadsLeaseExpired(TRequestId requestId)
 
 TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanceCounters(
     const TRuntimeMethodInfoPtr& runtimeInfo,
-    const TString& userTag)
+    const std::optional<TString>& userTag)
 {
-    struct TCacheTrait
-    {
-        typedef TTagIdList TKey;
-        typedef TServiceBase::TMethodPerformanceCountersPtr TValue;
+    TRegistry registry = runtimeInfo->Registry.WithSparse();
+    if (userTag) {
+        registry = registry.WithTag("user", *userTag);
+    }
 
-        static TKey ToKey(const TTagIdList& tags)
-        {
-            return tags;
-        }
-
-        static TValue ToValue(const TTagIdList& tags)
-        {
-            return New<TMethodPerformanceCounters>(tags);
-        }
-    };
-
-    auto tagIds = runtimeInfo->TagIds;
-    tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("user", userTag));
-    return GetGloballyCachedValue<TCacheTrait>(tagIds);
+    return New<TMethodPerformanceCounters>(registry);
 }
 
 TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCounters(
     const TRuntimeMethodInfoPtr& runtimeInfo,
     const TString& userTag)
 {
+    if (EnablePerUserProfiling_.load(std::memory_order_relaxed)) {
+        return runtimeInfo->GlobalPerformanceCounters.Get();
+    }
+
     // Fast path.
     if (userTag == RootUserName) {
         return runtimeInfo->RootPerformanceCounters.Get();
     }
 
-    // Slow path.
-    {
-        TReaderGuard guard(runtimeInfo->PerformanceCountersLock);
-        auto it = runtimeInfo->UserTagToPerformanceCounters.find(userTag);
-        if (it != runtimeInfo->UserTagToPerformanceCounters.end()) {
-            return it->second.Get();
-        }
-    }
-
-    auto counters = CreateMethodPerformanceCounters(runtimeInfo, userTag);
-    {
-        TWriterGuard guard(runtimeInfo->PerformanceCountersLock);
-        auto it = runtimeInfo->UserTagToPerformanceCounters.find(userTag);
-        if (it == runtimeInfo->UserTagToPerformanceCounters.end()) {
-            it = runtimeInfo->UserTagToPerformanceCounters.emplace(userTag, counters).first;
-        }
-        return it->second.Get();
-    }
-}
-
-void TServiceBase::OnProfiling()
-{
-    Profiler.Update(AuthenticationQueueSizeCounter_, AuthenticationQueueSize_.load());
-
-    for (const auto& [methodName, runtimeInfo] : MethodMap_) {
-        Profiler.Update(runtimeInfo->QueueSizeCounter, runtimeInfo->QueueSize.load(std::memory_order_relaxed));
-        Profiler.Update(runtimeInfo->QueueSizeLimitCounter, runtimeInfo->Descriptor.QueueSizeLimit);
-        Profiler.Update(runtimeInfo->ConcurrencyCounter, runtimeInfo->ConcurrencySemaphore.load(std::memory_order_relaxed));
-        Profiler.Update(runtimeInfo->ConcurrencyLimitCounter, runtimeInfo->Descriptor.ConcurrencyLimit);
-    }
+    // Also fast path.
+    return runtimeInfo->UserTagToPerformanceCounters.FindOrInsert(userTag, [&, this] {
+        return CreateMethodPerformanceCounters(runtimeInfo, userTag);
+    }).first->Get();
 }
 
 void TServiceBase::SetActive()
@@ -1559,8 +1522,6 @@ void TServiceBase::SetActive()
     if (Active_.exchange(true)) {
         return;
     }
-
-    ProfilingExecutor_->Start();
 }
 
 void TServiceBase::ValidateInactive()
@@ -1574,13 +1535,8 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
 {
     ValidateInactive();
 
-    auto* profileManager = NProfiling::TProfileManager::Get();
-    NProfiling::TTagIdList tagIds{
-        ServiceTagId_,
-        profileManager->RegisterTag("method", descriptor.Method)
-    };
-
-    auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
+    auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, ProfilingRegistry_);
+    runtimeInfo->GlobalPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, std::nullopt);
     runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, RootUserName);
 
     // Failure here means that such method is already registered.
@@ -1600,12 +1556,18 @@ void TServiceBase::ValidateRequestFeatures(const IServiceContextPtr& context)
     }
 }
 
-void TServiceBase::Configure(TServiceConfigPtr config)
+void TServiceBase::Configure(TServerConfigPtr serverConfig, TServiceConfigPtr config)
 {
     try {
         YT_LOG_DEBUG("Configuring RPC service %v",
             ServiceId_.ServiceName);
 
+        if (!config) {
+            EnablePerUserProfiling_ = serverConfig->EnablePerUserProfiling;
+            return;
+        }
+
+        EnablePerUserProfiling_ = config->EnablePerUserProfiling.value_or(serverConfig->EnablePerUserProfiling);
         AuthenticationQueueSizeLimit_ = config->AuthenticationQueueSizeLimit;
         PendingPayloadsTimeout_ = config->PendingPayloadsTimeout;
 
@@ -1643,17 +1605,19 @@ void TServiceBase::Configure(TServiceConfigPtr config)
     }
 }
 
-void TServiceBase::Configure(INodePtr configNode)
+void TServiceBase::Configure(TServerConfigPtr serverConfig, INodePtr configNode)
 {
     TServiceConfigPtr config;
-    try {
-        config = ConvertTo<TServiceConfigPtr>(configNode);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error parsing RPC service %v config",
-            ServiceId_.ServiceName)
-            << ex;
+    if (configNode) {
+        try {
+            config = ConvertTo<TServiceConfigPtr>(configNode);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing RPC service %v config",
+                ServiceId_.ServiceName)
+                << ex;
+        }
     }
-    Configure(std::move(config));
+    Configure(serverConfig, std::move(config));
 }
 
 TFuture<void> TServiceBase::Stop()

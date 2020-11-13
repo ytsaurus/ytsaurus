@@ -8,7 +8,7 @@
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/weak_ptr.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <util/generic/xrange.h>
 
@@ -141,10 +141,11 @@ public:
         bool enableProfiling)
         : CallbackEventCount_(std::move(callbackEventCount))
         , CurrentlyExecutingActionsByThread_(threadCount)
-        , Profiler_("/fair_share_queue")
         , ThreadNamePrefix_(threadNamePrefix)
     {
-        Profiler_.SetEnabled(enableProfiling);
+        if (enableProfiling) {
+            Profiler_ = TRegistry{"yt/fair_share_queue"};
+        }
     }
 
     ~TTwoLevelFairShareQueue()
@@ -168,8 +169,9 @@ public:
         auto poolIt = NameToPoolId_.find(poolName);
         if (poolIt == NameToPoolId_.end()) {
             auto newPoolId = GetLowestEmptyPoolId();
-            auto tagIds = GetBucketTagIds(Profiler_.GetEnabled(), ThreadNamePrefix_, poolName);
-            auto newPool = std::make_unique<TExecutionPool>(poolName, tagIds);
+
+            auto profiler = Profiler_.WithTags(GetBucketTags(true, ThreadNamePrefix_, poolName));
+            auto newPool = std::make_unique<TExecutionPool>(poolName, profiler);
             if (newPoolId >= IdToPool_.size()) {
                 IdToPool_.emplace_back();
             }
@@ -189,8 +191,7 @@ public:
             bucketIt->second = invoker;
         }
 
-        Profiler_.Update(pool->BucketCounter, pool->TagToBucket.size());
-
+        pool->BucketCounter.Update(pool->TagToBucket.size());
         return invoker;
     }
 
@@ -199,7 +200,7 @@ public:
         TGuard<TAdaptiveLock> guard(SpinLock_);
         const auto& pool = IdToPool_[bucket->PoolId];
 
-        Profiler_.Increment(pool->SizeCounter, +1);
+        pool->SizeCounter.Record(++pool->Size);
 
         if (!bucket->HeapIterator) {
             // Otherwise ExcessTime will be recalculated in AccountCurrentlyExecutingBuckets.
@@ -236,7 +237,7 @@ public:
             pool->TagToBucket.erase(it);
         }
 
-        Profiler_.Update(pool->BucketCounter, pool->TagToBucket.size());
+        pool->BucketCounter.Update(pool->TagToBucket.size());
 
         if (pool->TagToBucket.empty()) {
             YT_VERIFY(NameToPoolId_.erase(pool->PoolName) == 1);
@@ -295,10 +296,7 @@ public:
             TGuard<TAdaptiveLock> guard(SpinLock_);
             auto& pool = IdToPool_[bucket->PoolId];
 
-            Profiler_.Update(
-                pool->WaitTimeCounter,
-                CpuDurationToValue(bucket->WaitTime),
-                tscp);
+            pool->WaitTimeCounter.Record(CpuDurationToDuration(bucket->WaitTime));
         }
 
         return std::move(action->Callback);
@@ -328,9 +326,9 @@ public:
         {
             TGuard<TAdaptiveLock> guard(SpinLock_);
             const auto& pool = IdToPool_[execution.Bucket->PoolId];
-            Profiler_.Increment(pool->SizeCounter, -1, tscp);
-            Profiler_.Update(pool->ExecTimeCounter, DurationToValue(timeFromStart), tscp);
-            Profiler_.Update(pool->TotalTimeCounter, DurationToValue(timeFromEnqueue), tscp);
+            pool->SizeCounter.Record(--pool->Size);
+            pool->ExecTimeCounter.Record(timeFromStart);
+            pool->TotalTimeCounter.Record(timeFromEnqueue);
         }
 
         if (timeFromStart > LogDurationThreshold) {
@@ -373,13 +371,13 @@ private:
 
     struct TExecutionPool
     {
-        TExecutionPool(const TString& poolName, const TTagIdList& tagIds)
+        TExecutionPool(const TString& poolName, const TRegistry& profiler)
             : PoolName(poolName)
-            , BucketCounter("/buckets", tagIds)
-            , SizeCounter("/size", tagIds)
-            , WaitTimeCounter("/time/wait", tagIds)
-            , ExecTimeCounter("/time/exec", tagIds)
-            , TotalTimeCounter("/time/total", tagIds)
+            , BucketCounter(profiler.Gauge("/buckets"))
+            , SizeCounter(profiler.Summary("/size"))
+            , WaitTimeCounter(profiler.Timer("/time/wait"))
+            , ExecTimeCounter(profiler.Timer("/time/exec"))
+            , TotalTimeCounter(profiler.Timer("/time/total"))
         { }
 
         TBucketPtr GetStarvingBucket(TEnqueuedAction* action)
@@ -403,11 +401,12 @@ private:
 
         const TString PoolName;
 
-        TShardedAggregateGauge BucketCounter;
-        TAtomicShardedAggregateGauge SizeCounter;
-        TShardedAggregateGauge WaitTimeCounter;
-        TShardedAggregateGauge ExecTimeCounter;
-        TShardedAggregateGauge TotalTimeCounter;
+        TGauge BucketCounter;
+        std::atomic<i64> Size{0};
+        NProfiling::TSummary SizeCounter;
+        TEventTimer WaitTimeCounter;
+        TEventTimer ExecTimeCounter;
+        TEventTimer TotalTimeCounter;
 
         double Weight = 1.0;
 
@@ -423,7 +422,7 @@ private:
     std::shared_ptr<TEventCount> CallbackEventCount_;
     std::vector<TExecution> CurrentlyExecutingActionsByThread_;
 
-    TProfiler Profiler_;
+    TRegistry Profiler_;
     TString ThreadNamePrefix_;
 
     void AccountCurrentlyExecutingBuckets()
@@ -544,14 +543,14 @@ public:
         TTwoLevelFairShareQueuePtr queue,
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
-        const TTagIdList& tagIds,
+        const TTagSet& tags,
         bool enableLogging,
         bool enableProfiling,
         int index)
         : TSchedulerThread(
             std::move(callbackEventCount),
             threadName,
-            tagIds,
+            tags,
             enableLogging,
             enableProfiling)
         , Queue_(std::move(queue))
@@ -601,7 +600,7 @@ public:
                 Queue_,
                 CallbackEventCount_,
                 Format("%v:%v", threadNamePrefix, index),
-                GetThreadTagIds(enableProfiling, threadNamePrefix),
+                GetThreadTags(enableProfiling, threadNamePrefix),
                 enableLogging,
                 enableProfiling,
                 index);

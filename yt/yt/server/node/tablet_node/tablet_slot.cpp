@@ -440,6 +440,9 @@ public:
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
         SnapshotStoreThunk_->SetUnderlying(snapshotStore);
 
+        auto changelogProfiler = TabletNodeProfilerRegistry
+            .WithPrefix("/remote_changelog")
+            .WithTag("cell_id", ToString(CellDescriptor_.CellId));
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
@@ -447,7 +450,7 @@ public:
             changelogClient,
             Bootstrap_->GetSecurityManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
-            ProfilingTagIds_);
+            TJournalWriterPerformanceCounters{changelogProfiler});
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
 
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
@@ -479,9 +482,7 @@ public:
                 Config_->HydraManager->ResponseKeeper,
                 GetAutomatonInvoker(),
                 Logger,
-                TabletNodeProfiler
-                    .AppendPath("/response_keeper")
-                    .AddTags(ProfilingTagIds_));
+                TabletNodeProfilerRegistry.WithTag("cell_id", ToString(CellDescriptor_.CellId)));
 
             TDistributedHydraManagerOptions hydraManagerOptions;
             hydraManagerOptions.ResponseKeeper = ResponseKeeper_;

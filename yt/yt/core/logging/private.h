@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NLogging {
 
@@ -13,7 +13,7 @@ constexpr TStringBuf DefaultStderrWriterName = "Stderr";
 constexpr ELogLevel DefaultStderrMinLevel = ELogLevel::Info;
 constexpr ELogLevel DefaultStderrQuietLevel = ELogLevel::Error;
 
-extern const NProfiling::TProfiler LoggingProfiler;
+extern const NProfiling::TRegistry LoggingProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -40,7 +40,7 @@ TJobTracker::TJobTracker(
     , JobThrottler_(CreateReconfigurableThroughputThrottler(
         New<TThroughputThrottlerConfig>(),
         ChunkServerLogger,
-        ChunkServerProfiler.AppendPath("/job_throttler")))
+        ChunkServerProfilerRegistry.WithPrefix("/job_throttler")))
 {
     InitInterDCEdges();
 }

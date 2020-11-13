@@ -170,7 +170,7 @@ private:
         explicit TChunkMetaCache(TDataNodeConfigPtr config)
             : TAsyncSlruCacheBase(
                 config->ChunkMetaCache,
-                DataNodeProfiler.AppendPath("/chunk_meta_cache"))
+                DataNodeProfilerRegistry.WithPrefix("/chunk_meta_cache"))
         { }
 
     protected:
@@ -191,7 +191,7 @@ private:
         explicit TBlocksExtCache(TDataNodeConfigPtr config)
             : TAsyncSlruCacheBase(
                 config->BlocksExtCache,
-                DataNodeProfiler.AppendPath("/blocks_ext_cache"))
+                DataNodeProfilerRegistry.WithPrefix("/blocks_ext_cache"))
         { }
 
     protected:

@@ -23,10 +23,9 @@ public:
     TBatchingSecretVaultService(
         TBatchingSecretVaultServiceConfigPtr config,
         ISecretVaultServicePtr underlying,
-        NProfiling::TProfiler profiler)
+        NProfiling::TRegistry profiler)
         : Config_(std::move(config))
         , Underlying_(std::move(underlying))
-        , Profiler_(std::move(profiler))
         , TickExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             BIND(&TBatchingSecretVaultService::OnTick, MakeWeak(this)),
@@ -34,7 +33,8 @@ public:
         , RequestThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->RequestsThrottler,
             NLogging::TLogger(),
-            Profiler_.AppendPath("/request_throttler")))
+            profiler.WithPrefix("/request_throttler")))
+        , BatchingLatencyTimer_(profiler.Timer("/batching_latency"))
     {
         TickExecutor_->Start();
     }
@@ -53,7 +53,6 @@ public:
 private:
     const TBatchingSecretVaultServiceConfigPtr Config_;
     const ISecretVaultServicePtr Underlying_;
-    const NProfiling::TProfiler Profiler_;
 
     const TPeriodicExecutorPtr TickExecutor_;
     const IThroughputThrottlerPtr RequestThrottler_;
@@ -68,8 +67,7 @@ private:
     };
     std::queue<TQueueItem> SubrequestQueue_;
 
-    NProfiling::TShardedAggregateGauge BatchingLatencyGauge_{"/batching_latency"};
-
+    NProfiling::TEventTimer BatchingLatencyTimer_;
 
     TFuture<TSecretSubresponse> DoGetSecret(const TSecretSubrequest& subrequest, TGuard<TAdaptiveLock>& guard)
     {
@@ -114,7 +112,7 @@ private:
             auto now = TInstant::Now();
             for (const auto& item : items) {
                 subrequests.push_back(item.Subrequest);
-                Profiler_.Update(BatchingLatencyGauge_, NProfiling::DurationToValue(now - item.EnqueueTime));
+                BatchingLatencyTimer_.Record(now - item.EnqueueTime);
             }
 
             Underlying_->GetSecrets(subrequests).Subscribe(
@@ -138,7 +136,7 @@ private:
 ISecretVaultServicePtr CreateBatchingSecretVaultService(
     TBatchingSecretVaultServiceConfigPtr config,
     ISecretVaultServicePtr underlying,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
 {
     return New<TBatchingSecretVaultService>(
         std::move(config),

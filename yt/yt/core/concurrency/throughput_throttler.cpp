@@ -5,8 +5,6 @@
 
 #include <yt/core/misc/singleton.h>
 
-#include <yt/core/profiling/profiler.h>
-
 #include <queue>
 
 namespace NYT::NConcurrency {
@@ -36,12 +34,10 @@ public:
     TReconfigurableThroughputThrottler(
         TThroughputThrottlerConfigPtr config,
         const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TRegistry& profiler)
         : Logger(logger)
-        , Profiler(profiler)
-        , ValueCounter_("/value")
-        , QueueSizeCounter_("/queue_size")
-
+        , ValueCounter_(profiler.Counter("/value"))
+        , QueueSizeCounter_(profiler.Gauge("/queue_size"))
     {
         Reconfigure(config);
     }
@@ -56,8 +52,7 @@ public:
             return VoidFuture;
         }
 
-        Profiler.Increment(ValueCounter_, count);
-
+        ValueCounter_.Increment(count);
         if (Limit_.load() < 0) {
             return VoidFuture;
         }
@@ -90,14 +85,14 @@ public:
                 request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
                     << error);
                 QueueTotalCount_ -= count;
-                Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
+                QueueSizeCounter_.Update(QueueTotalCount_);
             }
         }));
 
         request->Promise = std::move(promise);
         Requests_.push(request);
         QueueTotalCount_ += count;
-        Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
+        QueueSizeCounter_.Update(QueueTotalCount_);
 
         ScheduleUpdate();
 
@@ -127,7 +122,7 @@ public:
             }
         }
 
-        Profiler.Increment(ValueCounter_, count);
+        ValueCounter_.Increment(count);
         return true;
     }
 
@@ -156,7 +151,7 @@ public:
             }
         }
 
-        Profiler.Increment(ValueCounter_, count);
+        ValueCounter_.Increment(count);
         return count;
     }
 
@@ -175,7 +170,7 @@ public:
             Available_ -= count;
         }
 
-        Profiler.Increment(ValueCounter_, count);
+        ValueCounter_.Increment(count);
     }
 
     virtual bool IsOverdraft() override
@@ -211,10 +206,9 @@ public:
 
 private:
     const NLogging::TLogger Logger;
-    const NProfiling::TProfiler Profiler;
 
-    NProfiling::TShardedMonotonicCounter ValueCounter_;
-    NProfiling::TAtomicGauge QueueSizeCounter_;
+    NProfiling::TCounter ValueCounter_;
+    NProfiling::TGauge QueueSizeCounter_;
 
     std::atomic<TInstant> LastUpdated_ = TInstant::Zero();
     std::atomic<i64> Available_ = 0;
@@ -337,7 +331,7 @@ private:
                 }
                 readyList.push_back(request);
                 QueueTotalCount_ -= request->Count;
-                Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
+                QueueSizeCounter_.Update(QueueTotalCount_);
             }
             Requests_.pop();
         }
@@ -358,7 +352,7 @@ private:
 IReconfigurableThroughputThrottlerPtr CreateReconfigurableThroughputThrottler(
     TThroughputThrottlerConfigPtr config,
     const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& profiler)
 {
     return New<TReconfigurableThroughputThrottler>(
         config,
@@ -370,11 +364,10 @@ IReconfigurableThroughputThrottlerPtr CreateNamedReconfigurableThroughputThrottl
     TThroughputThrottlerConfigPtr config,
     const TString& name,
     NLogging::TLogger logger,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
 {
     logger.AddTag("Throttler: %v", name);
-    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" + CamelCaseToUnderscoreCase(name));
-
+    profiler = profiler.WithPrefix("/" + CamelCaseToUnderscoreCase(name));
     return CreateReconfigurableThroughputThrottler(config, logger, profiler);
 };
 
@@ -385,9 +378,8 @@ class TUnlimitedThroughtputThrottler
 {
 public:
     explicit TUnlimitedThroughtputThrottler(
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler())
-        : Profiler(profiler)
-        , ValueCounter_("/value")
+        const NProfiling::TRegistry& profiler = {})
+        : ValueCounter_(profiler.Counter("/value"))
     { }
 
     virtual TFuture<void> Throttle(i64 count) override
@@ -395,7 +387,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
 
-        Profiler.Increment(ValueCounter_, count);
+        ValueCounter_.Increment(count);
         return VoidFuture;
     }
 
@@ -404,7 +396,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
 
-        Profiler.Increment(ValueCounter_, count);
+        ValueCounter_.Increment(count);
         return true;
     }
 
@@ -413,7 +405,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
 
-        Profiler.Increment(ValueCounter_, count);
+        ValueCounter_.Increment(count);
         return count;
     }
 
@@ -422,7 +414,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YT_VERIFY(count >= 0);
 
-        Profiler.Increment(ValueCounter_, count);
+        ValueCounter_.Increment(count);
     }
 
     virtual bool IsOverdraft() override
@@ -438,8 +430,7 @@ public:
     }
 
 private:
-    const NProfiling::TProfiler Profiler;
-    NProfiling::TShardedMonotonicCounter ValueCounter_;
+    NProfiling::TCounter ValueCounter_;
 };
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()
@@ -449,10 +440,9 @@ IThroughputThrottlerPtr GetUnlimitedThrottler()
 
 IThroughputThrottlerPtr CreateNamedUnlimitedThroughputThrottler(
     const TString& name,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
 {
-    profiler.SetPathPrefix(profiler.GetPathPrefix() + "/" + CamelCaseToUnderscoreCase(name));
-
+    profiler = profiler.WithPrefix("/" + CamelCaseToUnderscoreCase(name));
     return New<TUnlimitedThroughtputThrottler>(profiler);
 };
 
@@ -539,4 +529,3 @@ IThroughputThrottlerPtr CreateCombinedThrottler(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
-

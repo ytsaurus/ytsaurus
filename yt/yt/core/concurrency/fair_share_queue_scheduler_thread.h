@@ -20,7 +20,6 @@ public:
         TFairShareInvokerQueuePtr queue,
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
-        const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
         bool enableProfiling);
     ~TFairShareQueueSchedulerThread();

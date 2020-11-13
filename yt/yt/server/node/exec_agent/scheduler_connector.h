@@ -36,9 +36,9 @@ private:
     TInstant LastFailedHeartbeatTime_;
     TDuration FailedHeartbeatBackoffTime_;
 
-    NProfiling::TShardedAggregateGauge TimeBetweenSentHeartbeatsCounter_;
-    NProfiling::TShardedAggregateGauge TimeBetweenAcknowledgedHeartbeatsCounter_;
-    NProfiling::TShardedAggregateGauge TimeBetweenFullyProcessedHeartbeatsCounter_;
+    NProfiling::TEventTimer TimeBetweenSentHeartbeatsCounter_;
+    NProfiling::TEventTimer TimeBetweenAcknowledgedHeartbeatsCounter_;
+    NProfiling::TEventTimer TimeBetweenFullyProcessedHeartbeatsCounter_;
 
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

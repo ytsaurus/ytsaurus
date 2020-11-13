@@ -265,7 +265,7 @@ public:
     TImpl(TDataNodeConfigPtr config, TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             New<TSlruCacheConfig>(config->GetCacheCapacity()),
-            DataNodeProfiler.AppendPath("/chunk_cache"))
+            DataNodeProfilerRegistry.WithPrefix("/chunk_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
     { }

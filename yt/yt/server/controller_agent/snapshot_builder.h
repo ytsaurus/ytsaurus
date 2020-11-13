@@ -55,8 +55,6 @@ private:
 
     std::vector<TSnapshotJobPtr> Jobs_;
 
-    NProfiling::TProfiler Profiler;
-
     //! This method is called after controller is suspended.
     //! It is used to set flag Suspended in corresponding TSnapshotJob.
     void OnControllerSuspended(const TSnapshotJobPtr& job);

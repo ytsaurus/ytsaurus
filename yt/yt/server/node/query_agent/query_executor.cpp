@@ -1129,7 +1129,7 @@ public:
         , Bootstrap_(bootstrap)
         , Evaluator_(New<TEvaluator>(
             Config_,
-            QueryAgentProfiler,
+            QueryAgentProfilerRegistry,
             CreateMemoryTrackerForCategory(
                 Bootstrap_->GetMemoryUsageTracker(),
                 NNodeTrackerClient::EMemoryCategory::Query)))

@@ -371,7 +371,7 @@ public:
         return ServiceId_;
     }
 
-    virtual void Configure(NYTree::INodePtr /*config*/) override
+    virtual void Configure(TServerConfigPtr /*serverConfig*/, NYTree::INodePtr /*config*/) override
     { }
 
     virtual TFuture<void> Stop() override

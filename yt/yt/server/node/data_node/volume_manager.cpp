@@ -984,7 +984,7 @@ public:
         TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             New<TSlruCacheConfig>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction),
-            DataNodeProfiler.AppendPath("/layer_cache"))
+            DataNodeProfilerRegistry.WithPrefix("/layer_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
         , LayerLocations_(std::move(layerLocations))
@@ -1582,11 +1582,11 @@ public:
                     CreatePortoExecutor(
                         config->PortoExecutor,
                         Format("volume%v", index),
-                        DataNodeProfiler.AppendPath("/location_volumes/porto")),
+                        DataNodeProfilerRegistry.WithPrefix("/location_volumes/porto")),
                     CreatePortoExecutor(
                         config->PortoExecutor,
                         Format("layer%v", index),
-                        DataNodeProfiler.AppendPath("/location_layers/porto")),
+                        DataNodeProfilerRegistry.WithPrefix("/location_layers/porto")),
                     id);
                 Locations_.push_back(location);
             } catch (const std::exception& ex) {
@@ -1601,7 +1601,7 @@ public:
         auto tmpfsExecutor = CreatePortoExecutor(
             config->PortoExecutor,
             "tmpfs_layer",
-            DataNodeProfiler.AppendPath("/tmpfs_layers/porto"));
+            DataNodeProfilerRegistry.WithPrefix("/tmpfs_layers/porto"));
         LayerCache_ = New<TLayerCache>(config, Locations_, tmpfsExecutor, bootstrap);
     }
 

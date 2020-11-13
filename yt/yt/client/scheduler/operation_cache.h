@@ -22,7 +22,7 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         THashSet<TString> attributes,
         NApi::IClientPtr client,
-        NProfiling::TProfiler profiler = {});
+        NProfiling::TRegistry profiler = {});
 
 private:
     const THashSet<TString> Attributes_;

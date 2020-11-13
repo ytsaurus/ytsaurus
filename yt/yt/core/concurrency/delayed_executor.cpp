@@ -8,8 +8,6 @@
 #include <yt/core/misc/shutdown.h>
 #include <yt/core/misc/proc.h>
 
-#include <yt/core/profiling/profiler.h>
-
 #include <util/datetime/base.h>
 
 #if defined(_linux_) && !defined(_bionic_)
@@ -29,7 +27,6 @@ static constexpr auto CoalescingInterval = TDuration::MicroSeconds(100);
 static constexpr auto LateWarningThreshold = TDuration::Seconds(1);
 
 static const auto& Logger = ConcurrencyLogger;
-static const auto& Profiler = ConcurrencyProfiler;
 
 const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
@@ -238,7 +235,7 @@ private:
 
     static thread_local bool InDelayedPollerThread_;
 
-    NProfiling::TShardedMonotonicCounter StaleCallbacksCounter_{"/delayed_executor/stale_callbacks"};
+    NProfiling::TCounter StaleCallbacksCounter_ = ConcurrencyProfiler.Counter("/delayed_executor/stale_callbacks");
 
     /*!
      * If |true| is returned then it is guaranteed that all entries enqueued up to this call
@@ -415,7 +412,7 @@ private:
                 return;
             }
             if (entry->Deadline + LateWarningThreshold < now) {
-                Profiler.Increment(StaleCallbacksCounter_);
+                StaleCallbacksCounter_.Increment();
                 YT_LOG_DEBUG("Found a late delayed submitted callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);
@@ -445,7 +442,7 @@ private:
                 break;
             }
             if (entry->Deadline + LateWarningThreshold < now) {
-                Profiler.Increment(StaleCallbacksCounter_);
+                StaleCallbacksCounter_.Increment();
                 YT_LOG_DEBUG("Found a late delayed scheduled callback (Deadline: %v, Now: %v)",
                     entry->Deadline,
                     now);

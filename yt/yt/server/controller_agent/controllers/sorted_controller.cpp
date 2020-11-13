@@ -64,10 +64,6 @@ using NTableClient::TLegacyKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NProfiling::TProfiler Profiler("/operations/merge");
-
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO(max42): support Config->MaxTotalSliceCount
 // TODO(max42): reorder virtual methods in public section.
 
@@ -408,7 +404,7 @@ protected:
 
     void ProcessInputs()
     {
-        PROFILE_TIMING ("/input_processing_time") {
+        YT_PROFILE_TIMING("yt/operations/merge/input_processing_time") {
             YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);

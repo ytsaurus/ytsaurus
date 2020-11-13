@@ -51,7 +51,7 @@ public:
     TPermissionCache(
         TPermissionCacheConfigPtr config,
         NApi::NNative::IConnectionPtr connection,
-        NProfiling::TProfiler profiler = {});
+        NProfiling::TRegistry profiler = {});
 
 private:
     const TPermissionCacheConfigPtr Config_;

@@ -6,11 +6,11 @@
 
 #include <yt/client/api/public.h>
 
+#include <yt/client/api/client.h>
+
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/client/ypath/public.h>
-
-#include <yt/core/profiling/public.h>
 
 namespace NYT::NHydra {
 
@@ -28,7 +28,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
     NTransactionClient::TTransactionId prerequisiteTransactionId =
         NTransactionClient::NullTransactionId,
-    const NProfiling::TTagIdList& profilerTags = {});
+    const NApi::TJournalWriterPerformanceCounters& counters = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

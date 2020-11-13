@@ -8,6 +8,8 @@
 #include <util/system/thread.h>
 #include <util/system/sigset.h>
 
+#include <yt/yt/library/profiling/tag.h>
+
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,7 +78,7 @@ public:
     TFiberReusingAdapter(
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
-        const NProfiling::TTagIdList&,
+        const NProfiling::TTagSet& tags,
         bool enableLogging = true,
         bool enableProfiling = true);
 

@@ -11,6 +11,8 @@
 #include <yt/core/ytree/ypath_detail.h>
 #include <yt/core/ytree/ypath_client.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NMonitoring {
 
 using namespace NYTree;
@@ -22,7 +24,6 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = MonitoringLogger;
-static const auto& Profiler = MonitoringProfiler;
 
 static const auto UpdatePeriod = TDuration::Seconds(3);
 static const auto EmptyRoot = GetEphemeralNodeFactory()->CreateMap();
@@ -107,17 +108,18 @@ private:
     void Update()
     {
         YT_LOG_DEBUG("Started updating monitoring state");
-        PROFILE_TIMING ("/update_time") {
-            auto newRoot = GetEphemeralNodeFactory()->CreateMap();
-            for (const auto& [path, producer] : PathToProducer_) {
-                auto value = ConvertToYsonString(producer);
-                SyncYPathSet(newRoot, path, value);
-            }
+        static const auto UpdateTimer = NProfiling::TRegistry{"yt/monitoring"}.Timer("/update_time");
 
-            if (Started_) {
-                TGuard<TAdaptiveLock> guard(SpinLock_);
-                std::swap(Root_, newRoot);
-            }
+        NProfiling::TEventTimerGuard guard(UpdateTimer);
+        auto newRoot = GetEphemeralNodeFactory()->CreateMap();
+        for (const auto& [path, producer] : PathToProducer_) {
+            auto value = ConvertToYsonString(producer);
+            SyncYPathSet(newRoot, path, value);
+        }
+
+        if (Started_) {
+            TGuard<TAdaptiveLock> guard(SpinLock_);
+            std::swap(Root_, newRoot);
         }
         YT_LOG_DEBUG("Finished updating monitoring state");
     }

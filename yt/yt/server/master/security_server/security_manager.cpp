@@ -59,8 +59,6 @@
 
 #include <yt/core/logging/fluent_log.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <yt/core/ypath/token.h>
 
 namespace NYT::NSecurityServer {
@@ -90,9 +88,6 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SecurityServerLogger;
-static const auto& Profiler = SecurityServerProfiler;
-
-static const auto ProfilingPeriod = TDuration::MilliSeconds(10000);
 
 namespace {
 
@@ -415,12 +410,6 @@ public:
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
                 BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
-
-        ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
-        ProfilingExecutor_->Start();
     }
 
 
@@ -1940,7 +1929,6 @@ private:
     const TSecurityTagsRegistryPtr SecurityTagsRegistry_ = New<TSecurityTagsRegistry>();
 
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
-    TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
     TPeriodicExecutorPtr AccountMasterMemoryUsageUpdateExecutor_;
 
@@ -1964,7 +1952,6 @@ private:
 
     NHydra::TEntityMap<TUser> UserMap_;
     THashMap<TString, TUser*> UserNameMap_;
-    THashMap<TString, TTagId> UserNameToProfilingTagId_;
 
     TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
@@ -3529,42 +3516,6 @@ private:
 
         if (AccountMasterMemoryUsageUpdateExecutor_) {
             AccountMasterMemoryUsageUpdateExecutor_->SetPeriod(GetDynamicConfig()->AccountMasterMemoryUsageUpdatePeriod);
-        }
-    }
-
-
-    TTagId GetProfilingTagForUser(TUser* user)
-    {
-        if (auto it = UserNameToProfilingTagId_.find(user->GetName())) {
-            return it->second;
-        }
-
-        auto tagId = TProfileManager::Get()->RegisterTag("user", user->GetName());
-        YT_VERIFY(UserNameToProfilingTagId_.emplace(user->GetName(), tagId).second);
-        return tagId;
-    }
-
-    void OnProfiling()
-    {
-        for (auto [userId, user] : UserMap_) {
-            if (!IsObjectAlive(user)) {
-                continue;
-            }
-            if (!user->GetNeedsProfiling()) {
-                continue;
-            }
-
-            TTagIdList tagIds{
-                GetProfilingTagForUser(user)
-            };
-
-            Profiler.Enqueue("/user_read_time", NProfiling::DurationToValue(user->Statistics()[EUserWorkloadType::Read].RequestTime), EMetricType::Counter, tagIds);
-            Profiler.Enqueue("/user_write_time", NProfiling::DurationToValue(user->Statistics()[EUserWorkloadType::Write].RequestTime), EMetricType::Counter, tagIds);
-            Profiler.Enqueue("/user_read_request_count", user->Statistics()[EUserWorkloadType::Read].RequestCount, EMetricType::Counter, tagIds);
-            Profiler.Enqueue("/user_write_request_count", user->Statistics()[EUserWorkloadType::Write].RequestCount, EMetricType::Counter, tagIds);
-            Profiler.Enqueue("/user_request_count", user->Statistics()[EUserWorkloadType::Read].RequestCount + user->Statistics()[EUserWorkloadType::Write].RequestCount, EMetricType::Counter, tagIds);
-            Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), EMetricType::Gauge, tagIds);
-            user->SetNeedsProfiling(false);
         }
     }
 };

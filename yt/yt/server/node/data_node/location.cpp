@@ -70,6 +70,12 @@ TLocation::TLocation(
             profileManager->RegisterTag("location_type", Type_),
             profileManager->RegisterTag("medium", GetMediumName())
         });
+    
+    ProfilerRegistry_ = DataNodeProfilerRegistry
+        .WithPrefix("/location")
+        .WithTag("medium", GetMediumName())
+        .WithTag("location_type", ToString(Type_), -1)
+        .WithTag("location_id", Id_);
 
     PerformanceCounters_.ThrottledReads = {"/throttled_reads", {}, config->ThrottleCounterInterval};
     PerformanceCounters_.ThrottledWrites = {"/throttled_writes", {}, config->ThrottleCounterInterval};
@@ -120,11 +126,11 @@ TLocation::TLocation(
         Config_->IOEngineType,
         Config_->IOConfig,
         id,
-        Profiler_,
+        ProfilerRegistry_,
         NLogging::TLogger(DataNodeLogger).AddTag("LocationId: %v", id));
 
     auto createThrottler = [&] (const auto& config, const auto& name) {
-        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, Profiler_);
+        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, ProfilerRegistry_);
     };
 
     ReplicationOutThrottler_ = createThrottler(config->ReplicationOutThrottler, "ReplicationOutThrottler");
@@ -134,7 +140,7 @@ TLocation::TLocation(
     TabletLoggingOutThrottler_ = createThrottler(config->TabletLoggingOutThrottler, "TabletLoggingOutThrottler");
     TabletPreloadOutThrottler_ = createThrottler(config->TabletPreloadOutThrottler, "TabletPreloadOutThrottler");
     TabletRecoveryOutThrottler_ = createThrottler(config->TabletRecoveryOutThrottler, "TabletRecoveryOutThrottler");
-    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", Profiler_);
+    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", ProfilerRegistry_);
 
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
@@ -217,6 +223,13 @@ const NProfiling::TProfiler& TLocation::GetProfiler() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Profiler_;
+}
+
+const NProfiling::TRegistry& TLocation::GetProfilerRegistry() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return ProfilerRegistry_;
 }
 
 TLocationPerformanceCounters& TLocation::GetPerformanceCounters()
@@ -825,7 +838,7 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         Config_->TrashCheckPeriod))
 {
-    auto diskThrottlerProfiler = GetProfiler().AppendPath("/disk_throttler");
+    auto diskThrottlerProfiler = GetProfilerRegistry().WithPrefix("/disk_throttler");
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, diskThrottlerProfiler);
     };
@@ -1295,7 +1308,7 @@ TCacheLocation::TCacheLocation(
         Config_->InThrottler,
         "InThrottler",
         Logger,
-        Profiler_.AppendPath("/cache")))
+        ProfilerRegistry_.WithPrefix("/cache")))
 { }
 
 const IThroughputThrottlerPtr& TCacheLocation::GetInThrottler() const

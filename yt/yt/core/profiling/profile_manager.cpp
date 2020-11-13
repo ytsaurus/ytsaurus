@@ -49,13 +49,13 @@ public:
         , WasShutdown_(false)
         , EventQueue_(New<TInvokerQueue>(
             EventCount_,
-            TTagIdList(),
+            TTagSet{},
             true,
             false))
         , Thread_(New<TThread>(this))
         , Root_(GetEphemeralNodeFactory(true)->CreateMap())
     {
-        ResourceTracker_ = New<TResourceTracker>(GetInvoker());
+        ResourceTracker_ = New<TResourceTracker>();
     }
 
     void Start()
@@ -73,10 +73,6 @@ public:
             BIND(&TImpl::OnDequeue, MakeStrong(this)),
             Config_->DequeuePeriod);
         DequeueExecutor_->Start();
-
-#ifdef _linux_
-        ResourceTracker_->Start();
-#endif
     }
 
     void Shutdown()
@@ -134,7 +130,7 @@ public:
         return Config_;
     }
 
-    TTagId RegisterTag(const TTag& tag)
+    TTagId RegisterTag(const TStringTag& tag)
     {
         TGuard<TForkAwareSpinLock> guard(TagSpinLock_);
         auto pair = std::make_pair(tag.Key, tag.Value);
@@ -152,12 +148,18 @@ public:
         return id;
     }
 
+    TStringTag LookupTag(TTagId tag)
+    {
+        TGuard<TForkAwareSpinLock> guard(TagSpinLock_);
+        return GetTag(tag);
+    }
+
     TForkAwareSpinLock& GetTagSpinLock()
     {
         return TagSpinLock_;
     }
 
-    const TTag& GetTag(TTagId id)
+    const TStringTag& GetTag(TTagId id)
     {
         return IdToTag_[id];
     }
@@ -251,7 +253,7 @@ private:
 
             for (const auto& sample : samples) {
                 for (auto tagId : sample.TagIds) {
-                    TagIdToValue_.emplace(tagId, TTag());
+                    TagIdToValue_.emplace(tagId, TStringTag());
                 }
             }
 
@@ -283,7 +285,7 @@ private:
 
     private:
         TSamples Samples_;
-        THashMap<TTagId, TTag> TagIdToValue_;
+        THashMap<TTagId, TStringTag> TagIdToValue_;
         i64 RemovedCount_ = 0;
     };
 
@@ -383,11 +385,11 @@ private:
 
             auto samplesRange = GetSamples(fromTime);
 
-            THashMap<TTagId, TTag> tagIdToValue;
+            THashMap<TTagId, TStringTag> tagIdToValue;
             for (auto it = samplesRange.first; it != samplesRange.second; ++it) {
                 const auto& sample = *it;
                 for (auto tagId : sample.TagIds) {
-                    tagIdToValue.emplace(tagId, TTag());
+                    tagIdToValue.emplace(tagId, TStringTag());
                 }
             }
 
@@ -479,7 +481,7 @@ private:
     TIdGenerator SampleIdGenerator_;
 
     TForkAwareSpinLock TagSpinLock_;
-    std::vector<TTag> IdToTag_;
+    std::vector<TStringTag> IdToTag_;
     std::atomic<int> RegisteredTagCount_ = 0;
     THashMap<std::pair<TString, TString>, int> TagToId_;
     using TTagKeyToValues = THashMap<TString, std::vector<TString>>;
@@ -634,9 +636,14 @@ IYPathServicePtr TProfileManager::GetService() const
     return Impl_->GetService();
 }
 
-TTagId TProfileManager::RegisterTag(const TTag& tag)
+TTagId TProfileManager::RegisterTag(const TStringTag& tag)
 {
     return Impl_->RegisterTag(tag);
+}
+
+TStringTag TProfileManager::LookupTag(TTagId tag)
+{
+    return Impl_->LookupTag(tag);
 }
 
 void TProfileManager::SetGlobalTag(TTagId id)

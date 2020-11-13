@@ -306,7 +306,7 @@ public:
         , PortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "environ",
-            ExecAgentProfiler.AppendPath("/job_environement/porto")))
+            ExecAgentProfiler.WithPrefix("/job_environement/porto")))
     {  }
 
     virtual void CleanProcesses(int slotIndex) override

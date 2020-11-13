@@ -30,8 +30,12 @@ public:
 
     TValue* Find(const TKey& key);
 
-    template<class TCtor>
+    template <class TCtor>
     std::pair<TValue*, bool> FindOrInsert(const TKey& key, const TCtor& ctor);
+
+    //! RangeReadOnly iterates over read-only portion of the map.
+    template <class TFn>
+    void IterateReadOnly(const TFn& fn);
 
 private:
     struct TEntry final

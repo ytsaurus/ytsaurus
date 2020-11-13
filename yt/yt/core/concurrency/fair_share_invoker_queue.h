@@ -5,7 +5,7 @@
 
 #include <yt/core/misc/shutdownable.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NConcurrency {
 
@@ -18,7 +18,7 @@ class TFairShareInvokerQueue
 public:
     TFairShareInvokerQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const std::vector<NProfiling::TTagIdList>& bucketsTagIds,
+        const std::vector<NProfiling::TTagSet>& bucketsTags,
         bool enableLogging,
         bool enableProfiling);
 

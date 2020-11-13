@@ -149,6 +149,13 @@ void ProfileResources(TProfiler& profiler, const TNodeResources& resources)
     #undef XX
 }
 
+void ProfileResources(ISensorWriter* writer, const NProto::TNodeResources& resources)
+{
+    #define XX(name, Name) writer->AddGauge("/" #name, resources.name());
+    ITERATE_NODE_RESOURCES(XX)
+    #undef XX
+}
+
 TNodeResources GetZeroNodeResources()
 {
     TNodeResources result;

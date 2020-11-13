@@ -6,44 +6,37 @@
 
 #include <yt/core/actions/invoker_util.h>
 
-#include <yt/core/profiling/profiler.h>
-
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
+
+#include <yt/yt/library/profiling/producer.h>
 
 namespace NYT {
 
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRefCountedTrackerProfiler
-    : public TRefCounted
+    : public ISensorProducer
 {
 public:
     TRefCountedTrackerProfiler()
-        : Executor_(New<NConcurrency::TPeriodicExecutor>(
-            GetSyncInvoker(),
-            BIND(&TRefCountedTrackerProfiler::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod))
     {
-        Executor_->Start();
+        TRegistry registry{"yt/ref_counted_tracker"};
+        registry.AddProducer("/total", MakeStrong(this));
     }
 
-private:
-    const NConcurrency::TPeriodicExecutorPtr Executor_;
-    const NProfiling::TProfiler Profiler_{"/ref_counted_tracker"};
-
-    void OnProfiling()
+    void Collect(ISensorWriter* writer)
     {
         auto statistics = TRefCountedTracker::Get()->GetStatistics().TotalStatistics;
-        Profiler_.Enqueue("/total/objects_allocated", statistics.ObjectsAllocated, NProfiling::EMetricType::Gauge);
-        Profiler_.Enqueue("/total/objects_freed", statistics.ObjectsFreed, NProfiling::EMetricType::Gauge);
-        Profiler_.Enqueue("/total/objects_alive", statistics.ObjectsAlive, NProfiling::EMetricType::Gauge);
-        Profiler_.Enqueue("/total/bytes_allocated", statistics.BytesAllocated, NProfiling::EMetricType::Gauge);
-        Profiler_.Enqueue("/total/bytes_freed", statistics.BytesFreed, NProfiling::EMetricType::Gauge);
-        Profiler_.Enqueue("/total/bytes_alive", statistics.BytesAlive, NProfiling::EMetricType::Gauge);
+
+        writer->AddCounter("/objects_allocated", statistics.ObjectsAllocated);
+        writer->AddCounter("/objects_freed", statistics.ObjectsFreed);
+        writer->AddGauge("/objects_alive", statistics.ObjectsAlive);
+
+        writer->AddCounter("/bytes_allocated", statistics.BytesAllocated);
+        writer->AddCounter("/bytes_freed", statistics.BytesFreed);
+        writer->AddGauge("/bytes_alive", statistics.BytesAlive);
     }
 };
 

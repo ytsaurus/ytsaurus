@@ -29,6 +29,10 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/library/syncmap/map.h>
+
 #include <util/thread/lfqueue.h>
 
 #include <atomic>
@@ -415,8 +419,8 @@ class TServiceBase
     : public virtual IService
 {
 public:
-    void Configure(TServiceConfigPtr config);
-    virtual void Configure(NYTree::INodePtr configNode) override;
+    void Configure(TServerConfigPtr serverConfig, TServiceConfigPtr config);
+    virtual void Configure(TServerConfigPtr serverConfig, NYTree::INodePtr configNode) override;
     virtual TFuture<void> Stop() override;
 
     virtual const TServiceId& GetServiceId() const override;
@@ -584,49 +588,49 @@ protected:
     struct TMethodPerformanceCounters
         : public TRefCounted
     {
-        explicit TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds);
+        explicit TMethodPerformanceCounters(const NProfiling::TRegistry& registry);
 
         //! Counts the number of method calls.
-        NProfiling::TShardedMonotonicCounter RequestCounter;
+        NProfiling::TCounter RequestCounter;
 
         //! Counts the number of canceled method calls.
-        NProfiling::TShardedMonotonicCounter CanceledRequestCounter;
+        NProfiling::TCounter CanceledRequestCounter;
 
         //! Counts the number of failed method calls.
-        NProfiling::TShardedMonotonicCounter FailedRequestCounter;
+        NProfiling::TCounter FailedRequestCounter;
 
         //! Counts the number of timed out method calls.
-        NProfiling::TShardedMonotonicCounter TimedOutRequestCounter;
+        NProfiling::TCounter TimedOutRequestCounter;
 
         //! Time spent while handling the request.
-        NProfiling::TShardedAggregateGauge ExecutionTimeCounter;
+        NProfiling::TEventTimer ExecutionTimeCounter;
 
         //! Time spent at the caller's side before the request arrived into the server queue.
-        NProfiling::TShardedAggregateGauge RemoteWaitTimeCounter;
+        NProfiling::TEventTimer RemoteWaitTimeCounter;
 
         //! Time spent while the request was waiting in the server queue.
-        NProfiling::TShardedAggregateGauge LocalWaitTimeCounter;
+        NProfiling::TEventTimer LocalWaitTimeCounter;
 
         //! Time between the request arrival and the moment when it is fully processed.
-        NProfiling::TShardedAggregateGauge TotalTimeCounter;
+        NProfiling::TEventTimer TotalTimeCounter;
 
         //! CPU time spent in the handler's fiber.
-        NProfiling::TShardedMonotonicCounter HandlerFiberTimeCounter;
+        NProfiling::TTimeCounter HandlerFiberTimeCounter;
 
         //! CPU time spent in the trace context associated with the request (locally).
-        NProfiling::TShardedMonotonicCounter TraceContextTimeCounter;
+        NProfiling::TTimeCounter TraceContextTimeCounter;
 
         //! Counts the number of bytes in requests message body.
-        NProfiling::TShardedMonotonicCounter RequestMessageBodySizeCounter;
+        NProfiling::TCounter RequestMessageBodySizeCounter;
 
         //! Counts the number of bytes in request message attachment.
-        NProfiling::TShardedMonotonicCounter RequestMessageAttachmentSizeCounter;
+        NProfiling::TCounter RequestMessageAttachmentSizeCounter;
 
         //! Counts the number of bytes in response message body.
-        NProfiling::TShardedMonotonicCounter ResponseMessageBodySizeCounter;
+        NProfiling::TCounter ResponseMessageBodySizeCounter;
 
         //! Counts the number of bytes in response message attachment.
-        NProfiling::TShardedMonotonicCounter ResponseMessageAttachmentSizeCounter;
+        NProfiling::TCounter ResponseMessageAttachmentSizeCounter;
     };
 
     using TMethodPerformanceCountersPtr = TIntrusivePtr<TMethodPerformanceCounters>;
@@ -637,16 +641,12 @@ protected:
     {
         TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,
-            const NProfiling::TTagIdList& tagIds);
+            const NProfiling::TRegistry& registry);
 
         TMethodDescriptor Descriptor;
-        const NProfiling::TTagIdList TagIds;
+        const NProfiling::TRegistry Registry;
 
         std::atomic<int> QueueSize = 0;
-        NProfiling::TAtomicGauge QueueSizeCounter;
-        NProfiling::TAtomicGauge QueueSizeLimitCounter;
-        NProfiling::TAtomicGauge ConcurrencyCounter;
-        NProfiling::TAtomicGauge ConcurrencyLimitCounter;
 
         std::atomic<int> ConcurrencySemaphore = 0;
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
@@ -654,9 +654,9 @@ protected:
         NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler;
         std::atomic<bool> RequestBytesThrottlerSpecified = false;
 
-        NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;
-        THashMap<TString, TMethodPerformanceCountersPtr> UserTagToPerformanceCounters;
+        NConcurrency::TSyncMap<TString, TMethodPerformanceCountersPtr> UserTagToPerformanceCounters;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
+        TMethodPerformanceCountersPtr GlobalPerformanceCounters;
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr LoggingSuppressionFailedRequestThrottler;
     };
@@ -736,9 +736,7 @@ private:
     const TServiceDescriptor ServiceDescriptor_;
     const TServiceId ServiceId_;
 
-    const NProfiling::TTagId ServiceTagId_;
-
-    const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+    const NProfiling::TRegistry ProfilingRegistry_;
 
     struct TPendingPayloadsEntry
     {
@@ -778,9 +776,10 @@ private:
     std::atomic<int> ActiveRequestCount_ = 0;
 
     std::atomic<int> AuthenticationQueueSize_ = 0;
-    NProfiling::TAtomicGauge AuthenticationQueueSizeCounter_;
-    NProfiling::TShardedAggregateGauge AuthenticationTimeCounter_;
+    NProfiling::TEventTimer AuthenticationTimer_;
     int AuthenticationQueueSizeLimit_ = TServiceConfig::DefaultAuthenticationQueueSizeLimit;
+
+    std::atomic<bool> EnablePerUserProfiling_{false};
 
     struct TAcceptedRequest
     {
@@ -830,12 +829,10 @@ private:
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
-        const TString& userTag);
+        const std::optional<TString>& userTag);
     TMethodPerformanceCounters* GetMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& userTag);
-
-    void OnProfiling();
 
     void SetActive();
     void ValidateInactive();

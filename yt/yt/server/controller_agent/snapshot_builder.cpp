@@ -69,7 +69,6 @@ TSnapshotBuilder::TSnapshotBuilder(
     , IOInvoker_(ioInvoker)
     , ControlInvoker_(GetCurrentInvoker())
     , IncarnationId_(incarnationId)
-    , Profiler(ControllerAgentProfiler.AppendPath("/snapshot"))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Client_);
@@ -125,7 +124,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
     // on OnSnapshotStarted call. This may normally happen when promise was abandoned
     // because controller was disposed.
     std::vector<TSnapshotJobPtr> preparedJobs;
-    PROFILE_TIMING("/controllers_prepare_time") {
+    YT_PROFILE_TIMING("yt/controller_agent/snapshot/controllers_prepare_time") {
         auto resultsOrError = WaitFor(AllSet(onSnapshotStartedFutures));
         YT_VERIFY(resultsOrError.IsOK() && "AllSet failed");
         const auto& results = resultsOrError.Value();
@@ -161,7 +160,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
                 .AsyncVia(ControlInvoker_)));
     }
 
-    PROFILE_TIMING ("/controllers_suspend_time") {
+    YT_PROFILE_TIMING("yt/controller_agent/snapshot/controllers_suspend_time") {
         auto result = WaitFor(AllSucceeded(operationSuspendFutures)
             .WithTimeout(Config_->OperationControllerSuspendTimeout));
         if (!result.IsOK()) {
@@ -178,7 +177,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
     ControllersSuspended_ = true;
 
     TFuture<void> forkFuture;
-    PROFILE_TIMING ("/fork_time") {
+    YT_PROFILE_TIMING("yt/controller_agent/snapshot/fork_time") {
         forkFuture = Fork();
     }
 

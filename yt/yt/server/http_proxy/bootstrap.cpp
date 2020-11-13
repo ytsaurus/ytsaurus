@@ -91,7 +91,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Config_->MonitoringServer);
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(MonitoringServer_, &MonitoringManager_, &orchidRoot);
+    NMonitoring::Initialize(MonitoringServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
 
     SetNodeByYPath(
         orchidRoot,
@@ -119,6 +119,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     auto setGlobalRoleTag = [] (const TString& role) {
         auto id = TProfileManager::Get()->RegisterTag("proxy_role", role);
         TProfileManager::Get()->SetGlobalTag(id);
+        TSolomonRegistry::Get()->SetDynamicTags({TTag{"proxy_role", "role"}});
     };
     setGlobalRoleTag(Coordinator_->GetSelf()->Role);
     Coordinator_->SubscribeOnSelfRoleChanged(BIND(setGlobalRoleTag));

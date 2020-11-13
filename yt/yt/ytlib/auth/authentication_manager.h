@@ -24,7 +24,7 @@ public:
         TAuthenticationManagerConfigPtr config,
         NConcurrency::IPollerPtr poller,
         NApi::IClientPtr client,
-        NProfiling::TProfiler profiler = AuthProfiler);
+        NProfiling::TRegistry profiler = AuthProfiler);
 
     ~TAuthenticationManager();
 

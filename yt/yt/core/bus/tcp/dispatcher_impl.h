@@ -3,6 +3,10 @@
 #include "private.h"
 #include "dispatcher.h"
 
+#include <yt/yt/library/profiling/producer.h>
+
+#include <yt/yt/library/syncmap/map.h>
+
 #include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/net/address.h>
@@ -22,7 +26,7 @@ bool IsLocalBusTransportEnabled();
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTcpDispatcher::TImpl
-    : public TRefCounted
+    : public NProfiling::ISensorProducer
 {
 public:
     static const TIntrusivePtr<TImpl>& Get();
@@ -37,13 +41,14 @@ public:
 
     void ValidateNetworkingNotDisabled(EMessageDirection messageDirection);
 
+    void Collect(NProfiling::ISensorWriter* writer);
+
 private:
     friend class TTcpDispatcher;
 
     DECLARE_NEW_FRIEND();
 
     void StartPeriodicExecutors();
-    void OnProfiling();
     void OnLivenessCheck();
 
     NConcurrency::IPollerPtr GetOrCreatePoller(
@@ -65,15 +70,12 @@ private:
 
     struct TNetworkStatistics
     {
-        NProfiling::TTagId Tag;
         TTcpDispatcherCountersPtr Counters = New<TTcpDispatcherCounters>();
     };
 
-    NConcurrency::TReaderWriterSpinLock StatisticsLock_;
-    THashMap<TString, TNetworkStatistics> NetworkStatistics_;
+    NConcurrency::TSyncMap<TString, TNetworkStatistics> NetworkStatistics_;
 
     TAdaptiveLock PeriodicExecutorsLock_;
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     NConcurrency::TPeriodicExecutorPtr LivenessCheckExecutor_;
 
     std::atomic<bool> NetworkingDisabled_ = false;

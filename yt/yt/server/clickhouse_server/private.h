@@ -4,6 +4,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <Common/ProfileEvents.h>
 #include <Common/COW.h>
 
@@ -19,8 +21,10 @@ extern const NLogging::TLogger ClickHouseYtLogger;
 extern const NLogging::TLogger ClickHouseNativeLogger;
 //! Logger which is used by ClickHouse native code.
 extern const NProfiling::TProfiler ClickHouseYtProfiler;
+extern const NProfiling::TRegistry ClickHouseYtProfilerRegistry;
 //! Profiler exporting raw ClickHouse metrics.
 extern const NProfiling::TProfiler ClickHouseNativeProfiler;
+extern const NProfiling::TRegistry ClickHouseNativeProfilerRegistry;
 
 constexpr int MemoryLimitExceededExitCode = 42;
 

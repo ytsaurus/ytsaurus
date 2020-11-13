@@ -117,9 +117,12 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Banned);
     DEFINE_BYVAL_RW_PROPERTY(TUserRequestLimitsConfigPtr, RequestLimits);
 
-    // Transient
-    DEFINE_BYVAL_RW_PROPERTY(int, RequestQueueSize);
-    DEFINE_BYVAL_RW_PROPERTY(bool, NeedsProfiling);
+    int GetRequestQueueSize()
+    {
+        return RequestQueueSize_;
+    }
+
+    void SetRequestQueueSize(int size);
 
     using TStatistics = TEnumIndexedVector<EUserWorkloadType, TUserWorkloadStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TStatistics, Statistics);
@@ -142,9 +145,22 @@ public:
     int GetRequestQueueSizeLimit(NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag) const;
     void SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag = NObjectClient::InvalidCellTag);
 
+    void UpdateCounters(const TUserWorkload& workloadType);
+
+protected:
+    // Transient
+    int RequestQueueSize_{};
+
 private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr ReadRequestRateThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr WriteRequestRateThrottler_;
+
+    NProfiling::TTimeCounter ReadTimeCounter_;
+    NProfiling::TTimeCounter WriteTimeCounter_;
+    NProfiling::TCounter RequestCounter_;
+    NProfiling::TCounter ReadRequestCounter_;
+    NProfiling::TCounter WriteRequestCounter_;
+    NProfiling::TSummary RequestQueueSizeSummary_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -8,13 +8,15 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger SecurityServerLogger;
 extern const NLogging::TLogger AccessLogger;
-extern const NProfiling::TProfiler SecurityServerProfiler;
+extern const NProfiling::TRegistry SecurityProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

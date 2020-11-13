@@ -2,14 +2,14 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger ClusterClockLogger;
-extern const NProfiling::TProfiler ClusterClockProfiler;
+extern const NProfiling::TRegistry ClusterClockProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

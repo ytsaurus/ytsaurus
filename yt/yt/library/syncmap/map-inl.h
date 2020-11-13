@@ -87,8 +87,8 @@ std::pair<TValue*, bool> TSyncMap<TKey, TValue, THash, TEqual>::FindOrInsert(con
     }
 
     if (!snapshot->Dirty) {
-        UpdateSnapshot(snapshot->Map, true);
         DirtyMap_ = New<TMap>(*snapshot->Map);
+        UpdateSnapshot(snapshot->Map, true);
     }
 
     auto [newIt, inserted] = DirtyMap_->emplace(key, New<TEntry>(ctor()));
@@ -128,6 +128,17 @@ void TSyncMap<TKey, TValue, THash, TEqual>::OnMiss()
 
     Misses_ = 0;
     UpdateSnapshot(std::move(DirtyMap_), false);
+}
+
+template <class TKey, class TValue, class THash, class TEqual>
+template <class TFn>
+void TSyncMap<TKey, TValue, THash, TEqual>::IterateReadOnly(const TFn& fn)
+{
+    auto snapshot = AcquireSnapshot();
+
+    for (const auto& [key, entry] : *snapshot->Map) {
+        fn(key, entry->Value);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

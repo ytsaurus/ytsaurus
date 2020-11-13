@@ -1,11 +1,12 @@
 #pragma once
 
 #include "public.h"
+
 #include "private.h"
 
 #include <yt/core/misc/shutdownable.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <atomic>
 
@@ -22,7 +23,7 @@ class TInvokerQueue
 public:
     TInvokerQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
-        const NProfiling::TTagIdList& tagIds,
+        const NProfiling::TTagSet& tagSet,
         bool enableLogging,
         bool enableProfiling,
         EInvokerQueueType type = EInvokerQueueType::SingleLockFreeQueue);
@@ -61,14 +62,13 @@ private:
 
     std::unique_ptr<IActionQueue> Queue;
 
-    NProfiling::TProfiler Profiler;
-    NProfiling::TShardedMonotonicCounter EnqueuedCounter;
-    NProfiling::TShardedMonotonicCounter DequeuedCounter;
-    NProfiling::TAtomicShardedAggregateGauge SizeGauge;
-    NProfiling::TShardedAggregateGauge WaitTimeGauge;
-    NProfiling::TShardedAggregateGauge ExecTimeGauge;
-    NProfiling::TShardedMonotonicCounter CumulativeTimeCounter;
-    NProfiling::TShardedAggregateGauge TotalTimeGauge;
+    NProfiling::TCounter EnqueuedCounter;
+    NProfiling::TCounter DequeuedCounter;
+    std::atomic<int> SizeGauge{0};
+    NProfiling::TEventTimer WaitTimer;
+    NProfiling::TEventTimer ExecTimer;
+    NProfiling::TTimeCounter CumulativeTimeCounter;
+    NProfiling::TEventTimer TotalTimer;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInvokerQueue)

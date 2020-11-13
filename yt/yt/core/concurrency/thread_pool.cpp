@@ -7,8 +7,6 @@
 
 #include <yt/core/ypath/token.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 namespace NYT::NConcurrency {
 
 using namespace NProfiling;
@@ -32,7 +30,7 @@ public:
         , EnableProfiling_(enableProfiling)
         , Queue_(New<TInvokerQueue>(
             CallbackEventCount_,
-            GetThreadTagIds(enableProfiling, threadNamePrefix),
+            GetThreadTags(enableProfiling, threadNamePrefix),
             enableLogging,
             enableProfiling,
             queueType))
@@ -148,7 +146,7 @@ private:
             Queue_,
             CallbackEventCount_,
             Format("%v:%v", ThreadNamePrefix_, index),
-            GetThreadTagIds(EnableProfiling_, ThreadNamePrefix_),
+            GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
             EnableLogging_,
             EnableProfiling_);
     }

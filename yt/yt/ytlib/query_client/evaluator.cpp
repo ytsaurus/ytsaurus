@@ -206,9 +206,9 @@ class TEvaluator::TImpl
 public:
     TImpl(
         const TExecutorConfigPtr& config,
-        const NProfiling::TProfiler& profiler,
+        const NProfiling::TRegistry& profiler,
         IMemoryUsageTrackerPtr memoryTracker)
-        : TAsyncSlruCacheBase(config->CGCache, profiler.AppendPath("/cg_cache"))
+        : TAsyncSlruCacheBase(config->CGCache, profiler.WithPrefix("/cg_cache"))
         , MemoryTracker_(std::move(memoryTracker))
     { }
 
@@ -393,7 +393,7 @@ private:
 
 TEvaluator::TEvaluator(
     TExecutorConfigPtr config,
-    const NProfiling::TProfiler& profiler,
+    const NProfiling::TRegistry& profiler,
     IMemoryUsageTrackerPtr memoryTracker)
     : Impl_(New<TImpl>(
         std::move(config),

@@ -7,8 +7,8 @@ namespace NYT::NRpc {
 const NLogging::TLogger RpcServerLogger("RpcServer");
 const NLogging::TLogger RpcClientLogger("RpcClient");
 
-const NProfiling::TProfiler RpcServerProfiler("/rpc/server");
-const NProfiling::TProfiler RpcClientProfiler("/rpc/client");
+const NProfiling::TRegistry RpcServerProfiler("yt/rpc/server");
+const NProfiling::TRegistry RpcClientProfiler("yt/rpc/client");
 
 ////////////////////////////////////////////////////////////////////////////////
 

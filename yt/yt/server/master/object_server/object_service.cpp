@@ -159,7 +159,7 @@ public:
         , Cache_(New<TObjectServiceCache>(
             Config_->MasterCache,
             ObjectServerLogger,
-            ObjectServerProfiler.AppendPath("/master_cache")))
+            ObjectServerProfilerRegistry.WithPrefix("/master_cache")))
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)

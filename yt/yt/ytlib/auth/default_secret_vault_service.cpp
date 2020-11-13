@@ -49,11 +49,19 @@ public:
         TDefaultSecretVaultServiceConfigPtr config,
         ITvmServicePtr tvmService,
         IPollerPtr poller,
-        NProfiling::TProfiler profiler)
+        NProfiling::TRegistry profiler)
         : Config_(std::move(config))
         , TvmService_(std::move(tvmService))
-        , Profiler_(std::move(profiler))
         , HttpClient_(CreateHttpClient(std::move(poller)))
+        , SubrequestsPerCallGauge_(profiler.Gauge("/subrequests_per_call"))
+        , CallCountCounter_(profiler.Counter("/call_count"))
+        , SubrequestCountCounter_(profiler.Counter("/subrequest_count"))
+        , CallTimeGauge_(profiler.Timer("/call_time"))
+        , SuccessfulCallCountCounter_(profiler.Counter("/successful_call_count"))
+        , FailedCallCountCounter_(profiler.Counter("/failed_call_count"))
+        , SuccessfulSubrequestCountCounter_(profiler.Counter("/successful_subrequest_count"))
+        , WarningSubrequestCountCounter_(profiler.Counter("/warning_subrequest_count"))
+        , FailedSubrequestCountCounter_(profiler.Counter("/failed_subrequest_count"))
     { }
 
     virtual TFuture<std::vector<TErrorOrSecretSubresponse>> GetSecrets(const std::vector<TSecretSubrequest>& subrequests) override
@@ -68,19 +76,18 @@ public:
 private:
     const TDefaultSecretVaultServiceConfigPtr Config_;
     const ITvmServicePtr TvmService_;
-    const NProfiling::TProfiler Profiler_;
 
     const NHttp::IClientPtr HttpClient_;
 
-    NProfiling::TShardedAggregateGauge SubrequestsPerCallGauge_{"/subrequests_per_call"};
-    NProfiling::TShardedMonotonicCounter CallCountCounter_{"/call_count"};
-    NProfiling::TShardedMonotonicCounter SubrequestCountCounter_{"/subrequest_count"};
-    NProfiling::TShardedAggregateGauge CallTimeGauge_{"/call_time"};
-    NProfiling::TShardedMonotonicCounter SuccessfulCallCountCounter_{"/successful_call_count"};
-    NProfiling::TShardedMonotonicCounter FailedCallCountCounter_{"/failed_call_count"};
-    NProfiling::TShardedMonotonicCounter SuccessfulSubrequestCountCounter_{"/successful_subrequest_count"};
-    NProfiling::TShardedMonotonicCounter WarningSubrequestCountCounter_{"/warning_subrequest_count"};
-    NProfiling::TShardedMonotonicCounter FailedSubrequestCountCounter_{"/failed_subrequest_count"};
+    NProfiling::TGauge SubrequestsPerCallGauge_;
+    NProfiling::TCounter CallCountCounter_;
+    NProfiling::TCounter SubrequestCountCounter_;
+    NProfiling::TEventTimer CallTimeGauge_;
+    NProfiling::TCounter SuccessfulCallCountCounter_;
+    NProfiling::TCounter FailedCallCountCounter_;
+    NProfiling::TCounter SuccessfulSubrequestCountCounter_;
+    NProfiling::TCounter WarningSubrequestCountCounter_;
+    NProfiling::TCounter FailedSubrequestCountCounter_;
 
 private:
     NHttp::IClientPtr CreateHttpClient(IPollerPtr poller) const
@@ -99,9 +106,9 @@ private:
             subrequests.size(),
             callId);
 
-        Profiler_.Increment(CallCountCounter_);
-        Profiler_.Increment(SubrequestCountCounter_, subrequests.size());
-        Profiler_.Update(SubrequestsPerCallGauge_, subrequests.size());
+        CallCountCounter_.Increment();
+        SubrequestCountCounter_.Increment(subrequests.size());
+        SubrequestsPerCallGauge_.Update(subrequests.size());
 
         auto url = Format("%v://%v:%v/1/tokens/",
             Config_->Secure ? "https" : "http",
@@ -127,11 +134,11 @@ private:
         const NProfiling::TWallTimer& timer,
         const TErrorOr<NHttp::IResponsePtr>& rspOrError)
     {
-        Profiler_.Update(CallTimeGauge_, timer.GetElapsedValue());
+        CallTimeGauge_.Record(timer.GetElapsedTime());
 
         auto onError = [&] (TError error) {
             error.Attributes().Set("call_id", callId);
-            Profiler_.Increment(FailedCallCountCounter_);
+            FailedCallCountCounter_.Increment();
             YT_LOG_DEBUG(error);
             THROW_ERROR(error);
         };
@@ -230,10 +237,10 @@ private:
                 subresponses.push_back(subresponse);
             }
 
-            Profiler_.Increment(SuccessfulCallCountCounter_);
-            Profiler_.Increment(SuccessfulSubrequestCountCounter_, successCount);
-            Profiler_.Increment(WarningSubrequestCountCounter_, warningCount);
-            Profiler_.Increment(FailedSubrequestCountCounter_, errorCount);
+            SuccessfulCallCountCounter_.Increment();
+            SuccessfulSubrequestCountCounter_.Increment(successCount);
+            WarningSubrequestCountCounter_.Increment(warningCount);
+            FailedSubrequestCountCounter_.Increment(errorCount);
 
             YT_LOG_DEBUG("Secrets retrieved from Vault (CallId: %v, SuccessCount: %v, WarningCount: %v, ErrorCount: %v)",
                 callId,
@@ -346,7 +353,7 @@ ISecretVaultServicePtr CreateDefaultSecretVaultService(
     TDefaultSecretVaultServiceConfigPtr config,
     ITvmServicePtr tvmService,
     IPollerPtr poller,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
 {
     return New<TDefaultSecretVaultService>(
         std::move(config),

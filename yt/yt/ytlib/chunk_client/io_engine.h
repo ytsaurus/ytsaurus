@@ -67,7 +67,7 @@ IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
     const NYTree::INodePtr& ioConfig,
     const TString& locationId = "default",
-    const NProfiling::TProfiler& profiler = NProfiling::TProfiler(),
+    const NProfiling::TRegistry& profiler = {},
     const NLogging::TLogger& logger = NLogging::TLogger());
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,12 +2,12 @@
 #include "config.h"
 #include "connection.h"
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_pool_poller.h>
 
 #include <yt/core/actions/invoker_util.h>
+
+#include <yt/library/profiling/producer.h>
 
 namespace NYT::NBus {
 
@@ -17,11 +17,9 @@ using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = BusProfiler;
 static const auto& Logger = BusLogger;
 
 static constexpr auto XferThreadCount = 8;
-static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 static constexpr auto LivenessCheckPeriod = TDuration::MilliSeconds(100);
 static constexpr auto PerConnectionLivenessChecksPeriod = TDuration::Seconds(10);
 
@@ -83,9 +81,6 @@ void TTcpDispatcher::TImpl::Shutdown()
 {
     {
         TGuard guard(PeriodicExecutorsLock_);
-        if (ProfilingExecutor_) {
-            ProfilingExecutor_->Stop();
-        }
         if (LivenessCheckExecutor_) {
             LivenessCheckExecutor_->Stop();
         }
@@ -97,15 +92,11 @@ void TTcpDispatcher::TImpl::Shutdown()
 
 const TTcpDispatcherCountersPtr& TTcpDispatcher::TImpl::GetCounters(const TString& networkName)
 {
-    TWriterGuard guard(StatisticsLock_);
-    auto it = NetworkStatistics_.find(networkName);
-    if (it != NetworkStatistics_.end()) {
-        return it->second.Counters;
-    }
+    auto [statistics, ok] = NetworkStatistics_.FindOrInsert(networkName, [] {
+        return TNetworkStatistics{};
+    });
 
-    auto& statistics = NetworkStatistics_[networkName];
-    statistics.Tag = TProfileManager::Get()->RegisterTag("network", networkName);
-    return statistics.Counters;
+    return statistics->Counters;
 }
 
 IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
@@ -192,47 +183,39 @@ void TTcpDispatcher::TImpl::StartPeriodicExecutors()
     auto invoker = GetXferPoller()->GetInvoker();
 
     TGuard guard(PeriodicExecutorsLock_);
-    if (!ProfilingExecutor_) {
-        ProfilingExecutor_ = New<TPeriodicExecutor>(
-            invoker,
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
-        ProfilingExecutor_->Start();
-    }
     if (!LivenessCheckExecutor_) {
         LivenessCheckExecutor_ = New<TPeriodicExecutor>(
             invoker,
             BIND(&TImpl::OnLivenessCheck, MakeWeak(this)),
-            ProfilingPeriod);
+            LivenessCheckPeriod);
         LivenessCheckExecutor_->Start();
     }
 }
 
-void TTcpDispatcher::TImpl::OnProfiling()
+void TTcpDispatcher::TImpl::Collect( ISensorWriter* writer)
 {
-    TReaderGuard guard(StatisticsLock_);
-    for (const auto& network : NetworkStatistics_) {
-        TTagIdList tagIds{
-            network.second.Tag
-        };
+    NetworkStatistics_.IterateReadOnly([writer] (const auto& name, const auto& statistics) {
+        writer->PushTag(std::pair<TString, TString>("network", name));
 
-        auto statistics = network.second.Counters->ToStatistics();
+        auto counters = statistics.Counters->ToStatistics();
 
-        Profiler.Enqueue("/in_bytes", statistics.InBytes, EMetricType::Counter, tagIds);
-        Profiler.Enqueue("/in_packets", statistics.InPackets, EMetricType::Counter, tagIds);
-        Profiler.Enqueue("/out_bytes", statistics.OutBytes, EMetricType::Counter, tagIds);
-        Profiler.Enqueue("/out_packets", statistics.OutPackets, EMetricType::Counter, tagIds);
-        Profiler.Enqueue("/pending_out_bytes", statistics.PendingOutBytes, EMetricType::Gauge, tagIds);
-        Profiler.Enqueue("/pending_out_packets", statistics.PendingOutPackets, EMetricType::Gauge, tagIds);
-        Profiler.Enqueue("/client_connections", statistics.ClientConnections, EMetricType::Gauge, tagIds);
-        Profiler.Enqueue("/server_connections", statistics.ServerConnections, EMetricType::Gauge, tagIds);
-        Profiler.Enqueue("/stalled_reads", statistics.StalledReads, EMetricType::Counter, tagIds);
-        Profiler.Enqueue("/stalled_writes", statistics.StalledWrites, EMetricType::Counter, tagIds);
-        Profiler.Enqueue("/read_errors", statistics.ReadErrors, EMetricType::Counter, tagIds);
-        Profiler.Enqueue("/write_errors", statistics.WriteErrors, EMetricType::Counter, tagIds);
-        Profiler.Enqueue("/encoder_errors", statistics.EncoderErrors, EMetricType::Counter, tagIds);
-        Profiler.Enqueue("/decoder_errors", statistics.DecoderErrors, EMetricType::Counter, tagIds);
-    }
+        writer->AddCounter("/in_bytes", counters.InBytes);
+        writer->AddCounter("/in_packets", counters.InPackets);
+        writer->AddCounter("/out_bytes", counters.OutBytes);
+        writer->AddCounter("/out_packets", counters.OutPackets);
+        writer->AddGauge("/pending_out_bytes", counters.PendingOutBytes);
+        writer->AddGauge("/pending_out_packets", counters.PendingOutPackets);
+        writer->AddGauge("/client_connections", counters.ClientConnections);
+        writer->AddGauge("/server_connections", counters.ServerConnections);
+        writer->AddCounter("/stalled_reads", counters.StalledReads);
+        writer->AddCounter("/stalled_writes", counters.StalledWrites);
+        writer->AddCounter("/read_errors", counters.ReadErrors);
+        writer->AddCounter("/write_errors", counters.WriteErrors);
+        writer->AddCounter("/encoder_errors", counters.EncoderErrors);
+        writer->AddCounter("/decoder_errors", counters.DecoderErrors);
+
+        writer->PopTag();
+    });
 }
 
 void TTcpDispatcher::TImpl::OnLivenessCheck()

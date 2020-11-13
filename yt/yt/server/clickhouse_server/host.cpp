@@ -503,7 +503,7 @@ private:
         PermissionCache_ = New<TPermissionCache>(
             Config_->PermissionCache,
             Connection_,
-            ClickHouseYtProfiler.AppendPath("/permission_cache"));
+            ClickHouseYtProfilerRegistry.WithPrefix("/permission_cache"));
 
         TableAttributeCache_ = New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
@@ -511,7 +511,7 @@ private:
             CacheClient_,
             ControlInvoker_,
             Logger,
-            ClickHouseYtProfiler.AppendPath("/object_attribute_cache"));
+            ClickHouseYtProfilerRegistry.WithPrefix("/object_attribute_cache"));
     }
 
     void InitializeReaderMemoryManager()

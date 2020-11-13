@@ -13,7 +13,7 @@ class TAuthCache
 public:
     TAuthCache(
         TAuthCacheConfigPtr config,
-        NProfiling::TProfiler profiler = {})
+        NProfiling::TRegistry profiler = {})
         : Config_(std::move(config))
         , Profiler_(std::move(profiler))
     { }
@@ -50,7 +50,7 @@ private:
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
     const TAuthCacheConfigPtr Config_;
-    const NProfiling::TProfiler Profiler_;
+    const NProfiling::TRegistry Profiler_;
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
     THashMap<TKey, TEntryPtr> Cache_;

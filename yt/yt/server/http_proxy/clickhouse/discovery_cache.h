@@ -34,7 +34,7 @@ class TDiscoveryCache
     : public TAsyncSlruCacheBase<NScheduler::TOperationId, TCachedDiscovery>
 {
 public:
-    TDiscoveryCache(TDiscoveryCacheConfigPtr config, const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+    TDiscoveryCache(TDiscoveryCacheConfigPtr config, const NProfiling::TRegistry& profiler = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryCache);

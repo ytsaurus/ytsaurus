@@ -33,11 +33,15 @@ public:
     TBlackboxTokenAuthenticator(
         TBlackboxTokenAuthenticatorConfigPtr config,
         IBlackboxServicePtr blackboxService,
-        NProfiling::TProfiler profiler)
+        NProfiling::TRegistry profiler)
         : Config_(std::move(config))
         , Blackbox_(std::move(blackboxService))
-        , Profiler_(std::move(profiler))
-    { }
+    {
+        profiler = profiler.WithPrefix("/blackbox_token_authenticator");
+        RejectedTokens_ = profiler.Counter("/rejected_tokens");
+        InvalidBlackboxResponces_ = profiler.Counter("/invalid_responces");
+        TokenScopeCheckErrors_ = profiler.Counter("/scope_check_errors");
+    }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
         const TTokenCredentials& credentials) override
@@ -65,11 +69,10 @@ public:
 private:
     const TBlackboxTokenAuthenticatorConfigPtr Config_;
     const IBlackboxServicePtr Blackbox_;
-    const NProfiling::TProfiler Profiler_;
 
-    TShardedMonotonicCounter RejectedTokens_{"/blackbox_token_authenticator/rejected_tokens"};
-    TShardedMonotonicCounter InvalidBlackboxResponces_{"/blackbox_token_authenticator/invalid_responces"};
-    TShardedMonotonicCounter TokenScopeCheckErrors_{"/blackbox_token_authenticator/scope_check_errors"};
+    TCounter RejectedTokens_;
+    TCounter InvalidBlackboxResponces_;
+    TCounter TokenScopeCheckErrors_;
 
 private:
     TAuthenticationResult OnCallResult(const TString& tokenHash, const INodePtr& data)
@@ -94,14 +97,14 @@ private:
         // See https://doc.yandex-team.ru/blackbox/reference/method-oauth-response-json.xml for reference.
         auto statusId = GetByYPath<int>(data, "/status/id");
         if (!statusId.IsOK()) {
-            AuthProfiler.Increment(InvalidBlackboxResponces_);
+            InvalidBlackboxResponces_.Increment();
             return TError("Blackbox returned invalid response");
         }
 
         if (EBlackboxStatus(statusId.Value()) != EBlackboxStatus::Valid) {
             auto error = GetByYPath<TString>(data, "/error");
             auto reason = error.IsOK() ? error.Value() : "unknown";
-            AuthProfiler.Increment(RejectedTokens_);
+            RejectedTokens_.Increment();
             return TError(NRpc::EErrorCode::InvalidCredentials, "Blackbox rejected token")
                 << TErrorAttribute("reason", reason);
         }
@@ -119,7 +122,7 @@ private:
             if (!oauthClientName.IsOK()) error.InnerErrors().push_back(oauthClientName);
             if (!oauthScope.IsOK()) error.InnerErrors().push_back(oauthScope);
 
-            AuthProfiler.Increment(InvalidBlackboxResponces_);
+            InvalidBlackboxResponces_.Increment();
             return error;
         }
 
@@ -135,7 +138,7 @@ private:
                 }
             }
             if (!matchedScope) {
-                AuthProfiler.Increment(TokenScopeCheckErrors_);
+                TokenScopeCheckErrors_.Increment();
                 return TError(NRpc::EErrorCode::InvalidCredentials, "Token does not provide a valid scope")
                     << TErrorAttribute("scope", oauthScope.Value());
             }
@@ -152,7 +155,7 @@ private:
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TBlackboxTokenAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackboxService,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
 {
     return New<TBlackboxTokenAuthenticator>(
         std::move(config),
@@ -265,7 +268,7 @@ public:
     TCachingTokenAuthenticator(
         TCachingTokenAuthenticatorConfigPtr config,
         ITokenAuthenticatorPtr tokenAuthenticator,
-        NProfiling::TProfiler profiler)
+        NProfiling::TRegistry profiler)
         : TAuthCache(config->Cache, std::move(profiler))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
@@ -289,7 +292,7 @@ private:
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     TCachingTokenAuthenticatorConfigPtr config,
     ITokenAuthenticatorPtr authenticator,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
 {
     return New<TCachingTokenAuthenticator>(
         std::move(config),

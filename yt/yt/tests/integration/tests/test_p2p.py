@@ -70,7 +70,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @authors("max42")
     @clear_everything_after_test
     def test_no_distribution(self):
-        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_block_size")
+        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_bytes")
 
         # Keep number of tries in sync with min_request_count.
         self._access()
@@ -83,7 +83,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
     @flaky(max_runs=5)
     @clear_everything_after_test
     def test_simple_distribution(self):
-        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_block_size")
+        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_bytes")
 
         # Must be greater than min_request_count in config.
         self._access()
@@ -103,7 +103,7 @@ class TestBlockPeerDistributorSynthetic(YTEnvSetup):
         # Wait for node directory to become updated.
         time.sleep(2)
 
-        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_block_size")
+        metric_delta = Metric.at_node(self.seed, "data_node/p2p/distributed_bytes")
 
         self._access()
         self._access()

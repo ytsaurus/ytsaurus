@@ -84,7 +84,7 @@ class TBlockMetaCache
     : public TSyncSlruCacheBase<NChunkClient::TChunkId, TCachedBlockMeta>
 {
 public:
-    TBlockMetaCache(TSlruCacheConfigPtr config, const NProfiling::TProfiler& profiler);
+    TBlockMetaCache(TSlruCacheConfigPtr config, const NProfiling::TRegistry& profiler);
 
 private:
     virtual i64 GetWeight(const TCachedBlockMetaPtr& value) const override;

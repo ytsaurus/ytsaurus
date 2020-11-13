@@ -600,7 +600,9 @@ void TServerBase::RegisterService(IServicePtr service)
         if (Config_) {
             auto it = Config_->Services.find(serviceId.ServiceName);
             if (it != Config_->Services.end()) {
-                service->Configure(it->second);
+                service->Configure(Config_, it->second);
+            } else {
+                service->Configure(Config_, nullptr);
             }
         }
         DoRegisterService(service);
@@ -648,10 +650,12 @@ void TServerBase::Configure(TServerConfigPtr config)
     Config_ = config;
 
     // Apply configuration to all existing services.
-    for (const auto& [serviceName, serviceConfig] : config->Services) {
-        auto services = DoFindServices(serviceName);
-        for (auto service : services) {
-            service->Configure(serviceConfig);
+    for (const auto& [serviceId, service] : ServiceMap_) {
+        auto it = config->Services.find(serviceId.ServiceName);
+        if (it != config->Services.end()) {
+            service->Configure(config, it->second);
+        } else {
+            service->Configure(config, nullptr);
         }
     }
 }

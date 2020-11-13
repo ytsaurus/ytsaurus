@@ -65,14 +65,14 @@ public:
         : ThreadName_("Finalizer")
         , Queue_(New<TInvokerQueue>(
             CallbackEventCount_,
-            GetThreadTagIds(false, ThreadName_),
+            NProfiling::TTagSet{},
             false,
             false))
         , Thread_(New<TSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
             ThreadName_,
-            GetThreadTagIds(false, ThreadName_),
+            NProfiling::TTagSet{},
             false,
             false))
         , OwningPid_(getpid())

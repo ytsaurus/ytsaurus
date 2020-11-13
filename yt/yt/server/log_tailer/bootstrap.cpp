@@ -42,7 +42,7 @@ void TBootstrap::Run()
     Config_->MonitoringServer->ServerName = "monitoring";
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_);
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_, Config_->SolomonExporter);
 
     SetBuildAttributes(OrchidRoot_, "clickhouse_log_tailer");
 

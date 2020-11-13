@@ -290,6 +290,10 @@ def set_at(config, path, value, merge=False):
             else:
                 config[part] = value
 
+def init_singletons(config, provision):
+    set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
+    set_at(config, "solomon_exporter/enable_core_profiling_compatibility", True)
+
 def get_at(config, path, default_value=None):
     for part in path.split("/"):
         if not isinstance(config, dict):
@@ -401,7 +405,7 @@ class ConfigsProvider_19(ConfigsProvider):
             for master_index in xrange(provision["master"]["cell_size"]):
                 config = default_configs.get_master_config()
 
-                set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
+                init_singletons(config, provision)
 
                 config["hydra_manager"] = _get_hydra_manager_config()
 
@@ -473,7 +477,7 @@ class ConfigsProvider_19(ConfigsProvider):
         for clock_index in xrange(provision["clock"]["cell_size"]):
             config = default_configs.get_clock_config()
 
-            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
+            init_singletons(config, provision)
 
             config["hydra_manager"] = _get_hydra_manager_config()
 
@@ -598,7 +602,7 @@ class ConfigsProvider_19(ConfigsProvider):
         for index in xrange(provision["scheduler"]["count"]):
             config = default_configs.get_scheduler_config()
 
-            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
+            init_singletons(config, provision)
             config["cluster_connection"] = \
                 self._build_cluster_connection_config(
                     provision,
@@ -646,7 +650,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
             fqdn = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
             set_at(proxy_config, "coordinator/public_fqdn", fqdn)
-            set_at(proxy_config, "address_resolver/localhost_fqdn", provision["fqdn"])
+            init_singletons(proxy_config, provision)
 
             proxy_config["logging"] = init_logging(
                 proxy_config.get("logging"),
@@ -675,7 +679,7 @@ class ConfigsProvider_19(ConfigsProvider):
         for index in xrange(provision["node"]["count"]):
             config = default_configs.get_node_config()
 
-            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
+            init_singletons(config, provision)
 
             config["addresses"] = [
                 ("interconnect", provision["fqdn"]),
@@ -879,7 +883,6 @@ class ConfigsProvider_19(ConfigsProvider):
                 "yt_alloc_dump_period": 15000,
                 "ref_counted_tracker_dump_period": 15000,
                 "enable_authentication": False,
-                "address_resolver": {"localhost_fqdn": provision["fqdn"]},
                 "api_service": {
                     "security_manager": {
                         "user_cache": {
@@ -891,6 +894,7 @@ class ConfigsProvider_19(ConfigsProvider):
                     }
                 }
             }
+            init_singletons(config, provision)
             config["cluster_connection"] = self._build_cluster_connection_config(
                 provision,
                 master_connection_configs,
@@ -963,7 +967,7 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
         for index in xrange(provision["controller_agent"]["count"]):
             config = default_configs.get_controller_agent_config()
 
-            set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
+            init_singletons(config, provision)
             config["cluster_connection"] = \
                 self._build_cluster_connection_config(
                     provision,

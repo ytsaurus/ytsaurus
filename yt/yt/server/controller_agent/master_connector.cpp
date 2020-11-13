@@ -93,7 +93,6 @@ public:
         : Config_(std::move(config))
         , InitialConfigNode_(std::move(configNode))
         , Bootstrap_(bootstrap)
-        , UpdateOperationProgressFailuresCounter_("/operation_archive/update_progress_failures")
     { }
 
     void Initialize()
@@ -302,7 +301,8 @@ private:
 
     TEnumIndexedVector<EControllerAgentAlertType, TError> Alerts_;
 
-    NProfiling::TShardedMonotonicCounter UpdateOperationProgressFailuresCounter_;
+    NProfiling::TCounter UpdateOperationProgressFailuresCounter_ = ControllerAgentProfiler
+        .Counter("/operation_archive/update_progress_failures");
 
     struct TUnstageRequest
     {
@@ -850,7 +850,7 @@ private:
                 "Operation progress update in Archive failed (TransactionId: %v, OperationId: %v)",
                 transaction->GetId(),
                 operationId);
-            ControllerAgentProfiler.Increment(UpdateOperationProgressFailuresCounter_);
+            UpdateOperationProgressFailuresCounter_.Increment();
         } else {
             YT_LOG_DEBUG("Operation progress updated successfully (TransactionId: %v, DataWeight: %v, OperationId: %v)",
                 transaction->GetId(),

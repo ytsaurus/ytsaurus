@@ -6,7 +6,7 @@ namespace NYT::NSecurityServer {
 
 const NLogging::TLogger SecurityServerLogger("Security");
 const NLogging::TLogger AccessLogger("Access");
-const NProfiling::TProfiler SecurityServerProfiler("/security");
+const NProfiling::TRegistry SecurityProfiler("yt/security");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -209,6 +209,12 @@ struct TRefCountedGauge
 
 DEFINE_REFCOUNTED_TYPE(TRefCountedGauge)
 
+struct TSimpleGauge
+    : public TRefCounted
+{
+    std::atomic<i64> Value{0};
+};
+
 struct TFiberContext
 {
     TExceptionSafeContext ThreadContext;
@@ -216,7 +222,7 @@ struct TFiberContext
     TFiberPtr ResumerFiber;
     TFiberPtr CurrentFiber;
 
-    TRefCountedGaugePtr WaitingFibersCounter;
+    TIntrusivePtr<TSimpleGauge> WaitingFibersCounter;
 };
 
 thread_local TFiberContext* FiberContext = nullptr;
@@ -243,7 +249,7 @@ TFiberPtr& CurrentFiber()
     return FiberContext ? FiberContext->CurrentFiber : NullFiberPtr;
 }
 
-TRefCountedGaugePtr WaitingFibersCounter()
+TIntrusivePtr<TSimpleGauge> WaitingFibersCounter()
 {
     return FiberContext->WaitingFibersCounter;
 }
@@ -309,10 +315,7 @@ void SwitchFromFiber(TFiberPtr target)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TProfiler Profiler("/action_queue");
-static NProfiling::TShardedMonotonicCounter CreatedFibersCounter("/created_fibers");
-static NProfiling::TAtomicGauge AliveFibersCounter("/alive_fibers");
-static NProfiling::TAtomicGauge IdleFibersCounter("/idle_fibers");
+static NProfiling::TCounter CreatedFibersCounter = NProfiling::TRegistry{"yt/action_queue"}.Counter("/created_fibers");
 
 void TFiberReusingAdapter::CancelWait()
 {
@@ -458,9 +461,7 @@ void RunInFiberContext(TClosure callback)
 void TDerivedFiber::Main()
 {
     {
-        Profiler.Increment(CreatedFibersCounter);
-        Profiler.Increment(AliveFibersCounter, 1);
-
+        CreatedFibersCounter.Increment();
         YT_LOG_DEBUG("Fiber started");
     }
 
@@ -511,7 +512,6 @@ void TDerivedFiber::Main()
                     YT_LOG_TRACE("Making fiber idle (FiberId: %llx)",
                         current->GetId());
 
-                    Profiler.Increment(IdleFibersCounter, 1);
                     IdleFibers.Enqueue(std::move(current));
                 }));
             }
@@ -565,8 +565,6 @@ void TDerivedFiber::Main()
 
     {
         YT_LOG_DEBUG("Fiber finished");
-
-        Profiler.Increment(AliveFibersCounter, -1);
     }
 
     // Terminating fiber.
@@ -673,10 +671,6 @@ TFiberPtr GetYieldTarget()
 #ifdef REUSE_FIBERS
     if (!targetFiber) {
         IdleFibers.Dequeue(&targetFiber);
-
-        if (targetFiber) {
-            Profiler.Increment(IdleFibersCounter, -1);
-        }
     }
 #endif
     return targetFiber;
@@ -692,10 +686,9 @@ void BaseYield(TClosure afterSwitch)
     auto switchTarget = GetYieldTarget();
 
     auto waitingFibersCounter = WaitingFibersCounter();
-
-    Profiler.Increment(*waitingFibersCounter, 1);
+    waitingFibersCounter->Value++;
     SwitchFromFiber(std::move(switchTarget));
-    Profiler.Increment(*waitingFibersCounter, -1);
+    waitingFibersCounter->Value--;
 
     YT_VERIFY(ResumerFiber());
 }
@@ -780,7 +773,7 @@ TFiberReusingAdapter::TFiberReusingAdapter(
 TFiberReusingAdapter::TFiberReusingAdapter(
     std::shared_ptr<TEventCount> callbackEventCount,
     const TString& threadName,
-    const NProfiling::TTagIdList& /*tagIds*/,
+    const NProfiling::TTagSet& /*tags*/,
     bool enableLogging,
     bool /*enableProfiling*/)
     : TFiberReusingAdapter(
@@ -795,9 +788,12 @@ bool TFiberReusingAdapter::OnLoop(TEventCount::TCookie* cookie)
 
     TFiberContext fiberContext;
 
-    fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
-        "/waiting_fibers",
-        GetThreadTagIds(true, ThreadName_));
+    auto gauge = New<TSimpleGauge>();
+    fiberContext.WaitingFibersCounter = gauge;
+    ConcurrencyProfiler.WithTags(GetThreadTags(true, ThreadName_))
+        .AddFuncGauge("/waiting_fibers", gauge, [gauge=gauge.Get()] {
+            return gauge->Value.load();
+        });
 
     CurrentThread = this;
     FiberContext = &fiberContext;

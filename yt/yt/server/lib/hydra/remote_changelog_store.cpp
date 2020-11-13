@@ -60,14 +60,14 @@ public:
         IClientPtr client,
         ITransactionPtr prerequisiteTransaction,
         std::optional<TVersion> reachableVersion,
-        const NProfiling::TTagIdList& profilerTags)
+        const TJournalWriterPerformanceCounters& counters)
         : Config_(std::move(config))
         , Options_(options)
         , Path_(remotePath)
         , Client_(client)
         , PrerequisiteTransaction_(std::move(prerequisiteTransaction))
         , ReachableVersion_(reachableVersion)
-        , ProfilerTags_(profilerTags)
+        , Counters_(counters)
         , Logger(NLogging::TLogger(HydraLogger)
             .AddTag("Path: %v", Path_))
     { }
@@ -110,7 +110,7 @@ private:
     const IClientPtr Client_;
     const ITransactionPtr PrerequisiteTransaction_;
     const std::optional<TVersion> ReachableVersion_;
-    const NProfiling::TTagIdList ProfilerTags_;
+    const TJournalWriterPerformanceCounters Counters_;
 
     const NLogging::TLogger Logger;
 
@@ -152,7 +152,7 @@ private:
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
                 options.Config = Config_->Writer;
                 options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
-                options.Profiler = HydraProfiler.AppendPath("/remote_changelog").AddTags(ProfilerTags_);
+                options.Counters = Counters_;
                 writer = Client_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())
                     .ThrowOnError();
@@ -350,14 +350,14 @@ public:
         IClientPtr client,
         NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
         TTransactionId prerequisiteTransactionId,
-        const NProfiling::TTagIdList& profilerTags)
+        const TJournalWriterPerformanceCounters& counters)
         : Config_(config)
         , Options_(options)
         , Path_(remotePath)
         , MasterClient_(client)
         , ResourceLimitsManager_(resourceLimitsManager)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
-        , ProfilerTags_(profilerTags)
+        , Counters_(counters)
         , Logger(NLogging::TLogger(HydraLogger)
             .AddTag("Path: %v", Path_))
     { }
@@ -376,7 +376,7 @@ private:
     const IClientPtr MasterClient_;
     const NSecurityServer::IResourceLimitsManagerPtr ResourceLimitsManager_;
     const TTransactionId PrerequisiteTransactionId_;
-    const NProfiling::TTagIdList ProfilerTags_;
+    const TJournalWriterPerformanceCounters Counters_;
 
     const NLogging::TLogger Logger;
 
@@ -404,7 +404,7 @@ private:
                 MasterClient_,
                 prerequisiteTransaction,
                 reachableVersion,
-                ProfilerTags_);
+                Counters_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error locking remote changelog store %v",
                 Path_)
@@ -485,7 +485,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     IClientPtr client,
     NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
     TTransactionId prerequisiteTransactionId,
-    const NProfiling::TTagIdList& profilerTags)
+    const TJournalWriterPerformanceCounters& counters)
 {
     return New<TRemoteChangelogStoreFactory>(
         config,
@@ -494,7 +494,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
         client,
         resourceLimitsManager,
         prerequisiteTransactionId,
-        profilerTags);
+        counters);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

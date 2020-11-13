@@ -75,7 +75,9 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
-        , Semaphore_(New<TProfiledAsyncSemaphore>(Config_->StoreFlusher->MaxConcurrentFlushes, Profiler, "/running_store_flushes"))
+        , Semaphore_(New<TProfiledAsyncSemaphore>(
+            Config_->StoreFlusher->MaxConcurrentFlushes,
+            ProfilerRegistry.Gauge("/running_store_flushes")))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
@@ -88,6 +90,7 @@ private:
     NClusterNode::TBootstrap* const Bootstrap_;
 
     const NProfiling::TProfiler Profiler = TabletNodeProfiler.AppendPath("/store_flusher");
+    const NProfiling::TRegistry ProfilerRegistry = TabletNodeProfilerRegistry.WithPrefix("/store_flusher");
 
     const TThreadPoolPtr ThreadPool_;
     const TProfiledAsyncSemaphorePtr Semaphore_;
