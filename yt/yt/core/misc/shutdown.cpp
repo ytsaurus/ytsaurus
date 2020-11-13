@@ -29,7 +29,10 @@ void RegisterShutdownCallback(double priority, void(*callback)())
 
 void Shutdown()
 {
-    ShutdownStarted = true;
+    bool expected = false;
+    if (!ShutdownStarted.compare_exchange_strong(expected, true)) {
+        return;
+    }
 
     auto& list = *ShutdownCallbacks();
     std::sort(list.begin(), list.end());
