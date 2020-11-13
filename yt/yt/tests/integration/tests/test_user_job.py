@@ -435,7 +435,7 @@ time.sleep(10)
             },
         )
 
-        assert get("//tmp/t_output/@row_count".format(op.id)) == 2
+        assert get("//tmp/t_output/@row_count") == 2
 
     @authors("ignat")
     def test_multiple_tmpfs_volumes(self):

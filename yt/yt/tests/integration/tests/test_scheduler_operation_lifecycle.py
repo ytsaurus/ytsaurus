@@ -353,7 +353,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for op in ops:
             op.track()
 
-        finish_times = [get(op.get_path() + "/@finish_time".format(op.id)) for op in ops]
+        finish_times = [get(op.get_path() + "/@finish_time") for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur < next
 
@@ -405,7 +405,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         for op in ops:
             op.track()
 
-        finish_times = [get(op.get_path() + "/@finish_time".format(op.id)) for op in ops]
+        finish_times = [get(op.get_path() + "/@finish_time") for op in ops]
         for cur, next in zip(finish_times, finish_times[1:]):
             assert cur > next
 
