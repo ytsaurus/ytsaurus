@@ -625,6 +625,13 @@ test_transfer_account_resources()
     check "12" "$($YT get //sys/accounts/a2/@resource_limits/node_count)"
 }
 
+test_generate_timestamp()
+{
+    ts=$($YT generate-timestamp)
+    echo $ts | grep '^[0-9]\+$' -q || die "generated timestamp should be integer, got '$ts'"
+    [ $ts -gt 0 ] || die "generated timestamp should be positive, got '$ts'"
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
