@@ -1,6 +1,5 @@
 #include "query_executor.h"
 #include "query_service.h"
-#include "public.h"
 #include "private.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
@@ -33,6 +32,8 @@
 #include <yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
+#include <yt/ytlib/misc/memory_usage_tracker.h>
+
 #include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/table_client/helpers.h>
@@ -52,6 +53,14 @@
 
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/authentication_identity.h>
+
+#include <yt/core/misc/async_expiring_cache.h>
+
+#include <yt/core/ytree/ypath_proxy.h>
+
+#include <yt/ytlib/query_client/evaluator.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
 
 namespace NYT::NQueryAgent {
 
@@ -80,6 +89,8 @@ static const auto& Profiler = QueryAgentProfiler;
 // TODO(ifsmirnov): YT_12491 - move this to reader config and dynamically choose
 // row count based on desired streaming window data size.
 static constexpr size_t MaxRowsPerRemoteDynamicStoreRead = 1024;
+
+static constexpr double DefaultQLPoolWeight = 1.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,6 +170,70 @@ void ValidateColumnFilterContainsAllKeyColumns(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
+
+class TPoolWeightCache
+    : public TAsyncExpiringCache<TString, double>
+{
+public:
+    TPoolWeightCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TWeakPtr<NApi::NNative::IClient> client,
+        IInvokerPtr invoker)
+        : TAsyncExpiringCache(
+            std::move(config),
+            NLogging::TLogger(QueryAgentLogger)
+                .AddTag("Cache: PoolWeight"))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
+    { }
+
+private:
+    const TWeakPtr<NApi::NNative::IClient> Client_;
+    const IInvokerPtr Invoker_;
+
+    virtual TFuture<double> DoGet(
+        const TString& key,
+        bool /*isPeriodicUpdate*/) noexcept override
+    {
+        auto client = Client_.Lock();
+        if (!client) {
+            return MakeFuture<double>(TError(NYT::EErrorCode::Canceled, "Client destroyed"));
+        }
+        return BIND(GetPoolWeight, std::move(client), key)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& pool)
+    {
+        using NObjectClient::TObjectServiceProxy;
+        using NYTree::TYPathProxy;
+
+        auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(pool);
+
+        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Cache));
+        auto req = TYPathProxy::Get(path + "/@weight");
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return DefaultQLPoolWeight;
+        }
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Failed to get pool %Qv weight from Cypress",
+            pool);
+
+        const auto& rsp = rspOrError.Value();
+        return ConvertTo<double>(NYson::TYsonString(rsp->value()));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryService
     : public TServiceBase
 {
@@ -167,11 +242,24 @@ public:
         TQueryAgentConfigPtr config,
         NClusterNode::TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetQueryPoolInvoker({}, 1.0, {}),
+            bootstrap->GetControlInvoker(),
             TQueryServiceProxy::GetDescriptor(),
             QueryAgentLogger)
         , Config_(config)
         , Bootstrap_(bootstrap)
+        , PoolWeightCache_(New<TPoolWeightCache>(
+            config->PoolWeightCache,
+            Bootstrap_->GetMasterClient(),
+            bootstrap->GetControlInvoker()))
+        , FunctionImplCache_(CreateFunctionImplCache(
+            config->FunctionImplCache,
+            bootstrap->GetMasterClient()))
+        , Evaluator_(New<TEvaluator>(
+            Config_,
+            QueryAgentProfilerRegistry,
+            CreateMemoryTrackerForCategory(
+                Bootstrap_->GetMemoryUsageTracker(),
+                NNodeTrackerClient::EMemoryCategory::Query)))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true));
@@ -191,74 +279,101 @@ public:
 private:
     const TQueryAgentConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
+    const TPoolWeightCachePtr PoolWeightCache_;
+    const TFunctionImplCachePtr FunctionImplCache_;
+    const TEvaluatorPtr Evaluator_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
-        TServiceProfilerGuard profilerGuard(&Profiler, "/execute");
-
-        YT_LOG_DEBUG("Deserializing subfragment");
-
-        auto query = FromProto<TConstQueryPtr>(request->query());
-        context->SetRequestInfo("FragmentId: %v", query->Id);
-
-        auto externalCGInfo = New<TExternalCGInfo>();
-        FromProto(&externalCGInfo->Functions, request->external_functions());
-        externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
-
         auto options = FromProto<TQueryOptions>(request->options());
         options.InputRowLimit = request->query().input_row_limit();
         options.OutputRowLimit = request->query().output_row_limit();
 
-        auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
+        double weight = options.ExecutionPool
+            ? WaitFor(PoolWeightCache_->Get(*options.ExecutionPool))
+                .ValueOrThrow()
+            : DefaultQLPoolWeight;
 
-        YT_LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
-            "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
-            "ReadSesisonId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
-            query->Id,
-            options.InputRowLimit,
-            options.OutputRowLimit,
-            options.RangeExpansionLimit,
-            options.MaxSubqueries,
-            options.EnableCodeCache,
-            options.WorkloadDescriptor,
-            options.ReadSessionId,
-            options.MemoryLimitPerNode,
-            dataSources.size());
+        auto queryInvoker = Bootstrap_->GetQueryPoolInvoker(
+            options.ExecutionPool.value_or("default"),
+            weight,
+            ToString(options.ReadSessionId));
 
-        TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = options.WorkloadDescriptor;
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = options.ReadSessionId;
+        auto identity = NRpc::GetCurrentAuthenticationIdentity();
 
-        ExecuteRequestWithRetries<void>(
-            Config_->MaxQueryRetries,
-            Logger,
-            [&] {
-                auto codecId = CheckedEnumCast<ECodec>(request->response_codec());
-                auto writer = CreateWireProtocolRowsetWriter(
-                    codecId,
-                    Config_->DesiredUncompressedResponseBlockSize,
-                    query->GetTableSchema(),
-                    false,
-                    Logger);
+        auto asyncResult = BIND([=] () mutable {
+            TServiceProfilerGuard profilerGuard(&Profiler, "/execute");
+            NRpc::SetCurrentAuthenticationIdentity(&identity);
 
-                const auto& executor = Bootstrap_->GetQueryExecutor();
-                auto asyncResult = executor->Execute(
-                    query,
-                    externalCGInfo,
-                    dataSources,
-                    writer,
-                    blockReadOptions,
-                    options,
-                    profilerGuard);
-                auto result = WaitFor(asyncResult)
-                    .ValueOrThrow();
+            YT_LOG_DEBUG("Deserializing subfragment");
 
-                response->Attachments() = writer->GetCompressedBlocks();
-                ToProto(response->mutable_query_statistics(), result);
-                context->Reply();
-            });
+            auto query = FromProto<TConstQueryPtr>(request->query());
+            context->SetRequestInfo("FragmentId: %v", query->Id);
+
+            auto externalCGInfo = New<TExternalCGInfo>();
+            FromProto(&externalCGInfo->Functions, request->external_functions());
+            externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
+
+            auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
+
+            YT_LOG_DEBUG("Deserialized subfragment (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
+                "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
+                "ReadSesisonId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
+                query->Id,
+                options.InputRowLimit,
+                options.OutputRowLimit,
+                options.RangeExpansionLimit,
+                options.MaxSubqueries,
+                options.EnableCodeCache,
+                options.WorkloadDescriptor,
+                options.ReadSessionId,
+                options.MemoryLimitPerNode,
+                dataSources.size());
+
+            TClientBlockReadOptions blockReadOptions;
+            blockReadOptions.WorkloadDescriptor = options.WorkloadDescriptor;
+            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            blockReadOptions.ReadSessionId = options.ReadSessionId;
+
+            ExecuteRequestWithRetries<void>(
+                Config_->MaxQueryRetries,
+                Logger,
+                [&] {
+                    auto codecId = CheckedEnumCast<ECodec>(request->response_codec());
+                    auto writer = CreateWireProtocolRowsetWriter(
+                        codecId,
+                        Config_->DesiredUncompressedResponseBlockSize,
+                        query->GetTableSchema(),
+                        false,
+                        Logger);
+
+                    ValidateReadTimestamp(options.Timestamp);
+
+                    auto statistics = ExecuteSubquery(
+                        Config_,
+                        FunctionImplCache_,
+                        Bootstrap_,
+                        Evaluator_,
+                        query,
+                        externalCGInfo,
+                        dataSources,
+                        writer,
+                        blockReadOptions,
+                        options,
+                        queryInvoker,
+                        profilerGuard);
+
+                    response->Attachments() = writer->GetCompressedBlocks();
+                    ToProto(response->mutable_query_statistics(), statistics);
+                    context->Reply();
+                });
+        })
+            .AsyncVia(queryInvoker)
+            .Run();
+
+        WaitFor(asyncResult)
+            .ThrowOnError();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)

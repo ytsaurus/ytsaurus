@@ -102,7 +102,6 @@ public:
     const NDataNode::TJournalDispatcherPtr& GetJournalDispatcher() const;
     const NDataNode::TMasterConnectorPtr& GetMasterConnector() const;
     const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
-    const NQueryAgent::IQuerySubexecutorPtr& GetQueryExecutor() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const;
@@ -159,7 +158,7 @@ private:
     NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
     NConcurrency::IFairShareThreadPoolPtr StorageLookupThreadPool_;
     NConcurrency::TActionQueuePtr MasterCacheQueue_;
-    
+
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
     NApi::NNative::IConnectionPtr MasterConnection_;
@@ -228,7 +227,6 @@ private:
     NTabletNode::TVersionedChunkMetaManagerPtr VersionedChunkMetaManager_;
 
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    NQueryAgent::IQuerySubexecutorPtr QueryExecutor_;
 
 #ifdef __linux__
     NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;

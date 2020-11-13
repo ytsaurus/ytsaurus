@@ -207,7 +207,7 @@ void TBootstrap::Initialize()
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
-       
+
         .ThrowOnError();
 }
 void TBootstrap::Run()
@@ -631,8 +631,6 @@ void TBootstrap::DoInitialize()
     InMemoryManager_ = CreateInMemoryManager(Config_->TabletNode->InMemoryManager, this);
 
     VersionedChunkMetaManager_ = New<TVersionedChunkMetaManager>(Config_->TabletNode, this);
-
-    QueryExecutor_ = CreateQuerySubexecutor(Config_->QueryAgent, this);
 
     RpcServer_->RegisterService(CreateQueryService(Config_->QueryAgent, this));
 
@@ -1059,11 +1057,6 @@ const TDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
 const TNodeResourceManagerPtr& TBootstrap::GetNodeResourceManager() const
 {
     return NodeResourceManager_;
-}
-
-const IQuerySubexecutorPtr& TBootstrap::GetQueryExecutor() const
-{
-    return QueryExecutor_;
 }
 
 TCellId TBootstrap::GetCellId() const
