@@ -325,7 +325,8 @@ private:
     THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
 
     const NProfiling::TProfiler Profiler;
-    TShardedMonotonicCounter PostingTimeCounter_{"/posting_time"};
+    TShardedMonotonicCounter SyncPostingTimeCounter_{"/sync_posting_time"};
+    TShardedMonotonicCounter AsyncPostingTimeCounter_{"/async_posting_time"};
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -664,7 +665,7 @@ private:
 
     void UnreliablePostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message)
     {
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
 
         TStringBuilder logMessageBuilder;
         logMessageBuilder.AppendFormat("Sending unreliable outcoming message (MutationType: %v, SrcCellId: %v, DstCellIds: [",
@@ -1032,7 +1033,7 @@ private:
 
     void OnIdlePostOutcomingMessages(TCellId cellId)
     {
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
 
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -1050,7 +1051,7 @@ private:
 
         mailbox->SetPostBatchingCookie(TDelayedExecutor::Submit(
             BIND_DONT_CAPTURE_TRACE_CONTEXT([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
-                TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
+                TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
 
                 auto* mailbox = FindMailbox(cellId);
                 if (!mailbox) {
@@ -1077,15 +1078,19 @@ private:
             return;
         }
 
-        auto firstMessageId = mailbox->GetFirstInFlightOutcomingMessageId();
+        auto firstInFlightOutcomingMessageId = mailbox->GetFirstInFlightOutcomingMessageId();
+        auto firstOutcomingMessageId = mailbox->GetFirstOutcomingMessageId();
         const auto& outcomingMessages = mailbox->OutcomingMessages();
-        YT_VERIFY(firstMessageId >= mailbox->GetFirstOutcomingMessageId());
-        YT_VERIFY(firstMessageId <= mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size());
+
+        YT_VERIFY(firstInFlightOutcomingMessageId >= firstOutcomingMessageId);
+        YT_VERIFY(firstInFlightOutcomingMessageId <= firstOutcomingMessageId + outcomingMessages.size());
+
+        auto dstCellId = mailbox->GetCellId();
 
         TDelayedExecutor::CancelAndClear(mailbox->IdlePostCookie());
-        if (!allowIdle && firstMessageId == mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size()) {
+        if (!allowIdle && firstInFlightOutcomingMessageId == mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size()) {
             mailbox->IdlePostCookie() = TDelayedExecutor::Submit(
-                BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), mailbox->GetCellId())
+                BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::OnIdlePostOutcomingMessages, MakeWeak(this), dstCellId)
                     .Via(EpochAutomatonInvoker_),
                 Config_->IdlePostPeriod);
             return;
@@ -1096,53 +1101,70 @@ private:
             return;
         }
 
-        THiveServiceProxy proxy(std::move(channel));
-
-        auto req = proxy.PostMessages();
-        req->SetTimeout(Config_->PostRpcTimeout);
-        ToProto(req->mutable_src_cell_id(), SelfCellId_);
-        req->set_first_message_id(firstMessageId);
-
-        int messagesToPost = 0;
-        i64 bytesToPost = 0;
-        while (firstMessageId + messagesToPost < mailbox->GetFirstOutcomingMessageId() + outcomingMessages.size() &&
-               messagesToPost < Config_->MaxMessagesPerPost &&
-               bytesToPost < Config_->MaxBytesPerPost)
+        i64 messageBytesToPost = 0;
+        int messageCountToPost = 0;
+        std::vector<TMailbox::TOutcomingMessage> messagesToPost;
+        messagesToPost.reserve(Config_->MaxMessagesPerPost);
+        int currentMessageIndex = firstInFlightOutcomingMessageId - firstOutcomingMessageId;
+        while (currentMessageIndex < outcomingMessages.size() &&
+               messageCountToPost < Config_->MaxMessagesPerPost &&
+               messageBytesToPost < Config_->MaxBytesPerPost)
         {
-            const auto& message = outcomingMessages[firstMessageId + messagesToPost - mailbox->GetFirstOutcomingMessageId()];
-            auto* protoMessage = req->add_messages();
-            protoMessage->set_type(message.SerializedMessage->Type);
-            protoMessage->set_data(message.SerializedMessage->Data);
-            if (message.TraceContext) {
-                ToProto(protoMessage->mutable_tracing_ext(), message.TraceContext);
-            }
-            messagesToPost += 1;
-            bytesToPost += message.SerializedMessage->Data.size();
+            const auto& message = outcomingMessages[currentMessageIndex];
+            messagesToPost.push_back(message);
+            messageBytesToPost += message.SerializedMessage->Data.size();
+            ++messageCountToPost;
+            ++currentMessageIndex;
         }
 
-        mailbox->SetInFlightOutcomingMessageCount(messagesToPost);
+        mailbox->SetInFlightOutcomingMessageCount(messageCountToPost);
         mailbox->SetPostInProgress(true);
 
-        if (messagesToPost == 0) {
+        if (messageCountToPost == 0) {
             YT_LOG_DEBUG("Checking mailbox synchronization (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
-                mailbox->GetCellId());
+                dstCellId);
         } else {
             YT_LOG_DEBUG("Posting reliable outcoming messages (SrcCellId: %v, DstCellId: %v, MessageIds: %v-%v)",
                 SelfCellId_,
-                mailbox->GetCellId(),
-                firstMessageId,
-                firstMessageId + messagesToPost - 1);
+                dstCellId,
+                firstInFlightOutcomingMessageId,
+                firstInFlightOutcomingMessageId + messageCountToPost - 1);
         }
 
-        req->Invoke().Subscribe(
-            BIND(&TImpl::OnPostMessagesResponse, MakeStrong(this), mailbox->GetCellId())
-                .Via(EpochAutomatonInvoker_));
+        NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(BIND(
+            [
+                =,
+                this_ = MakeStrong(this),
+                messagesToPost = std::move(messagesToPost),
+                epochAutomatonInvoker = EpochAutomatonInvoker_
+            ] {
+                TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &AsyncPostingTimeCounter_);
+
+                THiveServiceProxy proxy(std::move(channel));
+
+                auto req = proxy.PostMessages();
+                req->SetTimeout(Config_->PostRpcTimeout);
+                ToProto(req->mutable_src_cell_id(), SelfCellId_);
+                req->set_first_message_id(firstInFlightOutcomingMessageId);
+                for (const auto& message : messagesToPost) {
+                    auto* protoMessage = req->add_messages();
+                    protoMessage->set_type(message.SerializedMessage->Type);
+                    protoMessage->set_data(message.SerializedMessage->Data);
+                    if (message.TraceContext) {
+                        ToProto(protoMessage->mutable_tracing_ext(), message.TraceContext);
+                    }
+                }
+
+                req->Invoke().Subscribe(
+                    BIND(&TImpl::OnPostMessagesResponse, MakeStrong(this), dstCellId)
+                        .Via(epochAutomatonInvoker));
+            }));
     }
 
     void OnPostMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
 
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -1198,7 +1220,7 @@ private:
 
     void OnSendMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspSendMessagesPtr& rspOrError)
     {
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &PostingTimeCounter_);
+        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
 
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
