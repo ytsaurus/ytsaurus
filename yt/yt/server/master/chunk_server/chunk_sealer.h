@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/server/master/cell_master/public.h>
 
@@ -14,7 +14,8 @@ class TChunkSealer
 public:
     TChunkSealer(
         TChunkManagerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+        NCellMaster::TBootstrap* bootstrap,
+        TJobTrackerPtr jobTracker);
     ~TChunkSealer();
 
     void Start(TChunk* frontJournalChunk, int journalChunkCount);
@@ -27,6 +28,12 @@ public:
     void OnChunkDestroyed(NChunkServer::TChunk* chunk);
 
     int GetQueueSize() const;
+
+    void ScheduleJobs(
+        TNode* node,
+        NNodeTrackerClient::NProto::TNodeResources* resourceUsage,
+        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
+        std::vector<TJobPtr>* jobsToStart);
 
 private:
     class TImpl;

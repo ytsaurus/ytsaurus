@@ -8,6 +8,8 @@
 #include "config.h"
 #include "helpers.h"
 #include "chunk_scanner.h"
+#include "job.h"
+#include "job_tracker.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
@@ -42,6 +44,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NJournalClient;
 using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NObjectClient;
@@ -61,9 +64,11 @@ class TChunkSealer::TImpl
 public:
     TImpl(
         TChunkManagerConfigPtr config,
-        TBootstrap* bootstrap)
+        TBootstrap* bootstrap,
+        TJobTrackerPtr jobTracker)
         : Config_(config)
         , Bootstrap_(bootstrap)
+        , JobTracker_(std::move(jobTracker))
         , SealExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
             BIND(&TImpl::OnRefresh, MakeWeak(this))))
@@ -74,6 +79,7 @@ public:
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
+        YT_VERIFY(JobTracker_);
     }
 
     void Start(TChunk* frontJournalChunk, int journalChunkCount)
@@ -119,9 +125,39 @@ public:
         return SealScanner_->GetQueueSize();
     }
 
+    void ScheduleJobs(
+        TNode* node,
+        TNodeResources* resourceUsage,
+        const TNodeResources& resourceLimits,
+        std::vector<TJobPtr>* jobsToStart)
+    {
+        int misscheduledSealJobs = 0;
+
+        auto hasSpareSealResources = [&] () {
+            return
+                misscheduledSealJobs < GetDynamicConfig()->MaxMisscheduledSealJobsPerHeartbeat &&
+                resourceUsage->seal_slots() < resourceLimits.seal_slots();
+        };
+
+        auto& queue = node->ChunkSealQueue();
+        auto it = queue.begin();
+        while (it != queue.end() && hasSpareSealResources()) {
+            auto jt = it++;
+            auto chunkWithIndexes = *jt;
+            TJobPtr job;
+            if (CreateSealJob(node, chunkWithIndexes, &job)) {
+                queue.erase(jt);
+            } else {
+                ++misscheduledSealJobs;
+            }
+            JobTracker_->RegisterJob(std::move(job), jobsToStart, resourceUsage);
+        }
+    }
+
 private:
     const TChunkManagerConfigPtr Config_;
     TBootstrap* const Bootstrap_;
+    const TJobTrackerPtr JobTracker_;
 
     const TAsyncSemaphorePtr Semaphore_ = New<TAsyncSemaphore>(0);
 
@@ -380,14 +416,51 @@ private:
         YT_LOG_DEBUG("Journal chunk sealed (ChunkId: %v)",
             chunkId);
     }
+
+    bool CreateSealJob(
+        TNode* node,
+        TChunkPtrWithIndexes chunkWithIndexes,
+        TJobPtr* job)
+    {
+        auto* chunk = chunkWithIndexes.GetPtr();
+        YT_VERIFY(chunk->IsJournal());
+        YT_VERIFY(chunk->IsSealed());
+
+        if (!IsObjectAlive(chunk)) {
+            return true;
+        }
+
+        if (chunk->IsJobScheduled()) {
+            return true;
+        }
+
+        // NB: Seal jobs can be started even if chunk refresh is scheduled.
+
+        if (chunk->StoredReplicas().size() < chunk->GetReadQuorum()) {
+            return true;
+        }
+
+        *job = TJob::CreateSeal(
+            JobTracker_->GenerateJobId(),
+            chunkWithIndexes,
+            node);
+
+        YT_LOG_DEBUG("Seal job scheduled (JobId: %v, Address: %v, ChunkId: %v)",
+            (*job)->GetJobId(),
+            node->GetDefaultAddress(),
+            chunkWithIndexes);
+
+        return true;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkSealer::TChunkSealer(
     TChunkManagerConfigPtr config,
-    TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(config, bootstrap))
+    TBootstrap* bootstrap,
+    TJobTrackerPtr jobTracker)
+    : Impl_(New<TImpl>(config, bootstrap, jobTracker))
 { }
 
 TChunkSealer::~TChunkSealer() = default;
@@ -420,6 +493,20 @@ void TChunkSealer::OnChunkDestroyed(TChunk* chunk)
 int TChunkSealer::GetQueueSize() const
 {
     return Impl_->GetQueueSize();
+}
+
+
+void TChunkSealer::ScheduleJobs(
+    TNode* node,
+    TNodeResources* resourceUsage,
+    const TNodeResources& resourceLimits,
+    std::vector<TJobPtr>* jobsToStart)
+{
+    Impl_->ScheduleJobs(
+        node,
+        resourceUsage,
+        resourceLimits,
+        jobsToStart);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,8 @@ public:
     TChunkReplicator(
         TChunkManagerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
-        TChunkPlacementPtr chunkPlacement);
+        TChunkPlacementPtr chunkPlacement,
+        TJobTrackerPtr jobTracker);
 
     ~TChunkReplicator();
 
@@ -72,20 +73,6 @@ public:
     // Rack-wise unsafely placed chunks.
     DEFINE_BYREF_RO_PROPERTY(THashSet<TChunk*>, UnsafelyPlacedChunks);
 
-    // src DC -> dst DC -> data size
-    using TInterDCEdgeDataSize = THashMap<const NNodeTrackerServer::TDataCenter*, THashMap<const NNodeTrackerServer::TDataCenter*, i64>>;
-    DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeConsumption);
-    DEFINE_BYREF_RO_PROPERTY(TInterDCEdgeDataSize, InterDCEdgeCapacities);
-
-    using TJobCounters = TEnumIndexedVector<EJobType, i64, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType>;
-    // Number of jobs running - per job type. For profiling.
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, RunningJobs);
-
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsStarted);
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsCompleted);
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsFailed);
-    DEFINE_BYREF_RO_PROPERTY(TJobCounters, JobsAborted);
-
     void OnChunkDestroyed(TChunk* chunk);
     void OnReplicaRemoved(
         TNode* node,
@@ -116,16 +103,9 @@ public:
 
     void ScheduleJobs(
         TNode* node,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
+        NNodeTrackerClient::NProto::TNodeResources* resourceUsage,
         const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        const std::vector<TJobPtr>& currentJobs,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort,
-        std::vector<TJobPtr>* jobsToRemove);
-
-    void OnNodeDataCenterChanged(TNode* node, NNodeTrackerServer::TDataCenter* oldDataCenter);
-    void OnDataCenterCreated(const NNodeTrackerServer::TDataCenter* dataCenter);
-    void OnDataCenterDestroyed(const NNodeTrackerServer::TDataCenter* dataCenter);
+        std::vector<TJobPtr>* jobsToStart);
 
     bool IsReplicatorEnabled();
     bool IsRefreshEnabled();
@@ -190,6 +170,7 @@ private:
     const TChunkManagerConfigPtr Config_;
     NCellMaster::TBootstrap* const Bootstrap_;
     const TChunkPlacementPtr ChunkPlacement_;
+    const TJobTrackerPtr JobTracker_;
 
     const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
     const std::unique_ptr<TChunkScanner> BlobRefreshScanner_;
@@ -217,24 +198,11 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
-    const NConcurrency::IReconfigurableThroughputThrottlerPtr JobThrottler_;
-
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TChunkReplicator::OnDynamicConfigChanged, MakeWeak(this));
 
     std::optional<bool> Enabled_;
 
-    NProfiling::TCpuInstant InterDCEdgeCapacitiesLastUpdateTime_ = {};
-    // Cached from InterDCEdgeConsumption and InterDCEdgeCapacities.
-    THashMap<const NNodeTrackerServer::TDataCenter*, SmallSet<const NNodeTrackerServer::TDataCenter*, NNodeTrackerServer::TypicalInterDCEdgeCount>> UnsaturatedInterDCEdges_;
-
-    void ProcessExistingJobs(
-        TNode* node,
-        const std::vector<TJobPtr>& currentJobs,
-        std::vector<TJobPtr>* jobsToAbort,
-        std::vector<TJobPtr>* jobsToRemove);
-
-    TJobId GenerateJobId();
     bool CreateReplicationJob(
         TNode* sourceNode,
         TChunkPtrWithIndexes chunkWithIndex,
@@ -254,15 +222,6 @@ private:
         TNode* node,
         TChunkPtrWithIndexes chunkWithIndexes,
         TJobPtr* job);
-    bool CreateSealJob(
-        TNode* node,
-        TChunkPtrWithIndexes chunkWithIndexes,
-        TJobPtr* job);
-    void ScheduleNewJobs(
-        TNode* node,
-        NNodeTrackerClient::NProto::TNodeResources resourceUsage,
-        NNodeTrackerClient::NProto::TNodeResources resourceLimits,
-        std::vector<TJobPtr>* jobsToStart);
 
     void OnRefresh();
     void RefreshChunk(TChunk* chunk);
@@ -350,20 +309,8 @@ private:
     //! Stops when some owning nodes are discovered or parents become ambiguous.
     TChunkList* FollowParentLinks(TChunkList* chunkList);
 
-    void RegisterJob(const TJobPtr& job);
-    void UnregisterJob(const TJobPtr& job);
-
     void AddToChunkRepairQueue(TChunkPtrWithIndexes chunkWithIndexes, EChunkRepairQueue queue);
     void RemoveFromChunkRepairQueues(TChunkPtrWithIndexes chunkWithIndexes);
-
-    void InitInterDCEdges();
-    void UpdateInterDCEdgeCapacities(bool force = false);
-    void InitUnsaturatedInterDCEdges();
-    void UpdateInterDCEdgeConsumption(
-        const TJobPtr& job,
-        const NNodeTrackerServer::TDataCenter* srcDataCenter,
-        int sizeMultiplier);
-    bool HasUnsaturatedInterDCEdgeStartingFrom(const NNodeTrackerServer::TDataCenter* srcDataCenter);
 
     void OnCheckEnabled();
     void OnCheckEnabledPrimary();
@@ -373,8 +320,6 @@ private:
 
     const std::unique_ptr<TChunkScanner>& GetChunkRefreshScanner(TChunk* chunk) const;
     const std::unique_ptr<TChunkScanner>& GetChunkRequisitionUpdateScanner(TChunk* chunk) const;
-
-    int GetCappedSecondaryCellCount();
 
     TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);
     std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);

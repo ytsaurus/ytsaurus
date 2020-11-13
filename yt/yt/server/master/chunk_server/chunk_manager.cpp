@@ -17,6 +17,7 @@
 #include "dynamic_store_proxy.h"
 #include "expiration_tracker.h"
 #include "helpers.h"
+#include "job_tracker.h"
 #include "job.h"
 #include "medium.h"
 #include "medium_proxy.h"
@@ -1062,21 +1063,31 @@ public:
 
     void ScheduleJobs(
         TNode* node,
-        const TNodeResources& resourceUsage,
-        const TNodeResources& resourceLimits,
+        TNodeResources resourceUsage,
+        TNodeResources resourceLimits,
         const std::vector<TJobPtr>& currentJobs,
         std::vector<TJobPtr>* jobsToStart,
         std::vector<TJobPtr>* jobsToAbort,
         std::vector<TJobPtr>* jobsToRemove)
     {
-        ChunkReplicator_->ScheduleJobs(
+        JobTracker_->OverrideResourceLimits(
+            &resourceLimits,
+            *node);
+        JobTracker_->ProcessJobs(
             node,
-            resourceUsage,
-            resourceLimits,
             currentJobs,
-            jobsToStart,
             jobsToAbort,
             jobsToRemove);
+        ChunkReplicator_->ScheduleJobs(
+            node,
+            &resourceUsage,
+            resourceLimits,
+            jobsToStart);
+        ChunkSealer_->ScheduleJobs(
+            node,
+            &resourceUsage,
+            resourceLimits,
+            jobsToStart);
     }
 
 
@@ -1506,6 +1517,8 @@ private:
     TChunkReplicatorPtr ChunkReplicator_;
     TChunkSealerPtr ChunkSealer_;
 
+    TJobTrackerPtr JobTracker_;
+
     const TExpirationTrackerPtr ExpirationTracker_;
 
     // Global chunk lists; cf. TChunkDynamicData.
@@ -1800,8 +1813,8 @@ private:
     {
         YT_VERIFY(node->GetDataCenter() != oldDataCenter);
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->OnNodeDataCenterChanged(node, oldDataCenter);
+        if (JobTracker_) {
+            JobTracker_->OnNodeDataCenterChanged(node, oldDataCenter);
         }
 
         if (ChunkPlacement_) {
@@ -1924,8 +1937,8 @@ private:
             RegisterTagsForDataCenter(dataCenter);
         }
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->OnDataCenterDestroyed(dataCenter);
+        if (JobTracker_) {
+            JobTracker_->OnDataCenterCreated(dataCenter);
         }
     }
 
@@ -1943,8 +1956,8 @@ private:
             UnregisterTagsForDataCenter(dataCenter);
         }
 
-        if (ChunkReplicator_) {
-            ChunkReplicator_->OnDataCenterDestroyed(dataCenter);
+        if (JobTracker_) {
+            JobTracker_->OnDataCenterDestroyed(dataCenter);
         }
     }
 
@@ -2997,9 +3010,10 @@ private:
     {
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
+        JobTracker_ = New<TJobTracker>(Config_, Bootstrap_);
         ChunkPlacement_ = New<TChunkPlacement>(Config_, Bootstrap_);
-        ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_);
-        ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_);
+        ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_, JobTracker_);
+        ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_, JobTracker_);
 
         ExpirationTracker_->Start();
     }
@@ -3008,6 +3022,7 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
+        JobTracker_->Start();
         ChunkReplicator_->Start(
             BlobChunks_.GetFront(),
             BlobChunks_.GetSize(),
@@ -3033,6 +3048,11 @@ private:
     virtual void OnStopLeading() override
     {
         TMasterAutomatonPart::OnStopLeading();
+
+        if (JobTracker_) {
+            JobTracker_->Stop();
+            JobTracker_.Reset();
+        }
 
         ChunkPlacement_.Reset();
 
@@ -3391,14 +3411,14 @@ private:
         Profiler.Enqueue("/quorum_missing_chunk_count", QuorumMissingChunks().size(), EMetricType::Gauge);
         Profiler.Enqueue("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size(), EMetricType::Gauge);
 
-        const auto& jobCounters = ChunkReplicator_->RunningJobs();
-        const auto& jobsStarted = ChunkReplicator_->JobsStarted();
-        const auto& jobsCompleted = ChunkReplicator_->JobsCompleted();
-        const auto& jobsFailed = ChunkReplicator_->JobsFailed();
-        const auto& jobsAborted = ChunkReplicator_->JobsAborted();
+        const auto& runningJobs = JobTracker_->RunningJobs();
+        const auto& jobsStarted = JobTracker_->JobsStarted();
+        const auto& jobsCompleted = JobTracker_->JobsCompleted();
+        const auto& jobsFailed = JobTracker_->JobsFailed();
+        const auto& jobsAborted = JobTracker_->JobsAborted();
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
-                Profiler.Enqueue("/running_job_count", jobCounters[jobType], EMetricType::Gauge, {JobTypeToTag_[jobType]});
+                Profiler.Enqueue("/running_job_count", runningJobs[jobType], EMetricType::Gauge, {JobTypeToTag_[jobType]});
                 Profiler.Enqueue("/jobs_started", jobsStarted[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
                 Profiler.Enqueue("/jobs_completed", jobsCompleted[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
                 Profiler.Enqueue("/jobs_failed", jobsFailed[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
@@ -3406,7 +3426,7 @@ private:
             }
         }
 
-        for (const auto& srcPair : ChunkReplicator_->InterDCEdgeConsumption()) {
+        for (const auto& srcPair : JobTracker_->InterDCEdgeConsumption()) {
             const auto* src = srcPair.first;
             for (const auto& dstPair : srcPair.second) {
                 const auto* dst = dstPair.first;
@@ -3416,7 +3436,7 @@ private:
                 Profiler.Enqueue("/inter_dc_edge_consumption", consumption, EMetricType::Gauge, tags);
             }
         }
-        for (const auto& srcPair : ChunkReplicator_->InterDCEdgeCapacities()) {
+        for (const auto& srcPair : JobTracker_->InterDCEdgeCapacities()) {
             const auto* src = srcPair.first;
             for (const auto& dstPair : srcPair.second) {
                 const auto* dst = dstPair.first;
