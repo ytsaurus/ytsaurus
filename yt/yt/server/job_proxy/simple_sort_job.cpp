@@ -14,7 +14,7 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaless_sorting_reader.h>
+#include <yt/ytlib/table_client/sorting_reader.h>
 
 namespace NYT::NJobProxy {
 
@@ -37,14 +37,19 @@ class TSimpleSortJob
 public:
     explicit TSimpleSortJob(IJobHost* host)
         : TSimpleJobBase(host)
-        , SortJobSpecExt_(JobSpec_.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
     { }
 
     virtual void Initialize() override
     {
         TSimpleJobBase::Initialize();
 
-        auto keyColumns = FromProto<TKeyColumns>(SortJobSpecExt_.key_columns());
+        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
+
+        TTableSchemaPtr outputSchema;
+        DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
+
+        auto keyColumns = outputSchema->GetKeyColumns();
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
         YT_VERIFY(SchedulerJobSpecExt_.input_table_specs_size() == 1);
@@ -78,10 +83,9 @@ public:
             Host_->GetOutRpsThrottler(),
             MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
 
-        Reader_ = CreateSchemalessSortingReader(reader, nameTable, keyColumns);
+        Reader_ = CreateSortingReader(reader, nameTable, keyColumns, outputSchema->ToComparator());
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
-        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->ExplodeOnValidationError = true;
@@ -90,14 +94,11 @@ public:
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
-        TTableSchemaPtr schema;
-        DeserializeFromWireProto(&schema, outputSpec.table_schema());
-
         Writer_ = CreateSchemalessMultiChunkWriter(
             writerConfig,
             options,
             nameTable,
-            schema,
+            outputSchema,
             TLegacyOwningKey(),
             Host_->GetClient(),
             CellTagFromId(chunkListId),
@@ -109,8 +110,6 @@ public:
     }
 
 private:
-    const TSortJobSpecExt& SortJobSpecExt_;
-
     virtual void CreateReader() override
     { }
 

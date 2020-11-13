@@ -1,5 +1,4 @@
-#include "schemaless_sorting_reader.h"
-
+#include "sorting_reader.h"
 #include "timing_reader.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
@@ -22,28 +21,31 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 
 using NChunkClient::TDataSliceDescriptor;
-using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSchemalessSortingReaderTag
 { };
 
-class TSchemalessSortingReader
+class TSortingReader
     : public ISchemalessMultiChunkReader
     , public TTimingReaderBase
 {
 public:
-    TSchemalessSortingReader(
+    TSortingReader(
         ISchemalessMultiChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
-        TKeyColumns keyColumns)
+        TKeyColumns keyColumns,
+        TComparator comparator)
         : UnderlyingReader_(std::move(underlyingReader))
         , KeyColumns_(std::move(keyColumns))
+        , Comparator_(std::move(comparator))
         , RowBuffer_(New<TRowBuffer>(TSchemalessSortingReaderTag()))
-        , RowReorderer_(std::move(nameTable), RowBuffer_, /*deepCapture*/ true, KeyColumns_)
+        , RowReorderer_(std::move(nameTable), RowBuffer_, /* deepCapture */ true, KeyColumns_)
     {
-        SetReadyEvent(BIND(&TSchemalessSortingReader::DoOpen, MakeWeak(this))
+        YT_VERIFY(KeyColumns_.size() == Comparator_.GetLength());
+
+        SetReadyEvent(BIND(&TSortingReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run());
     }
@@ -101,7 +103,7 @@ public:
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        TRange<TUnversionedRow> /*unreadRows*/) const override
+        TRange<TUnversionedRow> /* unreadRows */) const override
     {
         YT_ABORT();
     }
@@ -149,6 +151,7 @@ public:
 private:
     const ISchemalessMultiChunkReaderPtr UnderlyingReader_;
     const TKeyColumns KeyColumns_;
+    const TComparator Comparator_;
 
     const TRowBufferPtr RowBuffer_;
     TSchemalessRowReorderer RowReorderer_;
@@ -174,23 +177,28 @@ private:
         std::sort(
             Rows_.begin(),
             Rows_.end(),
-            [&] (auto lhs, auto rhs) {
-                return CompareRows(lhs, rhs, KeyColumns_.size()) < 0;
+            [&] (auto lhsRow, auto rhsRow) {
+                // Value types validation is disabled for performance reasons.
+                auto lhsKey = TKey::FromRowUnchecked(lhsRow, KeyColumns_.size());
+                auto rhsKey = TKey::FromRowUnchecked(rhsRow, KeyColumns_.size());
+                return Comparator_.CompareKeys(lhsKey, rhsKey) < 0;
             });
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessMultiChunkReaderPtr CreateSchemalessSortingReader(
+ISchemalessMultiChunkReaderPtr CreateSortingReader(
     ISchemalessMultiChunkReaderPtr underlyingReader,
     TNameTablePtr nameTable,
-    TKeyColumns keyColumns)
+    TKeyColumns keyColumns,
+    TComparator comparator)
 {
-    return New<TSchemalessSortingReader>(
+    return New<TSortingReader>(
         std::move(underlyingReader),
         std::move(nameTable),
-        std::move(keyColumns));
+        std::move(keyColumns),
+        std::move(comparator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
