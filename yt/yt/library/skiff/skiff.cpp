@@ -10,6 +10,18 @@ namespace NYT::NSkiff {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool operator==(TInt128 lhs, TInt128 rhs)
+{
+    return lhs.Low == rhs.Low && lhs.High == rhs.High;
+}
+
+bool operator!=(TInt128 lhs, TInt128 rhs)
+{
+    return !(lhs == rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TUncheckedSkiffParser::TUncheckedSkiffParser(IZeroCopyInput* underlying)
     : Underlying_(underlying)
     , Buffer_(512_KB)
@@ -19,14 +31,51 @@ TUncheckedSkiffParser::TUncheckedSkiffParser(const TSkiffSchemaPtr& /*schema*/, 
     : TUncheckedSkiffParser(underlying)
 { }
 
+i8 TUncheckedSkiffParser::ParseInt8()
+{
+    return ParseSimple<i8>();
+}
+
+i16 TUncheckedSkiffParser::ParseInt16()
+{
+    return ParseSimple<i16>();
+}
+
+i32 TUncheckedSkiffParser::ParseInt32()
+{
+    return ParseSimple<i32>();
+}
+
 i64 TUncheckedSkiffParser::ParseInt64()
 {
     return ParseSimple<i64>();
 }
 
+ui8 TUncheckedSkiffParser::ParseUint8()
+{
+    return ParseSimple<ui8>();
+}
+
+ui16 TUncheckedSkiffParser::ParseUint16()
+{
+    return ParseSimple<ui16>();
+}
+
+ui32 TUncheckedSkiffParser::ParseUint32()
+{
+    return ParseSimple<ui32>();
+}
+
 ui64 TUncheckedSkiffParser::ParseUint64()
 {
     return ParseSimple<ui64>();
+}
+
+TInt128 TUncheckedSkiffParser::ParseInt128()
+{
+    auto low = ParseSimple<ui64>();
+    auto high = ParseSimple<i64>();
+    return {low, high};
 }
 
 double TUncheckedSkiffParser::ParseDouble()
@@ -148,16 +197,58 @@ TCheckedSkiffParser::TCheckedSkiffParser(const TSkiffSchemaPtr& schema, IZeroCop
 
 TCheckedSkiffParser::~TCheckedSkiffParser() = default;
 
+i8 TCheckedSkiffParser::ParseInt8()
+{
+    Validator_->OnSimpleType(EWireType::Int8);
+    return Parser_.ParseInt8();
+}
+
+i16 TCheckedSkiffParser::ParseInt16()
+{
+    Validator_->OnSimpleType(EWireType::Int16);
+    return Parser_.ParseInt16();
+}
+
+i32 TCheckedSkiffParser::ParseInt32()
+{
+    Validator_->OnSimpleType(EWireType::Int32);
+    return Parser_.ParseInt32();
+}
+
 i64 TCheckedSkiffParser::ParseInt64()
 {
     Validator_->OnSimpleType(EWireType::Int64);
     return Parser_.ParseInt64();
 }
 
+ui8 TCheckedSkiffParser::ParseUint8()
+{
+    Validator_->OnSimpleType(EWireType::Uint8);
+    return Parser_.ParseUint8();
+}
+
+ui16 TCheckedSkiffParser::ParseUint16()
+{
+    Validator_->OnSimpleType(EWireType::Uint16);
+    return Parser_.ParseUint16();
+}
+
+ui32 TCheckedSkiffParser::ParseUint32()
+{
+    Validator_->OnSimpleType(EWireType::Uint32);
+    return Parser_.ParseUint32();
+}
+
 ui64 TCheckedSkiffParser::ParseUint64()
 {
     Validator_->OnSimpleType(EWireType::Uint64);
     return Parser_.ParseUint64();
+}
+
+TInt128 TCheckedSkiffParser::ParseInt128()
+{
+    Validator_->OnSimpleType(EWireType::Int128);
+    return Parser_.ParseInt128();
 }
 
 double TCheckedSkiffParser::ParseDouble()
@@ -234,9 +325,45 @@ TUncheckedSkiffWriter::~TUncheckedSkiffWriter()
     }
 }
 
+void TUncheckedSkiffWriter::WriteInt8(i8 value)
+{
+    WriteSimple<i8>(value);
+}
+
+void TUncheckedSkiffWriter::WriteInt16(i16 value)
+{
+    WriteSimple<i16>(value);
+}
+
+void TUncheckedSkiffWriter::WriteInt32(i32 value)
+{
+    WriteSimple<i32>(value);
+}
+
 void TUncheckedSkiffWriter::WriteInt64(i64 value)
 {
     WriteSimple<i64>(value);
+}
+
+void TUncheckedSkiffWriter::WriteInt128(TInt128 value)
+{
+    WriteSimple<ui64>(value.Low);
+    WriteSimple<i64>(value.High);
+}
+
+void TUncheckedSkiffWriter::WriteUint8(ui8 value)
+{
+    WriteSimple<ui8>(value);
+}
+
+void TUncheckedSkiffWriter::WriteUint16(ui16 value)
+{
+    WriteSimple<ui16>(value);
+}
+
+void TUncheckedSkiffWriter::WriteUint32(ui32 value)
+{
+    WriteSimple<ui32>(value);
 }
 
 void TUncheckedSkiffWriter::WriteUint64(ui64 value)
@@ -313,10 +440,58 @@ void TCheckedSkiffWriter::WriteBoolean(bool value)
     Writer_.WriteBoolean(value);
 }
 
+void TCheckedSkiffWriter::WriteInt8(i8 value)
+{
+    Validator_->OnSimpleType(EWireType::Int8);
+    Writer_.WriteInt8(value);
+}
+
+void TCheckedSkiffWriter::WriteInt16(i16 value)
+{
+    Validator_->OnSimpleType(EWireType::Int16);
+    Writer_.WriteInt16(value);
+}
+
+void TCheckedSkiffWriter::WriteInt32(i32 value)
+{
+    Validator_->OnSimpleType(EWireType::Int32);
+    Writer_.WriteInt32(value);
+}
+
 void TCheckedSkiffWriter::WriteInt64(i64 value)
 {
     Validator_->OnSimpleType(EWireType::Int64);
     Writer_.WriteInt64(value);
+}
+
+void TCheckedSkiffWriter::WriteUint8(ui8 value)
+{
+    Validator_->OnSimpleType(EWireType::Uint8);
+    Writer_.WriteUint8(value);
+}
+
+void TCheckedSkiffWriter::WriteUint16(ui16 value)
+{
+    Validator_->OnSimpleType(EWireType::Uint16);
+    Writer_.WriteUint16(value);
+}
+
+void TCheckedSkiffWriter::WriteUint32(ui32 value)
+{
+    Validator_->OnSimpleType(EWireType::Uint32);
+    Writer_.WriteUint32(value);
+}
+
+void TCheckedSkiffWriter::WriteUint64(ui64 value)
+{
+    Validator_->OnSimpleType(EWireType::Uint64);
+    Writer_.WriteUint64(value);
+}
+
+void TCheckedSkiffWriter::WriteInt128(TInt128 value)
+{
+    Validator_->OnSimpleType(EWireType::Int128);
+    Writer_.WriteInt128(value);
 }
 
 void TCheckedSkiffWriter::WriteString32(TStringBuf value)
@@ -341,12 +516,6 @@ void TCheckedSkiffWriter::WriteVariant16Tag(ui16 tag)
 {
     Validator_->OnVariant16Tag(tag);
     Writer_.WriteVariant16Tag(tag);
-}
-
-void TCheckedSkiffWriter::WriteUint64(ui64 value)
-{
-    Validator_->OnSimpleType(EWireType::Uint64);
-    Writer_.WriteUint64(value);
 }
 
 void TCheckedSkiffWriter::Flush()

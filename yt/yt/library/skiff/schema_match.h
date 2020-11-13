@@ -28,6 +28,7 @@ public:
     TFieldDescription(TString name, TSkiffSchemaPtr schema);
 
     bool IsRequired() const;
+    bool IsNullable() const;
     std::optional<EWireType> Simplify() const;
     EWireType ValidatedSimplify() const;
 };
