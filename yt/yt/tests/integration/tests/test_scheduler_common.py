@@ -1294,7 +1294,7 @@ class TestSchedulerConfig(YTEnvSetup):
             assert environment["TEST_VAR"] == "10"
             assert environment["OTHER_VAR"] == "20"
 
-            assert get(config_path + "/map_operation_options/spec_template/max_failed_job_count".format(instance)) == 50
+            assert get(config_path + "/map_operation_options/spec_template/max_failed_job_count") == 50
 
         op = map(command="cat", in_=["//tmp/t_in"], out="//tmp/t_out")
         assert get(op.get_path() + "/@full_spec/data_weight_per_job") == 2000

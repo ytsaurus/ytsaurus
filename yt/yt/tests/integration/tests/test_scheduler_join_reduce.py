@@ -1050,7 +1050,7 @@ echo {v = 2} >&7
         assert (
             get(
                 op.get_path()
-                + "/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id)
+                + "/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum"
             )
             == len(result) - 2
         )
