@@ -136,7 +136,7 @@ private:
             , Path_(path)
             , Options_(options)
             , Config_(options.Config ? options.Config : New<TJournalWriterConfig>())
-            , Profiler(options.Profiler)
+            , Counters_(options.Counters)
             , Logger(NLogging::TLogger(ApiLogger)
                 .AddTag("Path: %v, TransactionId: %v",
                     Path_,
@@ -212,7 +212,7 @@ private:
         const TYPath Path_;
         const TJournalWriterOptions Options_;
         const TJournalWriterConfigPtr Config_;
-        const TProfiler Profiler;
+        const TJournalWriterPerformanceCounters Counters_;
         const NLogging::TLogger Logger;
 
         const IInvokerPtr Invoker_ = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
@@ -327,9 +327,6 @@ private:
             i64 FirstRowIndex = -1;
             
             TSharedRef HeaderRow;
-
-            TShardedAggregateGauge MaxReplicaLag{"/max_replica_lag"};
-            TShardedAggregateGauge WriteQuorumLag{"/write_quorum_lag"};
         };
 
         using TChunkSessionPtr = TIntrusivePtr<TChunkSession>;
@@ -414,7 +411,7 @@ private:
             TUserObject userObject(Path_);
 
             {
-                TTimingGuard timingGuard(&Profiler, "/get_basic_attributes_time");
+                TEventTimerGuard timingGuard(Counters_.GetBasicAttributesTimer);
 
                 GetUserObjectBasicAttributes(
                     Client_,
@@ -440,7 +437,7 @@ private:
             UploadMasterChannel_ = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, ExternalCellTag_);
 
             {
-                TTimingGuard timingGuard(&Profiler, "/begin_upload_time");
+                TEventTimerGuard timingGuard(Counters_.BeginUploadTimer);
 
                 YT_LOG_DEBUG("Starting journal upload");
 
@@ -491,7 +488,7 @@ private:
             }
 
             {
-                TTimingGuard timingGuard(&Profiler, "/get_extended_attributes_time");
+                TEventTimerGuard timingGuard(Counters_.GetExtendedAttributesTimer);
 
                 YT_LOG_DEBUG("Requesting extended journal attributes");
 
@@ -537,7 +534,7 @@ private:
             }
 
             {
-                TTimingGuard timingGuard(&Profiler, "/get_upload_parameters_time");
+                TEventTimerGuard timingGuard(Counters_.GetUploadParametersTimer);
 
                 YT_LOG_DEBUG("Requesting journal upload parameters");
 
@@ -570,7 +567,7 @@ private:
         {
             YT_LOG_DEBUG("Closing journal");
 
-            TTimingGuard timingGuard(&Profiler, "/end_upload_time");
+            TEventTimerGuard timingGuard(Counters_.EndUploadTimer);
 
             auto objectIdPath = FromObjectId(ObjectId_);
 
@@ -613,13 +610,13 @@ private:
         {
             auto session = New<TChunkSession>(sessionIndex);
 
-            TTimingGuard timingGuard(&Profiler, "/open_session_time");
+            TEventTimerGuard timingGuard(Counters_.OpenSessionTimer);
             TWallTimer timer;
 
             YT_LOG_DEBUG("Creating chunk");
 
             {
-                TTimingGuard timingGuard(&Profiler, "/create_chunk_time");
+                TEventTimerGuard timingGuard(Counters_.CreateChunkTimer);
 
                 TChunkServiceProxy proxy(UploadMasterChannel_);
 
@@ -664,7 +661,7 @@ private:
 
             TChunkReplicaWithMediumList replicas;
             try {
-                TTimingGuard timingGuard(&Profiler, "/allocate_write_targets_time");
+                TEventTimerGuard timingGuard(Counters_.AllocateWriteTargetsTimer);
                 replicas = AllocateWriteTargets(
                     Client_,
                     session->Id,
@@ -711,7 +708,7 @@ private:
                 timer.GetElapsedTime());
 
             try {
-                TTimingGuard timingGuard(&Profiler, "/start_node_session_time");
+                TEventTimerGuard timingGuard(Counters_.StartNodeSessionTimer);
 
                 std::vector<TFuture<void>> futures;
                 for (const auto& node : session->Nodes) {
@@ -751,7 +748,7 @@ private:
                 timer.GetElapsedTime());
 
             {
-                TTimingGuard timingGuard(&Profiler, "/confirm_chunk_time");
+                TEventTimerGuard timingGuard(Counters_.ConfirmChunkTimer);
 
                 TChunkServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
@@ -781,7 +778,7 @@ private:
             YT_LOG_DEBUG("Attaching chunk (ElapsedTime: %v)",
                 timer.GetElapsedTime());
             {
-                TTimingGuard timingGuard(&Profiler, "/attach_chunk_time");
+                TEventTimerGuard timingGuard(Counters_.AttachChunkTimer);
 
                 TChunkServiceProxy proxy(UploadMasterChannel_);
                 auto batchReq = proxy.ExecuteBatch();
@@ -1046,7 +1043,7 @@ private:
             }
 
             if (!Config_->PreallocateChunks) {
-                TTimingGuard timingGuard(&Profiler, "/seal_chunk_time");
+                TEventTimerGuard timingGuard(Counters_.SealChunkTimer);
 
                 YT_LOG_DEBUG("Sealing chunk (SessionId: %v, RowCount: %v)",
                     sessionId,
@@ -1580,8 +1577,8 @@ private:
 
             std::sort(replicas.begin(), replicas.end());
 
-            Profiler.Update(session->WriteQuorumLag, CpuDurationToValue(replicas[WriteQuorum_ - 1].first));
-            Profiler.Update(session->MaxReplicaLag, CpuDurationToValue(replicas.back().first));
+            Counters_.WriteQuorumLag.Record(CpuDurationToDuration(replicas[WriteQuorum_ - 1].first));
+            Counters_.MaxReplicaLag.Record(CpuDurationToDuration(replicas.back().first));
 
             YT_LOG_DEBUG("Journal replicas lag updated (Replicas: %v)",
                 MakeFormattableView(replicas, [&] (auto* builder, const auto& replica) {

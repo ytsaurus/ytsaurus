@@ -10,6 +10,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <yt/core/yson/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -76,6 +78,7 @@ void FormatValue(TStringBuilderBase* builder, const NProto::TDiskResources& disk
 TString ToString(const NProto::TDiskResources& diskResources);
 
 void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);
+void ProfileResources(NProfiling::ISensorWriter* writer, const NProto::TNodeResources& resources);
 
 const NProto::TNodeResources& ZeroNodeResources();
 const NProto::TNodeResources& InfiniteNodeResources();

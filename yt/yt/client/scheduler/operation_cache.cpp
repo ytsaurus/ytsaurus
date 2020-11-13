@@ -14,7 +14,7 @@ TOperationCache::TOperationCache(
     TAsyncExpiringCacheConfigPtr config,
     THashSet<TString> attributes,
     NApi::IClientPtr client,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
     : TAsyncExpiringCache(
         std::move(config),
         NLogging::TLogger(SchedulerLogger)

@@ -43,7 +43,6 @@ using NChunkClient::TChunkReaderStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = JobProxyProfiler;
 static const auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -143,7 +142,7 @@ void TSimpleJobBase::Initialize()
 
 TJobResult TSimpleJobBase::Run()
 {
-    PROFILE_TIMING ("/job_time") {
+    YT_PROFILE_TIMING("yt/job_proxy/job_time") {
         YT_LOG_INFO("Initializing");
 
         Host_->OnPrepared();
@@ -161,8 +160,6 @@ TJobResult TSimpleJobBase::Run()
 
             CreateWriter();
 
-            PROFILE_TIMING_CHECKPOINT("init");
-
             YT_LOG_INFO("Reading and writing");
 
             TPipeReaderToWriterOptions options;
@@ -174,8 +171,6 @@ TJobResult TSimpleJobBase::Run()
                 Writer_,
                 options);
         }
-
-        PROFILE_TIMING_CHECKPOINT("reading_writing");
 
         YT_LOG_INFO("Finalizing");
         {

@@ -2,8 +2,8 @@
 
 #include "job_spec_helper.h"
 #include "helpers.h"
-#include "yt/ytlib/chunk_client/public.h"
 
+#include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>

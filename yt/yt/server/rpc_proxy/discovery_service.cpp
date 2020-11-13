@@ -34,6 +34,8 @@
 
 #include <yt/core/rpc/service_detail.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <yt/build/build.h>
 
 namespace NYT::NRpcProxy {
@@ -324,6 +326,13 @@ private:
                     Coordinator_->SetBanMessage(attributes->Get(BanMessageAttributeName, TString()));
                 }
                 YT_LOG_INFO("Proxy has been %v (Path: %v)", banned ? "banned" : "unbanned", ProxyPath_);
+            }
+
+            auto role = attributes->Find<TString>(RoleAttributeName);
+            if (role) {
+                NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", *role}});
+            } else {
+                NProfiling::TSolomonRegistry::Get()->SetDynamicTags({});
             }
         }
         {

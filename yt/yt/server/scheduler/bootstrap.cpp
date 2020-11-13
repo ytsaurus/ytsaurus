@@ -145,7 +145,7 @@ void TBootstrap::DoRun()
         Config_->ResponseKeeper,
         GetControlInvoker(EControlQueue::UserRequest),
         SchedulerLogger,
-        SchedulerProfiler);
+        SchedulerProfilerRegistry);
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
@@ -155,7 +155,7 @@ void TBootstrap::DoRun()
     ControllerAgentTracker_->Initialize();
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
 
     SetNodeByYPath(
         orchidRoot,

@@ -18,10 +18,15 @@ class TServerConfig
 public:
     THashMap<TString, NYTree::INodePtr> Services;
 
+    bool EnablePerUserProfiling;
+
     TServerConfig()
     {
         RegisterParameter("services", Services)
             .Default();
+
+        RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
+            .Default(false);
     }
 };
 
@@ -41,6 +46,8 @@ public:
     static const TDuration DefaultPendingPayloadsTimeout;
     TDuration PendingPayloadsTimeout;
 
+    std::optional<bool> EnablePerUserProfiling;
+
     TServiceConfig()
     {
         RegisterParameter("methods", Methods)
@@ -50,6 +57,8 @@ public:
             .Default(DefaultAuthenticationQueueSizeLimit);
         RegisterParameter("pending_payloads_timeout", PendingPayloadsTimeout)
             .Default(DefaultPendingPayloadsTimeout);
+        RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
+            .Default();
     }
 };
 

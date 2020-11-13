@@ -128,10 +128,10 @@ TInstant TObjectServiceCacheEntry::GetLastUpdateTime() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TTagIdList& tagIds)
-    : HitRequestCount("/hit_request_count", tagIds)
-    , HitResponseBytes("/hit_response_bytes", tagIds)
-    , MissRequestCount("/miss_request_count", tagIds)
+TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TRegistry& profiler)
+    : HitRequestCount(profiler.Counter("/hit_request_count"))
+    , HitResponseBytes(profiler.Counter("/hit_response_bytes"))
+    , MissRequestCount(profiler.Counter("/miss_request_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,10 +139,10 @@ TCacheProfilingCounters::TCacheProfilingCounters(const NProfiling::TTagIdList& t
 TObjectServiceCache::TObjectServiceCache(
     const TObjectServiceCacheConfigPtr& config,
     const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& profiler)
     : TAsyncSlruCacheBase(config)
     , Logger(logger)
-    , Profiler_(profiler)
+    , Profiler_(profiler.WithSparse())
     , TopEntryByteRateThreshold_(config->TopEntryByteRateThreshold)
 { }
 
@@ -201,10 +201,10 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
 
     auto counters = GetProfilingCounters(key.User, key.Method);
     if (cacheHit) {
-        Profiler_.Increment(counters->HitRequestCount);
-        Profiler_.Increment(counters->HitResponseBytes, entry->GetTotalSpace());
+        counters->HitRequestCount.Increment();
+        counters->HitResponseBytes.Increment(entry->GetTotalSpace());
     } else {
-        Profiler_.Increment(counters->MissRequestCount);
+        counters->MissRequestCount.Increment();
     }
 
     return BeginInsert(key);
@@ -268,11 +268,9 @@ TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TStri
         }
     }
 
-    NProfiling::TTagIdList tagIds{
-        NProfiling::TProfileManager::Get()->RegisterTag("user", user),
-        NProfiling::TProfileManager::Get()->RegisterTag("method", method)
-    };
-    auto counters = New<TCacheProfilingCounters>(tagIds);
+    auto counters = New<TCacheProfilingCounters>(Profiler_
+        .WithTag("user", user)
+        .WithTag("method", method));
 
     {
         NConcurrency::TWriterGuard guard(Lock_);

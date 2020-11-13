@@ -8,8 +8,9 @@
 
 #include <yt/core/misc/error.h>
 
-#include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/timing.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT {
 
@@ -102,7 +103,7 @@ protected:
 
     explicit TAsyncSlruCacheBase(
         TSlruCacheConfigPtr config,
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+        const NProfiling::TRegistry& profiler = {});
 
     virtual i64 GetWeight(const TValuePtr& value) const;
 
@@ -144,11 +145,10 @@ private:
     std::vector<TItem*> TouchBuffer_;
     std::atomic<int> TouchBufferPosition_ = {0};
 
-    NProfiling::TProfiler Profiler;
-    NProfiling::TShardedMonotonicCounter HitWeightCounter_;
-    NProfiling::TShardedMonotonicCounter MissedWeightCounter_;
-    NProfiling::TAtomicGauge YoungerWeightCounter_;
-    NProfiling::TAtomicGauge OlderWeightCounter_;
+    NProfiling::TCounter HitWeightCounter_;
+    NProfiling::TCounter MissedWeightCounter_;
+    std::atomic<i64> YoungerWeightCounter_{0};
+    std::atomic<i64> OlderWeightCounter_{0};
 
 
     bool Touch(TItem* item);

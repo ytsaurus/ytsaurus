@@ -21,10 +21,11 @@
 #include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/proto/rpc.pb.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <array>
 
@@ -43,7 +44,6 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = RpcClientLogger;
-static const auto& Profiler = RpcClientProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -600,16 +600,17 @@ private:
         //! Cached method metadata.
         struct TMethodMetadata
         {
-            NProfiling::TShardedAggregateGauge AckTimeCounter;
-            NProfiling::TShardedAggregateGauge ReplyTimeCounter;
-            NProfiling::TShardedAggregateGauge TimeoutTimeCounter;
-            NProfiling::TShardedAggregateGauge CancelTimeCounter;
-            NProfiling::TShardedAggregateGauge TotalTimeCounter;
-            NProfiling::TShardedMonotonicCounter RequestCounter;
-            NProfiling::TShardedMonotonicCounter RequestMessageBodySizeCounter;
-            NProfiling::TShardedMonotonicCounter RequestMessageAttachmentSizeCounter;
-            NProfiling::TShardedMonotonicCounter ResponseMessageBodySizeCounter;
-            NProfiling::TShardedMonotonicCounter ResponseMessageAttachmentSizeCounter;
+            NProfiling::TEventTimer AckTimeCounter;
+            NProfiling::TEventTimer ReplyTimeCounter;
+            NProfiling::TEventTimer TimeoutTimeCounter;
+            NProfiling::TEventTimer CancelTimeCounter;
+            NProfiling::TEventTimer TotalTimeCounter;
+
+            NProfiling::TCounter RequestCounter;
+            NProfiling::TCounter RequestMessageBodySizeCounter;
+            NProfiling::TCounter RequestMessageAttachmentSizeCounter;
+            NProfiling::TCounter ResponseMessageBodySizeCounter;
+            NProfiling::TCounter ResponseMessageAttachmentSizeCounter;
         };
 
         struct TMethodMetadataProfilingTrait
@@ -626,21 +627,21 @@ private:
             {
                 TMethodMetadata metadata;
 
-                auto* profilingManager = NProfiling::TProfileManager::Get();
-                NProfiling::TTagIdList tagIds{
-                    profilingManager->RegisterTag("service", TYsonString(service)),
-                    profilingManager->RegisterTag("method", TYsonString(method))
-                };
-                metadata.AckTimeCounter = NProfiling::TShardedAggregateGauge("/request_time/ack", tagIds, NProfiling::EAggregateMode::All);
-                metadata.ReplyTimeCounter = NProfiling::TShardedAggregateGauge("/request_time/reply", tagIds, NProfiling::EAggregateMode::All);
-                metadata.TimeoutTimeCounter = NProfiling::TShardedAggregateGauge("/request_time/timeout", tagIds, NProfiling::EAggregateMode::All);
-                metadata.CancelTimeCounter = NProfiling::TShardedAggregateGauge("/request_time/cancel", tagIds, NProfiling::EAggregateMode::All);
-                metadata.TotalTimeCounter = NProfiling::TShardedAggregateGauge("/request_time/total", tagIds, NProfiling::EAggregateMode::All);
-                metadata.RequestCounter = NProfiling::TShardedMonotonicCounter("/request_count", tagIds);
-                metadata.RequestMessageBodySizeCounter = NProfiling::TShardedMonotonicCounter("/request_message_body_bytes", tagIds);
-                metadata.RequestMessageAttachmentSizeCounter = NProfiling::TShardedMonotonicCounter("/request_message_attachment_bytes", tagIds);
-                metadata.ResponseMessageBodySizeCounter = NProfiling::TShardedMonotonicCounter("/response_message_body_bytes", tagIds);
-                metadata.ResponseMessageAttachmentSizeCounter = NProfiling::TShardedMonotonicCounter("/response_message_attachment_bytes", tagIds);
+                auto registry = RpcClientProfiler
+                    .WithSparse()
+                    .WithTag("service", service)
+                    .WithTag("method", method, -1);
+
+                metadata.AckTimeCounter = registry.Timer("/request_time/ack");
+                metadata.ReplyTimeCounter = registry.Timer("/request_time/reply");
+                metadata.TimeoutTimeCounter = registry.Timer("/request_time/timeout");
+                metadata.CancelTimeCounter = registry.Timer("/request_time/cancel");
+                metadata.TotalTimeCounter = registry.Timer("/request_time/total");
+                metadata.RequestCounter = registry.Counter("/request_count");
+                metadata.RequestMessageBodySizeCounter = registry.Counter("/request_message_body_bytes");
+                metadata.RequestMessageAttachmentSizeCounter = registry.Counter("/request_message_attachment_bytes");
+                metadata.ResponseMessageBodySizeCounter = registry.Counter("/response_message_body_bytes");
+                metadata.ResponseMessageAttachmentSizeCounter = registry.Counter("/response_message_attachment_bytes");
 
                 return metadata;
             }
@@ -1145,12 +1146,10 @@ private:
 
         void ProfileRequest(const TSharedRefArray& requestMessage)
         {
-            Profiler.Increment(MethodMetadata_->RequestCounter);
-            Profiler.Increment(
-                MethodMetadata_->RequestMessageBodySizeCounter,
+            MethodMetadata_->RequestCounter.Increment();
+            MethodMetadata_->RequestMessageBodySizeCounter.Increment(
                 GetMessageBodySize(requestMessage));
-            Profiler.Increment(
-                MethodMetadata_->RequestMessageAttachmentSizeCounter,
+            MethodMetadata_->RequestMessageAttachmentSizeCounter.Increment(
                 GetTotalMessageAttachmentSize(requestMessage));
         }
 
@@ -1158,11 +1157,9 @@ private:
         {
             DoProfile(MethodMetadata_->ReplyTimeCounter);
 
-            Profiler.Increment(
-                MethodMetadata_->ResponseMessageBodySizeCounter,
+            MethodMetadata_->ResponseMessageBodySizeCounter.Increment(
                 GetMessageBodySize(responseMessage));
-            Profiler.Increment(
-                MethodMetadata_->ResponseMessageAttachmentSizeCounter,
+            MethodMetadata_->ResponseMessageAttachmentSizeCounter.Increment(
                 GetTotalMessageAttachmentSize(responseMessage));
         }
 
@@ -1213,11 +1210,10 @@ private:
         NProfiling::TWallTimer Timer_;
         TDuration TotalTime_;
 
-
-        TDuration DoProfile(NProfiling::TShardedAggregateGauge& counter)
+        TDuration DoProfile(NProfiling::TEventTimer& counter)
         {
             auto elapsed = Timer_.GetElapsedTime();
-            Profiler.Update(counter, NProfiling::DurationToValue(elapsed));
+            counter.Record(elapsed);
             return elapsed;
         }
     };

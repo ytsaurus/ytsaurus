@@ -23,14 +23,14 @@
 #include <yt/core/misc/heap.h>
 #include <yt/core/misc/signal_registry.h>
 
-#include <yt/core/profiling/profile_manager.h>
-#include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/yson_serializable.h>
 #include <yt/core/ytree/convert.h>
+
+#include <yt/library/profiling/producer.h>
 
 #include <util/system/defaults.h>
 #include <util/system/sigset.h>
@@ -62,9 +62,7 @@ using namespace NTracing;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TLogger Logger(SystemLoggingCategoryName);
-static const auto& Profiler = LoggingProfiler;
 
-static constexpr auto ProfilingPeriod = TDuration::Seconds(10);
 static constexpr auto DiskProfilingPeriod = TDuration::Minutes(5);
 static constexpr auto DequeuePeriod = TDuration::MilliSeconds(30);
 
@@ -339,7 +337,7 @@ static thread_local TThreadLocalQueue* PerThreadQueue;
 /////////////////////////////////////////////////////////////////////////////
 
 class TLogManager::TImpl
-    : public TRefCounted
+    : public ISensorProducer
 {
 public:
     friend struct TLocalQueueReclaimer;
@@ -347,7 +345,7 @@ public:
     TImpl()
         : EventQueue_(New<TInvokerQueue>(
             EventCount_,
-            NProfiling::TTagIdList(),
+            NProfiling::TTagSet{},
             false,
             false))
         , LoggingThread_(New<TThread>(this))
@@ -638,12 +636,6 @@ private:
             LoggingThread_->Start();
             EventQueue_->SetThreadId(LoggingThread_->GetId());
 
-            ProfilingExecutor_ = New<TPeriodicExecutor>(
-                EventQueue_,
-                BIND(&TImpl::OnProfiling, MakeStrong(this)),
-                ProfilingPeriod);
-            ProfilingExecutor_->Start();
-
             DiskProfilingExecutor_ = New<TPeriodicExecutor>(
                 EventQueue_,
                 BIND(&TImpl::OnDiskProfiling, MakeStrong(this)),
@@ -862,8 +854,7 @@ private:
             ReloadWriters();
         }
 
-        auto* counter = GetWrittenEventsCounter(event);
-        LoggingProfiler.Increment(*counter, 1);
+        GetWrittenEventsCounter(event).Increment();
 
         for (const auto& writer : GetWriters(event)) {
             writer->Write(event);
@@ -942,37 +933,37 @@ private:
         }
     }
 
-    TShardedMonotonicCounter* GetWrittenEventsCounter(const TLogEvent& event)
+    const TCounter& GetWrittenEventsCounter(const TLogEvent& event)
     {
         auto key = std::make_pair(event.Category->Name, event.Level);
         auto it = WrittenEventsCounters_.find(key);
+
         if (it == WrittenEventsCounters_.end()) {
-            TTagIdList tagIds{
-                TProfileManager::Get()->RegisterTag("category", event.Category->Name),
-                TProfileManager::Get()->RegisterTag("level", FormatEnum(event.Level))
-            };
-            it = WrittenEventsCounters_.emplace(
-                key,
-                TShardedMonotonicCounter("/written_events", tagIds)).first;
+            // TODO(prime@): optimize sensor count
+            auto counter = LoggingProfiler
+                .WithSparse()
+                .WithTag("category", TString{event.Category->Name})
+                .WithTag("level", FormatEnum(event.Level))
+                .Counter("/written_events");
+
+            it = WrittenEventsCounters_.emplace(key, counter).first;
         }
-        return &it->second;
+        return it->second;
     }
 
-    void OnProfiling()
+    void Collect(ISensorWriter* writer)
     {
-        VERIFY_THREAD_AFFINITY(LoggingThread);
-
         auto writtenEvents = WrittenEvents_.load();
         auto enqueuedEvents = EnqueuedEvents_.load();
         auto suppressedEvents = SuppressedEvents_.load();
         auto droppedEvents = DroppedEvents_.load();
         auto messageBuffersSize = TRefCountedTracker::Get()->GetBytesAlive(GetRefCountedTypeKey<NDetail::TMessageBufferTag>());
 
-        Profiler.Enqueue("/enqueued_events", enqueuedEvents, EMetricType::Counter);
-        Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Gauge);
-        Profiler.Enqueue("/dropped_events", droppedEvents, EMetricType::Counter);
-        Profiler.Enqueue("/suppressed_events", suppressedEvents, EMetricType::Counter);
-        Profiler.Enqueue("/message_buffers_size", messageBuffersSize, EMetricType::Gauge);
+        writer->AddCounter("/enqueued_events", enqueuedEvents);
+        writer->AddGauge("/backlog_events", enqueuedEvents - writtenEvents);
+        writer->AddCounter("/dropped_events", droppedEvents);
+        writer->AddCounter("/suppressed_events", suppressedEvents);
+        writer->AddGauge("/message_buffers_size", messageBuffersSize);
     }
 
     void OnDiskProfiling()
@@ -990,10 +981,10 @@ private:
             }
 
             if (minLogStorageAvailableSpace != std::numeric_limits<i64>::max()) {
-                Profiler.Enqueue("/min_log_storage_available_space", minLogStorageAvailableSpace, EMetricType::Gauge);
+                MinLogStorageAvailableSpace_.Update(minLogStorageAvailableSpace);
             }
             if (minLogStorageFreeSpace != std::numeric_limits<i64>::max()) {
-                Profiler.Enqueue("/min_log_storage_free_space", minLogStorageFreeSpace, EMetricType::Gauge);
+                MinLogStorageFreeSpace_.Update(minLogStorageFreeSpace);
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get log storage disk statistics");
@@ -1238,7 +1229,10 @@ private:
     TExpiringSet<TRequestId> SuppressedRequestIdSet_;
 
     using TEventProfilingKey = std::pair<TStringBuf, ELogLevel>;
-    THashMap<TEventProfilingKey, TShardedMonotonicCounter> WrittenEventsCounters_;
+    THashMap<TEventProfilingKey, TCounter> WrittenEventsCounters_;
+
+    TGauge MinLogStorageAvailableSpace_ = LoggingProfiler.Gauge("/min_log_storage_available_space");
+    TGauge MinLogStorageFreeSpace_ = LoggingProfiler.Gauge("/min_log_storage_free_space");
 
     std::atomic<ui64> EnqueuedEvents_ = 0;
     std::atomic<ui64> WrittenEvents_ = 0;
@@ -1257,7 +1251,6 @@ private:
     TPeriodicExecutorPtr FlushExecutor_;
     TPeriodicExecutorPtr WatchExecutor_;
     TPeriodicExecutorPtr CheckSpaceExecutor_;
-    TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr DiskProfilingExecutor_;
     TPeriodicExecutorPtr DequeueExecutor_;
 
@@ -1286,7 +1279,10 @@ static thread_local TLocalQueueReclaimer LocalQueueReclaimer;
 
 TLogManager::TLogManager()
     : Impl_(New<TImpl>())
-{ }
+{
+    // NB: TLogManager is instanciated before main. We can't rely on global variables here.
+    NProfiling::TRegistry{"yt"}.AddProducer("/logging", Impl_);
+}
 
 TLogManager::~TLogManager() = default;
 

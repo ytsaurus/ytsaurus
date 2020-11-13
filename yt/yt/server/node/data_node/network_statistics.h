@@ -6,17 +6,20 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/profiling/profiler.h>
-
 #include <yt/client/node_tracker_client/proto/node.pb.h>
+
+#include <yt/yt/library/syncmap/map.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNetworkCounters
+struct TNetworkCounters final
 {
-    NProfiling::TShardedMonotonicCounter ThrottledReadsCounter;
+    std::atomic<NProfiling::TCpuInstant> UpdateTime{};
+    NProfiling::TCounter ThrottledReadsCounter;
 };
 
 class TNetworkStatistics
@@ -30,8 +33,7 @@ public:
 private:
     const TDataNodeConfigPtr Config_;
 
-    NConcurrency::TReaderWriterSpinLock Lock_;
-    THashMap<TString, TNetworkCounters> Counters_;
+    NConcurrency::TSyncMap<TString, TIntrusivePtr<TNetworkCounters>> Counters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

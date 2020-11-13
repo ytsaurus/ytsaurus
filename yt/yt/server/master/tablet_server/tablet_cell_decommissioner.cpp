@@ -12,10 +12,10 @@
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
-#include <yt/core/profiling/profiler.h>
-
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NTabletServer {
 
@@ -39,7 +39,7 @@ class TTabletCellDecommissioner::TImpl
 public:
     explicit TImpl(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Profiler("/tablet_server/tablet_cell_decommissioner")
+        , Profiler("yt/tablet_server/tablet_cell_decommissioner")
         , Config_(New<TTabletCellDecommissionerConfig>())
         , DecommissionExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletDecommissioner),
@@ -57,6 +57,8 @@ public:
             "KickOrphans",
             TabletServerLogger,
             Profiler))
+        , CheckDecommissionTimer_(Profiler.Timer("/check_decommission"))
+        , CheckOrphansTimer_(Profiler.Timer("/check_orphans"))
     { }
 
     void Start()
@@ -80,12 +82,13 @@ public:
 
 private:
     const NCellMaster::TBootstrap* Bootstrap_;
-    const NProfiling::TProfiler Profiler;
+    const NProfiling::TRegistry Profiler;
     TTabletCellDecommissionerConfigPtr Config_;
     TPeriodicExecutorPtr DecommissionExecutor_;
     TPeriodicExecutorPtr KickOrphansExecutor_;
     IReconfigurableThroughputThrottlerPtr DecommissionThrottler_;
     IReconfigurableThroughputThrottlerPtr KickOrphansThrottler_;
+    NProfiling::TEventTimer CheckDecommissionTimer_, CheckOrphansTimer_;
 
     void DoReconfigure()
     {
@@ -98,16 +101,16 @@ private:
 
     void CheckDecommission()
     {
-        PROFILE_TIMING("/check_decommission") {
-            DoCheckDecommission();
-        }
+        NProfiling::TEventTimerGuard guard(CheckDecommissionTimer_);
+
+        DoCheckDecommission();
     }
 
     void CheckOrphans()
     {
-        PROFILE_TIMING("/check_orphans") {
-            DoCheckOrphans();
-        }
+        NProfiling::TEventTimerGuard guard(CheckOrphansTimer_);
+
+        DoCheckOrphans();
     }
 
     void DoCheckDecommission()

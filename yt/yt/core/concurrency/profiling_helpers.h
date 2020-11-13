@@ -1,26 +1,24 @@
 #pragma once
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/library/profiling/tag.h>
 
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProfiling::TTagIdList GetThreadTagIds(
+NProfiling::TTagSet GetThreadTags(
     bool enableProfiling,
     const TString& threadName);
 
-NProfiling::TTagIdList GetBucketTagIds(
+NProfiling::TTagSet GetBucketTags(
     bool enableProfiling,
     const TString& threadName,
     const TString& bucketName);
 
-std::vector<NProfiling::TTagIdList> GetBucketsTagIds(
+std::vector<NProfiling::TTagSet> GetBucketsTags(
     bool enableProfiling,
     const TString& threadName,
     const std::vector<TString>& bucketNames);
-
-NProfiling::TTagIdList GetInvokerTagIds(const TString& invokerName);
 
 ////////////////////////////////////////////////////////////////////////////////
 

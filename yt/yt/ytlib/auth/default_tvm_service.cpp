@@ -67,10 +67,17 @@ public:
     TDefaultTvmService(
         TDefaultTvmServiceConfigPtr config,
         IPollerPtr poller,
-        NProfiling::TProfiler profiler)
+        NProfiling::TRegistry profiler)
         : Config_(std::move(config))
-        , Profiler_(std::move(profiler))
         , HttpClient_(CreateClient(Config_->HttpClient, std::move(poller)))
+        , GetServiceTicketCountCounter_(profiler.Counter("/get_service_ticket_count"))
+        , GetServiceTicketTimeGauge_(profiler.Timer("/get_service_ticket_time"))
+        , SuccessfulGetServiceTicketCountCounter_(profiler.Counter("/successful_get_service_ticket_count"))
+        , FailedGetServiceTicketCountCounter_(profiler.Counter("/failed_get_service_ticket_count"))
+        , ParseUserTicketCountCounter_(profiler.Counter("/parse_user_ticket_count"))
+        , SuccessfulParseUserTicketCountCounter_(profiler.Counter("/successful_parse_user_ticket_count"))
+        , FailedParseUserTicketCountCounter_(profiler.Counter("/failed_parse_user_ticket_count"))
+        , ClientErrorCountCounter_(profiler.Counter("/client_error_count"))
     {
         if (Config_->ClientEnableUserTicketChecking || Config_->ClientEnableServiceTicketFetching) {
             MakeClient();
@@ -84,18 +91,18 @@ public:
         }
 
         YT_LOG_DEBUG("Retrieving TVM ticket (ServiceId: %v)", serviceId);
-        Profiler_.Increment(GetServiceTicketCountCounter_);
+        GetServiceTicketCountCounter_.Increment();
 
         try {
             CheckClient();
             // The client caches everything locally, no need for async.
             auto result = Client_->GetServiceTicketFor(serviceId);
-            Profiler_.Increment(SuccessfulGetServiceTicketCountCounter_);
+            SuccessfulGetServiceTicketCountCounter_.Increment();
             return MakeFuture(result);
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
             YT_LOG_WARNING(error);
-            Profiler_.Increment(FailedGetServiceTicketCountCounter_);
+            FailedGetServiceTicketCountCounter_.Increment();
             return MakeFuture<TString>(error);
         }
     }
@@ -107,7 +114,7 @@ public:
         }
 
         YT_LOG_DEBUG("Parsing user ticket: %v", TUserTicket::RemoveSignature(ticket));
-        Profiler_.Increment(ParseUserTicketCountCounter_);
+        ParseUserTicketCountCounter_.Increment();
 
         try {
             CheckClient();
@@ -122,34 +129,33 @@ public:
                 result.Scopes.emplace(scope);
             }
 
-            Profiler_.Increment(SuccessfulParseUserTicketCountCounter_);
+            SuccessfulParseUserTicketCountCounter_.Increment();
             return result;
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << ex;
             YT_LOG_WARNING(error);
-            Profiler_.Increment(FailedParseUserTicketCountCounter_);
+            FailedParseUserTicketCountCounter_.Increment();
             return error;
         }
     }
 
 private:
     const TDefaultTvmServiceConfigPtr Config_;
-    const NProfiling::TProfiler Profiler_;
 
     const IClientPtr HttpClient_;
 
     std::unique_ptr<TTvmClient> Client_;
 
-    NProfiling::TShardedMonotonicCounter GetServiceTicketCountCounter_{"/get_service_ticket_count"};
-    NProfiling::TShardedAggregateGauge GetServiceTicketTimeGauge_{"/get_service_ticket_time"};
-    NProfiling::TShardedMonotonicCounter SuccessfulGetServiceTicketCountCounter_{"/successful_get_service_ticket_count"};
-    NProfiling::TShardedMonotonicCounter FailedGetServiceTicketCountCounter_{"/failed_get_service_ticket_count"};
+    NProfiling::TCounter GetServiceTicketCountCounter_;
+    NProfiling::TEventTimer GetServiceTicketTimeGauge_;
+    NProfiling::TCounter SuccessfulGetServiceTicketCountCounter_;
+    NProfiling::TCounter FailedGetServiceTicketCountCounter_;
 
-    NProfiling::TShardedMonotonicCounter ParseUserTicketCountCounter_{"/parse_user_ticket_count"};
-    NProfiling::TShardedMonotonicCounter SuccessfulParseUserTicketCountCounter_{"/successful_parse_user_ticket_count"};
-    NProfiling::TShardedMonotonicCounter FailedParseUserTicketCountCounter_{"/failed_parse_user_ticket_count"};
+    NProfiling::TCounter ParseUserTicketCountCounter_;
+    NProfiling::TCounter SuccessfulParseUserTicketCountCounter_;
+    NProfiling::TCounter FailedParseUserTicketCountCounter_;
 
-    NProfiling::TShardedMonotonicCounter ClientErrorCountCounter_{"/client_error_count"};
+    NProfiling::TCounter ClientErrorCountCounter_;
 
 private:
     void MakeClient()
@@ -189,10 +195,10 @@ private:
                 break;
             case TAsyncUpdaterBase::EStatus::ExpiringCache:
                 YT_LOG_WARNING("TVM client cache expiring");
-                Profiler_.Increment(ClientErrorCountCounter_);
+                ClientErrorCountCounter_.Increment();
                 break;
             default:
-                Profiler_.Increment(ClientErrorCountCounter_);
+                ClientErrorCountCounter_.Increment();
                 THROW_ERROR_EXCEPTION(TString(TAsyncUpdaterBase::StatusToString(status)));
         }
     }
@@ -221,7 +227,7 @@ private:
             safeUrl,
             callId);
 
-        Profiler_.Increment(GetServiceTicketCountCounter_);
+        GetServiceTicketCountCounter_.Increment();
 
         NProfiling::TWallTimer timer;
         return HttpClient_->Get(realUrl, headers)
@@ -255,11 +261,11 @@ private:
         const NProfiling::TWallTimer& timer,
         const TErrorOr<IResponsePtr>& rspOrError)
     {
-        Profiler_.Update(GetServiceTicketTimeGauge_, timer.GetElapsedValue());
+        GetServiceTicketTimeGauge_.Record(timer.GetElapsedTime());
 
         auto onError = [&] (TError error) {
             error.Attributes().Set("call_id", callId);
-            Profiler_.Increment(FailedGetServiceTicketCountCounter_);
+            FailedGetServiceTicketCountCounter_.Increment();
             YT_LOG_DEBUG(error);
             THROW_ERROR(error);
         };
@@ -317,7 +323,7 @@ private:
         try {
             auto ticketPath = "/" + ToYPathLiteral(serviceId) + "/ticket";
             ticket = GetNodeByYPath(rootNode, ticketPath)->GetValue<TString>();
-            Profiler_.Increment(SuccessfulGetServiceTicketCountCounter_);
+            SuccessfulGetServiceTicketCountCounter_.Increment();
         } catch (const std::exception& ex) {
             onError(TError("Error parsing TVM daemon reply")
                 << ex);
@@ -330,7 +336,7 @@ private:
 ITvmServicePtr CreateDefaultTvmService(
     TDefaultTvmServiceConfigPtr config,
     IPollerPtr poller,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
 {
     return New<TDefaultTvmService>(
         std::move(config),

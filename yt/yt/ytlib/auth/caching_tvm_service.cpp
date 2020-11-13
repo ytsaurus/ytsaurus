@@ -15,7 +15,7 @@ public:
     TCachingTvmService(
         ITvmServicePtr underlying,
         TAsyncExpiringCacheConfigPtr config,
-        NProfiling::TProfiler profiler)
+        NProfiling::TRegistry profiler)
         : TicketCache_(New<TTicketCache>(config, underlying, profiler))
         , Underlying_(std::move(underlying))
     { }
@@ -38,7 +38,7 @@ private:
         TTicketCache(
             TAsyncExpiringCacheConfigPtr config,
             ITvmServicePtr underlying,
-            NProfiling::TProfiler profiler)
+            NProfiling::TRegistry profiler)
             : TAsyncExpiringCache(
                 std::move(config),
                 NLogging::TLogger(AuthLogger)
@@ -65,7 +65,7 @@ private:
 ITvmServicePtr CreateCachingTvmService(
     ITvmServicePtr underlying,
     TAsyncExpiringCacheConfigPtr config,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
 {
     return New<TCachingTvmService>(
         std::move(underlying),

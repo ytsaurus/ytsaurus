@@ -9,6 +9,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <yt/client/scheduler/private.h>
 
 namespace NYT::NScheduler {
@@ -62,6 +64,7 @@ extern const NLogging::TLogger SchedulerEventLogger;
 extern const NLogging::TLogger SchedulerResourceMeteringLogger;
 
 extern const NProfiling::TProfiler SchedulerProfiler;
+extern const NProfiling::TRegistry SchedulerProfilerRegistry;
 
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 

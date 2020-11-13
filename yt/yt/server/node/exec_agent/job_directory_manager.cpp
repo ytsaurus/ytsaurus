@@ -47,7 +47,7 @@ public:
         , Executor_(CreatePortoExecutor(
             config->PortoExecutor,
             Format("jobdir%v", locationIndex),
-            ExecAgentProfiler.AppendPath("/job_directory/porto")))
+            ExecAgentProfiler.WithPrefix("/job_directory/porto")))
     {
         // Collect and drop all existing volumes.
         auto volumePaths = WaitFor(Executor_->ListVolumePaths())

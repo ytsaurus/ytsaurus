@@ -1,4 +1,5 @@
 #include "user.h"
+#include "yt/server/master/security_server/private.h"
 
 #include <yt/server/lib/security_server/proto/security_manager.pb.h>
 
@@ -47,6 +48,40 @@ void TUser::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Banned_);
     Load(context, *RequestLimits_);
+
+    auto profiler = SecurityProfiler
+        .WithSparse()
+        .WithTag("user", Name_);
+
+    ReadTimeCounter_ = profiler.TimeCounter("/user_read_time");
+    WriteTimeCounter_ = profiler.TimeCounter("/user_write_time");
+    ReadRequestCounter_ = profiler.Counter("/user_read_request_count");
+    WriteRequestCounter_ = profiler.Counter("/write_read_request_count");
+    RequestCounter_ = profiler.Counter("/user_request_count");
+    RequestQueueSizeSummary_ = profiler.Summary("/user_request_queue_size");
+}
+
+void TUser::SetRequestQueueSize(int size)
+{
+    RequestQueueSize_ = size;
+    RequestQueueSizeSummary_.Record(size);
+}
+
+void TUser::UpdateCounters(const TUserWorkload& workload)
+{
+    RequestCounter_.Increment(workload.RequestCount);
+    switch (workload.Type) {
+        case EUserWorkloadType::Read:
+            ReadRequestCounter_.Increment(workload.RequestCount);
+            ReadTimeCounter_.Add(workload.RequestTime);
+            break;
+        case EUserWorkloadType::Write:
+            WriteRequestCounter_.Increment(workload.RequestCount);
+            WriteTimeCounter_.Add(workload.RequestTime);
+            break;
+        default:
+            YT_ABORT();
+    }
 }
 
 const NConcurrency::IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)

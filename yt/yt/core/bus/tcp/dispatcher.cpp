@@ -1,10 +1,10 @@
 #include "dispatcher.h"
 #include "dispatcher_impl.h"
 
+#include <yt/core/bus/private.h>
+
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
-
-#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT::NBus {
 
@@ -12,7 +12,9 @@ namespace NYT::NBus {
 
 TTcpDispatcher::TTcpDispatcher()
     : Impl_(New<TImpl>())
-{ }
+{
+    BusProfiler.WithSparse().AddProducer("", Impl_);
+}
 
 TTcpDispatcher::~TTcpDispatcher() = default;
 

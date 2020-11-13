@@ -13,8 +13,6 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/profiling/timing.h>
-
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 

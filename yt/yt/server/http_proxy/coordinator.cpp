@@ -397,8 +397,7 @@ void TCoordinator::UpdateState()
             }
         }
 
-        HttpProxyProfiler.Enqueue("/banned", Self_->IsBanned ? 1 : 0, EMetricType::Gauge);
-
+        BannedGauge_.Update(Self_->IsBanned ? 1 : 0);
         FirstUpdateIterationFinished_.TrySet();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Coordinator update failed");

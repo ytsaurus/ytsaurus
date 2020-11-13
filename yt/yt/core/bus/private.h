@@ -6,14 +6,14 @@
 
 #include <yt/core/misc/enum.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger BusLogger;
-extern const NProfiling::TProfiler BusProfiler;
+extern const NProfiling::TRegistry BusProfiler;
 
 using TConnectionId = TGuid;
 using TPacketId = TGuid;

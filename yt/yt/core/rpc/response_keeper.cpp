@@ -4,6 +4,7 @@
 #include "helpers.h"
 #include "service.h"
 
+#include <atomic>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -17,7 +18,6 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto EvictionPeriod = TDuration::Seconds(1);
-static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,11 +29,10 @@ public:
         TResponseKeeperConfigPtr config,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TRegistry& registry)
         : Config_(std::move(config))
         , Invoker_(std::move(invoker))
         , Logger(logger)
-        , Profiler(profiler)
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Invoker_);
@@ -45,11 +44,12 @@ public:
             EvictionPeriod);
         EvictionExecutor_->Start();
 
-        ProfilingExecutor_ = New<TPeriodicExecutor>(
-            Invoker_,
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod);
-        ProfilingExecutor_->Start();
+        registry.AddFuncGauge("/response_keeper/kept_response_count", MakeStrong(this), [this] {
+            return FinishedResponseCount_.load();
+        });
+        registry.AddFuncGauge("/response_keeper/kept_response_space", MakeStrong(this), [this] {
+            return FinishedResponseSpace_.load();
+        });
     }
 
     void Start()
@@ -244,17 +244,15 @@ private:
     const TResponseKeeperConfigPtr Config_;
     const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;
-    const NProfiling::TProfiler Profiler;
 
     TPeriodicExecutorPtr EvictionExecutor_;
-    TPeriodicExecutorPtr ProfilingExecutor_;
 
     bool Started_ = false;
     NProfiling::TCpuInstant WarmupDeadline_ = 0;
 
     THashMap<TMutationId, TSharedRefArray> FinishedResponses_;
-    int FinishedResponseCount_ = 0;
-    i64 FinishedResponseSpace_ = 0;
+    std::atomic<int> FinishedResponseCount_ = 0;
+    std::atomic<i64> FinishedResponseSpace_ = 0;
 
     struct TEvictionItem
     {
@@ -266,30 +264,18 @@ private:
 
     THashMap<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
 
-    NProfiling::TShardedAggregateGauge CountCounter_{"/kept_response_count"};
-    NProfiling::TShardedAggregateGauge SpaceCounter_{"/kept_response_space"};
-
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 
 
     void UpdateCounters(const TSharedRefArray& data, int delta)
     {
-        FinishedResponseCount_ += delta;
+        FinishedResponseCount_.fetch_add(delta, std::memory_order_relaxed);
+
+        i64 size = 0;
         for (const auto& part : data) {
-            FinishedResponseSpace_ += delta * part.Size();
+            size += part.Size();
         }
-    }
-
-    void OnProfiling()
-    {
-        VERIFY_THREAD_AFFINITY(HomeThread);
-
-        if (!Started_) {
-            return;
-        }
-
-        Profiler.Update(CountCounter_, FinishedResponseCount_);
-        Profiler.Update(SpaceCounter_, FinishedResponseSpace_);
+        FinishedResponseSpace_.fetch_add(delta * size, std::memory_order_relaxed);
     }
 
     void OnEvict()
@@ -322,12 +308,12 @@ TResponseKeeper::TResponseKeeper(
     TResponseKeeperConfigPtr config,
     IInvokerPtr invoker,
     const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& registry)
     : Impl_(New<TImpl>(
         std::move(config),
         std::move(invoker),
         logger,
-        profiler))
+        registry))
 { }
 
 TResponseKeeper::~TResponseKeeper() = default;

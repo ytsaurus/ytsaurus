@@ -6,7 +6,7 @@
 
 #include <yt/core/ypath/token.h>
 
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NConcurrency {
 
@@ -27,14 +27,13 @@ public:
         bool enableProfiling)
         : Queue_(New<TFairShareInvokerQueue>(
             CallbackEventCount_,
-            GetBucketsTagIds(enableProfiling, threadName, bucketNames),
+            GetBucketsTags(enableProfiling, threadName, bucketNames),
             enableLogging,
             enableProfiling))
         , Thread_(New<TFairShareQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
             threadName,
-            GetThreadTagIds(enableProfiling, threadName),
             enableLogging,
             enableProfiling))
     { }

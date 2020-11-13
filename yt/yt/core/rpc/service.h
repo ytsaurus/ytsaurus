@@ -255,7 +255,7 @@ struct IService
     : public virtual TRefCounted
 {
     //! Applies a new configuration.
-    virtual void Configure(NYTree::INodePtr config) = 0;
+    virtual void Configure(TServerConfigPtr serverConfig, NYTree::INodePtr config) = 0;
 
     //! Stops the service forbidding new requests to be served
     //! and returns the future that is set when all currently

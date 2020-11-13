@@ -44,7 +44,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = P2PLogger;
-static const auto& Profiler = P2PProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +56,19 @@ TPeerBlockDistributor::TPeerBlockDistributor(
         Bootstrap_->GetStorageHeavyInvoker(),
         BIND(&TPeerBlockDistributor::DoIteration, MakeWeak(this)),
         Config_->IterationPeriod))
-{ }
+{
+    auto profiler = P2PProfiler;
+
+    profiler.AddFuncCounter("/distributed_bytes", MakeStrong(this), [this] {
+        return DistributedBytes_.load();
+    });
+
+    OutTrafficGauge_ = profiler.Gauge("/out_traffic");
+    OutTrafficThrottlerQueueSizeGauge_ = profiler.Gauge("/out_throttler_queue_size");
+    DefaultNetworkPendingOutBytesGauge_ = profiler.Gauge("/default_network_pending_out_bytes");
+    TotalOutQueueSizeGauge_ = profiler.Gauge("/total_out_queue_size");
+    TotalRequestedBlockSizeGauge_ = profiler.Gauge("/total_requested_block_size");
+}
 
 void TPeerBlockDistributor::OnBlockRequested(TBlockId blockId, i64 blockSize)
 {
@@ -84,8 +95,6 @@ void TPeerBlockDistributor::DoIteration()
     if (ShouldDistributeBlocks()) {
         DistributeBlocks();
     }
-
-    Profiler.Enqueue("/distributed_block_size", DistributedBytes_, EMetricType::Counter);
 }
 
 void TPeerBlockDistributor::SweepObsoleteRequests()
@@ -165,11 +174,11 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
     TotalRequestedBlockSize_ = 0;
 
     // Profile all related values.
-    Profiler.Enqueue("/out_traffic", outTraffic, EMetricType::Gauge);
-    Profiler.Enqueue("/out_throttler_queue_size", outThrottlerQueueSize, EMetricType::Gauge);
-    Profiler.Enqueue("/default_network_pending_out_bytes", defaultNetworkPendingOutBytes, EMetricType::Gauge);
-    Profiler.Enqueue("/total_out_queue_size", totalOutQueueSize, EMetricType::Gauge);
-    Profiler.Enqueue("/total_requested_block_size", totalRequestedBlockSize, EMetricType::Gauge);
+    OutTrafficGauge_.Update(outTraffic);
+    OutTrafficThrottlerQueueSizeGauge_.Update(outThrottlerQueueSize);
+    DefaultNetworkPendingOutBytesGauge_.Update(defaultNetworkPendingOutBytes);
+    TotalOutQueueSizeGauge_.Update(totalOutQueueSize);
+    TotalRequestedBlockSizeGauge_.Update(totalRequestedBlockSize);
 
     return shouldDistributeBlocks;
 }

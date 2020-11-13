@@ -3,8 +3,6 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/core/profiling/profile_manager.h>
-
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
@@ -18,44 +16,27 @@ TNetworkStatistics::TNetworkStatistics(TDataNodeConfigPtr config)
 
 void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
 {
-    while (true) {
-        {
-            TReaderGuard guard(Lock_);
-            auto it = Counters_.find(name);
-            if (it != Counters_.end()) {
-                DataNodeProfiler.Increment(it->second.ThrottledReadsCounter);
-                break;
-            }
-        }
+    auto counters = Counters_.FindOrInsert(name, [&] {
+        auto counters = New<TNetworkCounters>();
+        counters->ThrottledReadsCounter = DataNodeProfilerRegistry
+            .WithTag("network", name)
+            .Counter("/net_throttled_reads");
+        return counters;
+    }).first->Get();
 
-        {
-            TWriterGuard guard(Lock_);
-            if (Counters_.find(name) == Counters_.end()) {
-                TTagIdList tagIds{
-                    TProfileManager::Get()->RegisterTag("network", name)
-                };
-
-                auto& counters = Counters_[name];
-                counters.ThrottledReadsCounter = TShardedMonotonicCounter(
-                    "/net_throttled_reads",
-                    tagIds,
-                    Config_->NetOutThrottleCounterInterval);
-            }
-        }
-    }
+    counters->UpdateTime = GetCpuInstant();
+    counters->ThrottledReadsCounter.Increment();
 }
 
 void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TNodeStatistics* statistics)
 {
-    TReaderGuard guard(Lock_);
-    for (const auto& counter : Counters_) {
+    Counters_.IterateReadOnly([this, statistics] (const auto& name, const auto& counters) {
         auto* network = statistics->add_network();
-        network->set_network(counter.first);
+        network->set_network(name);
 
-        auto deadline = counter.second.ThrottledReadsCounter.GetUpdateDeadline();
-        network->set_throttling_reads(
-            GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->NetOutThrottleCounterInterval));
-    }
+        auto resetAt = counters->UpdateTime.load() + 2 * DurationToCpuDuration(Config_->NetOutThrottleCounterInterval);
+        network->set_throttling_reads(GetCpuInstant() < resetAt);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

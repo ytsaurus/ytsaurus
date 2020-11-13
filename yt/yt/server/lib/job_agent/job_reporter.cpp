@@ -25,8 +25,6 @@
 #include <yt/core/concurrency/nonblocking_batch.h>
 #include <yt/core/concurrency/async_semaphore.h>
 
-#include <yt/core/profiling/profiler.h>
-
 #include <yt/core/utilex/random.h>
 
 namespace NYT::NJobAgent {
@@ -68,11 +66,7 @@ struct TJobFailContextTag
 
 namespace {
 
-static const TProfiler JobProfiler("/statistics_reporter/jobs");
-static const TProfiler JobSpecProfiler("/statistics_reporter/job_specs");
-static const TProfiler JobStderrProfiler("/statistics_reporter/stderrs");
-static const TProfiler JobProfileProfiler("/statistics_reporter/profiles");
-static const TProfiler JobFailContextProfiler("/statistics_reporter/fail_contexts");
+static const TRegistry ReporterProfiler("yt/job_reporter");
 static const TLogger ReporterLogger("JobReporter");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,15 +160,22 @@ public:
         TString reporterName,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
-        const TProfiler& profiler,
+        const TRegistry& profiler,
         ui64 maxInProgressDataSize)
         : Config_(std::move(config))
         , ReporterName_(std::move(reporterName))
         , Data_(std::move(data))
         , Client_(std::move(client))
-        , Profiler_(profiler)
         , Limiter_(maxInProgressDataSize)
         , Batcher_(New<TNonblockingBatch<TJobReport>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
+        , EnqueuedCounter_(profiler.Counter("/enqueued"))
+        , DequeuedCounter_(profiler.Counter("/dequeued"))
+        , DroppedCounter_(profiler.Counter("/dropped"))
+        , WriteFailuresCounter_(profiler.Counter("/write_failures"))
+        , PendingCounter_(profiler.Gauge("/pending"))
+        , QueueIsTooLargeCounter_(profiler.Gauge("/queue_is_too_large"))
+        , CommittedCounter_(profiler.Counter("/committed"))
+        , CommittedDataWeightCounter_(profiler.Counter("/committed_data_weight"))
     {
         BIND(&THandlerBase::Loop, MakeWeak(this))
             .Via(invoker)
@@ -190,15 +191,15 @@ public:
         }
         if (Limiter_.TryIncrease(statistics.EstimateSize())) {
             Batcher_->Enqueue(std::move(statistics));
-            Profiler_.Increment(PendingCounter_);
-            Profiler_.Increment(EnqueuedCounter_);
-            Profiler_.Update(QueueIsTooLargeCounter_,
+            PendingCounter_.Update(PendingCount_++);
+            EnqueuedCounter_.Increment();
+            QueueIsTooLargeCounter_.Update(
                 QueueIsTooLargeMultiplier * Limiter_.GetValue() > Limiter_.GetMaxValue()
                 ? 1
                 : 0);
         } else {
             DroppedCount_.fetch_add(1, std::memory_order_relaxed);
-            Profiler_.Increment(DroppedCounter_);
+            DroppedCounter_.Increment();
         }
     }
 
@@ -250,24 +251,24 @@ protected:
     };
 
 private:
-    TShardedMonotonicCounter EnqueuedCounter_ = {"/enqueued"};
-    TShardedMonotonicCounter DequeuedCounter_ = {"/dequeued"};
-    TShardedMonotonicCounter DroppedCounter_ = {"/dropped"};
-    TShardedMonotonicCounter WriteFailuresCounter_ = {"/write_failures"};
-    TAtomicGauge PendingCounter_ = {"/pending"};
-    TAtomicGauge QueueIsTooLargeCounter_ = {"/queue_is_too_large"};
-    TShardedMonotonicCounter CommittedCounter_ = {"/committed"};
-    TShardedMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
-
     const TString ReporterName_;
     const TSharedDataPtr Data_;
     const NNative::IClientPtr Client_;
-    const TProfiler& Profiler_;
     TLimiter Limiter_;
     TNonblockingBatchPtr<TJobReport> Batcher_;
 
+    TCounter EnqueuedCounter_;
+    TCounter DequeuedCounter_;
+    TCounter DroppedCounter_;
+    TCounter WriteFailuresCounter_;
+    TGauge PendingCounter_;
+    TGauge QueueIsTooLargeCounter_;
+    TCounter CommittedCounter_;
+    TCounter CommittedDataWeightCounter_;
+
     TAsyncSemaphorePtr EnableSemaphore_ = New<TAsyncSemaphore>(1);
     std::atomic<bool> Enabled_ = {false};
+    std::atomic<ui64> PendingCount_ = {0};
     std::atomic<ui64> DroppedCount_ = {0};
     std::atomic<ui64> WriteFailuresCount_ = {0};
 
@@ -286,8 +287,8 @@ private:
                 continue; // reporting has been disabled
             }
 
-            Profiler_.Increment(PendingCounter_, -batch.size());
-            Profiler_.Increment(DequeuedCounter_, batch.size());
+            PendingCounter_.Update(PendingCount_ -= batch.size());
+            DequeuedCounter_.Increment(batch.size());
             WriteBatchWithExpBackoff(batch);
         }
     }
@@ -310,7 +311,7 @@ private:
                 return;
             } catch (const std::exception& ex) {
                 WriteFailuresCount_.fetch_add(1, std::memory_order_relaxed);
-                Profiler_.Increment(WriteFailuresCounter_);
+                WriteFailuresCounter_.Increment();
                 YT_LOG_WARNING(ex, "Failed to report job statistics (RetryDelay: %v, PendingItems: %v)",
                     delay.Seconds(),
                     GetPendingCount());
@@ -343,8 +344,8 @@ private:
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        Profiler_.Increment(CommittedCounter_, batch.size());
-        Profiler_.Increment(CommittedDataWeightCounter_, dataWeight);
+        CommittedCounter_.Increment();
+        CommittedDataWeightCounter_.Increment(dataWeight);
 
         YT_LOG_DEBUG("Job statistics transaction committed (TransactionId: %v, "
             "CommittedItems: %v, CommittedDataWeight: %v)",
@@ -355,7 +356,7 @@ private:
 
     ui64 GetPendingCount()
     {
-        return PendingCounter_.GetCurrent();
+        return PendingCount_.load();
     }
 
     void DoEnable()
@@ -370,8 +371,8 @@ private:
         Batcher_->Drop();
         Limiter_.Reset();
         DroppedCount_.store(0, std::memory_order_relaxed);
-        Profiler_.Update(PendingCounter_, 0);
-        Profiler_.Update(QueueIsTooLargeCounter_, 0);
+        PendingCounter_.Update(PendingCount_ = 0);
+        QueueIsTooLargeCounter_.Update(0);
         YT_LOG_INFO("Job statistics reporter disabled");
     }
 
@@ -413,7 +414,7 @@ public:
             "jobs",
             std::move(client),
             invoker,
-            JobProfiler,
+            ReporterProfiler.WithTag("reporter_type", "jobs"),
             config->MaxInProgressJobDataSize)
         , DefaultLocalAddress_(std::move(localAddress))
     { }
@@ -550,7 +551,7 @@ public:
             "operation_ids",
             std::move(client),
             invoker,
-            JobProfiler,
+            ReporterProfiler.WithTag("reporter_type", "operation_ids"),
             config->MaxInProgressOperationIdDataSize)
     { }
 
@@ -603,7 +604,7 @@ public:
             "job_specs",
             std::move(client),
             invoker,
-            JobSpecProfiler,
+            ReporterProfiler.WithTag("reporter_type", "job_specs"),
             config->MaxInProgressJobSpecDataSize)
     { }
 
@@ -660,7 +661,7 @@ public:
             "stderrs",
             std::move(client),
             invoker,
-            JobStderrProfiler,
+            ReporterProfiler.WithTag("reporter_type", "stderrs"),
             config->MaxInProgressJobStderrDataSize)
     { }
 
@@ -713,7 +714,7 @@ public:
             "profiles",
             std::move(client),
             invoker,
-            JobProfileProfiler,
+            ReporterProfiler.WithTag("reporter_type", "profiles"),
             config->MaxInProgressJobStderrDataSize)
     { }
 
@@ -773,7 +774,7 @@ public:
             "fail_contexts",
             std::move(client),
             invoker,
-            JobFailContextProfiler,
+            ReporterProfiler.WithTag("reporter_type", "fail_contexts"),
             config->MaxInProgressJobFailContextDataSize)
     { }
 

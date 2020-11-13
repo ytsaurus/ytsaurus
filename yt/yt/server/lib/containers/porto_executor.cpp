@@ -91,7 +91,7 @@ public:
     TPortoExecutor(
         TPortoExecutorConfigPtr config,
         const TString& threadNameSuffix,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TRegistry& profiler)
         : Config_(std::move(config))
         , Queue_(New<TActionQueue>(Format("Porto:%v", threadNameSuffix)))
         , Profiler_(profiler)
@@ -320,7 +320,7 @@ public:
 private:
     const TPortoExecutorConfigPtr Config_;
     const TActionQueuePtr Queue_;
-    const NProfiling::TProfiler Profiler_;
+    const NProfiling::TRegistry Profiler_;
 
     const std::unique_ptr<Porto::TPortoApi> Api_ = std::make_unique<Porto::TPortoApi>();
     const TPeriodicExecutorPtr PollExecutor_;
@@ -331,17 +331,17 @@ private:
 
     struct TCommandEntry
     {
-        explicit TCommandEntry(const NProfiling::TTagIdList& tagIds)
-            : TimeGauge("/command_time", tagIds)
-            , RetryCounter("/command_retries", tagIds)
-            , SuccessCounter("/command_successes", tagIds)
-            , FailureCounter("/command_failures", tagIds)
+        explicit TCommandEntry(const NProfiling::TRegistry& registry)
+            : TimeGauge(registry.Timer("/command_time"))
+            , RetryCounter(registry.Counter("/command_retries"))
+            , SuccessCounter(registry.Counter("/command_successes"))
+            , FailureCounter(registry.Counter("/command_failures"))
         { }
 
-        NProfiling::TShardedAggregateGauge TimeGauge;
-        NProfiling::TShardedMonotonicCounter RetryCounter;
-        NProfiling::TShardedMonotonicCounter SuccessCounter;
-        NProfiling::TShardedMonotonicCounter FailureCounter;
+        NProfiling::TEventTimer TimeGauge;
+        NProfiling::TCounter RetryCounter;
+        NProfiling::TCounter SuccessCounter;
+        NProfiling::TCounter FailureCounter;
     };
 
     TAdaptiveLock CommandLock_;
@@ -565,10 +565,7 @@ private:
         if (auto it = CommandToEntry_.find(command)) {
             return &it->second;
         }
-        NProfiling::TTagIdList tagIds{
-            NProfiling::TProfileManager::Get()->RegisterTag("command", command)
-        };
-        return &CommandToEntry_.emplace(command, TCommandEntry(tagIds)).first->second;
+        return &CommandToEntry_.emplace(command, TCommandEntry(Profiler_.WithTag("command", command))).first->second;
     }
 
     void ExecuteApiCall(std::function<EError()> callback, const TString& command)
@@ -582,20 +579,19 @@ private:
             {
                 NProfiling::TWallTimer timer;
                 error = callback();
-                Profiler_.Update(entry->TimeGauge, timer.GetElapsedValue());
+                entry->TimeGauge.Record(timer.GetElapsedTime());
             }
 
             if (error == EError::Success) {
-                Profiler_.Increment(entry->SuccessCounter);
+                entry->SuccessCounter.Increment();
                 break;
             }
 
-            Profiler_.Increment(entry->FailureCounter);
-
+            entry->FailureCounter.Increment();
             HandleApiError(command, startTime);
 
             YT_LOG_DEBUG("Sleeping and retrying Porto API call (Command: %v)", command);
-            Profiler_.Increment(entry->RetryCounter);
+            entry->RetryCounter.Increment();
 
             TDelayedExecutor::WaitForDuration(RetryInterval);
         }
@@ -665,8 +661,8 @@ private:
         ContainerMap_.erase(container);
 
         Containers_.clear();
-        for (const auto containerIt : ContainerMap_) {
-            Containers_.push_back(containerIt.first);
+        for (const auto& [name, pid] : ContainerMap_) {
+            Containers_.push_back(name);
         }
     }
 };
@@ -681,7 +677,7 @@ const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
 IPortoExecutorPtr CreatePortoExecutor(
     TPortoExecutorConfigPtr config,
     const TString& threadNameSuffix,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& profiler)
 {
     return New<TPortoExecutor>(
         std::move(config),

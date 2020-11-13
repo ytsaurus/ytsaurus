@@ -6,7 +6,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NConcurrency {
 
@@ -90,18 +90,14 @@ class TProfiledAsyncSemaphore
 public:
     TProfiledAsyncSemaphore(
         i64 totalSlots,
-        const NProfiling::TProfiler& profiler,
-        const NYPath::TYPath& path,
-        const NProfiling::TTagIdList& tagIds = {});
+        NProfiling::TGauge gauge);
 
     virtual void Release(i64 slots = 1) override;
     virtual void Acquire(i64 slots = 1) override;
     virtual bool TryAcquire(i64 slots = 1) override;
 
 private:
-    const NProfiling::TProfiler Profiler;
-
-    NProfiling::TAtomicGauge Gauge_;
+    NProfiling::TGauge Gauge_;
 
     void Profile();
 };

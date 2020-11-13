@@ -12,7 +12,7 @@ namespace NYT::NChunkClient {
 IBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
-    const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+    const NProfiling::TRegistry& profiler = {});
 
 //! Returns an always-empty block cache.
 IBlockCachePtr GetNullBlockCache();

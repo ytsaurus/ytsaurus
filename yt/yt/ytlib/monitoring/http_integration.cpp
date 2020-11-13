@@ -26,8 +26,11 @@
 
 #include <yt/core/tracing/trace_manager.h>
 
-#include <util/string/vector.h>
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <library/cpp/cgiparam/cgiparam.h>
+
+#include <util/string/vector.h>
 
 namespace NYT::NMonitoring {
 
@@ -77,48 +80,11 @@ private:
     const TGuid ProcessId_ = TGuid::Create();
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TMonitoringHandler
-    : public IHttpHandler
-{
-public:
-    virtual void HandleRequest(
-        const IRequestPtr& req,
-        const IResponseWriterPtr& rsp) override
-    {
-        //! The following protocol is supported:
-        //! #start_sample_index parameter is expected.
-        //! All samples in deque with #id more than #start_sample_index are returned (or empty vector if none).
-        //! Also #index of the first corresponding sample is returned, or #start_sample_index if none).
-        std::optional<i64> startSample;
-        TCgiParameters params(req->GetUrl().RawQuery);
-        if (auto sample = FromString<i64>(params.Get("start_sample_index"))) {
-            startSample = sample;
-        }
-        auto [index, msg] = NProfiling::TProfileManager::Get()->GetSamples(startSample);
-        rsp->GetHeaders()->Add("X-YT-Response-Start-Index", ToString(index));
-        rsp->GetHeaders()->Add("X-YT-Process-Id", ToString(ProcessId_));
-        rsp->SetStatus(EStatusCode::OK);
-        WaitFor(rsp->WriteBody(SerializeProtoToRef(msg)))
-            .ThrowOnError();
-        WaitFor(rsp->Close())
-            .ThrowOnError();
-    }
-
-private:
-    const TGuid ProcessId_ = TGuid::Create();
-};
-
-DECLARE_REFCOUNTED_CLASS(TMonitoringHandler)
-DEFINE_REFCOUNTED_TYPE(TMonitoringHandler)
-
-////////////////////////////////////////////////////////////////////////////////
-
 void Initialize(
     const NHttp::IServerPtr& monitoringServer,
     TMonitoringManagerPtr* manager,
-    NYTree::IMapNodePtr* orchidRoot)
+    NYTree::IMapNodePtr* orchidRoot,
+    const NProfiling::TSolomonExporterConfigPtr& config)
 {
     *manager = New<TMonitoringManager>();
     (*manager)->Register("/yt_alloc", NYTAlloc::CreateStatisticsProducer());
@@ -136,6 +102,12 @@ void Initialize(
         CreateVirtualNode(NProfiling::TProfileManager::Get()->GetService()));
 
     if (monitoringServer) {
+        auto exporter = New<NProfiling::TSolomonExporter>(
+            config,
+            NProfiling::TProfileManager::Get()->GetInvoker());
+        exporter->Register("/solomon", monitoringServer);
+        exporter->Start();
+
         monitoringServer->AddHandler(
             "/orchid/",
             GetOrchidYPathHttpHandler(*orchidRoot));
@@ -143,10 +115,6 @@ void Initialize(
         monitoringServer->AddHandler(
             "/tracing/traces/v2",
             New<TTracingHttpHandler>());
-
-        monitoringServer->AddHandler(
-            "/profiling/proto",
-            New<TMonitoringHandler>());
     }
 }
 

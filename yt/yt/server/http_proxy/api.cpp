@@ -42,12 +42,11 @@ TApi::TApi(TBootstrap* bootstrap)
     , HttpAuthenticator_(bootstrap->GetHttpAuthenticator())
     , Coordinator_(bootstrap->GetCoordinator())
     , Poller_(bootstrap->GetPoller())
+    , DefaultNetworkName_(bootstrap->GetConfig()->DefaultNetwork)
 {
-    DefaultNetworkTag_ = TProfileManager::Get()->RegisterTag("network", bootstrap->GetConfig()->DefaultNetwork);
-
     for (const auto& network : bootstrap->GetConfig()->Networks) {
         for (const auto& prefix : network.second) {
-            Networks_.emplace_back(prefix, TProfileManager::Get()->RegisterTag("network", network.first));
+            Networks_.emplace_back(prefix, network.first);
         }
     }
 
@@ -56,10 +55,10 @@ TApi::TApi(TBootstrap* bootstrap)
     });
 }
 
-NProfiling::TTagId TApi::GetNetworkTagForAddress(const NNet::TNetworkAddress& address) const
+TString TApi::GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const
 {
     if (!address.IsIP6()) {
-        return DefaultNetworkTag_;
+        return DefaultNetworkName_;
     }
 
     auto ip6Address = address.ToIP6Address();
@@ -69,7 +68,7 @@ NProfiling::TTagId TApi::GetNetworkTagForAddress(const NNet::TNetworkAddress& ad
         }
     }
 
-    return DefaultNetworkTag_;
+    return DefaultNetworkName_;
 }
 
 const NDriver::IDriverPtr& TApi::GetDriverV3() const
@@ -141,8 +140,7 @@ std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const
         return {};
     }
 
-    counters->LocalSemaphore.fetch_add(1);
-    HttpProxyProfiler.Increment(counters->ConcurrencySemaphore);
+    counters->ConcurrencySemaphore.Update(++counters->LocalSemaphore);
 
     return TSemaphoreGuard(this, key);
 }
@@ -150,60 +148,35 @@ std::optional<TSemaphoreGuard> TApi::AcquireSemaphore(const TString& user, const
 void TApi::ReleaseSemaphore(const TUserCommandPair& key)
 {
     auto counters = GetProfilingCounters(key);
+
     GlobalSemaphore_.fetch_add(-1);
-    counters->LocalSemaphore.fetch_add(-1);
-    HttpProxyProfiler.Increment(counters->ConcurrencySemaphore, -1);
+    counters->ConcurrencySemaphore.Update(--counters->LocalSemaphore);
 }
 
 TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key)
 {
-    {
-        TReaderGuard guard(CountersLock_);
-        auto counter = Counters_.find(key);
-        if (counter != Counters_.end()) {
-            return counter->second.get();
-        }
-    }
+    return Counters_.FindOrInsert(key, [&, this] {
+        auto profiler = SparseProfiler_
+            .WithTag("user", key.first)
+            .WithTag("command", key.second);
 
-    auto userTag = TProfileManager::Get()->RegisterTag("user", key.first);
-    auto commandTag = TProfileManager::Get()->RegisterTag("command", key.second);
-
-    auto counters = std::make_unique<TProfilingCounters>();
-    counters->Tags = { userTag, commandTag };
-    counters->UserTag = { userTag };
-    counters->CommandTag = { commandTag };
-
-    counters->ConcurrencySemaphore = { "/concurrency_semaphore", counters->Tags };
-    counters->RequestCount = { "/request_count", counters->Tags };
-    counters->RequestDuration = { "/request_duration", counters->Tags };
-
-    TWriterGuard guard(CountersLock_);
-    auto result = Counters_.emplace(key, std::move(counters));
-    return result.first->second.get();
+        auto counters = std::make_unique<TProfilingCounters>();
+        counters->ConcurrencySemaphore = profiler.Gauge("/concurrency_semaphore");
+        counters->RequestCount = profiler.Counter("/concurrency_semaphore");
+        counters->RequestDuration = profiler.Timer("/request_duration");
+        return counters;
+    }).first->get();
 }
 
 void TApi::IncrementHttpCode(EStatusCode httpStatusCode)
 {
-    auto guard = Guard(HttpCodesLock_);
-    DoIncrementHttpCode(&HttpCodes_, httpStatusCode, {});
-}
+    auto counter = HttpCodes_.FindOrInsert(httpStatusCode, [&] {
+        return HttpProxyProfiler
+            .WithTag("http_code", ToString(static_cast<int>(httpStatusCode)))
+            .Counter("/http_code_count");
+    }).first;
 
-void TApi::DoIncrementHttpCode(
-    THashMap<NHttp::EStatusCode, TShardedMonotonicCounter>* counters,
-    EStatusCode httpStatusCode,
-    TTagIdList tags)
-{
-    auto it = counters->find(httpStatusCode);
-
-    if (it == counters->end()) {
-        tags.push_back(TProfileManager::Get()->RegisterTag("http_code", static_cast<int>(httpStatusCode)));
-
-        it = counters->emplace(
-            httpStatusCode,
-            TShardedMonotonicCounter{"/http_code_count", tags}).first;
-    }
-
-    HttpProxyProfiler.Increment(it->second);
+    counter->Increment();
 }
 
 void TApi::IncrementProfilingCounters(
@@ -216,45 +189,47 @@ void TApi::IncrementProfilingCounters(
     i64 bytesIn,
     i64 bytesOut)
 {
-    auto networkTag = GetNetworkTagForAddress(clientAddress);
+    auto networkName = GetNetworkNameForAddress(clientAddress);
 
     auto counters = GetProfilingCounters({user, command});
 
-    HttpProxyProfiler.Increment(counters->RequestCount);
-    HttpProxyProfiler.Update(counters->RequestDuration, duration.MilliSeconds());
+    counters->RequestCount.Increment();
+    counters->RequestDuration.Record(duration);
 
-    auto guard = Guard(counters->Lock);
     if (httpStatusCode) {
-        DoIncrementHttpCode(&counters->HttpCodes, *httpStatusCode, counters->CommandTag);
-        DoIncrementHttpCode(&counters->HttpCodes, *httpStatusCode, counters->UserTag);
+        HttpCodesByCommand_.FindOrInsert({command, *httpStatusCode}, [&, this] {
+            return SparseProfiler_
+                .WithTag("http_code", ToString(static_cast<int>(*httpStatusCode)))
+                .WithTag("command", command)
+                .Counter("/command_http_code_count");
+        }).first->Increment();
+
+        HttpCodesByUser_.FindOrInsert({user, *httpStatusCode}, [&, this] {
+            return SparseProfiler_
+                .WithTag("http_code", ToString(static_cast<int>(*httpStatusCode)))
+                .WithTag("user", user)
+                .Counter("/user_http_code_count");
+        }).first->Increment();
     }
 
     if (apiErrorCode) {
-        auto it = counters->ApiErrors.find(apiErrorCode);
-
-        if (it == counters->ApiErrors.end()) {
-            auto tags = counters->Tags;
-            tags.push_back(TProfileManager::Get()->RegisterTag("error_code", static_cast<int>(apiErrorCode)));
-
-            it = counters->ApiErrors.emplace(
-                apiErrorCode,
-                TShardedMonotonicCounter{"/api_error_count", tags}).first;
-        }
-
-        HttpProxyProfiler.Increment(it->second);
+        counters->ApiErrors.FindOrInsert(apiErrorCode, [&, this] {
+            return SparseProfiler_
+                .WithTag("user", user)
+                .WithTag("command", command)
+                .WithTag("error_code", ToString(static_cast<int>(apiErrorCode)))
+                .Counter("/api_error_count");
+        }).first->Increment();
     }
 
-    auto incrementNetworkCounter = [&] (auto counterMap, auto name, auto value) {
-        auto it = counterMap.find(networkTag);
-        if (it == counterMap.end()) {
-            auto tags = counters->Tags;
-            tags.push_back(networkTag);
-
-            it = counterMap.emplace(
-                networkTag,
-                TShardedMonotonicCounter{name, tags}).first;
-        }
-        HttpProxyProfiler.Increment(it->second, value);
+    auto incrementNetworkCounter = [&, this] (auto& counterMap, auto name, auto value) {
+        counterMap.FindOrInsert(networkName, [&, this] {
+            return SparseProfiler_
+                .WithTag("user", user)
+                .WithTag("command", command)
+                .WithTag("network", networkName)
+                .Counter(name);            
+        }).first->Increment(value);
     };
 
     incrementNetworkCounter(counters->BytesIn, "/bytes_in", bytesIn);
@@ -272,7 +247,7 @@ void TApi::HandleRequest(
     auto context = New<TContext>(MakeStrong(this), req, rsp);
     try {
         if (!context->TryPrepare()) {
-            HttpProxyProfiler.Increment(PrepareErrorCount_);
+            PrepareErrorCount_.Increment();
             auto statusCode = rsp->GetStatus();
             if (statusCode) {
                 IncrementHttpCode(*statusCode);

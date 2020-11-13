@@ -1,0 +1,93 @@
+#pragma once
+
+#include "public.h"
+
+#include <util/generic/string.h>
+
+#include <yt/core/profiling/public.h>
+
+#include <yt/core/misc/small_vector.h>
+
+// TODO(prime@): remove this
+#include <yt/core/profiling/profiler.h>
+
+namespace NYT::NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TTag = std::pair<TString, TString>;
+
+using TTagList = SmallVector<TTag, 6>;
+
+using TTagIndex = ui8;
+
+using TTagIndexList = SmallVector<TTagIndex, 8>;
+
+constexpr ui8 NoParentSentinel = 0xff;
+
+constexpr int NoParent = 0;
+
+class TProjectionSet
+{
+public:
+    const TTagIndexList& Parents() const;
+    const TTagIndexList& Required() const;
+    const TTagIndexList& Excluded() const;
+
+    template <class TFn>
+    void Range(
+        const TTagIdList& tags,
+        TFn fn) const;
+
+    void Resize(int size);
+
+protected:
+    TTagIndexList Parents_;
+    TTagIndexList Required_;
+    TTagIndexList Excluded_;
+};
+
+class TTagSet
+    : public TProjectionSet
+{
+public:
+    TTagSet() = default;
+    explicit TTagSet(const TTagList& tags);
+
+    TTagSet WithTag(TTag tag, int parent = NoParent);
+
+    void AddTag(TTag tag, int parent = NoParent);
+    void AddRequiredTag(TTag tag, int parent = NoParent);
+    void AddExcludedTag(TTag tag, int parent = NoParent);
+    void Append(const TTagSet& other);
+
+    const TTagList& Tags() const;
+
+private:
+    TTagList Tags_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TFn>
+void RangeSubsets(
+    const TTagIdList& tags,
+    const TTagIndexList& parents,
+    const TTagIndexList& required,
+    const TTagIndexList& excluded,
+    TFn fn);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NProfiling
+
+template <>
+struct THash<NYT::NProfiling::TTagIndexList>
+{
+    size_t operator()(const NYT::NProfiling::TTagIndexList& ids) const;
+};
+
+#define TAG_INL_H_
+#include "tag-inl.h"
+#undef TAG_INL_H_
+

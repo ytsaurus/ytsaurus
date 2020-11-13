@@ -15,7 +15,7 @@ class TEvaluator
 public:
     explicit TEvaluator(
         TExecutorConfigPtr config,
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler(),
+        const NProfiling::TRegistry& profiler = {},
         IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
     ~TEvaluator();

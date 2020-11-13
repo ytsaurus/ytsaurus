@@ -31,7 +31,6 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecAgentLogger;
-static const auto& Profiler = ExecAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,9 +44,9 @@ TSchedulerConnector::TSchedulerConnector(
         BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
         Config_->HeartbeatPeriod,
         Config_->HeartbeatSplay))
-    , TimeBetweenSentHeartbeatsCounter_("/scheduler_connector/time_between_sent_heartbeats")
-    , TimeBetweenAcknowledgedHeartbeatsCounter_("/scheduler_connector/time_between_acknowledged_heartbeats")
-    , TimeBetweenFullyProcessedHeartbeatsCounter_("/scheduler_connector/time_between_fully_processed_heartbeats")
+    , TimeBetweenSentHeartbeatsCounter_(ExecAgentProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
+    , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecAgentProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
+    , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecAgentProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))
 {
     YT_VERIFY(config);
     YT_VERIFY(bootstrap);
@@ -94,10 +93,10 @@ void TSchedulerConnector::SendHeartbeat()
         req))
         .ThrowOnError();
 
-    auto profileInterval = [&] (TInstant lastTime, NProfiling::TShardedAggregateGauge& counter) {
+    auto profileInterval = [&] (TInstant lastTime, NProfiling::TEventTimer& counter) {
         if (lastTime != TInstant::Zero()) {
             auto delta = TInstant::Now() - lastTime;
-            Profiler.Update(counter, NProfiling::DurationToValue(delta));
+            counter.Record(delta);
         }
     };
 

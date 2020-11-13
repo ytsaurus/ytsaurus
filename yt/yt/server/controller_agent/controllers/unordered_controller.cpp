@@ -52,10 +52,6 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NProfiling::TProfiler Profiler("/operations/unordered");
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TUnorderedControllerBase
     : public TOperationControllerBase
 {
@@ -351,7 +347,7 @@ protected:
 
     void ProcessInputs()
     {
-        PROFILE_TIMING ("/input_processing_time") {
+        YT_PROFILE_TIMING("yt/operations/unordered/input_processing_time") {
             YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);

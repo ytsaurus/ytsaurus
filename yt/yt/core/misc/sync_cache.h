@@ -4,7 +4,7 @@
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <atomic>
 
@@ -54,13 +54,11 @@ protected:
 
     explicit TSyncSlruCacheBase(
         TSlruCacheConfigPtr config,
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+        const NProfiling::TRegistry& profiler = {});
 
     virtual i64 GetWeight(const TValuePtr& value) const;
     virtual void OnAdded(const TValuePtr& value);
     virtual void OnRemoved(const TValuePtr& value);
-
-    void OnProfiling();
 
 private:
     struct TItem
@@ -92,12 +90,11 @@ private:
 
     std::atomic<int> Size_ = {0};
 
-    NProfiling::TProfiler Profiler;
-    NProfiling::TShardedMonotonicCounter HitWeightCounter_;
-    NProfiling::TShardedMonotonicCounter MissedWeightCounter_;
-    NProfiling::TShardedMonotonicCounter DroppedWeightCounter_;
-    NProfiling::TAtomicGauge YoungerWeightCounter_;
-    NProfiling::TAtomicGauge OlderWeightCounter_;
+    NProfiling::TCounter HitWeightCounter_;
+    NProfiling::TCounter MissedWeightCounter_;
+    NProfiling::TCounter DroppedWeightCounter_;
+    std::atomic<i64> YoungerWeightCounter_{0};
+    std::atomic<i64> OlderWeightCounter_{0};
 
     TShard* GetShardByKey(const TKey& key) const;
 

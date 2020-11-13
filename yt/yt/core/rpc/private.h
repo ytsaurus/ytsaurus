@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/public.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NRpc {
 
@@ -13,8 +13,8 @@ namespace NYT::NRpc {
 extern const NLogging::TLogger RpcServerLogger;
 extern const NLogging::TLogger RpcClientLogger;
 
-extern const NProfiling::TProfiler RpcServerProfiler;
-extern const NProfiling::TProfiler RpcClientProfiler;
+extern const NProfiling::TRegistry RpcServerProfiler;
+extern const NProfiling::TRegistry RpcClientProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

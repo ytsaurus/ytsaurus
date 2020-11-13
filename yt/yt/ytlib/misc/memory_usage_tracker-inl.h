@@ -16,31 +16,36 @@ TMemoryUsageTracker<ECategory, TPoolTag>::TMemoryUsageTracker(
     i64 totalLimit,
     const std::vector<std::pair<ECategory, i64>>& limits,
     const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& profiler)
     : TotalLimit_(totalLimit)
-    , TotalUsedGauge_("/total_used")
-    , TotalFreeGauge_("/total_free")
+    , TotalFree_(totalLimit)
     , Logger(logger)
-    , Profiler(profiler)
+    , Profiler_(profiler.WithSparse())
 {
-    Profiler.Update(TotalFreeGauge_, totalLimit);
+    profiler.AddFuncGauge("/total_limit", MakeStrong(this), [this] {
+        return TotalLimit_.load();
+    });
+    profiler.AddFuncGauge("/total_used", MakeStrong(this), [this] {
+        return TotalUsed_.load();
+    });
+    profiler.AddFuncGauge("/total_free", MakeStrong(this), [this] {
+        return TotalFree_.load();
+    });
 
     for (auto category : TEnumTraits<ECategory>::GetDomainValues()) {
-        Categories_[category].TagIdList = {CategoryTagCache_.GetTag(category)};
-        Categories_[category].UsedGauge = NProfiling::TAtomicGauge(
-            "/used",
-            Categories_[category].TagIdList);
+        auto categoryProfiler = profiler.WithTag("category", FormatEnum(category));
+
+        categoryProfiler.AddFuncGauge("/used", MakeStrong(this), [this, category] {
+            return Categories_[category].Used.load();
+        });
+        categoryProfiler.AddFuncGauge("/limit", MakeStrong(this), [this, category] {
+            return Categories_[category].Limit.load();
+        });
     }
 
     for (auto [category, limit] : limits) {
         Categories_[category].Limit = limit;
     }
-
-    PeriodicUpdater_ = New<NConcurrency::TPeriodicExecutor>(
-        NProfiling::TProfileManager::Get()->GetInvoker(),
-        BIND(&TMemoryUsageTracker::UpdateMetrics, MakeWeak(this)),
-        TDuration::Seconds(1));
-    PeriodicUpdater_->Start();
 }
 
 template <class ECategory, class TPoolTag>
@@ -52,7 +57,7 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetTotalLimit() const
 template <class ECategory, class TPoolTag>
 i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetTotalUsed() const
 {
-    return TotalUsedGauge_.GetCurrent();
+    return TotalUsed_.load();
 }
 
 template <class ECategory, class TPoolTag>
@@ -66,7 +71,7 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetTotalFree() const
 template <class ECategory, class TPoolTag>
 bool TMemoryUsageTracker<ECategory, TPoolTag>::IsTotalExceeded() const
 {
-    return TotalUsedGauge_.GetCurrent() > TotalLimit_;
+    return TotalUsed_.load() > TotalLimit_;
 }
 
 template <class ECategory, class TPoolTag>
@@ -91,9 +96,9 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetUsed(ECategory category, const 
         TGuard guard(SpinLock_);
 
         auto* pool = FindPool(*poolTag);
-        return pool ? pool->Used[category].GetCurrent() : 0;
+        return pool ? pool->Used[category].load() : 0;
     } else {
-        return Categories_[category].UsedGauge.GetCurrent();
+        return Categories_[category].Used.load();
     }
 }
 
@@ -109,7 +114,7 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetFree(ECategory category, const 
         if (auto* pool = FindPool(*poolTag)) {
             result = std::min(
                 result,
-                GetPoolLimit(pool, categoryLimit) - pool->Used[category].GetCurrent());
+                GetPoolLimit(pool, categoryLimit) - pool->Used[category].load());
         } else {
             result = 0;
         }
@@ -127,7 +132,7 @@ bool TMemoryUsageTracker<ECategory, TPoolTag>::IsExceeded(ECategory category, co
 
     const auto& data = Categories_[category];
     i64 categoryLimit = data.Limit.load();
-    if (data.UsedGauge.GetCurrent() > categoryLimit) {
+    if (data.Used.load() > categoryLimit) {
         return true;
     }
 
@@ -135,7 +140,7 @@ bool TMemoryUsageTracker<ECategory, TPoolTag>::IsExceeded(ECategory category, co
         TGuard guard(SpinLock_);
 
         if (auto* pool = FindPool(*poolTag)) {
-            if (pool->Used[category].GetCurrent() > GetPoolLimit(pool, categoryLimit)) {
+            if (pool->Used[category].load() > GetPoolLimit(pool, categoryLimit)) {
                 return true;
             }
         }
@@ -177,7 +182,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::Acquire(ECategory category, i64 s
 
     DoAcquire(category, size, pool);
 
-    auto currentFree = TotalFreeGauge_.GetCurrent();
+    auto currentFree = TotalFree_.load();
     if (currentFree < 0) {
         YT_LOG_WARNING("Total memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
             -currentFree,
@@ -186,7 +191,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::Acquire(ECategory category, i64 s
     }
 
     const auto& data = Categories_[category];
-    auto currentUsed = data.UsedGauge.GetCurrent();
+    auto currentUsed = data.Used.load();
     if (currentUsed > data.Limit) {
         YT_LOG_WARNING("Per-category memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
             currentUsed - data.Limit,
@@ -195,7 +200,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::Acquire(ECategory category, i64 s
     }
 
     if (pool) {
-        auto poolUsed = pool->Used[category].GetCurrent();
+        auto poolUsed = pool->Used[category].load();
         auto poolLimit = GetPoolLimit(pool, data.Limit);
         if (poolUsed > poolLimit) {
             YT_LOG_WARNING("Per-pool memory overcommit detected (Debt: %v, RequestCategory: %v, PoolTag: %v, RequestSize: %v)",
@@ -224,7 +229,7 @@ TError TMemoryUsageTracker<ECategory, TPoolTag>::TryAcquire(ECategory category, 
     auto* pool = poolTag ? GetOrRegisterPool(*poolTag) : nullptr;
 
     if (pool) {
-        i64 free = GetPoolLimit(pool, GetLimit(category)) - pool->Used[category].GetCurrent();
+        i64 free = GetPoolLimit(pool, GetLimit(category)) - pool->Used[category].load();
         if (size > free) {
             return TError(
                 "Not enough memory to serve %Qlv request in pool %v: free %v, requested %v",
@@ -246,12 +251,12 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::DoAcquire(ECategory category, i64
 
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
-    Profiler.Increment(TotalUsedGauge_, +size);
-    Profiler.Increment(TotalFreeGauge_, -size);
-    Profiler.Increment(Categories_[category].UsedGauge, +size);
+    TotalUsed_ += size;
+    TotalFree_ -= size;
+    Categories_[category].Used += size;
 
     if (pool) {
-        Profiler.Increment(pool->Used[category], +size);
+        pool->Used[category] += size;
     }
 }
 
@@ -259,47 +264,14 @@ template <class ECategory, class TPoolTag>
 void TMemoryUsageTracker<ECategory, TPoolTag>::Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
 {
     YT_VERIFY(size >= 0);
-
-    TGuard guard(SpinLock_);
-
-    Profiler.Increment(TotalUsedGauge_, -size);
-    Profiler.Increment(TotalFreeGauge_, +size);
-    Profiler.Increment(Categories_[category].UsedGauge, -size);
-
+    TGuard<TAdaptiveLock> guard(SpinLock_);
+    TotalUsed_ -= size;
+    TotalFree_ += size;
+    Categories_[category].Used -= size;
+    
     if (poolTag) {
         auto pool = GetOrRegisterPool(*poolTag);
-        Profiler.Increment(pool->Used[category], -size);
-    }
-}
-
-template <class ECategory, class TPoolTag>
-void TMemoryUsageTracker<ECategory, TPoolTag>::UpdateMetrics()
-{
-    Profiler.Increment(TotalUsedGauge_, 0);
-    Profiler.Increment(TotalFreeGauge_, 0);
-
-    for (auto& category : Categories_) {
-        Profiler.Increment(category.UsedGauge, 0);
-        Profiler.Enqueue(
-            "/limit",
-            std::min(category.Limit.load(), GetTotalLimit()),
-            NProfiling::EMetricType::Gauge,
-            category.TagIdList);
-    }
-
-    TGuard guard(PoolMapSpinLock_);
-    for (auto& [poolTag, pool] : Pools_) {
-        for (auto category : TEnumTraits<ECategory>::GetDomainValues()) {
-            auto& usedCounter = pool.Used[category];
-            if (usedCounter.GetCurrent() > 0) {
-                Profiler.Increment(usedCounter, 0);
-                Profiler.Enqueue(
-                    "/pool_limit",
-                    GetPoolLimit(&pool, Categories_[category].Limit.load()),
-                    NProfiling::EMetricType::Gauge,
-                    pool.TagIdLists[category]);
-            }
-        }
+        pool->Used[category] -= size;
     }
 }
 
@@ -310,25 +282,30 @@ TMemoryUsageTracker<ECategory, TPoolTag>::GetOrRegisterPool(const TPoolTag& pool
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
     if (auto it = Pools_.find(poolTag); it != Pools_.end()) {
-        return &it->second;
+        return it->second.Get();
     }
 
     TGuard guard(PoolMapSpinLock_);
 
-    auto it = Pools_.emplace(poolTag, TPool{}).first;
-
+    auto pool = New<TPool>();
     for (auto category : TEnumTraits<ECategory>::GetDomainValues()) {
-        const auto& profileManager = NProfiling::TProfileManager::Get();
-        it->second.TagIdLists[category] = {
-            CategoryTagCache_.GetTag(category),
-            profileManager->RegisterTag("pool", poolTag)
-        };
-        it->second.Used[category] = NProfiling::TAtomicGauge(
-            "/pool_used",
-            it->second.TagIdLists[category]);
+        pool->Used[category] = 0;
+
+        auto categoryProfiler = Profiler_
+            .WithTag("category", FormatEnum(category))
+            .WithTag("pool", ToString(poolTag));
+
+        categoryProfiler.AddFuncGauge("/pool_used", pool, [pool=pool.Get(), category] {
+            return pool->Used[category].load();
+        });
+
+        categoryProfiler.AddFuncGauge("/pool_limit", pool, [this, pool=pool.Get(), this_=MakeStrong(this), category] {
+            return GetPoolLimit(pool, Categories_[category].Limit.load());
+        });
     }
 
-    return &it->second;
+    Pools_.emplace(poolTag, pool);
+    return pool.Get();
 }
 
 template <class ECategory, class TPoolTag>
@@ -338,7 +315,7 @@ TMemoryUsageTracker<ECategory, TPoolTag>::FindPool(const TPoolTag& poolTag)
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
     auto it = Pools_.find(poolTag);
-    return it != Pools_.end() ? &it->second : nullptr;
+    return it != Pools_.end() ? it->second.Get() : nullptr;
 }
 
 template <class ECategory, class TPoolTag>
@@ -348,7 +325,7 @@ TMemoryUsageTracker<ECategory, TPoolTag>::FindPool(const TPoolTag& poolTag) cons
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
     auto it = Pools_.find(poolTag);
-    return it != Pools_.end() ? &it->second : nullptr;
+    return it != Pools_.end() ? it->second.Get() : nullptr;
 }
 
 template <class ECategory, class TPoolTag>

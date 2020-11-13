@@ -37,7 +37,6 @@ using NYT::TRange;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TableClientLogger;
-static const auto& Profiler = TableClientProfiler;
 
 static const int SortBucketSize = 10000;
 static const int SpinsBetweenYield = 1000;
@@ -401,93 +400,89 @@ private:
     void InitInput()
     {
         YT_LOG_INFO("Initializing input");
-        PROFILE_TIMING ("/reduce/init_time") {
-            EstimatedBucketCount_ = (EstimatedRowCount_ + SortBucketSize - 1) / SortBucketSize;
-            YT_LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
-                EstimatedRowCount_,
-                EstimatedBucketCount_);
+        EstimatedBucketCount_ = (EstimatedRowCount_ + SortBucketSize - 1) / SortBucketSize;
+        YT_LOG_INFO("Input size estimated (RowCount: %v, BucketCount: %v)",
+            EstimatedRowCount_,
+            EstimatedBucketCount_);
 
-            KeyBuffer_.reserve(EstimatedRowCount_ * KeyColumnCount_);
-            RowDescriptorBuffer_.reserve(EstimatedRowCount_);
-            Buckets_.reserve(EstimatedRowCount_ + EstimatedBucketCount_);
-        }
+        KeyBuffer_.reserve(EstimatedRowCount_ * KeyColumnCount_);
+        RowDescriptorBuffer_.reserve(EstimatedRowCount_);
+        Buckets_.reserve(EstimatedRowCount_ + EstimatedBucketCount_);
     }
 
     void ReadInput()
     {
         YT_LOG_INFO("Started reading input");
-        PROFILE_TIMING ("/reduce/read_time" ) {
-            bool isNetworkReleased = false;
+        bool isNetworkReleased = false;
 
-            int bucketId = 0;
-            int bucketSize = 0;
-            int rowIndex = 0;
+        int bucketId = 0;
+        int bucketSize = 0;
+        int rowIndex = 0;
 
-            auto flushBucket = [&] () {
-                Buckets_.push_back(BucketEndSentinel);
-                BucketStart_.push_back(Buckets_.size());
+        auto flushBucket = [&] () {
+            Buckets_.push_back(BucketEndSentinel);
+            BucketStart_.push_back(Buckets_.size());
 
-                SortErrors_.push_back(InvokeSortBucket(bucketId));
-                ++bucketId;
-                bucketSize = 0;
-            };
+            SortErrors_.push_back(InvokeSortBucket(bucketId));
+            ++bucketId;
+            bucketSize = 0;
+        };
 
-            BucketStart_.push_back(0);
+        BucketStart_.push_back(0);
 
-            while (true) {
-                i64 rowCount = 0;
+        while (true) {
+            i64 rowCount = 0;
 
-                auto keyInserter = std::back_inserter(KeyBuffer_);
-                auto rowDescriptorInserter = std::back_inserter(RowDescriptorBuffer_);
+            auto keyInserter = std::back_inserter(KeyBuffer_);
+            auto rowDescriptorInserter = std::back_inserter(RowDescriptorBuffer_);
 
-                auto result = UnderlyingReader_->Read(keyInserter, rowDescriptorInserter, &rowCount);
-                if (!result)
-                    break;
+            auto result = UnderlyingReader_->Read(keyInserter, rowDescriptorInserter, &rowCount);
+            if (!result)
+                break;
 
-                if (rowCount == 0) {
-                    WaitFor(UnderlyingReader_->GetReadyEvent())
-                        .ThrowOnError();
-                    continue;
-                }
-
-                // Push the row to the current bucket and flush the bucket if full.
-                for (i64 i = 0; i < rowCount; ++i) {
-                    Buckets_.push_back(rowIndex);
-                    ++rowIndex;
-                    ++bucketSize;
-                }
-
-                if (bucketSize >= SortBucketSize) {
-                    flushBucket();
-                }
-
-                if (!isNetworkReleased && UnderlyingReader_->IsFetchingCompleted()) {
-                    OnNetworkReleased_.Run();
-                    isNetworkReleased =  true;
-                }
+            if (rowCount == 0) {
+                WaitFor(UnderlyingReader_->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
             }
 
-            if (bucketSize > 0) {
+            // Push the row to the current bucket and flush the bucket if full.
+            for (i64 i = 0; i < rowCount; ++i) {
+                Buckets_.push_back(rowIndex);
+                ++rowIndex;
+                ++bucketSize;
+            }
+
+            if (bucketSize >= SortBucketSize) {
                 flushBucket();
             }
 
-            if (!isNetworkReleased) {
-                YT_VERIFY(UnderlyingReader_->IsFetchingCompleted());
+            if (!isNetworkReleased && UnderlyingReader_->IsFetchingCompleted()) {
                 OnNetworkReleased_.Run();
+                isNetworkReleased =  true;
             }
-
-            TotalRowCount_ = rowIndex;
-            int bucketCount = static_cast<int>(BucketStart_.size()) - 1;
-
-            if (!Approximate_) {
-                YT_VERIFY(TotalRowCount_ <= EstimatedRowCount_);
-                YT_VERIFY(bucketCount <= EstimatedBucketCount_);
-            }
-
-            YT_LOG_INFO("Finished reading input (RowCount: %v, BucketCount: %v)",
-                TotalRowCount_,
-                bucketCount);
         }
+
+        if (bucketSize > 0) {
+            flushBucket();
+        }
+
+        if (!isNetworkReleased) {
+            YT_VERIFY(UnderlyingReader_->IsFetchingCompleted());
+            OnNetworkReleased_.Run();
+        }
+
+        TotalRowCount_ = rowIndex;
+        int bucketCount = static_cast<int>(BucketStart_.size()) - 1;
+
+        if (!Approximate_) {
+            YT_VERIFY(TotalRowCount_ <= EstimatedRowCount_);
+            YT_VERIFY(bucketCount <= EstimatedBucketCount_);
+        }
+
+        YT_LOG_INFO("Finished reading input (RowCount: %v, BucketCount: %v)",
+            TotalRowCount_,
+            bucketCount);
     }
 
     void DoSortBucket(int bucketId)
@@ -504,10 +499,8 @@ private:
     void StartMerge()
     {
         YT_LOG_INFO("Waiting for sort thread");
-        PROFILE_TIMING ("/reduce/sort_wait_time") {
-            WaitFor(AllSucceeded(SortErrors_))
-                .ThrowOnError();
-        }
+        WaitFor(AllSucceeded(SortErrors_))
+            .ThrowOnError();
         YT_LOG_INFO("Sort thread is idle");
 
         SortedIndexes_.reserve(TotalRowCount_);
@@ -528,32 +521,30 @@ private:
     {
         try {
             YT_LOG_INFO("Started merge");
-            PROFILE_TIMING ("/reduce/merge_time") {
-                int sortedRowCount = 0;
-                while (!BucketHeap_.empty()) {
-                    int bucketIndex = BucketHeap_.front();
-                    if (SortedIndexes_.size() > 0) {
-                        YT_ASSERT(!SortComparer_(Buckets_[bucketIndex], SortedIndexes_.back()));
-                    }
-                    SortedIndexes_.push_back(Buckets_[bucketIndex]);
-                    ++bucketIndex;
-                    if (Buckets_[bucketIndex] == BucketEndSentinel) {
-                        ExtractHeap(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
-                        BucketHeap_.pop_back();
-                    } else {
-                        BucketHeap_.front() = bucketIndex;
-                        AdjustHeapFront(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
-                    }
-
-                    ++sortedRowCount;
-                    if (sortedRowCount % RowsBetweenAtomicUpdate == 0) {
-                        SortedRowCount_ = sortedRowCount;
-                    }
+            int sortedRowCount = 0;
+            while (!BucketHeap_.empty()) {
+                int bucketIndex = BucketHeap_.front();
+                if (SortedIndexes_.size() > 0) {
+                    YT_ASSERT(!SortComparer_(Buckets_[bucketIndex], SortedIndexes_.back()));
+                }
+                SortedIndexes_.push_back(Buckets_[bucketIndex]);
+                ++bucketIndex;
+                if (Buckets_[bucketIndex] == BucketEndSentinel) {
+                    ExtractHeap(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
+                    BucketHeap_.pop_back();
+                } else {
+                    BucketHeap_.front() = bucketIndex;
+                    AdjustHeapFront(BucketHeap_.begin(), BucketHeap_.end(), MergeComparer_);
                 }
 
-                YT_VERIFY(sortedRowCount == TotalRowCount_);
-                SortedRowCount_ = sortedRowCount;
+                ++sortedRowCount;
+                if (sortedRowCount % RowsBetweenAtomicUpdate == 0) {
+                    SortedRowCount_ = sortedRowCount;
+                }
             }
+
+            YT_VERIFY(sortedRowCount == TotalRowCount_);
+            SortedRowCount_ = sortedRowCount;
             YT_LOG_INFO("Finished merge");
         } catch (const TErrorException& ex) {
             MergeError_ = ex;

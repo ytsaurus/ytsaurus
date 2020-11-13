@@ -9,7 +9,7 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT::NChunkClient {
 
@@ -19,7 +19,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TProfiler MultiReaderMemoryManagerProfiler("/chunk_reader/memory");
+const TRegistry MultiReaderMemoryManagerProfiler("yt/chunk_reader/memory");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,6 +54,7 @@ public:
     {
         if (Options_.EnableProfiling) {
             ProfilingExecutor_->Start();
+            Profiler_ = MultiReaderMemoryManagerProfiler.WithSparse();
         }
 
         YT_LOG_DEBUG("Parallel reader memory manager created (TotalReservedMemory: %v, MaxInitialReaderReservedMemory: %v, "
@@ -230,7 +231,28 @@ private:
     };
     THashMap<IReaderMemoryManagerPtr, TMemoryManagerState> State_;
 
-    THashMap<TTagIdList, i64> ReservedMemoryByProfilingTags_;
+    THashMap<TTagIdList, std::pair<i64, TGauge>> ReservedMemoryByProfilingTags_;
+
+    void UpdateReservedMemory(const TTagIdList& tags, i64 delta)
+    {
+        // TODO(prime@): Update this, once transition to new profiling API is done.
+        auto it = ReservedMemoryByProfilingTags_.find(tags);
+        if (it == ReservedMemoryByProfilingTags_.end()) {
+            auto profiler = Profiler_;
+            for (auto tag : tags) {
+                auto strTag = TProfileManager::Get()->LookupTag(tag);
+                profiler = profiler.WithTag(strTag.Key, strTag.Value);
+            }
+            auto gauge = profiler.Gauge("/usage");
+
+            auto [newIt, ok] = ReservedMemoryByProfilingTags_.emplace(tags, std::pair<i64, TGauge>(0, gauge));
+            it = newIt;
+        }
+
+        auto& [counter, gauge] = it->second;
+        counter += delta;
+        gauge.Update(counter);
+    }
 
     std::atomic<bool> Finalized_ = false;
 
@@ -250,7 +272,7 @@ private:
     std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
 
     const TTagIdList ProfilingTagList_;
-
+    TRegistry Profiler_;
     const TPeriodicExecutorPtr ProfilingExecutor_;
 
     const TGuid Id_;
@@ -457,7 +479,7 @@ private:
             .ReservedMemorySize = reservedMemory
         };
         YT_VERIFY(State_.emplace(reader, state).second);
-        ReservedMemoryByProfilingTags_[reader->GetProfilingTagList()] += reservedMemory;
+        UpdateReservedMemory(reader->GetProfilingTagList(), reservedMemory);
 
         if (reservedMemory < requiredMemory) {
             YT_VERIFY(ReadersWithUnsatisfiedMemoryRequirement_.emplace(requiredMemory - reservedMemory, reader).second);
@@ -500,7 +522,7 @@ private:
         }
 
         YT_VERIFY(State_.erase(reader));
-        ReservedMemoryByProfilingTags_[reader->GetProfilingTagList()] -= reservedMemory;
+        UpdateReservedMemory(reader->GetProfilingTagList(), -reservedMemory);
 
         if (reservedMemory < requiredMemory) {
             YT_VERIFY(ReadersWithUnsatisfiedMemoryRequirement_.erase({requiredMemory - reservedMemory, reader}));
@@ -543,10 +565,6 @@ private:
     void OnProfiling() const
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        for (const auto& [tagIdList, memoryUsage] : ReservedMemoryByProfilingTags_) {
-            MultiReaderMemoryManagerProfiler.Enqueue("/usage", memoryUsage, EMetricType::Gauge, tagIdList);
-        }
 
         TryLogFullState();
     }

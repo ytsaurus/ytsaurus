@@ -75,10 +75,6 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NProfiling::TProfiler Profiler("/operations/merge");
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TOrderedControllerBase
     : public TOperationControllerBase
 {
@@ -380,7 +376,7 @@ protected:
 
     void ProcessInputs()
     {
-        PROFILE_TIMING ("/input_processing_time") {
+        YT_PROFILE_TIMING("yt/operations/merge/input_processing_time") {
             YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);

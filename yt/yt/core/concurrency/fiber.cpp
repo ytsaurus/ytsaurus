@@ -2,9 +2,17 @@
 
 #include "atomic_flag_spinlock.h"
 
+#include <atomic>
+
+#include <yt/core/misc/singleton.h>
+
+#include <yt/yt/library/profiling/producer.h>
+
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NConcurrency {
+
+using namespace NProfiling;
 
 static const auto& Logger = ConcurrencyLogger;
 
@@ -116,30 +124,47 @@ TFiberRegistry* GetFiberRegistry()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFiberExecutionStackProfiler
+    : public ISensorProducer
 {
 public:
+    TFiberExecutionStackProfiler()
+    {
+        ConcurrencyProfiler.AddProducer("/fiber_execution_stack", MakeStrong(this));
+    }
+
     void StackAllocated(int stackSize)
     {
-        Profiler_.Increment(BytesAllocated_, stackSize);
-        Profiler_.Increment(BytesAlive_, stackSize);
+        BytesAllocated_.fetch_add(stackSize, std::memory_order_relaxed);
+        BytesAlive_.fetch_add(stackSize, std::memory_order_relaxed);
     }
 
     void StackFreed(int stackSize)
     {
-        Profiler_.Increment(BytesFreed_, stackSize);
-        Profiler_.Increment(BytesAlive_, -stackSize);
+        BytesFreed_.fetch_add(stackSize, std::memory_order_relaxed);
+        BytesAlive_.fetch_sub(stackSize, std::memory_order_relaxed);
+    }
+
+    void Collect(ISensorWriter* writer)
+    {
+        writer->AddCounter("/bytes_allocated", BytesAllocated_);
+        writer->AddCounter("/bytes_freed", BytesFreed_);
+        writer->AddGauge("/bytes_alive", BytesAlive_);
     }
 
     static TFiberExecutionStackProfiler* Get()
     {
-        return Singleton<TFiberExecutionStackProfiler>();
+        struct TLeaker
+        {
+            TIntrusivePtr<TFiberExecutionStackProfiler> Ptr = New<TFiberExecutionStackProfiler>();
+        };
+
+        return LeakySingleton<TLeaker>()->Ptr.Get();
     }
 
 private:
-    NProfiling::TProfiler Profiler_{"/fiber_execution_stack"};
-    NProfiling::TShardedMonotonicCounter BytesAllocated_{"/bytes_allocated"};
-    NProfiling::TShardedMonotonicCounter BytesFreed_{"/bytes_freed"};
-    NProfiling::TAtomicGauge BytesAlive_{"/bytes_alive"};
+    std::atomic<i64> BytesAllocated_ = 0;
+    std::atomic<i64> BytesFreed_ = 0;
+    std::atomic<i64> BytesAlive_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

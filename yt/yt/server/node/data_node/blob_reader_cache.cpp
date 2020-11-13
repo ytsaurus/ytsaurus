@@ -91,7 +91,7 @@ public:
         NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->BlobReaderCache,
-            DataNodeProfiler.AppendPath("/block_reader_cache"))
+            DataNodeProfilerRegistry.WithPrefix("/block_reader_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
     { }

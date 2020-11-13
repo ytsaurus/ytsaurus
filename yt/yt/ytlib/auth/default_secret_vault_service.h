@@ -14,7 +14,7 @@ ISecretVaultServicePtr CreateDefaultSecretVaultService(
     TDefaultSecretVaultServiceConfigPtr config,
     ITvmServicePtr tvmService,
     NConcurrency::IPollerPtr poller,
-    NProfiling::TProfiler profiler = {});
+    NProfiling::TRegistry profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

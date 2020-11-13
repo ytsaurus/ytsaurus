@@ -25,7 +25,7 @@ public:
         TAuthenticationManagerConfigPtr config,
         IPollerPtr poller,
         IClientPtr client,
-        NProfiling::TProfiler profiler)
+        NProfiling::TRegistry profiler)
     {
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
         std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
@@ -35,9 +35,9 @@ public:
                 CreateDefaultTvmService(
                     config->TvmService,
                     poller,
-                    profiler.AppendPath("/tvm/remote")),
+                    profiler.WithPrefix("/tvm/remote")),
                 config->TvmService,
-                profiler.AppendPath("/tvm/cache"));
+                profiler.WithPrefix("/tvm/cache"));
         }
 
         IBlackboxServicePtr blackboxService;
@@ -46,7 +46,7 @@ public:
                 config->BlackboxService,
                 TvmService_,
                 poller,
-                profiler.AppendPath("/blackbox"));
+                profiler.WithPrefix("/blackbox"));
         }
 
         if (config->BlackboxTokenAuthenticator && blackboxService) {
@@ -56,8 +56,8 @@ public:
                     CreateBlackboxTokenAuthenticator(
                         config->BlackboxTokenAuthenticator,
                         blackboxService,
-                        profiler.AppendPath("/blackbox_token_authenticator/remote")),
-                    profiler.AppendPath("/blackbox_token_authenticator/cache")));
+                        profiler.WithPrefix("/blackbox_token_authenticator/remote")),
+                    profiler.WithPrefix("/blackbox_token_authenticator/cache")));
         }
 
         if (config->CypressTokenAuthenticator && client) {
@@ -67,7 +67,7 @@ public:
                     CreateCypressTokenAuthenticator(
                         config->CypressTokenAuthenticator,
                         client),
-                    profiler.AppendPath("/cypress_token_authenticator/cache")));
+                    profiler.WithPrefix("/cypress_token_authenticator/cache")));
         }
 
         if (config->BlackboxCookieAuthenticator && blackboxService) {
@@ -76,7 +76,7 @@ public:
                 CreateBlackboxCookieAuthenticator(
                     config->BlackboxCookieAuthenticator,
                     blackboxService),
-                profiler.AppendPath("/blackbox_cookie_authenticator/cache"));
+                profiler.WithPrefix("/blackbox_cookie_authenticator/cache"));
             rpcAuthenticators.push_back(
                 CreateCookieAuthenticatorWrapper(CookieAuthenticator_));
         }
@@ -145,7 +145,7 @@ TAuthenticationManager::TAuthenticationManager(
     TAuthenticationManagerConfigPtr config,
     IPollerPtr poller,
     IClientPtr client,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
     : Impl_(std::make_unique<TImpl>(
         std::move(config),
         std::move(poller),

@@ -1,0 +1,107 @@
+#pragma once
+
+#ifndef TAG_INL_H_
+#error "Direct inclusion of this file is not allowed, include tag.h"
+// For the sake of sane code completion.
+#include "tag.h"
+#endif
+#undef TAG_INL_H_
+
+namespace NYT::NProfiling {
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const TTagIndexList& TProjectionSet::Parents() const
+{
+    return Parents_;
+}
+
+inline const TTagIndexList& TProjectionSet::Required() const
+{
+    return Required_;
+}
+
+inline const TTagIndexList& TProjectionSet::Excluded() const
+{
+    return Excluded_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline TTagSet::TTagSet(const TTagList& tags)
+    : Tags_(tags)
+{ }
+
+inline const TTagList& TTagSet::Tags() const
+{
+    return Tags_;
+}
+
+template <class TFn>
+void TProjectionSet::Range(
+    const TTagIdList& tags,
+    TFn fn) const
+{
+    RangeSubsets(tags, Parents_, Required_, Excluded_, fn);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TFn>
+void RangeSubsets(
+    const TTagIdList& tags,
+    const TTagIndexList& parents,
+    const TTagIndexList& required,
+    const TTagIndexList& excluded,
+    TFn fn)
+{
+    auto toMask = [] (auto list) {
+        ui64 mask = 0;
+        for (auto i : list) {
+            mask |= 1 << i;
+        }
+        return mask;
+    };
+
+    ui64 requiredMask = toMask(required);
+    ui64 excludedMask = toMask(excluded);
+    YT_VERIFY(parents.size() == tags.size());
+
+    for (ui64 mask = 0; mask < (1 << tags.size()); ++mask) {
+        if ((mask & requiredMask) != requiredMask) {
+            continue;
+        }
+
+        if ((mask & excludedMask) != 0) {
+            continue;
+        }
+
+        bool skip = false;
+        for (size_t i = 0; i < tags.size(); i++) {
+            if (!(mask & (1 << i))) {
+                continue;
+            }
+
+            if (parents[i] != NoParentSentinel && !(mask & (1 << parents[i]))) {
+                skip = true;
+                break;
+            }
+        }
+        if (skip) {
+            continue;
+        }
+
+        TTagIdList list;
+        for (size_t i = 0; i < tags.size(); i++) {
+            if (mask & (1 << i)) {
+                list.push_back(tags[i]);
+            }
+        }
+
+        fn(list);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NProfiling

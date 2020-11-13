@@ -17,6 +17,8 @@
 
 #include <yt/core/ytalloc/bindings.h>
 
+#include <yt/yt/library/profiling/solomon/registry.h>
+
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
@@ -119,6 +121,7 @@ Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
     NYT::NYTAlloc::EnableStockpile();
     NYT::NYTAlloc::ConfigureFromEnv();
     NYT::NLogging::TLogManager::Get()->EnableReopenOnSighup();
+    NYT::NProfiling::TSolomonRegistry::Get()->Disable();
 
     ::testing::AddGlobalTestEnvironment(new TYTEnvironment());
 

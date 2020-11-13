@@ -404,7 +404,14 @@ public:
             Config_->ArchiveBatchTimeout))
         , Client_(Bootstrap_->GetMasterClient()->GetNativeConnection()
             ->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
-    { }
+    {
+        Profiler.AddFuncGauge("/remove_pending", MakeStrong(this), [this] {
+            return RemovePending_.load();
+        });
+        Profiler.AddFuncGauge("/archive_pending", MakeStrong(this), [this] {
+            return ArchivePending_.load();
+        });
+    }
 
     void Start()
     {
@@ -514,8 +521,8 @@ public:
         fluent
             .Item("enable").Value(IsEnabled())
             .Item("enable_archivation").Value(IsArchivationEnabled())
-            .Item("remove_pending").Value(RemovePendingCounter_.GetCurrent())
-            .Item("archive_pending").Value(ArchivePendingCounter_.GetCurrent())
+            .Item("remove_pending").Value(RemovePending_.load())
+            .Item("archive_pending").Value(ArchivePending_.load())
             .Item("submitted_count").Value(ArchiveTimeToOperationIdMap_.size());
     }
 
@@ -544,18 +551,17 @@ private:
 
     NNative::IClientPtr Client_;
 
-    TProfiler Profiler = {"/operations_cleaner"};
+    TRegistry Profiler{"yt/operations_cleaner"};
+    std::atomic<i64> RemovePending_{0};
+    std::atomic<i64> ArchivePending_{0};
 
-    TAtomicGauge RemovePendingCounter_ {"/remove_pending"};
-    TAtomicGauge ArchivePendingCounter_ {"/archive_pending"};
-    TShardedMonotonicCounter ArchivedCounter_ {"/archived"};
-    TShardedMonotonicCounter RemovedCounter_ {"/removed"};
-    TShardedMonotonicCounter CommittedDataWeightCounter_ {"/committed_data_weight"};
-    TShardedMonotonicCounter ArchiveErrorCounter_ {"/archive_errors"};
-    TShardedMonotonicCounter RemoveErrorCounter_ {"/remove_errors"};
-
-    TShardedAggregateGauge AnalyzeOperationsTimeCounter_ = {"/analyze_operations_time"};
-    TShardedAggregateGauge OperationsRowsPreparationTimeCounter_ = {"/operations_rows_preparation_time"};
+    TCounter ArchivedCounter_ = Profiler.Counter("/archived");
+    TCounter RemovedCounter_ = Profiler.Counter("/removed");
+    TCounter CommittedDataWeightCounter_ = Profiler.Counter("/committed_data_weight");
+    TCounter ArchiveErrorCounter_ = Profiler.Counter("/archive_errors");
+    TCounter RemoveErrorCounter_ = Profiler.Counter("/remove_errors");
+    TEventTimer AnalyzeOperationsTimer_ = Profiler.Timer("/analyze_operations_time");
+    TEventTimer OperationsRowsPreparationTimer_ = Profiler.Timer("/operations_rows_preparation_time");
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -655,8 +661,8 @@ private:
         RemoveBatcher_->Drop();
         ArchiveTimeToOperationIdMap_.clear();
         OperationMap_.clear();
-        Profiler.Update(ArchivePendingCounter_, 0);
-        Profiler.Update(RemovePendingCounter_, 0);
+        ArchivePending_ = 0;
+        RemovePending_ = 0;
 
         YT_LOG_INFO("Operations cleaner stopped");
     }
@@ -709,7 +715,9 @@ private:
         };
 
         // Analyze operations with expired grace timeout, from newest to oldest.
-        PROFILE_AGGREGATED_TIMING(AnalyzeOperationsTimeCounter_) {
+        {
+            TEventTimerGuard guard(AnalyzeOperationsTimer_);
+
             auto it = ArchiveTimeToOperationIdMap_.lower_bound(now);
             while (it != ArchiveTimeToOperationIdMap_.begin()) {
                 --it;
@@ -738,7 +746,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG("Operation enqueued for removal (OperationId: %v)", operationId);
-        Profiler.Increment(RemovePendingCounter_, 1);
+        RemovePending_++;
         RemoveBatcher_->Enqueue(operationId);
     }
 
@@ -747,7 +755,7 @@ private:
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
         YT_LOG_DEBUG("Operation enqueued for archivation (OperationId: %v)", operationId);
-        Profiler.Increment(ArchivePendingCounter_, 1);
+        ArchivePending_++;
         ArchiveBatcher_->Enqueue(operationId);
     }
 
@@ -803,7 +811,9 @@ private:
             return false;
         };
 
-        PROFILE_AGGREGATED_TIMING(OperationsRowsPreparationTimeCounter_) {
+        {
+            TEventTimerGuard guard(OperationsRowsPreparationTimer_);
+
             // ordered_by_id table rows
             {
                 TOrderedByIdTableDescriptor desc;
@@ -907,8 +917,8 @@ private:
 
         YT_LOG_DEBUG("Finished committing archivation transaction (TransactionId: %v)", transaction->GetId());
 
-        Profiler.Increment(CommittedDataWeightCounter_, totalDataWeight);
-        Profiler.Increment(ArchivedCounter_, operationIds.size());
+        CommittedDataWeightCounter_.Increment(totalDataWeight);
+        ArchivedCounter_.Increment(operationIds.size());
     }
 
     bool IsArchivationEnabled() const
@@ -929,15 +939,15 @@ private:
                 try {
                     TryArchiveOperations(batch);
                 } catch (const std::exception& ex) {
-                    int pendingCount = ArchivePendingCounter_.GetCurrent();
+                    int pendingCount = ArchivePending_.load();
                     error = TError("Failed to archive operations")
                         << TErrorAttribute("pending_count", pendingCount)
                         << ex;
                     YT_LOG_WARNING(error);
-                    Profiler.Increment(ArchiveErrorCounter_, 1);
+                    ArchiveErrorCounter_.Increment();
                 }
 
-                int pendingCount = ArchivePendingCounter_.GetCurrent();
+                int pendingCount = ArchivePending_.load();
                 if (pendingCount >= Config_->MinOperationCountEnqueuedForAlert) {
                     auto alertError = TError("Too many operations in archivation queue")
                         << TErrorAttribute("pending_count", pendingCount);
@@ -957,7 +967,7 @@ private:
                     break;
                 }
 
-                if (ArchivePendingCounter_.GetCurrent() > Config_->MaxOperationCountEnqueuedForArchival) {
+                if (ArchivePending_ > Config_->MaxOperationCountEnqueuedForArchival) {
                     TemporarilyDisableArchivation();
                     break;
                 } else {
@@ -972,7 +982,7 @@ private:
                 EnqueueForRemoval(operationId);
             }
 
-            Profiler.Increment(ArchivePendingCounter_, -batch.size());
+            ArchivePending_ -= batch.size();
         }
 
         ScheduleArchiveOperations();
@@ -1089,8 +1099,8 @@ private:
             YT_VERIFY(batch.size() == failedOperationIds.size() + removedOperationIds.size());
             int removedCount = removedOperationIds.size();
 
-            Profiler.Increment(RemovedCounter_, removedOperationIds.size());
-            Profiler.Increment(RemoveErrorCounter_, failedOperationIds.size());
+            RemovedCounter_.Increment(removedOperationIds.size());
+            RemoveErrorCounter_.Increment(failedOperationIds.size());
 
             ProcessCleanedOperation(removedOperationIds);
 
@@ -1098,8 +1108,7 @@ private:
                 RemoveBatcher_->Enqueue(operationId);
             }
 
-            Profiler.Increment(RemovePendingCounter_, -removedCount);
-
+            RemovePending_ -= removedCount;
             YT_LOG_DEBUG("Successfully removed operations from Cypress (Count: %v)", removedCount);
         }
 

@@ -52,7 +52,7 @@ public:
     TPerTypeClientBlockCache(
         EBlockType type,
         TSlruCacheConfigPtr config,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TRegistry& profiler)
         : TSyncSlruCacheBase(config, profiler)
         , Type_(type)
     { }
@@ -100,9 +100,7 @@ public:
     }
 
     void OnProfiling()
-    {
-        TSyncSlruCacheBase::OnProfiling();
-    }
+    { }
 
 private:
     const EBlockType Type_;
@@ -127,7 +125,7 @@ public:
     TClientBlockCache(
         TBlockCacheConfigPtr config,
         EBlockType supportedBlockTypes,
-        const NProfiling::TProfiler& profiler)
+        const NProfiling::TRegistry& profiler)
         : SupportedBlockTypes_(supportedBlockTypes)
     {
         auto initType = [&] (EBlockType type, TSlruCacheConfigPtr config) {
@@ -135,7 +133,7 @@ public:
                 auto cache = New<TPerTypeClientBlockCache>(
                     type,
                     config,
-                    profiler.AppendPath("/" + FormatEnum(type)));
+                    profiler.WithPrefix("/" + FormatEnum(type)));
                 YT_VERIFY(PerTypeCaches_.insert({type, cache}).second);
             }
         };
@@ -169,11 +167,7 @@ public:
     }
 
     virtual void OnProfiling()
-    {
-        for (const auto& [_, cache] : PerTypeCaches_) {
-            cache->OnProfiling();
-        }
-    }
+    { }
 
 private:
     const EBlockType SupportedBlockTypes_;
@@ -191,7 +185,7 @@ private:
 IBlockCachePtr CreateClientBlockCache(
     TBlockCacheConfigPtr config,
     EBlockType supportedBlockTypes,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& profiler)
 {
     return New<TClientBlockCache>(config, supportedBlockTypes, profiler);
 }

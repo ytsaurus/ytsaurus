@@ -8,8 +8,6 @@
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/weak_ptr.h>
 
-#include <yt/core/profiling/profiler.h>
-
 #include <util/generic/xrange.h>
 
 namespace NYT::NConcurrency {
@@ -136,18 +134,19 @@ public:
     TFairShareQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
         int threadCount,
-        const TTagIdList& tagIds,
+        const TTagSet& tags,
         bool enableProfiling)
         : CallbackEventCount_(std::move(callbackEventCount))
         , CurrentlyExecutingActionsByThread_(threadCount)
-        , Profiler_("/fair_share_queue")
-        , BucketCounter_("/buckets", tagIds)
-        , SizeCounter_("/size", tagIds)
-        , WaitTimeCounter_("/time/wait", tagIds)
-        , ExecTimeCounter_("/time/exec", tagIds)
-        , TotalTimeCounter_("/time/total", tagIds)
     {
-        Profiler_.SetEnabled(enableProfiling);
+        if (enableProfiling) {
+            TRegistry profiler{"yt/fair_share_queue", tags};
+            BucketCounter_ = profiler.Gauge("/buckets");
+            SizeCounter_ = profiler.Gauge("/size");
+            WaitTimeCounter_ = profiler.Timer("/time/wait");
+            ExecTimeCounter_ = profiler.Timer("/time/exec");
+            TotalTimeCounter_ = profiler.Timer("/time/total");
+        }
     }
 
     ~TFairShareQueue()
@@ -167,8 +166,7 @@ public:
             inserted->second = invoker;
         }
 
-        Profiler_.Update(BucketCounter_, TagToBucket_.size());
-
+        BucketCounter_.Update(TagToBucket_.size());
         return invoker;
     }
 
@@ -211,7 +209,7 @@ public:
             TagToBucket_.erase(it);
         }
 
-        Profiler_.Update(BucketCounter_, TagToBucket_.size());
+        BucketCounter_.Update(TagToBucket_.size());
     }
 
     virtual void Shutdown() override
@@ -257,11 +255,7 @@ public:
 
         YT_ASSERT(action && !action->Finished);
 
-        Profiler_.Update(
-            WaitTimeCounter_,
-            CpuDurationToValue(bucket->WaitTime),
-            tscp);
-
+        WaitTimeCounter_.Record(CpuDurationToDuration(bucket->WaitTime));
         return std::move(action->Callback);
     }
 
@@ -284,12 +278,12 @@ public:
         action->FinishedAt = tscp.Instant;
 
         int queueSize = QueueSize_.fetch_sub(1, std::memory_order_relaxed) - 1;
-        Profiler_.Update(SizeCounter_, queueSize, tscp);
+        SizeCounter_.Update(queueSize);
 
         auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);
         auto timeFromEnqueue = CpuDurationToDuration(action->FinishedAt - action->EnqueuedAt);
-        Profiler_.Update(ExecTimeCounter_, DurationToValue(timeFromStart), tscp);
-        Profiler_.Update(TotalTimeCounter_, DurationToValue(timeFromEnqueue), tscp);
+        ExecTimeCounter_.Record(timeFromStart);
+        TotalTimeCounter_.Record(timeFromEnqueue);
 
         if (timeFromStart > LogDurationThreshold) {
             YT_LOG_DEBUG("Callback execution took too long (Wait: %v, Execution: %v, Total: %v)",
@@ -339,12 +333,11 @@ private:
 
     std::atomic<int> QueueSize_ = {0};
 
-    TProfiler Profiler_;
-    TAtomicGauge BucketCounter_;
-    TShardedAggregateGauge SizeCounter_;
-    TShardedAggregateGauge WaitTimeCounter_;
-    TShardedAggregateGauge ExecTimeCounter_;
-    TShardedAggregateGauge TotalTimeCounter_;
+    TGauge BucketCounter_;
+    TGauge SizeCounter_;
+    TEventTimer WaitTimeCounter_;
+    TEventTimer ExecTimeCounter_;
+    TEventTimer TotalTimeCounter_;
 
     void AccountCurrentlyExecutingBuckets(NProfiling::TTscp tscp)
     {
@@ -442,14 +435,14 @@ public:
         TFairShareQueuePtr queue,
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
-        const TTagIdList& tagIds,
+        const TTagSet& tags,
         bool enableLogging,
         bool enableProfiling,
         int index)
         : TSchedulerThread(
             std::move(callbackEventCount),
             threadName,
-            tagIds,
+            tags,
             enableLogging,
             enableProfiling)
         , Queue_(std::move(queue))
@@ -489,7 +482,7 @@ public:
         : Queue_(New<TFairShareQueue>(
             CallbackEventCount_,
             threadCount,
-            GetThreadTagIds(enableProfiling, threadNamePrefix),
+            GetThreadTags(enableProfiling, threadNamePrefix),
             enableProfiling))
         , ThreadCount_(threadCount)
     {
@@ -500,7 +493,7 @@ public:
                 Queue_,
                 CallbackEventCount_,
                 Format("%v:%v", threadNamePrefix, index),
-                GetThreadTagIds(enableProfiling, threadNamePrefix),
+                GetThreadTags(enableProfiling, threadNamePrefix),
                 enableLogging,
                 enableProfiling,
                 index);

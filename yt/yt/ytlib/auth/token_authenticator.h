@@ -28,7 +28,7 @@ DEFINE_REFCOUNTED_TYPE(ITokenAuthenticator)
 ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     TBlackboxTokenAuthenticatorConfigPtr config,
     IBlackboxServicePtr blackboxService,
-    NProfiling::TProfiler profiler = {});
+    NProfiling::TRegistry profiler = {});
 
 ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
     TCypressTokenAuthenticatorConfigPtr config,
@@ -37,7 +37,7 @@ ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
 ITokenAuthenticatorPtr CreateCachingTokenAuthenticator(
     TCachingTokenAuthenticatorConfigPtr config,
     ITokenAuthenticatorPtr authenticator,
-    NProfiling::TProfiler profiler = {});
+    NProfiling::TRegistry profiler = {});
 
 ITokenAuthenticatorPtr CreateCompositeTokenAuthenticator(
     std::vector<ITokenAuthenticatorPtr> authenticators);

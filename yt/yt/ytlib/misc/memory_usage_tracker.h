@@ -25,7 +25,7 @@ public:
         i64 totalLimit,
         const std::vector<std::pair<ECategory, i64>>& limits,
         const NLogging::TLogger& logger = NLogging::TLogger(),
-        const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+        const NProfiling::TRegistry& profiler = {});
 
     i64 GetTotalLimit() const;
     i64 GetTotalUsed() const;
@@ -52,25 +52,22 @@ private:
 
     std::atomic<i64> TotalLimit_;
 
-    NProfiling::TAtomicGauge TotalUsedGauge_;
-    NProfiling::TAtomicGauge TotalFreeGauge_;
+    std::atomic<i64> TotalUsed_{0};
+    std::atomic<i64> TotalFree_{0};
 
     struct TCategory
     {
-        std::atomic<i64> Limit{std::numeric_limits<i64>::max()};
-        NProfiling::TAtomicGauge UsedGauge;
-        NProfiling::TTagIdList TagIdList;
+        std::atomic<i64> Limit = std::numeric_limits<i64>::max();
+        std::atomic<i64> Used{0};
     };
 
     TEnumIndexedVector<ECategory, TCategory> Categories_;
 
-    inline static const NProfiling::TEnumMemberTagCache<ECategory> CategoryTagCache_{"category"};
-
     struct TPool
+        : public TRefCounted
     {
         std::atomic<i64> Weight{0};
-        TEnumIndexedVector<ECategory, NProfiling::TAtomicGauge> Used;
-        TEnumIndexedVector<ECategory, NProfiling::TTagIdList> TagIdLists;
+        TEnumIndexedVector<ECategory, std::atomic<i64>> Used;
 
         TPool()
         { }
@@ -78,23 +75,21 @@ private:
         TPool(const TPool& other)
             : Weight(other.Weight.load())
             , Used(other.Used)
-            , TagIdLists(other.TagIdLists)
         { }
 
         TPool& operator=(const TPool& other)
         {
             Weight = other.Weight.load();
             Used = other.Used;
-            TagIdLists = other.TagIdLists;
             return *this;
         }
     };
 
-    THashMap<TPoolTag, TPool> Pools_;
+    THashMap<TPoolTag, TIntrusivePtr<TPool>> Pools_;
     std::atomic<i64> TotalPoolWeight_{0};
 
     NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler;
+    NProfiling::TRegistry Profiler_;
 
     NConcurrency::TPeriodicExecutorPtr PeriodicUpdater_;
 

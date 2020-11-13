@@ -19,7 +19,9 @@ using namespace NYTree;
 using namespace NYTAlloc;
 
 static const auto& Logger = ControllerLogger;
-static const TProfiler MemoryTagQueueProfiler("/memory_tag_queue");
+static const TRegistry MemoryTagQueueProfiler("yt/memory_tag_queue");
+
+DEFINE_REFCOUNTED_TYPE(TMemoryTagQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,16 +31,12 @@ TMemoryTagQueue::TMemoryTagQueue(
     : Config_(std::move(config))
     , Invoker_(std::move(invoker))
     , TagToLastOperationId_(AllocatedTagCount_)
-    , ProfilingExecutor_(New<TPeriodicExecutor>(
-        Invoker_,
-        BIND(&TMemoryTagQueue::OnProfiling, this),
-        Config_->MemoryUsageProfilingPeriod))
 {
+    MemoryTagQueueProfiler.WithSparse().AddProducer("", MakeStrong(this));
+
     for (TMemoryTag tag = 1; tag < AllocatedTagCount_; ++tag) {
         AvailableTags_.push(tag);
-        YT_VERIFY(ProfilingTags_.emplace(tag, TProfileManager::Get()->RegisterTag("tag", tag)).second);
     }
-    ProfilingExecutor_->Start();
 }
 
 TMemoryTag TMemoryTagQueue::AssignTagToOperation(TOperationId operationId)
@@ -101,9 +99,7 @@ void TMemoryTagQueue::AllocateNewTags()
     TagToLastOperationId_.resize(2 * AllocatedTagCount_);
     for (TMemoryTag tag = AllocatedTagCount_; tag < 2 * AllocatedTagCount_; ++tag) {
         AvailableTags_.push(tag);
-        YT_VERIFY(ProfilingTags_.emplace(tag, TProfileManager::Get()->RegisterTag("tag", tag)).second);
     }
-
     AllocatedTagCount_ *= 2;
 }
 
@@ -168,23 +164,22 @@ i64 TMemoryTagQueue::GetTotalUsage()
     return CachedTotalUsage_;
 }
 
-void TMemoryTagQueue::OnProfiling()
+void TMemoryTagQueue::Collect(ISensorWriter* writer)
 {
     UpdateStatisticsIfNeeded();
 
     THashMap<TMemoryTag, i64> cachedMemoryUsage;
+    int cachedTagCount;
     {
         TReaderGuard guard(Lock_);
-
         cachedMemoryUsage = CachedMemoryUsage_;
+        cachedTagCount = AllocatedTagCount_;
     }
 
-    for (int tag = 1; tag < AllocatedTagCount_; ++tag) {
-        MemoryTagQueueProfiler.Enqueue(
-            "/memory_usage",
-            cachedMemoryUsage[tag],
-            EMetricType::Gauge,
-            {GetOrCrash(ProfilingTags_, tag)});
+    for (int tag = 1; tag < cachedTagCount; ++tag) {
+        writer->PushTag(TTag{"tag", ToString(tag)});
+        writer->AddGauge("/memory_usage", cachedMemoryUsage[tag]);
+        writer->PopTag();
     }
 }
 

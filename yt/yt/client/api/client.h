@@ -51,7 +51,7 @@
 
 #include <yt/core/yson/string.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/library/erasure/public.h>
 
@@ -723,13 +723,36 @@ struct TJournalReaderOptions
     TJournalReaderConfigPtr Config;
 };
 
+struct TJournalWriterPerformanceCounters
+{
+    TJournalWriterPerformanceCounters() = default;
+    explicit TJournalWriterPerformanceCounters(const NProfiling::TRegistry& profiler);
+
+    NProfiling::TEventTimer GetBasicAttributesTimer;
+    NProfiling::TEventTimer BeginUploadTimer;
+    NProfiling::TEventTimer GetExtendedAttributesTimer;
+    NProfiling::TEventTimer GetUploadParametersTimer;
+    NProfiling::TEventTimer EndUploadTimer;
+    NProfiling::TEventTimer OpenSessionTimer;
+    NProfiling::TEventTimer CreateChunkTimer;
+    NProfiling::TEventTimer AllocateWriteTargetsTimer;
+    NProfiling::TEventTimer StartNodeSessionTimer;
+    NProfiling::TEventTimer ConfirmChunkTimer;
+    NProfiling::TEventTimer AttachChunkTimer;
+    NProfiling::TEventTimer SealChunkTimer;
+
+    NProfiling::TEventTimer WriteQuorumLag;
+    NProfiling::TEventTimer MaxReplicaLag;
+};
+
 struct TJournalWriterOptions
     : public TTransactionalOptions
     , public TPrerequisiteOptions
 {
     TJournalWriterConfigPtr Config;
     bool EnableMultiplexing = true;
-    NProfiling::TProfiler Profiler;
+
+    TJournalWriterPerformanceCounters Counters;
 };
 
 struct TTruncateJournalOptions

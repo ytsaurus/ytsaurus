@@ -6,7 +6,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NControllerAgent {
 
@@ -41,7 +41,7 @@ extern const NLogging::TLogger ControllerLogger;
 extern const NLogging::TLogger ControllerAgentLogger;
 extern const NLogging::TLogger ControllerEventLogger;
 
-extern const NProfiling::TProfiler ControllerAgentProfiler;
+extern const NProfiling::TRegistry ControllerAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

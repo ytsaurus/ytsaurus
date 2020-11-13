@@ -145,7 +145,7 @@ void TBootstrap::DoRun()
     }
 
     NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot);
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &orchidRoot, Config_->SolomonExporter);
 
     SetNodeByYPath(
         orchidRoot,

@@ -166,12 +166,9 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
 
 TProfiledAsyncSemaphore::TProfiledAsyncSemaphore(
     i64 totalSlots,
-    const NProfiling::TProfiler& profiler,
-    const NYPath::TYPath& path,
-    const NProfiling::TTagIdList& tagIds)
+    NProfiling::TGauge gauge)
     : TAsyncSemaphore(totalSlots)
-    , Profiler(profiler)
-    , Gauge_(path, tagIds)
+    , Gauge_(std::move(gauge))
 { }
 
 void TProfiledAsyncSemaphore::Release(i64 slots /* = 1 */)
@@ -197,7 +194,7 @@ bool TProfiledAsyncSemaphore::TryAcquire(i64 slots /* = 1 */)
 
 void TProfiledAsyncSemaphore::Profile()
 {
-    Profiler.Update(Gauge_, GetUsed());
+    Gauge_.Update(GetUsed());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

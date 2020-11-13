@@ -7,6 +7,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <util/stream/file.h>
 
 #include <atomic>
@@ -20,12 +22,10 @@ class TRateLimitCounter
 public:
     TRateLimitCounter(
         std::optional<size_t> limit,
-        const NProfiling::TShardedMonotonicCounter& bytesCounter,
-        const NProfiling::TShardedMonotonicCounter& skippedEventsCounter);
+        NProfiling::TCounter bytesCounter,
+        NProfiling::TCounter skippedEventsCounter);
 
     void SetRateLimit(std::optional<size_t> rateLimit);
-    void SetBytesCounter(const NProfiling::TShardedMonotonicCounter& counter);
-    void SetSkippedEventsCounter(const NProfiling::TShardedMonotonicCounter& counter);
     bool IsLimitReached();
     bool IsIntervalPassed();
     i64 GetAndResetLastSkippedEventsCount();
@@ -38,8 +38,8 @@ private:
     TDuration UpdatePeriod_ = TDuration::Seconds(1);
     TInstant LastUpdate_;
     std::optional<size_t> RateLimit_;
-    NProfiling::TShardedMonotonicCounter BytesCounter_;
-    NProfiling::TShardedMonotonicCounter SkippedEventsCounter_;
+    NProfiling::TCounter BytesCounter_;
+    NProfiling::TCounter SkippedEventsCounter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

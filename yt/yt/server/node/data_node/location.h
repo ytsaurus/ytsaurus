@@ -16,6 +16,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <atomic>
 #include <map>
 
@@ -111,6 +113,8 @@ public:
 
     //! Returns the profiler tagged with location id.
     const NProfiling::TProfiler& GetProfiler() const;
+
+    const NProfiling::TRegistry& GetProfilerRegistry() const;
 
     //! Returns various performance counters.
     TLocationPerformanceCounters& GetPerformanceCounters();
@@ -226,6 +230,7 @@ public:
 protected:
     NClusterNode::TBootstrap* const Bootstrap_;
     NProfiling::TProfiler Profiler_;
+    NProfiling::TRegistry ProfilerRegistry_;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
     static void ForceHashDirectories(const TString& rootPath);

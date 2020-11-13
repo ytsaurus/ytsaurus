@@ -6,6 +6,8 @@
 
 #include <yt/core/profiling/profiler.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +22,7 @@ class TReqUpdateChunkPresence;
 
 extern const NLogging::TLogger ChunkServerLogger;
 extern const NProfiling::TProfiler ChunkServerProfiler;
+extern const NProfiling::TRegistry ChunkServerProfilerRegistry;
 
 ////////////////////////////////////////////////////////////////////////////////
 

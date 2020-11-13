@@ -33,7 +33,7 @@ public:
         , UnderlyingCache_(CreateClientBlockCache(
             Config_->BlockCache,
             EBlockType::UncompressedData,
-            DataNodeProfiler.AppendPath("/block_cache")))
+            DataNodeProfilerRegistry.WithPrefix("/block_cache")))
     {
         auto result = Bootstrap_->GetMemoryUsageTracker()->TryAcquire(
             EMemoryCategory::BlockCache,

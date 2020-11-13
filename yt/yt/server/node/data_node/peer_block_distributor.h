@@ -78,6 +78,12 @@ private:
     //! Total number of bytes distributed up to this moment.
     std::atomic<i64> DistributedBytes_ = {0};
 
+    NProfiling::TGauge OutTrafficGauge_;
+    NProfiling::TGauge OutTrafficThrottlerQueueSizeGauge_;
+    NProfiling::TGauge DefaultNetworkPendingOutBytesGauge_;
+    NProfiling::TGauge TotalOutQueueSizeGauge_;
+    NProfiling::TGauge TotalRequestedBlockSizeGauge_;
+
     void DoIteration();
 
     void SweepObsoleteRequests();

@@ -1,19 +1,23 @@
 #pragma once
 
 #include "public.h"
+#include "yt/server/http_proxy/private.h"
 
 #include <yt/client/driver/driver.h>
 
 #include <yt/core/http/http.h>
-#include <yt/core/profiling/profiler.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/library/syncmap/map.h>
 
 namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TUserCommandPair =std::pair<std::optional<TString>, std::optional<TString>>;
+using TUserCommandPair =std::pair<TString, TString>;
 
 class TSemaphoreGuard
 {
@@ -85,47 +89,43 @@ private:
 
     const NConcurrency::IPollerPtr Poller_;
 
-    NProfiling::TTagId DefaultNetworkTag_;
-    std::vector<std::pair<NNet::TIP6Network, NProfiling::TTagId>> Networks_;
+    const NProfiling::TRegistry SparseProfiler_ = HttpProxyProfiler.WithSparse();
 
-    NProfiling::TTagId GetNetworkTagForAddress(const NNet::TNetworkAddress& address) const;
+    std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
+    TString DefaultNetworkName_;
+
+    TString GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const;
 
     NConcurrency::TReaderWriterSpinLock BanCacheLock_;
     THashMap<TString, TInstant> BanCache_;
 
     struct TProfilingCounters
     {
-        std::atomic<int> LocalSemaphore;
+        std::atomic<int> LocalSemaphore{0};
 
-        NProfiling::TTagIdList Tags;
-        NProfiling::TTagIdList CommandTag;
-        NProfiling::TTagIdList UserTag;
+        NProfiling::TGauge ConcurrencySemaphore;
+        NProfiling::TCounter RequestCount;
+        NProfiling::TEventTimer RequestDuration;
 
-        NProfiling::TAtomicShardedAggregateGauge ConcurrencySemaphore;
-        NProfiling::TShardedMonotonicCounter RequestCount;
-        NProfiling::TShardedAggregateGauge RequestDuration;
-
-        TAdaptiveLock Lock;
-        THashMap<NHttp::EStatusCode, NProfiling::TShardedMonotonicCounter> HttpCodes;
-        THashMap<TErrorCode, NProfiling::TShardedMonotonicCounter> ApiErrors;
-        THashMap<NProfiling::TTagId, NProfiling::TShardedMonotonicCounter> BytesIn;
-        THashMap<NProfiling::TTagId, NProfiling::TShardedMonotonicCounter> BytesOut;
+        NConcurrency::TSyncMap<TErrorCode, NProfiling::TCounter> ApiErrors;
+        NConcurrency::TSyncMap<TString, NProfiling::TCounter> BytesIn;
+        NConcurrency::TSyncMap<TString, NProfiling::TCounter> BytesOut;
     };
 
     std::atomic<int> GlobalSemaphore_{0};
 
-    NConcurrency::TReaderWriterSpinLock CountersLock_;
-    THashMap<TUserCommandPair, std::unique_ptr<TProfilingCounters>> Counters_;
+    NConcurrency::TSyncMap<TUserCommandPair, std::unique_ptr<TProfilingCounters>> Counters_;
 
-    TAdaptiveLock HttpCodesLock_;
-    THashMap<NHttp::EStatusCode, NProfiling::TShardedMonotonicCounter> HttpCodes_;
+    NConcurrency::TSyncMap<NHttp::EStatusCode, NProfiling::TCounter> HttpCodes_;
+    NConcurrency::TSyncMap<std::pair<TString, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByUser_;
+    NConcurrency::TSyncMap<std::pair<TString, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByCommand_;
 
     TProfilingCounters* GetProfilingCounters(const TUserCommandPair& key);
 
-    NProfiling::TShardedMonotonicCounter PrepareErrorCount_{"/request_prepare_error_count"};
+    NProfiling::TCounter PrepareErrorCount_ = HttpProxyProfiler.Counter("/request_prepare_error_count");
 
     void DoIncrementHttpCode(
-        THashMap<NHttp::EStatusCode, NProfiling::TShardedMonotonicCounter>* counters,
+        THashMap<NHttp::EStatusCode, NProfiling::TCounter>* counters,
         NHttp::EStatusCode httpStatusCode,
         NProfiling::TTagIdList tags);
 };

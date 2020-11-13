@@ -24,6 +24,22 @@ TEST(TSyncMap, SingleInsert)
     }
 }
 
+TEST(TSyncMap, TestInsertLoop)
+{
+    TSyncMap<int, int> map;
+
+    for (int i = 0; i < 1000; ++i) {
+        auto [insertedPtr, inserted] = map.FindOrInsert(i, [] { return 42; });
+        EXPECT_TRUE(inserted);
+
+        for (int j = 0; j < 1000; ++j) {
+            auto ptr = map.Find(i);
+            EXPECT_TRUE(ptr);
+            EXPECT_EQ(*ptr, 42);
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

@@ -51,6 +51,7 @@ using namespace NSecurityClient;
 
 TLogger ClickHouseLogger("ClickHouseProxy");
 TProfiler ClickHouseProfiler("/clickhouse_proxy");
+TRegistry ClickHouseProfilerRegistry("yt/clickhouse_proxy");
 
 // It is needed for PROFILE_AGGREGATED_TIMING macros.
 static const auto& Profiler = ClickHouseProfiler;
@@ -734,12 +735,13 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
         Config_->OperationCache,
         THashSet<TString>{"id", "runtime_parameters", "state", "suspended"},
         Client_,
-        ClickHouseProfiler.AppendPath("/operation_cache"));
+        ClickHouseProfilerRegistry.WithPrefix("/operation_cache"));
     PermissionCache_ = New<TPermissionCache>(
         Config_->PermissionCache,
         Bootstrap_->GetNativeConnection(),
-        ClickHouseProfiler.AppendPath("/permission_cache"));
-    DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProfiler.AppendPath("/discovery_cache"));
+        ClickHouseProfilerRegistry.WithPrefix("/permission_cache"));
+
+    DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProfilerRegistry.WithPrefix("/discovery_cache"));
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         ControlInvoker_,

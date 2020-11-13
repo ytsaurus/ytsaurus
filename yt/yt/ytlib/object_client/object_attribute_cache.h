@@ -29,7 +29,7 @@ public:
         NApi::NNative::IClientPtr client,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger = {},
-        NProfiling::TProfiler profiler = {});
+        NProfiling::TRegistry profiler = {});
 
     // Method with signature similar to GetMany which goes directly to master.
     static TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetFromClient(

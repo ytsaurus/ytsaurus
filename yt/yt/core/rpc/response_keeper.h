@@ -8,7 +8,7 @@
 
 #include <yt/core/misc/ref.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NRpc {
 
@@ -35,7 +35,7 @@ public:
         TResponseKeeperConfigPtr config,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& profiler);
+        const NProfiling::TRegistry& registry);
     ~TResponseKeeper();
 
     //! Activates the keeper.

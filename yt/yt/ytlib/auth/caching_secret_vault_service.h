@@ -4,6 +4,8 @@
 
 #include <yt/core/concurrency/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,7 +13,7 @@ namespace NYT::NAuth {
 ISecretVaultServicePtr CreateCachingSecretVaultService(
     TCachingSecretVaultServiceConfigPtr config,
     ISecretVaultServicePtr underlying,
-    NProfiling::TProfiler profiler = {});
+    NProfiling::TRegistry profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

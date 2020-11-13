@@ -101,10 +101,10 @@ private:
 
     TRequestPathMatcher Handlers_;
 
-    TAtomicGauge ConnectionsActiveGauge_{"/connections_active"};
-    TShardedMonotonicCounter ConnectionsAcceptedCounter_{"/connections_accepted"};
-    TShardedMonotonicCounter ConnectionsDroppedCounter_{"/connections_dropped"};
-
+    std::atomic<ui64> ActiveConnections_{0};
+    TGauge ConnectionsActive_ = HttpProfiler.Gauge("/connections_active");
+    TCounter ConnectionsAccepted_ = HttpProfiler.Counter("/connections_accepted");
+    TCounter ConnectionsDropped_ = HttpProfiler.Counter("/connections_dropped");
 
     void AsyncAcceptConnection()
     {
@@ -128,14 +128,16 @@ private:
 
         auto connection = connectionOrError.ValueOrThrow();
 
-        HttpProfiler.Increment(ConnectionsAcceptedCounter_);
-        if (HttpProfiler.Increment(ConnectionsActiveGauge_, +1) >= Config_->MaxSimultaneousConnections) {
-            HttpProfiler.Increment(ConnectionsDroppedCounter_);
-            HttpProfiler.Increment(ConnectionsActiveGauge_, -1);
+        auto count = ActiveConnections_.fetch_add(1) + 1;
+        if (count >= Config_->MaxSimultaneousConnections) {
+            ConnectionsDropped_.Increment();
+            ActiveConnections_--;
             YT_LOG_WARNING("Server is over max active connection limit (RemoteAddress: %v)",
                 connection->RemoteAddress());
             return;
         }
+        ConnectionsActive_.Update(count);
+        ConnectionsAccepted_.Increment();
 
         auto connectionId = TGuid::Create();
         YT_LOG_DEBUG("Connection accepted (ConnectionId: %v, RemoteAddress: %v, LocalAddress: %v)",
@@ -227,7 +229,8 @@ private:
     void DoHandleConnection(const IConnectionPtr& connection, TGuid connectionId)
     {
         auto finally = Finally([&] {
-            HttpProfiler.Increment(ConnectionsActiveGauge_, -1);
+            auto count = ActiveConnections_.fetch_sub(1) - 1;
+            ConnectionsActive_.Update(count);
         });
 
         auto request = New<THttpInput>(

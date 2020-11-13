@@ -15,7 +15,7 @@ using namespace NProfiling;
 TThrottlerManager::TThrottlerManager(
     TThroughputThrottlerConfigPtr config,
     NLogging::TLogger logger,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
     : Config_(std::move(config))
     , Logger_(std::move(logger))
     , Profiler_(std::move(profiler))
@@ -42,14 +42,10 @@ IThroughputThrottlerPtr TThrottlerManager::GetThrottler(TCellTag cellTag)
     auto logger = Logger_;
     logger.AddTag("CellTag: %v", cellTag);
 
-    TTagIdList tagIds{
-        TProfileManager::Get()->RegisterTag("cell_tag", cellTag)
-    };
-
     auto throttler = CreateReconfigurableThroughputThrottler(
         Config_,
         logger,
-        Profiler_.AddTags(tagIds));
+        Profiler_.WithTag("cell_tag", ToString(cellTag)));
 
     YT_VERIFY(ThrottlerMap_.emplace(cellTag, throttler).second);
 

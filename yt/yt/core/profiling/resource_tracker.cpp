@@ -15,8 +15,12 @@
 
 #include <util/string/vector.h>
 
+#ifdef _linux_
+#define RESOURCE_TRACKER_ENABLED
+#endif
+
 #ifdef RESOURCE_TRACKER_ENABLED
-    #include <unistd.h>
+#include <unistd.h>
 #endif
 
 namespace NYT::NProfiling {
@@ -30,9 +34,8 @@ DEFINE_REFCOUNTED_TYPE(TResourceTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TDuration UpdatePeriod = TDuration::Seconds(1);
-static TProfiler Profiler("/resource_tracker");
 static NLogging::TLogger Logger("Profiling");
+static TRegistry Profiler("yt/resource_tracker");
 
 static constexpr auto procPath = "/proc/self/task";
 
@@ -67,31 +70,32 @@ TResourceTracker::TTimings& TResourceTracker::TTimings::operator+=(const TResour
     return *this;
 }
 
-TResourceTracker::TResourceTracker(IInvokerPtr invoker)
+TResourceTracker::TResourceTracker()
     // CPU time is measured in jiffies; we need USER_HZ to convert them
     // to milliseconds and percentages.
     : TicksPerSecond_(GetTicksPerSecond())
     , LastUpdateTime_(TInstant::Now())
 {
-    PeriodicExecutor_ = New<TPeriodicExecutor>(
-        invoker,
-        BIND(&TResourceTracker::EnqueueUsage, Unretained(this)),
-        UpdatePeriod);
+    Profiler.AddFuncGauge("/memory_usage/rss", MakeStrong(this), [] {
+        return GetProcessMemoryUsage().Rss;
+    });
+
+    Profiler.WithSparse().AddProducer("", MakeStrong(this));
 }
 
-void TResourceTracker::Start()
+void TResourceTracker::Collect(ISensorWriter* writer)
 {
-    PeriodicExecutor_->Start();
-}
+    i64 timeDeltaUsec = TInstant::Now().MicroSeconds() - LastUpdateTime_.MicroSeconds();
+    if (timeDeltaUsec <= 0) {
+        return;
+    }
 
-void TResourceTracker::EnqueueUsage()
-{
-    YT_LOG_DEBUG("Resource tracker enqueue started");
+    auto tidToInfo = ProcessThreads();
+    CollectAggregatedTimings(writer, TidToInfo_, tidToInfo, timeDeltaUsec);
+    CollectThreadCounts(writer, tidToInfo);
+    TidToInfo_ = tidToInfo;
 
-    EnqueueMemoryUsage();
-    EnqueueThreadStats();
-
-    YT_LOG_DEBUG("Resource tracker enqueue finished ");
+    LastUpdateTime_ = TInstant::Now();
 }
 
 bool TResourceTracker::ProcessThread(TString tid, TResourceTracker::TThreadInfo* info)
@@ -199,7 +203,8 @@ TResourceTracker::TThreadMap TResourceTracker::ProcessThreads()
     return tidToStats;
 }
 
-void TResourceTracker::EnqueueAggregatedTimings(
+void TResourceTracker::CollectAggregatedTimings(
+    ISensorWriter* writer,
     const TResourceTracker::TThreadMap& oldTidToInfo,
     const TResourceTracker::TThreadMap& newTidToInfo,
     i64 timeDeltaUsec)
@@ -240,12 +245,11 @@ void TResourceTracker::EnqueueAggregatedTimings(
         totalSystemCpuTime += systemCpuTime;
         totalCpuWaitTime += waitTime;
 
-        TTagIdList tagIds;
-        tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", profilingKey));
-
-        Profiler.Enqueue("/user_cpu", userCpuTime, EMetricType::Gauge, tagIds);
-        Profiler.Enqueue("/system_cpu", systemCpuTime, EMetricType::Gauge, tagIds);
-        Profiler.Enqueue("/cpu_wait", waitTime, EMetricType::Gauge, tagIds);
+        writer->PushTag(std::pair<TString, TString>("thread", profilingKey));
+        writer->AddGauge("/user_cpu", userCpuTime);
+        writer->AddGauge("/system_cpu", systemCpuTime);
+        writer->AddGauge("/cpu_wait", waitTime);
+        writer->PopTag();
 
         YT_LOG_TRACE("Thread CPU timings in percent/sec (ProfilingKey: %v, UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
             profilingKey,
@@ -264,7 +268,7 @@ void TResourceTracker::EnqueueAggregatedTimings(
         totalCpuWaitTime);
 }
 
-void TResourceTracker::EnqueueThreadCounts(const TThreadMap& tidToInfo) const
+void TResourceTracker::CollectThreadCounts(ISensorWriter* writer, const TThreadMap& tidToInfo) const
 {
     THashMap<TString, int> profilingKeyToCount;
 
@@ -273,40 +277,13 @@ void TResourceTracker::EnqueueThreadCounts(const TThreadMap& tidToInfo) const
     }
 
     for (const auto& [profilingKey, count] : profilingKeyToCount) {
-        TTagIdList tagIds;
-        tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", profilingKey));
-
-        Profiler.Enqueue("/thread_count", count, EMetricType::Gauge, tagIds);
+        writer->PushTag(std::pair<TString, TString>{"thread", profilingKey});
+        writer->AddGauge("/thread_count", count);
+        writer->PopTag();
     }
 
     YT_LOG_DEBUG("Total thread count (ThreadCount: %v)",
         tidToInfo.size());
-}
-
-void TResourceTracker::EnqueueThreadStats()
-{
-    i64 timeDeltaUsec = TInstant::Now().MicroSeconds() - LastUpdateTime_.MicroSeconds();
-    if (timeDeltaUsec <= 0) {
-        return;
-    }
-
-    auto tidToInfo = ProcessThreads();
-    EnqueueAggregatedTimings(TidToInfo_, tidToInfo, timeDeltaUsec);
-    TidToInfo_ = tidToInfo;
-
-    EnqueueThreadCounts(TidToInfo_);
-
-    LastUpdateTime_ = TInstant::Now();
-}
-
-void TResourceTracker::EnqueueMemoryUsage()
-{
-    try {
-        Profiler.Enqueue("/total/memory", GetProcessMemoryUsage().Rss, EMetricType::Gauge);
-    } catch (const TIoException&) {
-        // Ignore all IO exceptions.
-        return;
-    }
 }
 
 double TResourceTracker::GetUserCpu()

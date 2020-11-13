@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/core/profiling/profiler.h>
-
 #include <yt/core/concurrency/public.h>
 
 namespace NYT::NBus {

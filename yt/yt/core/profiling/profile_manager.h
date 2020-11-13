@@ -32,7 +32,7 @@ struct TQueuedSample
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A pre-registered key-value pair used to mark samples.
-struct TTag
+struct TStringTag
 {
     TString Key;
     TString Value;
@@ -92,7 +92,9 @@ public:
     NYTree::IYPathServicePtr GetService() const;
 
     //! Registers a tag and returns its unique id.
-    TTagId RegisterTag(const TTag& tag);
+    TTagId RegisterTag(const TStringTag& tag);
+
+    TStringTag LookupTag(TTagId tag);
 
     //! Registers a tag and returns its unique id.
     template <class T>

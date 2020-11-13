@@ -220,7 +220,7 @@ public:
         , ReconfigurableJobSpecSliceThrottler_(CreateReconfigurableThroughputThrottler(
             Config_->JobSpecSliceThrottler,
             NLogging::TLogger(),
-            ControllerAgentProfiler.AppendPath("/job_spec_slice_throttler")))
+            ControllerAgentProfiler.WithPrefix("/job_spec_slice_throttler")))
         , JobSpecSliceThrottler_(ReconfigurableJobSpecSliceThrottler_)
         , CoreSemaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSafeCoreDumps))
         , EventLogWriter_(New<TEventLogWriter>(
@@ -240,9 +240,9 @@ public:
             Bootstrap_->GetControlInvoker()))
         , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
         , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
-        , MemoryTagQueue_(
+        , MemoryTagQueue_(New<TMemoryTagQueue>(
             Config_,
-            Bootstrap_->GetControlInvoker())
+            Bootstrap_->GetControlInvoker()))
     { }
 
     void Initialize()
@@ -336,7 +336,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return &MemoryTagQueue_;
+        return MemoryTagQueue_.Get();
     }
 
     const IInvokerPtr& GetSnapshotIOInvoker()
@@ -400,7 +400,7 @@ public:
                 BIND(&IOperationController::UpdateConfig, controller, config));
         }
 
-        MemoryTagQueue_.UpdateConfig(Config_);
+        MemoryTagQueue_->UpdateConfig(Config_);
 
         CachedExecNodeDescriptorsByTags_->SetExpirationTimeout(Config_->SchedulingTagFilterExpireTimeout);
     }
@@ -498,13 +498,13 @@ public:
             Bootstrap_);
         operation->SetHost(host);
 
-        operation->SetMemoryTag(MemoryTagQueue_.AssignTagToOperation(operationId));
+        operation->SetMemoryTag(MemoryTagQueue_->AssignTagToOperation(operationId));
 
         try {
             auto controller = CreateControllerForOperation(Config_, operation.Get());
             operation->SetController(controller);
         } catch (...) {
-            MemoryTagQueue_.ReclaimTag(operation->GetMemoryTag());
+            MemoryTagQueue_->ReclaimTag(operation->GetMemoryTag());
             throw;
         }
 
@@ -953,7 +953,7 @@ private:
 
     TPeriodicExecutorPtr HeartbeatExecutor_;
 
-    TMemoryTagQueue MemoryTagQueue_;
+    TMemoryTagQueuePtr MemoryTagQueue_;
 
     INodePtr OperationsEffectiveAcl_;
 
@@ -1332,7 +1332,7 @@ private:
 
         if (Config_->TotalControllerMemoryLimit) {
             request->set_controller_memory_limit(*Config_->TotalControllerMemoryLimit);
-            request->set_controller_memory_usage(MemoryTagQueue_.GetTotalUsage());
+            request->set_controller_memory_usage(MemoryTagQueue_->GetTotalUsage());
         }
 
         return preparedRequest;
@@ -1688,7 +1688,7 @@ private:
                         .Item("opaque").Value(true)
                     .EndAttributes()
                     .DoList([&] (TFluentList fluent) {
-                        MemoryTagQueue_.BuildTaggedMemoryStatistics(fluent);
+                        MemoryTagQueue_->BuildTaggedMemoryStatistics(fluent);
                     })
                 .Item("medium_directory").Value(
                     Bootstrap_

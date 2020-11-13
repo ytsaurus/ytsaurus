@@ -6,25 +6,23 @@
 
 #include <yt/core/profiling/public.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _linux_
-    #define RESOURCE_TRACKER_ENABLED
-#endif
-
 class TResourceTracker
-    : public TRefCounted
+    : public NProfiling::ISensorProducer
 {
 public:
-    explicit TResourceTracker(IInvokerPtr invoker);
-
-    void Start();
+    explicit TResourceTracker();
 
     double GetUserCpu();
     double GetSystemCpu();
     double GetCpuWait();
+
+    virtual void Collect(ISensorWriter* writer) override;
 
 private:
     i64 TicksPerSecond_;
@@ -61,22 +59,22 @@ private:
 
     TThreadMap TidToInfo_;
 
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-
     void EnqueueUsage();
 
     void EnqueueThreadStats();
-    void EnqueueMemoryUsage();
 
     bool ProcessThread(TString tid, TThreadInfo* result);
     TThreadMap ProcessThreads();
 
-    void EnqueueAggregatedTimings(
+    void CollectAggregatedTimings(
+        ISensorWriter* writer,
         const TThreadMap& oldTidToInfo,
         const TThreadMap& newTidToInfo,
         i64 timeDeltaUsec);
 
-    void EnqueueThreadCounts(const TThreadMap& tidToInfo) const;
+    void CollectThreadCounts(
+        ISensorWriter* writer,
+        const TThreadMap& tidToInfo) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

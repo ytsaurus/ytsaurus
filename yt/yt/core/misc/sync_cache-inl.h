@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #ifndef SYNC_CACHE_INL_H_
 #error "Direct inclusion of this file is not allowed, include sync_cache.h"
 // For the sake of sane code completion.
@@ -34,15 +35,19 @@ TSyncSlruCacheBase<TKey, TValue, THash>::TItem::TItem(TValuePtr value)
 template <class TKey, class TValue, class THash>
 TSyncSlruCacheBase<TKey, TValue, THash>::TSyncSlruCacheBase(
     TSlruCacheConfigPtr config,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& profiler)
     : Config_(std::move(config))
-    , Profiler(profiler)
-    , HitWeightCounter_("/hit")
-    , MissedWeightCounter_("/missed")
-    , DroppedWeightCounter_("/dropped")
-    , YoungerWeightCounter_("/younger")
-    , OlderWeightCounter_("/older")
+    , HitWeightCounter_(profiler.Counter("/hit"))
+    , MissedWeightCounter_(profiler.Counter("/missed"))
+    , DroppedWeightCounter_(profiler.Counter("/dropped"))
 {
+    profiler.AddFuncGauge("/younger", MakeStrong(this), [this] {
+        return YoungerWeightCounter_.load();
+    });
+    profiler.AddFuncGauge("/older", MakeStrong(this), [this] {
+        return OlderWeightCounter_.load();
+    });
+
     Shards_.reset(new TShard[Config_->ShardCount]);
     for (int index = 0; index < Config_->ShardCount; ++index) {
         Shards_[index].TouchBuffer.resize(Config_->TouchBufferCapacity);
@@ -82,8 +87,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
 
         shard.YoungerWeightCounter -= totalYoungerWeight;
         shard.OlderWeightCounter -= totalOlderWeight;
-        Profiler.Increment(YoungerWeightCounter_, -totalYoungerWeight);
-        Profiler.Increment(OlderWeightCounter_, -totalOlderWeight);
+        YoungerWeightCounter_.fetch_sub(totalYoungerWeight, std::memory_order_relaxed);
+        OlderWeightCounter_.fetch_sub(totalOlderWeight, std::memory_order_relaxed);
         Size_ -= totalItemCount;
 
         // NB: Lists must die outside the critical section.
@@ -108,7 +113,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     auto value = item->Value;
 
     auto weight = GetWeight(item->Value);
-    Profiler.Increment(HitWeightCounter_, weight);
+    HitWeightCounter_.Increment(weight);
 
     readerGuard.Release();
 
@@ -148,7 +153,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(const TValuePtr& value, 
 
     auto itemIt = shard->ItemMap.find(key);
     if (itemIt != shard->ItemMap.end()) {
-        Profiler.Increment(DroppedWeightCounter_, weight);
+        DroppedWeightCounter_.Increment(weight);
         if (existingValue) {
             *existingValue = itemIt->second->Value;
         }
@@ -159,7 +164,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(const TValuePtr& value, 
     YT_VERIFY(shard->ItemMap.emplace(key, item).second);
     ++Size_;
 
-    Profiler.Increment(MissedWeightCounter_, weight);
+    MissedWeightCounter_.Increment(weight);
 
     PushToYounger(shard, item);
 
@@ -333,7 +338,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TShard* shard, TItem
     shard->YoungerLruList.PushFront(item);
     auto weight = GetWeight(item->Value);
     shard->YoungerWeightCounter += weight;
-    Profiler.Increment(YoungerWeightCounter_, +weight);
+    YoungerWeightCounter_.fetch_add(weight, std::memory_order_relaxed);
     item->Younger = true;
 }
 
@@ -347,8 +352,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TShard* shard, TItem
         auto weight = GetWeight(item->Value);
         shard->YoungerWeightCounter += weight;
         shard->OlderWeightCounter -= weight;
-        Profiler.Increment(OlderWeightCounter_, -weight);
-        Profiler.Increment(YoungerWeightCounter_, +weight);
+        OlderWeightCounter_.fetch_sub(weight, std::memory_order_relaxed);
+        YoungerWeightCounter_.fetch_add(weight, std::memory_order_relaxed);
         item->Younger = true;
     }
 }
@@ -363,8 +368,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TShard* shard, TItem* 
         auto weight = GetWeight(item->Value);
         shard->YoungerWeightCounter -= weight;
         shard->OlderWeightCounter += weight;
-        Profiler.Increment(YoungerWeightCounter_, -weight);
-        Profiler.Increment(OlderWeightCounter_, +weight);
+        YoungerWeightCounter_.fetch_sub(weight, std::memory_order_relaxed);
+        OlderWeightCounter_.fetch_add(weight, std::memory_order_relaxed);
         item->Younger = false;
     }
 }
@@ -378,22 +383,12 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TShard* shard, TItem* item)
     auto weight = GetWeight(item->Value);
     if (item->Younger) {
         shard->YoungerWeightCounter -= weight;
-        Profiler.Increment(YoungerWeightCounter_, -weight);
+        YoungerWeightCounter_.fetch_sub(weight, std::memory_order_relaxed);
     } else {
         shard->OlderWeightCounter -= weight;
-        Profiler.Increment(OlderWeightCounter_, -weight);
+        OlderWeightCounter_.fetch_sub(weight, std::memory_order_relaxed);
     }
     item->Unlink();
-}
-
-template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::OnProfiling()
-{
-    Profiler.Increment(HitWeightCounter_, 0);
-    Profiler.Increment(MissedWeightCounter_, 0);
-    Profiler.Increment(DroppedWeightCounter_, 0);
-    Profiler.Increment(YoungerWeightCounter_, 0);
-    Profiler.Increment(OlderWeightCounter_, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

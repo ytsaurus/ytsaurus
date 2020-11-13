@@ -8,7 +8,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <atomic>
 
@@ -30,7 +30,7 @@ public:
     explicit TAsyncExpiringCache(
         TAsyncExpiringCacheConfigPtr config,
         NLogging::TLogger logger = {},
-        NProfiling::TProfiler profiler = {});
+        NProfiling::TRegistry profiler = {});
 
     TFuture<TValue> Get(const TKey& key);
     TExtendedGetResult GetExtended(const TKey& key);
@@ -65,7 +65,6 @@ protected:
 
 private:
     const NLogging::TLogger Logger_;
-    const NProfiling::TProfiler Profiler_;
 
     struct TEntry
         : public TRefCounted
@@ -98,9 +97,9 @@ private:
     NConcurrency::TReaderWriterSpinLock SpinLock_;
     THashMap<TKey, TEntryPtr> Map_;
 
-    NProfiling::TShardedMonotonicCounter HitCounter_{"/hit"};
-    NProfiling::TShardedMonotonicCounter MissedCounter_{"/missed"};
-    NProfiling::TAtomicGauge SizeCounter_{"/size"};
+    NProfiling::TCounter HitCounter_;
+    NProfiling::TCounter MissedCounter_;
+    NProfiling::TGauge SizeCounter_;
 
     void SetResult(
         const TWeakPtr<TEntry>& entry,

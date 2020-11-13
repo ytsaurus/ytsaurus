@@ -36,13 +36,16 @@ public:
         TDefaultBlackboxServiceConfigPtr config,
         ITvmServicePtr tvmService,
         IPollerPtr poller,
-        NProfiling::TProfiler profiler)
+        NProfiling::TRegistry profiler)
         : Config_(std::move(config))
         , TvmService_(Config_->UseTvm ? std::move(tvmService) : nullptr)
-        , Profiler_(std::move(profiler))
         , HttpClient_(Config_->Secure
             ? NHttps::CreateClient(Config_->HttpClient, std::move(poller))
             : NHttp::CreateClient(Config_->HttpClient, std::move(poller)))
+        , BlackboxCalls_(profiler.Counter("/blackbox_calls"))
+        , BlackboxCallErrors_(profiler.Counter("/blackbox_call_errors"))
+        , BlackboxCallFatalErrors_(profiler.Counter("/blackbox_call_fatal_errors"))
+        , BlackboxCallTime_(profiler.Timer("/blackbox_call_time"))
     { }
 
     virtual TFuture<INodePtr> Call(
@@ -66,14 +69,13 @@ public:
 private:
     const TDefaultBlackboxServiceConfigPtr Config_;
     const ITvmServicePtr TvmService_;
-    const NProfiling::TProfiler Profiler_;
 
     const NHttp::IClientPtr HttpClient_;
 
-    NProfiling::TShardedMonotonicCounter BlackboxCalls_{"/blackbox_calls"};
-    NProfiling::TShardedMonotonicCounter BlackboxCallErrors_{"/blackbox_call_errors"};
-    NProfiling::TShardedMonotonicCounter BlackboxCallFatalErrors_{"/blackbox_call_fatal_errors"};
-    NProfiling::TShardedAggregateGauge BlackboxCallTime_{"/blackbox_call_time", {}, NProfiling::EAggregateMode::All};
+    NProfiling::TCounter BlackboxCalls_;
+    NProfiling::TCounter BlackboxCallErrors_;
+    NProfiling::TCounter BlackboxCallFatalErrors_;
+    NProfiling::TEventTimer BlackboxCallTime_;
 
 private:
     INodePtr DoCall(
@@ -86,7 +88,7 @@ private:
         if (TvmService_) {
             auto rspOrError = WaitFor(TvmService_->GetTicket(Config_->BlackboxServiceId));
             if (!rspOrError.IsOK()) {
-                AuthProfiler.Increment(BlackboxCallFatalErrors_);
+                BlackboxCallFatalErrors_.Increment();
                 YT_LOG_ERROR(rspOrError);
                 THROW_ERROR_EXCEPTION("TVM call failed") << rspOrError;
             }
@@ -123,7 +125,7 @@ private:
         for (int attempt = 1; TInstant::Now() < deadline || attempt == 1; ++attempt) {
             INodePtr result;
             try {
-                AuthProfiler.Increment(BlackboxCalls_);
+                BlackboxCalls_.Increment();
                 result = DoCallOnce(
                     callId,
                     attempt,
@@ -132,7 +134,7 @@ private:
                     httpHeaders,
                     deadline);
             } catch (const std::exception& ex) {
-                AuthProfiler.Increment(BlackboxCallErrors_);
+                BlackboxCallErrors_.Increment();
                 YT_LOG_WARNING(
                     ex,
                     "Blackbox call attempt failed, backing off (CallId: %v, Attempt: %v)",
@@ -180,7 +182,7 @@ private:
                             "Blackbox has raised an exception (CallId: %v, Attempt: %v)",
                             callId,
                             attempt);
-                        AuthProfiler.Increment(BlackboxCallFatalErrors_);
+                        BlackboxCallFatalErrors_.Increment();
                         THROW_ERROR_EXCEPTION("Blackbox has raised an exception")
                             << TErrorAttribute("call_id", callId)
                             << TErrorAttribute("attempt", attempt)
@@ -196,7 +198,7 @@ private:
             TDelayedExecutor::WaitForDuration(std::min(Config_->BackoffTimeout, deadline - now));
         }
 
-        AuthProfiler.Increment(BlackboxCallFatalErrors_);
+        BlackboxCallFatalErrors_.Increment();
         THROW_ERROR_EXCEPTION("Blackbox call failed")
             << std::move(accumulatedErrors)
             << TErrorAttribute("call_id", callId);
@@ -265,7 +267,7 @@ private:
             NJson::ParseJson(&stream, builder.get(), Config);
             rootNode = builder->EndTree();
 
-            Profiler_.Update(BlackboxCallTime_, timer.GetElapsedValue());
+            BlackboxCallTime_.Record(timer.GetElapsedTime());
             YT_LOG_DEBUG("Parsed Blackbox daemon reply (CallId: %v, Attempt: %v)",
                 callId,
                 attempt);
@@ -289,7 +291,7 @@ IBlackboxServicePtr CreateDefaultBlackboxService(
     TDefaultBlackboxServiceConfigPtr config,
     ITvmServicePtr tvmService,
     IPollerPtr poller,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
 {
     return New<TDefaultBlackboxService>(
         std::move(config),

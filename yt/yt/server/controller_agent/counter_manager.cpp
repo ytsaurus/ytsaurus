@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/core/profiling/profile_manager.h>
-
 namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
@@ -13,11 +11,10 @@ using namespace NProfiling;
 
 TControllerAgentCounterManager::TControllerAgentCounterManager()
 {
-    static const TEnumMemberTagCache<EOperationType> OperationTypeTagCache("operation_type");
     for (auto type : TEnumTraits<EOperationType>::GetDomainValues()) {
-        AssertionsFailed_[type] = TShardedMonotonicCounter(
-            "/assertions_failed",
-            {OperationTypeTagCache.GetTag(type)});
+        AssertionsFailed_[type] = ControllerAgentProfiler
+            .WithTag("operation_type", FormatEnum(type))
+            .Counter("/assertions_failed"); 
     }
 }
 
@@ -28,7 +25,7 @@ TControllerAgentCounterManager* TControllerAgentCounterManager::Get()
 
 void TControllerAgentCounterManager::IncrementAssertionsFailed(EOperationType operationType)
 {
-    ControllerAgentProfiler.Increment(AssertionsFailed_[operationType]);
+    AssertionsFailed_[operationType].Increment();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -9,7 +9,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NChunkClient {
 
@@ -22,7 +22,7 @@ public:
     explicit TThrottlerManager(
         NConcurrency::TThroughputThrottlerConfigPtr config,
         NLogging::TLogger logger = {},
-        NProfiling::TProfiler profiler = {});
+        NProfiling::TRegistry profiler = {});
 
     NConcurrency::IThroughputThrottlerPtr GetThrottler(NObjectClient::TCellTag cellTag);
 
@@ -31,7 +31,7 @@ public:
 private:
     NConcurrency::TThroughputThrottlerConfigPtr Config_;
     const NLogging::TLogger Logger_;
-    const NProfiling::TProfiler Profiler_;
+    const NProfiling::TRegistry Profiler_;
 
     //! Protects the section immediately following it.
     TAdaptiveLock SpinLock_;

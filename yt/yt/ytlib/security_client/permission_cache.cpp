@@ -63,7 +63,7 @@ TString ToString(const TPermissionKey& key)
 TPermissionCache::TPermissionCache(
     TPermissionCacheConfigPtr config,
     NApi::NNative::IConnectionPtr connection,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
     : TAsyncExpiringCache(
         config,
         NLogging::TLogger("Cache: Permission"),

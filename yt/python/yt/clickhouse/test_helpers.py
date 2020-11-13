@@ -43,6 +43,7 @@ def get_logging_config():
 def get_clickhouse_server_config():
     return {
         "logging": get_logging_config(),
+        "solomon_exporter": {"enable_core_profiling_compatibility": True},
         "address_resolver": {"localhost_fqdn": "localhost"},
         "validate_operation_access": False,
         "user": "root",
@@ -91,5 +92,5 @@ def get_log_tailer_config():
             },
         },
         "logging": get_logging_config(),
+        "solomon_exporter": {"enable_core_profiling_compatibility": True},
     }
-

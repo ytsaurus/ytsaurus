@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "helpers.h"
+#include "private.h"
 
 #include <yt/ytlib/api/public.h>
 #include <yt/ytlib/api/native/public.h>
@@ -90,6 +91,7 @@ private:
     const NApi::IClientPtr Client_;
     const NConcurrency::TPeriodicExecutorPtr UpdateStateExecutor_;
     const NConcurrency::TPeriodicExecutorPtr UpdateDynamicConfigExecutor_;
+    NProfiling::TGauge BannedGauge_ = HttpProxyProfiler.Gauge("/banned");
 
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
     bool Initialized_ = false;

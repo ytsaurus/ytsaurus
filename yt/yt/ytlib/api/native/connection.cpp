@@ -48,9 +48,6 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/core/profiling/profiler.h>
-#include <yt/core/profiling/profile_manager.h>
-
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/lease_manager.h>
@@ -107,7 +104,7 @@ public:
         , ChannelFactory_(CreateCachingChannelFactory(
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
             Config_->IdleChannelTtl))
-        , Profiler_("/connection", {TProfileManager::Get()->RegisterTag("connection_name", Config_->Name)})
+        , Profiler_(TRegistry("yt/connection").WithTag("connection_name", Config_->Name))
     { }
 
     void Initialize()
@@ -188,7 +185,7 @@ public:
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
             EBlockType::CompressedData|EBlockType::UncompressedData,
-            Profiler_.AppendPath("/block_cache"));
+            Profiler_.WithPrefix("/block_cache"));
 
         TableMountCache_ = CreateNativeTableMountCache(
             Config_->TableMountCache,
@@ -513,7 +510,7 @@ private:
     TThreadPoolPtr ThreadPool_;
     IInvokerPtr ThreadPoolInvoker_;
 
-    TProfiler Profiler_;
+    TRegistry Profiler_;
 
     std::atomic<bool> Terminated_ = {false};
 

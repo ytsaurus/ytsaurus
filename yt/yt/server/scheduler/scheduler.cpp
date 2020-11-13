@@ -324,7 +324,7 @@ public:
             ->Cached(
                 Config_->StaticOrchidCacheUpdatePeriod,
                 OrchidWorkerPool_->GetInvoker(),
-                Profiler.AppendPath("/static_orchid"));
+                SchedulerProfilerRegistry.WithPrefix("/static_orchid"));
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YT_VERIFY(StaticOrchidService_);
 

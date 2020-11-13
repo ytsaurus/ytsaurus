@@ -1,8 +1,8 @@
 #pragma once
 
-#include <yt/core/profiling/profiler.h>
-
 #include <yt/ytlib/scheduler/public.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NControllerAgent {
 
@@ -21,7 +21,7 @@ public:
     static TControllerAgentCounterManager* Get();
 
 private:
-    TEnumIndexedVector<NScheduler::EOperationType, NProfiling::TShardedMonotonicCounter> AssertionsFailed_;
+    TEnumIndexedVector<NScheduler::EOperationType, NProfiling::TCounter> AssertionsFailed_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

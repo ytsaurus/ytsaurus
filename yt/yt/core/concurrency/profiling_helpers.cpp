@@ -1,5 +1,4 @@
 #include "profiling_helpers.h"
-#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT::NConcurrency {
 
@@ -7,49 +6,41 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTagIdList GetThreadTagIds(
+NProfiling::TTagSet GetThreadTags(
     bool enableProfiling,
     const TString& threadName)
 {
-    TTagIdList result;
+    TTagSet tags;
     if (enableProfiling) {
-        auto* profilingManager = TProfileManager::Get();
-        result.push_back(profilingManager->RegisterTag("thread", threadName));
+        tags.AddTag(std::pair<TString, TString>("thread", threadName));
     }
-    return result;
+    return tags;
 }
 
-TTagIdList GetBucketTagIds(
+TTagSet GetBucketTags(
     bool enableProfiling,
     const TString& threadName,
     const TString& bucketName)
 {
-    TTagIdList result;
+    TTagSet tags;
+
     if (enableProfiling) {
-        auto* profilingManager = TProfileManager::Get();
-        result.emplace_back(profilingManager->RegisterTag("thread", threadName));
-        result.emplace_back(profilingManager->RegisterTag("bucket", bucketName));
+        tags.AddTag(std::pair<TString, TString>("thread", threadName));
+        tags.AddTag(std::pair<TString, TString>("bucket", bucketName), -1);
     }
-    return result;
+
+    return tags;
 }
 
-std::vector<TTagIdList> GetBucketsTagIds(
+std::vector<TTagSet> GetBucketsTags(
     bool enableProfiling,
     const TString& threadName,
     const std::vector<TString>& bucketNames)
 {
-    std::vector<TTagIdList> result;
+    std::vector<TTagSet> result;
     for (const auto& bucketName : bucketNames) {
-        result.emplace_back(GetBucketTagIds(enableProfiling, threadName, bucketName));
+        result.emplace_back(GetBucketTags(enableProfiling, threadName, bucketName));
     }
-    return result;
-}
-
-TTagIdList GetInvokerTagIds(const TString& invokerName)
-{
-    TTagIdList result;
-    auto* profilingManager = TProfileManager::Get();
-    result.push_back(profilingManager->RegisterTag("invoker", invokerName));
     return result;
 }
 

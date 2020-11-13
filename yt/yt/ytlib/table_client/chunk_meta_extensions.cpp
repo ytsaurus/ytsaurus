@@ -142,7 +142,7 @@ i64 TCachedBlockMeta::GetWeight() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBlockMetaCache::TBlockMetaCache(TSlruCacheConfigPtr config, const NProfiling::TProfiler& profiler)
+TBlockMetaCache::TBlockMetaCache(TSlruCacheConfigPtr config, const NProfiling::TRegistry& profiler)
     : TSyncSlruCacheBase<NChunkClient::TChunkId, TCachedBlockMeta>(std::move(config), profiler)
 { }
 

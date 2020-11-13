@@ -4,7 +4,7 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NConcurrency {
 
@@ -29,7 +29,7 @@ struct TEnqueuedAction
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger ConcurrencyLogger;
-extern const NProfiling::TProfiler ConcurrencyProfiler;
+extern const NProfiling::TRegistry ConcurrencyProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

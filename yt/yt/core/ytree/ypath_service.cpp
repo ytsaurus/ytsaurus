@@ -255,20 +255,19 @@ DECLARE_REFCOUNTED_STRUCT(TCacheProfilingCounters);
 struct TCacheProfilingCounters
     : public TRefCounted
 {
-    explicit TCacheProfilingCounters(const NProfiling::TProfiler& profiler)
-        : Profiler(profiler)
-        , CacheHitCounter("/cache_hit")
-        , CacheMissCounter("/cache_miss")
-        , RedundantCacheMissCounter("/redundant_cache_miss")
-        , ByteSize("/byte_size")
+    explicit TCacheProfilingCounters(const NProfiling::TRegistry& registry)
+        : CacheHitCounter(registry.Counter("/cache_hit"))
+        , CacheMissCounter(registry.Counter("/cache_miss"))
+        , RedundantCacheMissCounter(registry.Counter("/redundant_cache_miss"))
+        , InvalidCacheHitCounter(registry.Counter("/invalid_cache_hit"))
+        , ByteSize(registry.Gauge("/byte_size"))
     { }
 
-    const NProfiling::TProfiler Profiler;
-    NProfiling::TShardedMonotonicCounter CacheHitCounter;
-    NProfiling::TShardedMonotonicCounter CacheMissCounter;
-    NProfiling::TShardedMonotonicCounter RedundantCacheMissCounter;
-    NProfiling::TShardedMonotonicCounter InvalidCacheCounter;
-    NProfiling::TAtomicGauge ByteSize;
+    NProfiling::TCounter CacheHitCounter;
+    NProfiling::TCounter CacheMissCounter;
+    NProfiling::TCounter RedundantCacheMissCounter;
+    NProfiling::TCounter InvalidCacheHitCounter;
+    NProfiling::TGauge ByteSize;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheProfilingCounters);
@@ -299,7 +298,7 @@ public:
         if (it == CachedReplies_.end()) {
             CachedReplies_.emplace_direct(ctx, key, response);
         } else {
-            ProfilingCounters_->Profiler.Increment(ProfilingCounters_->RedundantCacheMissCounter);
+            ProfilingCounters_->RedundantCacheMissCounter.Increment();
         }
     }
 
@@ -379,7 +378,7 @@ public:
         IYPathServicePtr underlyingService,
         TDuration updatePeriod,
         IInvokerPtr workerInvoker,
-        const NProfiling::TProfiler& profiler);
+        const NProfiling::TRegistry& registry);
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& /*context*/) override;
 
@@ -410,7 +409,7 @@ TCachedYPathService::TCachedYPathService(
     IYPathServicePtr underlyingService,
     TDuration updatePeriod,
     IInvokerPtr workerInvoker,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& registry)
     : UnderlyingService_(std::move(underlyingService))
     , WorkerInvoker_(workerInvoker
         ? workerInvoker
@@ -419,7 +418,7 @@ TCachedYPathService::TCachedYPathService(
         WorkerInvoker_,
         BIND(&TCachedYPathService::RebuildCache, MakeWeak(this)),
         updatePeriod))
-    , ProfilingCounters_(New<TCacheProfilingCounters>(profiler))
+    , ProfilingCounters_(New<TCacheProfilingCounters>(registry))
 {
     YT_VERIFY(UnderlyingService_);
     SetCachePeriod(updatePeriod);
@@ -477,7 +476,7 @@ bool TCachedYPathService::DoInvoke(const IServiceContextPtr& context)
                 auto cachedResponse = cacheSnapshot->LookupResponse(key);
                 if (cachedResponse) {
                     ReplyErrorOrValue(context, *cachedResponse);
-                    ProfilingCounters_->Profiler.Increment(ProfilingCounters_->CacheHitCounter);
+                    ProfilingCounters_->CacheHitCounter.Increment();
                     return;
                 }
 
@@ -490,14 +489,14 @@ bool TCachedYPathService::DoInvoke(const IServiceContextPtr& context)
 
                 auto contextWrapper = New<TCachedYPathServiceContext>(context, MakeWeak(cacheSnapshot), std::move(key));
                 ExecuteVerb(tree, contextWrapper);
-                ProfilingCounters_->Profiler.Increment(ProfilingCounters_->CacheMissCounter);
+                ProfilingCounters_->CacheMissCounter.Increment();
             } catch (const std::exception& ex) {
                 context->Reply(ex);
             }
         }));
     } else {
         UnderlyingService_->Invoke(context);
-        ProfilingCounters_->Profiler.Increment(ProfilingCounters_->InvalidCacheCounter);
+        ProfilingCounters_->InvalidCacheHitCounter.Increment();
     }
 
     return true;
@@ -511,7 +510,7 @@ void TCachedYPathService::RebuildCache()
         auto yson = WaitFor(asyncYson)
             .ValueOrThrow();
 
-        ProfilingCounters_->Profiler.Update(ProfilingCounters_->ByteSize, yson.GetData().Size());
+        ProfilingCounters_->ByteSize.Update(yson.GetData().Size());
 
         UpdateCachedTree(ConvertToNode(yson));
     } catch (const std::exception& ex) {
@@ -529,9 +528,9 @@ void TCachedYPathService::UpdateCachedTree(const TErrorOr<INodePtr>& treeOrError
 IYPathServicePtr IYPathService::Cached(
     TDuration updatePeriod,
     IInvokerPtr workerInvoker,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& registry)
 {
-    return New<TCachedYPathService>(this, updatePeriod, workerInvoker, profiler);
+    return New<TCachedYPathService>(this, updatePeriod, workerInvoker, registry);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
