@@ -64,6 +64,12 @@ protected:
         return NullCellId;
     }
 
+    virtual const TString& GetTabletCellBundleName() override
+    {
+        const static TString TabletCellBundleName;
+        return TabletCellBundleName;
+    }
+
     virtual EPeerState GetAutomatonState() override
     {
         return EPeerState::Leading;

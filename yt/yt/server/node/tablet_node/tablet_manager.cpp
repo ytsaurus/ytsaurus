@@ -578,6 +578,11 @@ private:
             return Owner_->Slot_->GetCellId();
         }
 
+        virtual const TString& GetTabletCellBundleName() override
+        {
+            return Owner_->Slot_->GetTabletCellBundleName();
+        }
+
         virtual EPeerState GetAutomatonState() override
         {
             return Owner_->Slot_->GetAutomatonState();
