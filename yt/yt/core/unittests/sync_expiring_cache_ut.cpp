@@ -31,24 +31,43 @@ TEST(TSyncExpiringCacheTest, MultipleGet_RaceCondition)
 TEST(TSyncExpiringCacheTest, FindSetClear)
 {
     auto cache = New<TSyncExpiringCache<int, int>>(
-        BIND([] (int x) {
-            return x;
-        }),
+        BIND([] (int x) { return x; }),
         TDuration::Seconds(1),
         GetSyncInvoker());
 
-    auto value1 = cache->Find(1);
-    EXPECT_EQ(std::nullopt, value1);
+    EXPECT_EQ(std::nullopt, cache->Find(1));
 
     cache->Set(1, 2);
 
-    auto value2 = cache->Find(1);
-    EXPECT_EQ(2, value2);
+    EXPECT_EQ(2, cache->Find(1));
 
     cache->Clear();
 
-    auto value3 = cache->Find(1);
-    EXPECT_EQ(std::nullopt, value3);
+    EXPECT_EQ(std::nullopt, cache->Find(1));
+}
+
+TEST(TSyncExpiringCacheTest, SetExpirationTimeout)
+{
+    auto cache = New<TSyncExpiringCache<int, int>>(
+        BIND([] (int x) { return x; }),
+        TDuration::Seconds(1),
+        GetSyncInvoker());
+
+    cache->Set(1, 2);
+
+    cache->SetExpirationTimeout(TDuration::MilliSeconds(100));
+
+    Sleep(TDuration::MilliSeconds(200));
+
+    EXPECT_EQ(std::nullopt, cache->Find(1));
+
+    cache->Set(1, 3);
+
+    cache->SetExpirationTimeout(std::nullopt);
+
+    Sleep(TDuration::MilliSeconds(200));
+
+    EXPECT_EQ(3, cache->Find(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

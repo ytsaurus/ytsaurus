@@ -15,7 +15,7 @@ class TSyncExpiringCache
 public:
     TSyncExpiringCache(
         TCallback<TValue(const TKey&)> calculateValueAction,
-        TDuration expirationTimeout,
+        std::optional<TDuration> expirationTimeout,
         IInvokerPtr invoker);
 
     TValue Get(const TKey& key);
@@ -24,7 +24,7 @@ public:
     void Set(const TKey& key, TValue value);
     void Clear();
 
-    void SetExpirationTimeout(TDuration expirationTimeout);
+    void SetExpirationTimeout(std::optional<TDuration> expirationTimeout);
 
 private:
     struct TEntry

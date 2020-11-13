@@ -829,7 +829,7 @@ public:
         , NodeMap_(TNodeMapTraits(this))
         , RecursiveResourceUsageCache_(New<TRecursiveResourceUsageCache>(
             BIND(&TImpl::DoComputeRecursiveResourceUsage, MakeStrong(this)),
-            TDuration::Zero(),
+            std::nullopt,
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::RecursiveResourceUsageCache)))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);

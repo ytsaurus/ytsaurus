@@ -14,15 +14,14 @@ namespace NYT {
 template <class TKey, class TValue>
 TSyncExpiringCache<TKey, TValue>::TSyncExpiringCache(
     TCallback<TValue(const TKey&)> calculateValueAction,
-    TDuration expirationTimeout,
+    std::optional<TDuration> expirationTimeout,
     IInvokerPtr invoker)
     : CalculateValueAction_(std::move(calculateValueAction))
-    , ExpirationTimeout_(NProfiling::DurationToCpuDuration(expirationTimeout))
     , EvictionExecutor_(New<NConcurrency::TPeriodicExecutor>(
         invoker,
-        BIND(&TSyncExpiringCache::DeleteExpiredItems, MakeWeak(this)),
-        expirationTimeout))
+        BIND(&TSyncExpiringCache::DeleteExpiredItems, MakeWeak(this))))
 {
+    SetExpirationTimeout(expirationTimeout);
     EvictionExecutor_->Start();
 }
 
@@ -30,6 +29,7 @@ template <class TKey, class TValue>
 TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 {
     auto now = NProfiling::GetCpuInstant();
+    auto deadline = now - ExpirationTimeout_.load();
 
     {
         NConcurrency::TReaderGuard guard(MapLock_);
@@ -37,7 +37,7 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
         auto it = Map_.find(key);
         if (it != Map_.end()) {
             auto& entry = it->second;
-            if (now <= entry.LastUpdateTime + ExpirationTimeout_.load()) {
+            if (entry.LastUpdateTime >= deadline) {
                 entry.LastAccessTime = now;
                 return entry.Value;
             }
@@ -66,13 +66,14 @@ template <class TKey, class TValue>
 std::optional<TValue> TSyncExpiringCache<TKey, TValue>::Find(const TKey& key)
 {
     auto now = NProfiling::GetCpuInstant();
+    auto deadline = now - ExpirationTimeout_.load();
 
     NConcurrency::TReaderGuard guard(MapLock_);
 
     auto it = Map_.find(key);
     if (it != Map_.end()) {
         auto& entry = it->second;
-        if (now <= entry.LastUpdateTime + ExpirationTimeout_.load()) {
+        if (entry.LastUpdateTime >= deadline) {
             entry.LastAccessTime = now;
             return entry.Value;
         }
@@ -84,9 +85,10 @@ std::optional<TValue> TSyncExpiringCache<TKey, TValue>::Find(const TKey& key)
 template <class TKey, class TValue>
 void TSyncExpiringCache<TKey, TValue>::Set(const TKey& key, TValue value)
 {
+    auto now = NProfiling::GetCpuInstant();
+
     NConcurrency::TWriterGuard guard(MapLock_);
 
-    auto now = NProfiling::GetCpuInstant();
     Map_[key] = {now, now, std::move(value)};
 }
 
@@ -101,9 +103,12 @@ void TSyncExpiringCache<TKey, TValue>::Clear()
 }
 
 template <class TKey, class TValue>
-void TSyncExpiringCache<TKey, TValue>::SetExpirationTimeout(TDuration expirationTimeout)
+void TSyncExpiringCache<TKey, TValue>::SetExpirationTimeout(std::optional<TDuration> expirationTimeout)
 {
-    ExpirationTimeout_.store(NProfiling::DurationToCpuDuration(expirationTimeout));
+    EvictionExecutor_->SetPeriod(expirationTimeout);
+    ExpirationTimeout_.store(expirationTimeout
+        ? NProfiling::DurationToCpuDuration(*expirationTimeout)
+        : std::numeric_limits<NProfiling::TCpuDuration>::max() / 2); // effective (but safer) infinity
 }
 
 template <class TKey, class TValue>
