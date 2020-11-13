@@ -91,6 +91,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ResponseKeeper)
     (TamedCellManager)
     (SchedulerPoolManager)
+    (RecursiveResourceUsageCache)
 );
 
 using NCellMasterClient::EMasterCellRoles;

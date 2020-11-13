@@ -830,7 +830,7 @@ public:
         , RecursiveResourceUsageCache_(New<TRecursiveResourceUsageCache>(
             BIND(&TImpl::DoComputeRecursiveResourceUsage, MakeStrong(this)),
             TDuration::Zero(),
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default)))
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::RecursiveResourceUsageCache)))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
