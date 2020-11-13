@@ -33,9 +33,9 @@ int TComparator::GetLength() const
 void TComparator::ValidateKey(const TKey& key) const
 {
     YT_LOG_FATAL_IF(
-        key.GetCount() != GetLength(),
+        key.GetLength() != GetLength(),
         "Comparator is used with key of different length (Key: %v, Comparator: %v)",
-        key.AsRow(),
+        key,
         *this);
 }
 
@@ -173,7 +173,7 @@ int TComparator::CompareKeys(const TKey& lhs, const TKey& rhs) const
     ValidateKey(lhs);
     ValidateKey(rhs);
 
-    for (int index = 0; index < lhs.GetCount(); ++index) {
+    for (int index = 0; index < lhs.GetLength(); ++index) {
         auto valueComparisonResult = CompareValues(index, lhs[index], rhs[index]);
         if (valueComparisonResult != 0) {
             return valueComparisonResult;

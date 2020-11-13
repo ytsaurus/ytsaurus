@@ -6,76 +6,60 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! This class represents a (contextually) schemaful comparable row. It behaves
-//! similarly to TUnversioned{,Owning}Row and is implemented as a strong alias
-//! to the corresponding type via inheritance.
-template <class TRow>
-class TKeyImpl
-    : public TRow
+//! similarly to TUnversionedRow.
+class TKey
 {
 public:
-    //! Construct from a given row and validate that row does not contain
-    //! setntinels of types Min, Max and Bottom.
-    static TKeyImpl FromRow(const TRow& row);
+    //! Construct from a given row and possibly key length and validate that row does not contain
+    //! setntinels of types Min, Max and Bottom. If key length is not specified, row length will be used instead.
+    static TKey FromRow(const TUnversionedRow& row, std::optional<int> length = std::nullopt);
 
-    //! Same as previous but for rvalue refs.
-    static TKeyImpl FromRow(TRow&& row);
-
-    //! Construct from a given row without checking presence of types Min, Max and Bottom.
+    //! Same as above, but does not check that row does not contain sentinels.
     //! NB: in debug mode value type check is still performed, but results in YT_ABORT().
-    static TKeyImpl FromRowUnchecked(const TRow& row);
+    static TKey FromRowUnchecked(const TUnversionedRow& row, std::optional<int> length = std::nullopt);
 
-    //! Same as previous but for rvalue refs.
-    static TKeyImpl FromRowUnchecked(TRow&& row);
+    //! Performs a deep copy of underlying values into owning row.
+    TUnversionedOwningRow AsOwningRow() const;
 
-    //! Helper for static_cast<const TRow&>(*this).
-    const TRow& AsRow() const;
+    const TUnversionedValue& operator[](int index) const;
+
+    int GetLength() const;
+
+    //! Helpers for printing and hashing.
+    const TUnversionedValue* Begin() const;
+    const TUnversionedValue* End() const;
 
 private:
-    TKeyImpl() = default;
+    TKey(const TUnversionedValue* begin, int length);
 
-    static void ValidateValueTypes(const TRow& row);
+    const TUnversionedValue* Begin_;
+
+    const int Length_;
+
+    static void ValidateValueTypes(
+        const TUnversionedValue* begin,
+        const TUnversionedValue* end);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-
-// Template is explicitly instantiated for the following two kinds of rows.
-using TKey = NDetail::TKeyImpl<TUnversionedRow>;
-using TOwningKey = NDetail::TKeyImpl<TUnversionedOwningRow>;
-
-TKey AsNonOwningKey(const TOwningKey& owningKey);
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
+bool operator==(const TKey& lhs, const TKey& rhs);
+bool operator!=(const TKey& lhs, const TKey& rhs);
 
 void FormatValue(TStringBuilderBase* builder, const TKey& key, TStringBuf format);
-void FormatValue(TStringBuilderBase* builder, const TOwningKey& key, TStringBuf format);
 TString ToString(const TKey& key);
-TString ToString(const TOwningKey& key);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
 
-//! A hasher for TKey and TOwningKey.
-template <class TRow>
-struct THash<NYT::NTableClient::NDetail::TKeyImpl<TRow>>
+//! A hasher for TKey.
+template <>
+struct THash<NYT::NTableClient::TKey>
 {
-    inline size_t operator()(const NYT::NTableClient::NDetail::TKeyImpl<TRow>& key) const
+    inline size_t operator()(const NYT::NTableClient::TKey& key) const
     {
-        return THash<TRow>()(static_cast<const TRow&>(key));
+        return GetHash(key.Begin(), key.End());
     }
 };

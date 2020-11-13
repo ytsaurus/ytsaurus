@@ -13,11 +13,6 @@ TUnversionedOwningRow MakeRow(const std::vector<TUnversionedValue>& values)
     return builder.FinishRow();
 }
 
-TOwningKey MakeKey(const std::vector<TUnversionedValue>& values)
-{
-    return TOwningKey::FromRow(MakeRow(values));
-}
-
 TOwningKeyBound MakeKeyBound(const std::vector<TUnversionedValue>& values, bool isInclusive, bool isUpper)
 {
     return TOwningKeyBound::FromRow(MakeRow(values), isInclusive, isUpper);

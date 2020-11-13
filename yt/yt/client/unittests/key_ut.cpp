@@ -16,37 +16,20 @@ TEST(TKeyTest, Simple)
     TString str = "Foo";
     builder.AddValue(MakeUnversionedStringValue(str, 3));
 
-    auto owningRow = builder.FinishRow();
-    // Builder captures string, so this address is different from str.data().
-    auto* strPtr = owningRow[3].Data.String;
-
-    auto row = owningRow;
-    auto rowBeginPtr = row.Begin();
+    auto row = builder.FinishRow();
     {
         auto key = TKey::FromRow(row);
-        EXPECT_EQ(row, key.AsRow());
-        EXPECT_EQ(rowBeginPtr, key.Begin());
+        EXPECT_EQ(row, key.AsOwningRow());
+        EXPECT_EQ(row.Begin(), key.Begin());
+        EXPECT_EQ(4, key.GetLength());
     }
     {
-        // Steal row.
-        auto stolenKey = TKey::FromRow(std::move(row));
-        EXPECT_EQ(owningRow, stolenKey.AsRow());
-        EXPECT_EQ(rowBeginPtr, stolenKey.Begin());
+        TUnversionedOwningRow shortenedRow(row.Begin(), row.Begin() + 2);
+        auto key = TKey::FromRow(row, /* length */2);
+        EXPECT_EQ(shortenedRow, key.AsOwningRow());
+        EXPECT_EQ(row.Begin(), key.Begin());
+        EXPECT_EQ(2, key.GetLength());
     }
-    {
-        auto owningKey = TOwningKey::FromRow(owningRow);
-        EXPECT_EQ(owningRow, owningKey.AsRow());
-    }
-    {
-        // Steal owningRow.
-        auto stolenOwningKey = TOwningKey::FromRow(std::move(owningRow));
-        EXPECT_EQ(EValueType::String, stolenOwningKey[3].Type);
-        EXPECT_EQ(strPtr, stolenOwningKey[3].Data.String);
-    }
-
-    // Does not compile:
-    // TOwningKey key;
-    // TOwningKey key((TUnversionedRow()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
