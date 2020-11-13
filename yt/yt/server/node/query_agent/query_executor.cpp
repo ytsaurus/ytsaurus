@@ -11,8 +11,6 @@
 #include <yt/server/node/data_node/local_chunk_reader.h>
 #include <yt/server/node/data_node/master_connector.h>
 
-#include <yt/server/lib/hydra/hydra_manager.h>
-
 #include <yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/server/lib/tablet_node/config.h>
@@ -32,14 +30,11 @@
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/client/object_client/helpers.h>
-
-#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/client/query_client/query_statistics.h>
 
@@ -59,30 +54,22 @@
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/config.h>
 #include <yt/client/table_client/pipe.h>
-#include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/unordered_schemaful_reader.h>
+#include <yt/client/object_client/public.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/misc/memory_usage_tracker.h>
-
 #include <yt/core/concurrency/scheduler.h>
 
-#include <yt/core/misc/string.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/async_expiring_cache.h>
 
 #include <yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NQueryClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr double DefaultQLPoolWeight = 1.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -315,7 +302,6 @@ public:
         TQueryAgentConfigPtr config,
         TFunctionImplCachePtr functionImplCache,
         TBootstrap* const bootstrap,
-        TColumnEvaluatorCachePtr columnEvaluatorCache,
         TEvaluatorPtr evaluator,
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
@@ -327,7 +313,9 @@ public:
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
         , Bootstrap_(bootstrap)
-        , ColumnEvaluatorCache_(std::move(columnEvaluatorCache))
+        , ColumnEvaluatorCache_(bootstrap->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetColumnEvaluatorCache())
         , Evaluator_(std::move(evaluator))
         , Query_(std::move(query))
         , ExternalCGInfo_(std::move(externalCGInfo))
@@ -341,7 +329,7 @@ public:
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
     { }
 
-    TFuture<TQueryStatistics> Execute(TServiceProfilerGuard& profilerGuard)
+    TQueryStatistics Execute(TServiceProfilerGuard& profilerGuard)
     {
         for (const auto& source : DataSources_) {
             if (TypeFromId(source.Id) == EObjectType::Tablet) {
@@ -360,9 +348,7 @@ public:
             profilerGuard.SetProfilerTags(AddUserTag(TabletSnapshots_.GetProfilerTags(), Identity_));
         }
 
-        return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
-            .AsyncVia(Invoker_)
-            .Run();
+        return DoExecute();
     }
 
 private:
@@ -1054,149 +1040,36 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
-
-class TPoolWeightCache
-    : public TAsyncExpiringCache<TString, double>
-{
-public:
-    TPoolWeightCache(
-        TAsyncExpiringCacheConfigPtr config,
-        TWeakPtr<NApi::NNative::IClient> client,
-        IInvokerPtr invoker)
-        : TAsyncExpiringCache(
-            std::move(config),
-            NLogging::TLogger(QueryClientLogger)
-                .AddTag("Cache: PoolWeight"))
-        , Client_(std::move(client))
-        , Invoker_(std::move(invoker))
-    { }
-
-private:
-    const TWeakPtr<NApi::NNative::IClient> Client_;
-    const IInvokerPtr Invoker_;
-
-    virtual TFuture<double> DoGet(
-        const TString& key,
-        bool /*isPeriodicUpdate*/) noexcept override
-    {
-        auto client = Client_.Lock();
-        if (!client) {
-            return MakeFuture<double>(TError(NYT::EErrorCode::Canceled, "Client destroyed"));
-        }
-        return BIND(GetPoolWeight, std::move(client), key)
-            .AsyncVia(Invoker_)
-            .Run();
-    }
-
-    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& pool)
-    {
-        auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(pool);
-
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Cache));
-        auto req = TYPathProxy::Get(path + "/@weight");
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return DefaultQLPoolWeight;
-        }
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError,
-            "Failed to get pool %Qv weight from Cypress",
-            pool);
-
-        const auto& rsp = rspOrError.Value();
-        return ConvertTo<double>(NYson::TYsonString(rsp->value()));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TQuerySubexecutor
-    : public IQuerySubexecutor
-{
-public:
-    TQuerySubexecutor(
-        TQueryAgentConfigPtr config,
-        TBootstrap* bootstrap)
-        : Config_(config)
-        , FunctionImplCache_(CreateFunctionImplCache(
-            config->FunctionImplCache,
-            bootstrap->GetMasterClient()))
-        , Bootstrap_(bootstrap)
-        , Evaluator_(New<TEvaluator>(
-            Config_,
-            QueryAgentProfilerRegistry,
-            CreateMemoryTrackerForCategory(
-                Bootstrap_->GetMemoryUsageTracker(),
-                NNodeTrackerClient::EMemoryCategory::Query)))
-        , ColumnEvaluatorCache_(Bootstrap_
-            ->GetMasterClient()
-            ->GetNativeConnection()
-            ->GetColumnEvaluatorCache())
-        , PoolWeightCache_(New<TPoolWeightCache>(
-            config->PoolWeightCache,
-            Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetQueryPoolInvoker({}, DefaultQLPoolWeight, {})))
-    { }
-
-    // IQuerySubexecutor implementation.
-    virtual TFuture<TQueryStatistics> Execute(
-        TConstQueryPtr query,
-        TConstExternalCGInfoPtr externalCGInfo,
-        std::vector<TDataRanges> dataSources,
-        IUnversionedRowsetWriterPtr writer,
-        const TClientBlockReadOptions& blockReadOptions,
-        const TQueryOptions& options,
-        TServiceProfilerGuard& profilerGuard) override
-    {
-        ValidateReadTimestamp(options.Timestamp);
-
-        double weight = options.ExecutionPool
-            ? WaitFor(PoolWeightCache_->Get(*options.ExecutionPool))
-                .ValueOrThrow()
-            : DefaultQLPoolWeight;
-
-        auto queryInvoker = Bootstrap_->GetQueryPoolInvoker(
-            options.ExecutionPool.value_or(""),
-            weight,
-            ToString(options.ReadSessionId));
-
-        auto execution = New<TQueryExecution>(
-            Config_,
-            FunctionImplCache_,
-            Bootstrap_,
-            ColumnEvaluatorCache_,
-            Evaluator_,
-            std::move(query),
-            std::move(externalCGInfo),
-            std::move(dataSources),
-            std::move(writer),
-            blockReadOptions,
-            options,
-            queryInvoker);
-
-        return execution->Execute(profilerGuard);
-    }
-
-private:
-    const TQueryAgentConfigPtr Config_;
-    const TFunctionImplCachePtr FunctionImplCache_;
-    TBootstrap* const Bootstrap_;
-    const TEvaluatorPtr Evaluator_;
-    const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    const TPoolWeightCachePtr PoolWeightCache_;
-
-};
-
-IQuerySubexecutorPtr CreateQuerySubexecutor(
+TQueryStatistics ExecuteSubquery(
     TQueryAgentConfigPtr config,
-    TBootstrap* bootstrap)
+    TFunctionImplCachePtr functionImplCache,
+    TBootstrap* const bootstrap,
+    TEvaluatorPtr evaluator,
+    TConstQueryPtr query,
+    TConstExternalCGInfoPtr externalCGInfo,
+    std::vector<TDataRanges> dataSources,
+    IUnversionedRowsetWriterPtr writer,
+    const TClientBlockReadOptions& blockReadOptions,
+    const TQueryOptions& options,
+    IInvokerPtr invoker,
+    TServiceProfilerGuard& profilerGuard)
 {
-    return New<TQuerySubexecutor>(config, bootstrap);
+    ValidateReadTimestamp(options.Timestamp);
+
+    auto execution = New<TQueryExecution>(
+        config,
+        functionImplCache,
+        bootstrap,
+        evaluator,
+        std::move(query),
+        std::move(externalCGInfo),
+        std::move(dataSources),
+        std::move(writer),
+        blockReadOptions,
+        options,
+        invoker);
+
+    return execution->Execute(profilerGuard);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
