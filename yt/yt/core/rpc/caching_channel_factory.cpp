@@ -81,17 +81,15 @@ class TCachingChannelFactory
 public:
     TCachingChannelFactory(
         IChannelFactoryPtr underlyingFactory,
-        TDuration expirationTime)
+        TDuration idleChannelTtl)
         : UnderlyingFactory_(std::move(underlyingFactory))
-        , IdleChannelTtl_(expirationTime)
+        , IdleChannelTtl_(idleChannelTtl)
         , ExpirationExecutor_(New<TPeriodicExecutor>(
             TDispatcher::Get()->GetHeavyInvoker(),
             BIND(&TCachingChannelFactory::CheckExpiredChannels, MakeWeak(this)),
             std::min(ExpirationCheckInterval, IdleChannelTtl_)))
     {
-        if (IdleChannelTtl_ != TDuration::Max()) {
-            ExpirationExecutor_->Start();
-        }
+        ExpirationExecutor_->Start();
     }
 
     virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
@@ -202,9 +200,7 @@ private:
 
     void RegisterChannelForTtlChecks(const TString& address, const TCachedChannelPtr& channel)
     {
-        if (IdleChannelTtl_ < TDuration::Max()) {
-            TtlRegisterQueue_.Enqueue({address, channel});
-        }
+        TtlRegisterQueue_.Enqueue({address, channel});
     }
 
     void CheckExpiredChannels()
@@ -219,10 +215,12 @@ private:
         auto it = TtlCheckQueue_.begin();
         while (it != TtlCheckQueue_.end()) {
             auto channel = it->second.Lock();
-            if (!channel || channel->GetLastActivityTime() < deadline) {
-                YT_LOG_DEBUG("Cached channel expired (Address: %v, Endpoint: %v, Ttl: %v)",
+            auto lastActivityTime = channel ? std::make_optional(channel->GetLastActivityTime()) : std::nullopt;
+            if (!lastActivityTime || *lastActivityTime < deadline) {
+                YT_LOG_DEBUG("Cached channel expired (Address: %v, Endpoint: %v, LastActivityTime: %v, Ttl: %v)",
                     it->first,
-                    channel ? channel->GetEndpointDescription() : TStringBuf("<unknown>"),
+                    channel ? std::make_optional(channel->GetEndpointDescription()) : std::nullopt,
+                    lastActivityTime,
                     IdleChannelTtl_);
                 expiredItems.emplace_back(std::move(it->first), std::move(channel));
                 *it = std::move(TtlCheckQueue_.back());
