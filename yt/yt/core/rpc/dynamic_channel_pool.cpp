@@ -112,14 +112,14 @@ public:
 
         PeersSetPromise_.TrySet();
     }
-    
+
     void SetPeerDiscoveryError(const TError& error)
     {
         {
             TWriterGuard guard(SpinLock_);
             PeerDiscoveryError_ = error;
         }
-        
+
         PeersSetPromise_.TrySet();
     }
 
@@ -436,7 +436,7 @@ private:
         if (!IsRequestSticky(request)) {
             return PickRandomViableChannel(request);
         }
-        
+
         const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
         return PickStickyViableChannel(request, balancingExt.sticky_group_size());
     }
@@ -631,7 +631,7 @@ private:
         if (ActiveAddresses_.size() + BannedAddresses_.size() + newAddresses.size() > Config_->MaxPeerCount) {
             MaybeEvictRandomPeer(guard);
         }
-        
+
         for (const auto& address : newAddresses) {
             if (ActiveAddresses_.size() + BannedAddresses_.size() >= Config_->MaxPeerCount) {
                 break;
@@ -663,22 +663,16 @@ private:
         RandomEvictionDeadline_ = now + Config_->RandomPeerEvictionPeriod + RandomDuration(Config_->RandomPeerEvictionPeriod);
     }
 
-    void RemovePeer(const TString& address, TWriterGuard& /*guard*/)
+    void RemovePeer(const TString& address, TWriterGuard& guard)
     {
         if (ActiveAddresses_.erase(address) == 0 && BannedAddresses_.erase(address) == 0) {
             return;
         }
 
         if (auto it = AddressToIndex_.find(address)) {
-            auto index = it->second;
-            AddressToIndex_.erase(it);
-            if (index + 1 != ViablePeers_.size()) {
-                std::swap(ViablePeers_[index], ViablePeers_.back());
-                AddressToIndex_[ViablePeers_[index].Address] = index;
-            }
-            ViablePeers_.pop_back();
+            UnregisterViablePeer(it, guard);
         }
-        
+
         YT_LOG_DEBUG("Peer removed (Address: %v)", address);
     }
 
@@ -770,7 +764,7 @@ private:
         bool updated;
         {
             TWriterGuard guard(SpinLock_);
-            updated = RegisterViablePeer(address, wrappedChannel);
+            updated = RegisterViablePeer(address, wrappedChannel, guard);
         }
 
         YT_LOG_DEBUG("Peer is viable (Address: %v, Updated: %v)",
@@ -783,7 +777,7 @@ private:
         TWriterGuard guard(SpinLock_);
         auto it = AddressToIndex_.find(address);
         if (it != AddressToIndex_.end()) {
-            UnregisterViablePeer(it);
+            UnregisterViablePeer(it, guard);
         }
     }
 
@@ -795,7 +789,7 @@ private:
             auto it = AddressToIndex_.find(address);
             if (it != AddressToIndex_.end() && ViablePeers_[it->second].Channel == channel) {
                 evicted = true;
-                UnregisterViablePeer(it);
+                UnregisterViablePeer(it, guard);
             }
         }
 
@@ -805,7 +799,7 @@ private:
     }
 
 
-    bool RegisterViablePeer(const TString& address, const IChannelPtr& channel)
+    bool RegisterViablePeer(const TString& address, const IChannelPtr& channel, TWriterGuard& /*guard*/)
     {
         GeneratePeerHashes(address, [&] (size_t hash) {
             HashToViableChannel_[std::make_pair(hash, address)] = channel;
@@ -825,7 +819,7 @@ private:
         return updated;
     }
 
-    void UnregisterViablePeer(THashMap<TString, int>::iterator it)
+    void UnregisterViablePeer(THashMap<TString, int>::iterator it, TWriterGuard& /*guard*/)
     {
         const auto& address = it->first;
         GeneratePeerHashes(address, [&] (size_t hash) {
@@ -865,7 +859,7 @@ TDynamicChannelPool::~TDynamicChannelPool() = default;
 
 TFuture<IChannelPtr> TDynamicChannelPool::GetRandomChannel()
 {
-    return Impl_->GetRandomChannel();   
+    return Impl_->GetRandomChannel();
 }
 
 TFuture<IChannelPtr> TDynamicChannelPool::GetChannel(const IClientRequestPtr& request)

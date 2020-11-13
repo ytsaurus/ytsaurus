@@ -11,7 +11,7 @@ namespace NYT::NRpc {
 //! These channels expire after some time of inactivity.
 IChannelFactoryPtr CreateCachingChannelFactory(
     IChannelFactoryPtr underlyingFactory,
-    TDuration idleChannelTtl = TDuration::Max());
+    TDuration idleChannelTtl = TDuration::Minutes(5));
 
 ////////////////////////////////////////////////////////////////////////////////
 

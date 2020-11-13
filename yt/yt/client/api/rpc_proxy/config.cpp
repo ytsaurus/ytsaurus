@@ -50,8 +50,12 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("default_ping_period", DefaultPingPeriod)
         .Default(TDuration::Seconds(5));
+
     RegisterParameter("bus_client", BusClient)
         .DefaultNew();
+    RegisterParameter("idle_channel_ttl", IdleChannelTtl)
+        .Default(TDuration::Minutes(5));
+
     RegisterParameter("http_client", HttpClient)
         .DefaultNew();
 

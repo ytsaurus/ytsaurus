@@ -212,7 +212,9 @@ TConnection::TConnection(TConnectionConfigPtr config)
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddRawTag(LoggingId_))
     , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
-    , ChannelFactory_(CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)))
+    , ChannelFactory_(CreateCachingChannelFactory(
+        NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
+        Config_->IdleChannelTtl))
     , ChannelPool_(New<TDynamicChannelPool>(
         Config_->DynamicChannelPool,
         ChannelFactory_,
