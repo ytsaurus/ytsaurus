@@ -66,14 +66,23 @@ protected:
         recursiveFill(0, recursiveFill);
     }
 
-    std::vector<TOwningKey> GenerateKeys(
+    std::vector<TKey> GenerateKeys(
         const std::vector<TUnversionedValue>& possibleValues,
         int keyLength)
     {
-        std::vector<TOwningKey> allKeys;
-        InvokeForAllRows(possibleValues, keyLength, keyLength, [&] (auto row) { allKeys.push_back(TOwningKey::FromRow(row)); });
-        return allKeys;
+        RowStorage_.clear();
+        InvokeForAllRows(possibleValues, keyLength, keyLength, [&] (auto row) { RowStorage_.push_back(row); });
+
+        std::vector<TKey> keys;
+        keys.reserve(RowStorage_.size());
+        for (const auto& row : RowStorage_) {
+            keys.push_back(TKey::FromRow(row));
+        }
+        return keys;
     }
+
+private:
+    std::vector<TUnversionedOwningRow> RowStorage_;
 };
 
 TEST_F(TComparatorTest, StressNewAndLegacyTestEquivalence)
@@ -88,14 +97,14 @@ TEST_F(TComparatorTest, StressNewAndLegacyTestEquivalence)
     auto validateTestPreservation = [&] (const TKeyBound& keyBound, const TUnversionedRow& legacyRow) {
         bool isUpper = keyBound.IsUpper;
         for (const auto& key : allKeys) {
-            auto legacyTest = isUpper ? key < legacyRow : key >= legacyRow;
-            auto newTest = Comparator.TestKey(AsNonOwningKey(key), keyBound);
+            auto legacyTest = isUpper ? key.AsOwningRow() < legacyRow : key.AsOwningRow() >= legacyRow;
+            auto newTest = Comparator.TestKey(key, keyBound);
 
             if (legacyTest != newTest) {
                 Cerr
                     << "Legacy row: " << ToString(legacyRow) << Endl
                     << "Key bound: " << ToString(keyBound) << Endl
-                    << "Key: " << ToString(key.AsRow()) << Endl
+                    << "Key: " << ToString(key.AsOwningRow()) << Endl
                     << "LegacyTest: " << legacyTest << Endl
                     << "NewTest: " << newTest << Endl;
                 // Somehow ASSERTs do not stop execution in our gtest :(
@@ -220,7 +229,7 @@ TEST_F(TComparatorTest, KeyBoundMonotonicity)
     for (const auto& key : allKeys) {
         bool previousTestResult = false;
         for (const auto& keyBound : keyBounds) {
-            auto testResult = Comparator.TestKey(AsNonOwningKey(key), keyBound);
+            auto testResult = Comparator.TestKey(key, keyBound);
             EXPECT_LE(previousTestResult, testResult);
             previousTestResult = testResult;
         }

@@ -11,118 +11,96 @@ static const TLogger Logger("TableClientKey");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
+TKey::TKey(const TUnversionedValue* begin, int length)
+    : Begin_(begin)
+    , Length_(length)
+{ }
 
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TRow>
-TKeyImpl<TRow> TKeyImpl<TRow>::FromRow(const TRow& row)
+TKey TKey::FromRow(const TUnversionedRow& row, std::optional<int> length)
 {
-    ValidateValueTypes(row);
-    TKeyImpl<TRow> result;
-    static_cast<TRow&>(result) = row;
-    return result;
+    int keyLength = length.value_or(row.GetCount());
+    YT_VERIFY(keyLength <= row.GetCount());
+
+    ValidateValueTypes(row.Begin(), row.Begin() + keyLength);
+
+    return TKey(row.Begin(), keyLength);
 }
 
-template <class TRow>
-TKeyImpl<TRow> TKeyImpl<TRow>::FromRow(TRow&& row)
+TKey TKey::FromRowUnchecked(const TUnversionedRow& row, std::optional<int> length)
 {
-    ValidateValueTypes(row);
-    TKeyImpl<TRow> result;
-    static_cast<TRow&>(result) = row;
-    return result;
-}
+    int keyLength = length.value_or(row.GetCount());
+    YT_VERIFY(keyLength <= row.GetCount());
 
-template <class TRow>
-TKeyImpl<TRow> TKeyImpl<TRow>::FromRowUnchecked(const TRow& row)
-{
 #ifndef NDEBUG
     try {
-        ValidateValueTypes(row);
+        ValidateValueTypes(row.Begin(), row.Begin() + keyLength);
     } catch (const std::exception& ex) {
         YT_LOG_FATAL(ex, "Unexpected exception while building key from row");
     }
 #endif
 
-    TKeyImpl<TRow> result;
-    static_cast<TRow&>(result) = row;
-    return result;
+    return TKey(row.Begin(), keyLength);
 }
 
-template <class TRow>
-TKeyImpl<TRow> TKeyImpl<TRow>::FromRowUnchecked(TRow&& row)
+TUnversionedOwningRow TKey::AsOwningRow() const
 {
-#ifndef NDEBUG
-    try {
-        ValidateValueTypes(row);
-    } catch (const std::exception& ex) {
-        YT_LOG_FATAL(ex, "Unexpected exception while building key from row");
+    return TUnversionedOwningRow(Begin_, Begin_ + Length_);
+}
+
+const TUnversionedValue& TKey::operator[](int index) const
+{
+    YT_VERIFY(index >= 0);
+    YT_VERIFY(index < Length_);
+
+    return Begin_[index];
+}
+
+int TKey::GetLength() const
+{
+    return Length_;
+}
+
+const TUnversionedValue* TKey::Begin() const
+{
+    return Begin_;
+}
+
+const TUnversionedValue* TKey::End() const
+{
+    return Begin_ + Length_;
+}
+
+void TKey::ValidateValueTypes(
+    const TUnversionedValue* begin,
+    const TUnversionedValue* end)
+{
+    for (auto* valuePtr = begin; valuePtr != end; ++valuePtr) {
+        ValidateDataValueType(valuePtr->Type);
     }
-#endif
-
-    TKeyImpl<TRow> result;
-    static_cast<TRow&>(result) = row;
-    return result;
 }
 
-template <class TRow>
-void TKeyImpl<TRow>::ValidateValueTypes(const TRow& row)
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator==(const TKey& lhs, const TKey& rhs)
 {
-    for (const auto& value : row) {
-        ValidateDataValueType(value.Type);
-    }
+    return CompareRows(lhs.Begin(), lhs.End(), rhs.Begin(), rhs.End()) == 0;
 }
 
-template <class TRow>
-const TRow& TKeyImpl<TRow>::AsRow() const
+bool operator!=(const TKey& lhs, const TKey& rhs)
 {
-    return static_cast<const TRow&>(*this);
+    return !(lhs == rhs);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-template class TKeyImpl<TUnversionedRow>;
-template class TKeyImpl<TUnversionedOwningRow>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TKey AsNonOwningKey(const TOwningKey& owningKey)
-{
-    return TKey::FromRowUnchecked(owningKey.AsRow());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TKey& key, TStringBuf format)
 {
     builder->AppendString(ToString(key));
 }
 
-void FormatValue(TStringBuilderBase* builder, const TOwningKey& key, TStringBuf format)
-{
-    builder->AppendString(ToString(key));
-}
-
 TString ToString(const TKey& key)
 {
-    return ToStringViaBuilder(key);
-}
-
-TString ToString(const TOwningKey& key)
-{
-    return ToStringViaBuilder(key);
+    return Format("[%v]", JoinToString(key.Begin(), key.End()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
 
 } // namespace NYT::NTableClient
