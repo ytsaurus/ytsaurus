@@ -451,6 +451,8 @@ message TSortJobSpecExt
         optional TSortJobSpecExt sort_job_spec_ext = 104;
     }
 
+    // TODO(gritukan): This field is useless since key columns can be
+    // obtained from output stream schema. Remove it.
     repeated string key_columns = 5;
 
     // Optional, because simple sort jobs don't require partition tag.
