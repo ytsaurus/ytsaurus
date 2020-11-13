@@ -32,55 +32,18 @@ struct TDecimalTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int DecimalSizeTable[] = {
-    0,  // 0
-    4,  // 1
-    4,  // 2
-    4,  // 3
-    4,  // 4
-    4,  // 5
-    4,  // 6
-    4,  // 7
-    4,  // 8
-    4,  // 9
-
-    8,  // 10
-    8,  // 11
-    8,  // 12
-    8,  // 13
-    8,  // 14
-    8,  // 15
-    8,  // 16
-    8,  // 17
-    8,  // 18
-
-    16,  // 19
-    16,  // 20
-    16,  // 21
-    16,  // 22
-    16,  // 23
-    16,  // 24
-    16,  // 25
-    16,  // 26
-    16,  // 27
-    16,  // 28
-    16,  // 29
-    16,  // 30
-    16,  // 31
-    16,  // 32
-    16,  // 33
-    16,  // 34
-    16,  // 35
-};
-
-static constexpr int GetDecimalBinaryValueSize(int precision)
+constexpr int GetDecimalBinaryValueSize(int precision)
 {
-    if (precision > 0 && precision < std::size(DecimalSizeTable)) {
-        return DecimalSizeTable[precision];
-    } else {
-        TDecimal::ValidatePrecisionAndScale(precision, 0);
-        YT_ABORT();
+    if (precision > 0) {
+        if (precision <= 9) {
+            return 4;
+        } else if (precision <= 18) {
+            return 8;
+        } else if (precision <= 35) {
+            return 16;
+        }
     }
+    return 0;
 }
 
 static constexpr i128 DecimalIntegerMaxValueTable[] = {
@@ -143,7 +106,7 @@ Y_FORCE_INLINE constexpr T GetDecimalMaxIntegerValue(int precision)
 {
     static_assert(ValidDecimalUnderlyingInteger<T>);
 
-    if (GetDecimalBinaryValueSize(precision) <= sizeof(T)) {
+    if (TDecimal::GetValueBinarySize(precision) <= sizeof(T)) {
         return DecimalIntegerMaxValueTable[precision];
     } else {
         YT_ABORT();
@@ -208,7 +171,7 @@ static void DecimalIntegerToBinaryUnchecked(T decodedValue, void* buf)
 
 static void CheckDecimalValueSize(TStringBuf value, int precision, int scale)
 {
-    int expectedSize = GetDecimalBinaryValueSize(precision);
+    int expectedSize = TDecimal::GetValueBinarySize(precision);
     if (value.Size() != expectedSize) {
         THROW_ERROR_EXCEPTION(
             "Decimal<%v,%v> binary value representation contains %Qv bytes, expected: %Qv",
@@ -427,16 +390,16 @@ TStringBuf TextToBinaryImpl(TStringBuf textDecimal, int precision, int scale, ch
 {
     T decoded = DecimalTextToInteger<T>(textDecimal, precision, scale);
     DecimalIntegerToBinaryUnchecked(decoded, buffer);
-    return TStringBuf(buffer, GetDecimalBinaryValueSize(precision));
+    return TStringBuf(buffer, TDecimal::GetValueBinarySize(precision));
 }
 
 TStringBuf TDecimal::TextToBinary(TStringBuf textValue, int precision, int scale, char* buffer, size_t bufferSize)
 {
     ValidatePrecisionAndScale(precision, scale);
 
-    YT_VERIFY(bufferSize >= GetDecimalBinaryValueSize(precision));
+    YT_VERIFY(bufferSize >= TDecimal::GetValueBinarySize(precision));
 
-    int byteSize = GetDecimalBinaryValueSize(precision);
+    int byteSize = TDecimal::GetValueBinarySize(precision);
     switch (byteSize) {
         case 4:
             return TextToBinaryImpl<i32>(textValue, precision, scale, buffer);
@@ -516,6 +479,88 @@ void TDecimal::ValidateBinaryValue(TStringBuf binaryDecimal, int precision, int 
             static_assert(GetDecimalBinaryValueSize(TDecimal::MaxPrecision) == 16);
             YT_ABORT();
     }
+}
+template <typename T>
+Y_FORCE_INLINE void CheckDecimalIntBits(int precision)
+{
+    const auto expectedSize = TDecimal::GetValueBinarySize(precision);
+    if (expectedSize != sizeof(T)) {
+        const int bitCount = sizeof(T) * 8;
+        THROW_ERROR_EXCEPTION("Decimal<%v, ?> cannot be represented as int%v",
+            precision,
+            bitCount);
+    }
+}
+
+int TDecimal::GetValueBinarySize(int precision)
+{
+    const auto result = GetDecimalBinaryValueSize(precision);
+    if (result <= 0) {
+        ValidatePrecisionAndScale(precision, 0);
+        YT_ABORT();
+    }
+    return result;
+}
+
+TStringBuf TDecimal::WriteBinary32(int precision, i32 value, char* buffer, size_t bufferLength)
+{
+    const size_t resultLength = GetValueBinarySize(precision);
+    CheckDecimalIntBits<i32>(precision);
+    YT_VERIFY(bufferLength >= resultLength);
+
+    DecimalIntegerToBinaryUnchecked(value, buffer);
+    return TStringBuf{buffer, sizeof(value)};
+}
+
+TStringBuf TDecimal::WriteBinary64(int precision, i64 value, char* buffer, size_t bufferLength)
+{
+    const size_t resultLength = GetValueBinarySize(precision);
+    CheckDecimalIntBits<i64>(precision);
+    YT_VERIFY(bufferLength >= resultLength);
+
+    DecimalIntegerToBinaryUnchecked(value, buffer);
+    return TStringBuf{buffer, sizeof(value)};
+}
+
+TStringBuf TDecimal::WriteBinary128(int precision, TValue128 value, char* buffer, size_t bufferLength)
+{
+    const size_t resultLength = GetValueBinarySize(precision);
+    CheckDecimalIntBits<TValue128>(precision);
+    YT_VERIFY(bufferLength >= resultLength);
+
+    DecimalIntegerToBinaryUnchecked(i128(value.High, value.Low), buffer);
+    return TStringBuf{buffer, sizeof(TValue128)};
+}
+
+template <typename T>
+Y_FORCE_INLINE void CheckBufferLength(int precision, size_t bufferLength)
+{
+    CheckDecimalIntBits<T>(precision);
+    if (sizeof(T) != bufferLength) {
+        THROW_ERROR_EXCEPTION("Decimal<%v, ?> has unexpected length: %v expected: %v",
+            precision,
+            bufferLength,
+            sizeof(T));
+    }
+}
+
+i32 TDecimal::ParseBinary32(int precision, TStringBuf buffer)
+{
+    CheckBufferLength<i32>(precision, buffer.Size());
+    return DecimalBinaryToIntegerUnchecked<i32>(buffer);
+}
+
+i64 TDecimal::ParseBinary64(int precision, TStringBuf buffer)
+{
+    CheckBufferLength<i64>(precision, buffer.Size());
+    return DecimalBinaryToIntegerUnchecked<i64>(buffer);
+}
+
+TDecimal::TValue128 TDecimal::ParseBinary128(int precision, TStringBuf buffer)
+{
+    CheckBufferLength<i128>(precision, buffer.Size());
+    auto result = DecimalBinaryToIntegerUnchecked<i128>(buffer);
+    return {GetLow(result), static_cast<i64>(GetHigh(result))};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

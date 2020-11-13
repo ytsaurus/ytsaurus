@@ -12,6 +12,14 @@ namespace NYT::NDecimal {
 class TDecimal
 {
 public:
+    struct TValue128
+    {
+        ui64 Low;
+        i64 High;
+    };
+    static_assert(sizeof(TValue128) == 2 * sizeof(ui64));
+
+public:
     // Maximum precision supported by YT
     static constexpr int MaxPrecision = 35;
     static constexpr int MaxBinarySize = 16;
@@ -35,6 +43,16 @@ public:
     // Returned value is substring of buffer.
     static TStringBuf BinaryToText(TStringBuf binaryDecimal, int precision, int scale, char* buffer, size_t bufferLength);
     static TStringBuf TextToBinary(TStringBuf textDecimal, int precision, int scale, char* buffer, size_t bufferLength);
+
+    static int GetValueBinarySize(int precision);
+
+    static TStringBuf WriteBinary32(int precision, i32 value, char* buffer, size_t bufferLength);
+    static TStringBuf WriteBinary64(int precision, i64 value, char* buffer, size_t bufferLength);
+    static TStringBuf WriteBinary128(int precision, TValue128 value, char* buffer, size_t bufferLength);
+
+    static i32 ParseBinary32(int precision, TStringBuf buffer);
+    static i64 ParseBinary64(int precision, TStringBuf buffer);
+    static TValue128 ParseBinary128(int precision, TStringBuf buffer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
