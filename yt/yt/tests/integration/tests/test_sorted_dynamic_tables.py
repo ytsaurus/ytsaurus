@@ -377,6 +377,52 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         wait(lambda: get(path) > 0)
         assert get(path) == 1
 
+    @authors("lukyan")
+    def test_lookup_cache_stress(self):
+        sync_create_cells(1)
+
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "int64"},
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"},
+                {"name": "s", "type": "string"},
+                {"name": "t", "type": "string"}],
+            lookup_cache_rows_per_tablet=100)
+
+        sync_mount_table("//tmp/t")
+
+        count = 500
+
+        for wave in xrange(1, 30):
+            rows = [{
+                "k": k,
+                "v": wave * count + k,
+                choice(["a", "b", "c"]): randint(1, 10000),
+                choice(["s", "t"]): str(randint(1, 10000))}
+                for k in sample(range(1, count), 200)]
+            insert_rows("//tmp/t", rows, update=True)
+
+            keys = [{"k": k} for k in sample(range(1, 1000), 100)]
+            delete_rows("//tmp/t", keys)
+
+            for i in xrange(1, 10):
+                keys = [{"k": k} for k in sample(range(1, count), 10)]
+
+                ts = generate_timestamp()
+                no_cache = lookup_rows("//tmp/t", keys, timestamp=ts)
+                cache = lookup_rows("//tmp/t", keys, use_lookup_cache=True, timestamp=ts)
+                assert no_cache == cache
+
+            sync_flush_table("//tmp/t")
+
+        tablet_profiling = self._get_table_profiling("//tmp/t")
+        assert tablet_profiling.get_counter("lookup/cache_hits") > 0
+        assert tablet_profiling.get_counter("lookup/cache_misses") > 0
+
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
