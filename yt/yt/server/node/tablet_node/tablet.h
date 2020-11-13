@@ -269,6 +269,7 @@ struct ITabletContext
     virtual ~ITabletContext() = default;
 
     virtual NObjectClient::TCellId GetCellId() = 0;
+    virtual const TString& GetTabletCellBundleName() = 0;
     virtual NHydra::EPeerState GetAutomatonState() = 0;
     virtual NQueryClient::TColumnEvaluatorCachePtr GetColumnEvaluatorCache() = 0;
     virtual NObjectClient::TObjectId GenerateId(NObjectClient::EObjectType type) = 0;

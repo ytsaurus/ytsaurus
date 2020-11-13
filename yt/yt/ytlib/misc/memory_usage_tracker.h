@@ -50,15 +50,16 @@ private:
     TAdaptiveLock SpinLock_;
     TAdaptiveLock PoolMapSpinLock_;
 
-    i64 TotalLimit_;
+    std::atomic<i64> TotalLimit_;
 
     NProfiling::TAtomicGauge TotalUsedGauge_;
     NProfiling::TAtomicGauge TotalFreeGauge_;
 
     struct TCategory
     {
-        i64 Limit = std::numeric_limits<i64>::max();
+        std::atomic<i64> Limit{std::numeric_limits<i64>::max()};
         NProfiling::TAtomicGauge UsedGauge;
+        NProfiling::TTagIdList TagIdList;
     };
 
     TEnumIndexedVector<ECategory, TCategory> Categories_;
@@ -67,12 +68,30 @@ private:
 
     struct TPool
     {
-        i64 Weight = 0;
+        std::atomic<i64> Weight{0};
         TEnumIndexedVector<ECategory, NProfiling::TAtomicGauge> Used;
+        TEnumIndexedVector<ECategory, NProfiling::TTagIdList> TagIdLists;
+
+        TPool()
+        { }
+
+        TPool(const TPool& other)
+            : Weight(other.Weight.load())
+            , Used(other.Used)
+            , TagIdLists(other.TagIdLists)
+        { }
+
+        TPool& operator=(const TPool& other)
+        {
+            Weight = other.Weight.load();
+            Used = other.Used;
+            TagIdLists = other.TagIdLists;
+            return *this;
+        }
     };
 
     THashMap<TPoolTag, TPool> Pools_;
-    i64 TotalPoolWeight_ = 0;
+    std::atomic<i64> TotalPoolWeight_{0};
 
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;

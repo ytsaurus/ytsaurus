@@ -1401,7 +1401,7 @@ const TString& TTablet::GetLoggingId() const
 std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
 {
     if (category == EMemoryCategory::TabletDynamic) {
-        return Config_->TabletCellBundle;
+        return Context_->GetTabletCellBundleName();
     }
     return {};
 }

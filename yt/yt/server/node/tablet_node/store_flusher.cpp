@@ -118,6 +118,7 @@ private:
     {
         double ForcedRotationMemoryRatio = 0;
         bool EnableForcedRotationBackingMemoryAccounting = true;
+        bool EnablePerBundleMemoryLimit = true;
         i64 PassiveMemoryUsage = 0;
         i64 BackingMemoryUsage = 0;
         std::vector<TForcedRotationCandidate> ForcedRotationCandidates;
@@ -147,7 +148,8 @@ private:
                 slot->GetTabletCellBundleName(),
                 TTabletCellBundleData{
                     .ForcedRotationMemoryRatio = slot->GetDynamicOptions()->ForcedRotationMemoryRatio,
-                    .EnableForcedRotationBackingMemoryAccounting = slot->GetDynamicOptions()->EnableForcedRotationBackingMemoryAccounting
+                    .EnableForcedRotationBackingMemoryAccounting = slot->GetDynamicOptions()->EnableForcedRotationBackingMemoryAccounting,
+                    .EnablePerBundleMemoryLimit = slot->GetDynamicOptions()->EnableTabletDynamicMemoryLimit,
                 }
             );
         }
@@ -177,6 +179,13 @@ private:
         Profiler.Update(DynamicMemoryUsageBackingCounter_, BackingMemoryUsage_);
         Profiler.Update(DynamicMemoryUsageOtherCounter_, otherUsage);
 
+        const auto& dynamicConfig = Bootstrap_->GetDynamicConfig()->TabletNode;
+        bool enableForcedRotationBackingMemoryAccounting =
+            dynamicConfig->EnableForcedRotationBackingMemoryAccounting.value_or(
+                Config_->EnableForcedRotationBackingMemoryAccounting);
+        double forcedRotationMemoryRatio =
+            dynamicConfig->ForcedRotationMemoryRatio.value_or(Config_->ForcedRotationMemoryRatio);
+
         for (auto& pair : tabletCellBundles) {
             // NB: Cannot use structured bindings since 'isRotationForced' lambda modifies
             // local variable 'bundleData'.
@@ -199,22 +208,24 @@ private:
 
             auto isRotationForced = [&] {
                 // Per-bundle memory pressure.
-                auto adjustedBundleMemoryUsed = bundleMemoryUsed;
-                adjustedBundleMemoryUsed -= bundleData.PassiveMemoryUsage;
-                if (!bundleData.EnableForcedRotationBackingMemoryAccounting) {
-                    adjustedBundleMemoryUsed -= bundleData.BackingMemoryUsage;
-                }
-                if (adjustedBundleMemoryUsed > bundleMemoryLimit * bundleData.ForcedRotationMemoryRatio) {
-                    return true;
+                if (bundleData.EnablePerBundleMemoryLimit) {
+                    auto adjustedBundleMemoryUsed = bundleMemoryUsed;
+                    adjustedBundleMemoryUsed -= bundleData.PassiveMemoryUsage;
+                    if (!bundleData.EnableForcedRotationBackingMemoryAccounting) {
+                        adjustedBundleMemoryUsed -= bundleData.BackingMemoryUsage;
+                    }
+                    if (adjustedBundleMemoryUsed > bundleMemoryLimit * bundleData.ForcedRotationMemoryRatio) {
+                        return true;
+                    }
                 }
 
                 // Global memory pressure.
                 auto adjustedGlobalMemoryUsed = tracker->GetUsed(EMemoryCategory::TabletDynamic);
                 adjustedGlobalMemoryUsed -= PassiveMemoryUsage_;
-                if (!Config_->EnableForcedRotationBackingMemoryAccounting) {
+                if (enableForcedRotationBackingMemoryAccounting) {
                     adjustedGlobalMemoryUsed -= BackingMemoryUsage_;
                 }
-                return adjustedGlobalMemoryUsed > tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationMemoryRatio;
+                return adjustedGlobalMemoryUsed > tracker->GetLimit(EMemoryCategory::TabletDynamic) * forcedRotationMemoryRatio;
             };
 
             // Pick the heaviest candidates until no more rotations are needed.

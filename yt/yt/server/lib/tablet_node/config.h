@@ -694,10 +694,23 @@ public:
     // COMPAT(gritukan): Drop optional.
     std::optional<int> Slots;
 
+    //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
+    std::optional<double> ForcedRotationMemoryRatio;
+
+    // TODO(babenko): either drop or make always false.
+    std::optional<bool> EnableForcedRotationBackingMemoryAccounting;
+
     TTabletNodeDynamicConfig()
     {
         RegisterParameter("slots", Slots)
             .Default();
+
+        RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
+            .InRange(0.0, 1.0)
+            .Default(0.8);
+
+        RegisterParameter("enable_forced_rotation_backing_memory_accounting", EnableForcedRotationBackingMemoryAccounting)
+            .Default(true);
     }
 };
 
@@ -709,10 +722,10 @@ class TTabletNodeConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
+    // TODO(ifsmirnov): drop in favour of dynamic config.
     double ForcedRotationMemoryRatio;
 
-    // TODO(babenko): either drop or make always false.
+    // TODO(ifsmirnov): drop in favour of dynamic config.
     bool EnableForcedRotationBackingMemoryAccounting;
 
     //! Limits resources consumed by tablets.
