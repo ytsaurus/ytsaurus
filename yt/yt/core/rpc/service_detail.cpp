@@ -926,7 +926,7 @@ TServiceBase::TServiceBase(
     , Authenticator_(std::move(authenticator))
     , ServiceDescriptor_(descriptor)
     , ServiceId_(descriptor.GetFullServiceName(), realmId)
-    , ProfilingRegistry_(RpcServerProfiler.WithTag("service", ServiceId_.ServiceName))
+    , ProfilingRegistry_(RpcServerProfiler.WithTag("yt.service", ServiceId_.ServiceName))
     , AuthenticationTimer_(ProfilingRegistry_.Timer("/authentication_time"))
 {
     YT_VERIFY(DefaultInvoker_);
