@@ -283,7 +283,7 @@ private:
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
     //! (for versioned stripes).
-    void FetchNonTeleportDataSlices(const ISortedJobBuilderPtr& builder)
+    void FetchNonTeleportDataSlices(const ILegacySortedJobBuilderPtr& builder)
     {
         auto chunkSliceFetcher = ChunkSliceFetcherFactory_ ? ChunkSliceFetcherFactory_->CreateChunkSliceFetcher() : nullptr;
         auto primarySliceSize = JobSizeConstraints_->GetInputSliceDataWeight();
@@ -549,7 +549,7 @@ private:
             totalTeleportChunkSize);
     }
 
-    void PrepareForeignDataSlices(const ISortedJobBuilderPtr& builder)
+    void PrepareForeignDataSlices(const ILegacySortedJobBuilderPtr& builder)
     {
         auto yielder = CreatePeriodicYielder();
 
@@ -628,7 +628,7 @@ private:
         FindTeleportChunks();
 
         bool succeeded = false;
-        ISortedJobBuilderPtr builder;
+        ILegacySortedJobBuilderPtr builder;
         std::vector<std::unique_ptr<TJobStub>> jobStubs;
         std::vector<TError> errors;
         for (int retryIndex = 0; retryIndex < JobSizeConstraints_->GetMaxBuildRetryCount(); ++retryIndex) {

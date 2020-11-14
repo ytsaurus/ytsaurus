@@ -39,6 +39,9 @@ public:
     //! Return a key bound that allows any key.
     static TKeyBound MakeUniversal(bool isUpper);
 
+    //! Return a key bound that does not allow any key.
+    static TKeyBound MakeEmpty(bool isUpper);
+
     void FormatValue(TStringBuilderBase* builder) const;
 
     //! Test if this key bound allows any key.

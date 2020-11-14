@@ -307,7 +307,7 @@ private:
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
     //! (for versioned stripes).
-    void FetchNonTeleportDataSlices(const ISortedJobBuilderPtr& builder)
+    void FetchNonTeleportDataSlices(const INewSortedJobBuilderPtr& builder)
     {
         auto chunkSliceFetcher = ChunkSliceFetcherFactory_ ? ChunkSliceFetcherFactory_->CreateChunkSliceFetcher() : nullptr;
         auto primarySliceSize = JobSizeConstraints_->GetInputSliceDataWeight();
@@ -330,10 +330,10 @@ private:
         //! it is primary or foreign.
         auto processDataSlice = [&] (const TInputDataSlicePtr& dataSlice, int inputCookie) {
             YT_VERIFY(!dataSlice->IsLegacy);
+            dataSlice->Tag = inputCookie;
             if (InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()) {
-                builder->AddPrimaryDataSlice(dataSlice, inputCookie);
+                builder->AddDataSlice(dataSlice);
             } else {
-                dataSlice->Tag = inputCookie;
                 ForeignDataSlicesByStreamIndex_[dataSlice->InputStreamIndex].emplace_back(dataSlice);
             }
         };
@@ -399,30 +399,10 @@ private:
         for (const auto& chunkSlice : unversionedChunkSlices) {
             const auto& originalDataSlice = unversionedInputChunkToOwningDataSlice[chunkSlice->GetInputChunk()];
             int inputCookie = unversionedInputChunkToInputCookie.at(chunkSlice->GetInputChunk());
-
-            // We additionally slice primary maniac slices by evenly by row indices.
-            auto chunk = chunkSlice->GetInputChunk();
-            if (!EnableKeyGuarantee_ &&
-                chunk->IsCompleteChunk() &&
-                CompareRows(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, PrimaryPrefixLength_) == 0 &&
-                chunkSlice->GetDataWeight() > JobSizeConstraints_->GetInputSliceDataWeight() &&
-                InputStreamDirectory_.GetDescriptor(originalDataSlice->InputStreamIndex).IsPrimary())
-            {
-                auto smallerSlices = chunkSlice->SliceEvenly(
-                    JobSizeConstraints_->GetInputSliceDataWeight(),
-                    JobSizeConstraints_->GetInputSliceRowCount());
-                for (const auto& smallerSlice : smallerSlices) {
-                    auto dataSlice = CreateUnversionedInputDataSlice(smallerSlice);
-                    dataSlice->CopyPayloadFrom(*originalDataSlice);
-                    dataSlice->TransformToNew(RowBuffer_, PrimaryPrefixLength_);
-                    processDataSlice(dataSlice, inputCookie);
-                }
-            } else {
-                auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
-                dataSlice->CopyPayloadFrom(*originalDataSlice);
-                dataSlice->TransformToNew(RowBuffer_, PrimaryPrefixLength_);
-                processDataSlice(dataSlice, inputCookie);
-            }
+            auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+            dataSlice->CopyPayloadFrom(*originalDataSlice);
+            dataSlice->TransformToNew(RowBuffer_, PrimaryPrefixLength_);
+            processDataSlice(dataSlice, inputCookie);
         }
     }
 
@@ -584,7 +564,7 @@ private:
             totalTeleportChunkSize);
     }
 
-    void PrepareForeignDataSlices(const ISortedJobBuilderPtr& builder)
+    void PrepareForeignDataSlices(const INewSortedJobBuilderPtr& builder)
     {
         auto yielder = CreatePeriodicYielder();
 
@@ -616,7 +596,7 @@ private:
             }
 
             for (const auto& dataSlice : dataSlices) {
-                builder->AddForeignDataSlice(dataSlice, /* inputCookie */ *dataSlice->Tag);
+                builder->AddDataSlice(dataSlice);
             }
         }
     }
@@ -658,7 +638,7 @@ private:
         FindTeleportChunks();
 
         bool succeeded = false;
-        ISortedJobBuilderPtr builder;
+        INewSortedJobBuilderPtr builder;
         std::vector<std::unique_ptr<TJobStub>> jobStubs;
         std::vector<TError> errors;
         for (int retryIndex = 0; retryIndex < JobSizeConstraints_->GetMaxBuildRetryCount(); ++retryIndex) {
@@ -670,6 +650,7 @@ private:
                     TeleportChunks_,
                     false /* inSplit */,
                     retryIndex,
+                    InputStreamDirectory_,
                     Logger);
 
                 FetchNonTeleportDataSlices(builder);
@@ -760,19 +741,18 @@ private:
             teleportChunks,
             true /* inSplit */,
             0 /* retryIndex */,
+            InputStreamDirectory_,
             Logger);
 
         for (const auto& dataSlice : unreadInputDataSlices) {
-            int inputCookie = *dataSlice->Tag;
             YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
             dataSlice->TransformToNew(RowBuffer_, PrimaryPrefixLength_);
-            builder->AddPrimaryDataSlice(dataSlice, inputCookie);
+            builder->AddDataSlice(dataSlice);
         }
         for (const auto& dataSlice : foreignInputDataSlices) {
-            int inputCookie = *dataSlice->Tag;
             YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsForeign());
             dataSlice->TransformToNew(RowBuffer_, ForeignPrefixLength_);
-            builder->AddForeignDataSlice(dataSlice, inputCookie);
+            builder->AddDataSlice(dataSlice);
         }
 
         auto jobs = builder->Build();

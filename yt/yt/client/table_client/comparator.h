@@ -46,6 +46,10 @@ public:
     //! (but possibly of different inclusiveness).
     TKeyBound StrongerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const;
 
+    //! Returns the weakest of two key bounds. Key bounds should be of same direction
+    //! (but possibly of different inclusiveness).
+    TKeyBound WeakerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const;
+
     //! Check if the range defined by two key bounds is empty.
     bool IsRangeEmpty(const TKeyBound& lowerBound, const TKeyBound& upperBound) const;
 

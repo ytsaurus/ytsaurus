@@ -12,13 +12,28 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISortedJobBuilderPtr CreateNewSortedJobBuilder(
+//! An interface for the class that encapsulates the whole logic of building sorted* jobs.
+//! This class defines a transient object (it is never persisted).
+struct INewSortedJobBuilder
+    : public TRefCounted
+{
+    virtual void AddDataSlice(const NChunkClient::TInputDataSlicePtr& dataSlice) = 0;
+    virtual std::vector<std::unique_ptr<TJobStub>> Build() = 0;
+    virtual i64 GetTotalDataSliceCount() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(INewSortedJobBuilder);
+
+////////////////////////////////////////////////////////////////////////////////
+
+INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const TSortedJobOptions& options,
     NControllerAgent::IJobSizeConstraintsPtr jobSizeConstraints,
     const NTableClient::TRowBufferPtr& rowBuffer,
     const std::vector<NChunkClient::TInputChunkPtr>& teleportChunks,
     bool inSplit,
-    int reftryIndex,
+    int retryIndex,
+    const TInputStreamDirectory& inputStreamDirectory,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

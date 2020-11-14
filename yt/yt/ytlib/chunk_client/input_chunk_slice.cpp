@@ -316,9 +316,17 @@ TInputChunkSlice::TInputChunkSlice(
     : InputChunk_(chunkSlice.GetInputChunk())
     , LegacyLowerLimit_(chunkSlice.LegacyLowerLimit())
     , LegacyUpperLimit_(chunkSlice.LegacyUpperLimit())
+    , LowerLimit_(chunkSlice.LowerLimit())
+    , UpperLimit_(chunkSlice.UpperLimit())
+    , IsLegacy(chunkSlice.IsLegacy)
 {
-    LegacyLowerLimit_.RowIndex = lowerRowIndex;
-    LegacyUpperLimit_.RowIndex = upperRowIndex;
+    if (IsLegacy) {
+        LegacyLowerLimit_.RowIndex = lowerRowIndex;
+        LegacyUpperLimit_.RowIndex = upperRowIndex;
+    } else {
+        LowerLimit_.RowIndex = lowerRowIndex;
+        UpperLimit_.RowIndex = upperRowIndex;
+    }
     OverrideSize(upperRowIndex - lowerRowIndex, dataWeight);
 }
 
@@ -414,8 +422,15 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
 
 std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRowIndex(i64 splitRow) const
 {
-    i64 lowerRowIndex = LegacyLowerLimit_.RowIndex.value_or(0);
-    i64 upperRowIndex = LegacyUpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
+    i64 lowerRowIndex;
+    i64 upperRowIndex;
+    if (IsLegacy) {
+        lowerRowIndex = LegacyLowerLimit_.RowIndex.value_or(0);
+        upperRowIndex = LegacyUpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
+    } else {
+        lowerRowIndex = LowerLimit_.RowIndex.value_or(0);
+        upperRowIndex = UpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
+    }
 
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
@@ -426,12 +441,12 @@ std::pair<TInputChunkSlicePtr, TInputChunkSlicePtr> TInputChunkSlice::SplitByRow
             *this,
             lowerRowIndex,
             lowerRowIndex + splitRow,
-            GetDataWeight() / rowCount * splitRow),
+            std::max<i64>(1, GetDataWeight() * 1.0 / rowCount * splitRow)),
         New<TInputChunkSlice>(
             *this,
             lowerRowIndex + splitRow,
             upperRowIndex,
-            GetDataWeight() / rowCount * (rowCount - splitRow)));
+            std::max<i64>(1, GetDataWeight() * 1.0 / rowCount * (rowCount - splitRow))));
 }
 
 i64 TInputChunkSlice::GetLocality(int replicaPartIndex) const

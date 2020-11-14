@@ -21,13 +21,16 @@ using TIntCookie = int;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ISortedJobBuilder);
+DECLARE_REFCOUNTED_STRUCT(ILegacySortedJobBuilder);
+DECLARE_REFCOUNTED_STRUCT(INewSortedJobBuilder);
 
 DECLARE_REFCOUNTED_CLASS(TJobManager)
 
 DECLARE_REFCOUNTED_CLASS(TOutputOrder)
 
 struct IShuffleChunkPool;
+
+class TInputStreamDirectory;
 
 ////////////////////////////////////////////////////////////////////////////////
 

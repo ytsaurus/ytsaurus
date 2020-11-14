@@ -66,6 +66,17 @@ TKeyBound TComparator::StrongerKeyBound(const TKeyBound& lhs, const TKeyBound& r
     return (comparisonResult <= 0) ? rhs : lhs;
 }
 
+TKeyBound TComparator::WeakerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const
+{
+    YT_VERIFY(lhs.IsUpper == rhs.IsUpper);
+    auto comparisonResult = CompareKeyBounds(lhs, rhs);
+    if (lhs.IsUpper) {
+        comparisonResult = -comparisonResult;
+    }
+
+    return (comparisonResult >= 0) ? rhs : lhs;
+}
+
 bool TComparator::IsRangeEmpty(const TKeyBound& lowerBound, const TKeyBound& upperBound) const
 {
     YT_VERIFY(!lowerBound.IsUpper);
