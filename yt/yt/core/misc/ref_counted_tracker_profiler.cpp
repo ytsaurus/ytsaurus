@@ -22,7 +22,7 @@ class TRefCountedTrackerProfiler
 public:
     TRefCountedTrackerProfiler()
     {
-        TRegistry registry{"yt/ref_counted_tracker"};
+        TRegistry registry{"/ref_counted_tracker"};
         registry.AddProducer("/total", MakeStrong(this));
     }
 

@@ -8,7 +8,7 @@ const NLogging::TLogger SchedulerEventLogger("SchedulerEventLog", /* essentital 
 const NLogging::TLogger SchedulerResourceMeteringLogger("SchedulerResourceMetering", /* essentital */ true);
 
 const NProfiling::TProfiler SchedulerProfiler("/scheduler");
-const NProfiling::TRegistry SchedulerProfilerRegistry{"yt/scheduler"};
+const NProfiling::TRegistry SchedulerProfilerRegistry{"/scheduler"};
 
 ////////////////////////////////////////////////////////////////////////////////
 

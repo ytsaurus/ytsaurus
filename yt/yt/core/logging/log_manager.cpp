@@ -1281,7 +1281,7 @@ TLogManager::TLogManager()
     : Impl_(New<TImpl>())
 {
     // NB: TLogManager is instanciated before main. We can't rely on global variables here.
-    NProfiling::TRegistry{"yt"}.AddProducer("/logging", Impl_);
+    NProfiling::TRegistry{""}.AddProducer("/logging", Impl_);
 }
 
 TLogManager::~TLogManager() = default;

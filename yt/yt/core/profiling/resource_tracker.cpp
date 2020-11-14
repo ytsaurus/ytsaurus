@@ -35,7 +35,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceTracker)
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLogging::TLogger Logger("Profiling");
-static TRegistry Profiler("yt/resource_tracker");
+static TRegistry Profiler("/resource_tracker");
 
 static constexpr auto procPath = "/proc/self/task";
 

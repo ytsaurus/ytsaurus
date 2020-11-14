@@ -315,7 +315,7 @@ void SwitchFromFiber(TFiberPtr target)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NProfiling::TCounter CreatedFibersCounter = NProfiling::TRegistry{"yt/action_queue"}.Counter("/created_fibers");
+static NProfiling::TCounter CreatedFibersCounter = NProfiling::TRegistry{"/action_queue"}.Counter("/created_fibers");
 
 void TFiberReusingAdapter::CancelWait()
 {

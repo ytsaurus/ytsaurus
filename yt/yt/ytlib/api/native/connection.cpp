@@ -104,7 +104,7 @@ public:
         , ChannelFactory_(CreateCachingChannelFactory(
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
             Config_->IdleChannelTtl))
-        , Profiler_(TRegistry("yt/connection").WithTag("connection_name", Config_->Name))
+        , Profiler_(TRegistry("/connection").WithTag("connection_name", Config_->Name))
     { }
 
     void Initialize()

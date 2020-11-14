@@ -6,7 +6,7 @@ namespace NYT::NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger ExecAgentLogger("ExecAgent");
-const NProfiling::TRegistry ExecAgentProfiler("yt/exec_agent");
+const NProfiling::TRegistry ExecAgentProfiler("/exec_agent");
 
 const int TmpfsRemoveAttemptCount = 5;
 

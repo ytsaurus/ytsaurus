@@ -108,7 +108,7 @@ private:
     void Update()
     {
         YT_LOG_DEBUG("Started updating monitoring state");
-        static const auto UpdateTimer = NProfiling::TRegistry{"yt/monitoring"}.Timer("/update_time");
+        static const auto UpdateTimer = NProfiling::TRegistry{"/monitoring"}.Timer("/update_time");
 
         NProfiling::TEventTimerGuard guard(UpdateTimer);
         auto newRoot = GetEphemeralNodeFactory()->CreateMap();

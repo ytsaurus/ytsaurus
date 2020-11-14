@@ -98,7 +98,7 @@ bool TCachedTableSchemaWrapper::CheckSchemaSet()
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableSchemaCache::TTableSchemaCache(const TTableSchemaCacheConfigPtr& config)
-    : TSyncSlruCacheBase(config, TRegistry("yt/data_node/table_schema_cache"))
+    : TSyncSlruCacheBase(config, TRegistry("/data_node/table_schema_cache"))
     , TableSchemaCacheRequestTimeout_(config->TableSchemaCacheRequestTimeout)
 { }
 

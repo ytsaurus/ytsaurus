@@ -296,7 +296,7 @@ void TBootstrap::DoInitialize()
         Config_->ResourceLimits->TotalMemory,
         std::vector<std::pair<EMemoryCategory, i64>>{},
         Logger,
-        TRegistry("yt/cluster_node/memory_usage"));
+        TRegistry("/cluster_node/memory_usage"));
 
     MasterConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
     MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
@@ -356,7 +356,7 @@ void TBootstrap::DoInitialize()
 
     BlockCache_ = CreateServerBlockCache(Config_->DataNode, this);
 
-    BlockMetaCache_ = New<TBlockMetaCache>(Config_->DataNode->BlockMetaCache, TRegistry("yt/data_node/block_meta_cache"));
+    BlockMetaCache_ = New<TBlockMetaCache>(Config_->DataNode->BlockMetaCache, TRegistry("/data_node/block_meta_cache"));
 
     PeerBlockDistributor_ = New<TPeerBlockDistributor>(Config_->DataNode->PeerBlockDistributor, this);
     PeerBlockTable_ = New<TPeerBlockTable>(Config_->DataNode->PeerBlockTable, this);
@@ -646,7 +646,7 @@ void TBootstrap::DoInitialize()
     ObjectServiceCache_ = New<TObjectServiceCache>(
         Config_->CachingObjectService,
         Logger,
-        TRegistry("yt/cluster_node/master_cache"));
+        TRegistry("/cluster_node/master_cache"));
 
     {
         auto result = GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::MasterCache, Config_->CachingObjectService->Capacity);

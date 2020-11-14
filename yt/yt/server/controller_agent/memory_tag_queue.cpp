@@ -19,7 +19,7 @@ using namespace NYTree;
 using namespace NYTAlloc;
 
 static const auto& Logger = ControllerLogger;
-static const TRegistry MemoryTagQueueProfiler("yt/memory_tag_queue");
+static const TRegistry MemoryTagQueueProfiler("/memory_tag_queue");
 
 DEFINE_REFCOUNTED_TYPE(TMemoryTagQueue)
 

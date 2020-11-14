@@ -208,7 +208,7 @@ TInvokerQueue::TInvokerQueue(
     , Queue(CreateActionQueue(type))
 {
     if (enableProfiling) {
-        TRegistry profiler("yt/action_queue", tags);
+        auto profiler = TRegistry("/action_queue").WithTags(tags);
 
         EnqueuedCounter = profiler.Counter("/enqueued");
         DequeuedCounter = profiler.Counter("/dequeued");

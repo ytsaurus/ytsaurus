@@ -86,7 +86,7 @@ TSolomonExporter::TSolomonExporter(
     Registry_->SetWindowSize(Config_->WindowSize);
 
     if (config->ReportBuildInfo) {
-        TRegistry profiler{registry, "yt/build"};
+        TRegistry profiler{registry, "/build"};
 
         profiler
             .WithRequiredTag("version", GetVersion())

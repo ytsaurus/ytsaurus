@@ -98,19 +98,25 @@ bool TSensorOptions::operator != (const TSensorOptions& other) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRegistry::TRegistry(const IRegistryImplPtr& impl, const TString& prefix)
+TRegistry::TRegistry(
+    const IRegistryImplPtr& impl,
+    const TString& prefix,
+    const TString& _namespace)
     : Enabled_(true)
     , Prefix_(prefix)
+    , Namespace_(_namespace)
     , Impl_(impl)
 { }
 
 TRegistry::TRegistry(
     const TString& prefix,
+    const TString& _namespace,
     const TTagSet& tags,
     const IRegistryImplPtr& impl,
     TSensorOptions options)
     : Enabled_(true)
     , Prefix_(prefix)
+    , Namespace_(_namespace)
     , Tags_(tags)
     , Options_(options)
     , Impl_(impl ? impl : GetGlobalRegistry())
@@ -122,7 +128,7 @@ TRegistry TRegistry::WithPrefix(const TString& prefix) const
         return {};
     }
 
-    return TRegistry(Prefix_ + prefix, Tags_, Impl_);
+    return TRegistry(Prefix_ + prefix, Namespace_, Tags_, Impl_);
 }
 
 TRegistry TRegistry::WithTag(const TString& name, const TString& value, int parent) const
@@ -133,7 +139,7 @@ TRegistry TRegistry::WithTag(const TString& name, const TString& value, int pare
 
     auto allTags = Tags_;
     allTags.AddTag(std::pair(name, value), parent);
-    return TRegistry(Prefix_, allTags, Impl_, Options_);
+    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
 TRegistry TRegistry::WithRequiredTag(const TString& name, const TString& value, int parent) const
@@ -144,7 +150,7 @@ TRegistry TRegistry::WithRequiredTag(const TString& name, const TString& value, 
 
     auto allTags = Tags_;
     allTags.AddRequiredTag(std::pair(name, value), parent);
-    return TRegistry(Prefix_, allTags, Impl_, Options_);
+    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
 TRegistry TRegistry::WithExcludedTag(const TString& name, const TString& value, int parent) const
@@ -155,7 +161,7 @@ TRegistry TRegistry::WithExcludedTag(const TString& name, const TString& value, 
 
     auto allTags = Tags_;
     allTags.AddExcludedTag(std::pair(name, value), parent);
-    return TRegistry(Prefix_, allTags, Impl_, Options_);
+    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
 TRegistry TRegistry::WithTags(const TTagSet& tags) const
@@ -166,7 +172,7 @@ TRegistry TRegistry::WithTags(const TTagSet& tags) const
 
     auto allTags = Tags_;
     allTags.Append(tags);
-    return TRegistry(Prefix_, allTags, Impl_, Options_);
+    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
 TRegistry TRegistry::WithSparse() const
@@ -177,7 +183,7 @@ TRegistry TRegistry::WithSparse() const
 
     auto opts = Options_;
     opts.Sparse = true;
-    return TRegistry(Prefix_, Tags_, Impl_, opts);
+    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
 TRegistry TRegistry::WithGlobal() const
@@ -188,7 +194,7 @@ TRegistry TRegistry::WithGlobal() const
 
     auto opts = Options_;
     opts.Global = true;
-    return TRegistry(Prefix_, Tags_, Impl_, opts);
+    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
 TCounter TRegistry::Counter(const TString& name) const
@@ -198,7 +204,7 @@ TCounter TRegistry::Counter(const TString& name) const
     }
 
     TCounter counter;
-    counter.Counter_ = Impl_->RegisterCounter(Prefix_ + name, Tags_, Options_);;
+    counter.Counter_ = Impl_->RegisterCounter(Namespace_ + Prefix_ + name, Tags_, Options_);;
     return counter;
 }
 
@@ -209,7 +215,7 @@ TTimeCounter TRegistry::TimeCounter(const TString& name) const
     }
 
     TTimeCounter counter;
-    counter.Counter_ = Impl_->RegisterTimeCounter(Prefix_ + name, Tags_, Options_);;
+    counter.Counter_ = Impl_->RegisterTimeCounter(Namespace_ + Prefix_ + name, Tags_, Options_);;
     return counter;
 }
 
@@ -220,7 +226,7 @@ TGauge TRegistry::Gauge(const TString& name) const
     }
 
     TGauge gauge;
-    gauge.Gauge_ = Impl_->RegisterGauge(Prefix_ + name, Tags_, Options_);;
+    gauge.Gauge_ = Impl_->RegisterGauge(Namespace_ + Prefix_ + name, Tags_, Options_);;
     return gauge;
 }
 
@@ -231,7 +237,7 @@ TSummary TRegistry::Summary(const TString& name) const
     }
 
     TSummary summary;
-    summary.Summary_ = Impl_->RegisterSummary(Prefix_ + name, Tags_, Options_);;
+    summary.Summary_ = Impl_->RegisterSummary(Namespace_ + Prefix_ + name, Tags_, Options_);;
     return summary;
 }
 
@@ -242,7 +248,7 @@ TEventTimer TRegistry::Timer(const TString& name) const
     }
 
     TEventTimer timer;
-    timer.Timer_ = Impl_->RegisterTimerSummary(Prefix_ + name, Tags_, Options_);
+    timer.Timer_ = Impl_->RegisterTimerSummary(Namespace_ + Prefix_ + name, Tags_, Options_);
     return timer;
 }
 
@@ -255,7 +261,7 @@ void TRegistry::AddFuncCounter(
         return;
     }
 
-    Impl_->RegisterFuncCounter(Prefix_ + name, Tags_, Options_, owner, reader);
+    Impl_->RegisterFuncCounter(Namespace_ + Prefix_ + name, Tags_, Options_, owner, reader);
 }
 
 void TRegistry::AddFuncGauge(
@@ -267,7 +273,7 @@ void TRegistry::AddFuncGauge(
         return;
     }
 
-    Impl_->RegisterFuncGauge(Prefix_ + name, Tags_, Options_, owner, reader);
+    Impl_->RegisterFuncGauge(Namespace_ + Prefix_ + name, Tags_, Options_, owner, reader);
 }
 
 void TRegistry::AddProducer(
@@ -278,7 +284,7 @@ void TRegistry::AddProducer(
         return;
     }
 
-    Impl_->RegisterProducer(Prefix_ + prefix, Tags_, Options_, producer);
+    Impl_->RegisterProducer(Namespace_ + Prefix_ + prefix, Tags_, Options_, producer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

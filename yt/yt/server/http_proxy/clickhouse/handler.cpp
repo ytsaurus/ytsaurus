@@ -51,7 +51,7 @@ using namespace NSecurityClient;
 
 TLogger ClickHouseLogger("ClickHouseProxy");
 TProfiler ClickHouseProfiler("/clickhouse_proxy");
-TRegistry ClickHouseProfilerRegistry("yt/clickhouse_proxy");
+TRegistry ClickHouseProfilerRegistry("/clickhouse_proxy");
 
 // It is needed for PROFILE_AGGREGATED_TIMING macros.
 static const auto& Profiler = ClickHouseProfiler;
