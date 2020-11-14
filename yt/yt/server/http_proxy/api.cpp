@@ -162,7 +162,7 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
 
         auto counters = std::make_unique<TProfilingCounters>();
         counters->ConcurrencySemaphore = profiler.Gauge("/concurrency_semaphore");
-        counters->RequestCount = profiler.Counter("/concurrency_semaphore");
+        counters->RequestCount = profiler.Counter("/request_count");
         counters->RequestDuration = profiler.Timer("/request_duration");
         return counters;
     }).first->get();
