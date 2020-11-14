@@ -29,7 +29,7 @@ DEFINE_ENUM(EEndpointType,
 );
 
 class TLegacySortedJobBuilder
-    : public ISortedJobBuilder
+    : public ILegacySortedJobBuilder
 {
 public:
     TLegacySortedJobBuilder(
@@ -623,7 +623,7 @@ DEFINE_REFCOUNTED_TYPE(TLegacySortedJobBuilder);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISortedJobBuilderPtr CreateLegacySortedJobBuilder(
+ILegacySortedJobBuilderPtr CreateLegacySortedJobBuilder(
     const TSortedJobOptions& options,
     IJobSizeConstraintsPtr jobSizeConstraints,
     const TRowBufferPtr& rowBuffer,

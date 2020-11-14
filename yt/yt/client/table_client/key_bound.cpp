@@ -83,6 +83,12 @@ TKeyBound TKeyBoundImpl<TRow, TKeyBound>::MakeUniversal(bool isUpper)
 }
 
 template <class TRow, class TKeyBound>
+TKeyBound TKeyBoundImpl<TRow, TKeyBound>::MakeEmpty(bool isUpper)
+{
+    return TKeyBoundImpl<TRow, TKeyBound>::FromRow(EmptyKey(), /* isInclusive */ false, isUpper);
+}
+
+template <class TRow, class TKeyBound>
 void TKeyBoundImpl<TRow, TKeyBound>::ValidateValueTypes(const TRow& row)
 {
     for (const auto& value : row) {

@@ -1,6 +1,7 @@
 #include "new_sorted_job_builder.h"
 
 #include "helpers.h"
+#include "input_stream.h"
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
@@ -11,6 +12,9 @@
 #include <yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/heap.h>
+
+#include <cmath>
 
 namespace NYT::NChunkPools {
 
@@ -22,17 +26,830 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// XXX(max42): do not divide into left and right?
-DEFINE_ENUM(EEndpointType,
-    (PivotKey)
-    (ForeignLeft)
-    (Left)
-    (Right)
-    (ForeignRight)
+//! Helper structure for representing job parameters.
+struct TAggregatedStatistics
+{
+    i64 DataSliceCount = 0;
+    i64 DataWeight = 0;
+    i64 PrimaryDataWeight = 0;
+
+    static TAggregatedStatistics FromDataSlice(const TInputDataSlicePtr& dataSlice, bool isPrimary)
+    {
+        return {
+            .DataSliceCount = 1,
+            .DataWeight = dataSlice->GetDataWeight(),
+            .PrimaryDataWeight = isPrimary ? dataSlice->GetDataWeight() : 0
+        };
+    }
+
+    TAggregatedStatistics operator+(const TAggregatedStatistics& other) const
+    {
+        return {
+            .DataSliceCount = DataSliceCount + other.DataSliceCount,
+            .DataWeight = DataWeight + other.DataWeight,
+            .PrimaryDataWeight = PrimaryDataWeight + other.PrimaryDataWeight
+        };
+    }
+
+    TAggregatedStatistics& operator+=(const TAggregatedStatistics& other)
+    {
+        DataSliceCount += other.DataSliceCount;
+        DataWeight += other.DataWeight;
+        PrimaryDataWeight += other.PrimaryDataWeight;
+        return *this;
+    }
+
+    TAggregatedStatistics& operator-=(const TAggregatedStatistics& other)
+    {
+        DataSliceCount -= other.DataSliceCount;
+        DataWeight -= other.DataWeight;
+        PrimaryDataWeight -= other.PrimaryDataWeight;
+        return *this;
+    }
+
+    bool operator <=(const TAggregatedStatistics& other) const
+    {
+        return
+            DataSliceCount <= other.DataSliceCount &&
+            DataWeight <= other.DataWeight &&
+            PrimaryDataWeight <= other.PrimaryDataWeight;
+    }
+
+    bool operator >=(const TAggregatedStatistics& other) const
+    {
+        return
+            DataSliceCount >= other.DataSliceCount ||
+            DataWeight >= other.DataWeight ||
+            PrimaryDataWeight >= other.PrimaryDataWeight;
+    }
+
+    bool operator >(const TAggregatedStatistics& other) const
+    {
+        return
+            DataSliceCount > other.DataSliceCount ||
+            DataWeight > other.DataWeight ||
+            PrimaryDataWeight > other.PrimaryDataWeight;
+    }
+
+    bool IsZero() const
+    {
+        return DataSliceCount == 0 && DataWeight == 0 && PrimaryDataWeight == 0;
+    }
+};
+
+TString ToString(const TAggregatedStatistics& statistics)
+{
+    return Format("{DSC: %v, DW: %v, PDW: %v}", statistics.DataSliceCount, statistics.DataWeight, statistics.PrimaryDataWeight);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString GetDataSliceDebugString(const TInputDataSlicePtr& dataSlice)
+{
+    std::vector<TChunkId> chunkIds;
+    chunkIds.reserve(dataSlice->ChunkSlices.size());
+    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+        chunkIds.emplace_back(chunkSlice->GetInputChunk()->ChunkId());
+    }
+    return Format("{Address: %v, DataWeight: %v, KeyBounds: %v:%v, InputStreamIndex: %v, ChunkIds: %v}",
+        dataSlice.Get(),
+        dataSlice->GetDataWeight(),
+        dataSlice->LowerLimit().KeyBound,
+        dataSlice->UpperLimit().KeyBound,
+        dataSlice->InputStreamIndex,
+        chunkIds);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// == WHAT IS THIS? ==
+//
+// Here goes the class that serves for means of job creation. Think of it as of a staging
+// area for data slices; it reacts on events like "promote current job upper bound to the
+// next interesting endpoint" of "(forcefully) flush".
+//
+// All data slices in the staging area are divided into four domains.
+//
+// === Main ===
+//
+// Contains data slices such that are going in the next job to be built. On flush they are
+// cut using current upper bound into two halves, first of which goes to the job, while
+// second goes to the BufferNonSingleton.
+//
+// Invariant: for all main data slices D condition D.lowerBound < UpperBound_ holds
+// with the only exception of singleton data slices, for which it may happen
+// that D.LowerBound == UpperBound_ (i.e. singleton key is located exactly
+// to the right of the ray defined by UpperBound_). Note that the latter
+// case may happen only when UpperBound_ is exclusive.
+//
+// === BufferNonSingleton ===
+//
+// Contains data slices that appeared at the same time upper bound took its current place.
+//
+// Invariants: 1) for all buffer data slices D holds D.LowerBound == UpperBound_.Invert().
+// 2) if key guarantee is disabled, contains only non-singleton data slices.
+//
+// === BufferSingleton ===
+//
+// Similar to the previous one, but appears only when key guarantee is disabled and contains
+// only singleton data slices.
+//
+// === Foreign ===
+//
+// Contains foreign data slices. They are stored in a priority queue ordered by slice's
+// upper bound. Such order allows us to trim foreign data slices that are not relevant any more.
+//
+// == EXAMPLES ==
+//
+// 1) EnableKeyGuarantee = true, no foreign data is present (typical sorted reduce operation).
+//
+//                       exclusive
+//                      upper bound
+//      <Main>               )               <BufferNonSingleton>
+//                           )
+// A:                        )[-------]
+// B:              [---------)
+// C:                        )[]
+//                           )
+// D:           [------------)---)
+// E:    (---------]         )
+//                           )
+// --------------------------)--------------------------------------> keys
+//
+// Slices B, D and E are in Main domain, slices A and C are in BufferNonSingleton domain.
+// Slice C is a single-key slice, but we treat it as a regular BufferNonSingleton slice
+// since key guarantee is enabled.
+// Slice D spans across current upper bound.
+// If Flush() is to be called now, D will be cut into two parts, and job will be formed
+// of E, B and D's left part.
+//
+// 2) EnableKeyGuarantee = false, no foreign data is present.
+//
+//                       exclusive
+//                      upper bound
+//      <Main>               )
+//                           )
+// A:                        )[-------]      <-- <BufferNonSingleton>
+// B:              [---------)
+// C1:                       )[]             <\
+// C2:                       )[]             < - <BufferSingleton>
+// C3:                       )[]             </
+//                           )
+// D:           [------------)---]
+// E:    [---------]         )
+//                           )
+// --------------------------)--------------------------------------> keys
+//
+// Same as previous, but key guarantee is disabled. In such circumstances,
+// slices C1-3 have special meaning for us: they may be attached to the current job
+// (despite the fact they do not belong to the current key bound).
+//
+// Moreover, they are allowed to be sliced by rows in situation when taking whole slice
+// violates job limits. In such case, left part of the slice goes to the job,
+// while right part resides in the BufferSingleton domain, after which it will
+// be considered for including into the next job.
+//
+// Note that in such case first job contains all slices from current Main domain,
+// while second, third, ... jobs will contain only singleton slices.
+//
+// 3) EnableKeyGuarantee = true, foreign data is present.
+//                       inclusive
+//                      upper bound
+//      <Main>               ]               <BufferNonSingleton>
+//                           ]
+// A:                        ](-------]
+// B:              [---------]
+// C:                       []
+//                           ]
+// D:           [------------]---)
+// E:    (---------]         ]
+//                           ]
+// --------------------------]--------------------------------------> keys
+//                           ]
+// F:  [-------------]       ]                 <Foreign>
+// G:                     [--]------]
+//                           ]
+//
+// In this case foreign data is present. After we call Flush(), all primary slices
+// from Main domain disappear making slice F irrelevant, so it is going to be trimmed
+// off Foreign domain.
+//
+// Also this case illustrates that upper bound may be inclusive (e.g. when it is induced
+// by an inclusive lower bound of a primary slice A), but this does not actually affect
+// any logic.
+
+DEFINE_ENUM(EDomainKind,
+    (Main)
+    (BufferSingleton)
+    (BufferNonSingleton)
+    (Foreign)
+)
+
+//! This class is responsible for holding the current "working set" of data slices.
+class TStagingArea
+{
+public:
+    TStagingArea(
+        bool enableKeyGuarantee,
+        TComparator primaryComparator,
+        TComparator foreignComparator,
+        const TRowBufferPtr& rowBuffer,
+        TAggregatedStatistics limitStatistics,
+        i64 maxTotalDataSliceCount,
+        i64 inputSliceDataWeight,
+        const TInputStreamDirectory& inputStreamDirectory,
+        bool logDetails,
+        const TLogger& logger)
+        : EnableKeyGuarantee_(enableKeyGuarantee)
+        , PrimaryComparator_(primaryComparator)
+        , ForeignComparator_(foreignComparator)
+        , LimitStatistics_(limitStatistics)
+        , MaxTotalDataSliceCount_(maxTotalDataSliceCount)
+        , InputSliceDataWeight_(inputSliceDataWeight)
+        , LogDetails_(logDetails)
+        , RowBuffer_(rowBuffer)
+        , InputStreamDirectory_(inputStreamDirectory)
+        , Logger(logger)
+        , ForeignDomain_(ForeignComparator_)
+    {
+        YT_LOG_DEBUG_IF(LogDetails_, "Staging area instantiated (LimitStatistics: %v)", LimitStatistics_);
+    }
+
+    //! Promote upper bound for currently built job.
+    void PromoteUpperBound(TKeyBound upperBound)
+    {
+        YT_VERIFY(PrimaryComparator_.CompareKeyBounds(UpperBound_, upperBound) < 0);
+
+        YT_LOG_DEBUG_IF(LogDetails_, "Upper bound promoted (UpperBound: %v)", upperBound);
+
+        UpperBound_ = upperBound;
+
+        // Buffer slices are not attached to current upper bound any more, so they
+        // should me moved to the main area.
+        TransferWholeBufferToMain();
+    }
+
+    //! Put new data slice. It must be true that dataSlice.LowerBound == UpperBound_.Invert().
+    void Put(const TInputDataSlicePtr& dataSlice, bool isPrimary)
+    {
+        YT_VERIFY(dataSlice->Tag);
+        YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());
+
+        if (!isPrimary) {
+            PutToDomain(EDomainKind::Foreign, dataSlice);
+        } else if (
+            !EnableKeyGuarantee_ &&
+            PrimaryComparator_.TryAsSingletonKey(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound) &&
+            // NB: versioned data slices can't be sliced by rows.
+            !InputStreamDirectory_.GetDescriptor(*dataSlice->Tag).IsVersioned())
+        {
+            PutToDomain(EDomainKind::BufferSingleton, dataSlice);
+        } else {
+            PutToDomain(EDomainKind::BufferNonSingleton, dataSlice);
+        }
+    }
+
+    //! Barriers are used to indicate positions which should not be overlapped by jobs
+    //! (in particular, pivot keys and teleport chunks define barriers).
+    //! Barriers are represented as "empty" jobs.
+    void PutBarrier()
+    {
+        PreparedJobs_.emplace_back();
+    }
+
+    //! Either try flushing or forcefully flush data slices into one or more new jobs.
+    //! Non-force version should be called after each introduction of new portion of data slices;
+    //! force version is called whenever pivot keys or teleport chunks are reached.
+    void Flush(bool force)
+    {
+        // If we have no Main nor BufferSingleton slices, we have nothing to do.
+        if (IsExhausted()) {
+            // Nothing to flush.
+            return;
+        }
+
+        // In order to flush, we should be forcefully asked to or we should have
+        // enough data for at least one job.
+        if (!force && !IsOverflow()) {
+            return;
+        }
+
+        YT_LOG_DEBUG_IF(
+            LogDetails_,
+            "Performing flush (Statistics: %v, IsOverflow: %v, Force: %v)",
+            GetStatisticsDebugString(),
+            IsOverflow(),
+            force);
+
+        // By this moment singleton slices are not yet in the Main, so we cut only
+        // proper Main data slices.
+        CutMainByUpperBound();
+
+        bool progressMade;
+        do
+        {
+            // Flag indicating if we were able to form a non-trivial job.
+            progressMade = false;
+
+            // First, try to fill current job with singleton slices.
+            if (!EnableKeyGuarantee_) {
+                progressMade |= TryTransferSingletonsToMain(force);
+            }
+            // By this moment some part of singleton jobs could have been added
+            // to main. Now try flushing Main domain into job.
+            progressMade |= TryFlushMain();
+        } while (progressMade);
+
+        YT_LOG_DEBUG_IF(
+            LogDetails_,
+            "Flush finished (Statistics: %v)",
+            GetStatisticsDebugString());
+
+        // If we were explicitly asked to forcefully flush, make a sanity check
+        // that Main and BufferSingleton domains are empty.
+        if (force) {
+            for (const auto& domainKind : {EDomainKind::Main, EDomainKind::BufferSingleton}) {
+                const auto& domain = PrimaryDomains_[domainKind];
+                YT_VERIFY(domain.DataSlices.empty());
+                YT_VERIFY(domain.Statistics.IsZero());
+            }
+        }
+    }
+
+    //! Called at the end of processing to flush all remaining data slices into jobs.
+    void Finish()
+    {
+        YT_LOG_DEBUG_IF(LogDetails_, "Finishing work in staging area");
+
+        PromoteUpperBound(TKeyBound::MakeUniversal(/* isUpper */ true));
+
+        Flush(/* force */ true);
+        for (const auto& domain : PrimaryDomains_) {
+            YT_VERIFY(domain.DataSlices.empty());
+            YT_VERIFY(domain.Statistics.IsZero());
+        }
+    }
+
+    using TJob = std::vector<TInputDataSlicePtr>;
+
+    std::vector<TJob>& PreparedJobs()
+    {
+        return PreparedJobs_;
+    }
+
+    //! Total number of data slices in all created jobs.
+    //! Used for internal bookkeeping by the outer code.
+    i64 GetTotalDataSliceCount() const
+    {
+        return TotalDataSliceCount_;
+    }
+
+private:
+    bool EnableKeyGuarantee_;
+    TComparator PrimaryComparator_;
+    TComparator ForeignComparator_;
+    TAggregatedStatistics LimitStatistics_;
+    i64 MaxTotalDataSliceCount_;
+    i64 InputSliceDataWeight_;
+    bool LogDetails_;
+    TRowBufferPtr RowBuffer_;
+    TInputStreamDirectory InputStreamDirectory_;
+    TLogger Logger;
+
+    //! Upper bound using which all data slices in Main domain are to be cut.
+    //! NB: actual upper bound of job to be built may differ from #UpperBound_
+    //! in case when singleton data slices are added to the job; in this case
+    //! actual upper bound for a job will be #UpperBound_.ToggleInclusiveness()
+    //! (i.e. exclusive instead of inclusive).
+    TKeyBound UpperBound_ = TKeyBound::MakeEmpty(/* isUpper */ true);
+
+    i64 TotalDataSliceCount_ = 0;
+    std::vector<TJob> PreparedJobs_;
+
+    //! These flags are used only for internal sanity check.
+    bool PreviousJobContainedSingleton_ = false;
+    bool CurrentJobContainsSingleton_ = false;
+
+    //! Previous job upper bound, used for internal sanity check.
+    TKeyBound PreviousJobUpperBound_ = TKeyBound::MakeEmpty(/* isUpper */ true);
+
+    //! Structure holding data slices for one of primary domains with their aggregated statistics.
+    struct TPrimaryDomain
+    {
+        TAggregatedStatistics Statistics;
+        TRingQueue<TInputDataSlicePtr> DataSlices = TRingQueue<TInputDataSlicePtr>();
+
+        void AddDataSlice(TInputDataSlicePtr dataSlice)
+        {
+            Statistics += TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ true);
+            DataSlices.push(std::move(dataSlice));
+        }
+
+        void Clear()
+        {
+            Statistics = TAggregatedStatistics();
+            DataSlices.clear();
+        }
+    };
+
+    //! Similar to previous, but for foreign data slices.
+    struct TForeignDomain
+    {
+        TAggregatedStatistics Statistics;
+
+        //! Priority queue of data slices using upper key bound as priority.
+        std::vector<TInputDataSlicePtr> DataSlices;
+        std::function<bool(const TInputDataSlicePtr&, const TInputDataSlicePtr&)> DataSliceUpperBoundComparator;
+
+        TForeignDomain(const TComparator& foreignComparator)
+            : DataSliceUpperBoundComparator([&foreignComparator] (const auto& lhs, const auto& rhs) {
+                return foreignComparator.CompareKeyBounds(lhs->UpperLimit().KeyBound, rhs->UpperLimit().KeyBound) < 0;
+            })
+        { }
+
+        void AddDataSlice(TInputDataSlicePtr dataSlice)
+        {
+            Statistics += TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ false);
+            DataSlices.emplace_back(std::move(dataSlice));
+            AdjustHeapBack(DataSlices.begin(), DataSlices.end(), DataSliceUpperBoundComparator);
+        }
+    };
+
+    TEnumIndexedVector<EDomainKind, TPrimaryDomain> PrimaryDomains_;
+    TForeignDomain ForeignDomain_;
+
+    void PutToDomain(EDomainKind domain, const TInputDataSlicePtr& dataSlice)
+    {
+        bool isPrimary = domain != EDomainKind::Foreign;
+        if (isPrimary) {
+            PrimaryDomains_[domain].AddDataSlice(dataSlice);
+        } else {
+            ForeignDomain_.AddDataSlice(dataSlice);
+        }
+    }
+
+    TAggregatedStatistics GetTotalStatistics() const
+    {
+        return
+            PrimaryDomains_[EDomainKind::Main].Statistics +
+            PrimaryDomains_[EDomainKind::BufferNonSingleton].Statistics +
+            PrimaryDomains_[EDomainKind::BufferSingleton].Statistics +
+            ForeignDomain_.Statistics;
+    }
+
+    TString GetStatisticsDebugString() const
+    {
+        std::vector<TString> parts;
+        parts.emplace_back(Format("Main: %v", PrimaryDomains_[EDomainKind::Main].Statistics));
+        parts.emplace_back(Format("BufferNonSingleton: %v", PrimaryDomains_[EDomainKind::BufferNonSingleton].Statistics));
+        if (!EnableKeyGuarantee_) {
+            parts.emplace_back(Format("BufferSingleton: %v", PrimaryDomains_[EDomainKind::BufferSingleton].Statistics));
+        }
+        return Format("{%v}", JoinToString(parts, AsStringBuf(", ")));
+    }
+
+    //! Check if it is time to build a job. Indeed, if we promote upper bound instead,
+    //! on the next iteration we will get an overflow situated in Main domain, so it is
+    //! better to flush now.
+    bool IsOverflow() const
+    {
+        return GetTotalStatistics() > LimitStatistics_;
+    }
+
+    //! Check if we have at least one data slice to build job right now.
+    bool IsExhausted() const
+    {
+        return PrimaryDomains_[EDomainKind::Main].Statistics.IsZero() && PrimaryDomains_[EDomainKind::BufferSingleton].Statistics.IsZero();
+    }
+
+    void CutMainByUpperBound()
+    {
+        YT_LOG_DEBUG_IF(LogDetails_, "Cutting main domain by upper bound (UpperBound: %v)", UpperBound_);
+
+        auto& mainDataSlices = PrimaryDomains_[EDomainKind::Main].DataSlices;
+        for (auto it = mainDataSlices.begin(); it != mainDataSlices.end(); mainDataSlices.move_forward(it)) {
+            auto& dataSlice = *it;
+
+            // Right part of the data slice goes to the BufferNonSingleton domain.
+            auto restDataSlice = CreateInputDataSlice(dataSlice, PrimaryComparator_, UpperBound_.Invert(), dataSlice->UpperLimit().KeyBound);
+            restDataSlice->LowerLimit().KeyBound = PrimaryComparator_.StrongerKeyBound(UpperBound_.Invert(), restDataSlice->LowerLimit().KeyBound);
+            // It may happen that data slice is entirely inside current upper bound (e.g. slice E from example 1 above).
+            if (!PrimaryComparator_.IsRangeEmpty(restDataSlice->LowerLimit().KeyBound, restDataSlice->UpperLimit().KeyBound)) {
+                restDataSlice->CopyPayloadFrom(*dataSlice);
+                PutToDomain(EDomainKind::BufferNonSingleton, restDataSlice);
+            }
+
+            // Left part of the data slice resides in the Main domain.
+            dataSlice = CreateInputDataSlice(dataSlice, PrimaryComparator_, dataSlice->LowerLimit().KeyBound, UpperBound_);
+
+            // Data slices are moved into Main domain strictly after they are first introduced (i.e. after promotion of upper bound),
+            // so the left part can't be empty.
+            YT_VERIFY(!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound));
+        }
+    }
+
+    //! Try to transfer arbitrary number of whole data slices and at most one row-sliced data slice
+    //! from BufferSingleton domain to the Main domain. If at least one data sliced is transferred,
+    //! return true; otherwise return false.
+    bool TryTransferSingletonsToMain(bool force)
+    {
+        auto& mainDomain = PrimaryDomains_[EDomainKind::Main];
+        auto& singletonDomain = PrimaryDomains_[EDomainKind::BufferSingleton];
+
+        while (true) {
+            // Check if there is at least one data slices to transfer.
+            if (singletonDomain.Statistics.IsZero()) {
+                YT_LOG_DEBUG_IF(LogDetails_, "Singleton domain exhausted");
+                return false;
+            }
+
+            // Stop process if we are not forced to transfer singletons up to the end
+            // and if Main domain is already full.
+            if (!force && mainDomain.Statistics >= LimitStatistics_) {
+                YT_LOG_DEBUG_IF(
+                    LogDetails_,
+                    "Main domain saturated (Statistics: %v)", mainDomain.Statistics);
+                return false;
+            }
+
+            auto& dataSlice = singletonDomain.DataSlices.front();
+
+            // Check invariants for buffer singleton data slices.
+            YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());
+            YT_VERIFY(dataSlice->LowerLimit().KeyBound.IsInclusive);
+
+            auto statistics = TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ true);
+
+            auto takeWhole = [&] {
+                YT_LOG_DEBUG_IF(
+                    LogDetails_,
+                    "Adding whole singleton data slice to main domain (DataSlice: %v, Statistics: %v)",
+                    GetDataSliceDebugString(dataSlice),
+                    statistics);
+                mainDomain.AddDataSlice(dataSlice);
+                singletonDomain.Statistics -= statistics;
+                singletonDomain.DataSlices.pop();
+                CurrentJobContainsSingleton_ = true;
+            };
+
+            // Why would we want to take the whole slice? There are three cases.
+            // 1) It may fit into the gap; 2) it may be small enough to be considered negligible
+            // or 3) we have no other choice.
+            if (mainDomain.Statistics + statistics <= LimitStatistics_ ||
+                statistics.DataWeight <= InputSliceDataWeight_ ||
+                force)
+            {
+                takeWhole();
+            } else {
+                auto gapStatistics = LimitStatistics_;
+                gapStatistics -= mainDomain.Statistics;
+
+                YT_LOG_DEBUG_IF(
+                    LogDetails_,
+                    "Trying to fill the gap (GapStatistics: %v, DataSlice: %v)",
+                    gapStatistics,
+                    GetDataSliceDebugString(dataSlice));
+
+                // Ok, we know that this data slice is going to be the last we put into the main domain.
+                // Let's calculate which fraction of the data slices we take for now.
+
+                // First, estimate what is the maximum fraction that does not violate the remaining gap.
+                auto fractionUpperBound = static_cast<double>(gapStatistics.DataWeight) / statistics.DataWeight;
+                if (statistics.PrimaryDataWeight != 0) {
+                    fractionUpperBound = std::min(
+                        fractionUpperBound,
+                        static_cast<double>(gapStatistics.PrimaryDataWeight) / statistics.PrimaryDataWeight);
+                }
+
+                // Second, taking smaller than InputSliceDataWeight_ is meaningless.
+                auto sliceDataWeightFractionLowerBound = static_cast<double>(InputSliceDataWeight_) / statistics.DataWeight;
+
+                auto fraction = fractionUpperBound;
+                if (fraction < sliceDataWeightFractionLowerBound) {
+                    fraction = sliceDataWeightFractionLowerBound;
+                }
+
+                // Finally, if we already took more than 90% of data slice, take it as a whole.
+                constexpr double UpperFractionThreshold = 0.9;
+
+                if (fraction >= UpperFractionThreshold) {
+                    YT_LOG_DEBUG_IF(LogDetails_, "Fraction for the remaining data slice is high enough to take it as a whole (Fraction: %v)", fraction);
+                    takeWhole();
+                    YT_LOG_DEBUG_IF(
+                        LogDetails_,
+                        "Main domain saturated after transferring final whole data slice (Statistics: %v)", mainDomain.Statistics);
+                } else {
+                    // Divide slice in desired proportion using row indices.
+                    auto lowerRowIndex = dataSlice->LowerLimit().RowIndex.value_or(0);
+                    auto upperRowIndex = dataSlice->UpperLimit().RowIndex.value_or(dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount());
+                    YT_VERIFY(lowerRowIndex < upperRowIndex);
+                    auto rowCount = static_cast<i64>(std::ceil((upperRowIndex - lowerRowIndex) * fraction));
+                    rowCount = ClampVal<i64>(rowCount, 0, upperRowIndex - lowerRowIndex);
+
+                    YT_LOG_DEBUG_IF(
+                        LogDetails_,
+                        "Splitting data slice by rows (Fraction: %v, LowerRowIndex: %v, UpperRowIndex: %v, RowCount: %v, MiddleRowIndex: %v)",
+                        fraction,
+                        lowerRowIndex,
+                        upperRowIndex,
+                        rowCount,
+                        lowerRowIndex + rowCount);
+                    auto [leftDataSlice, rightDataSlice] = dataSlice->SplitByRowIndex(rowCount);
+                    // Discard the original singleton data slice.
+                    singletonDomain.Statistics -= TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ true);
+
+                    if (rowCount == upperRowIndex - lowerRowIndex) {
+                        // In some borderline cases this may happen... just discard this data slice.
+                        singletonDomain.DataSlices.pop();
+                    } else {
+                        // Add right part to the singleton domain.
+                        singletonDomain.Statistics += TAggregatedStatistics::FromDataSlice(rightDataSlice, /* isPrimary */ true);
+                        dataSlice.Swap(rightDataSlice);
+                    }
+
+                    if (rowCount > 0) {
+                        // Finally, add left part to the Main domain.
+                        mainDomain.AddDataSlice(leftDataSlice);
+                        CurrentJobContainsSingleton_ = true;
+                        YT_LOG_DEBUG_IF(
+                            LogDetails_,
+                            "Main domain saturated after transferring final partial data slice (Statistics: %v)", mainDomain.Statistics);
+                    }
+                }
+
+                return true;
+            };
+        }
+
+        YT_ABORT();
+    }
+
+    void TransferWholeBufferToMain()
+    {
+        for (auto bufferDomain : {EDomainKind::BufferNonSingleton, EDomainKind::BufferSingleton}) {
+            auto& domain = PrimaryDomains_[bufferDomain];
+            for (auto it = domain.DataSlices.begin(); it != domain.DataSlices.end(); domain.DataSlices.move_forward(it)) {
+                PrimaryDomains_[EDomainKind::Main].AddDataSlice(std::move(*it));
+            }
+            PrimaryDomains_[bufferDomain].Clear();
+        }
+    }
+
+    void ValidateCurrentJobBounds(TKeyBound actualLowerBound, TKeyBound actualUpperBound) const
+    {
+        YT_LOG_DEBUG_IF(
+            LogDetails_,
+            "Current job key bounds (KeyBounds: %v:%v)",
+            actualLowerBound,
+            actualUpperBound);
+
+        // In general case, previous and current job are located like this:
+        //
+        // C: --------------[-------------)-----
+        // P: ----[---------)-------------------
+        //
+        // or like this:
+        //
+        // C: --------------(-------------)-----
+        // P: ----[---------]-------------------
+        //
+        // But if the previous job contained singleton, it spanned a bit wider,
+        // including one extra key (obtained from singleton slice). In this case
+        // picture may look like the following:
+        //
+        // C: --------------[-------------]---
+        // P: ----[---------]-----------------
+        //
+        // First, we assert that the previous job is located to the left from the
+        // current one (possibly, with intersection consisting of a single key).
+
+        if (PreviousJobContainedSingleton_) {
+            YT_VERIFY(
+                PrimaryComparator_.CompareKeyBounds(actualLowerBound, PreviousJobUpperBound_) >= 0 ||
+                PrimaryComparator_.TryAsSingletonKey(actualLowerBound, PreviousJobUpperBound_));
+        } else {
+            YT_VERIFY(PrimaryComparator_.CompareKeyBounds(actualLowerBound, PreviousJobUpperBound_) >= 0);
+        }
+
+        // Second, assert that the whole job is located to the left of UpperBound_ with
+        // the same exception of a job including the singleton key, in which case
+        // upper bound is toggled.
+
+        TKeyBound theoreticalUpperBound;
+        if (CurrentJobContainsSingleton_) {
+            YT_VERIFY(!UpperBound_.IsInclusive);
+            theoreticalUpperBound = UpperBound_.ToggleInclusiveness();
+        } else {
+            theoreticalUpperBound = UpperBound_;
+        }
+
+        YT_VERIFY(PrimaryComparator_.CompareKeyBounds(actualUpperBound, theoreticalUpperBound) <= 0);
+    }
+
+    //! Trim leftmost foreign slices (in respect to their upper limits) until
+    //! leftmost of them starts to intersect the lower bound of current job.
+    void TrimForeignSlices(TKeyBound actualLowerBound)
+    {
+        while (!ForeignDomain_.DataSlices.empty() &&
+            ForeignComparator_.IsRangeEmpty(actualLowerBound, ForeignDomain_.DataSlices.front()->UpperLimit().KeyBound))
+        {
+            YT_LOG_DEBUG_IF(LogDetails_, "Trimming foreign data slice (DataSlice: %v)", ForeignDomain_.DataSlices.front());
+            ForeignDomain_.Statistics -= TAggregatedStatistics::FromDataSlice(ForeignDomain_.DataSlices.front(), /* isPrimary */ false);
+            ExtractHeap(ForeignDomain_.DataSlices.begin(), ForeignDomain_.DataSlices.end(), ForeignDomain_.DataSliceUpperBoundComparator);
+            ForeignDomain_.DataSlices.pop_back();
+        }
+    }
+
+    //! If there is at least one data slice in the main domain, form a job and return true.
+    //! Otherwise, return false.
+    bool TryFlushMain()
+    {
+        if (PrimaryDomains_[EDomainKind::Main].Statistics.IsZero()) {
+            YT_LOG_DEBUG_IF(LogDetails_, "Nothing to flush");
+            return false;
+        }
+
+        auto& job = PreparedJobs_.emplace_back();
+
+        auto& mainDataSlices = PrimaryDomains_[EDomainKind::Main].DataSlices;
+
+        YT_LOG_DEBUG_IF(LogDetails_, "Flushing main domain into job (Statistics: %v)", PrimaryDomains_[EDomainKind::Main].Statistics);
+
+
+        // Calculate the actual lower and upper bounds of newly formed job and move data slices to the job.
+        auto actualLowerBound = TKeyBound::MakeEmpty(/* isUpper */ false);
+        auto actualUpperBound = TKeyBound::MakeEmpty(/* isUpper */ true);
+        for (auto it = mainDataSlices.begin(); it != mainDataSlices.end(); mainDataSlices.move_forward(it)) {
+            actualLowerBound = PrimaryComparator_.WeakerKeyBound((*it)->LowerLimit().KeyBound, actualLowerBound);
+            actualUpperBound = PrimaryComparator_.WeakerKeyBound((*it)->UpperLimit().KeyBound, actualUpperBound);
+            job.emplace_back(std::move(*it));
+        }
+        YT_VERIFY(!job.empty());
+
+        PrimaryDomains_[EDomainKind::Main].Clear();
+
+        // Perform sanity checks and prepare information for the next sanity check.
+        ValidateCurrentJobBounds(actualLowerBound, actualUpperBound);
+        PreviousJobUpperBound_ = UpperBound_;
+        PreviousJobContainedSingleton_ = CurrentJobContainsSingleton_;
+        CurrentJobContainsSingleton_ = false;
+
+        // Now trim foreign data slices. First of all, shorten actual lower and upper bounds
+        // in order to respect the foreign comparator length.
+        auto shortenedActualLowerBound = ShortenKeyBound(actualLowerBound, ForeignComparator_.GetLength(), RowBuffer_);
+        auto shortenedActualUpperBound = ShortenKeyBound(actualUpperBound, ForeignComparator_.GetLength(), RowBuffer_);
+        TrimForeignSlices(shortenedActualLowerBound);
+
+        // Finally, iterate over remaining foreign data slices in order to find out which of them should be
+        // included to the current job. In general case, this is exactly all foreign data slices, but
+        // there are borderline cases with singleton data slices, so we explicitly test each particular data slice.
+        // Also, recall that TrimForeignSlices provides us with a guarantee that none of data slices is located
+        // to the left of job's range.
+        TAggregatedStatistics foreignStatistics;
+        for (const auto& dataSlice : ForeignDomain_.DataSlices) {
+            if (!ForeignComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, shortenedActualUpperBound)) {
+                job.emplace_back(CreateInputDataSlice(dataSlice, ForeignComparator_, shortenedActualLowerBound, shortenedActualUpperBound));
+                foreignStatistics += TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ false);
+            }
+        }
+
+        if (!foreignStatistics.IsZero()) {
+            YT_LOG_DEBUG_IF(LogDetails_, "Attaching foreign data slices to job (Statistics: %v)", foreignStatistics);
+        }
+
+        YT_LOG_DEBUG_IF(
+            LogDetails_,
+            "Job prepared (DataSlices: %v)",
+            MakeFormattableView(job, [] (auto* builder, const auto& dataSlice) {
+                builder->AppendString(GetDataSliceDebugString(dataSlice));
+            }));
+
+        TotalDataSliceCount_ += job.size();
+
+        ValidateTotalSliceCountLimit();
+
+        return true;
+    }
+
+    void ValidateTotalSliceCountLimit() const
+    {
+        if (TotalDataSliceCount_ > MaxTotalDataSliceCount_) {
+            THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in sorted pool is too large.")
+                << TErrorAttribute("total_data_slice_count", TotalDataSliceCount_)
+                << TErrorAttribute("max_total_data_slice_count", MaxTotalDataSliceCount_)
+                << TErrorAttribute("current_job_count", PreparedJobs_.size());
+        }
+    }
+};
+
+DEFINE_ENUM(ENewEndpointType,
+    (Barrier)
+    (Foreign)
+    (Primary)
 );
 
 class TNewSortedJobBuilder
-    : public ISortedJobBuilder
+    : public INewSortedJobBuilder
 {
 public:
     TNewSortedJobBuilder(
@@ -42,116 +859,42 @@ public:
         const std::vector<TInputChunkPtr>& teleportChunks,
         bool inSplit,
         int retryIndex,
+        const TInputStreamDirectory& inputStreamDirectory,
         const TLogger& logger)
         : Options_(options)
-        , Comparator_(std::vector<ESortOrder>(options.PrimaryPrefixLength, ESortOrder::Ascending))
+        , PrimaryComparator_(std::vector<ESortOrder>(options.PrimaryPrefixLength, ESortOrder::Ascending))
+        , ForeignComparator_(std::vector<ESortOrder>(options.ForeignPrefixLength, ESortOrder::Ascending))
         , JobSizeConstraints_(std::move(jobSizeConstraints))
         , JobSampler_(JobSizeConstraints_->GetSamplingRate())
         , RowBuffer_(rowBuffer)
         , InSplit_(inSplit)
         , RetryIndex_(retryIndex)
+        , InputStreamDirectory_(inputStreamDirectory)
         , Logger(logger)
     {
-        for (const auto& inputChunk : teleportChunks) {
-            auto minKeyRow = RowBuffer_->Capture(inputChunk->BoundaryKeys()->MinKey.Begin(), Comparator_.GetLength());
-            auto maxKeyRow = RowBuffer_->Capture(inputChunk->BoundaryKeys()->MaxKey.Begin(), Comparator_.GetLength());
-            TeleportChunks_.emplace_back(TTeleportChunk{
-                .InputChunk = inputChunk,
-                .MinKey = TKey::FromRow(minKeyRow),
-                .ExclusiveLowerKeyBound = TKeyBound::FromRow(minKeyRow, /* isInclusive */ false, /* isUpper */ false),
-                .MaxKey = TKey::FromRow(maxKeyRow),
-                .ExclusiveUpperKeyBound = TKeyBound::FromRow(maxKeyRow, /* isInclusive */ false, /* isUpper */ true),
-            });
-        }
-
-        for (size_t index = 0; index + 1 < TeleportChunks_.size(); ++index) {
-            YT_VERIFY(Comparator_.CompareKeys(TeleportChunks_[index].MaxKey, TeleportChunks_[index + 1].MinKey) <= 0);
-        }
+        AddTeleportChunkEndpoints(teleportChunks);
     }
 
-    virtual void AddForeignDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
+    virtual void AddDataSlice(const TInputDataSlicePtr& dataSlice) override
     {
         YT_VERIFY(!dataSlice->IsLegacy);
-        DataSliceToInputCookie_[dataSlice] = cookie;
+        auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
 
-        if (dataSlice->InputStreamIndex >= InputStreamIndexToForeignDataSlices_.size()) {
-            InputStreamIndexToForeignDataSlices_.resize(dataSlice->InputStreamIndex + 1);
-        }
-        InputStreamIndexToForeignDataSlices_[dataSlice->InputStreamIndex].emplace_back(dataSlice);
+        const auto& comparator = isPrimary ? PrimaryComparator_ : ForeignComparator_;
 
-        // NB: We do not need to shorten keys here. Endpoints of type "Foreign" only make
-        // us to stop, to add all foreign slices up to the current moment and to check
-        // if we already have to end the job due to the large data size or slice count.
-        TEndpoint leftEndpoint = {
-            EEndpointType::ForeignLeft,
-            dataSlice,
-            dataSlice->LowerLimit().KeyBound,
-            dataSlice->LowerLimit().RowIndex.value_or(0)
-        };
-        TEndpoint rightEndpoint = {
-            EEndpointType::ForeignRight,
-            dataSlice,
-            dataSlice->UpperLimit().KeyBound,
-            dataSlice->UpperLimit().RowIndex.value_or(0)
-        };
-
-        Endpoints_.emplace_back(leftEndpoint);
-        Endpoints_.emplace_back(rightEndpoint);
-    }
-
-    virtual void AddPrimaryDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
-    {
-        YT_VERIFY(!dataSlice->IsLegacy);
-
-        TEndpoint leftEndpoint;
-        TEndpoint rightEndpoint;
-
-        if (Options_.EnableKeyGuarantee) {
-            leftEndpoint = {
-                EEndpointType::Left,
-                dataSlice,
-                dataSlice->LowerLimit().KeyBound,
-                0LL /* RowIndex */
-            };
-
-            rightEndpoint = {
-                EEndpointType::Right,
-                dataSlice,
-                dataSlice->UpperLimit().KeyBound,
-                0LL /* RowIndex */
-            };
-        } else {
-            int leftRowIndex = dataSlice->LowerLimit().RowIndex.value_or(0);
-            leftEndpoint = {
-                EEndpointType::Left,
-                dataSlice,
-                dataSlice->LowerLimit().KeyBound,
-                leftRowIndex
-            };
-
-            int rightRowIndex = dataSlice->UpperLimit().RowIndex.value_or(
-                dataSlice->Type == EDataSourceType::UnversionedTable
-                ? dataSlice->GetSingleUnversionedChunkOrThrow()->GetRowCount()
-                : 0);
-
-            rightEndpoint = {
-                EEndpointType::Right,
-                dataSlice,
-                dataSlice->UpperLimit().KeyBound,
-                rightRowIndex
-            };
-        }
-
-        if (Comparator_.IsRangeEmpty(leftEndpoint.KeyBound, rightEndpoint.KeyBound)) {
+        if (comparator.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
             // This can happen if ranges were specified.
             // Chunk slice fetcher can produce empty slices.
             return;
         }
 
-        DataSliceToInputCookie_[dataSlice] = cookie;
+        TEndpoint endpoint = {
+            isPrimary ? ENewEndpointType::Primary : ENewEndpointType::Foreign,
+            dataSlice,
+            dataSlice->LowerLimit().KeyBound,
+        };
 
-        Endpoints_.push_back(leftEndpoint);
-        Endpoints_.push_back(rightEndpoint);
+        Endpoints_.push_back(endpoint);
     }
 
     virtual std::vector<std::unique_ptr<TJobStub>> Build() override
@@ -162,7 +905,7 @@ public:
             LogDetails();
         }
         BuildJobs();
-        AttachForeignSlices();
+
         for (auto& job : Jobs_) {
             job->Finalize(true /* sortByPosition */);
             ValidateJob(job.get());
@@ -209,13 +952,14 @@ public:
 
     virtual i64 GetTotalDataSliceCount() const override
     {
-        return TotalSliceCount_;
+        return TotalDataSliceCount_;
     }
 
 private:
     TSortedJobOptions Options_;
 
-    TComparator Comparator_;
+    TComparator PrimaryComparator_;
+    TComparator ForeignComparator_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSampler JobSampler_;
@@ -224,15 +968,9 @@ private:
 
     struct TEndpoint
     {
-        EEndpointType Type;
+        ENewEndpointType Type;
         TInputDataSlicePtr DataSlice;
         TKeyBound KeyBound;
-        i64 RowIndex;
-
-        i64 GetGlobalRowIndex() const
-        {
-            return RowIndex + DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex();
-        }
     };
 
     //! Endpoints of primary table slices in SortedReduce and SortedMerge.
@@ -244,33 +982,17 @@ private:
     //! for its future.
     std::vector<std::unique_ptr<TJobStub>> Jobs_;
 
-    //! Stores correspondence between data slices and their input cookies.
-    THashMap<TInputDataSlicePtr, IChunkPoolInput::TCookie> DataSliceToInputCookie_;
+    int JobIndex_ = 0;
+    i64 TotalDataWeight_ = 0;
 
-    std::vector<std::vector<TInputDataSlicePtr>> InputStreamIndexToForeignDataSlices_;
-
-    //! Stores the number of slices in all jobs up to current moment.
-    i64 TotalSliceCount_ = 0;
-
-    struct TTeleportChunk
-    {
-        TInputChunkPtr InputChunk;
-        //! Minimum key in chunk.
-        TKey MinKey;
-        //! Key bound "> MinKey".
-        TKeyBound ExclusiveLowerKeyBound;
-        //! Maximum key in chunk.
-        TKey MaxKey;
-        //! Key bound "< MaxKey".
-        TKeyBound ExclusiveUpperKeyBound;
-    };
-
-    std::vector<TTeleportChunk> TeleportChunks_;
+    i64 TotalDataSliceCount_ = 0;
 
     //! Indicates if this sorted job builder is used during job splitting.
     bool InSplit_ = false;
 
     int RetryIndex_;
+
+    const TInputStreamDirectory& InputStreamDirectory_;
 
     const TLogger& Logger;
 
@@ -279,48 +1001,44 @@ private:
         for (const auto& pivotKey : Options_.PivotKeys) {
             // Pivot keys act as key bounds of type >=.
             TEndpoint endpoint = {
-                EEndpointType::PivotKey,
+                ENewEndpointType::Barrier,
                 nullptr,
                 TKeyBound::FromRow(pivotKey, /* isInclusive */ true, /* isUpper */ false),
-                0
             };
             Endpoints_.emplace_back(endpoint);
+        }
+    }
+
+    void AddTeleportChunkEndpoints(const std::vector<TInputChunkPtr>& teleportChunks)
+    {
+        for (const auto& inputChunk : teleportChunks) {
+            auto minKeyRow = RowBuffer_->Capture(inputChunk->BoundaryKeys()->MinKey.Begin(), PrimaryComparator_.GetLength());
+            Endpoints_.emplace_back(TEndpoint{
+                .Type = ENewEndpointType::Barrier,
+                .DataSlice = nullptr,
+                // NB: we put barrier of type >minKey intentionally. Otherwise in case when EnableKeyGuarantee = false
+                // and there is a singleton data slice consisting exactly of minKey, we may join it together with
+                // some data slice to the right of teleport chunk leading to the sort order violation (resulting job
+                // will overlap with the teleport chunk).
+                .KeyBound = TKeyBound::FromRow(minKeyRow, /* isInclusive */ false, /* isUpper */ false),
+            });
         }
     }
 
     void SortEndpoints()
     {
         YT_LOG_DEBUG("Sorting endpoints (Count: %v)", Endpoints_.size());
+        // We sort endpoints by their location. In each group of endpoints at the same point
+        // we sort them by type: barriers first, then foreign endpoints, then primary ones.
         std::sort(
             Endpoints_.begin(),
             Endpoints_.end(),
-            [=] (const TEndpoint& lhs, const TEndpoint& rhs) -> bool {
-                {
-                    // XXX(max42): upperFirst?
-                    auto cmpResult = Comparator_.CompareKeyBounds(lhs.KeyBound, rhs.KeyBound);
-                    if (cmpResult != 0) {
-                        return cmpResult < 0;
-                    }
+            [=] (const TEndpoint& lhs, const TEndpoint& rhs) {
+                auto result = PrimaryComparator_.CompareKeyBounds(lhs.KeyBound, rhs.KeyBound);
+                if (result != 0) {
+                    return result < 0;
                 }
-
-                if (lhs.DataSlice && lhs.DataSlice->Type == EDataSourceType::UnversionedTable &&
-                    rhs.DataSlice && rhs.DataSlice->Type == EDataSourceType::UnversionedTable)
-                {
-                    // If keys are equal, we put slices in the same order they are in the original input stream.
-                    auto cmpResult = lhs.GetGlobalRowIndex() - rhs.GetGlobalRowIndex();
-                    if (cmpResult != 0) {
-                        return cmpResult < 0;
-                    }
-                }
-
-                {
-                    auto cmpResult = static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
-                    if (cmpResult != 0) {
-                        return cmpResult > 0;
-                    }
-                }
-
-                return false;
+                return static_cast<int>(lhs.Type) < static_cast<int>(rhs.Type);
             });
     }
 
@@ -328,33 +1046,11 @@ private:
     {
         for (int index = 0; index < Endpoints_.size(); ++index) {
             const auto& endpoint = Endpoints_[index];
-            YT_LOG_DEBUG("Endpoint (Index: %v, KeyBound: %v, RowIndex: %v, GlobalRowIndex: %v, Type: %v, DataSlice: %v)",
+            YT_LOG_DEBUG("Endpoint (Index: %v, KeyBound: %v, Type: %v, DataSlice: %v)",
                 index,
                 endpoint.KeyBound,
-                endpoint.RowIndex,
-                (endpoint.DataSlice && endpoint.DataSlice->Type == EDataSourceType::UnversionedTable)
-                ? std::make_optional(endpoint.DataSlice->GetSingleUnversionedChunkOrThrow()->GetTableRowIndex() + endpoint.RowIndex)
-                : std::nullopt,
                 endpoint.Type,
                 endpoint.DataSlice.Get());
-        }
-        for (const auto& dataSlice : GetKeys(DataSliceToInputCookie_)) {
-            std::vector<TChunkId> chunkIds;
-            chunkIds.reserve(dataSlice->ChunkSlices.size());
-            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                chunkIds.emplace_back(chunkSlice->GetInputChunk()->ChunkId());
-            }
-            YT_LOG_DEBUG("Data slice (Address: %v, DataWeight: %v, InputStreamIndex: %v, ChunkIds: %v)",
-                dataSlice.Get(),
-                dataSlice->GetDataWeight(),
-                dataSlice->InputStreamIndex,
-                chunkIds);
-        }
-        for (const auto& teleportChunk : TeleportChunks_) {
-            YT_LOG_DEBUG("Teleport chunk (Address: %v, MinKey: %v, MaxKey: %v)",
-                teleportChunk.InputChunk.Get(),
-                teleportChunk.MinKey,
-                teleportChunk.MaxKey);
         }
     }
 
@@ -374,18 +1070,56 @@ private:
             : JobSizeConstraints_->GetPrimaryDataWeightPerJob();
     }
 
-    void AddDataSlice(
-        TJobStub& jobStub,
-        const TInputDataSlicePtr& dataSlice,
-        IChunkPoolInput::TCookie inputCookie,
-        bool isPrimary)
+    void AddJob(std::vector<TInputDataSlicePtr>& dataSlices)
     {
-        dataSlice->TransformToLegacy(RowBuffer_);
+        auto& job = Jobs_.emplace_back(std::make_unique<TJobStub>());
 
-        jobStub.AddDataSlice(dataSlice, inputCookie, isPrimary);
+        for (auto& dataSlice : dataSlices) {
+            YT_VERIFY(dataSlice->Tag);
+            dataSlice->TransformToLegacy(RowBuffer_);
+            job->AddDataSlice(
+                std::move(dataSlice),
+                *dataSlice->Tag,
+                InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
+        }
+
+        if (JobSampler_.Sample()) {
+            YT_LOG_DEBUG("Sorted job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
+                "PrimarySliceCount: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
+                "PreliminaryForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
+                JobIndex_,
+                static_cast<int>(Jobs_.size()) - 1,
+                job->GetPrimaryDataWeight(),
+                job->GetPrimaryRowCount(),
+                job->GetPrimarySliceCount(),
+                job->GetPreliminaryForeignDataWeight(),
+                job->GetPreliminaryForeignRowCount(),
+                job->GetPreliminaryForeignSliceCount(),
+                job->LowerPrimaryKey(),
+                job->UpperPrimaryKey());
+
+            TotalDataWeight_ += Jobs_.back()->GetDataWeight();
+
+            if (Options_.LogDetails) {
+                YT_LOG_DEBUG("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
+                    JobIndex_,
+                    static_cast<int>(Jobs_.size()) - 1,
+                    Jobs_.back()->GetDebugString());
+            }
+        } else {
+            YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
+                "PreliminaryForeignDataSize: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
+                JobIndex_,
+                static_cast<int>(Jobs_.size()) - 1,
+                job->GetPrimaryDataWeight(),
+                job->GetPreliminaryForeignDataWeight(),
+                job->LowerPrimaryKey(),
+                job->UpperPrimaryKey());
+            Jobs_.pop_back();
+        }
+        ++JobIndex_;
     }
 
-    // TODO(max42): split this method into several smaller ones.
     void BuildJobs()
     {
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
@@ -397,204 +1131,94 @@ private:
                 JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
 
-        Jobs_.emplace_back(std::make_unique<TJobStub>());
-
-        // Key bound defining the part of the input data slice that is not consumed yet.
-        THashMap<TInputDataSlicePtr, TKeyBound> openedPrimarySliceToLowerBound;
-
         auto yielder = CreatePeriodicYielder();
 
-        // An index of a closest teleport chunk to the right of current endpoint.
-        int nextTeleportChunkIndex = 0;
+        double retryFactor = std::pow(JobSizeConstraints_->GetDataWeightPerJobRetryFactor(), RetryIndex_);
 
-        int jobIndex = 0;
+        TStagingArea stagingArea(
+            Options_.EnableKeyGuarantee,
+            PrimaryComparator_,
+            ForeignComparator_,
+            RowBuffer_,
+            TAggregatedStatistics{
+                .DataSliceCount = JobSizeConstraints_->GetMaxDataSlicesPerJob(),
+                .DataWeight = static_cast<i64>(std::min<double>(
+                    std::numeric_limits<i64>::max() / 2,
+                    GetDataWeightPerJob() * retryFactor)),
+                .PrimaryDataWeight = static_cast<i64>(std::min<double>(
+                    std::numeric_limits<i64>::max() / 2,
+                    GetPrimaryDataWeightPerJob() * retryFactor))
+            },
+            Options_.MaxTotalSliceCount,
+            JobSizeConstraints_->GetInputSliceDataWeight(),
+            InputStreamDirectory_,
+            Options_.LogDetails,
+            Logger);
 
-        i64 totalDataWeight = 0;
-
-        auto endJob = [&] (TKeyBound upperBound) {
-            for (auto it = openedPrimarySliceToLowerBound.begin(); it != openedPrimarySliceToLowerBound.end(); ) {
-                // Save the it to the next element because we may possibly erase current it.
-                auto nextIterator = std::next(it);
-
-                const auto& dataSlice = it->first;
-
-                // Restrict data slice using lower bound from it and upper bound from endJob argument.
-                auto& lowerBound = it->second;
-                auto exactDataSlice = CreateInputDataSlice(dataSlice, Comparator_, lowerBound, upperBound);
-                exactDataSlice->CopyPayloadFrom(*dataSlice);
-
-                // TODO(max42): this seems useless now as CopyPayloadFrom already does that.
-                auto inputCookie = DataSliceToInputCookie_.at(dataSlice);
-                exactDataSlice->Tag = inputCookie;
-
-                AddDataSlice(
-                    *Jobs_.back(),
-                    exactDataSlice,
-                    inputCookie,
-                    true /* isPrimary */);
-
-                // Recall that lowerBound is a reference to it->second.
-                // Adjust it to represent the remaining part of a data slice.
-                lowerBound = upperBound.Invert();
-                if (Comparator_.IsRangeEmpty(lowerBound, dataSlice->UpperLimit().KeyBound)) {
-                    openedPrimarySliceToLowerBound.erase(it);
-                }
-
-                it = nextIterator;
-            }
-
-            // If current job does not contain primary data slices then we can re-use it,
-            // otherwise we should create a new job.
-            if (Jobs_.back()->GetSliceCount() > 0) {
-                if (JobSampler_.Sample()) {
-                    YT_LOG_DEBUG("Sorted job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
-                        "PrimarySliceCount: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
-                        "PreliminaryForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
-                        jobIndex,
-                        static_cast<int>(Jobs_.size()) - 1,
-                        Jobs_.back()->GetPrimaryDataWeight(),
-                        Jobs_.back()->GetPrimaryRowCount(),
-                        Jobs_.back()->GetPrimarySliceCount(),
-                        Jobs_.back()->GetPreliminaryForeignDataWeight(),
-                        Jobs_.back()->GetPreliminaryForeignRowCount(),
-                        Jobs_.back()->GetPreliminaryForeignSliceCount(),
-                        Jobs_.back()->LowerPrimaryKey(),
-                        Jobs_.back()->UpperPrimaryKey());
-
-                    totalDataWeight += Jobs_.back()->GetDataWeight();
-                    TotalSliceCount_ += Jobs_.back()->GetSliceCount();
-                    ValidateTotalSliceCountLimit();
-                    Jobs_.emplace_back(std::make_unique<TJobStub>());
-
-                    if (Options_.LogDetails) {
-                        YT_LOG_DEBUG("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
-                            jobIndex,
-                            static_cast<int>(Jobs_.size()) - 1,
-                            Jobs_.back()->GetDebugString());
-                    }
-                } else {
-                    YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
-                        "PreliminaryForeignDataSize: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
-                        jobIndex,
-                        static_cast<int>(Jobs_.size()) - 1,
-                        Jobs_.back()->GetPrimaryDataWeight(),
-                        Jobs_.back()->GetPreliminaryForeignDataWeight(),
-                        Jobs_.back()->LowerPrimaryKey(),
-                        Jobs_.back()->UpperPrimaryKey());
-                    Jobs_.back() = std::make_unique<TJobStub>();
-                }
-                ++jobIndex;
-            }
-        };
-
-        auto addBarrier = [&] {
-            Jobs_.back()->SetIsBarrier(true);
-            Jobs_.emplace_back(std::make_unique<TJobStub>());
-        };
-
-        for (int index = 0, nextEndpointIndex = 0; index < Endpoints_.size(); ++index) {
+        // Iterate over groups of coinciding endpoints.
+        for (int startIndex = 0, endIndex = 0; startIndex < Endpoints_.size(); startIndex = endIndex) {
             yielder.TryYield();
 
-            // Find first endpoint located (strictly) to the right from us.
-            // In particular, all key bounds in range [index, nextEndpointIndex)
-            // will be either of types {<=, >} or {<, >=}.
-            auto keyBound = Endpoints_[index].KeyBound;
-            while (nextEndpointIndex != Endpoints_.size() && Comparator_.CompareKeyBounds(Endpoints_[nextEndpointIndex].KeyBound, keyBound) == 0) {
-                ++nextEndpointIndex;
-            }
-
-            auto nextKeyBound = (nextEndpointIndex == Endpoints_.size()) ? TKeyBound() : Endpoints_[nextEndpointIndex].KeyBound;
-            // XXX(max42): coincides with nextKeyBound.IsUpper?
-            bool nextKeyIsLeft = (nextEndpointIndex == Endpoints_.size()) ? false : Endpoints_[nextEndpointIndex].Type == EEndpointType::Left;
-
-            // Find closest teleport chunk to the right from us in order to do that, take current key bound,
-            // transform it to type > or >= and use it as a predicate for checking if teleport chunk is to the right.
-            auto keyBoundUpperCounterpart = keyBound.UpperCounterpart();
-            // NB: when key guarantee is disabled, it may happen that chunk range intersects keyBoundUpperCounterpart
-            // by exactly one key. Thus we use ExclusiveLowerKeyBound instead of MinKey.
+            // Extract contiguous group of endpoints.
             while (
-                nextTeleportChunkIndex < TeleportChunks_.size() &&
-                !Comparator_.IsRangeEmpty(TeleportChunks_[nextTeleportChunkIndex].ExclusiveLowerKeyBound, keyBoundUpperCounterpart))
+                endIndex != Endpoints_.size() &&
+                PrimaryComparator_.CompareKeyBounds(Endpoints_[startIndex].KeyBound, Endpoints_[endIndex].KeyBound) == 0)
             {
-                ++nextTeleportChunkIndex;
+                ++endIndex;
             }
 
-            // Process data current endpoint.
+            stagingArea.PromoteUpperBound(Endpoints_[startIndex].KeyBound.Invert());
 
-            if (Endpoints_[index].Type == EEndpointType::Left) {
-                // Put newly opened data slice.
-                openedPrimarySliceToLowerBound[Endpoints_[index].DataSlice] = TKeyBound::MakeUniversal(/* isUpper */ false);
-            } else if (Endpoints_[index].Type == EEndpointType::Right) {
-                // Remove data slice that closes at this point.
-                const auto& dataSlice = Endpoints_[index].DataSlice;
-                auto it = openedPrimarySliceToLowerBound.find(dataSlice);
-                // It might have happened that we already removed this slice from the
-                // `openedSlicesLowerLimits` during one of the previous `endJob` calls.
-                if (it != openedPrimarySliceToLowerBound.end()) {
-                    auto exactDataSlice = CreateInputDataSlice(dataSlice, Comparator_, it->second);
-                    exactDataSlice->CopyPayloadFrom(*dataSlice);
-                    // TODO(max42): this seems useless now as CopyPayloadFrom already does that.
-                    auto inputCookie = DataSliceToInputCookie_.at(dataSlice);
-                    exactDataSlice->Tag = inputCookie;
-                    AddDataSlice(*Jobs_.back(), exactDataSlice, inputCookie, true /* isPrimary */);
-                    openedPrimarySliceToLowerBound.erase(it);
+            // No need to add more than one barrier at the same point, so keep track if this has already happened.
+            bool barrierAdded = false;
+
+            for (const auto& endpoint : MakeRange(Endpoints_).Slice(startIndex, endIndex)) {
+                switch (endpoint.Type) {
+                    case ENewEndpointType::Barrier:
+                        if (!barrierAdded) {
+                            stagingArea.Flush(/* force */ true);
+                            stagingArea.PutBarrier();
+                            barrierAdded = true;
+                        }
+                        break;
+                    case ENewEndpointType::Foreign:
+                    case ENewEndpointType::Primary:
+                        stagingArea.Put(
+                            endpoint.DataSlice,
+                            InputStreamDirectory_.GetDescriptor(endpoint.DataSlice->InputStreamIndex).IsPrimary());
+                        break;
+                    default:
+                        YT_ABORT();
                 }
-            } else if (Endpoints_[index].Type == EEndpointType::ForeignRight) {
-                Jobs_.back()->AddPreliminaryForeignDataSlice(Endpoints_[index].DataSlice);
             }
 
-            // Is set to true if we decide to end a job here. The decision logic may be
-            // different depending on if we have user-provided pivot keys or not.
-            bool endHere = false;
-            bool addBarrierHere = false;
-
+            // Pivot keys provide guarantee that we won't introduce more jobs than
+            // defined by them, so we do not try to flush by ourself if they are present.
             if (Options_.PivotKeys.empty()) {
-                double retryFactor = std::pow(JobSizeConstraints_->GetDataWeightPerJobRetryFactor(), RetryIndex_);
-                bool jobIsLargeEnough =
-                    Jobs_.back()->GetPreliminarySliceCount() + openedPrimarySliceToLowerBound.size() > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
-                    Jobs_.back()->GetPreliminaryDataWeight() >= GetDataWeightPerJob() * retryFactor ||
-                    Jobs_.back()->GetPrimaryDataWeight() >= GetPrimaryDataWeightPerJob() * retryFactor;
-
-                // If next teleport chunk is closer than next data slice then we are obligated to close the job here.
-                bool beforeTeleportChunk;
-                {
-                    auto nextKeyBoundLowerCounterpart = nextKeyBound.LowerCounterpart();
-                    beforeTeleportChunk = nextEndpointIndex == index + 1 &&
-                        nextKeyIsLeft &&
-                        (nextTeleportChunkIndex != TeleportChunks_.size() &&
-                         Comparator_.IsRangeEmpty(nextKeyBoundLowerCounterpart, TeleportChunks_[nextTeleportChunkIndex].ExclusiveUpperKeyBound));
-                }
-
-                // If key guarantee is enabled, we cannot end here if next data slice covers the same reduce key.
-                bool canEndHere = !Options_.EnableKeyGuarantee || index + 1 == nextEndpointIndex;
-
-                // Sanity check. Contrary would mean that teleport chunk was chosen incorrectly,
-                // because teleport chunks should not normally intersect the other data slices.
-                YT_VERIFY(!(beforeTeleportChunk && !canEndHere));
-
-                endHere = canEndHere && (beforeTeleportChunk || jobIsLargeEnough);
-                addBarrierHere = beforeTeleportChunk;
-            } else {
-                // We may end jobs only at the pivot keys.
-                endHere = Endpoints_[index].Type == EEndpointType::PivotKey;
-                addBarrierHere = true;
-            }
-
-            if (endHere) {
-                endJob(keyBound.UpperCounterpart());
-                if (addBarrierHere) {
-                    addBarrier();
-                }
+                stagingArea.Flush(/* force */ false);
             }
         }
-        endJob(TKeyBound::MakeUniversal(/* isUpper */ true));
 
-        JobSizeConstraints_->UpdateInputDataWeight(totalDataWeight);
+        stagingArea.Finish();
+
+        for (auto& preparedJob : stagingArea.PreparedJobs()) {
+            yielder.TryYield();
+
+            if (preparedJob.empty()) {
+                Jobs_.emplace_back(std::make_unique<TJobStub>())->SetIsBarrier(true);
+            } else {
+                AddJob(preparedJob);
+            }
+        }
+
+        JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
 
         if (!Jobs_.empty() && Jobs_.back()->GetSliceCount() == 0) {
             Jobs_.pop_back();
         }
+
         YT_LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
+
         if (InSplit_ && Jobs_.size() == 1 && JobSizeConstraints_->GetJobCount() > 1) {
             YT_LOG_DEBUG("Pool was not able to split job properly (SplitJobCount: %v, JobCount: %v)",
                 JobSizeConstraints_->GetJobCount(),
@@ -602,105 +1226,8 @@ private:
 
             Jobs_.front()->SetUnsplittable();
         }
-    }
 
-    void AttachForeignSlices()
-    {
-        auto yielder = CreatePeriodicYielder();
-
-        // An optimization of memory consumption. Precalculate
-        // shortened lower and upper bounds for jobs instead of allocating
-        // them on each pair of foreign data slice and matching job.
-        std::vector<TKeyBound> jobUpperBounds;
-        std::vector<TKeyBound> jobLowerBounds;
-
-        jobUpperBounds.reserve(Jobs_.size());
-        jobLowerBounds.reserve(Jobs_.size());
-
-        for (const auto& job : Jobs_) {
-            // COMPAT(max42): job manager currently deals with legacy keys, so this code is a bit more ugly than expected.
-            auto jobLowerKeyBound = KeyBoundFromLegacyRow(
-                job->LowerPrimaryKey(),
-                /* isUpper */ false,
-                Comparator_.GetLength(),
-                RowBuffer_);
-            auto jobUpperKeyBound = KeyBoundFromLegacyRow(
-                job->UpperPrimaryKey(),
-                /* isUpper */ true,
-                Comparator_.GetLength(),
-                RowBuffer_);
-            jobLowerBounds.emplace_back(ShortenKeyBound(jobLowerKeyBound, Options_.ForeignPrefixLength, RowBuffer_));
-            jobUpperBounds.emplace_back(ShortenKeyBound(jobUpperKeyBound, Options_.ForeignPrefixLength, RowBuffer_));
-        }
-
-        // Traverse sequence of foreign data slices from each foreign input stream.
-        for (auto& foreignDataSlices : InputStreamIndexToForeignDataSlices_) {
-            yielder.TryYield();
-
-            // Index of the first job that matches current foreign data slice.
-            int startJobIndex = 0;
-
-            for (const auto& foreignDataSlice : foreignDataSlices) {
-                // Skip jobs that are entirely to the left of foreign data slice.
-                while (startJobIndex < Jobs_.size()) {
-                    const auto& job = Jobs_[startJobIndex];
-                    if (job->GetIsBarrier()) {
-                        // Job is a barrier, ignore it.
-                        ++startJobIndex;
-                    } else if (Comparator_.IsRangeEmpty(foreignDataSlice->LowerLimit().KeyBound, jobUpperBounds[startJobIndex])) {
-                        // Job's rightmost key is to the left of the slice's leftmost key.
-                        ++startJobIndex;
-                    } else {
-                        break;
-                    }
-                }
-
-                // There are no more jobs that may possibly overlap with our foreign data slice.
-                if (startJobIndex == Jobs_.size()) {
-                    break;
-                }
-
-                int jobIndex = startJobIndex;
-                while (jobIndex < Jobs_.size()) {
-                    yielder.TryYield();
-
-                    const auto& job = Jobs_[jobIndex];
-                    if (job->GetIsBarrier()) {
-                        // Job is a barrier, ignore it.
-                        ++jobIndex;
-                        continue;
-                    }
-
-                    // Keep in mind: we already sure that for all jobs starting from #startJobIndex their
-                    // upper limits are to the right of current data slice lower limit.
-                    if (!Comparator_.IsRangeEmpty(jobLowerBounds[jobIndex], foreignDataSlice->UpperLimit().KeyBound)) {
-                        // Job key range intersects with foreign slice key range, add foreign data slice into the job.
-                        auto exactForeignDataSlice = CreateInputDataSlice(
-                            foreignDataSlice,
-                            Comparator_,
-                            jobLowerBounds[jobIndex],
-                            jobUpperBounds[jobIndex]);
-                        exactForeignDataSlice->CopyPayloadFrom(*foreignDataSlice);
-
-                        // TODO(max42): this seems useless now as CopyPayloadFrom already does that.
-                        auto inputCookie = DataSliceToInputCookie_.at(foreignDataSlice);
-                        exactForeignDataSlice->Tag = inputCookie;
-
-                        ++TotalSliceCount_;
-                        AddDataSlice(
-                            *job,
-                            exactForeignDataSlice,
-                            inputCookie,
-                            /* isPrimary */ false);
-                        ++jobIndex;
-                    } else {
-                        // This job and all the subsequent jobs are entirely to the right of foreign data slice.
-                        break;
-                    }
-                }
-            }
-            ValidateTotalSliceCountLimit();
-        }
+        TotalDataSliceCount_ = stagingArea.GetTotalDataSliceCount();
     }
 
     TPeriodicYielder CreatePeriodicYielder()
@@ -711,32 +1238,31 @@ private:
             return TPeriodicYielder();
         }
     }
-
-    void ValidateTotalSliceCountLimit() const
-    {
-        if (TotalSliceCount_ > Options_.MaxTotalSliceCount) {
-            THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in sorted pool is too large.")
-                << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
-                << TErrorAttribute("max_total_slice_count", Options_.MaxTotalSliceCount)
-                << TErrorAttribute("current_job_count", Jobs_.size());
-        }
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TNewSortedJobBuilder);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISortedJobBuilderPtr CreateNewSortedJobBuilder(
+INewSortedJobBuilderPtr CreateNewSortedJobBuilder(
     const TSortedJobOptions& options,
     IJobSizeConstraintsPtr jobSizeConstraints,
     const TRowBufferPtr& rowBuffer,
     const std::vector<TInputChunkPtr>& teleportChunks,
     bool inSplit,
     int retryIndex,
+    const TInputStreamDirectory& inputStreamDirectory,
     const TLogger& logger)
 {
-    return New<TNewSortedJobBuilder>(options, std::move(jobSizeConstraints), rowBuffer, teleportChunks, inSplit, retryIndex, logger);
+    return New<TNewSortedJobBuilder>(
+        options,
+        std::move(jobSizeConstraints),
+        rowBuffer,
+        teleportChunks,
+        inSplit,
+        retryIndex,
+        inputStreamDirectory,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -30,23 +30,4 @@ struct TSortedJobOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An interface for the class that encapsulates the whole logic of building sorted* jobs.
-//! This class defines a transient object (it is never persisted).
-struct ISortedJobBuilder
-    : public TRefCounted
-{
-    virtual void AddForeignDataSlice(
-        const NChunkClient::TInputDataSlicePtr& dataSlice,
-        IChunkPoolInput::TCookie cookie) = 0;
-    virtual void AddPrimaryDataSlice(
-        const NChunkClient::TInputDataSlicePtr& dataSlice,
-        IChunkPoolInput::TCookie cookie) = 0;
-    virtual std::vector<std::unique_ptr<TJobStub>> Build() = 0;
-    virtual i64 GetTotalDataSliceCount() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ISortedJobBuilder);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NChunkPools

@@ -218,11 +218,19 @@ TString ToString(const TInputDataSlicePtr& dataSlice)
 
 TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice)
 {
-    return New<TInputDataSlice>(
-        EDataSourceType::UnversionedTable,
-        TInputDataSlice::TChunkSliceList{chunkSlice},
-        chunkSlice->LegacyLowerLimit(),
-        chunkSlice->LegacyUpperLimit());
+    if (chunkSlice->IsLegacy) {
+        return New<TInputDataSlice>(
+            EDataSourceType::UnversionedTable,
+            TInputDataSlice::TChunkSliceList{chunkSlice},
+            chunkSlice->LegacyLowerLimit(),
+            chunkSlice->LegacyUpperLimit());
+    } else {
+        return New<TInputDataSlice>(
+            EDataSourceType::UnversionedTable,
+            TInputDataSlice::TChunkSliceList{chunkSlice},
+            chunkSlice->LowerLimit(),
+            chunkSlice->UpperLimit());
+    }
 }
 
 TInputDataSlicePtr CreateVersionedInputDataSlice(const std::vector<TInputChunkSlicePtr>& inputChunkSlices)

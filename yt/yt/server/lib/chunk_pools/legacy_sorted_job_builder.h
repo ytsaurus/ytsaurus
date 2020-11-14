@@ -12,7 +12,26 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISortedJobBuilderPtr CreateLegacySortedJobBuilder(
+//! An interface for the class that encapsulates the whole logic of building sorted* jobs.
+//! This class defines a transient object (it is never persisted).
+struct ILegacySortedJobBuilder
+    : public TRefCounted
+{
+    virtual void AddForeignDataSlice(
+        const NChunkClient::TInputDataSlicePtr& dataSlice,
+        IChunkPoolInput::TCookie cookie) = 0;
+    virtual void AddPrimaryDataSlice(
+        const NChunkClient::TInputDataSlicePtr& dataSlice,
+        IChunkPoolInput::TCookie cookie) = 0;
+    virtual std::vector<std::unique_ptr<TJobStub>> Build() = 0;
+    virtual i64 GetTotalDataSliceCount() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(ILegacySortedJobBuilder);
+
+////////////////////////////////////////////////////////////////////////////////
+
+ILegacySortedJobBuilderPtr CreateLegacySortedJobBuilder(
     const TSortedJobOptions& options,
     NControllerAgent::IJobSizeConstraintsPtr jobSizeConstraints,
     const NTableClient::TRowBufferPtr& rowBuffer,
