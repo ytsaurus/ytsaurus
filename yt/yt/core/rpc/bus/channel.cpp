@@ -629,7 +629,7 @@ private:
 
                 auto registry = RpcClientProfiler
                     .WithSparse()
-                    .WithTag("yt.service", service)
+                    .WithTag("yt_service", service)
                     .WithTag("method", method, -1);
 
                 metadata.AckTimeCounter = registry.Timer("/request_time/ack");
