@@ -119,7 +119,8 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     auto setGlobalRoleTag = [] (const TString& role) {
         auto id = TProfileManager::Get()->RegisterTag("proxy_role", role);
         TProfileManager::Get()->SetGlobalTag(id);
-        TSolomonRegistry::Get()->SetDynamicTags({TTag{"proxy_role", "role"}});
+
+        TSolomonRegistry::Get()->SetDynamicTags({TTag{"proxy_role", role}});
     };
     setGlobalRoleTag(Coordinator_->GetSelf()->Role);
     Coordinator_->SubscribeOnSelfRoleChanged(BIND(setGlobalRoleTag));

@@ -213,7 +213,7 @@ void TSolomonExporter::HandleStatus(const IRequestPtr&, const IResponseWriterPtr
         }
 
         invalidSensors[sensor.Name] = sensor.Error;
-    }
+    }    
 
     rsp->SetStatus(EStatusCode::OK);
     ReplyJson(rsp, [&] (auto consumer) {
@@ -229,6 +229,7 @@ void TSolomonExporter::HandleStatus(const IRequestPtr&, const IResponseWriterPtr
                     fluent
                         .Item(sensor.first).Value(sensor.second);
                 })
+                .Item("dynamic_tags").Value(Registry_->GetDynamicTags())
             .EndMap();
     });
 }

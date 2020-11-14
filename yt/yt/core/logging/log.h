@@ -32,8 +32,8 @@ struct TLoggingCategory
 
 struct TLoggingPosition
 {
-    std::atomic<bool> Enabled;
-    std::atomic<int> CurrentVersion;
+    std::atomic<bool> Enabled = false;
+    std::atomic<int> CurrentVersion = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

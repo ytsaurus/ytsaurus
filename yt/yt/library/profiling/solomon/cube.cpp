@@ -159,8 +159,8 @@ void TCube<T>::ReadSensors(
         }
 
         if (!options.Global) {
-            for (const auto& [key, value] : options.InstanceTags) {
-                consumer->OnLabel(key, value);
+            for (const auto& tag : options.InstanceTags) {
+                consumer->OnLabel(tag.first, tag.second);
             }
         }
 
@@ -180,8 +180,8 @@ void TCube<T>::ReadSensors(
             return false;
         }
 
-        for (const auto& [indices, time] : options.Times) {
-            for (auto index : indices) {
+        for (const auto& readBatch : options.Times) {
+            for (auto index : readBatch.first) {
                 if (!window.IsZero(index)) {
                     return false;
                 }

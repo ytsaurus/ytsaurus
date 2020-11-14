@@ -71,6 +71,7 @@ public:
 
     void Disable();
     void SetDynamicTags(std::vector<TTag> dynamicTags);
+    std::vector<TTag> GetDynamicTags();
 
     void SetWindowSize(int windowSize);
     void ProcessRegistrations();

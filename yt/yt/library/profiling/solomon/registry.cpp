@@ -206,6 +206,12 @@ void TSolomonRegistry::SetDynamicTags(std::vector<TTag> dynamicTags)
     std::swap(DynamicTags_, dynamicTags);
 }
 
+std::vector<TTag> TSolomonRegistry::GetDynamicTags()
+{
+    auto guard = Guard(DynamicTagsLock_);
+    return DynamicTags_;
+}
+
 void TSolomonRegistry::Disable()
 {
     Disabled_ = true;
@@ -253,16 +259,16 @@ void TSolomonRegistry::ReadSensors(
     }
 
     for (const auto& [name, set] : Sensors_) {
-        if (options.SensorFilter && !options.SensorFilter(name)) {
+        if (readOptions.SensorFilter && !readOptions.SensorFilter(name)) {
             continue;
         }
 
         auto start = TInstant::Now();
-        set.ReadSensors(name, options, Tags_, consumer);
+        set.ReadSensors(name, readOptions, Tags_, consumer);
         ReadDuration_.Record(TInstant::Now() - start);
     }
 
-    Producers_.ReadSensors(options, consumer);
+    Producers_.ReadSensors(readOptions, consumer);
 }
 
 std::vector<TSensorInfo> TSolomonRegistry::ListSensors() const
