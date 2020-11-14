@@ -754,6 +754,7 @@ public:
             if (currentTransaction->GetTitle()) {
                 startRequest.set_title(*currentTransaction->GetTitle());
             }
+            startRequest.set_upload(currentTransaction->IsUpload());
             multicellManager->PostToMaster(startRequest, dstCellTag);
         }
 
