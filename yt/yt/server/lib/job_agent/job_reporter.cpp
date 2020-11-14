@@ -66,7 +66,7 @@ struct TJobFailContextTag
 
 namespace {
 
-static const TRegistry ReporterProfiler("yt/job_reporter");
+static const TRegistry ReporterProfiler("/job_reporter");
 static const TLogger ReporterLogger("JobReporter");
 
 ////////////////////////////////////////////////////////////////////////////////

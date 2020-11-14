@@ -551,7 +551,7 @@ private:
 
     NNative::IClientPtr Client_;
 
-    TRegistry Profiler{"yt/operations_cleaner"};
+    TRegistry Profiler{"/operations_cleaner"};
     std::atomic<i64> RemovePending_{0};
     std::atomic<i64> ArchivePending_{0};
 

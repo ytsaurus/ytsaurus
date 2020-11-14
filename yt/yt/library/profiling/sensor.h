@@ -113,10 +113,16 @@ class TRegistry
 public:
     TRegistry() = default;
 
-    TRegistry(const IRegistryImplPtr& impl, const TString& prefix);
+    static constexpr auto DefaultNamespace = "yt";
+
+    TRegistry(
+        const IRegistryImplPtr& impl,
+        const TString& prefix,
+        const TString& _namespace = DefaultNamespace);
 
     explicit TRegistry(
         const TString& prefix,
+        const TString& _namespace = DefaultNamespace,
         const TTagSet& tags = {},
         const IRegistryImplPtr& impl = nullptr,
         TSensorOptions options = {});
@@ -177,6 +183,7 @@ public:
 private:
     bool Enabled_ = false;
     TString Prefix_;
+    TString Namespace_;
     TTagSet Tags_;
     TSensorOptions Options_;
     IRegistryImplPtr Impl_;

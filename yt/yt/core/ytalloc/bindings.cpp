@@ -70,7 +70,7 @@ class TProfilingStatisticsProducer
 public:
     TProfilingStatisticsProducer()
     {
-        NProfiling::TRegistry registry{"yt"};
+        NProfiling::TRegistry registry{""};
         registry.AddProducer("/yt_alloc", MakeStrong(this));
     }
 

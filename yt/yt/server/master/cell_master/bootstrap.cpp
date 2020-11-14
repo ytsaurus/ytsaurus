@@ -814,7 +814,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->Configure(Config_->RpcServer);
 
     DiskSpaceProfiler_ = New<TDiskSpaceProfiler>(Config_);
-    TRegistry{"yt"}.AddProducer("", DiskSpaceProfiler_);
+    TRegistry{""}.AddProducer("", DiskSpaceProfiler_);
 }
 
 void TBootstrap::InitializeTimestampProvider()

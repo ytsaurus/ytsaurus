@@ -65,7 +65,7 @@ public:
         , Cache_(New<TObjectServiceCache>(
             Config_->CachingObjectService,
             Logger,
-            TRegistry("yt/local_cache")))
+            TRegistry("/local_cache")))
         , RpcServer_(CreateLocalServer())
         , RandomGenerator_(TInstant::Now().GetValue())
     {

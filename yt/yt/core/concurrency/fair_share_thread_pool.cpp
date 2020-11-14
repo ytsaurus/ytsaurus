@@ -140,7 +140,7 @@ public:
         , CurrentlyExecutingActionsByThread_(threadCount)
     {
         if (enableProfiling) {
-            TRegistry profiler{"yt/fair_share_queue", tags};
+            auto profiler = TRegistry{"/fair_share_queue"}.WithTags(tags);
             BucketCounter_ = profiler.Gauge("/buckets");
             SizeCounter_ = profiler.Gauge("/size");
             WaitTimeCounter_ = profiler.Timer("/time/wait");

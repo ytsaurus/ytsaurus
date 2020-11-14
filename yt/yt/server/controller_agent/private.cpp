@@ -8,7 +8,7 @@ const NLogging::TLogger ControllerLogger("Controller");
 const NLogging::TLogger ControllerAgentLogger("ControllerAgent");
 const NLogging::TLogger ControllerEventLogger("ControllerEventLog");
 
-const NProfiling::TRegistry ControllerAgentProfiler("yt/controller_agent");
+const NProfiling::TRegistry ControllerAgentProfiler("/controller_agent");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,7 +6,7 @@ namespace NYT::NTabletNode {
 
 const NLogging::TLogger TabletNodeLogger("TabletNode");
 const NProfiling::TProfiler TabletNodeProfiler("/tablet_node");
-const NProfiling::TRegistry TabletNodeProfilerRegistry{"yt/tablet_node"};
+const NProfiling::TRegistry TabletNodeProfilerRegistry{"/tablet_node"};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -92,7 +92,7 @@ TEST(TSolomonRegistry, Registration)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "yt/debug");
+    TRegistry registry(impl, "/debug");
 
     auto counter = registry.Counter("/c0");
     auto gauge = registry.Gauge("/g0");
@@ -129,7 +129,7 @@ TEST(TSolomonRegistry, CounterProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "yt/d");
+    TRegistry registry(impl, "/d");
 
     auto c0 = registry.WithTag("user", "u0").Counter("/count");
     auto c1 = registry.WithTag("user", "u1").Counter("/count");
@@ -163,7 +163,7 @@ TEST(TSolomonRegistry, GaugeProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "yt/d");
+    TRegistry registry(impl, "/d");
 
     auto g0 = registry.WithTag("user", "u0").Gauge("/memory");
     auto g1 = registry.WithTag("user", "u1").Gauge("/memory");
@@ -196,7 +196,7 @@ TEST(TSolomonRegistry, SparseCounters)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "yt/d");
+    TRegistry registry(impl, "/d");
 
     auto c = registry.WithSparse().Counter("/sparse_counter");
 
@@ -222,7 +222,7 @@ TEST(TSolomonRegistry, SparseCountersWithHack)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "yt/d");
+    TRegistry registry(impl, "/d");
 
     auto c = registry.WithSparse().Counter("/sparse_counter_with_hack");
 
@@ -247,7 +247,7 @@ TEST(TSolomonRegistry, SparseGauge)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry registry(impl, "yt/d");
+    TRegistry registry(impl, "/d");
 
     auto c = registry.WithSparse().Gauge("/sparse_gauge");
 
@@ -270,7 +270,7 @@ TEST(TSolomonRegistry, InvalidSensors)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "yt/d");
+    TRegistry r(impl, "/d");
 
     auto invalidTypeCounter = r.Counter("/invalid_type");
     auto invalidTypeGauge = r.Gauge("/invalid_type");
@@ -304,7 +304,7 @@ TEST(TSolomonRegistry, GaugeProducer)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "yt/d");
+    TRegistry r(impl, "/d");
 
     auto p0 = New<TDebugProducer>();
     r.AddProducer("/cpu", p0);
@@ -347,7 +347,7 @@ TEST(TSolomonRegistry, CustomProjections)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "yt/d");
+    TRegistry r(impl, "/d");
 
     auto c0 = r.Counter("/simple_sharded");
     c0.Increment();
@@ -405,7 +405,7 @@ TEST(TSolomonRegistry, Exceptions)
 {
     auto impl = New<TSolomonRegistry>();
     impl->SetWindowSize(12);
-    TRegistry r(impl, "yt/d");
+    TRegistry r(impl, "/d");
 
     auto producer = New<TBadProducer>();
     r.AddProducer("/p", producer);
