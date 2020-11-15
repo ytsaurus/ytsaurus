@@ -185,7 +185,7 @@ class TestMasterCache(Base, YTEnvSetup):
             self.wait_for_config_at_nodes(expected_nodes)
         self.wait_for_requests(
             expected_node_ids,
-            {"service": "ObjectService", "method": "Execute"},
+            {"yt_service": "ObjectService", "method": "Execute"},
             lambda: ls("//tmp", read_from="cache"),
         )
 
@@ -252,7 +252,7 @@ class TestTimestampProvider(Base, YTEnvSetup):
             self.wait_for_config_at_nodes(expected_nodes)
         self.wait_for_requests(
             expected_node_ids,
-            {"service": "TimestampService", "method": "GenerateTimestamps"},
+            {"yt_service": "TimestampService", "method": "GenerateTimestamps"},
             start_transaction,
         )
 
