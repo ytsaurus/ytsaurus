@@ -513,11 +513,16 @@ private:
         int samplesProcessed = 0;
 
         while (SampleQueue_.DequeueAll(true, [&] (TQueuedSample& sample) {
-                // Enrich sample with global tags.
-                sample.TagIds.insert(sample.TagIds.end(), GlobalTagIds_.begin(), GlobalTagIds_.end());
-                ProcessSample(sample);
-                ProcessSampleV2(sample);
-                ++samplesProcessed;
+                try {
+                    // Enrich sample with global tags.
+                    sample.TagIds.insert(sample.TagIds.end(), GlobalTagIds_.begin(), GlobalTagIds_.end());
+                    ProcessSample(sample);
+                    ProcessSampleV2(sample);
+                    ++samplesProcessed;
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Failed to process sample") << ex
+                        << TErrorAttribute("path", sample.Path);
+                }
             }))
         { }
 
