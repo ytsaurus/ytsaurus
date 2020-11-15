@@ -21,6 +21,8 @@
 #include <util/generic/scope.h>
 #include <util/generic/yexception.h>
 
+#include <util/memory/segmented_string_pool.h>
+
 #include <util/string/builder.h>
 
 #include <util/system/thread.h>
@@ -38,17 +40,49 @@ struct TReaderEntry
     i64 SeqNum;
 };
 
-template <typename T>
-struct TReaderBuffer
+template <typename TRow>
+class TReaderBufferBase
     : public TThrRefBase
 {
-    TVector<T> Rows;
+public:
+    TVector<TRow> Rows;
     ui32 TableIndex = 0;
     ui64 FirstRowIndex = 0;
     i64 SeqNum = 0;
 
     // Currently used only in ordered reader.
     int ThreadIndex = -1;
+};
+
+template <typename TRow>
+class TReaderBuffer
+    : public TReaderBufferBase<TRow>
+{
+public:
+    void CaptureRow(TRow* /* row */)
+    { }
+};
+
+template <>
+class TReaderBuffer<TYaMRRow>
+    : public TReaderBufferBase<TYaMRRow>
+{
+public:
+    void CaptureRow(TYaMRRow* row)
+    {
+        auto key = Pool_.append(row->Key.data(), row->Key.size());
+        auto subkey = Pool_.append(row->SubKey.data(), row->SubKey.size());
+        auto value = Pool_.append(row->Value.data(), row->Value.size());
+        row->Key = {key, row->Key.size()};
+        row->SubKey = {subkey, row->SubKey.size()};
+        row->Value = {value, row->Value.size()};
+    }
+
+private:
+    static constexpr int ChunkSize = 64 << 10;
+
+private:
+    segmented_pool<char> Pool_{ChunkSize};
 };
 
 template <typename T>
@@ -264,17 +298,20 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TRow>
-static void ReadRows(const TTableReaderPtr<TRow>& reader, i64 batchSize, TVector<TRow>& rows)
+static void ReadRows(const TTableReaderPtr<TRow>& reader, i64 batchSize, const TReaderBufferPtr<TRow>& buffer)
 {
     // Don't clear the buffer to avoid unnecessary calls of destructors
     // and memory allocation/deallocation.
     i64 index = 0;
     auto rowIndex = reader->GetRowIndex();
+    auto& rows = buffer->Rows;
     while (reader->IsValid() && rowIndex == reader->GetRowIndex() && index < batchSize) {
         if (index >= static_cast<i64>(rows.size())) {
             rows.push_back(reader->MoveRow());
+            buffer->CaptureRow(&rows.back());
         } else {
             reader->MoveRow(&rows[index]);
+            buffer->CaptureRow(&rows[index]);
         }
         ++index;
         ++rowIndex;
@@ -432,7 +469,7 @@ private:
             }
             buffer->TableIndex = entry.TableIndex;
             buffer->FirstRowIndex = reader->GetRowIndex();
-            ReadRows(reader, Config_.BatchSize, buffer->Rows);
+            ReadRows(reader, Config_.BatchSize, buffer);
             if (!FilledBuffers_.Push(std::move(buffer))) {
                 return false;
             }
@@ -524,7 +561,7 @@ private:
             buffer->SeqNum = seqNum;
             buffer->TableIndex = entry.TableIndex;
             buffer->FirstRowIndex = reader->GetRowIndex();
-            ReadRows(reader, Config_.BatchSize, buffer->Rows);
+            ReadRows(reader, Config_.BatchSize, buffer);
             seqNum += Config_.ThreadCount;
             if (!FilledBuffers_.Push(std::move(buffer))) {
                 return false;
@@ -693,7 +730,7 @@ public:
 
     void MoveRow(TNode* row) override
     {
-        *row = *CurrentBufferIt_;
+        *row = std::move(*CurrentBufferIt_);
     }
 };
 
@@ -709,7 +746,25 @@ public:
 
     void ReadRow(Message* row) override
     {
-        static_cast<T&>(*row) = *this->CurrentBufferIt_;
+        static_cast<T&>(*row) = std::move(*this->CurrentBufferIt_);
+    }
+};
+
+template <>
+class TParallelTableReader<TYaMRRow>
+    : public TParallelTableReaderBase<IYaMRReaderImpl, TYaMRRow>
+{
+public:
+    using TParallelTableReaderBase<IYaMRReaderImpl, TYaMRRow>::TParallelTableReaderBase;
+
+    const TYaMRRow& GetRow() const override
+    {
+        return *CurrentBufferIt_;
+    }
+
+    void MoveRow(TYaMRRow* row) override
+    {
+        *row = *CurrentBufferIt_;
     }
 };
 

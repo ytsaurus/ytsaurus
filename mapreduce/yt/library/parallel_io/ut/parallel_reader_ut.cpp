@@ -16,6 +16,7 @@ using namespace NYT::NTesting;
     UNIT_TEST(SimpleYson); \
     UNIT_TEST(SimpleSkiff); \
     UNIT_TEST(SimpleProtobuf); \
+    UNIT_TEST(SimpleYaMR); \
     UNIT_TEST(EmptyTable); \
     UNIT_TEST(SmallTable); \
     UNIT_TEST(RangesSingleTable); \
@@ -25,12 +26,25 @@ using namespace NYT::NTesting;
     UNIT_TEST(WithColumnSelector); \
     UNIT_TEST(LargeSingleTable); \
     UNIT_TEST(LargeSeveralTables); \
+    UNIT_TEST(LargeYaMR); \
     UNIT_TEST_SUITE_END()
 
 bool operator==(const TTestMessage& left, const TTestMessage& right)
 {
     return left.GetKey() == right.GetKey() && left.GetValue() == right.GetValue();
 }
+
+template <typename T>
+struct TActualRow
+{
+    using TActual = T;
+};
+
+template <>
+struct TActualRow<TOwningYaMRRow>
+{
+    using TActual = TYaMRRow;
+};
 
 template <bool Ordered>
 class TParallelReaderTest
@@ -59,7 +73,26 @@ public:
             rows.push_back(std::move(row));
         }
         TestReader(
-            "//testing/table",
+            "table",
+            rows,
+            rows,
+            /* ranges */ {{0, rowCount}},
+            TParallelTableReaderOptions()
+                .Ordered(Ordered)
+                .ThreadCount(10)
+                .BufferedRowCountLimit(20));
+    }
+
+    void SimpleYaMR()
+    {
+        TVector<TOwningYaMRRow> rows;
+        constexpr size_t rowCount = 100;
+        rows.reserve(rowCount);
+        for (size_t i = 0; i != rowCount; ++i) {
+            rows.emplace_back("key" + ToString(i), "subkey" + ToString(i), "value" + ToString(i));
+        }
+        TestReader(
+            "table",
             rows,
             rows,
             /* ranges */ {{0, rowCount}},
@@ -72,7 +105,7 @@ public:
     void EmptyTable()
     {
         TestReader(
-            "//testing/table",
+            "table",
             TVector<TNode>{},
             TVector<TNode>{},
             /* ranges */ {{0,0}},
@@ -90,7 +123,7 @@ public:
             TNode()("x", 3),
         };
         TestReader(
-            "//testing/table",
+            "table",
             rows,
             rows,
             /* ranges */ {{0, rows.size()}},
@@ -141,7 +174,7 @@ public:
         };
 
         auto client = CreateTestClient();
-        auto path = TRichYPath("//testing/table").Columns({"x", "z"});
+        auto path = TRichYPath("table").Columns({"x", "z"});
         TestReader(
             path,
             rows,
@@ -158,6 +191,33 @@ public:
     void LargeSeveralTables()
     {
         TestLarge(3);
+    }
+
+    void LargeYaMR()
+    {
+        constexpr int RowCount = 12343;
+
+        TString key(1000, 'k');
+        TString subkey(1000, 's');
+        TString value(1000, 'v');
+
+        TVector<TOwningYaMRRow> rows;
+        rows.reserve(RowCount);
+        for (int i = 0; i < RowCount; ++i) {
+            auto iString = ToString(i);
+            rows.emplace_back(key + iString, subkey + iString, value + iString);
+        };
+
+        TestReader(
+            "table",
+            rows,
+            rows,
+            {},
+            TParallelTableReaderOptions()
+                .Ordered(Ordered)
+                .ThreadCount(3)
+                .MemoryLimit(1 << 20)
+                .RangeCount(10));
     }
 
 private:
@@ -181,11 +241,12 @@ private:
         const TVector<TRichYPath>& paths,
         const TVector<TVector<T>>& writtenRows)
     {
+        using TActual = typename TActualRow<T>::TActual;
         Y_ENSURE(paths.size() == writtenRows.size());
         for (size_t tableIndex = 0; tableIndex < paths.size(); ++tableIndex) {
-            auto writer = client->CreateTableWriter<T>(paths[tableIndex]);
+            auto writer = client->CreateTableWriter<TActual>(paths[tableIndex]);
             for (const auto& row : writtenRows[tableIndex]) {
-                writer->AddRow(row);
+                writer->AddRow(static_cast<TActual>(row));
             };
             writer->Finish();
         }
@@ -197,9 +258,10 @@ private:
         const TVector<TRichYPath>& paths,
         const TParallelTableReaderOptions& options)
     {
+        using TActual = typename TActualRow<T>::TActual;
         TVector<TRowWithInfo<T>> result;
         {
-            auto reader = CreateParallelTableReader<T>(client, paths, options);
+            auto reader = CreateParallelTableReader<TActual>(client, paths, options);
             for (; reader->IsValid(); reader->Next()) {
                 TRowWithInfo<T> row;
                 row.TableIndex = reader->GetTableIndex();
@@ -211,7 +273,8 @@ private:
         return result;
     }
 
-
+    // paths must be suffixes of actual path
+    // (actual path is built by prepending working dir path).
     template <typename T>
     void TestReader(
         TVector<TRichYPath> paths,
@@ -220,7 +283,12 @@ private:
         const TVector<std::pair<size_t, size_t>>& ranges,
         const TParallelTableReaderOptions& options)
     {
-        auto client = CreateTestClient();
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        for (auto& path : paths) {
+            path.Path_ = fixture.GetWorkingDir() + "/" + path.Path_;
+        }
+
         WriteRows(client, paths, rows);
 
         if (!ranges.empty()) {
@@ -277,7 +345,7 @@ private:
 
         TVector<TRichYPath> paths;
         for (int i = 0; i != tableCount; ++i) {
-            paths.push_back(TStringBuilder() << "//testing/table_" << i);
+            paths.push_back("table_" + ToString(i));
         }
 
         TVector<std::pair<size_t, size_t>> ranges = {{3, 27}, {33, 59}, {66, 67}, {67, 98}, {99, 100}};
@@ -313,7 +381,7 @@ private:
             rows.push_back(TNode()("x", i)("y", i * i));
         }
         TestReader(
-            TRichYPath("//testing/table")
+            TRichYPath("table")
                 .Schema(TTableSchema()
                     .AddColumn(TColumnSchema().Name("x").Type(EValueType::VT_UINT64))
                     .AddColumn(TColumnSchema().Name("y").Type(EValueType::VT_UINT64))),
@@ -328,15 +396,17 @@ private:
 
     void TestWithOutage(size_t readRetryCount, size_t responseCount = std::numeric_limits<size_t>::max())
     {
-        TConfigSaverGuard configGuard;
+        TTestFixture fixture;
+        auto workingDir = fixture.GetWorkingDir();
+        auto client = fixture.GetClient();
+
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->RetryInterval = TDuration::MilliSeconds(10);
         TConfig::Get()->ReadRetryCount = readRetryCount;
         TConfig::Get()->RetryCount = readRetryCount;
 
-        auto client = CreateTestClient();
         constexpr size_t rowCount = 100;
-        TRichYPath path("//testing/table");
+        TRichYPath path(workingDir + "/table");
         {
             auto writer = client->CreateTableWriter<TNode>(path);
             for (size_t i = 0; i != rowCount; ++i) {
@@ -383,14 +453,10 @@ private:
     {
         constexpr int RowCount = 12343;
 
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
         TVector<TRichYPath> paths;
         TVector<TVector<TNode>> allRows;
         for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
-            paths.push_back(workingDir + "/table_" + ToString(tableIndex));
+            paths.push_back("table_" + ToString(tableIndex));
             auto& rows = allRows.emplace_back();
             for (int i = 0; i < RowCount; ++i) {
                 rows.push_back(TNode()("a", i));
