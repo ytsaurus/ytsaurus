@@ -80,8 +80,10 @@ struct TOwningYaMRRow
     TString SubKey;
     TString Value;
 
-    TOwningYaMRRow(const TYaMRRow& row);
+    TOwningYaMRRow(const TYaMRRow& row = {});
     TOwningYaMRRow(TString key, TString subKey, TString value);
+
+    operator TYaMRRow() const;
 };
 
 bool operator == (const TOwningYaMRRow& row1, const TOwningYaMRRow& row2);
