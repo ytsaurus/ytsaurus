@@ -39,7 +39,7 @@ class TTabletCellDecommissioner::TImpl
 public:
     explicit TImpl(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Profiler("yt/tablet_server/tablet_cell_decommissioner")
+        , Profiler("/tablet_server/tablet_cell_decommissioner")
         , Config_(New<TTabletCellDecommissionerConfig>())
         , DecommissionExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletDecommissioner),

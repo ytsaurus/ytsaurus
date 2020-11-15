@@ -13,7 +13,7 @@ namespace NYT::NProfiling {
 ////////////////////////////////////////////////////////////////////////////////
 
 TSolomonRegistry::TSolomonRegistry(bool selfProfile)
-    : SelfProfiler_(selfProfile ? MakeStrong(this) : Get(), "yt/solomon_registry")
+    : SelfProfiler_(selfProfile ? MakeStrong(this) : Get(), "/solomon_registry")
     , Producers_(&Tags_, Iteration_)
 {
     Producers_.Profile(SelfProfiler_);
