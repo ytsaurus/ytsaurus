@@ -347,7 +347,7 @@ protected:
 
     void ProcessInputs()
     {
-        YT_PROFILE_TIMING("yt/operations/unordered/input_processing_time") {
+        YT_PROFILE_TIMING("/operations/unordered/input_processing_time") {
             YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
