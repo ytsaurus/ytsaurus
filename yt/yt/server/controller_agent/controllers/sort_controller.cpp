@@ -3068,7 +3068,7 @@ private:
 
             YT_LOG_INFO("Building partition keys");
 
-            YT_PROFILE_TIMING("yt/operations/sort/samples_processing_time") {
+            YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
                 if (!SimpleSort) {
                     partitionKeys = BuildPartitionKeysBySamples(
                         samples,
@@ -3216,7 +3216,7 @@ private:
     std::vector<TSample> FetchSamples()
     {
         TFuture<void> asyncSamplesResult;
-        YT_PROFILE_TIMING("yt/operations/sort/input_processing_time") {
+        YT_PROFILE_TIMING("/operations/sort/input_processing_time") {
             // TODO(gritukan): Should we do it here?
             if (Spec->UseNewPartitionsHeuristic) {
                 SuggestPartitionCountAndMaxPartitionFactor(std::nullopt);
@@ -3264,7 +3264,7 @@ private:
 
         FetcherChunkScraper.Reset();
 
-        YT_PROFILE_TIMING("yt/operations/sort/samples_processing_time") {
+        YT_PROFILE_TIMING("/operations/sort/samples_processing_time") {
             return SamplesFetcher->GetSamples();
         }
     }
@@ -3944,7 +3944,7 @@ private:
 
         BuildPartitionTree(PartitionCount, MaxPartitionFactor);
 
-        YT_PROFILE_TIMING("yt/operations/sort/input_processing_time") {
+        YT_PROFILE_TIMING("/operations/sort/input_processing_time") {
             if (usePivotKeys) {
                 AssignPartitionKeysToPartitions(partitionKeys);
             }

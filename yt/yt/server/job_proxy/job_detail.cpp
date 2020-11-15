@@ -142,7 +142,7 @@ void TSimpleJobBase::Initialize()
 
 TJobResult TSimpleJobBase::Run()
 {
-    YT_PROFILE_TIMING("yt/job_proxy/job_time") {
+    YT_PROFILE_TIMING("/job_proxy/job_time") {
         YT_LOG_INFO("Initializing");
 
         Host_->OnPrepared();

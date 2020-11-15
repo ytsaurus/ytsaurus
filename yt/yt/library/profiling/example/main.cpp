@@ -89,13 +89,13 @@ int main(int argc, char* argv[])
         double value = 0.0;
 
         for (i64 i = 0; true; ++i) {
-            YT_PROFILE_TIMING("yt/loop_start") {
+            YT_PROFILE_TIMING("/loop_start") {
                 iterationCount.Increment();
                 randomNumber.Update(value);
             }
             value += std::uniform_real_distribution<double>(-1, 1)(rng);
 
-            YT_PROFILE_TIMING("yt/busy_wait") {
+            YT_PROFILE_TIMING("/busy_wait") {
                 // Busy wait to demonstrate CPU tracker.
                 auto endBusyTime = TInstant::Now() + TDuration::MilliSeconds(10);
                 while (TInstant::Now() < endBusyTime)

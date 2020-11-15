@@ -146,7 +146,7 @@ public:
         std::vector<TFuture<void>> chunkCopyResults;
         std::vector<TChunkId> outputChunkIds;
 
-        YT_PROFILE_TIMING("yt/job_proxy/remote_copy_time") {
+    YT_PROFILE_TIMING("/job_proxy/remote_copy_time") {
             for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
                 for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
                     auto outputSessionId = CreateOutputChunk(inputChunkSpec);

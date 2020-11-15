@@ -376,7 +376,7 @@ protected:
 
     void ProcessInputs()
     {
-        YT_PROFILE_TIMING("yt/operations/merge/input_processing_time") {
+        YT_PROFILE_TIMING("/operations/merge/input_processing_time") {
             YT_LOG_INFO("Processing inputs");
 
             TPeriodicYielder yielder(PrepareYieldPeriod);
