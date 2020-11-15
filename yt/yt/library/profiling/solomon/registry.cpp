@@ -1,7 +1,10 @@
 #include "registry.h"
 
 #include "sensor.h"
+#include "percpu.h"
+#include "yt/core/misc/intrusive_ptr.h"
 
+#include <type_traits>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/assert.h>
 
@@ -26,23 +29,35 @@ TSolomonRegistry::TSolomonRegistry(bool selfProfile)
     RegistrationCount_ = SelfProfiler_.Counter("/registration_count");
 }
 
+template <class TBase, class TSimple, class TPerCpu, class TFn>
+TIntrusivePtr<TBase> selectImpl(bool hot, const TFn& fn)
+{
+    if (!hot) {
+        auto counter = New<TSimple>();
+        fn(counter);
+        return counter;
+    } else {
+        auto counter = New<TPerCpu>();
+        fn(counter);
+        return counter;
+    }
+}
+
 ICounterImplPtr TSolomonRegistry::RegisterCounter(
     const TString& name,
     const TTagSet& tags,
     TSensorOptions options)
 {
-    auto counter = New<TSimpleCounter>();
+    return selectImpl<ICounterImpl, TSimpleCounter, TPerCpuCounter>(options.Hot, [&, this] (const auto& counter) {
+        DoRegister([this, name, tags, options, counter] () {
+            auto reader = [ptr = counter.Get()] {
+                return ptr->GetValue();
+            };
 
-    DoRegister([this, name, tags, options, counter] () {
-        auto reader = [ptr = counter.Get()] {
-            return ptr->GetValue();
-        };
-
-        auto set = FindSet(name, options);
-        set->AddCounter(New<TCounterState>(counter, reader, Tags_.Encode(tags), tags));
+            auto set = FindSet(name, options);
+            set->AddCounter(New<TCounterState>(counter, reader, Tags_.Encode(tags), tags));
+        });
     });
-
-    return counter;
 }
 
 ITimeCounterImplPtr TSolomonRegistry::RegisterTimeCounter(
@@ -50,14 +65,14 @@ ITimeCounterImplPtr TSolomonRegistry::RegisterTimeCounter(
     const TTagSet& tags,
     TSensorOptions options)
 {
-    auto counter = New<TSimpleTimeCounter>();
-
-    DoRegister([this, name, tags, options, counter] () {
-        auto set = FindSet(name, options);
-        set->AddTimeCounter(New<TTimeCounterState>(counter, Tags_.Encode(tags), tags));
-    });
-
-    return counter;
+    return selectImpl<ITimeCounterImpl, TSimpleTimeCounter, TPerCpuTimeCounter>(
+        options.Hot,
+        [&, this] (const auto& counter) {
+            DoRegister([this, name, tags, options, counter] () {
+                auto set = FindSet(name, options);
+                set->AddTimeCounter(New<TTimeCounterState>(counter, Tags_.Encode(tags), tags));
+            });
+        });
 }
 
 IGaugeImplPtr TSolomonRegistry::RegisterGauge(
@@ -65,18 +80,16 @@ IGaugeImplPtr TSolomonRegistry::RegisterGauge(
     const TTagSet& tags,
     TSensorOptions options)
 {
-    auto gauge = New<TSimpleGauge>();
+    return selectImpl<IGaugeImpl, TSimpleGauge, TPerCpuGauge>(options.Hot, [&, this] (const auto& gauge) {
+        DoRegister([this, name, tags, options, gauge] () {
+            auto reader = [ptr = gauge.Get()] {
+                return ptr->GetValue();
+            };
 
-    DoRegister([this, name, tags, options, gauge] () {
-        auto reader = [ptr = gauge.Get()] {
-            return ptr->GetValue();
-        };
-
-        auto set = FindSet(name, options);
-        set->AddGauge(New<TGaugeState>(gauge, reader, Tags_.Encode(tags), tags));
+            auto set = FindSet(name, options);
+            set->AddGauge(New<TGaugeState>(gauge, reader, Tags_.Encode(tags), tags));
+        });
     });
-
-    return gauge;
 }
 
 ISummaryImplPtr TSolomonRegistry::RegisterSummary(
@@ -84,14 +97,12 @@ ISummaryImplPtr TSolomonRegistry::RegisterSummary(
     const TTagSet& tags,
     TSensorOptions options)
 {
-    auto summary = New<TSimpleSummary>();
-
-    DoRegister([this, name, tags, options, summary] () {
-        auto set = FindSet(name, options);
-        set->AddSummary(New<TSummaryState>(summary, Tags_.Encode(tags), tags));
+    return selectImpl<ISummaryImpl, TSimpleSummary<double>, TPerCpuSummary<double>>(options.Hot, [&, this] (const auto& summary) {
+        DoRegister([this, name, tags, options, summary] () {
+            auto set = FindSet(name, options);
+            set->AddSummary(New<TSummaryState>(summary, Tags_.Encode(tags), tags));
+        });
     });
-
-    return summary;
 }
 
 ITimerImplPtr TSolomonRegistry::RegisterTimerSummary(
@@ -99,14 +110,14 @@ ITimerImplPtr TSolomonRegistry::RegisterTimerSummary(
     const TTagSet& tags,
     TSensorOptions options)
 {
-    auto timer = New<TSimpleTimer>();
-
-    DoRegister([this, name, tags, options, timer] () {
-        auto set = FindSet(name, options);
-        set->AddTimerSummary(New<TTimerSummaryState>(timer, Tags_.Encode(tags), tags));
-    });
-
-    return timer;
+    return selectImpl<ITimerImpl, TSimpleSummary<TDuration>, TPerCpuSummary<TDuration>>(
+        options.Hot,
+        [&, this] (const auto& timer) {
+            DoRegister([this, name, tags, options, timer] () {
+                auto set = FindSet(name, options);
+                set->AddTimerSummary(New<TTimerSummaryState>(timer, Tags_.Encode(tags), tags));
+            });
+        });
 }
 
 void TSolomonRegistry::RegisterFuncCounter(

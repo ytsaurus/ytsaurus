@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "sensor.h"
+#include "summary.h"
 
 #include <yt/core/misc/weak_ptr.h>
 #include <yt/core/misc/ref_counted.h>
@@ -80,6 +81,8 @@ struct ITimeCounterImpl
     : public TRefCounted
 {
     virtual void Add(TDuration delta) = 0;
+
+    virtual TDuration GetValue() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITimeCounterImpl)
@@ -96,22 +99,17 @@ DEFINE_REFCOUNTED_TYPE(IGaugeImpl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISummaryImpl
+template <class T>
+struct ISummaryImplBase
     : public TRefCounted
 {
-    virtual void Record(double value) = 0;
+    virtual void Record(T value) = 0;
+
+    virtual TSummarySnapshot<T> GetValue() = 0;
+    virtual TSummarySnapshot<T> GetValueAndReset() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISummaryImpl)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct ITimerImpl
-    : public TRefCounted
-{
-    virtual void Record(TDuration value) = 0;
-};
-
 DEFINE_REFCOUNTED_TYPE(ITimerImpl)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,8 +6,6 @@ namespace NYT::NProfiling {
 
 DEFINE_REFCOUNTED_TYPE(TSimpleCounter)
 DEFINE_REFCOUNTED_TYPE(TSimpleGauge)
-DEFINE_REFCOUNTED_TYPE(TSimpleSummary)
-DEFINE_REFCOUNTED_TYPE(TSimpleTimer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,19 +46,22 @@ TDuration TSimpleTimeCounter::GetValue()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSimpleSummary::Record(double value)
+template <class T>
+void TSimpleSummary<T>::Record(T value)
 {
     auto guard = Guard(Lock_);
     Value_.Record(value);
 }
 
-TSummarySnapshot<double> TSimpleSummary::GetValue()
+template <class T>
+TSummarySnapshot<T> TSimpleSummary<T>::GetValue()
 {
     auto guard = Guard(Lock_);
     return Value_;
 }
 
-TSummarySnapshot<double> TSimpleSummary::GetValueAndReset()
+template <class T>
+TSummarySnapshot<T> TSimpleSummary<T>::GetValueAndReset()
 {
     auto guard = Guard(Lock_);
 
@@ -69,28 +70,11 @@ TSummarySnapshot<double> TSimpleSummary::GetValueAndReset()
     return value;
 }
 
-////////////////////////////////////////////////////////////////////////////////
+template class TSimpleSummary<double>;
+template class TSimpleSummary<TDuration>;
 
-void TSimpleTimer::Record(TDuration value)
-{
-    auto guard = Guard(Lock_);
-    Value_.Record(value);
-}
-
-TSummarySnapshot<TDuration> TSimpleTimer::GetValue()
-{
-    auto guard = Guard(Lock_);
-    return Value_;
-}
-
-TSummarySnapshot<TDuration> TSimpleTimer::GetValueAndReset()
-{
-    auto guard = Guard(Lock_);
-
-    auto value = Value_;
-    Value_ = {};
-    return value;
-}
+static_assert(sizeof(TSimpleSummary<double>) == 64);
+static_assert(sizeof(TSimpleSummary<TDuration>) == 64);
 
 ////////////////////////////////////////////////////////////////////////////////
 
