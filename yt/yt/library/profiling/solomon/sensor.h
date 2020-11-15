@@ -21,6 +21,8 @@ private:
     std::atomic<double> Value_ = 0.0;
 };
 
+static_assert(sizeof(TSimpleGauge) == 24);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSimpleCounter
@@ -34,6 +36,8 @@ public:
 private:
     std::atomic<i64> Value_ = 0;
 };
+
+static_assert(sizeof(TSimpleCounter) == 24);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,36 +53,23 @@ private:
     std::atomic<TDuration::TValue> Value_{0};
 };
 
+static_assert(sizeof(TSimpleTimeCounter) == 24);
+
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
 class TSimpleSummary
-    : public ISummaryImpl
+    : public ISummaryImplBase<T>
 {
 public:
-    virtual void Record(double value) override;
+    virtual void Record(T value) override;
 
-    TSummarySnapshot<double> GetValue();
-    TSummarySnapshot<double> GetValueAndReset();
-
-private:
-    TAdaptiveLock Lock_;
-    TSummarySnapshot<double> Value_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSimpleTimer
-    : public ITimerImpl
-{
-public:
-    virtual void Record(TDuration value) override;
-
-    TSummarySnapshot<TDuration> GetValue();
-    TSummarySnapshot<TDuration> GetValueAndReset();
+    virtual TSummarySnapshot<T> GetValue() override;
+    virtual TSummarySnapshot<T> GetValueAndReset() override;
 
 private:
-    TAdaptiveLock Lock_;
-    TSummarySnapshot<TDuration> Value_;
+    TSpinLock Lock_;
+    TSummarySnapshot<T> Value_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -99,6 +99,7 @@ struct TSensorOptions
 {
     bool Global = false;
     bool Sparse = false;
+    bool Hot = false;
 
     bool operator == (const TSensorOptions& other) const;
     bool operator != (const TSensorOptions& other) const;
@@ -150,6 +151,20 @@ public:
      *  Global sensors are exported without host= tag and instance tags.
      */
     TRegistry WithGlobal() const;
+
+    //! WithSparse sets hot flag on all sensors created using returned registry.
+    /*!
+     *  Hot sensors are implemented using per-cpu sharding, that increases
+     *  performance under contention, but also increases memory consumption.
+     *
+     *  Default implementation:
+     *    24 bytes - Counter, TimeCounter and Gauge
+     *    64 bytes - Timer and Summary
+     *
+     *  Per-CPU implementation:
+     *    4160 bytes - Counter, TimeCounter, Gauge, Timer, Summary
+     */
+    TRegistry WithHot() const;
 
     //! Counter is used to measure rate of events.
     TCounter Counter(const TString& name) const;

@@ -83,12 +83,15 @@ TEventTimerGuard::~TEventTimerGuard()
 
 TString ToString(const TSensorOptions& options)
 {
-    return "{sparse=" + ToString(options.Sparse) + ";global=" + ToString(options.Global) + "}";
+    return "{sparse=" + ToString(options.Sparse) +
+        ";global=" + ToString(options.Global) +
+        ";hot=" + ToString(options.Hot) +
+        "}";
 }
 
 bool TSensorOptions::operator == (const TSensorOptions& other) const
 {
-    return Sparse == other.Sparse && Global == other.Global;
+    return Sparse == other.Sparse && Global == other.Global && Hot == other.Hot;
 }
 
 bool TSensorOptions::operator != (const TSensorOptions& other) const
@@ -194,6 +197,17 @@ TRegistry TRegistry::WithGlobal() const
 
     auto opts = Options_;
     opts.Global = true;
+    return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
+}
+
+TRegistry TRegistry::WithHot() const
+{
+    if (!Enabled_) {
+        return {};
+    }
+
+    auto opts = Options_;
+    opts.Hot = true;
     return TRegistry(Prefix_, Namespace_, Tags_, Impl_, opts);
 }
 
