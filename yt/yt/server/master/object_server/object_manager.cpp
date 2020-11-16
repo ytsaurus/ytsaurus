@@ -1685,7 +1685,7 @@ void TObjectManager::TImpl::HydraExecuteFollower(NProto::TReqExecute* request)
 
     auto context = CreateYPathContext(
         std::move(requestMessage),
-        IsMutationLoggingEnabled() ? NLogging::TLogger() : ObjectServerLogger,
+        IsMutationLoggingEnabled() ? ObjectServerLogger : NLogging::TLogger(),
         NLogging::ELogLevel::Debug);
 
     auto identity = ParseAuthenticationIdentityFromProto(*request);
