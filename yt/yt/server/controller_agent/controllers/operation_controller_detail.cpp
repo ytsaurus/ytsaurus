@@ -274,6 +274,10 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::UpdateCachedMaxAvailableExecNodeResources, MakeWeak(this)),
         Config->MaxAvailableExecNodeResourcesUpdatePeriod))
+    , MemoryUsageCheckExecutor(New<TPeriodicExecutor>(
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        BIND(&TThis::CheckMemoryUsage, MakeWeak(this)),
+        Config->MemoryUsageCheckPeriod))
     , EventLogConsumer_(Host->GetEventLogWriter()->CreateConsumer())
     , LogProgressBackoff(DurationToCpuDuration(Config->OperationLogProgressBackoff))
     , ProgressBuildExecutor_(New<TPeriodicExecutor>(
@@ -1008,6 +1012,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         MinNeededResourcesSanityCheckExecutor->Start();
         MaxAvailableExecNodeResourcesUpdateExecutor->Start();
         CheckTentativeTreeEligibilityExecutor_->Start();
+        MemoryUsageCheckExecutor->Start();
 
         if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
             TDelayedExecutor::WaitForDuration(*maybeDelay);
@@ -8971,6 +8976,28 @@ void TOperationControllerBase::AccountExternalScheduleJobFailures() const
     for (const auto& reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
         auto count = ExternalScheduleJobFailureCounts_[reason].exchange(0);
         ScheduleJobStatistics_->Failed[reason] += count;
+    }
+}
+
+void TOperationControllerBase::CheckMemoryUsage()
+{
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
+    auto memoryUsage = GetMemoryUsage();
+
+    YT_LOG_DEBUG("Checking operation controller memory usage (MemoryUsage: %v, MemoryLimit: %v)",
+        memoryUsage,
+        Config->OperationControllerMemoryLimit);
+
+    if (memoryUsage > Config->OperationControllerMemoryLimit) {
+        auto error = TError(EErrorCode::OperationControllerMemoryLimitExceeded,
+            "Operation controller memory usage exceeds memory limit, probably input of the operation "
+            "is too large, try to split operation into a smaller ones")
+            << TErrorAttribute("operation_controller_memory_usage", memoryUsage)
+            << TErrorAttribute("operation_controller_memory_limit", Config->OperationControllerMemoryLimit)
+            << TErrorAttribute("operation_id", OperationId);
+
+        OnOperationFailed(error);
     }
 }
 

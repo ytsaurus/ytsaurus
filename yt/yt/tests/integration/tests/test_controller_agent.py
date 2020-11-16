@@ -449,3 +449,25 @@ class TestControllerAgentTags(YTEnvSetup):
         check_assignment("booo", boo_agent)
         check_no_agent(None)
         check_no_agent("bar")
+
+
+##################################################################
+
+
+class TestOperationControllerLimit(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "tagged_memory_statistics_update_period": 100,
+            "operation_controller_memory_limit": 100
+        }
+    }
+
+    @authors("gritukan")
+    def test_operation_controller_memory_limit_exceeded(self):
+        op = run_test_vanilla("sleep 1000", job_count=1)
+        with raises_yt_error(ControllerMemoryLimitExceeded):
+            op.track()

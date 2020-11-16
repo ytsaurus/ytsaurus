@@ -1019,6 +1019,10 @@ private:
     //! Periodically updates cached max available exec node resources.
     NConcurrency::TPeriodicExecutorPtr MaxAvailableExecNodeResourcesUpdateExecutor;
 
+    //! Periodically checks operation controller memory usage.
+    //! If memory usage exceeds the limit, operation fails.
+    NConcurrency::TPeriodicExecutorPtr MemoryUsageCheckExecutor;
+
     //! Exec node count do not consider scheduling tag.
     //! But descriptors do.
     int OnlineExecNodeCount_ = 0;
@@ -1254,6 +1258,8 @@ private:
     //! Returns list of operation tasks that have a vertex in data flow graph,
     //! ordered according to topological order of data flow graph.
     std::vector<TTaskPtr> GetTopologicallyOrderedTasks() const;
+
+    void CheckMemoryUsage();
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
