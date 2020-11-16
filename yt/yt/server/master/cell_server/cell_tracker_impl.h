@@ -30,13 +30,10 @@ public:
 
     void ScanCells();
 
-    using TBundleCounter = THashMap<NProfiling::TTagIdList, int>;
-
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
     const TInstant StartTime_;
     const ICellBalancerProviderPtr TCellBalancerProvider_;
-    const NProfiling::TProfiler Profiler;
     bool WaitForCommit_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -45,16 +42,11 @@ private:
 
     const TDynamicCellManagerConfigPtr& GetDynamicConfig();
 
-    void Profile(
-        const std::vector<TCellMoveDescriptor>& moveDescriptors,
-        const TBundleCounter& leaderReassignmentCounter,
-        const TBundleCounter& peerRevocationCounter,
-        const TBundleCounter& peerAssignmentCounter
-    );
+    void Profile(const std::vector<TCellMoveDescriptor>& moveDescriptors);
 
-    void ScheduleLeaderReassignment(TCellBase* cell, TBundleCounter* counter);
-    void SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter);
-    void SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter);
+    void ScheduleLeaderReassignment(TCellBase* cell);
+    void SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer);
+    void SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer);
     bool SchedulePeerCountChange(TCellBase* cell, NTabletServer::NProto::TReqReassignPeers* request);
 
     TError IsFailed(

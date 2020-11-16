@@ -34,8 +34,6 @@ TStaticClickHouseConfig::TStaticClickHouseConfig()
         .DefaultNew();
     RegisterParameter("discovery_cache", DiscoveryCache)
         .DefaultNew();
-    RegisterParameter("force_enqueue_profiling", ForceEnqueueProfiling)
-        .Default(false);
 
     RegisterPreprocessor([&] {
         OperationCache->RefreshTime = TDuration::Minutes(1);

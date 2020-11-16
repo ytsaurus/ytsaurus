@@ -120,8 +120,6 @@ using NYT::ToProto;
 static const auto& Logger = ChunkServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 
-static NProfiling::TShardedAggregateGauge ChunkTreeRebalanceTimeCounter("/chunk_tree_rebalance_time");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkToLinkedListNode
@@ -377,15 +375,6 @@ public:
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xffffffffffffffff);
         DefaultCacheMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xfffffffffffffffe);
-
-        auto* profileManager = TProfileManager::Get();
-        Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", primaryCellTag));
-
-        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
-                JobTypeToTag_[jobType] = profileManager->RegisterTag("job_type", jobType);
-            }
-        }
     }
 
     void Initialize()
@@ -433,6 +422,11 @@ public:
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
                 BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
+
+        BufferedProducer_ = New<TBufferedProducer>();
+        ChunkServerProfilerRegistry
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetPrimaryCellTag()))
+            .AddProducer("", BufferedProducer_);
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
@@ -869,7 +863,7 @@ public:
         if (!ChunkTreeBalancer_.IsRebalanceNeeded(chunkList))
             return;
 
-        PROFILE_AGGREGATED_TIMING (ChunkTreeRebalanceTimeCounter) {
+        YT_PROFILE_TIMING("/chunk_server/chunk_tree_rebalance_time") {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk tree rebalancing started (RootId: %v)",
                 chunkList->GetId());
             ChunkTreeBalancer_.Rebalance(chunkList);
@@ -1316,7 +1310,6 @@ public:
         YT_VERIFY(NameToMediumMap_.erase(medium->GetName()) == 1);
         YT_VERIFY(NameToMediumMap_.emplace(newName, medium).second);
         medium->SetName(newName);
-        InitMediumProfiling(medium);
     }
 
     void SetMediumPriority(TMedium* medium, int priority)
@@ -1503,7 +1496,8 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TProfiler Profiler = ChunkServerProfiler;
+    TBufferedProducerPtr BufferedProducer_;
+
     i64 ChunksCreated_ = 0;
     i64 ChunksDestroyed_ = 0;
     i64 ChunkReplicasAdded_ = 0;
@@ -1542,10 +1536,6 @@ private:
     TMedium* DefaultCacheMedium_ = nullptr;
 
     TChunkRequisitionRegistry ChunkRequisitionRegistry_;
-
-    TEnumIndexedVector<EJobType, TTagId, NJobTrackerClient::FirstMasterJobType, NJobTrackerClient::LastMasterJobType> JobTypeToTag_;
-    THashMap<const TDataCenter*, TTagId> SourceDataCenterToTag_;
-    THashMap<const TDataCenter*, TTagId> DestinationDataCenterToTag_;
 
     // Each requisition update scheduled for a chunk list should eventually be
     // converted into a number of requisition update requests scheduled for its
@@ -1887,95 +1877,21 @@ private:
         }
     }
 
-    void RegisterTagForSourceDataCenter(const TDataCenter* dataCenter)
-    {
-        auto dataCenterName = dataCenter ? dataCenter->GetName() : TString();
-        auto tagId = TProfileManager::Get()->RegisterTag("source_data_center", dataCenterName);
-        YT_VERIFY(SourceDataCenterToTag_.emplace(dataCenter, tagId).second);
-    }
-
-    void RegisterTagForDestinationDataCenter(const TDataCenter* dataCenter)
-    {
-        auto dataCenterName = dataCenter ? dataCenter->GetName() : TString();
-        auto tagId = TProfileManager::Get()->RegisterTag("destination_data_center", dataCenterName);
-        YT_VERIFY(DestinationDataCenterToTag_.emplace(dataCenter, tagId).second);
-    }
-
-    void RegisterTagsForDataCenter(const TDataCenter* dataCenter)
-    {
-        RegisterTagForSourceDataCenter(dataCenter);
-        RegisterTagForDestinationDataCenter(dataCenter);
-    }
-
-    void UnregisterTagsForDataCenter(const TDataCenter* dataCenter)
-    {
-        // NB: just cleaning maps here, profile manager doesn't support unregistering tags.
-        SourceDataCenterToTag_.erase(dataCenter);
-        DestinationDataCenterToTag_.erase(dataCenter);
-    }
-
-    bool EnsureDataCenterTagsInitialized()
-    {
-        YT_VERIFY(SourceDataCenterToTag_.empty() == DestinationDataCenterToTag_.empty());
-
-        if (!SourceDataCenterToTag_.empty()) {
-            return false;
-        }
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (auto [dataCenterId, dataCenter] : nodeTracker->DataCenters()) {
-            RegisterTagsForDataCenter(dataCenter);
-        }
-        RegisterTagsForDataCenter(nullptr);
-
-        return true;
-    }
-
     void OnDataCenterCreated(TDataCenter* dataCenter)
     {
-        if (!EnsureDataCenterTagsInitialized()) {
-            RegisterTagsForDataCenter(dataCenter);
-        }
-
         if (JobTracker_) {
             JobTracker_->OnDataCenterCreated(dataCenter);
         }
     }
 
     void OnDataCenterRenamed(TDataCenter* dataCenter)
-    {
-        if (!EnsureDataCenterTagsInitialized()) {
-            UnregisterTagsForDataCenter(dataCenter);
-            RegisterTagsForDataCenter(dataCenter);
-        }
-    }
+    { }
 
     void OnDataCenterDestroyed(TDataCenter* dataCenter)
     {
-        if (!EnsureDataCenterTagsInitialized()) {
-            UnregisterTagsForDataCenter(dataCenter);
-        }
-
         if (JobTracker_) {
             JobTracker_->OnDataCenterDestroyed(dataCenter);
         }
-    }
-
-    TTagId GetDataCenterTag(const TDataCenter* dataCenter, THashMap<const TDataCenter*, TTagId>& dataCenterToTag)
-    {
-        return GetOrCrash(dataCenterToTag, dataCenter);
-    }
-
-    TTagId GetSourceDataCenterTag(const TDataCenter* dataCenter)
-    {
-        EnsureDataCenterTagsInitialized();
-        return GetDataCenterTag(dataCenter, SourceDataCenterToTag_);
-    }
-
-    TTagId GetDestinationDataCenterTag(const TDataCenter* dataCenter)
-    {
-        EnsureDataCenterTagsInitialized();
-        return GetDataCenterTag(dataCenter, DestinationDataCenterToTag_);
     }
 
     void HydraConfirmChunkListsRequisitionTraverseFinished(NProto::TReqConfirmChunkListsRequisitionTraverseFinished* request)
@@ -2653,7 +2569,6 @@ private:
         }
 
         for (auto [mediumId, medium] : MediumMap_) {
-            InitMediumProfiling(medium);
             RegisterMedium(medium);
         }
 
@@ -2699,9 +2614,6 @@ private:
         TotalReplicaCount_ = 0;
 
         ChunkRequisitionRegistry_.Clear();
-
-        SourceDataCenterToTag_.clear();
-        DestinationDataCenterToTag_.clear();
 
         ChunkListsAwaitingRequisitionTraverse_.clear();
 
@@ -2996,14 +2908,14 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryStarted();
 
-        Profiler.SetEnabled(false);
+        BufferedProducer_->SetEnabled(false);
     }
 
     virtual void OnRecoveryComplete() override
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
-        Profiler.SetEnabled(true);
+        BufferedProducer_->SetEnabled(true);
     }
 
     virtual void OnLeaderRecoveryComplete() override
@@ -3375,41 +3287,44 @@ private:
     void OnProfiling()
     {
         if (!IsLeader()) {
+            BufferedProducer_->Update({});
             return;
         }
 
-        Profiler.Enqueue("/blob_refresh_queue_size", ChunkReplicator_->GetBlobRefreshQueueSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/blob_requisition_update_queue_size", ChunkReplicator_->GetBlobRequisitionUpdateQueueSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/journal_refresh_queue_size", ChunkReplicator_->GetJournalRefreshQueueSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/journal_requisition_update_queue_size", ChunkReplicator_->GetJournalRequisitionUpdateQueueSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/seal_queue_size", ChunkSealer_->GetQueueSize(), EMetricType::Gauge);
+        TSensorBuffer buffer;
 
-        Profiler.Enqueue("/chunk_count", ChunkMap_.GetSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/chunks_created", ChunksCreated_, EMetricType::Counter);
-        Profiler.Enqueue("/chunks_destroyed", ChunksDestroyed_, EMetricType::Counter);
+        buffer.AddGauge("/blob_refresh_queue_size", ChunkReplicator_->GetBlobRefreshQueueSize());
+        buffer.AddGauge("/blob_requisition_update_queue_size", ChunkReplicator_->GetBlobRequisitionUpdateQueueSize());
+        buffer.AddGauge("/journal_refresh_queue_size", ChunkReplicator_->GetJournalRefreshQueueSize());
+        buffer.AddGauge("/journal_requisition_update_queue_size", ChunkReplicator_->GetJournalRequisitionUpdateQueueSize());
+        buffer.AddGauge("/seal_queue_size", ChunkSealer_->GetQueueSize());
 
-        Profiler.Enqueue("/chunk_replica_count", TotalReplicaCount_, EMetricType::Gauge);
-        Profiler.Enqueue("/chunk_replicas_added", ChunkReplicasAdded_, EMetricType::Counter);
-        Profiler.Enqueue("/chunk_replicas_removed", ChunkReplicasRemoved_, EMetricType::Counter);
+        buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
+        buffer.AddCounter("/chunks_created", ChunksCreated_);
+        buffer.AddCounter("/chunks_destroyed", ChunksDestroyed_);
 
-        Profiler.Enqueue("/chunk_view_count", ChunkViewMap_.GetSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/chunk_views_created", ChunkViewsCreated_, EMetricType::Counter);
-        Profiler.Enqueue("/chunk_views_destroyed", ChunkViewsDestroyed_, EMetricType::Counter);
+        buffer.AddGauge("/chunk_replica_count", TotalReplicaCount_);
+        buffer.AddCounter("/chunk_replicas_added", ChunkReplicasAdded_);
+        buffer.AddCounter("/chunk_replicas_removed", ChunkReplicasRemoved_);
 
-        Profiler.Enqueue("/chunk_list_count", ChunkListMap_.GetSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/chunk_lists_created", ChunkListsCreated_, EMetricType::Counter);
-        Profiler.Enqueue("/chunk_lists_destroyed", ChunkListsDestroyed_, EMetricType::Counter);
+        buffer.AddGauge("/chunk_view_count", ChunkViewMap_.GetSize());
+        buffer.AddCounter("/chunk_views_created", ChunkViewsCreated_);
+        buffer.AddCounter("/chunk_views_destroyed", ChunkViewsDestroyed_);
 
-        Profiler.Enqueue("/lost_chunk_count", LostChunks().size(), EMetricType::Gauge);
-        Profiler.Enqueue("/lost_vital_chunk_count", LostVitalChunks().size(), EMetricType::Gauge);
-        Profiler.Enqueue("/overreplicated_chunk_count", OverreplicatedChunks().size(), EMetricType::Gauge);
-        Profiler.Enqueue("/underreplicated_chunk_count", UnderreplicatedChunks().size(), EMetricType::Gauge);
-        Profiler.Enqueue("/data_missing_chunk_count", DataMissingChunks().size(), EMetricType::Gauge);
-        Profiler.Enqueue("/parity_missing_chunk_count", ParityMissingChunks().size(), EMetricType::Gauge);
-        Profiler.Enqueue("/precarious_chunk_count", PrecariousChunks().size(), EMetricType::Gauge);
-        Profiler.Enqueue("/precarious_vital_chunk_count", PrecariousVitalChunks().size(), EMetricType::Gauge);
-        Profiler.Enqueue("/quorum_missing_chunk_count", QuorumMissingChunks().size(), EMetricType::Gauge);
-        Profiler.Enqueue("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size(), EMetricType::Gauge);
+        buffer.AddGauge("/chunk_list_count", ChunkListMap_.GetSize());
+        buffer.AddCounter("/chunk_lists_created", ChunkListsCreated_);
+        buffer.AddCounter("/chunk_lists_destroyed", ChunkListsDestroyed_);
+
+        buffer.AddGauge("/lost_chunk_count", LostChunks().size());
+        buffer.AddGauge("/lost_vital_chunk_count", LostVitalChunks().size());
+        buffer.AddGauge("/overreplicated_chunk_count", OverreplicatedChunks().size());
+        buffer.AddGauge("/underreplicated_chunk_count", UnderreplicatedChunks().size());
+        buffer.AddGauge("/data_missing_chunk_count", DataMissingChunks().size());
+        buffer.AddGauge("/parity_missing_chunk_count", ParityMissingChunks().size());
+        buffer.AddGauge("/precarious_chunk_count", PrecariousChunks().size());
+        buffer.AddGauge("/precarious_vital_chunk_count", PrecariousVitalChunks().size());
+        buffer.AddGauge("/quorum_missing_chunk_count", QuorumMissingChunks().size());
+        buffer.AddGauge("/unsafely_placed_chunk_count", UnsafelyPlacedChunks().size());
 
         const auto& runningJobs = JobTracker_->RunningJobs();
         const auto& jobsStarted = JobTracker_->JobsStarted();
@@ -3418,34 +3333,53 @@ private:
         const auto& jobsAborted = JobTracker_->JobsAborted();
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (jobType >= NJobTrackerClient::FirstMasterJobType && jobType <= NJobTrackerClient::LastMasterJobType) {
-                Profiler.Enqueue("/running_job_count", runningJobs[jobType], EMetricType::Gauge, {JobTypeToTag_[jobType]});
-                Profiler.Enqueue("/jobs_started", jobsStarted[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
-                Profiler.Enqueue("/jobs_completed", jobsCompleted[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
-                Profiler.Enqueue("/jobs_failed", jobsFailed[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
-                Profiler.Enqueue("/jobs_aborted", jobsAborted[jobType], EMetricType::Counter, {JobTypeToTag_[jobType]});
+                buffer.PushTag({"job_type", FormatEnum(jobType)});
+
+                buffer.AddGauge("/running_job_count", runningJobs[jobType]);
+                buffer.AddCounter("/jobs_started", jobsStarted[jobType]);
+                buffer.AddCounter("/jobs_completed", jobsCompleted[jobType]);
+                buffer.AddCounter("/jobs_failed", jobsFailed[jobType]);
+                buffer.AddCounter("/jobs_aborted", jobsAborted[jobType]);
+
+                buffer.PopTag();
             }
         }
 
         for (const auto& srcPair : JobTracker_->InterDCEdgeConsumption()) {
             const auto* src = srcPair.first;
+            buffer.PushTag({"source_data_center", src ? src->GetName() : "null"});
+
             for (const auto& dstPair : srcPair.second) {
                 const auto* dst = dstPair.first;
-                const auto consumption = dstPair.second;
+                buffer.PushTag({"destination_data_center", dst ? dst->GetName() : "null"});
 
-                TTagIdList tags = {GetSourceDataCenterTag(src), GetDestinationDataCenterTag(dst)};
-                Profiler.Enqueue("/inter_dc_edge_consumption", consumption, EMetricType::Gauge, tags);
+                const auto consumption = dstPair.second;
+                buffer.AddGauge("/inter_dc_edge_consumption", consumption);
+
+                buffer.PopTag();
             }
+
+            buffer.PopTag();
         }
+
         for (const auto& srcPair : JobTracker_->InterDCEdgeCapacities()) {
             const auto* src = srcPair.first;
+            buffer.PushTag({"source_data_center", src ? src->GetName() : "null"});
+
             for (const auto& dstPair : srcPair.second) {
                 const auto* dst = dstPair.first;
-                const auto capacity = dstPair.second;
+                buffer.PushTag({"destination_data_center", dst ? dst->GetName() : "null"});
 
-                TTagIdList tags = {GetSourceDataCenterTag(src), GetDestinationDataCenterTag(dst)};
-                Profiler.Enqueue("/inter_dc_edge_capacity", capacity, EMetricType::Gauge, tags);
+                const auto capacity = dstPair.second;
+                buffer.AddGauge("/inter_dc_edge_capacity", capacity);
+
+                buffer.PopTag();
             }
+
+            buffer.PopTag();
         }
+
+        BufferedProducer_->Update(std::move(buffer));
     }
 
 
@@ -3482,7 +3416,6 @@ private:
         }
 
         auto* medium = MediumMap_.Insert(id, std::move(mediumHolder));
-        InitMediumProfiling(medium);
         RegisterMedium(medium);
         InitializeMediumConfig(medium);
 
@@ -3490,11 +3423,6 @@ private:
         YT_VERIFY(medium->RefObject() == 1);
 
         return medium;
-    }
-
-    void InitMediumProfiling(TMedium* medium)
-    {
-        medium->SetProfilingTag(TProfileManager::Get()->RegisterTag("medium", medium->GetName()));
     }
 
     void RegisterMedium(TMedium* medium)

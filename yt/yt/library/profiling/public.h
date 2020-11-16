@@ -20,6 +20,7 @@ DECLARE_REFCOUNTED_STRUCT(ITimeCounterImpl)
 DECLARE_REFCOUNTED_STRUCT(IGaugeImpl)
 DECLARE_REFCOUNTED_STRUCT(IRegistryImpl)
 DECLARE_REFCOUNTED_STRUCT(ISensorProducer)
+DECLARE_REFCOUNTED_CLASS(TBufferedProducer)
 
 ////////////////////////////////////////////////////////////////////////////////
 

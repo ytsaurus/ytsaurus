@@ -83,10 +83,6 @@ using NChunkClient::TReadLimit;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ChunkServerLogger;
-static const auto& Profiler = ChunkServerProfiler;
-
-static NProfiling::TShardedAggregateGauge RefreshTimeCounter("/refresh_time");
-static NProfiling::TShardedAggregateGauge RequisitionUpdateTimeCounter("/requisition_update_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1801,7 +1797,7 @@ void TChunkReplicator::OnRefresh()
     int aliveBlobCount = 0;
     int aliveJournalCount = 0;
 
-    PROFILE_AGGREGATED_TIMING (RefreshTimeCounter) {
+    YT_PROFILE_TIMING("/chunk_server/refresh_time") {
         doRefreshChunks(
             BlobRefreshScanner_,
             &totalBlobCount,
@@ -2085,7 +2081,7 @@ void TChunkReplicator::OnRequisitionUpdate()
     int totalJournalCount = 0;
     int aliveJournalCount = 0;
 
-    PROFILE_AGGREGATED_TIMING (RequisitionUpdateTimeCounter) {
+    YT_PROFILE_TIMING("/chunk_server/requisition_update_time") {
         ClearChunkRequisitionCache();
         doUpdateChunkRequisition(
             BlobRequisitionUpdateScanner_,

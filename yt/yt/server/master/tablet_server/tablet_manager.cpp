@@ -5062,7 +5062,7 @@ private:
             profilerGuard.Disable();
         } else {
             tagIds = TTagIdList{
-                table->GetTabletCellBundle()->GetProfilingTag(),
+                TProfileManager::Get()->RegisterTag("tablet_cell_bundle", table->GetTabletCellBundle()->GetName()),
                 table->IsPhysicallySorted()
                     ? SortedTableProfilerTag_
                     : OrderedTableProfilerTag_
@@ -5324,7 +5324,7 @@ private:
         TCumulativeServiceProfilerGuard profilerGuard(&Profiler, "/update_tablet_stores");
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
         auto tagIds = TTagIdList{
-            tablet->GetTable()->GetTabletCellBundle()->GetProfilingTag(),
+            TProfileManager::Get()->RegisterTag("tablet_cell_bundle", tablet->GetTable()->GetTabletCellBundle()->GetName()),
             UpdateTabletStoresProfilerTags_.GetTag(updateReason),
             tablet->GetTable()->IsPhysicallySorted()
                 ? SortedTableProfilerTag_

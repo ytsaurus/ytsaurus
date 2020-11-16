@@ -65,4 +65,34 @@ void TSensorBuffer::WriteTo(ISensorWriter* writer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TBufferedProducer::Collect(ISensorWriter* writer)
+{
+    TIntrusivePtr<TSensorBuffer> buffer;
+    {
+        auto guard = Guard(Lock_);
+        if (Enabled_) {
+            buffer = Buffer_;
+        }
+    }
+
+    if (buffer) {
+        buffer->WriteTo(writer);
+    }
+}
+
+void TBufferedProducer::SetEnabled(bool enabled)
+{
+    auto guard = Guard(Lock_);
+    Enabled_ = enabled;
+}
+
+void TBufferedProducer::Update(TSensorBuffer buffer)
+{
+    auto ptr = New<TSensorBuffer>(std::move(buffer));
+    auto guard = Guard(Lock_);
+    Buffer_ = ptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NProfiling

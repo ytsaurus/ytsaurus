@@ -152,7 +152,6 @@ TCellTrackerImpl::TCellTrackerImpl(
     : Bootstrap_(bootstrap)
     , StartTime_(startTime)
     , TCellBalancerProvider_(New<TCellBalancerProvider>(Bootstrap_))
-    , Profiler("/tablet_server/tablet_tracker")
 {
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
@@ -168,8 +167,6 @@ void TCellTrackerImpl::ScanCells()
     if (WaitForCommit_) {
         return;
     }
-
-    TBundleCounter leaderReassignmentCounter, peerRevocationCounter, peerAssignmentCounter;
 
     auto balancer = CreateCellBalancer(TCellBalancerProvider_);
 
@@ -190,14 +187,14 @@ void TCellTrackerImpl::ScanCells()
 
         // NB: If peer count changes cells state is not valid.
         if (!peerCountChanged) {
-            ScheduleLeaderReassignment(cell, &leaderReassignmentCounter);
-            SchedulePeerAssignment(cell, balancer.get(), &peerAssignmentCounter);
-            SchedulePeerRevocation(cell, balancer.get(), &peerRevocationCounter);
+            ScheduleLeaderReassignment(cell);
+            SchedulePeerAssignment(cell, balancer.get());
+            SchedulePeerRevocation(cell, balancer.get());
         }
     }
 
     auto moveDescriptors = balancer->GetCellMoveDescriptors();
-    Profile(moveDescriptors, leaderReassignmentCounter, peerRevocationCounter, peerAssignmentCounter);
+    Profile(moveDescriptors);
 
     {
         TReqRevokePeers* revocation;
@@ -259,52 +256,16 @@ const TDynamicCellManagerConfigPtr& TCellTrackerImpl::GetDynamicConfig()
     return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
 }
 
-void TCellTrackerImpl::Profile(
-    const std::vector<TCellMoveDescriptor>& moveDescriptors,
-    const TBundleCounter& leaderReassignmentCounter,
-    const TBundleCounter& peerRevocationCounter,
-    const TBundleCounter& peerAssignmentCounter)
+void TCellTrackerImpl::Profile(const std::vector<TCellMoveDescriptor>& moveDescriptors)
 {
-    TBundleCounter moveCounts;
-
     for (const auto& moveDescriptor : moveDescriptors) {
-        moveCounts[NProfiling::TTagIdList{moveDescriptor.Cell->GetCellBundle()->GetProfilingTag()}]++;
-    }
-
-    for (const auto& [tags, count] : moveCounts) {
-        Profiler.Enqueue(
-            "/tablet_cell_moves",
-            count,
-            NProfiling::EMetricType::Gauge,
-            tags);
-    }
-
-    for (const auto& [tags, count] : leaderReassignmentCounter) {
-        Profiler.Enqueue(
-            "/leader_reassignment",
-            count,
-            NProfiling::EMetricType::Gauge,
-            tags);
-    }
-
-    for (const auto& [tags, count] : peerRevocationCounter) {
-        Profiler.Enqueue(
-            "/peer_revocation",
-            count,
-            NProfiling::EMetricType::Gauge,
-            tags);
-    }
-
-    for (const auto& [tags, count] : peerAssignmentCounter) {
-        Profiler.Enqueue(
-            "/peer_assignment",
-            count,
-            NProfiling::EMetricType::Gauge,
-            tags);
+        moveDescriptor.Cell->GetCellBundle()
+            ->ProfilingCounters()
+            .TabletCellMoves.Increment();
     }
 }
 
-void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TBundleCounter* counter)
+void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell)
 {
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
     TError error;
@@ -349,19 +310,17 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TBundleCounte
     ToProto(request.mutable_cell_id(), cell->GetId());
     request.set_peer_id(newLeaderId);
 
-    NProfiling::TTagIdList tagIds{
-        cell->GetCellBundle()->GetProfilingTag(),
-        NProfiling::TProfileManager::Get()->RegisterTag("reason", error.GetMessage())
-    };
-
-    (*counter)[tagIds]++;
+    cell->GetCellBundle()
+        ->ProfilingCounters()
+        .GetLeaderReassignment(error.GetMessage())
+        .Increment();
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
 }
 
-void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter)
+void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* balancer)
 {
     const auto& peers = cell->Peers();
 
@@ -403,13 +362,15 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
         }
     }
 
-    (*counter)[NProfiling::TTagIdList{cell->GetCellBundle()->GetProfilingTag()}] += assignCount;
+    cell->GetCellBundle()
+        ->ProfilingCounters()
+        .PeerAssignment
+        .Increment(assignCount);
 }
 
 void TCellTrackerImpl::SchedulePeerRevocation(
     TCellBase* cell,
-    ICellBalancer* balancer,
-    TBundleCounter* counter)
+    ICellBalancer* balancer)
 {
     // Don't perform failover until enough time has passed since the start.
     if (TInstant::Now() < StartTime_ + GetDynamicConfig()->PeerRevocationTimeout) {
@@ -445,12 +406,10 @@ void TCellTrackerImpl::SchedulePeerRevocation(
 
             balancer->RevokePeer(cell, peerId, error);
 
-            NProfiling::TTagIdList tagIds{
-                cell->GetCellBundle()->GetProfilingTag(),
-                NProfiling::TProfileManager::Get()->RegisterTag("reason", error.GetMessage())
-            };
-
-            (*counter)[tagIds]++;
+            cell->GetCellBundle()
+                ->ProfilingCounters()
+                .GetPeerRevocation(error.GetMessage())
+                .Increment();
         }
     }
 }

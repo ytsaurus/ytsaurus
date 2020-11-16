@@ -22,6 +22,30 @@ namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCellBundleProfilingCounters
+{
+    NProfiling::TCounter ReplicaSwitch;
+    NProfiling::TCounter InMemoryMoves;
+    NProfiling::TCounter ExtMemoryMoves;
+    NProfiling::TCounter TabletMerges;
+    NProfiling::TCounter TabletCellMoves;
+    NProfiling::TCounter PeerAssignment;
+
+    NProfiling::TGauge TabletCellCount;
+
+    NProfiling::TRegistry Profiler;
+
+    THashMap<TString, NProfiling::TCounter> LeaderReassignment;
+
+    NProfiling::TCounter& GetLeaderReassignment(const TString& reason);
+
+    THashMap<TString, NProfiling::TCounter> PeerRevocation;
+
+    NProfiling::TCounter& GetPeerRevocation(const TString& reason);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellBundle
     : public NObjectServer::TNonversionedObjectBase
     , public TRefTracked<TCellBundle>
@@ -40,7 +64,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellBase*>, Cells);
 
-    DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagId, ProfilingTag);
+    DEFINE_BYREF_RW_PROPERTY(TCellBundleProfilingCounters, ProfilingCounters);
 
 public:
     explicit TCellBundle(TCellBundleId id);
@@ -58,7 +82,7 @@ private:
     TString Name_;
     TDynamicTabletCellOptionsPtr DynamicOptions_;
 
-    void FillProfilingTag();
+    void InitializeProfilingCounters();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

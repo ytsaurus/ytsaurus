@@ -8,7 +8,6 @@
 #include "poco_config.h"
 #include "host.h"
 #include "helpers.h"
-#include "caching_profiler.h"
 #include "clickhouse_singletons.h"
 #include "format.h"
 
