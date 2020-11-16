@@ -41,10 +41,33 @@ TDuration TPerCpuTimeCounter::GetValue()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+__int128 TPerCpuGauge::TWrite::Pack()
+{
+    static_assert(sizeof(TWrite) == 16);
+
+    __int128 i;
+    memcpy(&i, this, 16);
+    return i;
+}
+
+TPerCpuGauge::TWrite TPerCpuGauge::TWrite::Unpack(__int128 i)
+{
+    TWrite w;
+    memcpy(&w, &i, 16);
+    return w;
+}
+
 void TPerCpuGauge::Update(double value)
 {
     auto tscp = TTscp::Get();
-    Shards_[tscp.ProcessorId].Value.store(TWrite{value, tscp.Instant}, std::memory_order_relaxed);
+
+    TWrite write{value, tscp.Instant};
+#ifdef __clang__
+    Shards_[tscp.ProcessorId].Value.store(write.Pack(), std::memory_order_relaxed);
+#else
+    auto guard = Guard(Shards_[tscp.ProcessorId].Lock);
+    Shards_[tscp.ProcessorId].Value = write;
+#endif
 }
 
 double TPerCpuGauge::GetValue()
@@ -53,7 +76,12 @@ double TPerCpuGauge::GetValue()
     TCpuInstant maxTimestamp = 0;
 
     for (const auto& shard : Shards_) {
-        auto write = shard.Value.load();
+#ifdef __clang__
+        auto write = TWrite::Unpack(shard.Value.load());
+#else
+        auto guard = Guard(shard.Lock);
+        auto write = shard.Value;
+#endif
 
         if (write.Timestamp > maxTimestamp) {
             maxTimestamp = write.Timestamp;

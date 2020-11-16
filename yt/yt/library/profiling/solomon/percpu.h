@@ -64,16 +64,26 @@ public:
 private:
     struct TWrite
     {
-        double Value = 0.0;
-        TCpuInstant Timestamp = 0;
+        double Value;
+        TCpuInstant Timestamp;
+
+        __int128 Pack();
+        static TWrite Unpack(__int128 i);
     };
 
     struct alignas(CacheLineSize) TShard
     {
-        std::atomic<TWrite> Value = {};
+#ifdef __clang__
+        std::atomic<__int128> Value = {};
+#else
+        TSpinLock Lock;
+        TWrite Value;
+#endif
     };
 
+#ifdef __clang__
     static_assert(std::atomic<TWrite>::is_always_lock_free);
+#endif
 
     std::array<TShard, TTscp::MaxProcessorId> Shards_;
 };
