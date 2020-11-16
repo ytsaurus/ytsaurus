@@ -401,11 +401,7 @@ private:
                 CreateMoveAction(descriptor.Tablet, descriptor.TabletCellId);
             }
 
-            Profiler.Enqueue(
-                "/in_memory_moves",
-                descriptors.size(),
-                NProfiling::EMetricType::Gauge,
-                {bundle->GetProfilingTag()});
+            bundle->ProfilingCounters().InMemoryMoves.Increment(descriptors.size());
         }
     }
 
@@ -644,12 +640,7 @@ private:
         }
 
         int actionCount = ApplyMoveActions();
-
-        Profiler.Enqueue(
-            "/ext_memory_moves",
-            actionCount,
-            NProfiling::EMetricType::Gauge,
-            {bundle->GetProfilingTag()});
+        bundle->ProfilingCounters().ExtMemoryMoves.Increment(actionCount);
     }
 
     bool BalanceTablet(TTablet* tablet)
@@ -689,11 +680,7 @@ private:
             actionCount += BalanceTablet(tablet);
         }
 
-        Profiler.Enqueue(
-            "/tablet_merges",
-            actionCount,
-            NProfiling::EMetricType::Gauge,
-            {bundle->GetProfilingTag()});
+        bundle->ProfilingCounters().TabletMerges.Increment(actionCount);
     }
 
     bool IsTabletUntouched(const TTablet* tablet) const

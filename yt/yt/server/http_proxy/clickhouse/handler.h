@@ -12,6 +12,8 @@
 
 #include <yt/core/concurrency/public.h>
 
+#include <yt/yt/library/syncmap/map.h>
+
 #include "private.h"
 
 namespace NYT::NHttpProxy::NClickHouse {
@@ -28,24 +30,6 @@ public:
         const NHttp::IRequestPtr& req,
         const NHttp::IResponseWriterPtr& rsp) override;
 
-    // It combines all metrics in one structure.
-    struct TClickHouseProxyMetrics
-    {
-        NProfiling::TShardedAggregateGauge ResolveAliasTime{"/query_time/resolve_alias"};
-        NProfiling::TShardedAggregateGauge DiscoveryForceUpdateTime{"/query_time/discovery_force_update"};
-        NProfiling::TShardedAggregateGauge FindDiscoveryTime{"/query_time/find_discovery"};
-        NProfiling::TShardedAggregateGauge IssueProxiedRequestTime{"/query_time/issue_proxied_request"};
-        NProfiling::TShardedAggregateGauge AuthenticateTime{"/query_time/authenticate"};
-        NProfiling::TShardedAggregateGauge CreateDiscoveryTime{"/query_time/create_discovery"};
-        NProfiling::TShardedAggregateGauge ForwardProxiedResponseTime{"/query_time/forward_proxied_response"};
-
-        NProfiling::TShardedAggregateGauge TotalQueryTime{"/total_query_time"};
-
-        NProfiling::TShardedMonotonicCounter QueryCount{"/query_count"};
-        NProfiling::TShardedMonotonicCounter ForceUpdateCount{"/force_update_count"};
-        NProfiling::TShardedMonotonicCounter BannedCount{"/banned_count"};
-    };
-
 private:
     TBootstrap* const Bootstrap_;
     const TCoordinatorPtr Coordinator_;
@@ -53,11 +37,9 @@ private:
     const NHttp::IClientPtr HttpClient_;
     const NApi::IClientPtr Client_;
 
-
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     IInvokerPtr ControlInvoker_;
 
-    THashMap<TString, int> UserToRunningQueryCount_;
+    NConcurrency::TSyncMap<TString, std::pair<int, NProfiling::TGauge>> UserToRunningQueryCount_;
 
     //! Used for alias resolving and ACL fetching.
     NScheduler::TOperationCachePtr OperationCache_;
@@ -66,15 +48,11 @@ private:
     //! Used for instance discovery.
     TDiscoveryCachePtr DiscoveryCache_;
 
-    TClickHouseProxyMetrics Metrics_;
+    NProfiling::TCounter QueryCount_;
+    NProfiling::TCounter ForceUpdateCount_;
+    NProfiling::TCounter BannedCount_;
 
-    //! Change internal user -> query count mapping value, which is used in profiling.
-    /*!
-     *  \note Invoker affinity: Control invoker
-     */
     void AdjustQueryCount(const TString& user, int delta);
-
-    void OnProfiling();
 };
 
 DEFINE_REFCOUNTED_TYPE(TClickHouseHandler)

@@ -2,6 +2,7 @@
 #include "private.h"
 #include "cell_bundle.h"
 #include "cell_base.h"
+#include "yt/server/master/tablet_server/private.h"
 
 #include <yt/server/master/tablet_server/tablet_action.h>
 #include <yt/server/master/tablet_server/tablet_cell.h>
@@ -21,6 +22,7 @@ using namespace NTabletServer;
 using namespace NChunkClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,13 +74,13 @@ void TCellBundle::Load(TLoadContext& context)
     Load(context, *CellBalancerConfig_);
     Load(context, Health_);
 
-    FillProfilingTag();
+    InitializeProfilingCounters();
 }
 
 void TCellBundle::SetName(TString name)
 {
     Name_ = name;
-    FillProfilingTag();
+    InitializeProfilingCounters();
 }
 
 TString TCellBundle::GetName() const
@@ -97,9 +99,42 @@ void TCellBundle::SetDynamicOptions(TDynamicTabletCellOptionsPtr dynamicOptions)
     ++DynamicConfigVersion_;
 }
 
-void TCellBundle::FillProfilingTag()
+void TCellBundle::InitializeProfilingCounters()
 {
-    ProfilingTag_ = NProfiling::TProfileManager::Get()->RegisterTag("tablet_cell_bundle", Name_);
+    auto profiler = TabletServerProfilerRegistry
+        .WithTag("tablet_cell_bundle", Name_);
+
+    ProfilingCounters_.Profiler = profiler;
+    ProfilingCounters_.TabletCellCount = profiler.WithSparse().Gauge("/tablet_cell_count");
+    ProfilingCounters_.ReplicaSwitch = profiler.Counter("/switch_tablet_replica_mode_count");
+    ProfilingCounters_.InMemoryMoves = profiler.Counter("/in_memory_moves_count");
+    ProfilingCounters_.ExtMemoryMoves = profiler.Counter("/ext_memory_moves_count");
+    ProfilingCounters_.TabletMerges = profiler.Counter("/tablet_merges_count");
+    ProfilingCounters_.TabletCellMoves = profiler.Counter("/tablet_cell_moves");
+
+    ProfilingCounters_.PeerAssignment = profiler.Counter("/peer_assignment");
+}
+
+TCounter& TCellBundleProfilingCounters::GetLeaderReassignment(const TString& reason)
+{
+    auto it = LeaderReassignment.find(reason);
+    if (it == LeaderReassignment.end()) {
+        it = LeaderReassignment.emplace(
+            reason,
+            Profiler.WithTag("reason", reason).Counter("/leader_reassignment")).first;
+    }
+    return it->second;
+}
+
+TCounter& TCellBundleProfilingCounters::GetPeerRevocation(const TString& reason)
+{
+    auto it = PeerRevocation.find(reason);
+    if (it == PeerRevocation.end()) {
+        it = PeerRevocation.emplace(
+            reason,
+            Profiler.WithTag("reason", reason).Counter("/peer_revocation")).first;
+    }
+    return it->second;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -54,10 +54,6 @@ public:
     //! Clique discovery cache.
     TDiscoveryCacheConfigPtr DiscoveryCache;
 
-    //! If set to true, profiler won't wait a second to update a counter.
-    //! It is useful for testing.
-    bool ForceEnqueueProfiling;
-
     TStaticClickHouseConfig();
 };
 

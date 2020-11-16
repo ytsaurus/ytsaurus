@@ -788,8 +788,6 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TPeriodicExecutorPtr ProfilingExecutor_;
-    TProfiler Profiler = CellServerProfiler;
-
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
     {
@@ -1824,17 +1822,24 @@ private:
     void OnProfiling()
     {
         if (!IsLeader()) {
+            for (const auto& [id, cellBundle] : CellBundleMap_) {
+                cellBundle->ProfilingCounters().TabletCellCount.Update(0.0);
+            }
+
             return;
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsPrimaryMaster()) {
+            for (const auto& [id, cellBundle] : CellBundleMap_) {
+                cellBundle->ProfilingCounters().TabletCellCount.Update(0.0);
+            }
+
             return;
         }
 
         for (const auto& [id, cellBundle] : CellBundleMap_) {
-            auto tagIds = TTagIdList{cellBundle->GetProfilingTag()};
-            Profiler.Enqueue("/tablet_cell_count", cellBundle->Cells().size(), EMetricType::Gauge, tagIds);
+            cellBundle->ProfilingCounters().TabletCellCount.Update(cellBundle->Cells().size());
         }
     }
 

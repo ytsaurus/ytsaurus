@@ -91,12 +91,6 @@ static const auto& Logger = NodeTrackerServerLogger;
 
 static const auto ProfilingPeriod = TDuration::Seconds(10);
 
-static NProfiling::TAtomicGauge MasterCacheNodeCount("/master_cache_node_count");
-static NProfiling::TShardedAggregateGauge FullHeartbeatTimeCounter("/full_heartbeat_time");
-static NProfiling::TShardedAggregateGauge IncrementalHeartbeatTimeCounter("/incremental_heartbeat_time");
-static NProfiling::TShardedAggregateGauge NodeUnregisterTimeCounter("/node_unregister_time");
-static NProfiling::TShardedAggregateGauge NodeDisposeTimeCounter("/node_dispose_time");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeTracker::TImpl
@@ -134,8 +128,10 @@ public:
             "NodeTracker.Values",
             BIND(&TImpl::SaveValues, Unretained(this)));
 
-        auto* profileManager = TProfileManager::Get();
-        Profiler.TagIds().push_back(profileManager->RegisterTag("cell_tag", Bootstrap_->GetMulticellManager()->GetCellTag()));
+        BufferedProducer_ = New<TBufferedProducer>();
+        NodeTrackerProfiler
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
+            .AddProducer("", BufferedProducer_);
 
         if (Bootstrap_->IsPrimaryMaster()) {
             MasterCacheManager_ = New<TNodeDiscoveryManager>(Bootstrap_, ENodeRole::MasterCache);
@@ -735,7 +731,7 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TProfiler Profiler = NodeTrackerServerProfiler;
+    TBufferedProducerPtr BufferedProducer_;
 
     TIdGenerator NodeIdGenerator_;
     NHydra::TEntityMap<TNode> NodeMap_;
@@ -988,7 +984,7 @@ private:
                 node->GetLocalState());
         }
 
-        PROFILE_AGGREGATED_TIMING (FullHeartbeatTimeCounter) {
+        YT_PROFILE_TIMING("/node_tracker/full_heartbeat_time") {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing full heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
@@ -1027,7 +1023,7 @@ private:
                 node->GetLocalState());
         }
 
-        PROFILE_AGGREGATED_TIMING (IncrementalHeartbeatTimeCounter) {
+        YT_PROFILE_TIMING("/node_tracker/incremental_heartbeat_time") {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing incremental heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
                 nodeId,
                 node->GetDefaultAddress(),
@@ -1260,7 +1256,7 @@ private:
             node->Reset();
         }
 
-        Profiler.SetEnabled(false);
+        BufferedProducer_->SetEnabled(false);
     }
 
     virtual void OnRecoveryComplete() override
@@ -1268,7 +1264,7 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         OnDynamicConfigChanged();
-        Profiler.SetEnabled(true);
+        BufferedProducer_->SetEnabled(true);
     }
 
     virtual void OnLeaderActive() override
@@ -1464,7 +1460,7 @@ private:
 
     void UnregisterNode(TNode* node, bool propagate)
     {
-        PROFILE_AGGREGATED_TIMING (NodeUnregisterTimeCounter) {
+        YT_PROFILE_TIMING("/node_tracker/node_unregister_time") {
             auto* transaction = UnregisterLeaseTransaction(node);
             if (IsObjectAlive(transaction)) {
                 const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1496,7 +1492,7 @@ private:
 
     void DisposeNode(TNode* node)
     {
-        PROFILE_AGGREGATED_TIMING (NodeDisposeTimeCounter) {
+        YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
             node->SetLocalState(ENodeState::Offline);
             NodeDisposed_.Fire(node);
 
@@ -1755,6 +1751,7 @@ private:
     void OnProfiling()
     {
         if (!IsLeader()) {
+            BufferedProducer_->Update({});
             return;
         }
 
@@ -1763,10 +1760,11 @@ private:
             return;
         }
 
+        TSensorBuffer buffer;
         auto statistics = GetTotalNodeStatistics();
 
-        Profiler.Enqueue("/available_space", statistics.TotalSpace.Available, EMetricType::Gauge);
-        Profiler.Enqueue("/used_space", statistics.TotalSpace.Used, EMetricType::Gauge);
+        buffer.AddGauge("/available_space", statistics.TotalSpace.Available);
+        buffer.AddGauge("/used_space", statistics.TotalSpace.Used);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         for (const auto& [mediumIndex, space] : statistics.SpacePerMedium) {
@@ -1774,29 +1772,27 @@ private:
             if (!medium) {
                 continue;
             }
-            NProfiling::TTagIdList tagIds{
-                medium->GetProfilingTag()
-            };
-            Profiler.Enqueue("/available_space_per_medium", space.Available, EMetricType::Gauge, tagIds);
-            Profiler.Enqueue("/used_space_per_medium", space.Used, EMetricType::Gauge, tagIds);
+
+            buffer.PushTag({"medium", medium->GetName()});
+            buffer.AddGauge("/available_space_per_medium", space.Available);
+            buffer.AddGauge("/used_space_per_medium", space.Used);
+            buffer.PopTag();
         }
 
-        Profiler.Enqueue("/chunk_replica_count", statistics.ChunkReplicaCount, EMetricType::Gauge);
+        buffer.AddGauge("/chunk_replica_count", statistics.ChunkReplicaCount);
 
-        Profiler.Enqueue("/online_node_count", statistics.OnlineNodeCount, EMetricType::Gauge);
-        Profiler.Enqueue("/offline_node_count", statistics.OfflineNodeCount, EMetricType::Gauge);
-        Profiler.Enqueue("/banned_node_count", statistics.BannedNodeCount, EMetricType::Gauge);
-        Profiler.Enqueue("/decommissioned_node_count", statistics.DecommissinedNodeCount, EMetricType::Gauge);
-        Profiler.Enqueue("/with_alerts_node_count", statistics.WithAlertsNodeCount, EMetricType::Gauge);
-        Profiler.Enqueue("/full_node_count", statistics.FullNodeCount, EMetricType::Gauge);
+        buffer.AddGauge("/online_node_count", statistics.OnlineNodeCount);
+        buffer.AddGauge("/offline_node_count", statistics.OfflineNodeCount);
+        buffer.AddGauge("/banned_node_count", statistics.BannedNodeCount);
+        buffer.AddGauge("/decommissioned_node_count", statistics.DecommissinedNodeCount);
+        buffer.AddGauge("/with_alerts_node_count", statistics.WithAlertsNodeCount);
+        buffer.AddGauge("/full_node_count", statistics.FullNodeCount);
 
-        static const NProfiling::TEnumMemberTagCache<ENodeRole> NodeRoleTagCache("node_role");
         for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
-            Profiler.Enqueue(
+            buffer.PushTag({"node_role", FormatEnum(nodeRole)});
+            buffer.AddGauge(
                 "/node_count",
-                NodeListPerRole_[nodeRole].Nodes().size(),
-                EMetricType::Gauge,
-                {NodeRoleTagCache.GetTag(nodeRole)});
+                NodeListPerRole_[nodeRole].Nodes().size());
         }
     }
 

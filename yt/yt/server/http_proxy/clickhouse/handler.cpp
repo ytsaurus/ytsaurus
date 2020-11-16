@@ -23,8 +23,6 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <library/cpp/string_utils/base64/base64.h>
 
 #include <library/cpp/cgiparam/cgiparam.h>
@@ -50,11 +48,7 @@ using namespace NSecurityClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TLogger ClickHouseLogger("ClickHouseProxy");
-TProfiler ClickHouseProfiler("/clickhouse_proxy");
-TRegistry ClickHouseProfilerRegistry("/clickhouse_proxy");
-
-// It is needed for PROFILE_AGGREGATED_TIMING macros.
-static const auto& Profiler = ClickHouseProfiler;
+TRegistry ClickHouseProfiler("/clickhouse_proxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,8 +65,9 @@ public:
         const TOperationCachePtr& operationCache,
         const TPermissionCachePtr& permissionCache,
         const TDiscoveryCachePtr discoveryCache,
+        const TCounter forceUpdateCounter,
+        const TCounter bannedCounter,
         IInvokerPtr controlInvoker,
-        TClickHouseHandler::TClickHouseProxyMetrics& metrics,
         NLogging::TLogger logger)
         : Logger(logger)
         , Request_(req)
@@ -84,8 +79,9 @@ public:
         , OperationCache_(operationCache)
         , PermissionCache_(permissionCache)
         , DiscoveryCache_(discoveryCache)
+        , ForceUpdateCounter_(forceUpdateCounter)
+        , BannedCounter_(bannedCounter)
         , ControlInvoker_(controlInvoker)
-        , Metrics_(metrics)
     {
         if (auto* traceParent = req->GetHeaders()->Find("traceparent")) {
             YT_LOG_INFO("Request contains traceparent header (Traceparent: %v)", traceParent);
@@ -217,7 +213,7 @@ public:
         YT_LOG_DEBUG("Querying instance (Url: %v, RetryIndex: %v)", ProxiedRequestUrl_, retryIndex);
 
         decltype(WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_))) responseOrError;
-        PROFILE_AGGREGATED_TIMING(Metrics_.IssueProxiedRequestTime) {
+        YT_PROFILE_TIMING("/clickhouse_proxy/query_time/issue_proxied_request") {
             responseOrError = WaitFor(HttpClient_->Post(ProxiedRequestUrl_, ProxiedRequestBody_, ProxiedRequestHeaders_));
         }
 
@@ -246,8 +242,8 @@ public:
                 << TErrorAttribute("instance_http_port", InstanceHttpPort_)
                 << TErrorAttribute("proxy_retry_index", retryIndex));
             YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
+            BannedCounter_.Increment();
             Discovery_->Ban(InstanceId_);
-            ClickHouseProfiler.Increment(Metrics_.BannedCount);
             return false;
         }
     }
@@ -268,7 +264,7 @@ public:
         YT_LOG_DEBUG("Received headers, forwarding proxied response");
         PipeInputToOutput(ProxiedResponse_, Response_);
 
-        PROFILE_AGGREGATED_TIMING(Metrics_.ForwardProxiedResponseTime) {
+        YT_PROFILE_TIMING("/clickhouse_proxy/query_time/forward_proxied_response") {
             WaitFor(Response_->Close())
                 .ThrowOnError();
         }
@@ -299,6 +295,8 @@ private:
     const TOperationCachePtr OperationCache_;
     const TPermissionCachePtr PermissionCache_;
     const TDiscoveryCachePtr DiscoveryCache_;
+    const TCounter ForceUpdateCounter_;
+    const TCounter BannedCounter_;
     IInvokerPtr ControlInvoker_;
 
     // These fields contain the request details after parsing CGI params and headers.
@@ -333,8 +331,6 @@ private:
     IResponsePtr ProxiedResponse_;
 
     std::vector<TError> RequestErrors_;
-
-    TClickHouseHandler::TClickHouseProxyMetrics& Metrics_;
 
     THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
 
@@ -446,7 +442,7 @@ private:
         }
 
         try {
-            PROFILE_AGGREGATED_TIMING(Metrics_.AuthenticateTime) {
+            YT_PROFILE_TIMING("/clickhouse_proxy/query_time/authenticate") {
                 if (Token_.Empty()) {
                     User_ = Bootstrap_->GetHttpAuthenticator()->Authenticate(Request_)
                         .ValueOrThrow()
@@ -490,7 +486,7 @@ private:
                 options.ReadFrom = NApi::EMasterChannelKind::Cache;
 
                 i64 version = 0;
-                PROFILE_AGGREGATED_TIMING(Metrics_.CreateDiscoveryTime) {
+                YT_PROFILE_TIMING("/clickhouse_proxy/query_time/create_discovery") {
                     auto nodeOrError = WaitFor(Client_->GetNode(path + "/@", options));
                     auto node = ConvertToNode(nodeOrError.ValueOrThrow())->AsMap()->FindChild("discovery_version");
                     if (node) {
@@ -519,7 +515,7 @@ private:
                 YT_LOG_DEBUG("New discovery inserted to the cache (OperationId: %v)", OperationId_);
             }
 
-            PROFILE_AGGREGATED_TIMING(Metrics_.FindDiscoveryTime) {
+            YT_PROFILE_TIMING("/clickhouse_proxy/query_time/find_discovery") {
                 Discovery_ = WaitFor(cookie.GetValue())
                     .ValueOrThrow();
             }
@@ -550,8 +546,8 @@ private:
                 forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->HardAgeThreshold);
             if (!updatedFuture.IsSet()) {
                 YT_LOG_DEBUG("Waiting for discovery");
-                ClickHouseProfiler.Increment(Metrics_.ForceUpdateCount);
-                PROFILE_AGGREGATED_TIMING(Metrics_.DiscoveryForceUpdateTime) {
+                ForceUpdateCounter_.Increment();
+                YT_PROFILE_TIMING("/clickhouse_proxy/query_time/discovery_force_update") {
                     WaitFor(updatedFuture)
                         .ThrowOnError();
                 }
@@ -727,27 +723,21 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     , Config_(Bootstrap_->GetConfig()->ClickHouse)
     , Client_(Bootstrap_->GetRootClient()->GetConnection()->CreateClient(NApi::TClientOptions::FromUser(ClickHouseUserName)))
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
+    , QueryCount_(ClickHouseProfiler.Counter("/query_count"))
+    , ForceUpdateCount_(ClickHouseProfiler.Counter("/force_update_count"))
+    , BannedCount_(ClickHouseProfiler.Counter("/banned_count"))
 {
-    if (Config_->ForceEnqueueProfiling) {
-        ClickHouseProfiler.ForceEnqueue() = true;
-    }
     OperationCache_ = New<TOperationCache>(
         Config_->OperationCache,
         THashSet<TString>{"id", "runtime_parameters", "state", "suspended"},
         Client_,
-        ClickHouseProfilerRegistry.WithPrefix("/operation_cache"));
+        ClickHouseProfiler.WithPrefix("/operation_cache"));
     PermissionCache_ = New<TPermissionCache>(
         Config_->PermissionCache,
         Bootstrap_->GetNativeConnection(),
-        ClickHouseProfilerRegistry.WithPrefix("/permission_cache"));
+        ClickHouseProfiler.WithPrefix("/permission_cache"));
 
-    DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProfilerRegistry.WithPrefix("/discovery_cache"));
-
-    ProfilingExecutor_ = New<TPeriodicExecutor>(
-        ControlInvoker_,
-        BIND(&TClickHouseHandler::OnProfiling, MakeWeak(this)),
-        Config_->ProfilingPeriod);
-    ProfilingExecutor_->Start();
+    DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProfiler.WithPrefix("/discovery_cache"));
 }
 
 DEFINE_ENUM(ERetryState,
@@ -770,8 +760,11 @@ void TClickHouseHandler::HandleRequest(
         // that client does not block on writing the body.
         request->ReadAll();
         RedirectToDataProxy(request, response, Coordinator_);
-    } else PROFILE_AGGREGATED_TIMING(Metrics_.TotalQueryTime) {
-        ClickHouseProfiler.Increment(Metrics_.QueryCount);
+        return;
+    }
+    
+    YT_PROFILE_TIMING("/clickhouse_proxy/total_query_time") {
+        QueryCount_.Increment();
         ProcessDebugHeaders(request, response, Coordinator_);
 
         auto config = Bootstrap_->GetCoordinator()->GetDynamicConfig()->ClickHouse;
@@ -790,8 +783,9 @@ void TClickHouseHandler::HandleRequest(
             OperationCache_,
             PermissionCache_,
             DiscoveryCache_,
+            ForceUpdateCount_,
+            BannedCount_,
             ControlInvoker_,
-            Metrics_,
             Logger);
 
         if (!context->TryPrepare()) {
@@ -875,34 +869,16 @@ void TClickHouseHandler::AdjustQueryCount(const TString& user, int delta)
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-    THashMap<TString, int>::insert_ctx ctx;
-    auto it = UserToRunningQueryCount_.find(user, ctx);
-    if (it == UserToRunningQueryCount_.end()) {
-        it = UserToRunningQueryCount_.emplace_direct(ctx, user, delta);
-    } else {
-        it->second += delta;
-    }
-    YT_VERIFY(it->second >= 0);
-    if (it->second == 0) {
-        UserToRunningQueryCount_.erase(it);
-    }
-}
+    auto entry = UserToRunningQueryCount_.FindOrInsert(user, [&] {
+        auto gauge = ClickHouseProfiler
+            .WithSparse()
+            .WithTag("user", user)
+            .Gauge("/running_query_count");
+        return std::make_pair(0, gauge);
+    }).first;
 
-void TClickHouseHandler::OnProfiling()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    const auto& Logger = ClickHouseLogger;
-
-    YT_LOG_DEBUG("Flushing profiling");
-
-    for (auto& [user, runningQueryCount] : UserToRunningQueryCount_) {
-        ClickHouseProfiler.Enqueue(
-            "/running_query_count",
-            runningQueryCount,
-            EMetricType::Gauge,
-            {TProfileManager::Get()->RegisterTag("user", user)});
-    }
+    entry->first += delta;
+    entry->second.Update(entry->first);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

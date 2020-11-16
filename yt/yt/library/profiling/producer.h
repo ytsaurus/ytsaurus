@@ -71,4 +71,23 @@ DEFINE_REFCOUNTED_TYPE(ISensorProducer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBufferedProducer
+    : public ISensorProducer
+{
+public:
+    virtual void Collect(ISensorWriter* writer) override;
+
+    void Update(TSensorBuffer buffer);
+    void SetEnabled(bool enabled);
+
+private:
+    TSpinLock Lock_;
+    bool Enabled_ = true;
+    TIntrusivePtr<TSensorBuffer> Buffer_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TBufferedProducer)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NProfiling
