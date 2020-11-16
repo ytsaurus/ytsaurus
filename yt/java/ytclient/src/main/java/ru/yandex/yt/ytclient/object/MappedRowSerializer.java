@@ -12,6 +12,7 @@ import javax.annotation.Nonnull;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeDateSerializer;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeBytesToStringSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeNullSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionalSerializer;
@@ -105,7 +106,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
     static ColumnValueType asType(YTreeSerializer<?> serializer) {
         if (serializer instanceof YTreeIntegerSerializer || serializer instanceof YTreeLongSerializer ||
                 serializer instanceof YTreeIntEnumSerializer || serializer instanceof YTreeInstantSerializer ||
-                serializer instanceof YTreeDurationSerializer || serializer instanceof YTreeJavaInstantSerializer||
+                serializer instanceof YTreeDurationSerializer || serializer instanceof YTreeJavaInstantSerializer ||
                 serializer instanceof YTreeOffsetDateTimeSerializer) {
             return ColumnValueType.INT64;
         } else if (serializer instanceof YTreeDoubleSerializer || serializer instanceof YTreeFloatSerializer) {
@@ -116,7 +117,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             return ColumnValueType.BOOLEAN;
         } else if (serializer instanceof YTreeStringEnumSerializer || serializer instanceof YTreeStringSerializer
                 || serializer instanceof YTreeEnumSerializer || serializer instanceof AbstractYTreeDateSerializer
-                || serializer instanceof YTreeLocalDateTimeSerializer) {
+                || serializer instanceof YTreeLocalDateTimeSerializer
+                || serializer instanceof YTreeBytesToStringSerializer) {
             return ColumnValueType.STRING;
         } else {
             return ColumnValueType.ANY;
