@@ -88,6 +88,9 @@ public:
             TDispatcher::Get()->GetHeavyInvoker(),
             BIND(&TCachingChannelFactory::CheckExpiredChannels, MakeWeak(this)),
             std::min(ExpirationCheckInterval, IdleChannelTtl_)))
+    { }
+
+    void Initialize()
     {
         ExpirationExecutor_->Start();
     }
@@ -268,9 +271,11 @@ IChannelFactoryPtr CreateCachingChannelFactory(
 {
     YT_VERIFY(underlyingFactory);
 
-    return New<TCachingChannelFactory>(
+    auto factory = New<TCachingChannelFactory>(
         std::move(underlyingFactory),
         idleChannelTtl);
+    factory->Initialize();
+    return factory;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
