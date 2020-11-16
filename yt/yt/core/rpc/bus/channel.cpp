@@ -20,6 +20,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/atomic_object.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -100,31 +101,29 @@ public:
         YT_VERIFY(!error.IsOK());
         VERIFY_THREAD_AFFINITY_ANY();
 
+        if (TerminationFlag_.exchange(true)) {
+            return;
+        }
+
+        TerminationError_.Store(error);
+
         std::vector<TSessionPtr> sessions;
-        {
-            TWriterGuard guard(SpinLock_);
+        for (auto& bucket : Buckets_) {
+            TWriterGuard guard(bucket.Lock);
 
-            if (!TerminationError_.IsOK()) {
-                return;
+            if (bucket.Session) {
+                sessions.push_back(bucket.Session);
+                bucket.Session.Reset();
             }
 
-            for (auto& session : Sessions_) {
-                if (session) {
-                    sessions.push_back(session);
-                    session.Reset();
-                }
-            }
-
-            TerminationError_ = error;
+            bucket.Terminated = true;
         }
 
         for (const auto& session : sessions) {
             session->Terminate(error);
         }
 
-        Terminated_.Fire(TerminationError_);
-
-        return;
+        Terminated_.Fire(error);
     }
 
     virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
@@ -139,35 +138,38 @@ public:
 
 private:
     class TSession;
-    typedef TIntrusivePtr<TSession> TSessionPtr;
+    using TSessionPtr = TIntrusivePtr<TSession>;
 
     class TClientRequestControl;
-    typedef TIntrusivePtr<TClientRequestControl> TClientRequestControlPtr;
+    using TClientRequestControlPtr = TIntrusivePtr<TClientRequestControl>;
 
     const IBusClientPtr Client_;
     const TNetworkId NetworkId_;
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    TReaderWriterSpinLock SpinLock_;
-    TError TerminationError_;
-    TEnumIndexedVector<EMultiplexingBand, TSessionPtr> Sessions_;
-
-    TSessionPtr* GetPerBandSession(EMultiplexingBand band)
+    struct TBandBucket
     {
-        return &Sessions_[band];
-    }
+        TReaderWriterSpinLock Lock;
+        TSessionPtr Session;
+        bool Terminated = false;
+    };
+
+    TEnumIndexedVector<EMultiplexingBand, TBandBucket> Buckets_;
+
+    std::atomic<bool> TerminationFlag_ = false;
+    TAtomicObject<TError> TerminationError_;
 
     TSessionPtr GetOrCreateSession(EMultiplexingBand band)
     {
-        auto* perBandSession = GetPerBandSession(band);
+        auto& bucket = Buckets_[band];
 
         // Fast path.
         {
-            TReaderGuard guard(SpinLock_);
+            TReaderGuard guard(bucket.Lock);
 
-            if (*perBandSession) {
-                return *perBandSession;
+            if (bucket.Session) {
+                return bucket.Session;
             }
         }
 
@@ -177,15 +179,16 @@ private:
         // Slow path.
         {
             auto networkId = TDispatcher::Get()->GetNetworkId(Client_->GetNetworkName());
-            TWriterGuard guard(SpinLock_);
+            TWriterGuard guard(bucket.Lock);
 
-            if (*perBandSession) {
-                return *perBandSession;
+            if (bucket.Session) {
+                return bucket.Session;
             }
 
-            if (!TerminationError_.IsOK()) {
+            if (bucket.Terminated) {
+                guard.Release();
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransportError, "Channel terminated")
-                    << TerminationError_;
+                    << TerminationError_.Load();
             }
 
             session = New<TSession>(band, networkId);
@@ -195,7 +198,7 @@ private:
 
             session->Initialize(bus);
 
-            *perBandSession = session;
+            bucket.Session = session;
         }
 
         bus->SubscribeTerminated(BIND(
@@ -214,12 +217,13 @@ private:
             return;
         }
 
-        {
-            TWriterGuard guard(SpinLock_);
+        auto& bucket = Buckets_[band];
 
-            auto* perBandSession = GetPerBandSession(band);
-            if (*perBandSession == session_) {
-                perBandSession->Reset();
+        {
+            TWriterGuard guard(bucket.Lock);
+
+            if (bucket.Session == session_) {
+                bucket.Session.Reset();
             }
         }
 
@@ -272,21 +276,27 @@ private:
         {
             YT_VERIFY(!error.IsOK());
 
+            if (TerminationFlag_.exchange(true)) {
+                return;
+            }
+
+            TerminationError_.Store(error);
+
             std::vector<std::tuple<TClientRequestControlPtr, IClientResponseHandlerPtr>> existingRequests;
 
             // Mark the channel as terminated to disallow any further usage.
-            {
-                auto guard = Guard(SpinLock_);
+            for (auto& bucket : RequestBuckets_) {
+                auto guard = Guard(bucket.Lock);
 
-                TerminationError_ = error;
+                bucket.Terminated = true;
 
-                existingRequests.reserve(ActiveRequestMap_.size());
-                for (auto& [requestId, requestControl] : ActiveRequestMap_) {
+                existingRequests.reserve(bucket.ActiveRequestMap.size());
+                for (auto& [requestId, requestControl] : bucket.ActiveRequestMap) {
                     auto responseHandler = requestControl->Finalize(guard);
                     existingRequests.emplace_back(std::move(requestControl), std::move(responseHandler));
                 }
 
-                ActiveRequestMap_.clear();
+                bucket.ActiveRequestMap.clear();
             }
 
             for (const auto& existingRequest : existingRequests) {
@@ -325,7 +335,7 @@ private:
                     BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
                     effectiveTimeout,
                     TDispatcher::Get()->GetHeavyInvoker());
-                requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
+                requestControl->SetTimeoutCookie(std::move(timeoutCookie));
             }
 
             if (options.Timeout) {
@@ -366,13 +376,14 @@ private:
             VERIFY_THREAD_AFFINITY_ANY();
 
             auto requestId = requestControl->GetRequestId();
+            auto* bucket = GetBucketForRequest(requestId);
 
             IClientResponseHandlerPtr responseHandler;
             {
-                auto guard = Guard(SpinLock_);
+                auto guard = Guard(bucket->Lock);
 
-                auto it = ActiveRequestMap_.find(requestId);
-                if (it == ActiveRequestMap_.end()) {
+                auto it = bucket->ActiveRequestMap.find(requestId);
+                if (it == bucket->ActiveRequestMap.end()) {
                     YT_LOG_DEBUG("Attempt to cancel an unknown request, ignored (RequestId: %v)",
                         requestId);
                     return;
@@ -386,7 +397,7 @@ private:
 
                 requestControl->ProfileCancel();
                 responseHandler = requestControl->Finalize(guard);
-                ActiveRequestMap_.erase(it);
+                bucket->ActiveRequestMap.erase(it);
             }
 
             // YT-1639: Avoid long chain of recursive calls.
@@ -410,8 +421,7 @@ private:
                     TError(NYT::EErrorCode::Canceled, "Request canceled")));
             }
 
-            auto bus = FindBus();
-            if (!bus) {
+            if (TerminationFlag_.load()) {
                 return;
             }
 
@@ -428,7 +438,7 @@ private:
             }
 
             auto message = CreateRequestCancelationMessage(header);
-            bus->Send(std::move(message), NBus::TSendOptions(EDeliveryTrackingLevel::None));
+            Bus_->Send(std::move(message), NBus::TSendOptions(EDeliveryTrackingLevel::None));
         }
 
         TFuture<void> SendStreamingPayload(
@@ -437,8 +447,7 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto bus = FindBus();
-            if (!bus) {
+            if (TerminationFlag_.load()) {
                 return MakeFuture(TError(NRpc::EErrorCode::TransportError, "Session is terminated"));
             }
 
@@ -462,7 +471,7 @@ private:
             NBus::TSendOptions options;
             options.TrackingLevel = EDeliveryTrackingLevel::Full;
             options.MemoryZone = payload.MemoryZone;
-            return bus->Send(std::move(message), options);
+            return Bus_->Send(std::move(message), options);
         }
 
         TFuture<void> SendStreamingFeedback(
@@ -471,8 +480,7 @@ private:
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto bus = FindBus();
-            if (!bus) {
+            if (TerminationFlag_.load()) {
                 return MakeFuture(TError(NRpc::EErrorCode::TransportError, "Session is terminated"));
             }
 
@@ -493,7 +501,7 @@ private:
             auto message = CreateStreamingFeedbackMessage(header);
             NBus::TSendOptions options;
             options.TrackingLevel = EDeliveryTrackingLevel::Full;
-            return bus->Send(std::move(message), options);
+            return Bus_->Send(std::move(message), options);
         }
 
         void HandleTimeout(const TClientRequestControlPtr& requestControl, bool aborted)
@@ -501,18 +509,19 @@ private:
             VERIFY_THREAD_AFFINITY_ANY();
 
             auto requestId = requestControl->GetRequestId();
+            auto* bucket = GetBucketForRequest(requestId);
 
             IClientResponseHandlerPtr responseHandler;
             {
-                auto guard = Guard(SpinLock_);
+                auto guard = Guard(bucket->Lock);
 
                 if (!requestControl->IsActive(guard)) {
                     return;
                 }
 
-                auto it = ActiveRequestMap_.find(requestId);
-                if (it != ActiveRequestMap_.end() && requestControl == it->second) {
-                    ActiveRequestMap_.erase(it);
+                auto it = bucket->ActiveRequestMap.find(requestId);
+                if (it != bucket->ActiveRequestMap.end() && requestControl == it->second) {
+                    bucket->ActiveRequestMap.erase(it);
                 } else {
                     YT_LOG_DEBUG("Timeout occurred for an unknown or resent request (RequestId: %v)",
                         requestId);
@@ -536,18 +545,19 @@ private:
             VERIFY_THREAD_AFFINITY_ANY();
 
             auto requestId = requestControl->GetRequestId();
+            auto* bucket = GetBucketForRequest(requestId);
 
             IClientResponseHandlerPtr responseHandler;
             {
-                auto guard = Guard(SpinLock_);
+                auto guard = Guard(bucket->Lock);
 
                 if (!requestControl->IsActive(guard)) {
                     return;
                 }
 
-                auto it = ActiveRequestMap_.find(requestId);
-                if (it != ActiveRequestMap_.end() && requestControl == it->second) {
-                    ActiveRequestMap_.erase(it);
+                auto it = bucket->ActiveRequestMap.find(requestId);
+                if (it != bucket->ActiveRequestMap.end() && requestControl == it->second) {
+                    bucket->ActiveRequestMap.erase(it);
                 } else {
                     YT_LOG_DEBUG("Acknowledgement timeout occurred for an unknown or resent request (RequestId: %v)",
                         requestId);
@@ -568,6 +578,10 @@ private:
                 responseHandler,
                 TStringBuf("Request acknowledgement timed out"),
                 error);
+
+            if (TerminationFlag_.load()) {
+                return;
+            }
 
             Bus_->Terminate(error);
         }
@@ -657,33 +671,36 @@ private:
 
         IBusPtr Bus_;
 
-        TAdaptiveLock SpinLock_;
-        TError TerminationError_;
-        typedef THashMap<TRequestId, TClientRequestControlPtr> TActiveRequestMap;
-        TActiveRequestMap ActiveRequestMap_;
-
-
-        IBusPtr FindBus()
+        struct TBucket
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            TAdaptiveLock Lock;
+            IBusPtr Bus;
+            bool Terminated = false;
+            THashMap<TRequestId, TClientRequestControlPtr> ActiveRequestMap;
+        };
 
-            auto guard = Guard(SpinLock_);
+        static constexpr size_t BucketCount = 64;
 
-            if (!TerminationError_.IsOK()) {
-                return nullptr;
-            }
+        std::array<TBucket, BucketCount> RequestBuckets_;
 
-            return Bus_;
+        std::atomic<bool> TerminationFlag_ = false;
+        TAtomicObject<TError> TerminationError_;
+
+
+        TBucket* GetBucketForRequest(TRequestId requestId)
+        {
+            return &RequestBuckets_[requestId.Parts32[0] % BucketCount];
         }
 
         IClientResponseHandlerPtr FindResponseHandler(TRequestId requestId)
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            auto guard = Guard(SpinLock_);
+            auto* bucket = GetBucketForRequest(requestId);
+            auto guard = Guard(bucket->Lock);
 
-            auto it = ActiveRequestMap_.find(requestId);
-            if (it == ActiveRequestMap_.end()) {
+            auto it = bucket->ActiveRequestMap.find(requestId);
+            if (it == bucket->ActiveRequestMap.end()) {
                 return nullptr;
             }
 
@@ -707,13 +724,12 @@ private:
             }
 
             auto requestId = requestControl->GetRequestId();
-
-            IBusPtr bus;
+            auto* bucket = GetBucketForRequest(requestId);
 
             TClientRequestControlPtr existingRequestControl;
             IClientResponseHandlerPtr existingResponseHandler;
             {
-                auto guard = Guard(SpinLock_);
+                auto guard = Guard(bucket->Lock);
 
                 if (!requestControl->IsActive(guard)) {
                     return;
@@ -732,7 +748,7 @@ private:
                     return;
                 }
 
-                if (!TerminationError_.IsOK()) {
+                if (bucket->Terminated) {
                     auto responseHandler = requestControl->Finalize(guard);
                     guard.Release();
 
@@ -741,16 +757,16 @@ private:
                         responseHandler,
                         TStringBuf("Request is dropped because channel is terminated"),
                         TError(NRpc::EErrorCode::TransportError, "Channel terminated")
-                            << TerminationError_);
+                            << TerminationError_.Load());
                     return;
                 }
 
                 // NB: We're OK with duplicate request ids.
-                auto pair = ActiveRequestMap_.emplace(requestId, requestControl);
-                if (!pair.second) {
-                    existingRequestControl = std::move(pair.first->second);
+                auto [it, inserted] = bucket->ActiveRequestMap.emplace(requestId, requestControl);
+                if (!inserted) {
+                    existingRequestControl = std::move(it->second);
                     existingResponseHandler = existingRequestControl->Finalize(guard);
-                    pair.first->second = requestControl;
+                    it->second = requestControl;
                 }
 
                 if (options.AcknowledgementTimeout) {
@@ -758,10 +774,8 @@ private:
                         BIND(&TSession::HandleAcknowledgementTimeout, MakeWeak(this), requestControl),
                         *options.AcknowledgementTimeout,
                         TDispatcher::Get()->GetHeavyInvoker());
-                    requestControl->SetAcknowledgementTimeoutCookie(guard, std::move(timeoutCookie));
+                    requestControl->SetAcknowledgementTimeoutCookie(std::move(timeoutCookie));
                 }
-
-                bus = Bus_;
             }
 
             if (existingResponseHandler) {
@@ -786,7 +800,7 @@ private:
                 ? NBus::TSendOptions::AllParts
                 : 2; // RPC header + request body
             busOptions.MemoryZone = options.MemoryZone;
-            bus->Send(requestMessage, busOptions).Subscribe(BIND(
+            Bus_->Send(requestMessage, busOptions).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
                 options.AcknowledgementTimeout.has_value(),
@@ -803,7 +817,7 @@ private:
                 busOptions.TrackingLevel,
                 busOptions.ChecksummedPartCount,
                 options.MultiplexingBand,
-                bus->GetEndpointDescription(),
+                Bus_->GetEndpointDescription(),
                 GetMessageBodySize(requestMessage),
                 GetTotalMessageAttachmentSize(requestMessage));
         }
@@ -818,20 +832,21 @@ private:
             }
 
             auto requestId = FromProto<TRequestId>(header.request_id());
+            auto* bucket = GetBucketForRequest(requestId);
 
             TClientRequestControlPtr requestControl;
             IClientResponseHandlerPtr responseHandler;
             {
-                auto guard = Guard(SpinLock_);
+                auto guard = Guard(bucket->Lock);
 
-                if (!TerminationError_.IsOK()) {
+                if (bucket->Terminated) {
                     YT_LOG_WARNING("Response received via a terminated channel (RequestId: %v)",
                         requestId);
                     return;
                 }
 
-                auto it = ActiveRequestMap_.find(requestId);
-                if (it == ActiveRequestMap_.end()) {
+                auto it = bucket->ActiveRequestMap.find(requestId);
+                if (it == bucket->ActiveRequestMap.end()) {
                     // This may happen when the other party responds to an already timed-out request.
                     YT_LOG_DEBUG("Response for an incorrect or obsolete request received (RequestId: %v)",
                         requestId);
@@ -841,7 +856,7 @@ private:
                 requestControl = std::move(it->second);
                 requestControl->ProfileReply(message);
                 responseHandler = requestControl->Finalize(guard);
-                ActiveRequestMap_.erase(it);
+                bucket->ActiveRequestMap.erase(it);
             }
 
             {
@@ -970,13 +985,15 @@ private:
                 return;
             }
 
+            auto* bucket = GetBucketForRequest(requestId);
+
             TClientRequestControlPtr requestControl;
             IClientResponseHandlerPtr responseHandler;
             {
-                auto guard = Guard(SpinLock_);
+                auto guard = Guard(bucket->Lock);
 
-                auto it = ActiveRequestMap_.find(requestId);
-                if (it == ActiveRequestMap_.end()) {
+                auto it = bucket->ActiveRequestMap.find(requestId);
+                if (it == bucket->ActiveRequestMap.end()) {
                     // This one may easily get the actual response before the acknowledgment.
                     YT_LOG_DEBUG(error, "Acknowledgment received for an unknown request, ignored (RequestId: %v)",
                         requestId);
@@ -984,11 +1001,11 @@ private:
                 }
 
                 requestControl = it->second;
-                requestControl->SetAcknowledgementTimeoutCookie(guard, nullptr);
+                requestControl->ResetAcknowledgementTimeoutCookie();
                 requestControl->ProfileAcknowledgement();
                 if (!error.IsOK()) {
                     responseHandler = requestControl->Finalize(guard);
-                    ActiveRequestMap_.erase(it);
+                    bucket->ActiveRequestMap.erase(it);
                 } else {
                     responseHandler = requestControl->GetResponseHandler(guard);
                 }
@@ -1119,16 +1136,21 @@ private:
             return static_cast<bool>(ResponseHandler_);
         }
 
-        void SetTimeoutCookie(const TGuard<TAdaptiveLock>&, TDelayedExecutorCookie cookie)
+        void SetTimeoutCookie(TDelayedExecutorCookie cookie)
         {
-            TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+            YT_ASSERT(!TimeoutCookie_);
             TimeoutCookie_ = std::move(cookie);
         }
 
-        void SetAcknowledgementTimeoutCookie(const TGuard<TAdaptiveLock>&, TDelayedExecutorCookie cookie)
+        void SetAcknowledgementTimeoutCookie(TDelayedExecutorCookie cookie)
+        {
+            YT_ASSERT(!AcknowledgementTimeoutCookie_);
+            AcknowledgementTimeoutCookie_ = std::move(cookie);
+        }
+
+        void ResetAcknowledgementTimeoutCookie()
         {
             TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
-            AcknowledgementTimeoutCookie_ = std::move(cookie);
         }
 
         IClientResponseHandlerPtr GetResponseHandler(const TGuard<TAdaptiveLock>&)
