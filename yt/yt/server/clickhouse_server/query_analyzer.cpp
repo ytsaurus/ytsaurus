@@ -336,9 +336,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
         auto schema = storage->GetSchema();
         std::optional<DB::KeyCondition> keyCondition;
         if (schema->IsSorted()) {
-            auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(
-                ToNamesAndTypesList(*schema, settings->Composite),
-                Context_);
+            auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(std::make_shared<DB::ActionsDAG>(
+                ToNamesAndTypesList(*schema, settings->Composite)));
 
             auto queryInfoForKeyCondition = QueryInfo_;
 
@@ -362,7 +361,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
                 }
             }
 
-            keyCondition = DB::KeyCondition(queryInfoForKeyCondition, Context_, ToNames(schema->GetKeyColumns()), std::move(primaryKeyExpression));
+            keyCondition = DB::KeyCondition(queryInfoForKeyCondition, Context_, ToNames(schema->GetKeyColumns()), primaryKeyExpression);
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());
