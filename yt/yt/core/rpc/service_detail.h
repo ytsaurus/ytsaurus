@@ -757,7 +757,7 @@ private:
         THashMap<TRequestId, TPendingPayloadsEntry> RequestIdToPendingPayloads;
     };
 
-    static constexpr int RequestBucketCount = 64;
+    static constexpr size_t RequestBucketCount = 64;
     std::array<TRequestBucket, RequestBucketCount> RequestBuckets_;
 
     struct TReplyBusBucket
@@ -766,7 +766,7 @@ private:
         THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts;
     };
 
-    static constexpr int ReplyBusBucketCount = 64;
+    static constexpr size_t ReplyBusBucketCount = 64;
     std::array<TReplyBusBucket, ReplyBusBucketCount> ReplyBusBuckets_;
 
     TDuration PendingPayloadsTimeout_ = TServiceConfig::DefaultPendingPayloadsTimeout;
