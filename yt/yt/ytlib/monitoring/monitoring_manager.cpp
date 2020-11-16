@@ -108,18 +108,25 @@ private:
     void Update()
     {
         YT_LOG_DEBUG("Started updating monitoring state");
-        static const auto UpdateTimer = NProfiling::TRegistry{"/monitoring"}.Timer("/update_time");
 
-        NProfiling::TEventTimerGuard guard(UpdateTimer);
-        auto newRoot = GetEphemeralNodeFactory()->CreateMap();
-        for (const auto& [path, producer] : PathToProducer_) {
-            auto value = ConvertToYsonString(producer);
-            SyncYPathSet(newRoot, path, value);
-        }
+        YT_PROFILE_TIMING("/monitoring/update_time") {
+            auto newRoot = GetEphemeralNodeFactory()->CreateMap();
 
-        if (Started_) {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
-            std::swap(Root_, newRoot);
+            THashMap<TString, NYson::TYsonProducer> pathToProducer;;
+            {
+                auto guard = Guard(SpinLock_);
+                pathToProducer = PathToProducer_;
+            }
+
+            for (const auto& [path, producer] : pathToProducer) {
+                auto value = ConvertToYsonString(producer);
+                SyncYPathSet(newRoot, path, value);
+            }
+
+            if (Started_) {
+                TGuard<TAdaptiveLock> guard(SpinLock_);
+                std::swap(Root_, newRoot);
+            }
         }
         YT_LOG_DEBUG("Finished updating monitoring state");
     }
