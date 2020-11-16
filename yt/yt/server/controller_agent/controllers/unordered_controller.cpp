@@ -170,6 +170,7 @@ public:
             // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
             auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
             return
+                !(Controller_->AutoMergeTask_ && CanLoseJobs()) &&
                 !Controller_->JobSizeConstraints_->IsExplicitJobCount() &&
                 2 * Controller_->Options->MaxOutputTablesTimesJobsCount > totalJobCount * Controller_->GetOutputTablePaths().size() &&
                 2 * Controller_->Options->MaxJobCount > totalJobCount;

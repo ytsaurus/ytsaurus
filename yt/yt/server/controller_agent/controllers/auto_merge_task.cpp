@@ -197,7 +197,9 @@ void TAutoMergeTask::UpdateSelf()
     if (CanScheduleJob_) {
         TaskHost_->UpdateTask(this);
     }
-    YT_VERIFY(!(CanScheduleJob_ && GetPendingJobCount() == 0 && CurrentChunkCount_ > 0));
+
+    // TODO(gritukan): Rethink it after YT-13373.
+    // YT_VERIFY(!(CanScheduleJob_ && GetPendingJobCount() == 0 && CurrentChunkCount_ > 0));
 }
 
 void TAutoMergeTask::OnJobStarted(TJobletPtr joblet)
