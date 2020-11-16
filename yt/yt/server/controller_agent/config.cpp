@@ -762,7 +762,13 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("tags", Tags)
         .Default(std::vector<TString>({"default"}));
 
-    RegisterPreprocessor([&] () {
+    RegisterParameter("operation_controller_memory_limit", OperationControllerMemoryLimit)
+        .Default(50_GB);
+
+    RegisterParameter("memory_usage_check_period", MemoryUsageCheckPeriod)
+        .Default(TDuration::Seconds(5));
+
+    RegisterPreprocessor([&] {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {
             EventLog->Path = "//sys/scheduler/event_log";

@@ -72,6 +72,7 @@ FailedToFetchDynamicConfig = 2501
 DuplicateMatchingDynamicConfigs = 2502
 UnrecognizedDynamicConfigOption = 2503
 InvalidDynamicConfig = 2505
+ControllerMemoryLimitExceeded = 4416
 ContainerDoesNotExist = 12004
 
 # See transaction_client/public.h

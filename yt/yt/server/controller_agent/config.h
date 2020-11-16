@@ -845,6 +845,12 @@ public:
     //! List of the tags assigned to controller agent.
     std::vector<TString> Tags;
 
+    //! Memory limit (in bytes) for operation controller. If controller exceeds this limit,
+    //! operations fails.
+    i64 OperationControllerMemoryLimit;
+
+    TDuration MemoryUsageCheckPeriod;
+
     TControllerAgentConfig();
 
 private:

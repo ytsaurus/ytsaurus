@@ -86,9 +86,10 @@ DEFINE_ENUM(EScheduleJobFailReason,
 );
 
 DEFINE_ENUM(EErrorCode,
-    ((AgentCallFailed)             (4400))
-    ((NoOnlineNodeToScheduleJob)   (4410))
-    ((MaterializationFailed)       (4415))
+    ((AgentCallFailed)                            (4400))
+    ((NoOnlineNodeToScheduleJob)                  (4410))
+    ((MaterializationFailed)                      (4415))
+    ((OperationControllerMemoryLimitExceeded)     (4416))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
