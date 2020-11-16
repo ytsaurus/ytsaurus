@@ -617,6 +617,15 @@ protected:
             }
         }
 
+        virtual TInputChunkMappingPtr GetChunkMapping() const override
+        {
+            if (IsRoot()) {
+                return TTask::GetChunkMapping();
+            } else {
+                return Controller_->ShuffleMultiInputChunkMappings[Level_ - 1];
+            }
+        }
+
         virtual TUserJobSpecPtr GetUserJobSpec() const override
         {
             return Controller_->GetPartitionUserJobSpec(IsRoot());
@@ -966,12 +975,7 @@ protected:
 
         virtual bool IsJobInterruptible() const override
         {
-            // We don't let jobs to be interrupted if MaxOutputTablesTimesJobCount is too much overdrafted.
-            auto partitionJobCount = Controller_->GetPartitionJobCounter()->GetTotal();
-            return
-                !Controller_->RootPartitionPoolJobSizeConstraints->IsExplicitJobCount() &&
-                2 * Controller_->Options->MaxOutputTablesTimesJobsCount > partitionJobCount * Controller_->GetOutputTablePaths().size() &&
-                2 * Controller_->Options->MaxPartitionJobCount > partitionJobCount;
+            return false;
         }
     };
 

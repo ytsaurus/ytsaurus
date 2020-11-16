@@ -270,6 +270,7 @@ protected:
         {
             auto totalJobCount = Controller_->GetDataFlowGraph()->GetTotalJobCounter()->GetTotal();
             return
+                !(Controller_->AutoMergeTask_ && CanLoseJobs()) &&
                 !Controller_->HasStaticJobDistribution() &&
                 2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * Controller_->GetOutputTablePaths().size() &&
                 2 * Controller_->Options_->MaxJobCount > totalJobCount;
