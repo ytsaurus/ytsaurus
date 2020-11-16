@@ -95,9 +95,6 @@ public:
         return EBlockType::UncompressedData;
     }
 
-    virtual void OnProfiling() override
-    { }
-
 private:
     const std::vector<TBlock>& Blocks_;
 };

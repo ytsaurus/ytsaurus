@@ -53,13 +53,13 @@ namespace NYT::NClickHouseServer {
 using namespace NConcurrency;
 
 static const auto& Logger = ClickHouseYtLogger;
-static const auto& ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClickHouseServer
     : public DB::IServer
     , public IClickHouseServer
+    , public NProfiling::ISensorProducer
 {
 public:
     TClickHouseServer(
@@ -70,12 +70,6 @@ public:
         , SharedContext_(DB::Context::createShared())
         , ServerContext_(std::make_unique<DB::Context>(DB::Context::createGlobal(SharedContext_.get())))
         , LayeredConfig_(ConvertToLayeredConfig(ConvertToNode(Config_)))
-        , ProfilingQueue_(New<TActionQueue>("NativeProfiling"))
-        , ProfilingExecutor_(New<TPeriodicExecutor>(
-            ProfilingQueue_->GetInvoker(),
-            BIND(&TClickHouseServer::OnProfiling, MakeWeak(this)),
-            ProfilingPeriod))
-        , CachingClickHouseNativeProfiler_(&ClickHouseNativeProfiler)
     {
         SetupLogger();
 
@@ -95,7 +89,8 @@ public:
     virtual void Start() override
     {
         SetupServers();
-        ProfilingExecutor_->Start();
+
+        ClickHouseNativeProfiler.AddProducer("", MakeStrong(this));
 
         for (auto& server : Servers_) {
             server->start();
@@ -161,14 +156,9 @@ private:
 
     std::atomic<bool> Cancelled_ { false };
 
-    TActionQueuePtr ProfilingQueue_;
-    TPeriodicExecutorPtr ProfilingExecutor_;
-
     std::shared_ptr<DB::IDatabase> SystemDatabase_;
 
     ext::scope_guard DictionaryGuard_;
-
-    TCachingProfilerWrapper CachingClickHouseNativeProfiler_;
 
     void SetupLogger()
     {
@@ -369,54 +359,43 @@ private:
 #endif
     }
 
-    void OnProfiling()
+    void Collect(NProfiling::ISensorWriter* writer)
     {
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
             const auto* name = CurrentMetrics::getName(index);
             auto value = CurrentMetrics::values[index].load(std::memory_order_relaxed);
-            CachingClickHouseNativeProfiler_.Enqueue(
-                "/current_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
-                value,
-                NProfiling::EMetricType::Gauge);
+
+            writer->AddGauge("/current_metrics/" + CamelCaseToUnderscoreCase(TString(name)), value);
         }
 
         for (const auto& [name, value] : AsynchronousMetrics_->getValues()) {
-            CachingClickHouseNativeProfiler_.Enqueue(
-                "/asynchronous_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
-                value,
-                NProfiling::EMetricType::Gauge);
+            writer->AddGauge("/asynchronous_metrics/" + CamelCaseToUnderscoreCase(TString(name)), value);
         }
 
         for (int index = 0; index < static_cast<int>(ProfileEvents::end()); ++index) {
             const auto* name = ProfileEvents::getName(index);
             auto value = ProfileEvents::global_counters[index].load(std::memory_order_relaxed);
-            CachingClickHouseNativeProfiler_.Enqueue(
-                "/global_profile_events/" + CamelCaseToUnderscoreCase(TString(name)),
-                value,
-                NProfiling::EMetricType::Counter);
+
+            writer->AddCounter("/global_profile_events/" + CamelCaseToUnderscoreCase(TString(name)), value);
         }
 
         if (Config_->MaxServerMemoryUsage) {
-            ClickHouseNativeProfiler.Enqueue(
-                "/memory_limit",
-                *Config_->MaxServerMemoryUsage,
-                NProfiling::EMetricType::Gauge);
+            writer->AddGauge("/memory_limit", *Config_->MaxServerMemoryUsage);
         }
 
+        for (
+            auto tableIterator = SystemDatabase_->getTablesIterator(*ServerContext_);
+            tableIterator->isValid();
+            tableIterator->next())
         {
-            for (
-                auto tableIterator = SystemDatabase_->getTablesIterator(*ServerContext_);
-                tableIterator->isValid();
-                tableIterator->next())
-            {
-                if (auto totalBytes = tableIterator->table()->totalBytes()) {
-                    ClickHouseNativeProfiler.Enqueue(
-                        "/system_tables/memory",
-                        *totalBytes,
-                        NProfiling::EMetricType::Gauge,
-                        {NProfiling::TProfileManager::Get()->RegisterTag("table", tableIterator->name())});
-                }
+            auto totalBytes = tableIterator->table()->totalBytes();
+            if (!totalBytes) {
+                continue;
             }
+
+            writer->PushTag(NProfiling::TTag{"table", tableIterator->name()});
+            writer->AddGauge("/system_tables/memory", *totalBytes);
+            writer->PopTag();
         }
     }
 };

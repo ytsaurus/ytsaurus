@@ -8,6 +8,7 @@
 #include "config.h"
 #include "storage_distributor.h"
 #include "storage_system_clique.h"
+#include "yt/server/clickhouse_server/private.h"
 #include "yt_database.h"
 #include "table_functions.h"
 #include "table_functions_concat.h"
@@ -119,14 +120,6 @@ public:
         , Config_(std::move(config))
         , Ports_(ports)
         , ConnectionConfig_(std::move(connectionConfig))
-        , ProfilingExecutor_(New<TPeriodicExecutor>(
-            ControlInvoker_,
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
-            Config_->ProfilingPeriod))
-        , IdlenessProfilingExecutor_(New<TPeriodicExecutor>(
-            ControlInvoker_,
-            BIND(&TImpl::OnIdlenessProfiling, MakeWeak(this)),
-            Config_->IdlenessProfilingPeriod))
         , GossipExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TImpl::MakeGossip, MakeWeak(this)),
@@ -152,6 +145,29 @@ public:
             ControlInvoker_,
             DiscoveryAttributes,
             Logger);
+
+        if (Config_->CpuLimit) {
+            ClickHouseYtProfiler.AddFuncGauge(
+                "/cpu_limit",
+                MakeStrong(this),
+                [this] {
+                    return *Config_->CpuLimit;
+                });
+        }
+
+        ClickHouseYtProfiler.AddFuncGauge(
+            "/memory_limit/watchdog",
+            MakeStrong(this),
+            [this] {
+                return Config_->MemoryWatchdog->MemoryLimit - Config_->MemoryWatchdog->CodicilWatermark;
+            });
+
+        ClickHouseYtProfiler.AddFuncGauge(
+            "/memory_limit/oom",
+            MakeStrong(this),
+            [this] {
+                return Config_->MemoryWatchdog->MemoryLimit;
+            });
     }
 
     void SetContext(DB::Context* context)
@@ -183,8 +199,6 @@ public:
         QueryRegistry_->Start();
         MemoryWatchdog_->Start();
 
-        IdlenessProfilingExecutor_->Start();
-        ProfilingExecutor_->Start();
         GossipExecutor_->Start();
         HealthChecker_->Start();
         CreateOrchidNode();
@@ -305,40 +319,6 @@ public:
         return result;
     }
 
-    void OnProfiling()
-    {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-        QueryRegistry_->OnProfiling();
-
-        if (Config_->CpuLimit) {
-            ClickHouseYtProfiler.Enqueue(
-                "/cpu_limit",
-                *Config_->CpuLimit,
-                EMetricType::Gauge);
-        }
-
-        ClickHouseYtProfiler.Enqueue(
-            "/memory_limit/watchdog",
-            Config_->MemoryWatchdog->MemoryLimit - Config_->MemoryWatchdog->CodicilWatermark,
-            EMetricType::Gauge);
-
-        ClickHouseYtProfiler.Enqueue(
-            "/memory_limit/oom",
-            Config_->MemoryWatchdog->MemoryLimit,
-            EMetricType::Gauge);
-
-        HealthChecker_->OnProfiling();
-    }
-
-    void OnIdlenessProfiling()
-    {
-        // TODO(max42): workarounds for YT-13120.
-        auto dummyFiber = New<TFiber>();
-        Connection_->GetBlockCache()->OnProfiling();
-        QueryRegistry_->OnIdlenessProfiling();
-    }
-
     const IInvokerPtr& GetControlInvoker() const
     {
         return ControlInvoker_;
@@ -444,8 +424,6 @@ private:
     THealthCheckerPtr HealthChecker_;
     TMemoryWatchdogPtr MemoryWatchdog_;
     TQueryRegistryPtr QueryRegistry_;
-    TPeriodicExecutorPtr ProfilingExecutor_;
-    TPeriodicExecutorPtr IdlenessProfilingExecutor_;
     TPeriodicExecutorPtr GossipExecutor_;
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
     IInvokerPtr WorkerInvoker_;
@@ -503,7 +481,7 @@ private:
         PermissionCache_ = New<TPermissionCache>(
             Config_->PermissionCache,
             Connection_,
-            ClickHouseYtProfilerRegistry.WithPrefix("/permission_cache"));
+            ClickHouseYtProfiler.WithPrefix("/permission_cache"));
 
         TableAttributeCache_ = New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
@@ -511,7 +489,7 @@ private:
             CacheClient_,
             ControlInvoker_,
             Logger,
-            ClickHouseYtProfilerRegistry.WithPrefix("/object_attribute_cache"));
+            ClickHouseYtProfiler.WithPrefix("/object_attribute_cache"));
     }
 
     void InitializeReaderMemoryManager()

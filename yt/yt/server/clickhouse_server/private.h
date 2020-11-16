@@ -17,14 +17,12 @@ namespace NYT::NClickHouseServer {
 
 //! General-purpose logger for our code.
 extern const NLogging::TLogger ClickHouseYtLogger;
-//! Profiler for our own metrics.
-extern const NLogging::TLogger ClickHouseNativeLogger;
 //! Logger which is used by ClickHouse native code.
-extern const NProfiling::TProfiler ClickHouseYtProfiler;
-extern const NProfiling::TRegistry ClickHouseYtProfilerRegistry;
+extern const NLogging::TLogger ClickHouseNativeLogger;
+//! Profiler for our own metrics.
+extern const NProfiling::TRegistry ClickHouseYtProfiler;
 //! Profiler exporting raw ClickHouse metrics.
-extern const NProfiling::TProfiler ClickHouseNativeProfiler;
-extern const NProfiling::TRegistry ClickHouseNativeProfilerRegistry;
+extern const NProfiling::TRegistry ClickHouseNativeProfiler;
 
 constexpr int MemoryLimitExceededExitCode = 42;
 

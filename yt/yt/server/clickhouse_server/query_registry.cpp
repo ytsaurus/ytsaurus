@@ -4,7 +4,6 @@
 #include "private.h"
 #include "config.h"
 #include "helpers.h"
-#include "caching_profiler.h"
 
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/fluent.h>
@@ -34,7 +33,7 @@ static const auto& Logger = ClickHouseYtLogger;
 
 //! Class that stores a snapshot of DB::ProcessList::getInfo() and provides
 //! convenient accessors to its information.
-class TProcessListSnapshot
+class TProcessListSnapshot final
 {
 public:
     TProcessListSnapshot(const DB::ProcessList& processList)
@@ -82,6 +81,11 @@ public:
         return nullptr;
     }
 
+    const THashMap<TString, DB::ProcessListForUserInfo>& GetUserToProcessListForUserInfo() const
+    {
+        return UserToProcessListForUserInfo_;
+    }
+
 private:
     std::vector<DB::QueryStatusInfo> QueryStatusInfos_;
     THashMap<TQueryId, const DB::QueryStatusInfo*> QueryIdToQueryStatusInfo_;
@@ -91,26 +95,56 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserProfilingEntry
+    : public TRefCounted
 {
 public:
-    int RunningInitialQueryCount = 0;
-    int RunningSecondaryQueryCount = 0;
-    int HistoricalInitialQueryCount = 0;
-    int HistoricalSecondaryQueryCount = 0;
+    std::atomic<int> RunningInitialQueryCount = 0;
+    std::atomic<int> RunningSecondaryQueryCount = 0;
+    std::atomic<int> HistoricalInitialQueryCount = 0;
+    std::atomic<int> HistoricalSecondaryQueryCount = 0;
 
-    TEnumIndexedVector<EQueryPhase, int> PerPhaseRunningInitialQueryCount;
-    TEnumIndexedVector<EQueryPhase, int> PerPhaseRunningSecondaryQueryCount;
+    TEnumIndexedVector<EQueryPhase, std::atomic<int>> PerPhaseRunningInitialQueryCount;
+    TEnumIndexedVector<EQueryPhase, std::atomic<int>> PerPhaseRunningSecondaryQueryCount;
 
-    NProfiling::TTagId TagId;
+    explicit TUserProfilingEntry(const TRegistry& profiler)
+    {
+        profiler.AddFuncGauge("/running_initial_query_count", MakeStrong(this), [this] {
+            return RunningInitialQueryCount.load();
+        });
+        profiler.AddFuncGauge("/running_secondary_query_count", MakeStrong(this), [this] {
+            return RunningSecondaryQueryCount.load();
+        });
 
-    explicit TUserProfilingEntry(TTagId tagId, const TString& name)
-        : TagId(tagId)
-        , Name_(name)
-    { }
+        profiler.AddFuncCounter("/historical_initial_query_count", MakeStrong(this), [this] {
+            return HistoricalInitialQueryCount.load();
+        });
+        profiler.AddFuncCounter("/historical_secondary_query_count", MakeStrong(this), [this] {
+            return HistoricalSecondaryQueryCount.load();
+        });
 
-private:
-    TString Name_;
+        for (auto queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
+            if (queryPhase == EQueryPhase::Finish) {
+                // There will be no such queries.
+                continue;
+            }
+
+            profiler
+                .WithTag("query_phase", FormatEnum(queryPhase))
+                .AddFuncGauge("/running_initial_query_count_per_phase", MakeStrong(this), [this, queryPhase] {
+                    return PerPhaseRunningInitialQueryCount[queryPhase].load();
+                });
+
+            profiler
+                .WithTag("query_phase", FormatEnum(queryPhase))
+                .AddFuncGauge("/running_secondary_query_count_per_phase", MakeStrong(this), [this, queryPhase] {
+                    return PerPhaseRunningSecondaryQueryCount[queryPhase].load();
+                });
+        }
+    }
 };
+
+DECLARE_REFCOUNTED_CLASS(TUserProfilingEntry)
+DEFINE_REFCOUNTED_TYPE(TUserProfilingEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,10 +152,10 @@ void Serialize(const TUserProfilingEntry& userInfo, IYsonConsumer* consumer, con
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("running_initial_query_count").Value(userInfo.RunningInitialQueryCount)
-            .Item("running_secondary_query_count").Value(userInfo.RunningSecondaryQueryCount)
-            .Item("historical_initial_query_count").Value(userInfo.HistoricalInitialQueryCount)
-            .Item("historical_secondary_query_count").Value(userInfo.HistoricalSecondaryQueryCount)
+            .Item("running_initial_query_count").Value(userInfo.RunningInitialQueryCount.load())
+            .Item("running_secondary_query_count").Value(userInfo.RunningSecondaryQueryCount.load())
+            .Item("historical_initial_query_count").Value(userInfo.HistoricalInitialQueryCount.load())
+            .Item("historical_secondary_query_count").Value(userInfo.HistoricalSecondaryQueryCount.load())
             .Item("process_list_for_user_info").Value(processListForUserInfo)
         .EndMap();
 }
@@ -189,7 +223,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryRegistry::TImpl
-    : public TRefCounted
+    : public NProfiling::ISensorProducer
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, OrchidService);
@@ -198,24 +232,21 @@ public:
         : OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
         , Invoker_(std::move(invoker))
         , Context_(context)
-        , UserTagCache_("user")
+        , QueryRegistryProfiler_(ClickHouseYtProfiler.WithPrefix("/query_registry"))
         , IdlePromise_(MakePromise<void>(TError()))
         , ProcessListSnapshotExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TImpl::UpdateProcessListSnapshot, MakeWeak(this)),
             processListSnapshotUpdatePeriod))
-        , QueryRegistryProfiler_(ClickHouseYtProfiler.AppendPath("/query_registry"))
-        , CachingQueryRegistryProfiler_(&QueryRegistryProfiler_)
-        , CachingClickHouseNativeProfiler_(&ClickHouseNativeProfiler)
     {
-        for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
-            QueryPhaseToProfilingTagId_[queryPhase] = NProfiling::TProfileManager::Get()->RegisterTag("query_phase", FormatEnum(queryPhase));
+        TotalDurationTimer_ = QueryRegistryProfiler_.Timer("/total_duration");
+        for (auto queryPhase : {EQueryPhase::Preparation, EQueryPhase::Execution}) {
+            PhaseDurationTimer_[queryPhase] = QueryRegistryProfiler_.Timer("/phase_duration");
         }
 
-        TotalDurationBins_.emplace(QueryRegistryProfiler_, "/total_duration");
-        for (const auto& queryPhase : {EQueryPhase::Preparation, EQueryPhase::Execution}) {
-            PhaseDurationBins_[queryPhase].emplace(QueryRegistryProfiler_, "/phase_duration", TTagIdList{QueryPhaseToProfilingTagId_[queryPhase]});
-        }
+        ClickHouseNativeProfiler
+            .WithSparse()
+            .AddProducer("", MakeStrong(this));
     }
 
     void Start()
@@ -274,12 +305,12 @@ public:
         auto& userProfilingEntry = GetOrCrash(UserToUserProfilingEntry_, queryContext->User);
         switch (queryContext->QueryKind) {
             case EQueryKind::InitialQuery:
-                --userProfilingEntry.RunningInitialQueryCount;
-                --userProfilingEntry.PerPhaseRunningInitialQueryCount[queryContext->GetQueryPhase()];
+                --userProfilingEntry->RunningInitialQueryCount;
+                --userProfilingEntry->PerPhaseRunningInitialQueryCount[queryContext->GetQueryPhase()];
                 break;
             case EQueryKind::SecondaryQuery:
-                --userProfilingEntry.RunningSecondaryQueryCount;
-                --userProfilingEntry.PerPhaseRunningSecondaryQueryCount[queryContext->GetQueryPhase()];
+                --userProfilingEntry->RunningSecondaryQueryCount;
+                --userProfilingEntry->PerPhaseRunningSecondaryQueryCount[queryContext->GetQueryPhase()];
                 break;
             default:
                 YT_ABORT();
@@ -301,12 +332,12 @@ public:
 
         switch (queryContext->QueryKind) {
             case EQueryKind::InitialQuery:
-                --userProfilingEntry.PerPhaseRunningInitialQueryCount[fromPhase];
-                ++userProfilingEntry.PerPhaseRunningInitialQueryCount[toPhase];
+                --userProfilingEntry->PerPhaseRunningInitialQueryCount[fromPhase];
+                ++userProfilingEntry->PerPhaseRunningInitialQueryCount[toPhase];
                 break;
             case EQueryKind::SecondaryQuery:
-                --userProfilingEntry.PerPhaseRunningSecondaryQueryCount[fromPhase];
-                ++userProfilingEntry.PerPhaseRunningSecondaryQueryCount[toPhase];
+                --userProfilingEntry->PerPhaseRunningSecondaryQueryCount[fromPhase];
+                ++userProfilingEntry->PerPhaseRunningSecondaryQueryCount[toPhase];
                 break;
             default:
                 YT_ABORT();
@@ -315,12 +346,12 @@ public:
 
     void AccountPhaseDuration(EQueryPhase phase, TDuration duration)
     {
-        PhaseDurationBins_[phase]->Account(duration.MicroSeconds());
+        PhaseDurationTimer_[phase].Record(duration);
     }
 
     void AccountTotalDuration(TDuration duration)
     {
-        TotalDurationBins_->Account(duration.MicroSeconds());
+        TotalDurationTimer_.Record(duration);
     }
 
     size_t GetQueryCount() const
@@ -337,81 +368,26 @@ public:
         return IdlePromise_.ToFuture();
     }
 
-    void OnProfiling() const
+    virtual void Collect(NProfiling::ISensorWriter* writer) override
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        for (const auto& [user, userProfilingInfo] : UserToUserProfilingEntry_) {
-            CachingQueryRegistryProfiler_.Enqueue(
-                "/running_initial_query_count",
-                userProfilingInfo.RunningInitialQueryCount,
-                EMetricType::Gauge,
-                {userProfilingInfo.TagId});
-
-            CachingQueryRegistryProfiler_.Enqueue(
-                "/running_secondary_query_count",
-                userProfilingInfo.RunningSecondaryQueryCount,
-                EMetricType::Gauge,
-                {userProfilingInfo.TagId});
-
-            for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
-                if (queryPhase == EQueryPhase::Finish) {
-                    // There will be no such queries.
-                    continue;
-                }
-
-                CachingQueryRegistryProfiler_.Enqueue(
-                    "/running_initial_query_count_per_phase",
-                    userProfilingInfo.PerPhaseRunningInitialQueryCount[queryPhase],
-                    EMetricType::Gauge,
-                    {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
-
-                CachingQueryRegistryProfiler_.Enqueue(
-                    "/running_secondary_query_count_per_phase",
-                    userProfilingInfo.PerPhaseRunningSecondaryQueryCount[queryPhase],
-                    EMetricType::Gauge,
-                    {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
-            }
-
-            CachingQueryRegistryProfiler_.Enqueue(
-                "/historical_initial_query_count",
-                userProfilingInfo.HistoricalInitialQueryCount,
-                EMetricType::Counter,
-                {userProfilingInfo.TagId});
-
-            CachingQueryRegistryProfiler_.Enqueue(
-                "/historical_secondary_query_count",
-                userProfilingInfo.HistoricalSecondaryQueryCount,
-                EMetricType::Counter,
-                {userProfilingInfo.TagId});
-
-            if (const auto* processListForUserInfo = ProcessListSnapshot_.FindProcessListForUserInfoByUser(user)) {
-                CachingQueryRegistryProfiler_.Enqueue(
-                    "/memory_usage",
-                    processListForUserInfo->memory_usage,
-                    EMetricType::Gauge,
-                    {userProfilingInfo.TagId});
-
-                CachingQueryRegistryProfiler_.Enqueue(
-                    "/peak_memory_usage",
-                    processListForUserInfo->peak_memory_usage,
-                    EMetricType::Gauge,
-                    {userProfilingInfo.TagId});
-
-                for (const auto& [name, value] : GetBriefProfileCounters(*processListForUserInfo->profile_counters)) {
-                    CachingClickHouseNativeProfiler_.Enqueue(
-                        "/user_profile_events/" + name,
-                        value,
-                        EMetricType::Counter,
-                        {userProfilingInfo.TagId});
-                }
-            }
+        TProcessListSnapshot snapshot;
+        {
+            auto guard = Guard(ProcessListSnapshotLock_);
+            snapshot = ProcessListSnapshot_;
         }
-    }
 
-    void OnIdlenessProfiling()
-    {
-        TotalDurationBins_->FlushBins();
+        for (const auto& [user, processListForUserInfo] : snapshot.GetUserToProcessListForUserInfo()) {
+            writer->PushTag({"user", user});
+
+            writer->AddGauge("/memory_usage", processListForUserInfo.memory_usage);
+            writer->AddGauge("/peak_memory_usage", processListForUserInfo.peak_memory_usage);
+
+            for (const auto& [name, value] : GetBriefProfileCounters(*processListForUserInfo.profile_counters)) {
+                writer->AddCounter("/user_profile_events/" + name, value);
+            }
+
+            writer->PopTag();
+        }
     }
 
     void WriteStateToStderr() const
@@ -433,14 +409,8 @@ public:
 
     void UpdateProcessListSnapshot()
     {
+        auto guard = Guard(ProcessListSnapshotLock_);
         ProcessListSnapshot_ = TProcessListSnapshot(Context_->getProcessList());
-    }
-
-    NProfiling::TTagId GetUserProfilingTag(const TString& user)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return UserTagCache_.GetTag(user);
     }
 
 private:
@@ -448,25 +418,21 @@ private:
     DB::Context* Context_;
     THashSet<TQueryContextPtr> QueryContexts_;
 
-    TTagCache<TString> UserTagCache_;
-    THashMap<TString, TUserProfilingEntry> UserToUserProfilingEntry_;
+    NProfiling::TRegistry QueryRegistryProfiler_;
+
+    THashMap<TString, TUserProfilingEntryPtr> UserToUserProfilingEntry_;
 
     TPromise<void> IdlePromise_;
 
     TSignalSafeState SignalSafeState_;
 
+    TSpinLock ProcessListSnapshotLock_;
     TProcessListSnapshot ProcessListSnapshot_;
 
     TPeriodicExecutorPtr ProcessListSnapshotExecutor_;
 
-    TEnumIndexedVector<EQueryPhase, NProfiling::TTagId> QueryPhaseToProfilingTagId_;
-
-    TProfiler QueryRegistryProfiler_;
-    TCachingProfilerWrapper CachingQueryRegistryProfiler_;
-    TCachingProfilerWrapper CachingClickHouseNativeProfiler_;
-
-    TEnumIndexedVector<EQueryPhase, std::optional<TExponentialBins>> PhaseDurationBins_;
-    std::optional<TExponentialBins> TotalDurationBins_;
+    TEnumIndexedVector<EQueryPhase, NProfiling::TEventTimer> PhaseDurationTimer_;
+    NProfiling::TEventTimer TotalDurationTimer_;
 
     void BuildYson(IYsonConsumer* consumer) const
     {
@@ -482,7 +448,7 @@ private:
             .Item("users").DoMapFor(UserToUserProfilingEntry_, [&] (TFluentMap fluent, const auto& pair) {
                 const auto& [user, userProfilingEntry] = pair;
                 fluent
-                    .Item(user).Value(userProfilingEntry, ProcessListSnapshot_.FindProcessListForUserInfoByUser(user));
+                    .Item(user).Value(*userProfilingEntry, ProcessListSnapshot_.FindProcessListForUserInfoByUser(user));
             })
             .EndMap();
     }
@@ -491,13 +457,15 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        THashMap<TString, TUserProfilingEntry>::insert_ctx ctx;
+        THashMap<TString, TUserProfilingEntryPtr>::insert_ctx ctx;
         auto it = UserToUserProfilingEntry_.find(user, ctx);
         if (it == UserToUserProfilingEntry_.end()) {
-            auto tagId = GetUserProfilingTag(user);
-            it = UserToUserProfilingEntry_.emplace_direct(ctx, user, TUserProfilingEntry(tagId, user));
+            auto profiler = QueryRegistryProfiler_
+                .WithTag("user", user)
+                .WithSparse();
+            it = UserToUserProfilingEntry_.emplace_direct(ctx, user, New<TUserProfilingEntry>(profiler));
         }
-        return it->second;
+        return *it->second;
     }
 };
 
@@ -545,16 +513,6 @@ TFuture<void> TQueryRegistry::GetIdleFuture() const
     return Impl_->GetIdleFuture();
 }
 
-void TQueryRegistry::OnProfiling() const
-{
-    Impl_->OnProfiling();
-}
-
-void TQueryRegistry::OnIdlenessProfiling()
-{
-    Impl_->OnIdlenessProfiling();
-}
-
 IYPathServicePtr TQueryRegistry::GetOrchidService() const
 {
     return Impl_->GetOrchidService();
@@ -568,11 +526,6 @@ void TQueryRegistry::WriteStateToStderr() const
 void TQueryRegistry::SaveState()
 {
     Impl_->SaveState();
-}
-
-NProfiling::TTagId TQueryRegistry::GetUserProfilingTag(const TString& user)
-{
-    return Impl_->GetUserProfilingTag(user);
 }
 
 void TQueryRegistry::Start()

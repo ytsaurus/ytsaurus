@@ -7,12 +7,10 @@ namespace NYT::NClickHouseServer {
 // See comments around declaration of these objects in private.h.
 
 const NLogging::TLogger ClickHouseYtLogger("ClickHouseYT");
-const NProfiling::TProfiler ClickHouseYtProfiler("/clickhouse/yt");
-const NProfiling::TRegistry ClickHouseYtProfilerRegistry("/clickhouse/yt");
+const NProfiling::TRegistry ClickHouseYtProfiler("/clickhouse/yt");
 
 const NLogging::TLogger ClickHouseNativeLogger("ClickHouseNative");
-const NProfiling::TProfiler ClickHouseNativeProfiler("/clickhouse/native");
-const NProfiling::TRegistry ClickHouseNativeProfilerRegistry("/clickhouse/native");
+const NProfiling::TRegistry ClickHouseNativeProfiler("/clickhouse/native");
 
 const TString CacheUserName("yt-clickhouse-cache");
 

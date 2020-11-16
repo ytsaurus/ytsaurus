@@ -7,7 +7,7 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IClickHouseServer
-    : public TRefCounted
+    : virtual public TRefCounted
 {
     virtual void Start() = 0;
 

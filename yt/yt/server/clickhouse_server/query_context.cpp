@@ -11,6 +11,7 @@
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/profiling/profile_manager.h>
 
 #include <Interpreters/Context.h>
 #include <Interpreters/ProcessList.h>
@@ -89,7 +90,7 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
-    UserTagId = Host->GetQueryRegistry()->GetUserProfilingTag(User);
+    UserTagId = NProfiling::TProfileManager::Get()->RegisterTag("user", User);
 
     Settings = ParseCustomSettings(Host->GetConfig()->QuerySettings, context.getSettings().allCustom(), Logger);
 

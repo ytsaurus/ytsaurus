@@ -3,6 +3,7 @@
 #include "config.h"
 #include "query_context.h"
 #include "helpers.h"
+#include "yt/server/clickhouse_server/private.h"
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -116,9 +117,14 @@ THealthChecker::THealthChecker(
         ActionQueue_->GetInvoker(),
         BIND(&THealthChecker::ExecuteQueries, MakeWeak(this)),
         Config_->Period))
-    , QueryIndexToTag_(NDetail::RegisterQueryTags(Config_->Queries.size()))
 {
     RegisterNewUser(DatabaseContext_->getAccessControlManager(), DatabaseUser_);
+
+    for (int i = 0; i < Config_->Queries.size(); ++i) {
+        QueryIndexToStatus_.push_back(ClickHouseYtProfiler
+            .WithTag("query_index", ToString(i))
+            .Gauge("/health_checker/success"));
+    }
 }
 
 void THealthChecker::Start()
@@ -131,8 +137,6 @@ void THealthChecker::Start()
 
 void THealthChecker::ExecuteQueries()
 {
-    std::vector<bool> newResult(Config_->Queries.size());
-
     for (size_t queryIndex = 0; queryIndex < Config_->Queries.size(); ++queryIndex) {
         const auto& query = Config_->Queries[queryIndex];
         YT_LOG_DEBUG("Executing health checker query (Index: %v, Query: %v)", queryIndex, query);
@@ -153,36 +157,7 @@ void THealthChecker::ExecuteQueries()
                 query);
         }
 
-        newResult[queryIndex] = error.IsOK();
-    }
-
-    {
-        TGuard guard(Lock_);
-        LastResult_.swap(newResult);
-    }
-}
-
-void THealthChecker::OnProfiling()
-{
-    std::vector<bool> lastResultSnapshot;
-
-    // Make a copy in order to not hold lock for a long time in case of profiling overload.
-    {
-        TGuard guard(Lock_);
-        lastResultSnapshot = LastResult_;
-    }
-
-    if (lastResultSnapshot.empty()) {
-        // Nothing to export yet.
-        return;
-    }
-
-    for (size_t queryIndex = 0; queryIndex < Config_->Queries.size(); ++queryIndex) {
-        ClickHouseYtProfiler.Enqueue(
-            "/health_checker/success",
-            lastResultSnapshot[queryIndex],
-            NProfiling::EMetricType::Gauge,
-            {QueryIndexToTag_[queryIndex]});
+        QueryIndexToStatus_[queryIndex].Update(error.IsOK() ? 1.0 : 0.0);
     }
 }
 

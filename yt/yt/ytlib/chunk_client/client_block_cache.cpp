@@ -99,9 +99,6 @@ public:
         }
     }
 
-    void OnProfiling()
-    { }
-
 private:
     const EBlockType Type_;
 
@@ -166,9 +163,6 @@ public:
         return SupportedBlockTypes_;
     }
 
-    virtual void OnProfiling()
-    { }
-
 private:
     const EBlockType SupportedBlockTypes_;
 
@@ -214,9 +208,6 @@ public:
     {
         return EBlockType::None;
     }
-
-    virtual void OnProfiling() override
-    { }
 };
 
 IBlockCachePtr GetNullBlockCache()
