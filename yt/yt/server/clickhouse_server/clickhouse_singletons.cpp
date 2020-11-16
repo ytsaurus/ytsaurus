@@ -8,6 +8,12 @@
 #include <Storages/StorageFactory.h>
 #include <TableFunctions/registerTableFunctions.h>
 
+namespace DB
+{
+    void registerStorageMemory(StorageFactory & factory);
+    void registerStorageBuffer(StorageFactory & factory);
+}
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
