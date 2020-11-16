@@ -119,12 +119,12 @@ public:
     void AddMutation(
         const TDecoratedAutomaton::TPendingMutation& pendingMutation,
         TSharedRef recordData,
-        TFuture<void> localFlushResult)
+        TFuture<void> localFlushFuture)
     {
         YT_VERIFY(GetStartVersion().Advance(GetMutationCount()) == pendingMutation.Version);
 
         BatchedRecordsData_.push_back(std::move(recordData));
-        LocalFlushResult_ = std::move(localFlushResult);
+        LocalFlushFuture_ = std::move(localFlushFuture);
 
         YT_LOG_DEBUG("Mutation batched (Version: %v, StartVersion: %v, SequenceNumber: %v, RandomSeed: %llx, PrevRandomSeed: %llx, MutationType: %v, MutationId: %v, TraceId: %v)",
             pendingMutation.Version,
@@ -137,34 +137,31 @@ public:
             pendingMutation.TraceContext ? pendingMutation.TraceContext->GetTraceId() : NTracing::TTraceId());
     }
 
-    TFuture<void> GetQuorumFlushResult()
+    TFuture<TVersion> GetQuorumFlushFuture() const
     {
-        return QuorumFlushResult_;
+        return QuorumFlushPromise_;
     }
 
-    void Flush()
+    void Flush(TVersion committedVersion)
     {
         auto owner = Owner_.Lock();
         if (!owner) {
             return;
         }
 
-        int mutationCount = GetMutationCount();
-        CommittedVersion_ = GetStartVersion().Advance(mutationCount);
-
         YT_LOG_DEBUG("Flushing batched mutations (StartVersion: %v, MutationCount: %v)",
             GetStartVersion(),
-            mutationCount);
+            GetMutationCount());
 
-        owner->Profiler.Enqueue("/commit_batch_size", mutationCount, EMetricType::Gauge);
+        owner->Profiler.Enqueue("/commit_batch_size", GetMutationCount(), EMetricType::Gauge);
 
-        std::vector<TFuture<void>> asyncResults;
+        std::vector<TFuture<void>> futures;
 
         CommitTimer_.emplace();
 
         if (!BatchedRecordsData_.empty()) {
-            YT_VERIFY(LocalFlushResult_);
-            asyncResults.push_back(LocalFlushResult_.Apply(
+            YT_VERIFY(LocalFlushFuture_);
+            futures.push_back(LocalFlushFuture_.Apply(
                 BIND(&TBatch::OnLocalFlush, MakeStrong(this))
                     .AsyncVia(owner->EpochContext_->EpochControlInvoker)));
 
@@ -186,21 +183,19 @@ public:
                 THydraServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(owner->Config_->CommitFlushRpcTimeout);
 
-                auto committedVersion = owner->DecoratedAutomaton_->GetCommittedVersion();
-
                 auto request = proxy.AcceptMutations();
                 ToProto(request->mutable_epoch_id(), owner->EpochContext_->EpochId);
                 request->set_start_revision(GetStartVersion().ToRevision());
                 request->set_committed_revision(committedVersion.ToRevision());
                 request->Attachments() = BatchedRecordsData_;
 
-                asyncResults.push_back(request->Invoke().Apply(
+                futures.push_back(request->Invoke().Apply(
                     BIND(&TBatch::OnRemoteFlush, MakeStrong(this), followerId)
                         .AsyncVia(owner->EpochContext_->EpochControlInvoker)));
             }
         }
 
-        AllSucceeded(asyncResults).Subscribe(
+        AllSucceeded(std::move(futures)).Subscribe(
             BIND(&TBatch::OnCompleted, MakeStrong(this))
                 .Via(owner->EpochContext_->EpochControlInvoker));
     }
@@ -215,11 +210,6 @@ public:
         return StartVersion_;
     }
 
-    TVersion GetCommittedVersion() const
-    {
-        return CommittedVersion_;
-    }
-
 private:
     const TWeakPtr<TLeaderCommitter> Owner_;
     const TVersion StartVersion_;
@@ -229,11 +219,9 @@ private:
     // Counting with the local flush.
     int FlushCount_ = 0;
 
-    TFuture<void> LocalFlushResult_;
-    TPromise<void> QuorumFlushResult_ = NewPromise<void>();
+    TFuture<void> LocalFlushFuture_;
+    const TPromise<TVersion> QuorumFlushPromise_ = NewPromise<TVersion>();
     std::vector<TSharedRef> BatchedRecordsData_;
-    TVersion CommittedVersion_;
-
     std::optional<TWallTimer> CommitTimer_;
 
 
@@ -335,7 +323,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(owner->ControlThread);
 
-        if (QuorumFlushResult_.IsSet()) {
+        if (QuorumFlushPromise_.IsSet()) {
             return;
         }
 
@@ -346,18 +334,19 @@ private:
             GetMutationCount(),
             CommitTimer_->GetElapsedTime());
 
-        QuorumFlushResult_.Set(TError());
+        auto committedVersion = GetStartVersion().Advance(GetMutationCount());
+        QuorumFlushPromise_.Set(committedVersion);
     }
 
     void SetFailed(const TLeaderCommitterPtr& owner, const TError& error)
     {
         VERIFY_THREAD_AFFINITY(owner->ControlThread);
 
-        if (QuorumFlushResult_.IsSet()) {
+        if (QuorumFlushPromise_.IsSet()) {
             return;
         }
 
-        QuorumFlushResult_.Set(error);
+        QuorumFlushPromise_.Set(error);
 
         owner->EpochContext_->EpochUserAutomatonInvoker->Invoke(BIND(
             &TLeaderCommitter::FireCommitFailed,
@@ -386,6 +375,8 @@ TLeaderCommitter::TLeaderCommitter(
         EpochContext_->EpochUserAutomatonInvoker,
         BIND(&TLeaderCommitter::OnAutoSnapshotCheck, MakeWeak(this)),
         AutoSnapshotCheckPeriod))
+    , BatchAlarm_(New<TInvokerAlarm>(
+        EpochContext_->EpochUserAutomatonInvoker))
 {
     AutoSnapshotCheckExecutor_->Start();
 }
@@ -438,20 +429,28 @@ void TLeaderCommitter::Flush()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto guard = Guard(BatchSpinLock_);
-    if (CurrentBatch_) {
-        FlushCurrentBatch();
+    if (!CurrentBatch_) {
+        return;
     }
+
+    TBatchPtr currentBatch;
+    std::swap(currentBatch, CurrentBatch_);
+    PrevBatchQuorumFlushFuture_ = currentBatch->GetQuorumFlushFuture().AsVoid();
+    BatchAlarm_->Disarm();
+
+    auto committedVersion = DecoratedAutomaton_->GetCommittedVersion();
+
+    EpochContext_->EpochControlInvoker->Invoke(
+        BIND(&TBatch::Flush, std::move(currentBatch), committedVersion));
 }
 
-TFuture<void> TLeaderCommitter::GetQuorumFlushResult()
+TFuture<void> TLeaderCommitter::GetQuorumFlushFuture()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto guard = Guard(BatchSpinLock_);
     return CurrentBatch_
-        ? CurrentBatch_->GetQuorumFlushResult()
-        : PrevBatchQuorumFlushResult_;
+        ? CurrentBatch_->GetQuorumFlushFuture().AsVoid()
+        : PrevBatchQuorumFlushFuture_;
 }
 
 void TLeaderCommitter::DoSuspendLogging()
@@ -469,6 +468,8 @@ void TLeaderCommitter::DoResumeLogging()
         pendingMutation.CommitPromise.SetFrom(commitFuture);
     }
     PendingMutations_.clear();
+
+    BatchAlarm_->Check();
 }
 
 void TLeaderCommitter::Stop()
@@ -476,7 +477,7 @@ void TLeaderCommitter::Stop()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
-    for (auto& mutation : PendingMutations_) {
+    for (const auto& mutation : PendingMutations_) {
         mutation.CommitPromise.Set(error);
     }
 }
@@ -487,18 +488,18 @@ TFuture<TMutationResponse> TLeaderCommitter::LogLeaderMutation(
     NTracing::TTraceContextPtr traceContext)
 {
     TSharedRef recordData;
-    TFuture<void> localFlushResult;
+    TFuture<void> localFlushFuture;
     const auto& loggedMutation = DecoratedAutomaton_->LogLeaderMutation(
         timestamp,
         std::move(request),
         std::move(traceContext),
         &recordData,
-        &localFlushResult);
+        &localFlushFuture);
 
     AddToBatch(
         loggedMutation,
         std::move(recordData),
-        std::move(localFlushResult));
+        std::move(localFlushFuture));
 
     return loggedMutation.LocalCommitPromise;
 }
@@ -506,73 +507,53 @@ TFuture<TMutationResponse> TLeaderCommitter::LogLeaderMutation(
 void TLeaderCommitter::AddToBatch(
     const TDecoratedAutomaton::TPendingMutation& pendingMutation,
     TSharedRef recordData,
-    TFuture<void> localFlushResult)
+    TFuture<void> localFlushFuture)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto guard = Guard(BatchSpinLock_);
     auto batch = GetOrCreateBatch(pendingMutation.Version);
     batch->AddMutation(
         pendingMutation,
         std::move(recordData),
-        std::move(localFlushResult));
+        std::move(localFlushFuture));
+
+    BatchAlarm_->Check();
+
     if (batch->GetMutationCount() >= Config_->MaxCommitBatchRecordCount) {
-        FlushCurrentBatch();
+        Flush();
     }
-}
-
-void TLeaderCommitter::FlushCurrentBatch()
-{
-    VERIFY_SPINLOCK_AFFINITY(BatchSpinLock_);
-
-    TBatchPtr currentBatch;
-    std::swap(currentBatch, CurrentBatch_);
-    PrevBatchQuorumFlushResult_ = currentBatch->GetQuorumFlushResult();
-    TDelayedExecutor::CancelAndClear(BatchTimeoutCookie_);
-
-    currentBatch->Flush();
 }
 
 TLeaderCommitter::TBatchPtr TLeaderCommitter::GetOrCreateBatch(TVersion version)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
-    VERIFY_SPINLOCK_AFFINITY(BatchSpinLock_);
 
     if (!CurrentBatch_) {
         CurrentBatch_ = New<TBatch>(this, version);
-        CurrentBatch_->GetQuorumFlushResult().Subscribe(
-            BIND(&TLeaderCommitter::OnBatchCommitted, MakeWeak(this), CurrentBatch_)
+        CurrentBatch_->GetQuorumFlushFuture().Subscribe(
+            BIND(&TLeaderCommitter::OnBatchCommitted, MakeWeak(this))
                 .Via(EpochContext_->EpochUserAutomatonInvoker));
 
-        YT_VERIFY(!BatchTimeoutCookie_);
-        BatchTimeoutCookie_ = TDelayedExecutor::Submit(
-            BIND(&TLeaderCommitter::OnBatchTimeout, MakeWeak(this), CurrentBatch_)
-                .Via(EpochContext_->EpochControlInvoker),
+        BatchAlarm_->Arm(
+            BIND(&TLeaderCommitter::Flush, MakeWeak(this)),
             Config_->MaxCommitBatchDelay);
     }
 
     return CurrentBatch_;
 }
 
-void TLeaderCommitter::OnBatchTimeout(const TBatchPtr& batch)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto guard = Guard(BatchSpinLock_);
-    if (batch == CurrentBatch_) {
-        FlushCurrentBatch();
-    }
-}
-
-void TLeaderCommitter::OnBatchCommitted(const TBatchPtr& batch, const TError& error)
+void TLeaderCommitter::OnBatchCommitted(const TErrorOr<TVersion>& errorOrVersion)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    if (!error.IsOK()) {
+    if (!errorOrVersion.IsOK()) {
         return;
     }
 
-    DecoratedAutomaton_->CommitMutations(batch->GetCommittedVersion(), true);
+    auto committedVersion = errorOrVersion.Value();
+    DecoratedAutomaton_->CommitMutations(committedVersion, true);
+
+    BatchAlarm_->Check();
 }
 
 void TLeaderCommitter::OnAutoSnapshotCheck()
@@ -654,7 +635,6 @@ TFuture<void> TFollowerCommitter::DoAcceptMutations(
             recordsData[index],
             index == recordsCount - 1 ? &result : nullptr);
     }
-
     return result;
 }
 
@@ -665,9 +645,9 @@ void TFollowerCommitter::DoSuspendLogging()
 
 void TFollowerCommitter::DoResumeLogging()
 {
-    for (auto& pendingMutation : PendingMutations_) {
-        auto result = DoAcceptMutations(pendingMutation.ExpectedVersion, pendingMutation.RecordsData);
-        pendingMutation.Promise.SetFrom(std::move(result));
+    for (const auto& pendingMutation : PendingMutations_) {
+        auto future = DoAcceptMutations(pendingMutation.ExpectedVersion, pendingMutation.RecordsData);
+        pendingMutation.Promise.SetFrom(std::move(future));
     }
     PendingMutations_.clear();
 }
@@ -706,7 +686,7 @@ void TFollowerCommitter::Stop()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
-    for (auto& pendingMutation : PendingMutations_) {
+    for (const auto& pendingMutation : PendingMutations_) {
         pendingMutation.Promise.Set(error);
     }
 }

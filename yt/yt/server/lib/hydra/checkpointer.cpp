@@ -49,7 +49,7 @@ public:
         YT_LOG_INFO("Starting distributed changelog rotation (Version: %v)",
             Version_);
 
-        Owner_->EpochContext_->LeaderCommitter->GetQuorumFlushResult()
+        Owner_->EpochContext_->LeaderCommitter->GetQuorumFlushFuture()
             .Subscribe(BIND(&TSession::OnQuorumFlushed, MakeStrong(this))
                 .Via(Owner_->EpochContext_->EpochUserAutomatonInvoker));
     }
@@ -226,7 +226,7 @@ private:
             if (peerId == Owner_->CellManager_->GetSelfPeerId()) {
                 continue;
             }
-                
+
             auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
             if (!channel) {
                 continue;

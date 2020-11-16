@@ -14,6 +14,7 @@
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/invoker_alarm.h>
 
 #include <yt/core/logging/log.h>
 
@@ -107,7 +108,7 @@ public:
 
     //! Returns a future that is set when all mutations submitted to #Commit are
     //! flushed by a quorum of changelogs.
-    TFuture<void> GetQuorumFlushResult();
+    TFuture<void> GetQuorumFlushFuture();
 
     //! Cleans things up, aborts all pending mutations with a human-readable error.
     void Stop();
@@ -128,14 +129,12 @@ private:
         TMutationRequest&& request,
         NTracing::TTraceContextPtr traceContext);
 
-    void OnBatchTimeout(const TBatchPtr& batch);
-    void OnBatchCommitted(const TBatchPtr& batch, const TError& error);
+    void OnBatchCommitted(const TErrorOr<TVersion>& errorOrVersion);
     TIntrusivePtr<TBatch> GetOrCreateBatch(TVersion version);
     void AddToBatch(
         const TDecoratedAutomaton::TPendingMutation& pendingMutation,
         TSharedRef recordData,
-        TFuture<void> localFlushResult);
-    void FlushCurrentBatch();
+        TFuture<void> localFlushFuture);
 
     void OnAutoSnapshotCheck();
 
@@ -145,6 +144,7 @@ private:
     virtual void DoResumeLogging() override;
 
     const NConcurrency::TPeriodicExecutorPtr AutoSnapshotCheckExecutor_;
+    const NConcurrency::TInvokerAlarmPtr BatchAlarm_;
 
     struct TPendingMutation
     {
@@ -165,10 +165,8 @@ private:
 
     std::vector<TPendingMutation> PendingMutations_;
 
-    TAdaptiveLock BatchSpinLock_;
     TBatchPtr CurrentBatch_;
-    TFuture<void> PrevBatchQuorumFlushResult_ = VoidFuture;
-    NConcurrency::TDelayedExecutorCookie BatchTimeoutCookie_;
+    TFuture<void> PrevBatchQuorumFlushFuture_ = VoidFuture;
 
     NProfiling::TAtomicGauge CommitTimeGauge_{"/mutation_commit_time"};
 };
