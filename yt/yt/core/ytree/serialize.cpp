@@ -227,22 +227,72 @@ void Deserialize(char& value, INodePtr node)
 // TDuration
 void Deserialize(TDuration& value, INodePtr node)
 {
-    if (node->GetType() == ENodeType::Int64) {
-        value = TDuration::MilliSeconds(node->AsInt64()->GetValue());
-    } else {
-        value = TDuration::MilliSeconds(node->AsUint64()->GetValue());
+    switch (node->GetType()) {
+        case ENodeType::Int64: {
+            auto ms = node->GetValue<i64>();
+            if (ms < 0) {
+                THROW_ERROR_EXCEPTION("Duration cannot be negative");
+            }
+            value = TDuration::MilliSeconds(static_cast<ui64>(ms));
+            break;
+        }
+
+        case ENodeType::Uint64:
+            value = TDuration::MilliSeconds(node->GetValue<ui64>());
+            break;
+
+        case ENodeType::Double: {
+            auto ms = node->GetValue<double>();
+            if (ms < 0) {
+                THROW_ERROR_EXCEPTION("Duration cannot be negative");
+            }
+            value = TDuration::MicroSeconds(static_cast<ui64>(ms * 1000.0));
+            break;
+        }
+
+        case ENodeType::String:
+            value = TDuration::Parse(node->GetValue<TString>());
+            break;
+
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse duration from %Qlv",
+                node->GetType());
     }
 }
 
 // TInstant
 void Deserialize(TInstant& value, INodePtr node)
 {
-    if (node->GetType() == ENodeType::Int64) {
-        value = TInstant::MilliSeconds(node->AsInt64()->GetValue());
-    } else if (node->GetType() == ENodeType::Uint64) {
-        value = TInstant::MilliSeconds(node->AsUint64()->GetValue());
-    } else {
-        value = TInstant::ParseIso8601(node->AsString()->GetValue());
+    switch (node->GetType()) {
+        case ENodeType::Int64: {
+            auto ms = node->GetValue<i64>();
+            if (ms < 0) {
+                THROW_ERROR_EXCEPTION("Instant cannot be negative");
+            }
+            value = TInstant::MilliSeconds(ms);
+            break;
+        }
+
+        case ENodeType::Uint64:
+            value = TInstant::MilliSeconds(node->GetValue<ui64>());
+            break;
+
+        case ENodeType::Double: {
+            auto ms = node->GetValue<double>();
+            if (ms < 0) {
+                THROW_ERROR_EXCEPTION("Instant cannot be negative");
+            }
+            value = TInstant::MicroSeconds(static_cast<ui64>(ms * 1000.0));
+            break;
+        }
+
+        case ENodeType::String:
+            value = TInstant::ParseIso8601(node->GetValue<TString>());
+            break;
+
+        default:
+            THROW_ERROR_EXCEPTION("Cannot parse instant from %Qlv",
+                node->GetType());
     }
 }
 
