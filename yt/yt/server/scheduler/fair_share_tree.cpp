@@ -1621,7 +1621,11 @@ private:
         }
 
         if (!Dominates(context->SchedulingContext()->ResourceLimits(), context->SchedulingContext()->ResourceUsage())) {
-            YT_LOG_INFO("Resource usage exceeds node resource limits even after preemption");
+            YT_LOG_INFO("Resource usage exceeds node resource limits even after preemption (ResourceLimits: %v, ResourceUsage: %v, NodeId: %v, Address: %v)",
+                FormatResources(context->SchedulingContext()->ResourceLimits()),
+                FormatResources(context->SchedulingContext()->ResourceUsage()),
+                context->SchedulingContext()->GetNodeDescriptor().Id,
+                context->SchedulingContext()->GetNodeDescriptor().Address);
         }
     }
 
