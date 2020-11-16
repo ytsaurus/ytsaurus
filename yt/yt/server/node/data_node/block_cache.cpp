@@ -78,11 +78,6 @@ public:
         return EBlockType::CompressedData | EBlockType::UncompressedData;
     }
 
-    virtual void OnProfiling() override
-    {
-        return UnderlyingCache_->OnProfiling();
-    }
-
 private:
     const TDataNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;

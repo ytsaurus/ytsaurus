@@ -390,11 +390,6 @@ public:
         return MapInMemoryModeToBlockType(ChunkData_->InMemoryMode);
     }
 
-    virtual void OnProfiling() override
-    {
-        UnderlyingCache_->OnProfiling();
-    }
-
 private:
     const TWeakPtr<TChunkStoreBase> Owner_;
     const TInMemoryChunkDataPtr ChunkData_;

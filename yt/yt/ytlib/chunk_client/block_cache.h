@@ -42,10 +42,6 @@ struct IBlockCache
 
     //! Returns the set of supported block types.
     virtual EBlockType GetSupportedBlockTypes() const = 0;
-
-    //! This is a workaround for YT-13120.
-    //! Forcefully flush all internal profiling counters.
-    virtual void OnProfiling() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBlockCache)

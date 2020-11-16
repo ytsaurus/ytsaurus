@@ -32,16 +32,11 @@ public:
     size_t GetQueryCount() const;
     TFuture<void> GetIdleFuture() const;
 
-    void OnProfiling() const;
-    void OnIdlenessProfiling();
-
     NYTree::IYPathServicePtr GetOrchidService() const;
 
     void WriteStateToStderr() const;
 
     void SaveState();
-
-    NProfiling::TTagId GetUserProfilingTag(const TString& user);
 
     void Start();
     void Stop();
