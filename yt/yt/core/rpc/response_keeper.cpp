@@ -237,6 +237,8 @@ public:
 
     bool IsWarmingUp() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return NProfiling::GetCpuInstant() < WarmupDeadline_;
     }
 
@@ -248,7 +250,7 @@ private:
     TPeriodicExecutorPtr EvictionExecutor_;
 
     bool Started_ = false;
-    NProfiling::TCpuInstant WarmupDeadline_ = 0;
+    std::atomic<NProfiling::TCpuInstant> WarmupDeadline_ = 0;
 
     THashMap<TMutationId, TSharedRefArray> FinishedResponses_;
     std::atomic<int> FinishedResponseCount_ = 0;
