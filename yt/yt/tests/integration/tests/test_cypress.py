@@ -2165,6 +2165,14 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         assert get("//tmp/l/@recursive_resource_usage/node_count", tx=tx) == 11
 
+    @authors("aleksandra-zh")
+    def test_master_memory_resource_usage(self):
+        create("map_node", "//tmp/m")
+        for i in xrange(10):
+            set("//tmp/m/" + str(i), i)
+
+        wait(lambda: get("//tmp/m/@resource_usage/master_memory") > 0)
+
     @authors("ignat")
     def test_prerequisite_transactions(self):
         with pytest.raises(YtError):
