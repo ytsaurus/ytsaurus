@@ -29,7 +29,11 @@ TTableSchemaPtr GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta
         YT_VERIFY(static_cast<ETableChunkFormat>(chunkMeta.version()) == ETableChunkFormat::SchemalessHorizontal);
         const auto keyColumns = NYT::FromProto<TKeyColumns>(*keyColumnsExt);
         schema = TTableSchema::FromKeyColumns(keyColumns);
+    } else {
+        // COMPAT(gritukan) This is used for very old chunks only.
+        schema = New<TTableSchema>();
     }
+
     return schema;
 }
 
