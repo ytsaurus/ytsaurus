@@ -58,8 +58,13 @@ class TableInfo(object):
         self.in_memory = in_memory
         self.attributes = attributes
 
-    def create_table(self, client, path):
-        attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
+    def create_table(self, client, path, sorted=True):
+        if sorted:
+            key_columns = self.key_columns
+        else:
+            key_columns = []
+
+        attributes = make_dynamic_table_attributes(client, self.schema, key_columns, "scan")
         attributes.update(self.attributes)
         attributes["dynamic"] = False
         attributes["external"] = False
@@ -126,18 +131,23 @@ class Conversion(object):
         if self.table_info:
             table_info = self.table_info
 
-        if not self.use_default_mapper and not self.mapper and not self.source and source_table:
+        source_table = self.source or source_table
+        if source_table:
             source_table = ypath_join(archive_path, source_table)
+            old_key_columns = client.get(source_table + "/@key_columns")
+            need_sort = old_key_columns != table_info.key_columns
+        else:
+            need_sort = False
+
+        if not self.use_default_mapper and not self.mapper and not self.source and source_table and not need_sort:
             table_info.alter_table(client, source_table, shard_count, mount=False)
             return True  # in place transformation
 
-        source_table = self.source or source_table
-
         if source_table:
-            source_table = ypath_join(archive_path, source_table)
-
             if client.exists(source_table):
-                table_info.create_table(client, target_table)
+                # If need_sort == True, we create target table non-sorted to avoid
+                # sort order violation error during map.
+                table_info.create_table(client, target_table, sorted=not need_sort)
                 client.set(target_table + "/@tablet_cell_bundle", client.get(source_table + "/@tablet_cell_bundle"))
                 mapper = self.mapper if self.mapper else table_info.get_default_mapper()
                 unmount_table(client, source_table)
@@ -780,6 +790,43 @@ TRANSFORMS[37] = [
             attributes={"atomicity": "none"}))
 ]
 
+TRANSFORMS[38] = [
+    Conversion(
+        "jobs",
+        table_info=TableInfo([
+                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % 10"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("has_spec", "boolean"),
+                ("has_fail_context", "boolean"),
+                ("fail_context_size", "uint64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+                ("update_time", "int64"),
+                ("core_infos", "any"),
+                ("job_competition_id", "string"),
+                ("has_competitors", "boolean"),
+                ("exec_attributes", "any"),
+                ("task_name", "string"),
+                ("statistics_lz4", "string"),
+                ("brief_statistics", "any"),
+                ("pool_tree", "string"),
+            ],
+            attributes={"atomicity": "none"}))
+]
 
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
