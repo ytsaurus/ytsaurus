@@ -166,7 +166,8 @@ private:
 
     std::atomic<EState> State_ = EState::None;
 
-    NConcurrency::EPollControl Pending_ = NConcurrency::EPollControl::Offline;
+    // Actually stores NConcurrency::EPollControl.
+    std::atomic<ui64> PendingControl_ = static_cast<ui64>(NConcurrency::EPollControl::Offline);
 
     TAdaptiveLock Lock_;
 
