@@ -12,7 +12,7 @@ from yt.packages.six.moves import xrange, cPickle as pickle
 
 import yt.wrapper as yt
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytest
 
 @authors("ignat")
@@ -88,6 +88,14 @@ def test_merge_blobs_by_size():
     assert list(merge_blobs_by_size(lines, 3)) == \
         [b"ababc", b"def", b"ghijklmn", b"op"]
     assert list(merge_blobs_by_size([b"abcdef"], 2)) == [b"abcdef"]
+
+@authors("levysotsky")
+def test_merge_blobs_by_size_performance():
+    start = datetime.now()
+    size = 1000000
+    s = (b"x" for _ in xrange(size))
+    assert list(merge_blobs_by_size(s, size)) == [b"x" * size]
+    assert datetime.now() - start < timedelta(seconds=1)
 
 @authors("ignat")
 def test_time_functions():
