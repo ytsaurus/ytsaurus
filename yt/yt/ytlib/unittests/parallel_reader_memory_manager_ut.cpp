@@ -405,7 +405,7 @@ TEST(TestParallelReaderMemoryManager, PerformanceAndStressTest)
 TEST(TestParallelReaderMemoryManager, TestManyHeavyRebalancings)
 {
     constexpr auto ReaderCount = 100'000;
-    constexpr auto RebalancingIterations = 800;
+    constexpr auto RebalancingIterations = 500;
 
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
@@ -434,7 +434,7 @@ TEST(TestParallelReaderMemoryManager, TestManyHeavyRebalancings)
 
         // All rebalancings except the first should be fast.
         if (iteration == 0) {
-            WaitForPredicate([&] () { return readers.back()->GetReservedMemorySize() == ReaderCount; }, 1'000'000, WaitIterationDuration);
+            WaitForPredicate([&] () { return readers.back()->GetReservedMemorySize() == ReaderCount; }, 1000, WaitIterationDuration);
         } else {
             WaitTestPredicate([&] () { return readers.back()->GetReservedMemorySize() == ReaderCount; });
         }
