@@ -293,6 +293,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         client.set("//sys/@cluster_proxy_address", proxy_address)
     if ui_address is not None:
         client.set("//sys/@cluster_ui_address", ui_address)
+    client.set("//sys/@ui_config", {"web_json_value_format": "yql"})
 
     client.create("map_node", "//tmp/trash", ignore_existing=True)
 
