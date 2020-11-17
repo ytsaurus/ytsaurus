@@ -24,6 +24,8 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/fair_share_action_queue.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/response_keeper.h>
 #include <yt/core/rpc/server.h>

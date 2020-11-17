@@ -15,7 +15,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/misc/atomic_object.h>
+#include <yt/core/actions/cancelable_context.h>
 
 namespace NYT::NElection {
 
@@ -23,6 +23,10 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NRpc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto MonitoringUpdatePeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +74,6 @@ private:
 
     // Epoch parameters.
     TEpochContextPtr EpochContext_;
-    TAtomicObject<TEpochContextPtr> TentativeEpochContext_;
     IInvokerPtr EpochControlInvoker_;
 
     TPeerIdSet AliveFollowers_; // actually, includes the leader, too
@@ -682,25 +685,34 @@ TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
-        auto epochContext = TentativeEpochContext_.Load();
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("state").Value(State_)
-                .DoIf(epochContext.operator bool(), [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("self_peer_id").Value(epochContext->CellManager->GetSelfPeerId())
-                        .Item("peers").BeginList()
-                            .DoFor(0, epochContext->CellManager->GetTotalPeerCount(), [=] (TFluentList fluent, TPeerId id) {
-                                fluent.Item().Value(epochContext->CellManager->GetPeerConfig(id));
+    return
+        IYPathService::FromProducer(BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+            VERIFY_THREAD_AFFINITY(ControlThread);
+
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("state").Value(State_)
+                    .DoIf(EpochContext_.operator bool(), [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("self_peer_id").Value(EpochContext_->CellManager->GetSelfPeerId())
+                            .Item("peers").BeginList()
+                                .DoFor(0, EpochContext_->CellManager->GetTotalPeerCount(), [=] (TFluentList fluent, TPeerId id) {
+                                    fluent.Item().Value(EpochContext_->CellManager->GetPeerConfig(id));
+                                })
+                            .EndList()
+                            .DoIf(EpochContext_->LeaderId != InvalidPeerId, [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("leader_id").Value(EpochContext_->LeaderId);
                             })
-                        .EndList()
-                        .Item("leader_id").Value(epochContext->LeaderId)
-                        .Item("epoch_id").Value(epochContext->EpochId);
-                })
-                .Item("vote_id").Value(VoteId_)
-            .EndMap();
-    });
+                            .DoIf(EpochContext_->EpochId != TEpochId(), [&] (TFluentMap fluent) {
+                                fluent
+                                    .Item("epoch_id").Value(EpochContext_->EpochId);
+                            });
+                    })
+                    .Item("vote_id").Value(VoteId_)
+                .EndMap();
+        }))
+        ->ToProducer(ControlInvoker_, MonitoringUpdatePeriod);
 }
 
 void TDistributedElectionManager::Reset()
@@ -781,9 +793,7 @@ void TDistributedElectionManager::StartVoting()
 
     CancelContext();
 
-    EpochContext_ = New<TEpochContext>();
-    TentativeEpochContext_.Store(EpochContext_);
-    EpochContext_->CellManager = CellManager_;
+    EpochContext_ = New<TEpochContext>(CellManager_);
 
     EpochControlInvoker_ = EpochContext_->CancelableContext->CreateInvoker(ControlInvoker_);
 
