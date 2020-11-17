@@ -846,6 +846,7 @@ public:
         if (LeaderId_ == MemberId_) {
             DistributedThrottlerService_->Finalize();
         }
+        LeaderId_ = std::nullopt;
     }
 
 private:
