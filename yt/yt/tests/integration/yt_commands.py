@@ -2030,6 +2030,7 @@ def decimal_type(precision, scale):
         "scale": scale,
     }
 
+
 ##################################################################
 
 
@@ -2188,10 +2189,12 @@ def wait_for_cells(cell_ids=None, decommissioned_addresses=[], driver=None):
                     )
                     if actual_config_version != expected_config_version:
                         return False
-                    if not get(
-                        "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/active".format(address, cell_id),
+
+                    active = get(
+                        "//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/hydra/active".format(address, cell_id),
                         driver=driver,
-                    ):
+                    )
+                    if not active:
                         return False
                 except:
                     return False

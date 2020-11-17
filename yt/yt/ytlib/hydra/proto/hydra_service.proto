@@ -47,14 +47,14 @@ message TRspLookupChangelog
 message TReqPingFollower
 {
     required NYT.NProto.TGuid epoch_id = 1;
-    required int64 committed_revision = 2;
+    optional int64 committed_revision = 2;
     required int64 ping_revision = 3;
-    repeated int32 alive_peers = 4; // peer ids
+    repeated int32 alive_peer_ids = 4;
 }
 
 message TRspPingFollower
 {
-    required int32 state = 1;
+    required int32 state = 1; // EPeerState
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +95,9 @@ message TReqRotateChangelog
 }
 
 message TRspRotateChangelog
-{ }
+{
+    optional bool rotated = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -158,13 +160,16 @@ message TRspForceBuildSnapshot
 
 message TReqAbandonLeaderLease
 {
-    required int32 segment_id = 1;
     required int32 peer_id = 2;
+
+    reserved 1;
 }
 
 message TRspAbandonLeaderLease
 {
-    required int32 last_leading_segment_id = 1;
+    optional bool abandoned = 2;
+
+    reserved 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

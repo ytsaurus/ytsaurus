@@ -93,23 +93,23 @@ class DynamicTablesBase(YTEnvSetup):
         return result
 
     def _find_tablet_orchid(self, address, tablet_id):
-        def do():
-            path = "//sys/cluster_nodes/" + address + "/orchid/tablet_cells"
+        def _do():
+            path = "//sys/cluster_nodes/{}/orchid/tablet_cells".format(address)
             cells = ls(path)
             for cell_id in cells:
-                if get(path + "/" + cell_id + "/state") in ("leading", "following"):
-                    tablets = ls(path + "/" + cell_id + "/tablets")
+                if get("{}/{}/hydra/active".format(path, cell_id), False):
+                    tablets = ls("{}/{}/tablets".format(path, cell_id))
                     if tablet_id in tablets:
                         try:
-                            return self._get_recursive(path + "/" + cell_id + "/tablets/" + tablet_id)
+                            return self._get_recursive("{}/{}/tablets/{}".format(path, cell_id, tablet_id))
                         except:
                             return None
             return None
 
         for attempt in xrange(5):
-            data = do()
-            if data is not None:
-                return data
+            result = _do()
+            if result is not None:
+                return result
         return None
 
     def _get_pivot_keys(self, path):
@@ -358,22 +358,32 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         first_keys = [{"key": i} for i in range(5)]
         insert_rows("//tmp/t", first_rows)
 
-        def get_peers():
+        def _get_peers():
             return get("#" + cell_id + "/@peers")
 
         cell_id = ls("//sys/tablet_cells")[0]
-        first_peer_address = get_peers()[0]["address"]
+        first_peer_address = _get_peers()[0]["address"]
 
         set_node_decommissioned(first_peer_address, True)
-        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
-        second_peer_address = get_peers()[1]["address"]
-        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "leading")
+        wait(lambda: len(_get_peers()) == 2 and _get_peers()[1]["state"] == "following")
+        second_peer_address = _get_peers()[1]["address"]
+        wait(lambda: len(_get_peers()) == 2 and _get_peers()[1]["state"] == "leading")
         time.sleep(5)
-        assert len(get_peers()) == 2 and get_peers()[1]["state"] == "leading"
-        wait(lambda: len(get_peers()) == 1)
-        assert get_peers()[0]["address"] == second_peer_address
-        wait(lambda: get_peers()[0]["state"] == "leading")
+        assert len(_get_peers()) == 2 and _get_peers()[1]["state"] == "leading"
+        wait(lambda: len(_get_peers()) == 1)
+        assert _get_peers()[0]["address"] == second_peer_address
+        wait(lambda: _get_peers()[0]["state"] == "leading")
         wait_for_cells([cell_id], decommissioned_addresses=[first_peer_address])
+
+        if get("//sys/@config/tablet_manager/abandon_leader_lease_during_recovery"):
+            assert (
+                get(
+                    "//sys/cluster_nodes/{}/orchid/tablet_cells/{}/hydra/grace_delay_status".format(
+                        second_peer_address, cell_id
+                    )
+                )
+                == "previous_lease_abandoned"
+            )
 
         assert lookup_rows("//tmp/t", first_keys) == first_rows
 
@@ -395,18 +405,18 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         first_keys = [{"key": i} for i in range(5)]
         insert_rows("//tmp/t", first_rows)
 
-        def get_peers():
+        def _get_peers():
             return get("#" + cell_id + "/@peers")
 
         cell_id = ls("//sys/tablet_cells")[0]
-        first_peer_address = get_peers()[0]["address"]
+        first_peer_address = _get_peers()[0]["address"]
 
         set_node_decommissioned(first_peer_address, True)
-        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
+        wait(lambda: len(_get_peers()) == 2 and _get_peers()[1]["state"] == "following")
 
         set_node_decommissioned(first_peer_address, False)
-        wait(lambda: len(get_peers()) == 1)
-        assert get_peers()[0]["address"] == first_peer_address
+        wait(lambda: len(_get_peers()) == 1)
+        assert _get_peers()[0]["address"] == first_peer_address
 
         wait_for_cells([cell_id], decommissioned_addresses=["non_existent_address"])
 
@@ -430,26 +440,27 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         first_keys = [{"key": i} for i in range(5)]
         insert_rows("//tmp/t", first_rows)
 
-        def get_peers():
+        def _get_peers():
             return get("#" + cell_id + "/@peers")
 
         cell_id = ls("//sys/tablet_cells")[0]
-        first_peer_address = get_peers()[0]["address"]
+        first_peer_address = _get_peers()[0]["address"]
 
         set_node_decommissioned(first_peer_address, True)
-        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
-        second_peer_address = get_peers()[1]["address"]
+        wait(lambda: len(_get_peers()) == 2 and _get_peers()[1]["state"] == "following")
+        second_peer_address = _get_peers()[1]["address"]
 
         set_node_decommissioned(second_peer_address, True)
         wait(
-            lambda: len(get_peers()) == 2 and get_peers()[1].get("address", second_peer_address) != second_peer_address
+            lambda: len(_get_peers()) == 2
+            and _get_peers()[1].get("address", second_peer_address) != second_peer_address
         )
-        new_second_peer_address = get_peers()[1]["address"]
+        new_second_peer_address = _get_peers()[1]["address"]
         assert new_second_peer_address != first_peer_address and new_second_peer_address != second_peer_address
-        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
+        wait(lambda: len(_get_peers()) == 2 and _get_peers()[1]["state"] == "following")
 
-        wait(lambda: len(get_peers()) == 1)
-        assert get_peers()[0]["address"] == new_second_peer_address
+        wait(lambda: len(_get_peers()) == 1)
+        assert _get_peers()[0]["address"] == new_second_peer_address
 
         wait_for_cells(
             [cell_id],
@@ -464,11 +475,11 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         sync_create_cells(1, tablet_cell_bundle="b")
         cell_id = ls("//sys/tablet_cells")[0]
 
-        def get_peers():
+        def _get_peers():
             return get("#" + cell_id + "/@peers")
 
-        assert len(get_peers()) == 1
-        first_peer_address = get_peers()[0]["address"]
+        assert len(_get_peers()) == 1
+        first_peer_address = _get_peers()[0]["address"]
 
         wait_for_cells([cell_id])
 
@@ -479,8 +490,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         wait_for_cells([cell_id])
 
-        assert len(get_peers()) == 2
-        second_peer_address = get_peers()[1]["address"]
+        assert len(_get_peers()) == 2
+        second_peer_address = _get_peers()[1]["address"]
         assert first_peer_address != second_peer_address
 
         self._check_cell_stable(cell_id)
@@ -488,15 +499,15 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         set_node_decommissioned(first_peer_address, True)
         wait_for_cells([cell_id], decommissioned_addresses=[first_peer_address])
 
-        assert len(get_peers()) == 2
-        assert get_peers()[1]["address"] == second_peer_address
+        assert len(_get_peers()) == 2
+        assert _get_peers()[1]["address"] == second_peer_address
 
         remove("//sys/tablet_cells/{}/@peer_count".format(cell_id))
 
         wait_for_cells([cell_id])
 
-        assert len(get_peers()) == 1
-        assert get_peers()[0]["address"] == second_peer_address
+        assert len(_get_peers()) == 1
+        assert _get_peers()[0]["address"] == second_peer_address
 
         self._check_cell_stable(cell_id)
 
@@ -2527,6 +2538,16 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
 
 
 class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
+    DELTA_NODE_CONFIG = {
+        "tablet_node": {
+            "hydra_manager": {
+                "leader_lease_grace_delay": 6000,
+                "leader_lease_timeout": 5000,
+                "disable_leader_lease_grace_delay": False,
+            }
+        }
+    }
+
     def setup_method(self, method):
         super(DynamicTablesSingleCellBase, self).setup_method(method)
         set("//sys/@config/tablet_manager/abandon_leader_lease_during_recovery", True)

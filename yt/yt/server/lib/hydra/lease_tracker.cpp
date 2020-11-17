@@ -20,15 +20,34 @@ bool TLeaderLease::IsValid() const
     return NProfiling::GetCpuInstant() < Deadline_.load();
 }
 
-void TLeaderLease::SetDeadline(NProfiling::TCpuInstant deadline)
+void TLeaderLease::Restart()
 {
-    YT_VERIFY(Deadline_.load() < deadline);
-    Deadline_ = deadline;
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    Deadline_.store(NotAcquiredDeadline);
 }
 
-void TLeaderLease::Invalidate()
+void TLeaderLease::Extend(NProfiling::TCpuInstant deadline)
 {
-    Deadline_ = 0;
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto curDeadline = Deadline_.load();
+    if (curDeadline == AbandondedDeadline) {
+        return;
+    }
+    YT_VERIFY(curDeadline < deadline);
+    Deadline_.store(deadline);
+}
+
+bool TLeaderLease::TryAbandon()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (NProfiling::GetCpuInstant() >= Deadline_.load()) {
+        return false;
+    }
+    Deadline_.store(AbandondedDeadline);
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,22 +103,27 @@ private:
         const auto& epochContext = Owner_->EpochContext_;
 
         auto pingVersion = decoratedAutomaton->GetPingVersion();
-        auto committedVersion = decoratedAutomaton->GetAutomatonVersion();
+        auto committedVersion = decoratedAutomaton->GetState() == EPeerState::Leading
+            ? std::make_optional(decoratedAutomaton->GetAutomatonVersion())
+            : std::nullopt;
 
-        YT_LOG_DEBUG("Sending ping to follower (FollowerId: %v, PingVersion: %v, CommittedVersion: %v, EpochId: %v)",
+        YT_LOG_DEBUG("Sending ping to follower (FollowerId: %v, PingVersion: %v, CommittedVersion: %v, EpochId: %v, AlivePeerIds: %v)",
             followerId,
             pingVersion,
             committedVersion,
-            epochContext->EpochId);
+            epochContext->EpochId,
+            Owner_->AlivePeers_);
 
         THydraServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
         req->SetTimeout(Owner_->Config_->LeaderLeaseTimeout);
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
         req->set_ping_revision(pingVersion.ToRevision());
-        req->set_committed_revision(committedVersion.ToRevision());
+        if (committedVersion) {
+            req->set_committed_revision(committedVersion->ToRevision());
+        }
         for (auto peerId : Owner_->AlivePeers_) {
-            req->add_alive_peers(peerId);
+            req->add_alive_peer_ids(peerId);
         }
 
         bool voting = Owner_->EpochContext_->CellManager->GetPeerConfig(followerId).Voting;
@@ -182,18 +206,7 @@ TLeaseTracker::TLeaseTracker(
     YT_VERIFY(Config_);
     YT_VERIFY(DecoratedAutomaton_);
     YT_VERIFY(EpochContext_);
-    YT_VERIFY(Lease_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
-}
-
-void TLeaseTracker::Start()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    AlivePeers_.clear();
-    for (TPeerId id = 0; id < EpochContext_->CellManager->GetTotalPeerCount(); ++id) {
-        AlivePeers_.insert(id);
-    }
 
     LeaseCheckExecutor_->Start();
 }
@@ -205,59 +218,78 @@ void TLeaseTracker::SetAlivePeers(const TPeerIdSet& alivePeers)
     AlivePeers_ = alivePeers;
 }
 
-TFuture<void> TLeaseTracker::GetLeaseAcquired()
+void TLeaseTracker::EnableTracking()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return LeaseAcquired_;
+    Lease_->Restart();
+    TrackingEnabled_ = true;
 }
 
-TFuture<void> TLeaseTracker::GetLeaseLost()
+TFuture<void> TLeaseTracker::GetNextQuorumFuture()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    return
+        BIND([=, this_ = MakeStrong(this)] {
+            VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return LeaseLost_;
+            while (true) {
+                auto future = NextCheckPromise_.ToFuture();
+                auto error = WaitFor(future);
+                if (error.IsOK()) {
+                    break;
+                }
+            }
+        })
+        .AsyncVia(EpochContext_->EpochControlInvoker)
+        .Run();
+}
+
+void TLeaseTracker::SubscribeLeaseLost(const TCallback<void(const TError&)>& callback)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    LeaseLost_.Subscribe(callback);
 }
 
 void TLeaseTracker::OnLeaseCheck()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_DEBUG("Starting leader lease check");
-
     auto startTime = NProfiling::GetCpuInstant();
-    auto asyncResult = FireLeaseCheck();
-    auto result = WaitFor(asyncResult);
+    auto trackingEnabled = TrackingEnabled_;
+    auto checkPromise = std::move(NextCheckPromise_);
+    NextCheckPromise_ = NewPromise<void>();
 
-    if (result.IsOK()) {
-        Lease_->SetDeadline(startTime + NProfiling::DurationToCpuDuration(Config_->LeaderLeaseTimeout));
-        YT_LOG_DEBUG("Leader lease check succeeded");
-        if (!LeaseAcquired_.IsSet()) {
-            LeaseAcquired_.Set();
+    YT_LOG_DEBUG("Starting leader lease check (TrackingEnabled: %v)",
+        trackingEnabled);
+
+    auto checkResult = WaitFor(FireLeaseCheck());
+    if (checkResult.IsOK()) {
+        YT_LOG_DEBUG("Leader lease check succeeded (TrackingEnabled: %v)",
+            trackingEnabled);
+        if (trackingEnabled) {
+            Lease_->Extend(startTime + NProfiling::DurationToCpuDuration(Config_->LeaderLeaseTimeout));
         }
     } else {
-        YT_LOG_DEBUG(result, "Leader lease check failed");
-        if (Lease_->IsValid() && LeaseAcquired_.IsSet() && !LeaseLost_.IsSet()) {
-            Lease_->Invalidate();
-            LeaseLost_.Set(result);
+        YT_LOG_DEBUG(checkResult, "Leader lease check failed (TrackingEnabled: %v)",
+            trackingEnabled);
+        if (trackingEnabled) {
+            LeaseLost_.Fire(checkResult);
         }
     }
+    checkPromise.Set(checkResult);
 }
 
 TFuture<void> TLeaseTracker::FireLeaseCheck()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    std::vector<TFuture<void>> asyncResults;
-
-    auto pinger = New<TFollowerPinger>(this);
-    asyncResults.push_back(pinger->Run());
-
-    for (auto callback : CustomLeaseCheckers_) {
-        asyncResults.push_back(callback.Run());
+    std::vector<TFuture<void>> futures;
+    futures.push_back(New<TFollowerPinger>(this)->Run());
+    for (const auto& callback : CustomLeaseCheckers_) {
+        futures.push_back(callback());
     }
-
-    return AllSucceeded(asyncResults);
+    return AllSucceeded(futures);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

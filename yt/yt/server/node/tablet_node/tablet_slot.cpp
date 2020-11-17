@@ -172,22 +172,6 @@ public:
         return EPeerState::None;
     }
 
-    bool GetActive() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        if (Finalizing_) {
-            return false;
-        }
-
-        auto hydraManager = GetHydraManager();
-        if (!hydraManager) {
-            return false;
-        }
-
-        return hydraManager->IsActive();
-    }
-
     int GetConfigVersion() const
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -742,11 +726,8 @@ private:
                     BuildYsonFluently(consumer)
                         .Value(true);
                 }))
-            ->AddChild("state", IYPathService::FromMethod(
-                &TImpl::GetControlState,
-                MakeWeak(this)))
-            ->AddChild("active", IYPathService::FromMethod(
-                &TImpl::GetActive,
+            ->AddChild("hydra", IYPathService::FromMethod(
+                &TImpl::GetHydraMonitoring,
                 MakeWeak(this)))
             ->AddChild("config_version", IYPathService::FromMethod(
                 &TImpl::GetConfigVersion,
@@ -771,6 +752,18 @@ private:
             ->AddChild("tablets", TabletManager_->GetOrchidService())
             ->AddChild("hive", HiveManager_->GetOrchidService())
             ->Via(Bootstrap_->GetControlInvoker());
+    }
+
+    void GetHydraMonitoring(IYsonConsumer* consumer) const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (auto hydraManager = GetHydraManager()) {
+            hydraManager->GetMonitoringProducer().Run(consumer);
+        } else {
+            BuildYsonFluently(consumer)
+                .Entity();
+        }
     }
 
     TTransactionId GetPrerequisiteTransactionId() const
