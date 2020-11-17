@@ -17,6 +17,8 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 #include <yt/core/misc/serialize.h>
 
 #include <yt/core/rpc/server.h>

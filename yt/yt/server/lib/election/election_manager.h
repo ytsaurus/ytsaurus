@@ -6,7 +6,7 @@
 
 #include <yt/core/actions/public.h>
 
-#include <yt/core/actions/cancelable_context.h>
+#include <yt/ytlib/election/public.h>
 
 namespace NYT::NElection {
 
@@ -111,6 +111,14 @@ DEFINE_REFCOUNTED_TYPE(IElectionManager)
 struct TEpochContext
     : public TRefCounted
 {
+    explicit TEpochContext(TCellManagerPtr cellManager);
+
+    //! Cell Manager for this epoch.
+    const TCellManagerPtr CellManager;
+
+    //! This context is canceled whenever the epoch ends.
+    const TCancelableContextPtr CancelableContext;
+
     //! The id of the leading peer (for this epoch).
     TPeerId LeaderId = InvalidPeerId;
 
@@ -119,12 +127,6 @@ struct TEpochContext
 
     //! Time when the epoch has started.
     TInstant StartTime;
-
-    //! This context is canceled whenever the epoch ends.
-    TCancelableContextPtr CancelableContext = New<TCancelableContext>();
-
-    //! Cell Manager for this epoch. 
-    TCellManagerPtr CellManager;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)

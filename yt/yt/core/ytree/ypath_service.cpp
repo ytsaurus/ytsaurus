@@ -4,6 +4,7 @@
 #include "tree_builder.h"
 #include "ypath_client.h"
 #include "ypath_detail.h"
+#include "fluent.h"
 
 #include <yt/core/profiling/timing.h>
 
@@ -202,6 +203,79 @@ private:
 IYPathServicePtr IYPathService::FromProducer(TYsonProducer producer, TDuration cachePeriod)
 {
     return New<TFromProducerYPathService>(producer, cachePeriod);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYPathServiceToProducerHandler
+    : public TRefCounted
+{
+public:
+    TYPathServiceToProducerHandler(
+        IYPathServicePtr underlyingService,
+        IInvokerPtr workerInvoker,
+        TDuration updatePeriod)
+        : UnderlyingService_(std::move(underlyingService))
+        , WorkerInvoker_(std::move(workerInvoker))
+        , UpdatePeriod_(updatePeriod)
+    { }
+
+    TYsonProducer Run()
+    {
+        ScheduleUpdate(true);
+        return TYsonProducer(BIND(&TYPathServiceToProducerHandler::Produce, MakeStrong(this)));
+    }
+
+private:
+    const IYPathServicePtr UnderlyingService_;
+    const IInvokerPtr WorkerInvoker_;
+    const TDuration UpdatePeriod_;
+
+    TAtomicObject<TYsonString> CachedString_ = {BuildYsonStringFluently().Entity()};
+
+    void Produce(IYsonConsumer* consumer)
+    {
+        consumer->OnRaw(CachedString_.Load());
+    }
+
+    void ScheduleUpdate(bool immediately)
+    {
+        TDelayedExecutor::Submit(
+            BIND(&TYPathServiceToProducerHandler::OnUpdate, MakeWeak(this)),
+            immediately ? TDuration::Zero() : UpdatePeriod_,
+            WorkerInvoker_);
+    }
+
+    void OnUpdate()
+    {
+        AsyncYPathGet(UnderlyingService_, TYPath())
+            .Subscribe(BIND(&TYPathServiceToProducerHandler::OnUpdateResult, MakeWeak(this)));
+    }
+
+    void OnUpdateResult(const TErrorOr<TYsonString>& errorOrString)
+    {
+        if (errorOrString.IsOK()) {
+            CachedString_.Store(errorOrString.Value());
+        } else {
+            CachedString_.Store(BuildYsonStringFluently()
+                .BeginAttributes()
+                    .Item("error").Value(TError(errorOrString))
+                .EndAttributes()
+                .Entity());
+        }
+        ScheduleUpdate(false);
+    }
+};
+
+TYsonProducer IYPathService::ToProducer(
+    IInvokerPtr workerInvoker,
+    TDuration updatePeriod)
+{
+    return New<TYPathServiceToProducerHandler>(
+        this,
+        std::move(workerInvoker),
+        updatePeriod)
+        ->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
