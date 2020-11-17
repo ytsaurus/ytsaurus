@@ -40,27 +40,19 @@ struct IHydraManager
 
     //! Returns the state as seen in the control thread.
     /*!
-     *  \note Thread affinity: ControlThread
+     *  \note Thread affinity: any
      */
     virtual EPeerState GetControlState() const = 0;
 
     //! Returns the state as seen in the automaton thread.
     /*!
-     *  \note Thread affinity: AutomatonThread
+     *  \note Thread affinity: any
      */
     virtual EPeerState GetAutomatonState() const = 0;
 
-    //! Returns the "tentative" state, which can be accessed from an arbitrary thread.
-    /*!
-     *  Most of time, this coincides with the results of #GetControlState and #GetAutomatonState
-     *
-     *  \note Thread affinity: any
-     */
-    virtual EPeerState GetTentativeState() const = 0;
-
     //! Returns the current automaton version.
     /*!
-     *  \note Thread affinity: AutomatonThread
+     *  \note Thread affinity: any
      */
     virtual TVersion GetAutomatonVersion() const = 0;
 

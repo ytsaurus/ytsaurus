@@ -36,6 +36,8 @@
 
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/misc/atomic_object.h>
+
 #include <atomic>
 
 namespace NYT::NHydra {
@@ -275,29 +277,21 @@ public:
 
     virtual EPeerState GetControlState() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return ControlState_;
     }
 
     virtual EPeerState GetAutomatonState() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        return DecoratedAutomaton_->GetState();
-    }
-
-    virtual EPeerState GetTentativeState() const override
-    {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // NB: This call is actually thread-safe.
         return DecoratedAutomaton_->GetState();
     }
 
     virtual TVersion GetAutomatonVersion() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetAutomatonVersion();
     }
@@ -385,7 +379,7 @@ public:
         }
     }
 
-    void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
+    virtual void ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader) override
     {
         DecoratedAutomaton_->ValidateSnapshot(reader);
     }
@@ -520,16 +514,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TAdaptiveLock> guard(DynamicOptionsLock_);
-        return DynamicOptions_;
+        return DynamicOptions_.Load();
     }
 
     virtual void SetDynamicOptions(const TDistributedHydraManagerDynamicOptions& options) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TAdaptiveLock> guard(DynamicOptionsLock_);
-        DynamicOptions_ = options;
+        DynamicOptions_.Store(options);
     }
 
     DEFINE_SIGNAL(void(), StartLeading);
@@ -561,8 +553,7 @@ private:
     const TDistributedHydraManagerOptions Options_;
     const TStateHashCheckerPtr StateHashChecker_;
 
-    TDistributedHydraManagerDynamicOptions DynamicOptions_;
-    TAdaptiveLock DynamicOptionsLock_;
+    TAtomicObject<TDistributedHydraManagerDynamicOptions> DynamicOptions_;
 
     const IElectionCallbacksPtr ElectionCallbacks_;
 
@@ -570,12 +561,14 @@ private:
     int RestartCounter_ = 0;
     NProfiling::TShardedAggregateGauge LeaderSyncTimeGauge_{"/leader_sync_time"};
 
-    std::atomic<bool> ReadOnly_ = false;
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
-    std::atomic<bool> LeaderRecovered_ = false;
-    std::atomic<bool> FollowerRecovered_ = false;
+
+    std::atomic<bool> ReadOnly_ = {false};
+    std::atomic<bool> LeaderRecovered_ = {false};
+    std::atomic<bool> FollowerRecovered_ = {false};
     std::atomic<EGraceDelayStatus> GraceDelayStatus_ = EGraceDelayStatus::None;
-    EPeerState ControlState_ = EPeerState::None;
+    std::atomic<EPeerState> ControlState_ = EPeerState::None;
+
     TSystemLockGuard SystemLockGuard_;
 
     IChangelogStorePtr ChangelogStore_;
@@ -669,16 +662,17 @@ private:
             // propagated appropriately).
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
+            auto controlState = GetControlState();
+            if (controlState != EPeerState::Following && controlState != EPeerState::FollowerRecovery) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Cannot accept mutations in %Qlv state",
-                    ControlState_);
+                    controlState);
             }
 
             auto epochContext = GetControlEpochContext(epochId);
 
-            switch (ControlState_) {
+            switch (controlState) {
                 case EPeerState::Following: {
                     SwitchTo(epochContext->EpochUserAutomatonInvoker);
                     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -747,16 +741,17 @@ private:
             epochId,
             alivePeerIds);
 
-        if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
+        auto controlState = GetControlState();
+        if (controlState != EPeerState::Following && controlState != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
                 "Cannot handle follower ping in %Qlv state",
-                ControlState_);
+                controlState);
         }
 
         auto epochContext = GetControlEpochContext(epochId);
 
-        switch (ControlState_) {
+        switch (controlState) {
             case EPeerState::Following:
                 if (committedVersion) {
                     epochContext->EpochUserAutomatonInvoker->Invoke(
@@ -780,7 +775,7 @@ private:
             AlivePeerSetChanged_.Fire(AlivePeers_);
         }
 
-        response->set_state(static_cast<int>(ControlState_));
+        response->set_state(ToProto<int>(GetControlState()));
 
         // Reply with OK in any case.
         context->Reply();
@@ -799,11 +794,12 @@ private:
             version,
             setReadOnly);
 
-        if (ControlState_ != EPeerState::Following) {
+        auto controlState = GetControlState();
+        if (controlState != EPeerState::Following) {
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::Unavailable,
                 "Cannot build snapshot in %Qlv state",
-                ControlState_);
+                controlState);
         }
 
         if (!Options_.WriteSnapshotsAtFollowers) {
@@ -875,16 +871,17 @@ private:
             // See AcceptMutations.
             VERIFY_THREAD_AFFINITY(ControlThread);
 
-            if (ControlState_ != EPeerState::Following && ControlState_  != EPeerState::FollowerRecovery) {
+            auto controlState = GetControlState();
+            if (controlState != EPeerState::Following && controlState  != EPeerState::FollowerRecovery) {
                 THROW_ERROR_EXCEPTION(
                     NRpc::EErrorCode::Unavailable,
                     "Cannot rotate changelog while in %Qlv state",
-                    ControlState_);
+                    controlState);
             }
 
             auto epochContext = GetControlEpochContext(epochId);
 
-            switch (ControlState_) {
+            switch (controlState) {
                 case EPeerState::Following: {
                     SwitchTo(epochContext->EpochUserAutomatonInvoker);
                     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1168,7 +1165,8 @@ private:
             THROW_ERROR_EXCEPTION("Election priority is not available");
         }
 
-        auto version = ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::Following
+        auto controlState = GetControlState();
+        auto version = controlState == EPeerState::Leading || controlState == EPeerState::Following
             ? DecoratedAutomaton_->GetAutomatonVersion()
             : *ReachableVersion_;
 
@@ -1583,7 +1581,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        if (!DynamicOptions_.AbandonLeaderLeaseDuringRecovery) {
+        if (!GetDynamicOptions().AbandonLeaderLeaseDuringRecovery) {
             return false;
         }
 

@@ -25,7 +25,7 @@ namespace NYT::NRpc {
  *  The keeper is initially inactive.
  *
  *  \note
- *  Thread affinity: single-threaded
+ *  Thread affinity: single-threaded (unless noted otherwise)
  */
 class TResponseKeeper
     : public TRefCounted
@@ -100,6 +100,10 @@ public:
     bool TryReplyFrom(const IServiceContextPtr& context);
 
     //! Returns |true| if the keeper is still warming up.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     bool IsWarmingUp() const;
 
 private:

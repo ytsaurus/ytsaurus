@@ -1443,6 +1443,8 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 
 bool TDecoratedAutomaton::IsRecovery() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return
         State_ == EPeerState::LeaderRecovery ||
         State_ == EPeerState::FollowerRecovery;
@@ -1450,16 +1452,22 @@ bool TDecoratedAutomaton::IsRecovery() const
 
 bool TDecoratedAutomaton::IsMutationLoggingEnabled() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return !IsRecovery() || Config_->ForceMutationLogging;
 }
 
 bool TDecoratedAutomaton::IsBuildingSnapshotNow() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return BuildingSnapshot_.load();
 }
 
 int TDecoratedAutomaton::GetLastSuccessfulSnapshotId() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return LastSuccessfulSnapshotId_.load();
 }
 

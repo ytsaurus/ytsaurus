@@ -298,7 +298,7 @@ public:
         , CodicilData_(Format("RequestId: %v, %v",
             RequestId_,
             RpcContext_->GetAuthenticationIdentity()))
-        , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetTentativeState())
+        , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetAutomatonState())
         , CellSyncSession_(New<TMultiPhaseCellSyncSession>(
             Bootstrap_,
             !RpcContext_->Request().suppress_upstream_sync(),
