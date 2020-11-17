@@ -86,11 +86,7 @@ TTcpConnection::TTcpConnection(
     , ReadStallTimeout_(NProfiling::DurationToCpuDuration(Config_->ReadStallTimeout))
     , Encoder_(Logger)
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
-{
-    Poller_->Register(this);
-    TTcpDispatcher::TImpl::Get()->RegisterConnection(this);
-    InitBuffers();
-}
+{ }
 
 TTcpConnection::~TTcpConnection()
 {
@@ -142,6 +138,10 @@ void TTcpConnection::Start()
 {
     // Offline in Pending_ prevents retrying events until end of Open().
     YT_VERIFY(Any(Pending_ & EPollControl::Offline));
+
+    Poller_->Register(this);
+    TTcpDispatcher::TImpl::Get()->RegisterConnection(this);
+    InitBuffers();
 
     switch (ConnectionType_) {
         case EConnectionType::Client:
