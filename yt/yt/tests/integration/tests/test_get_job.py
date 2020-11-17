@@ -284,7 +284,7 @@ class TestGetJob(_TestGetJobCommon):
 
         # We emulate the situation when aborted (in CA's opinion) job
         # still reports "running" to archive.
-        del job_from_archive["operation_id_hash"]
+        del job_from_archive["job_id_partition_hash"]
         _update_job_in_archive(op.id, job_id, job_from_archive)
 
         self._check_get_job(op.id, job_id, before_start_time, archive_state="running", has_spec=None)
