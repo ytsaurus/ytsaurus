@@ -1049,8 +1049,10 @@ private:
         GuardedAction([&] {
             ValidateJobPhase(EJobPhase::PreparingRootVolume);
             if (!volumeOrError.IsOK()) {
-                THROW_ERROR TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
+                auto error = TError(EErrorCode::RootVolumePreparationFailed, "Failed to prepare artifacts")
                     << volumeOrError;
+                Bootstrap_->GetExecSlotManager()->Disable(error);
+                THROW_ERROR error;
             }
 
             RootVolume_ = volumeOrError.Value();
