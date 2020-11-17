@@ -29,18 +29,25 @@ class TestMasterLeaderSwitch(YTEnvSetup):
 
     @authors("babenko")
     def test_switch(self):
-        def _get_master_state(rpc_address):
+        def _is_active_leader(rpc_address):
             try:
-                return get("//sys/primary_masters/{}/orchid/monitoring/hydra/state".format(rpc_address))
+                return get("//sys/primary_masters/{}/orchid/monitoring/hydra/active_leader".format(rpc_address))
             except:
-                return None
+                return False
+
+        def _get_master_grace_delay_status(rpc_address):
+            return get("//sys/primary_masters/{}/orchid/monitoring/hydra/grace_delay_status".format(rpc_address))
 
         current_leader_id = None
+        current_leader_rpc_address = None
         while current_leader_id is None:
             for id, rpc_address in enumerate(self.Env.configs["master"][0]["primary_master"]["addresses"]):
-                if _get_master_state(rpc_address) == "leading":
+                if _is_active_leader(rpc_address):
                     current_leader_id = id
+                    current_leader_rpc_address = rpc_address
                     break
+
+        assert _get_master_grace_delay_status(current_leader_rpc_address) == "grace_delay_executed"
 
         new_leader_id = (current_leader_id + 1) % 5
         new_leader_rpc_address = self.Env.configs["master"][0]["primary_master"]["addresses"][new_leader_id]
@@ -48,10 +55,6 @@ class TestMasterLeaderSwitch(YTEnvSetup):
         cell_id = get("//sys/@cell_id")
         switch_leader(cell_id, new_leader_id)
 
-        def _check():
-            try:
-                return _get_master_state(new_leader_rpc_address) == "leading"
-            except:
-                return False
+        wait(lambda: _is_active_leader(new_leader_rpc_address))
 
-        wait(_check)
+        assert _get_master_grace_delay_status(new_leader_rpc_address) == "previous_lease_abandoned"

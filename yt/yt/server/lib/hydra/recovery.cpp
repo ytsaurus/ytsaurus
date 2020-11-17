@@ -375,72 +375,7 @@ void TLeaderRecovery::DoRun()
         THROW_ERROR_EXCEPTION("Cannot recover leader with a read-only changelog store");
     }
 
-    NProfiling::TWallTimer timer;
     RecoverToVersion(EpochContext_->ReachableVersion);
-
-    bool previousLeaderLeaseAbandoned = false;
-    if (DynamicOptions_.AbandonLeaderLeaseDuringRecovery) {
-        auto currentSegmentId = SyncVersion_.SegmentId;
-
-        YT_LOG_INFO("Trying to abandon old leader lease (CurrentSegmentId: %v)",
-            currentSegmentId);
-
-        std::vector<TFuture<THydraServiceProxy::TRspAbandonLeaderLeasePtr>> futures;
-        const auto& cellManager = EpochContext_->CellManager;
-        for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
-            auto peerChannel = cellManager->GetPeerChannel(peerId);
-            if (!peerChannel) {
-                YT_LOG_INFO("Peer channel is not configured (PeerId: %v)", peerId);
-                continue;
-            }
-
-            THydraServiceProxy proxy(std::move(peerChannel));
-
-            auto tryAbandonLeaderLeaseRequest = proxy.AbandonLeaderLease();
-            tryAbandonLeaderLeaseRequest->SetTimeout(Config_->AbandonLeaderLeaseRequestTimeout);
-            tryAbandonLeaderLeaseRequest->set_segment_id(SyncVersion_.SegmentId);
-            tryAbandonLeaderLeaseRequest->set_peer_id(cellManager->GetSelfPeerId());
-            futures.push_back(tryAbandonLeaderLeaseRequest->Invoke());
-        }
-
-        auto rspsOrError = WaitFor(AllSet(futures));
-        if (rspsOrError.IsOK()) {
-            const auto& rsps = rspsOrError.Value();
-            for (int peerId = 0; peerId < rsps.size(); ++peerId) {
-                const auto& rspOrError = rsps[peerId];
-                if (rspOrError.IsOK()) {
-                    auto peerLastLeadingSegmentId = rspOrError.Value()->last_leading_segment_id();
-                    YT_LOG_INFO("Peer response received (PeerId: %v, LastLeadingSegmentId: %v)",
-                        peerId,
-                        peerLastLeadingSegmentId);
-
-                    if (peerLastLeadingSegmentId + 1 == currentSegmentId) {
-                        YT_LOG_INFO("Previous leader lease abandoned (PeerId: %v)", peerId);
-                        YT_VERIFY(!previousLeaderLeaseAbandoned);
-                        previousLeaderLeaseAbandoned = true;
-                        break;
-                    }
-                } else {
-                    YT_LOG_INFO(rspOrError, "Failed to abandon peer leader lease (PeerId: %v)", peerId);
-                }
-            }
-        } else {
-            YT_LOG_INFO(rspsOrError, "Failed to abandon leader lease");
-        }
-    }
-
-    auto elapsedTime = timer.GetElapsedTime();
-
-    if (previousLeaderLeaseAbandoned) {
-        YT_LOG_INFO("Ignoring leader lease grace delay");
-    } else if (Config_->DisableLeaderLeaseGraceDelay) {
-        YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
-    } else if (elapsedTime < Config_->LeaderLeaseGraceDelay) {
-        YT_LOG_INFO("Waiting for previous leader lease to expire");
-        TDelayedExecutor::WaitForDuration(Config_->LeaderLeaseGraceDelay - elapsedTime);
-    } else {
-        YT_LOG_INFO("Leader lease grace delay already expired");
-    }
 }
 
 bool TLeaderRecovery::IsLeader() const

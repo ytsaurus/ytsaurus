@@ -54,6 +54,13 @@ static const auto PostponeBackoffTime = TDuration::MilliSeconds(100);
 
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManager)
 
+DEFINE_ENUM(EGraceDelayStatus,
+    (None)
+    (GraceDelayDisabled)
+    (GraceDelayExecuted)
+    (PreviousLeaseAbandoned)
+);
+
 class TDistributedHydraManager
     : public THydraServiceBase
     , public IDistributedHydraManager
@@ -251,7 +258,6 @@ public:
 
         ControlState_ = EPeerState::Stopped;
 
-        LeaderLease_->Invalidate();
         LeaderRecovered_ = false;
         FollowerRecovered_ = false;
 
@@ -393,17 +399,19 @@ public:
 
             BuildYsonFluently(consumer)
                 .BeginMap()
-                    .Item("state").Value(ControlState_)
+                    .Item("state").Value(DecoratedAutomaton_->GetState())
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetCommittedVersion()))
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
                     .Item("random_seed").Value(DecoratedAutomaton_->GetRandomSeed())
                     .Item("sequence_number").Value(DecoratedAutomaton_->GetSequenceNumber())
                     .Item("state_hash").Value(DecoratedAutomaton_->GetStateHash())
+                    .Item("active").Value(IsActive())
                     .Item("active_leader").Value(IsActiveLeader())
                     .Item("active_follower").Value(IsActiveFollower())
                     .Item("read_only").Value(GetReadOnly())
                     .Item("warming_up").Value(Options_.ResponseKeeper ? Options_.ResponseKeeper->IsWarmingUp() : false)
+                    .Item("grace_delay_status").Value(GraceDelayStatus_.load())
                     .Item("building_snapshot").Value(DecoratedAutomaton_->IsBuildingSnapshotNow())
                     .Item("last_snapshot_id").Value(DecoratedAutomaton_->GetLastSuccessfulSnapshotId())
                 .EndMap();
@@ -562,10 +570,11 @@ private:
     int RestartCounter_ = 0;
     NProfiling::TShardedAggregateGauge LeaderSyncTimeGauge_{"/leader_sync_time"};
 
-    std::atomic<bool> ReadOnly_ = {false};
+    std::atomic<bool> ReadOnly_ = false;
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
-    std::atomic<bool> LeaderRecovered_ = {false};
-    std::atomic<bool> FollowerRecovered_ = {false};
+    std::atomic<bool> LeaderRecovered_ = false;
+    std::atomic<bool> FollowerRecovered_ = false;
+    std::atomic<EGraceDelayStatus> GraceDelayStatus_ = EGraceDelayStatus::None;
     EPeerState ControlState_ = EPeerState::None;
     TSystemLockGuard SystemLockGuard_;
 
@@ -590,7 +599,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         int changelogId = request->changelog_id();
-
         context->SetRequestInfo("ChangelogId: %v", changelogId);
 
         auto changelog = OpenChangelogOrThrow(changelogId);
@@ -608,7 +616,6 @@ private:
         int changelogId = request->changelog_id();
         int startRecordId = request->start_record_id();
         int recordCount = request->record_count();
-
         context->SetRequestInfo("ChangelogId: %v, StartRecordId: %v, RecordCount: %v",
             changelogId,
             startRecordId,
@@ -639,7 +646,6 @@ private:
         auto startVersion = TVersion::FromRevision(request->start_revision());
         auto committedVersion = TVersion::FromRevision(request->committed_revision());
         auto mutationCount = request->Attachments().size();
-
         context->SetRequestInfo("StartVersion: %v, CommittedVersion: %v, EpochId: %v, MutationCount: %v",
             startVersion,
             committedVersion,
@@ -731,12 +737,15 @@ private:
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto pingVersion = TVersion::FromRevision(request->ping_revision());
-        auto committedVersion = TVersion::FromRevision(request->committed_revision());
-        auto alivePeers = FromProto<TPeerIdSet>(request->alive_peers());
-        context->SetRequestInfo("PingVersion: %v, CommittedVersion: %v, EpochId: %v",
+        auto committedVersion = request->has_committed_revision()
+            ? std::make_optional(TVersion::FromRevision(request->committed_revision()))
+            : std::nullopt;
+        auto alivePeerIds = FromProto<TPeerIdSet>(request->alive_peer_ids());
+        context->SetRequestInfo("PingVersion: %v, CommittedVersion: %v, EpochId: %v, AlivePeerIds: %v",
             pingVersion,
             committedVersion,
-            epochId);
+            epochId,
+            alivePeerIds);
 
         if (ControlState_ != EPeerState::Following && ControlState_ != EPeerState::FollowerRecovery) {
             THROW_ERROR_EXCEPTION(
@@ -749,25 +758,25 @@ private:
 
         switch (ControlState_) {
             case EPeerState::Following:
-                epochContext->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDistributedHydraManager::CommitMutationsAtFollower, MakeStrong(this), committedVersion));
-                break;
-
-            case EPeerState::FollowerRecovery: {
-                CheckForInitialPing(pingVersion);
-                auto followerRecovery = epochContext->FollowerRecovery;
-                if (followerRecovery) {
-                    followerRecovery->SetCommittedVersion(committedVersion);
+                if (committedVersion) {
+                    epochContext->EpochUserAutomatonInvoker->Invoke(
+                        BIND(&TDistributedHydraManager::CommitMutationsAtFollower, MakeStrong(this), *committedVersion));
                 }
                 break;
-            }
+
+            case EPeerState::FollowerRecovery:
+                CheckForInitialPing(pingVersion);
+                if (auto followerRecovery = epochContext->FollowerRecovery; followerRecovery && committedVersion) {
+                    followerRecovery->SetCommittedVersion(*committedVersion);
+                }
+                break;
 
             default:
                 YT_ABORT();
         }
 
-        if (alivePeers != AlivePeers_) {
-            AlivePeers_ = std::move(alivePeers);
+        if (alivePeerIds != AlivePeers_) {
+            AlivePeers_ = std::move(alivePeerIds);
             AlivePeerSetChanged_.Fire(AlivePeers_);
         }
 
@@ -785,7 +794,6 @@ private:
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto version = TVersion::FromRevision(request->revision());
         bool setReadOnly = request->set_read_only();
-
         context->SetRequestInfo("EpochId: %v, Version: %v, SetReadOnly: %v",
             epochId,
             version,
@@ -834,7 +842,6 @@ private:
 
         bool setReadOnly = request->set_read_only();
         bool waitForSnapshotCompletion = request->wait_for_snapshot_completion();
-
         context->SetRequestInfo("SetReadOnly: %v, WaitForSnapshotCompletion: %v",
             setReadOnly,
             waitForSnapshotCompletion);
@@ -899,11 +906,11 @@ private:
                         }
 
                         followerCommitter->SuspendLogging();
-
                         WaitFor(DecoratedAutomaton_->RotateChangelog())
                             .ThrowOnError();
-
                         followerCommitter->ResumeLogging();
+
+                        response->set_rotated(true);
                     } catch (const std::exception& ex) {
                         auto error = TError("Error rotating changelog")
                             << ex;
@@ -944,6 +951,8 @@ private:
             }
         } while (again);
 
+        context->SetResponseInfo("Rotated: %v",
+            response->rotated());
         context->Reply();
     }
 
@@ -1045,10 +1054,11 @@ private:
             }),
             Config_->LeaderSwitchTimeout);
 
-        TMutationRequest mutationRequest;
-        mutationRequest.Reign = GetCurrentReign();
-        mutationRequest.Type = HeartbeatMutationType;
-        mutationRequest.Data = TSharedMutableRef::Allocate(0);
+        TMutationRequest mutationRequest{
+            .Reign = GetCurrentReign(),
+            .Type = HeartbeatMutationType,
+            .Data = TSharedMutableRef::Allocate(0)
+        };
 
         CommitMutation(std::move(mutationRequest))
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
@@ -1074,31 +1084,19 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto senderSegmentId = request->segment_id();
-        auto senderPeerId = request->peer_id();
-        context->SetRequestInfo("SegmentId: %v, PeerId: %v",
-            senderSegmentId,
-            senderPeerId);
+        auto peerId = request->peer_id();
+        context->SetRequestInfo("PeerId: %v",
+            peerId);
 
-        auto currentSegmentId = DecoratedAutomaton_->GetAutomatonVersion().SegmentId;
-        auto lastLeadingSegmentId = DecoratedAutomaton_->GetLastLeadingSegmentId();
-
-        auto controlState = GetControlState();
-        bool isLeading = (controlState == EPeerState::Leading || controlState == EPeerState::LeaderRecovery);
-
-        if (isLeading && senderSegmentId == currentSegmentId + 1) {
-            YT_LOG_INFO("Abandoning leader lease (SenderSegmentId: %v, CurrentSegmentId: %v)",
-                senderSegmentId,
-                currentSegmentId);
-
-            ElectionManager_->Abandon(TError("Requested to abandon leader lease"));
+        bool abandoned = LeaderLease_->TryAbandon();
+        if (abandoned) {
+            YT_LOG_INFO("Leader lease abandonded (RequestingPeerId: %v)",
+                peerId);
         }
 
-        context->SetResponseInfo("SegmentId: %v, LastLeadingSegmentId: %v",
-            currentSegmentId,
-            lastLeadingSegmentId);
-
-        response->set_last_leading_segment_id(lastLeadingSegmentId);
+        response->set_abandoned(abandoned);
+        context->SetResponseInfo("Abandoned: %v",
+            abandoned);
         context->Reply();
     }
 
@@ -1125,7 +1123,6 @@ private:
 
         auto reason = FromProto<TError>(request->reason());
         auto armPriorityBoost = request->arm_priority_boost();
-
         context->SetRequestInfo("Reason: %v, ArmPriorityBoost: %v",
             reason,
             armPriorityBoost);
@@ -1444,17 +1441,6 @@ private:
         ControlState_ = EPeerState::LeaderRecovery;
 
         auto epochContext = StartEpoch(electionEpochContext);
-
-        epochContext->LeaseTracker = New<TLeaseTracker>(
-            Config_,
-            DecoratedAutomaton_,
-            epochContext.Get(),
-            LeaderLease_,
-            LeaderLeaseCheck_.ToVector(),
-            Logger);
-        epochContext->LeaseTracker->GetLeaseLost().Subscribe(
-            BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), MakeWeak(epochContext)));
-
         epochContext->LeaderCommitter = New<TLeaderCommitter>(
             Config_,
             Options_,
@@ -1491,8 +1477,6 @@ private:
         SwitchTo(epochContext->EpochControlInvoker);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        epochContext->LeaseTracker->Start();
-
         RecoverLeader();
     }
 
@@ -1503,6 +1487,16 @@ private:
         auto epochContext = ControlEpochContext_;
 
         try {
+            epochContext->LeaseTracker = New<TLeaseTracker>(
+                Config_,
+                DecoratedAutomaton_,
+                epochContext.Get(),
+                LeaderLease_,
+                LeaderLeaseCheck_.ToVector(),
+                Logger);
+            epochContext->LeaseTracker->SubscribeLeaseLost(
+                BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), MakeWeak(epochContext)));
+
             epochContext->LeaderRecovery = New<TLeaderRecovery>(
                 Config_,
                 Options_,
@@ -1513,60 +1507,133 @@ private:
                 Options_.ResponseKeeper,
                 epochContext.Get(),
                 Logger);
+            WaitFor(epochContext->LeaderRecovery->Run())
+                .ThrowOnError();
+
+            YT_LOG_INFO("Waiting for followers to recover");
+            WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
+                .ThrowOnError();
+            YT_LOG_INFO("Followers recovered");
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            auto asyncRecoveryResult = epochContext->LeaderRecovery->Run();
-            WaitFor(asyncRecoveryResult)
+            YT_LOG_INFO("Rotating initial changelog");
+            WaitFor(epochContext->Checkpointer->RotateChangelog())
                 .ThrowOnError();
-
-            DecoratedAutomaton_->OnLeaderRecoveryComplete();
-            AutomatonLeaderRecoveryComplete_.Fire();
+            YT_LOG_INFO("Initial changelog rotated");
 
             SwitchTo(epochContext->EpochControlInvoker);
             VERIFY_THREAD_AFFINITY(ControlThread);
 
+            if (Config_->DisableLeaderLeaseGraceDelay) {
+                YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
+                GraceDelayStatus_ = EGraceDelayStatus::GraceDelayDisabled;
+            } else if (TryAbandonExistingLease(epochContext)) {
+                YT_LOG_INFO("Previous leader lease was abandoned; ignoring leader lease grace delay");
+                GraceDelayStatus_ = EGraceDelayStatus::PreviousLeaseAbandoned;
+            } else {
+                YT_LOG_INFO("Waiting for previous leader lease to expire (Delay: %v)",
+                    Config_->LeaderLeaseGraceDelay);
+                TDelayedExecutor::WaitForDuration(Config_->LeaderLeaseGraceDelay);
+                GraceDelayStatus_ = EGraceDelayStatus::GraceDelayExecuted;
+            }
+
+            YT_LOG_INFO("Acquiring leader lease");
+            epochContext->LeaseTracker->EnableTracking();
+            WaitFor(epochContext->LeaseTracker->GetNextQuorumFuture())
+                .ThrowOnError();
+            YT_LOG_INFO("Leader lease acquired");
+
             YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
             ControlState_ = EPeerState::Leading;
+
             ControlLeaderRecoveryComplete_.Fire();
-
-            YT_LOG_INFO("Leader recovery completed");
-
-            YT_LOG_INFO("Waiting for leader lease");
-
-            WaitFor(epochContext->LeaseTracker->GetLeaseAcquired())
-                .ThrowOnError();
-
-            YT_LOG_INFO("Leader lease acquired");
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-            WaitFor(epochContext->Checkpointer->RotateChangelog())
-                .ThrowOnError();
+            YT_LOG_INFO("Leader recovery completed");
 
-            YT_LOG_INFO("Initial changelog rotated");
-
-            ApplyFinalRecoveryAction(true);
-
+            DecoratedAutomaton_->OnLeaderRecoveryComplete();
             LeaderRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
             }
+
+            ApplyFinalRecoveryAction(true);
+
+            SystemLockGuard_.Release();
+
+            AutomatonLeaderRecoveryComplete_.Fire();
             LeaderActive_.Fire();
 
             epochContext->HeartbeatMutationCommitExecutor->Start();
-
-            SwitchTo(epochContext->EpochControlInvoker);
-            VERIFY_THREAD_AFFINITY(ControlThread);
-
-            SystemLockGuard_.Release();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             ScheduleRestart(epochContext, ex);
         }
+
+        SwitchTo(epochContext->EpochControlInvoker);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+    }
+
+    bool TryAbandonExistingLease(const TEpochContextPtr& epochContext)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!DynamicOptions_.AbandonLeaderLeaseDuringRecovery) {
+            return false;
+        }
+
+        YT_LOG_INFO("Trying to abandon existing leader lease");
+
+        std::vector<TFuture<THydraServiceProxy::TRspAbandonLeaderLeasePtr>> futures;
+        const auto& cellManager = epochContext->CellManager;
+        for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
+            auto peerChannel = cellManager->GetPeerChannel(peerId);
+            if (!peerChannel) {
+                continue;
+            }
+
+            YT_LOG_INFO("Requesting peer to abandon existing leader lease (PeerId: %v)",
+                peerId);
+
+            THydraServiceProxy proxy(std::move(peerChannel));
+            auto req = proxy.AbandonLeaderLease();
+            req->SetTimeout(Config_->AbandonLeaderLeaseRequestTimeout);
+            req->set_peer_id(cellManager->GetSelfPeerId());
+            futures.push_back(req->Invoke());
+        }
+
+        auto rspsOrError = WaitFor(AllSet(futures));
+        if (!rspsOrError.IsOK()) {
+            YT_LOG_INFO(rspsOrError, "Failed to abandon existing leader lease");
+            return false;
+        }
+
+        const auto& rsps = rspsOrError.Value();
+        for (int peerId = 0; peerId < rsps.size(); ++peerId) {
+            const auto& rspOrError = rsps[peerId];
+            if (!rspOrError.IsOK()) {
+                YT_LOG_INFO(rspOrError, "Failed to abandon peer leader lease (PeerId: %v)",
+                    peerId);
+                continue;
+            }
+
+            const auto& rsp = rspOrError.Value();
+            if (rsp->abandoned()) {
+                YT_LOG_INFO("Previous leader lease abandoned by peer (PeerId: %v)",
+                    peerId);
+                return true;
+            }
+
+            YT_LOG_INFO("Peer did not have leader lease (PeerId: %v)",
+                peerId);
+        }
+
+        return false;
     }
 
     void OnElectionAlivePeerSetChanged(const TPeerIdSet& alivePeers)
@@ -1652,15 +1719,8 @@ private:
         auto epochContext = ControlEpochContext_;
 
         try {
-            SwitchTo(epochContext->EpochSystemAutomatonInvoker);
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-            auto asyncRecoveryResult = epochContext->FollowerRecovery->Run();
-            WaitFor(asyncRecoveryResult)
+            WaitFor(epochContext->FollowerRecovery->Run())
                 .ThrowOnError();
-
-            SwitchTo(epochContext->EpochControlInvoker);
-            VERIFY_THREAD_AFFINITY(ControlThread);
 
             YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
             ControlState_ = EPeerState::Following;
@@ -1672,24 +1732,24 @@ private:
             YT_LOG_INFO("Follower recovery completed");
 
             DecoratedAutomaton_->OnFollowerRecoveryComplete();
-            AutomatonFollowerRecoveryComplete_.Fire();
-
-            ApplyFinalRecoveryAction(false);
-
             FollowerRecovered_ = true;
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
             }
 
-            SwitchTo(epochContext->EpochControlInvoker);
-            VERIFY_THREAD_AFFINITY(ControlThread);
+            ApplyFinalRecoveryAction(false);
 
             SystemLockGuard_.Release();
+
+            AutomatonFollowerRecoveryComplete_.Fire();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Follower recovery failed, backing off");
             TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
             ScheduleRestart(epochContext, ex);
         }
+
+        SwitchTo(epochContext->EpochControlInvoker);
+        VERIFY_THREAD_AFFINITY(ControlThread);
     }
 
     void OnElectionStopFollowing(const TError& error)
@@ -1742,27 +1802,38 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto finalAction = DecoratedAutomaton_->GetFinalRecoveryAction();
+        if (finalAction == EFinalRecoveryAction::None) {
+            return;
+        }
+
         YT_LOG_INFO("Applying final recovery action (FinalRecoveryAction: %v)",
             finalAction);
 
         switch (finalAction) {
-            case EFinalRecoveryAction::None:
-                break;
-
             case EFinalRecoveryAction::BuildSnapshotAndRestart:
                 SetReadOnly(true);
+
                 if (isLeader || Options_.WriteSnapshotsAtFollowers) {
                     YT_LOG_INFO("Building compatibility snapshot");
-
                     DecoratedAutomaton_->RotateAutomatonVersionAfterRecovery();
                     auto resultOrError = WaitFor(DecoratedAutomaton_->BuildSnapshot());
-
-                    YT_LOG_INFO_IF(!resultOrError.IsOK(), resultOrError, "Error while compatibility snapshot construction");
+                    if (resultOrError.IsOK()) {
+                        const auto& result = resultOrError.Value();
+                        YT_LOG_INFO(resultOrError, "Compatibility snapshot built (SnapshotId: %v)",
+                            result.SnapshotId);
+                    } else {
+                        YT_LOG_WARNING(resultOrError, "Error building compatibility snapshot");
+                    }
                 }
-                YT_LOG_INFO("Stopping Hydra instance and wait for resurrection");
+
+                YT_LOG_INFO("Stopping Hydra instance and waiting for resurrection");
+
                 SwitchTo(ControlEpochContext_->EpochControlInvoker);
+                VERIFY_THREAD_AFFINITY(ControlThread);
+
                 WaitFor(Finalize())
                     .ThrowOnError();
+
                 // Unreachable because Finalize stops epoch executor.
                 YT_ABORT();
 
@@ -1856,10 +1927,9 @@ private:
 
         ResetControlEpochContext();
 
-        LeaderLease_->Invalidate();
-
         LeaderRecovered_ = false;
         FollowerRecovered_ = false;
+        GraceDelayStatus_ = EGraceDelayStatus::None;
 
         SystemLockGuard_.Release();
 

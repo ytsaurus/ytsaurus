@@ -58,7 +58,8 @@ struct TEpochContext
 
     TPeerId LeaderId = InvalidPeerId;
     TEpochId EpochId;
-    TCancelableContextPtr CancelableContext = New<TCancelableContext>();
+
+    TCancelableContextPtr CancelableContext;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)
@@ -236,9 +237,6 @@ public:
     bool IsBuildingSnapshotNow() const;
     int GetLastSuccessfulSnapshotId() const;
 
-    void SetLastLeadingSegmentId(int segmentId);
-    int GetLastLeadingSegmentId() const;
-
 private:
     friend class TUserLockGuard;
     friend class TSystemLockGuard;
@@ -292,8 +290,6 @@ private:
     std::atomic<bool> BuildingSnapshot_ = false;
     TInstant SnapshotBuildDeadline_ = TInstant::Max();
     std::atomic<int> LastSuccessfulSnapshotId_ = -1;
-
-    int LastLeadingSegmentId_ = -1;
 
     NProto::TMutationHeader MutationHeader_; // pooled instance
     TRingQueue<TPendingMutation> PendingMutations_;

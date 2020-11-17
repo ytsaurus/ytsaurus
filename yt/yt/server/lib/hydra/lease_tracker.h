@@ -22,23 +22,59 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ * Lease state transitions are as follows:
+ * NotAcquired -> Valid (with deadline) -> Abandonded -> NotAcquired -> ...
+ * Some intermediate states could be skipped.
+ *
+ * \note Thread affinity: Control (unless noted otherwise)
+ */
 class TLeaderLease
     : public TRefCounted
 {
 public:
+    //! Returns |true| if the lease range covers the current time instant.
+    /*!
+     *  Thread affinity: any
+     */
     bool IsValid() const;
-    void SetDeadline(NProfiling::TCpuInstant deadline);
-    void Invalidate();
+
+    //! Switches the lease to unacquired state.
+    void Restart();
+
+    //! If the lease was abandonded then does nothing.
+    //! Otherwise prolongs the lease range up to #deadline.
+    void Extend(NProfiling::TCpuInstant deadline);
+
+    //! If the lease is valid then returns |true| (and abandones it).
+    //! Otherwise returns |false|.
+    bool TryAbandon();
 
 private:
-    std::atomic<NProfiling::TCpuInstant> Deadline_ = 0;
+    static constexpr NProfiling::TCpuInstant NotAcquiredDeadline = 0;
+    static constexpr NProfiling::TCpuInstant AbandondedDeadline = 1;
+    std::atomic<NProfiling::TCpuInstant> Deadline_ = NotAcquiredDeadline;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLeaderLease)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ * Once created, starts executing a sequence of rounds.
+ * Each rounds sends out pings to all followers and collects responses.
+ * If a quorum of successful responses is received, the round considered successful as a whole.
+ * The local peer is not explicity pinged but is implicitly counted as a success.
+ * Non-voting peers are pinged but their responses are ignored for the purpose of quorum counting.
+ *
+ * Additionally, when #EnableTracking is called then round outcomes start affecting the lease as follows:
+ * on success, the lease is extended (see #TLeaderLease::Extend) appropriately;
+ * on failure, #LeaseLost signal is raised (and the lease remains intact).
+ *
+ * \note Thread affinity: Control
+ */
 class TLeaseTracker
     : public TRefCounted
 {
@@ -51,12 +87,18 @@ public:
         std::vector<TCallback<TFuture<void>()>> customLeaseCheckers,
         NLogging::TLogger logger);
 
-    void Start();
+    //! Activates the tracking mode.
+    void EnableTracking();
+
+    //! When invoked at instant |T|, returns a future that becomes set
+    //! when the first ping round started after |T| finishes
+    //! (either with success or error).
+    TFuture<void> GetNextQuorumFuture();
 
     void SetAlivePeers(const TPeerIdSet& alivePeers);
 
-    TFuture<void> GetLeaseAcquired();
-    TFuture<void> GetLeaseLost();
+    //! Raised when a lease check (issued in tracking mode) fails.
+    DECLARE_SIGNAL(void(const TError&), LeaseLost);
 
 private:
     class TFollowerPinger;
@@ -69,16 +111,17 @@ private:
     const NLogging::TLogger Logger;
 
     const NConcurrency::TPeriodicExecutorPtr LeaseCheckExecutor_;
-    
-    const TPromise<void> LeaseAcquired_ = NewPromise<void>();
-    const TPromise<void> LeaseLost_ = NewPromise<void>();
+
+    bool TrackingEnabled_ = false;
+    TPromise<void> NextCheckPromise_ = NewPromise<void>();
+    TSingleShotCallbackList<void(const TError&)> LeaseLost_;
 
     TPeerIdSet AlivePeers_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
     void OnLeaseCheck();
     TFuture<void> FireLeaseCheck();
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLeaseTracker)

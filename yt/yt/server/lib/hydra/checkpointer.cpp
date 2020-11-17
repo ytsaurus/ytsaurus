@@ -265,6 +265,12 @@ private:
             return;
         }
 
+        const auto& rsp = rspOrError.Value();
+        if (!rsp->rotated()) {
+            YT_LOG_INFO("Remote changelog rotation postponed by follower (PeerId: %v)", id);
+            return;
+        }
+
         YT_LOG_INFO("Remote changelog rotated by follower (PeerId: %v)", id);
 
         ++RemoteRotationSuccessCount_;
@@ -304,8 +310,6 @@ private:
 
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(
             BIND(&TSession::OnRotationSucceeded, MakeStrong(this)));
-
-        Owner_->DecoratedAutomaton_->SetLastLeadingSegmentId(Version_.SegmentId + 1);
 
         ChangelogPromise_.Set();
     }

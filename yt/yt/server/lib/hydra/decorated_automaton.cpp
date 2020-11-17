@@ -1463,20 +1463,6 @@ int TDecoratedAutomaton::GetLastSuccessfulSnapshotId() const
     return LastSuccessfulSnapshotId_.load();
 }
 
-void TDecoratedAutomaton::SetLastLeadingSegmentId(int segmentId)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    LastLeadingSegmentId_ = segmentId;
-}
-
-int TDecoratedAutomaton::GetLastLeadingSegmentId() const
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    return LastLeadingSegmentId_;
-}
-
 TReign TDecoratedAutomaton::GetCurrentReign() const
 {
     return Automaton_->GetCurrentReign();
