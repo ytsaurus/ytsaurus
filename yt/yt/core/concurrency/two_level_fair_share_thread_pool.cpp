@@ -12,6 +12,8 @@
 
 #include <util/generic/xrange.h>
 
+#include <util/system/yield.h>
+
 namespace NYT::NConcurrency {
 
 using namespace NProfiling;
@@ -153,46 +155,46 @@ public:
         Shutdown();
     }
 
-    size_t GetLowestEmptyPoolId()
-    {
-        size_t id = 0;
-        while (id < IdToPool_.size() && IdToPool_[id]) {
-            ++id;
-        }
-        return id;
-    }
-
     IInvokerPtr GetInvoker(const TString& poolName, double weight, const TFairShareThreadPoolTag& tag)
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        while (true) {
+            TGuard<TAdaptiveLock> guard(SpinLock_);
 
-        auto poolIt = NameToPoolId_.find(poolName);
-        if (poolIt == NameToPoolId_.end()) {
-            auto newPoolId = GetLowestEmptyPoolId();
+            auto poolIt = NameToPoolId_.find(poolName);
+            if (poolIt == NameToPoolId_.end()) {
+                auto newPoolId = GetLowestEmptyPoolId();
 
-            auto profiler = Profiler_.WithTags(GetBucketTags(true, ThreadNamePrefix_, poolName));
-            auto newPool = std::make_unique<TExecutionPool>(poolName, profiler);
-            if (newPoolId >= IdToPool_.size()) {
-                IdToPool_.emplace_back();
+                auto profiler = Profiler_.WithTags(GetBucketTags(true, ThreadNamePrefix_, poolName));
+                auto newPool = std::make_unique<TExecutionPool>(poolName, profiler);
+                if (newPoolId >= IdToPool_.size()) {
+                    IdToPool_.emplace_back();
+                }
+                IdToPool_[newPoolId] = std::move(newPool);
+                poolIt = NameToPoolId_.emplace(poolName, newPoolId).first;
             }
-            IdToPool_[newPoolId] = std::move(newPool);
-            poolIt = NameToPoolId_.emplace(poolName, newPoolId).first;
+
+            auto poolId = poolIt->second;
+            const auto& pool = IdToPool_[poolId];
+            pool->Weight = weight;
+
+            TBucketPtr bucket;
+            auto bucketIt = pool->TagToBucket.find(tag);
+            if (bucketIt == pool->TagToBucket.end()) {
+                bucket = New<TBucket>(poolId, tag, MakeWeak(this));
+                YT_VERIFY(pool->TagToBucket.emplace(tag, bucket.Get()).second);
+                pool->BucketCounter.Update(pool->TagToBucket.size());
+            } else {
+                bucket = DangerousGetPtr<TBucket>(bucketIt->second);
+                if (!bucket) {
+                    // Bucket is already being destroyed; backoff and retry.
+                    guard.Release();
+                    ThreadYield();
+                    continue;
+                }
+            }
+
+            return bucket;
         }
-
-        auto poolId = poolIt->second;
-        const auto& pool = IdToPool_[poolId];
-
-        pool->Weight = weight;
-        auto [bucketIt, bucketInserted] = pool->TagToBucket.emplace(tag, nullptr);
-
-        auto invoker = bucketIt->second.Lock();
-        if (!invoker) {
-            invoker = New<TBucket>(poolId, tag, MakeWeak(this));
-            bucketIt->second = invoker;
-        }
-
-        pool->BucketCounter.Update(pool->TagToBucket.size());
-        return invoker;
     }
 
     void Invoke(TClosure callback, TBucket* bucket)
@@ -233,10 +235,9 @@ public:
         auto& pool = IdToPool_[bucket->PoolId];
 
         auto it = pool->TagToBucket.find(bucket->Tag);
-        if (it != pool->TagToBucket.end() && it->second.IsExpired()) {
-            pool->TagToBucket.erase(it);
-        }
-
+        YT_VERIFY(it != pool->TagToBucket.end());
+        YT_VERIFY(it->second == bucket);
+        pool->TagToBucket.erase(it);
         pool->BucketCounter.Update(pool->TagToBucket.size());
 
         if (pool->TagToBucket.empty()) {
@@ -412,7 +413,7 @@ private:
 
         TCpuDuration ExcessTime = 0;
         std::vector<THeapItem> Heap;
-        THashMap<TFairShareThreadPoolTag, TWeakPtr<TBucket>> TagToBucket;
+        THashMap<TFairShareThreadPoolTag, TBucket*> TagToBucket;
     };
 
     TAdaptiveLock SpinLock_;
@@ -423,7 +424,18 @@ private:
     std::vector<TExecution> CurrentlyExecutingActionsByThread_;
 
     TRegistry Profiler_;
-    TString ThreadNamePrefix_;
+    const TString ThreadNamePrefix_;
+
+    size_t GetLowestEmptyPoolId()
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        size_t id = 0;
+        while (id < IdToPool_.size() && IdToPool_[id]) {
+            ++id;
+        }
+        return id;
+    }
 
     void AccountCurrentlyExecutingBuckets()
     {
@@ -488,12 +500,12 @@ private:
                         return;
                     }
                     builder->AppendFormat("[%v %v ", index, pool->ExcessTime);
-                    for (const auto& [tagId, weakBucket] : pool->TagToBucket) {
-                        if (auto bucket = weakBucket.Lock()) {
+                    for (const auto& [tagId, rawBucket] : pool->TagToBucket) {
+                        if (auto bucket = DangerousGetPtr<TBucket>(rawBucket)) {
                             auto excess = CpuDurationToDuration(bucket->ExcessTime).MilliSeconds();
                             builder->AppendFormat("(%v %v) ", tagId, excess);
                         } else {
-                            builder->AppendFormat("(%v *) ", tagId);
+                            builder->AppendFormat("(%v ?) ", tagId);
                         }
                     }
                     builder->AppendFormat("]");
