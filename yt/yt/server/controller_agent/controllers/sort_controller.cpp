@@ -1085,12 +1085,8 @@ protected:
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
-            auto stat = GetChunkPoolOutput()->GetApproximateStripeStatistics();
-            if (Controller_->SimpleSort && stat.size() > 1) {
-                stat = AggregateStatistics(stat);
-            } else {
-                YT_VERIFY(stat.size() == 1);
-            }
+            auto stat = AggregateStatistics(GetChunkPoolOutput()->GetApproximateStripeStatistics());
+            YT_VERIFY(stat.size() == 1);
             auto result = GetNeededResourcesForChunkStripe(stat.front());
             AddFootprintAndUserJobResources(result);
             return result;
