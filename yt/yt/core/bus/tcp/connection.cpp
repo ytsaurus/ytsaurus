@@ -113,7 +113,7 @@ void TTcpConnection::Close()
         }
 
         State_ = EState::Closed;
-        Pending_ = EPollControl::Offline;
+        PendingControl_.store(static_cast<ui64>(EPollControl::Offline));
     }
 
     DiscardOutcomingMessages(CloseError_);
@@ -136,8 +136,8 @@ void TTcpConnection::Close()
 
 void TTcpConnection::Start()
 {
-    // Offline in Pending_ prevents retrying events until end of Open().
-    YT_VERIFY(Any(Pending_ & EPollControl::Offline));
+    // Offline in PendingControl_ prevents retrying events until end of Open().
+    YT_VERIFY(Any(static_cast<EPollControl>(PendingControl_.load()) & EPollControl::Offline));
 
     Poller_->Register(this);
     TTcpDispatcher::TImpl::Get()->RegisterConnection(this);
@@ -178,7 +178,7 @@ void TTcpConnection::CheckLiveness()
             NBus::EErrorCode::TransportError,
             "Socket write stalled")
             << TErrorAttribute("timeout", Config_->WriteStallTimeout)
-            << TErrorAttribute("pending", Pending_));
+            << TErrorAttribute("pending_control", static_cast<EPollControl>(PendingControl_.load())));
         return;
     }
 
@@ -188,7 +188,7 @@ void TTcpConnection::CheckLiveness()
             NBus::EErrorCode::TransportError,
             "Socket read stalled")
             << TErrorAttribute("timeout", Config_->ReadStallTimeout)
-            << TErrorAttribute("pending", Pending_));
+            << TErrorAttribute("pending_control", static_cast<EPollControl>(PendingControl_.load())));
         return;
     }
 }
@@ -239,12 +239,12 @@ void TTcpConnection::Open()
     UpdateConnectionCount(1);
 
     // Go online and start event processing.
-    Pending_ &= ~EPollControl::Offline;
+    auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_and(~static_cast<ui64>(EPollControl::Offline)));
     Poller_->Arm(Socket_, this, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered);
 
-    // Something might be pending already, for example Terminate
-    if (Any(Pending_)) {
-        YT_LOG_TRACE("Retry event processing (Pending: %v)", Pending_);
+    // Something might be pending already, for example Terminate.
+    if (Any(previousPendingControl & ~EPollControl::Offline)) {
+        YT_LOG_TRACE("Retrying event processing for Open (PendingControl: %v)", previousPendingControl);
         Poller_->Retry(this);
     }
 }
@@ -338,7 +338,7 @@ void TTcpConnection::Abort(const TError& error)
 
         // Prevent starting new OnSocketRead/OnSocketWrite and Retry.
         // Already running will continue, Unregister will drain them.
-        Pending_ |= EPollControl::Shutdown;
+        PendingControl_.fetch_or(static_cast<ui64>(EPollControl::Shutdown));
     }
 
     // Construct a detailed error.
@@ -480,15 +480,10 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
     QueuedMessages_.Enqueue(queuedMessage);
 
     {
-        auto guard = Guard(Lock_);
-
-        if (!Any(Pending_ & EPollControl::Write)) {
-            Pending_ |= EPollControl::Write;
-            // Retry processing only if there is nothing in progress.
-            if (Pending_ == EPollControl::Write) {
-                YT_LOG_TRACE("Retry event processing for Send");
-                Poller_->Retry(this);
-            }
+        auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_or(static_cast<ui64>(EPollControl::Write)));
+        if (None(previousPendingControl)) {
+            YT_LOG_TRACE("Retrying event processing for Send");
+            Poller_->Retry(this);
         }
     }
 
@@ -519,9 +514,9 @@ void TTcpConnection::Terminate(const TError& error)
         State_ == EState::Aborted ||
         State_ == EState::Closed)
     {
-        YT_LOG_DEBUG("Connection is already terminated, termination request ignored (State: %v, Pending: %v, PendingOutPayloadBytes: %v)",
+        YT_LOG_DEBUG("Connection is already terminated, termination request ignored (State: %v, PendingControl: %v, PendingOutPayloadBytes: %v)",
             State_.load(),
-            Pending_,
+            static_cast<EPollControl>(PendingControl_.load()),
             PendingOutPayloadBytes_.load());
         return;
     }
@@ -533,10 +528,11 @@ void TTcpConnection::Terminate(const TError& error)
     CloseError_ = error;
 
     // Arm calling OnTerminate() from OnEvent().
-    Pending_ |= EPollControl::Terminate;
+    auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_or(static_cast<ui64>(EPollControl::Terminate)));
 
     // To recover from bogus state always retry processing unless socket is offline
-    if (None(Pending_ & EPollControl::Offline)) {
+    if (None(previousPendingControl & EPollControl::Offline)) {
+        YT_LOG_TRACE("Retrying event processing for Terminate (PendingControl: %v)", previousPendingControl);
         Poller_->Retry(this);
     }
 }
@@ -554,54 +550,61 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>&
 void TTcpConnection::OnEvent(EPollControl control)
 {
     EPollControl action;
-
     {
-        auto guard = Guard(Lock_);
+        auto rawPendingControl = PendingControl_.load(std::memory_order_acquire);
+        while (true) {
+            auto pendingControl = static_cast<EPollControl>(rawPendingControl);
+            // New events could come while previous handler is still running.
+            if (Any(pendingControl & (EPollControl::Running | EPollControl::Shutdown))) {
+                if (!PendingControl_.compare_exchange_weak(rawPendingControl, static_cast<ui64>(pendingControl | control))) {
+                    continue;
+                }
+                // CAS succeded, bail out.
+                YT_LOG_TRACE("Event handler is already running (PendingControl: %v)",
+                    pendingControl);
+                return;
+            }
 
-        // New events could come while previous handler is still running.
-        if (Any(Pending_ & (EPollControl::Running | EPollControl::Shutdown))) {
-            Pending_ |= control;
-            YT_LOG_TRACE("Event handler is already running (Pending: %v)",
-                Pending_);
-            return;
+            action = pendingControl | control;
+
+            // Clear Read/Write before operation. Consequent event will raise it
+            // back and retry handling. OnSocketRead() always consumes all backlog
+            // or aborts connection if something went wrong, othwewise if somehting
+            // left then handling should raise Read in PendingControl_ back.
+            if (!PendingControl_.compare_exchange_weak(rawPendingControl, static_cast<ui64>(EPollControl::Running))) {
+                continue;
+            }
+
+            // CAS succeded, bail out.
+            break;
         }
-
-        action = Pending_ | control;
-
-        // Clear Read/Write before operation. Consequent event will raise it
-        // back and retry handling. OnSocketRead() always consumes all backlog
-        // or aborts connection if something went wrong, othwewise if somehting
-        // left then handling should raise Read in Pending_ back.
-        Pending_ = EPollControl::Running;
     }
 
-    {
-        // OnEvent should never be called for an offline socket.
-        YT_VERIFY(None(action & EPollControl::Offline));
+    // OnEvent should never be called for an offline socket.
+    YT_VERIFY(None(action & EPollControl::Offline));
 
-        if (Any(action & EPollControl::Terminate)) {
-            OnTerminate();
-            // Leave Running flag set in Pending_ to drain further events and
-            // prevent Retry which could race with Unregister()/OnShutdown().
-            return;
-        }
-
-        YT_LOG_TRACE("Event processing started");
-
-        // NB: Try to read from the socket before writing into it to avoid
-        // getting SIGPIPE when the other party closes the connection.
-        if (Any(action & EPollControl::Read)) {
-            OnSocketRead();
-        }
-
-        if (State_ == EState::Open) {
-            ProcessQueuedMessages();
-            OnSocketWrite();
-        }
-
-        YT_LOG_TRACE("Event processing finished (HasUnsentData: %v)",
-            HasUnsentData());
+    if (Any(action & EPollControl::Terminate)) {
+        OnTerminate();
+        // Leave Running flag set in PendingControl_ to drain further events and
+        // prevent Retry which could race with Unregister()/OnShutdown().
+        return;
     }
+
+    YT_LOG_TRACE("Event processing started");
+
+    // NB: Try to read from the socket before writing into it to avoid
+    // getting SIGPIPE when the other party closes the connection.
+    if (Any(action & EPollControl::Read)) {
+        OnSocketRead();
+    }
+
+    if (State_ == EState::Open) {
+        ProcessQueuedMessages();
+        OnSocketWrite();
+    }
+
+    YT_LOG_TRACE("Event processing finished (HasUnsentData: %v)",
+        HasUnsentData());
 
     // Finaly, clear Running flag and recheck new pending events.
     //
@@ -613,10 +616,10 @@ void TTcpConnection::OnEvent(EPollControl control)
     // Do not retry processing if socket is already started shutdown sequence.
     // Retry request could be picked by thread which already passed draining.
     {
-        auto guard = Guard(Lock_);
-        Pending_ &= ~EPollControl::Running;
-        if (Any(Pending_) && None(Pending_ & EPollControl::Shutdown)) {
-            YT_LOG_TRACE("Retry event processing (Pending: %v)", Pending_);
+        auto previousPendingControl = static_cast<EPollControl>(PendingControl_.fetch_and(~static_cast<ui64>(EPollControl::Running)));
+        YT_ASSERT(Any(previousPendingControl & EPollControl::Running));
+        if (Any(previousPendingControl & ~EPollControl::Running) && None(previousPendingControl & EPollControl::Shutdown)) {
+            YT_LOG_TRACE("Retrying event processing for OnEvent (PendingControl: %v)", previousPendingControl);
             Poller_->Retry(this, false);
         }
     }
