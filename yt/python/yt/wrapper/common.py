@@ -117,16 +117,21 @@ def merge_dicts(*dicts):
 
 def merge_blobs_by_size(blobs, chunk_size):
     """Unite blobs into larger chunks."""
-    chunk = b""
+    chunks = []
+    total_size = 0
     try:
         for blob in blobs:
-            chunk += blob
-            if len(chunk) >= chunk_size:
-                yield chunk
-                chunk = b""
+            chunks.append(blob)
+            total_size += len(blob)
+            if total_size >= chunk_size:
+                yield b"".join(chunks)
+                chunks = []
+                total_size = 0
     finally:
-        if chunk:
-            yield chunk
+        if len(chunks) > 0:
+            yield b"".join(chunks)
+            chunks = []
+            total_size = 0
 
 def chunk_iter_list(lines, chunk_size):
     size = 0
