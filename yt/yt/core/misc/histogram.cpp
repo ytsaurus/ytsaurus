@@ -25,6 +25,8 @@ public:
 
     virtual void AddValue(i64 value, i64 count) override
     {
+        YT_VERIFY(value >= 0);
+
         Items_.emplace_back(TItem{value, count});
         ValueMin_ = std::min(ValueMin_, value);
         ValueMax_ = std::max(ValueMax_, value);
@@ -129,6 +131,7 @@ private:
         }
         View_.Min = ValueMin_ - BucketWidth_ * (MaxBuckets_ / 4);
         View_.Max = View_.Min + BucketWidth_ * MaxBuckets_;
+        View_.Min = std::max<i64>(View_.Min, 0);
         View_.Count.assign(MaxBuckets_, 0);
         for (const auto& item : Items_) {
             View_.Count[GetBucketIndex(item.Value)] += item.Count;
