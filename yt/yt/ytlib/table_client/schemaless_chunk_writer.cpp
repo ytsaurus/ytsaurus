@@ -1257,15 +1257,15 @@ private:
                 "Duplicate key %v",
                 leftBuilder.FinishRow().Get());
         } else {
-            if (Options_->ExplodeOnValidationError) {
-                YT_ABORT();
-            }
-
-            THROW_ERROR_EXCEPTION(
+            auto error = TError(
                 EErrorCode::SortOrderViolation,
-                "Sort order violation: %v > %v",
+                "Sort order violation %v > %v",
                 leftBuilder.FinishRow().Get(),
                 rightBuilder.FinishRow().Get());
+
+            YT_LOG_FATAL_IF(Options_->ExplodeOnValidationError, error);
+
+            THROW_ERROR_EXCEPTION(error);
         }
     }
 };
