@@ -21,6 +21,7 @@
 
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/ring_queue.h>
+#include <yt/core/misc/atomic_object.h>
 
 #include <yt/core/rpc/public.h>
 
@@ -60,6 +61,7 @@ struct TEpochContext
 
     TPeerId LeaderId = InvalidPeerId;
     TEpochId EpochId;
+    TAtomicObject<NElection::TPeerIdSet> AlivePeerIds;
 
     TCancelableContextPtr CancelableContext;
 };

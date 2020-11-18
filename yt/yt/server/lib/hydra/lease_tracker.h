@@ -95,8 +95,6 @@ public:
     //! (either with success or error).
     TFuture<void> GetNextQuorumFuture();
 
-    void SetAlivePeers(const TPeerIdSet& alivePeers);
-
     //! Raised when a lease check (issued in tracking mode) fails.
     DECLARE_SIGNAL(void(const TError&), LeaseLost);
 
@@ -115,8 +113,6 @@ private:
     bool TrackingEnabled_ = false;
     TPromise<void> NextCheckPromise_ = NewPromise<void>();
     TSingleShotCallbackList<void(const TError&)> LeaseLost_;
-
-    TPeerIdSet AlivePeers_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

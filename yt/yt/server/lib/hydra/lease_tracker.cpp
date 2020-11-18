@@ -106,13 +106,14 @@ private:
         auto committedVersion = decoratedAutomaton->GetState() == EPeerState::Leading
             ? std::make_optional(decoratedAutomaton->GetAutomatonVersion())
             : std::nullopt;
+        auto alivePeerIds = epochContext->AlivePeerIds.Load();
 
         YT_LOG_DEBUG("Sending ping to follower (FollowerId: %v, PingVersion: %v, CommittedVersion: %v, EpochId: %v, AlivePeerIds: %v)",
             followerId,
             pingVersion,
             committedVersion,
             epochContext->EpochId,
-            Owner_->AlivePeers_);
+            alivePeerIds);
 
         THydraServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
@@ -122,7 +123,7 @@ private:
         if (committedVersion) {
             req->set_committed_revision(committedVersion->ToRevision());
         }
-        for (auto peerId : Owner_->AlivePeers_) {
+        for (auto peerId : alivePeerIds) {
             req->add_alive_peer_ids(peerId);
         }
 
@@ -209,13 +210,6 @@ TLeaseTracker::TLeaseTracker(
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
 
     LeaseCheckExecutor_->Start();
-}
-
-void TLeaseTracker::SetAlivePeers(const TPeerIdSet& alivePeers)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    AlivePeers_ = alivePeers;
 }
 
 void TLeaseTracker::EnableTracking()

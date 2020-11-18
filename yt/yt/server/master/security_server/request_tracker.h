@@ -56,12 +56,13 @@ public:
     void DecreaseRequestQueueSize(TUser* user);
 
 private:
-    const NCellMaster::TBootstrap* Bootstrap_;
+    NCellMaster::TBootstrap* const Bootstrap_;
     const NDistributedThrottler::TDistributedThrottlerFactoryPtr ThrottlerFactory_;
 
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TRequestTracker::OnDynamicConfigChanged, MakeWeak(this));
 
+    NConcurrency::TPeriodicExecutorPtr AlivePeerCountExecutor_;
     int AlivePeerCount_ = 0;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -74,7 +75,7 @@ private:
     const TDynamicSecurityManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
     void ReconfigureUserThrottlers();
-    void OnAlivePeerSetChanged(const THashSet<NElection::TPeerId>& alivePeers);
+    void OnUpdateAlivePeerCount();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRequestTracker)
