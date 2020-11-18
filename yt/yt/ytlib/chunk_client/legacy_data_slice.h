@@ -13,7 +13,7 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInputDataSlice
+struct TLegacyDataSlice
     : public TRefCounted
 {
 public:
@@ -28,17 +28,17 @@ public:
     bool IsLegacy = true;
 
 public:
-    TInputDataSlice() = default;
+    TLegacyDataSlice() = default;
 
     // COMPAT(max42): Legacy.
-    TInputDataSlice(
+    TLegacyDataSlice(
         EDataSourceType type,
         TChunkSliceList chunkSlices,
         TLegacyInputSliceLimit lowerLimit = TLegacyInputSliceLimit(),
         TLegacyInputSliceLimit upperLimit = TLegacyInputSliceLimit(),
         std::optional<i64> tag = std::nullopt);
 
-    TInputDataSlice(
+    TLegacyDataSlice(
         EDataSourceType type,
         TChunkSliceList chunkSlices,
         TInputSliceLimit lowerLimit,
@@ -65,11 +65,11 @@ public:
     bool HasLimits() const;
 
     //! Copy some fields from the originating data slice.
-    void CopyPayloadFrom(const TInputDataSlice& dataSlice);
+    void CopyPayloadFrom(const TLegacyDataSlice& dataSlice);
 
     TInputChunkPtr GetSingleUnversionedChunkOrThrow() const;
 
-    std::pair<TInputDataSlicePtr, TInputDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
+    std::pair<TLegacyDataSlicePtr, TLegacyDataSlicePtr> SplitByRowIndex(i64 splitRow) const;
 
     void TransformToLegacy(const NTableClient::TRowBufferPtr& rowBuffer);
     void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, int keyLength);
@@ -88,56 +88,56 @@ public:
     std::optional<i64> VirtualRowIndex = std::nullopt;
 };
 
-DEFINE_REFCOUNTED_TYPE(TInputDataSlice)
+DEFINE_REFCOUNTED_TYPE(TLegacyDataSlice)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TInputDataSlicePtr& dataSlice);
+TString ToString(const TLegacyDataSlicePtr& dataSlice);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputDataSlicePtr CreateInputDataSlice(
+TLegacyDataSlicePtr CreateInputDataSlice(
     NChunkClient::EDataSourceType type,
     const std::vector<TInputChunkSlicePtr>& inputChunks,
     NTableClient::TLegacyKey lowerKey,
     NTableClient::TLegacyKey upperKey);
 
 //! Copy given input data slice. Suitable both for legacy and new data slices.
-TInputDataSlicePtr CreateInputDataSlice(const TInputDataSlicePtr& dataSlice);
+TLegacyDataSlicePtr CreateInputDataSlice(const TLegacyDataSlicePtr& dataSlice);
 
 //! Copy given input data slice, possibly restricting it to the given legacy key range.
-TInputDataSlicePtr CreateInputDataSlice(
-    const TInputDataSlicePtr& dataSlice,
+TLegacyDataSlicePtr CreateInputDataSlice(
+    const TLegacyDataSlicePtr& dataSlice,
     NTableClient::TLegacyKey lowerKey,
     NTableClient::TLegacyKey upperKey = NTableClient::TLegacyKey());
 
 //! Copy given input data slice, possible restricting it to the given key bounds.
-TInputDataSlicePtr CreateInputDataSlice(
-    const TInputDataSlicePtr& dataSlice,
+TLegacyDataSlicePtr CreateInputDataSlice(
+    const TLegacyDataSlicePtr& dataSlice,
     const NTableClient::TComparator& comparator,
     NTableClient::TKeyBound lowerKeyBound,
     NTableClient::TKeyBound upperKeyBound = NTableClient::TKeyBound::MakeUniversal(/* isUpper */ true));
 
-TInputDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice);
+TLegacyDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSlice);
 
-TInputDataSlicePtr CreateVersionedInputDataSlice(
+TLegacyDataSlicePtr CreateVersionedInputDataSlice(
     const std::vector<TInputChunkSlicePtr>& inputChunkSlices);
 
 // TODO(max42): stop infering limits each time you pass something into sorted chunk pool,
 // it is better to always infer them inside chunk pool.
 void InferLimitsFromBoundaryKeys(
-    const TInputDataSlicePtr& dataSlice,
+    const TLegacyDataSlicePtr& dataSlice,
     const NTableClient::TRowBufferPtr& rowBuffer,
     const NTableClient::TVirtualValueDirectoryPtr& virtualValueDirectory = nullptr);
 
-std::optional<TChunkId> IsUnavailable(const TInputDataSlicePtr& dataSlice, bool checkParityParts);
+std::optional<TChunkId> IsUnavailable(const TLegacyDataSlicePtr& dataSlice, bool checkParityParts);
 bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2);
-i64 GetCumulativeRowCount(const std::vector<TInputDataSlicePtr>& dataSlices);
-i64 GetCumulativeDataWeight(const std::vector<TInputDataSlicePtr>& dataSlices);
+i64 GetCumulativeRowCount(const std::vector<TLegacyDataSlicePtr>& dataSlices);
+i64 GetCumulativeDataWeight(const std::vector<TLegacyDataSlicePtr>& dataSlices);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(
+std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(
     const std::vector<TInputChunkSlicePtr>& chunkSlices);
 
 ////////////////////////////////////////////////////////////////////////////////

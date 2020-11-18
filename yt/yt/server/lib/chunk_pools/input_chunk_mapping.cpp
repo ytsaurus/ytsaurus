@@ -2,7 +2,7 @@
 
 #include "chunk_stripe.h"
 
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -53,17 +53,17 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
                     auto chunkSlice = CreateInputChunkSlice(substituteChunk);
                     chunkSlice->LegacyLowerLimit() = dataSlice->ChunkSlices[0]->LegacyLowerLimit();
                     chunkSlice->LegacyUpperLimit() = dataSlice->ChunkSlices[0]->LegacyUpperLimit();
-                    mappedStripe->DataSlices.emplace_back(New<TInputDataSlice>(
-                        dataSlice->Type,
-                        TInputDataSlice::TChunkSliceList{std::move(chunkSlice)},
-                        dataSlice->LegacyLowerLimit(),
-                        dataSlice->LegacyUpperLimit()));
+                    mappedStripe->DataSlices.emplace_back(New<TLegacyDataSlice>(
+                            dataSlice->Type,
+                            TLegacyDataSlice::TChunkSliceList{std::move(chunkSlice)},
+                            dataSlice->LegacyLowerLimit(),
+                            dataSlice->LegacyUpperLimit()));
                     mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
                 } else {
                     for (const auto& substituteChunk : substitutes) {
-                        mappedStripe->DataSlices.emplace_back(New<TInputDataSlice>(
-                            dataSlice->Type,
-                            TInputDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)} ));
+                        mappedStripe->DataSlices.emplace_back(New<TLegacyDataSlice>(
+                                dataSlice->Type,
+                                TLegacyDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)} ));
                         mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
                     }
                 }

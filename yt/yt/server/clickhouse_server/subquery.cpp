@@ -24,7 +24,7 @@
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/chunk_spec_fetcher.h>
@@ -166,7 +166,7 @@ private:
     std::vector<TChunkStripePtr> ResultStripes_;
 
     // Table index to input data slices.
-    std::vector<std::vector<TInputDataSlicePtr>> InputDataSlices_;
+    std::vector<std::vector<TLegacyDataSlicePtr>> InputDataSlices_;
 
     std::vector<TTableReadSpec> TableReadSpecs_;
 
@@ -204,7 +204,7 @@ private:
         for (auto& stripe : ResultStripes_) {
             auto& dataSlices = stripe->DataSlices;
 
-            auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TInputDataSlicePtr& dataSlice) {
+            auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TLegacyDataSlicePtr& dataSlice) {
                 if (!dataSlice->LegacyLowerLimit().Key && !dataSlice->LegacyUpperLimit().Key) {
                     return false;
                 }

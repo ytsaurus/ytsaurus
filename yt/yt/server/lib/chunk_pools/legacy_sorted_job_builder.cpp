@@ -50,7 +50,7 @@ public:
         , Logger(logger)
     { }
 
-    virtual void AddForeignDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
+    virtual void AddForeignDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
     {
         DataSliceToInputCookie_[dataSlice] = cookie;
 
@@ -89,7 +89,7 @@ public:
         Endpoints_.emplace_back(rightEndpoint);
     }
 
-    virtual void AddPrimaryDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
+    virtual void AddPrimaryDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
     {
         if (dataSlice->LegacyLowerLimit().Key >= dataSlice->LegacyUpperLimit().Key) {
             // This can happen if ranges were specified.
@@ -217,7 +217,7 @@ private:
     struct TEndpoint
     {
         EEndpointType Type;
-        TInputDataSlicePtr DataSlice;
+        TLegacyDataSlicePtr DataSlice;
         TLegacyKey Key;
         i64 RowIndex;
     };
@@ -233,9 +233,9 @@ private:
 
     //! Stores correspondence between primary data slices added via `AddPrimaryDataSlice`
     //! (both unversioned and versioned) and their input cookies.
-    THashMap<TInputDataSlicePtr, IChunkPoolInput::TCookie> DataSliceToInputCookie_;
+    THashMap<TLegacyDataSlicePtr, IChunkPoolInput::TCookie> DataSliceToInputCookie_;
 
-    std::vector<std::vector<TInputDataSlicePtr>> ForeignDataSlices_;
+    std::vector<std::vector<TLegacyDataSlicePtr>> ForeignDataSlices_;
 
     //! Stores the number of slices in all jobs up to current moment.
     i64 TotalSliceCount_ = 0;
@@ -361,7 +361,7 @@ private:
 
         Jobs_.emplace_back(std::make_unique<TJobStub>());
 
-        THashMap<TInputDataSlicePtr, TLegacyKey> openedSlicesLowerLimits;
+        THashMap<TLegacyDataSlicePtr, TLegacyKey> openedSlicesLowerLimits;
 
         auto yielder = CreatePeriodicYielder();
 

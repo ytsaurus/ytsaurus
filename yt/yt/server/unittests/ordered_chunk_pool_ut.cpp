@@ -10,7 +10,7 @@
 #include <yt/server/lib/chunk_pools/output_order.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/client/table_client/row_buffer.h>
 
@@ -131,7 +131,7 @@ protected:
             }));
     }
 
-    TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
+    TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->Tag = chunk->ChunkId().Parts64[0] ^ chunk->ChunkId().Parts64[1];
@@ -148,7 +148,7 @@ protected:
 
     IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
     {
-        std::vector<TInputDataSlicePtr> dataSlices;
+        std::vector<TLegacyDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
             auto dataSlice = BuildDataSliceByChunk(chunk);
             dataSlices.emplace_back(std::move(dataSlice));

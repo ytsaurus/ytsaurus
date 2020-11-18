@@ -9,7 +9,7 @@
 
 #include <yt/server/lib/scheduler/structs.h>
 
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 

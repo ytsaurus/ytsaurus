@@ -21,7 +21,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
@@ -396,7 +396,7 @@ protected:
         }
     }
 
-    TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
+    TChunkStripePtr CreateChunkStripe(TLegacyDataSlicePtr dataSlice)
     {
         auto chunkStripe = New<TChunkStripe>(InputTables_[dataSlice->GetTableIndex()]->IsForeign());
         chunkStripe->DataSlices.emplace_back(std::move(dataSlice));

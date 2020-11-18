@@ -19,7 +19,7 @@
 #include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 

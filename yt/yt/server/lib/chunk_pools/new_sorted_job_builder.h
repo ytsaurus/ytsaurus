@@ -17,7 +17,7 @@ namespace NYT::NChunkPools {
 struct INewSortedJobBuilder
     : public TRefCounted
 {
-    virtual void AddDataSlice(const NChunkClient::TInputDataSlicePtr& dataSlice) = 0;
+    virtual void AddDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice) = 0;
     virtual std::vector<std::unique_ptr<TJobStub>> Build() = 0;
     virtual i64 GetTotalDataSliceCount() const = 0;
 };

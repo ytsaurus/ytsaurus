@@ -3,7 +3,7 @@
 #include <yt/server/lib/controller_agent/progress_counter.h>
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 namespace NYT::NChunkPools {
 
@@ -14,7 +14,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobStub::AddDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie, bool isPrimary)
+void TJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie, bool isPrimary)
 {
     if (dataSlice->IsEmpty()) {
         return;
@@ -46,7 +46,7 @@ void TJobStub::AddDataSlice(const TInputDataSlicePtr& dataSlice, IChunkPoolInput
     }
 }
 
-void TJobStub::AddPreliminaryForeignDataSlice(const TInputDataSlicePtr& dataSlice)
+void TJobStub::AddPreliminaryForeignDataSlice(const TLegacyDataSlicePtr& dataSlice)
 {
     PreliminaryForeignDataWeight_ += dataSlice->GetDataWeight();
     PreliminaryForeignRowCount_ += dataSlice->GetRowCount();
@@ -65,7 +65,7 @@ void TJobStub::Finalize(bool sortByPosition)
             // are not only sorted by key, but additionally by their position
             // in the original table.
 
-            auto lessThan = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+            auto lessThan = [] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
                 if (lhs->LegacyUpperLimit().Key <= rhs->LegacyLowerLimit().Key) {
                     return true;
                 }
@@ -83,7 +83,7 @@ void TJobStub::Finalize(bool sortByPosition)
             std::sort(
                 stripe->DataSlices.begin(),
                 stripe->DataSlices.end(),
-                [&] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+                [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
                     // Compare slice with itself.
                     if (lhs.Get() == rhs.Get()) {
                         return false;
@@ -528,10 +528,10 @@ void TJobManager::Invalidate(IChunkPoolInput::TCookie inputCookie)
     job.Invalidate();
 }
 
-std::vector<TInputDataSlicePtr> TJobManager::ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
+std::vector<TLegacyDataSlicePtr> TJobManager::ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
 {
     YT_VERIFY(0 <= inputCookie && inputCookie < Jobs_.size());
-    std::vector<TInputDataSlicePtr> foreignSlices;
+    std::vector<TLegacyDataSlicePtr> foreignSlices;
     for (const auto& stripe : Jobs_[inputCookie].StripeList()->Stripes) {
         if (stripe->Foreign) {
             std::move(stripe->DataSlices.begin(), stripe->DataSlices.end(), std::back_inserter(foreignSlices));

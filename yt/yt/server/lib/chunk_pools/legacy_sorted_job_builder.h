@@ -18,10 +18,10 @@ struct ILegacySortedJobBuilder
     : public TRefCounted
 {
     virtual void AddForeignDataSlice(
-        const NChunkClient::TInputDataSlicePtr& dataSlice,
+        const NChunkClient::TLegacyDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie) = 0;
     virtual void AddPrimaryDataSlice(
-        const NChunkClient::TInputDataSlicePtr& dataSlice,
+        const NChunkClient::TLegacyDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie) = 0;
     virtual std::vector<std::unique_ptr<TJobStub>> Build() = 0;
     virtual i64 GetTotalDataSliceCount() const = 0;

@@ -33,7 +33,7 @@ struct TAggregatedStatistics
     i64 DataWeight = 0;
     i64 PrimaryDataWeight = 0;
 
-    static TAggregatedStatistics FromDataSlice(const TInputDataSlicePtr& dataSlice, bool isPrimary)
+    static TAggregatedStatistics FromDataSlice(const TLegacyDataSlicePtr& dataSlice, bool isPrimary)
     {
         return {
             .DataSliceCount = 1,
@@ -104,7 +104,7 @@ TString ToString(const TAggregatedStatistics& statistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetDataSliceDebugString(const TInputDataSlicePtr& dataSlice)
+TString GetDataSliceDebugString(const TLegacyDataSlicePtr& dataSlice)
 {
     std::vector<TChunkId> chunkIds;
     chunkIds.reserve(dataSlice->ChunkSlices.size());
@@ -290,7 +290,7 @@ public:
     }
 
     //! Put new data slice. It must be true that dataSlice.LowerBound == UpperBound_.Invert().
-    void Put(const TInputDataSlicePtr& dataSlice, bool isPrimary)
+    void Put(const TLegacyDataSlicePtr& dataSlice, bool isPrimary)
     {
         YT_VERIFY(dataSlice->Tag);
         YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());
@@ -390,7 +390,7 @@ public:
         }
     }
 
-    using TJob = std::vector<TInputDataSlicePtr>;
+    using TJob = std::vector<TLegacyDataSlicePtr>;
 
     std::vector<TJob>& PreparedJobs()
     {
@@ -437,9 +437,9 @@ private:
     struct TPrimaryDomain
     {
         TAggregatedStatistics Statistics;
-        TRingQueue<TInputDataSlicePtr> DataSlices = TRingQueue<TInputDataSlicePtr>();
+        TRingQueue<TLegacyDataSlicePtr> DataSlices = TRingQueue<TLegacyDataSlicePtr>();
 
-        void AddDataSlice(TInputDataSlicePtr dataSlice)
+        void AddDataSlice(TLegacyDataSlicePtr dataSlice)
         {
             Statistics += TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ true);
             DataSlices.push(std::move(dataSlice));
@@ -458,8 +458,8 @@ private:
         TAggregatedStatistics Statistics;
 
         //! Priority queue of data slices using upper key bound as priority.
-        std::vector<TInputDataSlicePtr> DataSlices;
-        std::function<bool(const TInputDataSlicePtr&, const TInputDataSlicePtr&)> DataSliceUpperBoundComparator;
+        std::vector<TLegacyDataSlicePtr> DataSlices;
+        std::function<bool(const TLegacyDataSlicePtr&, const TLegacyDataSlicePtr&)> DataSliceUpperBoundComparator;
 
         TForeignDomain(const TComparator& foreignComparator)
             : DataSliceUpperBoundComparator([&foreignComparator] (const auto& lhs, const auto& rhs) {
@@ -467,7 +467,7 @@ private:
             })
         { }
 
-        void AddDataSlice(TInputDataSlicePtr dataSlice)
+        void AddDataSlice(TLegacyDataSlicePtr dataSlice)
         {
             Statistics += TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ false);
             DataSlices.emplace_back(std::move(dataSlice));
@@ -478,7 +478,7 @@ private:
     TEnumIndexedVector<EDomainKind, TPrimaryDomain> PrimaryDomains_;
     TForeignDomain ForeignDomain_;
 
-    void PutToDomain(EDomainKind domain, const TInputDataSlicePtr& dataSlice)
+    void PutToDomain(EDomainKind domain, const TLegacyDataSlicePtr& dataSlice)
     {
         bool isPrimary = domain != EDomainKind::Foreign;
         if (isPrimary) {
@@ -875,7 +875,7 @@ public:
         AddTeleportChunkEndpoints(teleportChunks);
     }
 
-    virtual void AddDataSlice(const TInputDataSlicePtr& dataSlice) override
+    virtual void AddDataSlice(const TLegacyDataSlicePtr& dataSlice) override
     {
         YT_VERIFY(!dataSlice->IsLegacy);
         auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
@@ -969,7 +969,7 @@ private:
     struct TEndpoint
     {
         ENewEndpointType Type;
-        TInputDataSlicePtr DataSlice;
+        TLegacyDataSlicePtr DataSlice;
         TKeyBound KeyBound;
     };
 
@@ -1070,7 +1070,7 @@ private:
             : JobSizeConstraints_->GetPrimaryDataWeightPerJob();
     }
 
-    void AddJob(std::vector<TInputDataSlicePtr>& dataSlices)
+    void AddJob(std::vector<TLegacyDataSlicePtr>& dataSlices)
     {
         auto& job = Jobs_.emplace_back(std::make_unique<TJobStub>());
 
