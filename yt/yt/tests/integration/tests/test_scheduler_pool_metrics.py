@@ -90,6 +90,8 @@ class TestPoolMetrics(YTEnvSetup):
 
     @authors("ignat")
     def test_map(self):
+        pytest.skip("this test is broken")
+
         create_pool("parent")
         create_pool("child1", parent_name="parent")
         create_pool("child2", parent_name="parent")
