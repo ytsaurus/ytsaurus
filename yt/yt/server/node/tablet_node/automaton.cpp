@@ -38,8 +38,7 @@ TTabletAutomaton::TTabletAutomaton(
     IInvokerPtr snapshotInvoker)
     : TCompositeAutomaton(
         snapshotInvoker,
-        slot->GetCellId(),
-        slot->GetProfilingTagIds())
+        slot->GetCellId())
 { }
 
 std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(

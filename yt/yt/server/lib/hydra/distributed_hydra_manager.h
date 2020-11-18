@@ -20,7 +20,6 @@ struct TDistributedHydraManagerOptions
     bool WriteChangelogsAtFollowers = true;
     bool WriteSnapshotsAtFollowers = true;
     NRpc::TResponseKeeperPtr ResponseKeeper;
-    NProfiling::TTagIdList ProfilingTagIds;
 };
 
 struct TDistributedHydraManagerDynamicOptions

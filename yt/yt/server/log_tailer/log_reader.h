@@ -46,8 +46,6 @@ public:
 
     void OnTermination();
 
-    void OnProfiling();
-
     i64 GetTotalBytesRead() const;
 
 private:
@@ -76,15 +74,14 @@ private:
 
     TInstant LastLogReadTime_;
 
-    NProfiling::TProfiler Profiler_;
-
-    i64 TotalBytesWritten_ = 0;
-    i64 TotalRowsWritten_ = 0;
-    i64 TotalWriteErrors_ = 0;
-    i64 TotalUnparsedRows_ = 0;
-    i64 TotalTrimmedRows_ = 0;
-    i64 TotalTrimmedBytes_ = 0;
-    std::optional<TInstant> EarliestRecordTimestamp_;
+    NProfiling::TCounter TotalBytesWritten_;
+    NProfiling::TCounter TotalRowsWritten_;
+    NProfiling::TCounter TotalWriteErrors_;
+    NProfiling::TCounter TotalUnparsedRows_;
+    NProfiling::TCounter TotalTrimmedRows_;
+    NProfiling::TCounter TotalTrimmedBytes_;
+    NProfiling::TGauge RecordBufferSize_;
+    NProfiling::TEventTimer WriteLag_;
 
     void DoReadLog();
     void DoOpenLogFile();

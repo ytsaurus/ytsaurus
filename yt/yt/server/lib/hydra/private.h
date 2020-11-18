@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/lazy_ptr.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +32,7 @@ DECLARE_REFCOUNTED_CLASS(TStateHashChecker)
 extern const TString SnapshotExtension;
 extern const TString ChangelogExtension;
 extern const TString ChangelogIndexExtension;
-extern const NProfiling::TProfiler HydraProfiler;
+extern const NProfiling::TRegistry HydraProfiler;
 
 IInvokerPtr GetHydraIOInvoker();
 void ShutdownHydraIOInvoker();

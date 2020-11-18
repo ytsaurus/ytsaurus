@@ -6,6 +6,7 @@
 #include "transaction_replication_session.h"
 #include "transaction.h"
 #include "transaction_proxy.h"
+#include "yt/server/lib/transaction_server/private.h"
 
 #include <yt/server/master/cell_master/automaton.h>
 #include <yt/server/master/cell_master/bootstrap.h>
@@ -149,10 +150,13 @@ public:
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TransactionManager)
         , TransactionPresenceCache_(New<TTransactionPresenceCache>(Bootstrap_))
         , BoomerangTracker_(New<TBoomerangTracker>(Bootstrap_))
+        , BufferedProducer_(New<TBufferedProducer>())
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(),
             TransactionServerLogger))
     {
+        TransactionServerProfiler.AddProducer("", BufferedProducer_);
+
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(), TrackerThread);
 
@@ -1087,7 +1091,7 @@ private:
 
     const TBoomerangTrackerPtr BoomerangTracker_;
 
-    NProfiling::TProfiler Profiler = TransactionServerProfiler;
+    NProfiling::TBufferedProducerPtr BufferedProducer_;
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     const TTransactionLeaseTrackerPtr LeaseTracker_;
@@ -1645,14 +1649,14 @@ private:
     {
         TMasterAutomatonPart::OnRecoveryStarted();
 
-        Profiler.SetEnabled(false);
+        BufferedProducer_->SetEnabled(false);
     }
 
     virtual void OnRecoveryComplete() override
     {
         TMasterAutomatonPart::OnRecoveryComplete();
 
-        Profiler.SetEnabled(true);
+        BufferedProducer_->SetEnabled(true);
     }
 
     void CreateLease(TTransaction* transaction)
@@ -1696,9 +1700,13 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (TransactionPresenceCache_) {
-            Profiler.Enqueue("/cached_replicated_transaction_count", TransactionPresenceCache_->GetReplicatedTransactionCount(), EMetricType::Gauge);
-            Profiler.Enqueue("/cached_recently_finished_transaction_count", TransactionPresenceCache_->GetRecentlyFinishedTransactionCount(), EMetricType::Gauge);
-            Profiler.Enqueue("/subscribed_remote_transaction_replication_count", TransactionPresenceCache_->GetSubscribedRemoteTransactionReplicationCount(), EMetricType::Gauge);
+            TSensorBuffer buffer;
+
+            buffer.AddGauge("/cached_replicated_transaction_count", TransactionPresenceCache_->GetReplicatedTransactionCount());
+            buffer.AddGauge("/cached_recently_finished_transaction_count", TransactionPresenceCache_->GetRecentlyFinishedTransactionCount());
+            buffer.AddGauge("/subscribed_remote_transaction_replication_count", TransactionPresenceCache_->GetSubscribedRemoteTransactionReplicationCount());
+
+            BufferedProducer_->Update(std::move(buffer));
         }
     }
 

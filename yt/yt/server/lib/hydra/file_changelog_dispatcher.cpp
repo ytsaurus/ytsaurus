@@ -3,6 +3,7 @@
 #include "changelog.h"
 #include "config.h"
 #include "sync_file_changelog.h"
+#include "yt/library/profiling/sensor.h"
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -34,13 +35,16 @@ class TFileChangelogQueue
 public:
     explicit TFileChangelogQueue(
         TSyncFileChangelogPtr changelog,
-        const TProfiler& profiler,
+        const TRegistry& profiler,
         const IInvokerPtr& invoker)
         : Changelog_(std::move(changelog))
         , Profiler(profiler)
         , Invoker_(NConcurrency::CreateBoundedConcurrencyInvoker(invoker, 1))
         , ProcessQueueCallback_(BIND(&TFileChangelogQueue::Process, MakeWeak(this)))
         , FlushedRecordCount_(Changelog_->GetRecordCount())
+        , ChangelogReadIOTimer_(profiler.Timer("/changelog_read_io_time"))
+        , ChangelogReadCopyTimer_(profiler.Timer("/changelog_read_copy_time"))
+        , ChangelogFlushIOTimer_(profiler.Timer("/changelog_flush_io_time"))
     { }
 
     ~TFileChangelogQueue()
@@ -148,11 +152,10 @@ public:
                 // Read from disk, w/o spinlock.
                 guard.Release();
 
-                PROFILE_AGGREGATED_TIMING(ChangelogReadIOTimeGauge_) {
-                    auto diskRecords = Changelog_->Read(currentRecordId, needRecords, needBytes);
-                    for (const auto& record : diskRecords) {
-                        appendRecord(record);
-                    }
+                TEventTimerGuard guard(ChangelogReadIOTimer_);
+                auto diskRecords = Changelog_->Read(currentRecordId, needRecords, needBytes);
+                for (const auto& record : diskRecords) {
+                    appendRecord(record);
                 }
             } else {
                 // Read from memory, w/ spinlock.
@@ -167,10 +170,9 @@ public:
                     }
                 };
 
-                PROFILE_AGGREGATED_TIMING(ChangelogReadCopyTimeGauge_) {
-                    readFromMemory(FlushQueue_, FlushedRecordCount_);
-                    readFromMemory(AppendQueue_, FlushedRecordCount_ + FlushQueue_.size());
-                }
+                TEventTimerGuard guard(ChangelogReadCopyTimer_);
+                readFromMemory(FlushQueue_, FlushedRecordCount_);
+                readFromMemory(AppendQueue_, FlushedRecordCount_ + FlushQueue_.size());
 
                 // Break since we don't except more records beyond this point.
                 break;
@@ -207,7 +209,7 @@ public:
 
 private:
     const TSyncFileChangelogPtr Changelog_;
-    const TProfiler Profiler;
+    const TRegistry Profiler;
     const IInvokerPtr Invoker_;
     const TClosure ProcessQueueCallback_;
 
@@ -228,9 +230,9 @@ private:
     std::atomic<NProfiling::TCpuInstant> LastFlushed_ = 0;
     std::atomic<bool> ProcessQueueCallbackPending_ = false;
 
-    TShardedAggregateGauge ChangelogReadIOTimeGauge_{"/changelog_read_io_time"};
-    TShardedAggregateGauge ChangelogReadCopyTimeGauge_{"/changelog_read_copy_time"};
-    TShardedAggregateGauge ChangelogFlushIOTimeGauge_{"/changelog_flush_io_time"};
+    TEventTimer ChangelogReadIOTimer_;
+    TEventTimer ChangelogReadCopyTimer_;
+    TEventTimer ChangelogFlushIOTimer_;
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
@@ -253,14 +255,13 @@ private:
 
         TError error;
         if (!FlushQueue_.empty()) {
-            PROFILE_AGGREGATED_TIMING(ChangelogFlushIOTimeGauge_) {
-                try {
-                    Changelog_->Append(FlushedRecordCount_, FlushQueue_);
-                    Changelog_->Flush();
-                    LastFlushed_.store(NProfiling::GetCpuInstant());
-                } catch (const std::exception& ex) {
-                    error = ex;
-                }
+            TEventTimerGuard guard(ChangelogFlushIOTimer_);
+            try {
+                Changelog_->Append(FlushedRecordCount_, FlushQueue_);
+                Changelog_->Flush();
+                LastFlushed_.store(NProfiling::GetCpuInstant());
+            } catch (const std::exception& ex) {
+                error = ex;
             }
         }
 
@@ -286,7 +287,7 @@ public:
         const NChunkClient::IIOEnginePtr& ioEngine,
         const TFileChangelogDispatcherConfigPtr config,
         const TString& threadName,
-        const TProfiler& profiler)
+        const TRegistry& profiler)
         : IOEngine_(ioEngine)
         , Config_(config)
         , ProcessQueuesCallback_(BIND(&TImpl::ProcessQueues, MakeWeak(this)))
@@ -296,6 +297,14 @@ public:
             ProcessQueuesCallback_,
             Config_->FlushQuantum))
         , Profiler(profiler)
+        , RecordCounter_(profiler.Counter("/records"))
+        , ByteCounter_(profiler.Counter("/bytes"))
+        , QueueCountGauge_(profiler.Gauge("/queue_count"))
+        , ChangelogTruncateIOTimer_(profiler.Timer("/changelog_truncate_io_time"))
+        , ChangelogCloseIOTimer_(profiler.Timer("/changelog_close_io_time"))
+        , ChangelogPreallocateIOTimer_(profiler.Timer("/changelog_preallocate_io_time"))
+        , ChangelogReadRecordCountGauge_(profiler.Gauge("/changelog_read_record_count"))
+        , ChangelogReadSizeGauge_(profiler.Gauge("/changelog_read_size"))
     {
         PeriodicExecutor_->Start();
     }
@@ -335,8 +344,8 @@ public:
     {
         auto result = queue->AsyncAppend(records, byteSize);
         queue->Wakeup();
-        Profiler.Increment(RecordCounter_, records.Size());
-        Profiler.Increment(ByteCounter_, byteSize);
+        RecordCounter_.Increment(records.Size());
+        RecordCounter_.Increment(byteSize);
         return result;
     }
 
@@ -406,18 +415,18 @@ private:
     const TActionQueuePtr ActionQueue_;
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
-    const TProfiler Profiler;
+    const TRegistry Profiler;
 
     THashSet<TFileChangelogQueuePtr> Queues_;
 
-    TShardedMonotonicCounter RecordCounter_{"/records"};
-    TShardedMonotonicCounter ByteCounter_{"/bytes"};
-    TAtomicGauge QueueCountGauge_{"/queue_count"};
-    TShardedAggregateGauge ChangelogTruncateIOTimeGauge_{"/changelog_truncate_io_time"};
-    TShardedAggregateGauge ChangelogCloseIOTimeGauge_{"/changelog_close_io_time"};
-    TShardedAggregateGauge ChangelogPreallocateIOTimeGauge_{"/changelog_preallocate_io_time"};
-    TShardedAggregateGauge ChangelogReadRecordCountGauge_{"/changelog_read_record_count"};
-    TShardedAggregateGauge ChangelogReadSizeGauge_{"/changelog_read_size"};
+    TCounter RecordCounter_;
+    TCounter ByteCounter_;
+    TGauge QueueCountGauge_;
+    TEventTimer ChangelogTruncateIOTimer_;
+    TEventTimer ChangelogCloseIOTimer_;
+    TEventTimer ChangelogPreallocateIOTimer_;
+    TGauge ChangelogReadRecordCountGauge_;
+    TGauge ChangelogReadSizeGauge_;
 
     void ProcessQueues()
     {
@@ -450,7 +459,7 @@ private:
 
     void ProfileQueues()
     {
-        Profiler.Update(QueueCountGauge_, Queues_.size());
+        QueueCountGauge_.Update(Queues_.size());
     }
 
     std::vector<TSharedRef> DoRead(
@@ -460,8 +469,8 @@ private:
         i64 maxBytes)
     {
         auto records = queue->Read(firstRecordId, maxRecords, maxBytes);
-        Profiler.Update(ChangelogReadRecordCountGauge_, records.size());
-        Profiler.Update(ChangelogReadSizeGauge_, GetByteSize(records));
+        ChangelogReadRecordCountGauge_.Update(records.size());
+        ChangelogReadSizeGauge_.Update(GetByteSize(records));
         return records;
     }
 
@@ -470,28 +479,27 @@ private:
         int recordCount)
     {
         YT_VERIFY(!queue->HasUnflushedRecords());
-        PROFILE_AGGREGATED_TIMING(ChangelogTruncateIOTimeGauge_) {
-            const auto& changelog = queue->GetChangelog();
-            changelog->Truncate(recordCount);
-        }
+
+        TEventTimerGuard guard(ChangelogTruncateIOTimer_);
+        const auto& changelog = queue->GetChangelog();
+        changelog->Truncate(recordCount);
     }
 
     void DoClose(const TFileChangelogQueuePtr& queue)
     {
         YT_VERIFY(!queue->HasUnflushedRecords());
-        PROFILE_AGGREGATED_TIMING(ChangelogCloseIOTimeGauge_) {
-            const auto& changelog = queue->GetChangelog();
-            changelog->Close();
-        }
+
+        TEventTimerGuard guard(ChangelogCloseIOTimer_);
+        const auto& changelog = queue->GetChangelog();
+        changelog->Close();
     }
 
     void DoPreallocate(const TFileChangelogQueuePtr& queue, size_t size)
     {
         YT_VERIFY(!queue->HasUnflushedRecords());
-        PROFILE_AGGREGATED_TIMING(ChangelogPreallocateIOTimeGauge_) {
-            const auto& changelog = queue->GetChangelog();
-            changelog->Preallocate(size);
-        }
+        TEventTimerGuard guard(ChangelogPreallocateIOTimer_);
+        const auto& changelog = queue->GetChangelog();
+        changelog->Preallocate(size);
     }
 
     TFuture<void> DoFlushChangelogs()
@@ -616,7 +624,7 @@ TFileChangelogDispatcher::TFileChangelogDispatcher(
     const NChunkClient::IIOEnginePtr& ioEngine,
     const TFileChangelogDispatcherConfigPtr& config,
     const TString& threadName,
-    const TProfiler& profiler)
+    const TRegistry& profiler)
     : Impl_(New<TImpl>(
         ioEngine,
         config,

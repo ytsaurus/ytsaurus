@@ -399,7 +399,7 @@ void TBootstrap::DoInitialize()
             config,
             name,
             DataNodeLogger,
-            DataNodeProfilerRegistry.WithPrefix("/net_throttler"));
+            DataNodeProfiler.WithPrefix("/net_throttler"));
     };
 
     TotalInThrottler_ = createThrottler(Config_->DataNode->TotalInThrottler, "TotalIn");

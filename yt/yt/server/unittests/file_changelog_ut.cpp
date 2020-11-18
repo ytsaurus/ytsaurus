@@ -44,7 +44,7 @@ protected:
         ChangelogStoreFactory = CreateLocalChangelogStoreFactory(
             ChangelogStoreConfig,
             "UTCLFlash",
-            NProfiling::TProfiler());
+            {});
         ChangelogStore = ChangelogStoreFactory->Lock()
             .Get()
             .ValueOrThrow();

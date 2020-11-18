@@ -111,12 +111,9 @@ void TCompositeAutomatonPart::RegisterMethod(
     const TString& type,
     TCallback<void(TMutationContext*)> callback)
 {
-    TTagIdList tagIds{
-        TProfileManager::Get()->RegisterTag("type", type)
-    };
     TCompositeAutomaton::TMethodDescriptor descriptor{
         callback,
-        TShardedMonotonicCounter("/cumulative_mutation_time", tagIds)
+        Automaton_->Profiler_.WithTag("type", type).TimeCounter("/cumulative_mutation_time")
     };
     YT_VERIFY(Automaton_->MethodNameToDescriptor_.emplace(type, descriptor).second);
 }
@@ -222,12 +219,13 @@ void TCompositeAutomatonPart::LogHandlerError(const TError& error)
 
 TCompositeAutomaton::TCompositeAutomaton(
     IInvokerPtr asyncSnapshotInvoker,
-    TCellId cellId,
-    const NProfiling::TTagIdList& profilingTagIds)
+    TCellId cellId)
     : Logger(NLogging::TLogger(HydraLogger)
         .AddTag("CellId: %v", cellId))
-    , Profiler(HydraProfiler.AddTags(profilingTagIds))
+    , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)))
     , AsyncSnapshotInvoker_(asyncSnapshotInvoker)
+    , MutationCounter_(Profiler_.Counter("/mutation_count"))
+    , MutationWaitTimer_(Profiler_.Timer("/mutation_wait_time"))
 { }
 
 void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
@@ -454,7 +452,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     }
 
     if (!isRecovery) {
-        Profiler.Update(MutationWaitTimeCounter_, DurationToValue(waitTime));
+        MutationWaitTimer_.Record(waitTime);
     }
 
     if (mutationType.empty()) {
@@ -482,12 +480,12 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
         }
 
         if (!isRecovery) {
-            Profiler.Increment(descriptor->CumulativeTimeCounter, DurationToValue(timer.GetElapsedTime()));
+            descriptor->CumulativeTimeCounter.Add(timer.GetElapsedTime());
         }
     }
 
     if (!isRecovery) {
-        Profiler.Increment(MutationCounter_);
+        MutationCounter_.Increment();
     }
 }
 
@@ -542,14 +540,10 @@ void TCompositeAutomaton::WritePartHeader(TSaveContext& context, const TSaverDes
 }
 
 void TCompositeAutomaton::OnRecoveryStarted()
-{
-    Profiler.SetEnabled(false);
-}
+{ }
 
 void TCompositeAutomaton::OnRecoveryComplete()
-{
-    Profiler.SetEnabled(true);
-}
+{ }
 
 TCompositeAutomaton::TMethodDescriptor* TCompositeAutomaton::GetMethodDescriptor(const TString& mutationType)
 {

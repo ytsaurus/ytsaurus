@@ -638,14 +638,14 @@ void TChunkStore::OnProfiling()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     for (const auto& location : Locations_) {
-        const auto& profiler = location->GetProfiler();
         for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
-            profiler.Update(location->GetPerformanceCounters().SessionCount[type], location->GetSessionCount(type));
+            location->GetPerformanceCounters().SessionCount[type] = location->GetSessionCount(type);
         }
+
         auto& performanceCounters = location->GetPerformanceCounters();
-        profiler.Update(performanceCounters.AvailableSpace, location->GetAvailableSpace());
-        profiler.Update(performanceCounters.UsedSpace, location->GetUsedSpace());
-        profiler.Update(performanceCounters.Full, location->IsFull() ? 1 : 0);
+        performanceCounters.AvailableSpace.Update(location->GetAvailableSpace());
+        performanceCounters.UsedSpace.Update(location->GetUsedSpace());
+        performanceCounters.Full.Update(location->IsFull() ? 1 : 0);
     }
 }
 

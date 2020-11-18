@@ -112,8 +112,18 @@ TLogFileReader::TLogFileReader(
     , LogTableNameTable_(New<TNameTable>())
     , Logger("LogTailer")
     , ExtraLogTableColumns_(std::move(extraLogTableColumns))
-    , Profiler_("/log_tailer", {TProfileManager::Get()->RegisterTag("filename", Config_->Path)})
 {
+    auto profiler = TRegistry{"/log_tailer"}.WithTag("filename", Config_->Path);
+
+    TotalRowsWritten_ = profiler.Counter("/rows_written");
+    TotalBytesWritten_ = profiler.Counter("/bytes_written");
+    TotalUnparsedRows_ = profiler.Counter("/unparsed_rows");
+    TotalWriteErrors_ = profiler.Counter("/write_errors");
+    TotalTrimmedRows_ = profiler.Counter("/trimmed_rows");
+    TotalTrimmedBytes_ = profiler.Counter("/trimmed_bytes");
+    RecordBufferSize_ = profiler.Gauge("/buffer_size");
+    WriteLag_ = profiler.Timer("/write_lag");
+
     Logger.AddTag("LogFile: %v", Config_->Path);
 
     std::vector<TYPath> paths;
@@ -176,24 +186,6 @@ void TLogFileReader::OnTermination()
     DoReadLog();
 }
 
-void TLogFileReader::OnProfiling()
-{
-    Profiler_.Enqueue("/rows_written", TotalRowsWritten_, EMetricType::Counter);
-    Profiler_.Enqueue("/bytes_written", TotalBytesWritten_, EMetricType::Counter);
-    Profiler_.Enqueue("/unparsed_rows", TotalUnparsedRows_, EMetricType::Counter);
-    Profiler_.Enqueue("/write_errors", TotalWriteErrors_, EMetricType::Counter);
-    Profiler_.Enqueue("/trimmed_rows", TotalTrimmedRows_, EMetricType::Counter);
-    Profiler_.Enqueue("/trimmed_bytes", TotalTrimmedBytes_, EMetricType::Counter);
-    Profiler_.Enqueue("/buffer_size", RecordsBuffer_.size(), EMetricType::Gauge);
-    {
-        ui64 writeLag = 0;
-        if (EarliestRecordTimestamp_) {
-            writeLag = (TInstant::Now() - *EarliestRecordTimestamp_).MilliSeconds();
-        }
-        Profiler_.Enqueue("/write_lag", writeLag, EMetricType::Gauge);
-    }
-}
-
 i64 TLogFileReader::GetTotalBytesRead() const
 {
     return TotalBytesRead_;
@@ -215,7 +207,6 @@ void TLogFileReader::DoReadLog()
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Unexpected error");
     }
-    OnProfiling();
 
     YT_LOG_INFO("Reading finished");
 }
@@ -256,7 +247,7 @@ void TLogFileReader::DoReadBuffer()
                         YT_LOG_DEBUG(ex, "Cannot parse log record (Offset: %v, RecordPrefix: %Qv)",
                             FileOffset_ + index - Buffer_.size(),
                             Buffer_.substr(20));
-                        ++TotalUnparsedRows_;
+                        TotalUnparsedRows_.Increment();
                         Buffer_.clear();
                         continue;
                     }
@@ -272,11 +263,10 @@ void TLogFileReader::DoReadBuffer()
         TotalBytesRead_ += bytesRead;
     }
 
-    EarliestRecordTimestamp_ = std::nullopt;
     for (const auto& logRecord : RecordsBuffer_) {
         TInstant timestamp;
         if (TryParseInstantFromLogInstant(logRecord.Timestamp, timestamp)) {
-            EarliestRecordTimestamp_ = timestamp;
+            WriteLag_.Record(TInstant::Now() - timestamp);
             break;
         }
     }
@@ -354,8 +344,8 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
             transaction->GetId(),
             timer.GetElapsedTime(),
             boundaryTimestamps);
-        TotalRowsWritten_ += rowsToWrite;
-        TotalBytesWritten_ += bytesToWrite;
+        TotalRowsWritten_.Increment(rowsToWrite);
+        TotalBytesWritten_.Increment(bytesToWrite);
         return true;
     } else {
         YT_LOG_WARNING(commitResultOrError, "Error committing rows (RecordCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
@@ -363,7 +353,7 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
             transaction->GetId(),
             timer.GetElapsedTime(),
             boundaryTimestamps);
-        ++TotalWriteErrors_;
+        TotalWriteErrors_.Increment();
         return false;
     }
 }
@@ -394,9 +384,9 @@ void TLogFileReader::DoWriteRows()
             GetBoundaryTimestampString(*(RecordsBuffer_.end() - recordsLeftInBuffer), *(RecordsBuffer_.end() - maxRecordsInBuffer - 1)));
 
         int rowsToTrim = recordsLeftInBuffer - maxRecordsInBuffer;
-        TotalTrimmedRows_ += rowsToTrim;
+        TotalTrimmedRows_.Increment(rowsToTrim);
         for (int index = recordsBufferPtr; index < recordsBufferPtr + rowsToTrim; ++index) {
-            TotalTrimmedBytes_ += RecordsBuffer_[index].Size;
+            TotalTrimmedBytes_.Increment(RecordsBuffer_[index].Size);
         }
         recordsLeftInBuffer = maxRecordsInBuffer;
     }

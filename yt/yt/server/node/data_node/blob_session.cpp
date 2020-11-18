@@ -334,12 +334,10 @@ void TBlobSession::DoWriteBlocks(const std::vector<TBlock>& blocks, int beginBlo
             blockIndex,
             writeTime);
 
-        const auto& locationProfiler = Location_->GetProfiler();
         auto& performanceCounters = Location_->GetPerformanceCounters();
-        locationProfiler.Update(performanceCounters.BlobBlockWriteSize, block.Size());
-        locationProfiler.Update(performanceCounters.BlobBlockWriteTime, NProfiling::DurationToValue(writeTime));
-        locationProfiler.Update(performanceCounters.BlobBlockWriteThroughput, block.Size() * 1000000 / (1 + writeTime.MicroSeconds()));
-        locationProfiler.Increment(performanceCounters.BlobBlockWriteBytes, block.Size());
+        performanceCounters.BlobBlockWriteSize.Record(block.Size());
+        performanceCounters.BlobBlockWriteTime.Record(writeTime);
+        performanceCounters.BlobBlockWriteBytes.Increment(block.Size());
 
         Location_->IncreaseCompletedIOSize(EIODirection::Write, Options_.WorkloadDescriptor, block.Size());
     }
@@ -410,40 +408,39 @@ void TBlobSession::DoOpenWriter()
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    PROFILE_TIMING ("/blob_chunk_open_time") {
-        try {
-            YT_LOG_DEBUG("Started opening blob chunk writer");
+    TEventTimerGuard timerGuard(Location_->GetPerformanceCounters().BlobChunkWriterOpenTime);
+    try {
+        YT_LOG_DEBUG("Started opening blob chunk writer");
 
-            auto fileName = Location_->GetChunkPath(GetChunkId());
-            Writer_ = New<TFileWriter>(
-                Location_->GetIOEngine(),
-                GetChunkId(),
-                fileName,
-                Options_.SyncOnClose,
-                Options_.EnableWriteDirectIO);
-            WaitFor(Writer_->Open())
-                .ThrowOnError();
+        auto fileName = Location_->GetChunkPath(GetChunkId());
+        Writer_ = New<TFileWriter>(
+            Location_->GetIOEngine(),
+            GetChunkId(),
+            fileName,
+            Options_.SyncOnClose,
+            Options_.EnableWriteDirectIO);
+        WaitFor(Writer_->Open())
+            .ThrowOnError();
 
-            YT_LOG_DEBUG("Finished opening blob chunk writer");
-        } catch (const std::exception& ex) {
-            TError error(ex);
-            if (IsOutOfDiskSpaceError(error)) {
-                SetFailed(
-                    TError(
-                        NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
-                        "Not enough space to start blob session for chunk %v",
-                        GetChunkId())
-                    << error,
-                    /* fatal */ false);
-            } else {
-                SetFailed(
-                    TError(
-                        NChunkClient::EErrorCode::IOError,
-                        "Error starting blob session for chunk %v",
-                        GetChunkId())
-                    << error,
-                    /* fatal */ true);
-            }
+        YT_LOG_DEBUG("Finished opening blob chunk writer");
+    } catch (const std::exception& ex) {
+        TError error(ex);
+        if (IsOutOfDiskSpaceError(error)) {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
+                    "Not enough space to start blob session for chunk %v",
+                    GetChunkId())
+                << error,
+                /* fatal */ false);
+        } else {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error starting blob session for chunk %v",
+                    GetChunkId())
+                << error,
+                /* fatal */ true);
         }
     }
 }
@@ -453,24 +450,23 @@ void TBlobSession::AbortWriter()
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     if (Error_.IsOK()) {
-        PROFILE_TIMING ("/blob_chunk_abort_time") {
-            try {
-                YT_LOG_DEBUG("Started aborting chunk writer");
+        TEventTimerGuard timerGuard(Location_->GetPerformanceCounters().BlobChunkWriterAbortTime);
+        try {
+            YT_LOG_DEBUG("Started aborting chunk writer");
 
-                Writer_->Abort();
+            Writer_->Abort();
 
-                YT_LOG_DEBUG("Finished aborting chunk writer");
-            } catch (const std::exception& ex) {
-                SetFailed(
-                    TError(
-                        NChunkClient::EErrorCode::IOError,
-                        "Error aborting chunk %v",
-                        SessionId_)
-                    << ex,
-                    /* fatal */ true);
-            }
-            Writer_.Reset();
+            YT_LOG_DEBUG("Finished aborting chunk writer");
+        } catch (const std::exception& ex) {
+            SetFailed(
+                TError(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error aborting chunk %v",
+                    SessionId_)
+                << ex,
+                /* fatal */ true);
         }
+        Writer_.Reset();
     }
 
     ReleaseSpace();
@@ -485,36 +481,35 @@ TChunkInfo TBlobSession::CloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     if (Error_.IsOK()) {
-        PROFILE_TIMING ("/blob_chunk_close_time") {
-            try {
-                YT_LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
-                    Writer_->GetDataSize());
+        TEventTimerGuard timerGuard(Location_->GetPerformanceCounters().BlobChunkWriterCloseTime);
+        try {
+            YT_LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
+                Writer_->GetDataSize());
 
-                auto deferredChunkMeta = New<TDeferredChunkMeta>();
-                deferredChunkMeta->MergeFrom(*chunkMeta);
-                WaitFor(Writer_->Close(deferredChunkMeta))
-                    .ThrowOnError();
+            auto deferredChunkMeta = New<TDeferredChunkMeta>();
+            deferredChunkMeta->MergeFrom(*chunkMeta);
+            WaitFor(Writer_->Close(deferredChunkMeta))
+                .ThrowOnError();
 
-                YT_LOG_DEBUG("Finished closing chunk writer");
-            } catch (const std::exception& ex) {
-                TError error(ex);
-                if (IsOutOfDiskSpaceError(error)) {
-                    SetFailed(
-                        TError(
-                            NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
-                            "Not enough space to finish blob session for chunk %v",
-                            GetChunkId())
-                        << error,
-                        /* fatal */ false);
-                } else {
-                    SetFailed(
-                        TError(
-                            NChunkClient::EErrorCode::IOError,
-                            "Error finishing blob session for chunk %v",
-                            SessionId_)
-                        << error,
-                        /* fatal */ true);
-                }
+            YT_LOG_DEBUG("Finished closing chunk writer");
+        } catch (const std::exception& ex) {
+            TError error(ex);
+            if (IsOutOfDiskSpaceError(error)) {
+                SetFailed(
+                    TError(
+                        NChunkClient::EErrorCode::NoSpaceLeftOnDevice,
+                        "Not enough space to finish blob session for chunk %v",
+                        GetChunkId())
+                    << error,
+                    /* fatal */ false);
+            } else {
+                SetFailed(
+                    TError(
+                        NChunkClient::EErrorCode::IOError,
+                        "Error finishing blob session for chunk %v",
+                        SessionId_)
+                    << error,
+                    /* fatal */ true);
             }
         }
     }

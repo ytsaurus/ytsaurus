@@ -131,13 +131,27 @@ struct TVolumeMeta
 
 struct TLayerLocationPerformanceCounters
 {
-    NProfiling::TAtomicGauge LayerCount;
-    NProfiling::TAtomicGauge VolumeCount;
+    TLayerLocationPerformanceCounters() = default;
 
-    NProfiling::TShardedAggregateGauge TotalSpace;
-    NProfiling::TShardedAggregateGauge UsedSpace;
-    NProfiling::TShardedAggregateGauge AvailableSpace;
-    NProfiling::TAtomicGauge Full;
+    explicit TLayerLocationPerformanceCounters(const TRegistry& profiler)
+    {
+        LayerCount = profiler.Gauge("/layer_count");
+        VolumeCount = profiler.Gauge("/volume_count");
+
+        AvailableSpace = profiler.Gauge("/available_space");
+        UsedSpace = profiler.Gauge("/used_space");
+        AvailableSpace = profiler.Gauge("/available_space");
+        TotalSpace = profiler.Gauge("/total_space");
+        Full = profiler.Gauge("/full");
+    }
+
+    NProfiling::TGauge LayerCount;
+    NProfiling::TGauge VolumeCount;
+
+    NProfiling::TGauge TotalSpace;
+    NProfiling::TGauge UsedSpace;
+    NProfiling::TGauge AvailableSpace;
+    NProfiling::TGauge Full;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,22 +186,11 @@ public:
         // More details here: PORTO-460.
         , PlacePath_((Config_->LocationIsAbsolute ? "" : "//") + Config_->Path)
     {
+        auto profiler = DataNodeProfiler
+            .WithPrefix("/layer_location")
+            .WithTag("location_id", ToString(Id_));
 
-        auto* profileManager = NProfiling::TProfileManager::Get();
-        Profiler_ = DataNodeProfiler
-            .AppendPath("/layer_location")
-            .AddTags({
-                 profileManager->RegisterTag("location_id", Id_),
-             });
-
-        PerformanceCounters_.LayerCount = {"/layer_count", {}};
-        PerformanceCounters_.VolumeCount = {"/volume_count", {}};
-
-        PerformanceCounters_.AvailableSpace = {"/available_space", {}, NProfiling::EAggregateMode::All};
-        PerformanceCounters_.UsedSpace = {"/used_space", {}, NProfiling::EAggregateMode::All};
-        PerformanceCounters_.AvailableSpace = {"/available_space", {}, NProfiling::EAggregateMode::All};
-        PerformanceCounters_.TotalSpace = {"/total_space", {}, NProfiling::EAggregateMode::All};
-        PerformanceCounters_.Full = {"/full"};
+        PerformanceCounters_ = TLayerLocationPerformanceCounters{profiler};
 
         try {
             NFS::MakeDirRecursive(Config_->Path, 0755);
@@ -197,7 +200,8 @@ public:
                     healthCheckerConfig,
                     locationConfig->Path,
                     LocationQueue_->GetInvoker(),
-                    Logger);
+                    Logger,
+                    profiler);
                 WaitFor(HealthChecker_->RunCheck())
                     .ThrowOnError();
             }
@@ -315,11 +319,6 @@ public:
         _exit(1);
     }
 
-    const NProfiling::TProfiler& GetProfiler() const
-    {
-        return Profiler_;
-    }
-
     TLayerLocationPerformanceCounters& GetPerformanceCounters()
     {
         return PerformanceCounters_;
@@ -394,7 +393,6 @@ private:
 
     TDiskHealthCheckerPtr HealthChecker_;
 
-    NProfiling::TProfiler Profiler_;
     TLayerLocationPerformanceCounters PerformanceCounters_;
 
     std::atomic<int> LayerImportsInProgress_ = 0;
@@ -984,7 +982,7 @@ public:
         TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             New<TSlruCacheConfig>(GetCacheCapacity(layerLocations) * config->CacheCapacityFraction),
-            DataNodeProfilerRegistry.WithPrefix("/layer_cache"))
+            DataNodeProfiler.WithPrefix("/layer_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
         , LayerLocations_(std::move(layerLocations))
@@ -994,7 +992,7 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TLayerCache::OnProfiling, MakeWeak(this)),
             ProfilingPeriod))
-        , TmpfsCacheHitCounter_("/layer_cache/tmpfs_cache_hits")
+        , TmpfsCacheHitCounter_(DataNodeProfiler.Counter("/layer_cache/tmpfs_cache_hits"))
     {
         InitTmpfsLayerCache();
 
@@ -1022,7 +1020,7 @@ public:
                 auto layer = it->second;
                 guard.Release();
 
-                DataNodeProfiler.Increment(TmpfsCacheHitCounter_);
+                TmpfsCacheHitCounter_.Increment();
                 YT_LOG_DEBUG("Found layer in tmpfs cache (LayerId: %v, ArtifactPath: %v, Tag: %v)",
                     layer->GetMeta().Id,
                     artifactKey.data_source().path(),
@@ -1091,7 +1089,7 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TShardedMonotonicCounter TmpfsCacheHitCounter_;
+    TCounter TmpfsCacheHitCounter_;
 
     virtual bool IsResurrectionSupported() const override
     {
@@ -1418,14 +1416,14 @@ private:
     void OnProfiling()
     {
         auto profileLocation = [] (const TLayerLocationPtr& location) {
-            const auto& profiler = location->GetProfiler();
             auto& performanceCounters = location->GetPerformanceCounters();
-            profiler.Update(performanceCounters.AvailableSpace, location->GetAvailableSpace());
-            profiler.Update(performanceCounters.UsedSpace, location->GetUsedSpace());
-            profiler.Update(performanceCounters.TotalSpace, location->GetCapacity());
-            profiler.Update(performanceCounters.Full, location->IsFull() ? 1 : 0);
-            profiler.Update(performanceCounters.LayerCount, location->GetLayerCount());
-            profiler.Update(performanceCounters.VolumeCount, location->GetVolumeCount());
+
+            performanceCounters.AvailableSpace.Update(location->GetAvailableSpace());
+            performanceCounters.UsedSpace.Update(location->GetUsedSpace());
+            performanceCounters.TotalSpace.Update(location->GetCapacity());
+            performanceCounters.Full.Update(location->IsFull() ? 1 : 0);
+            performanceCounters.LayerCount.Update(location->GetLayerCount());
+            performanceCounters.VolumeCount.Update(location->GetVolumeCount());
         };
 
         if (TmpfsLocation_) {
@@ -1582,11 +1580,11 @@ public:
                     CreatePortoExecutor(
                         config->PortoExecutor,
                         Format("volume%v", index),
-                        DataNodeProfilerRegistry.WithPrefix("/location_volumes/porto")),
+                        DataNodeProfiler.WithPrefix("/location_volumes/porto")),
                     CreatePortoExecutor(
                         config->PortoExecutor,
                         Format("layer%v", index),
-                        DataNodeProfilerRegistry.WithPrefix("/location_layers/porto")),
+                        DataNodeProfiler.WithPrefix("/location_layers/porto")),
                     id);
                 Locations_.push_back(location);
             } catch (const std::exception& ex) {
@@ -1601,7 +1599,7 @@ public:
         auto tmpfsExecutor = CreatePortoExecutor(
             config->PortoExecutor,
             "tmpfs_layer",
-            DataNodeProfilerRegistry.WithPrefix("/tmpfs_layers/porto"));
+            DataNodeProfiler.WithPrefix("/tmpfs_layers/porto"));
         LayerCache_ = New<TLayerCache>(config, Locations_, tmpfsExecutor, bootstrap);
     }
 

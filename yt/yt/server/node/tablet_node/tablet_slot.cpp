@@ -473,7 +473,6 @@ public:
             hydraManagerOptions.UseFork = false;
             hydraManagerOptions.WriteChangelogsAtFollowers = false;
             hydraManagerOptions.WriteSnapshotsAtFollowers = false;
-            hydraManagerOptions.ProfilingTagIds = ProfilingTagIds_;
 
             auto hydraManager = CreateDistributedHydraManager(
                 Config_->HydraManager,
@@ -527,8 +526,7 @@ public:
                 GetCellId(),
                 GetAutomatonInvoker(),
                 hydraManager,
-                Automaton_,
-                ProfilingTagIds_);
+                Automaton_);
 
             // NB: Tablet Manager must register before Transaction Manager since the latter
             // will be writing and deleting rows during snapshot loading.

@@ -38,7 +38,6 @@ TSessionBase::TSessionBase(
         .AddTag("LocationId: %v, ChunkId: %v",
             Location_->GetId(),
             SessionId_))
-    , Profiler(location->GetProfiler())
 {
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);

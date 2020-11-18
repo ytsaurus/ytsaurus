@@ -22,6 +22,7 @@
 
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/proc.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/net/connection.h>
 
@@ -616,7 +617,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     ISnapshotStorePtr snapshotStore,
     TStateHashCheckerPtr stateHashChecker,
     const NLogging::TLogger& logger,
-    const NProfiling::TProfiler& profiler)
+    const NProfiling::TRegistry& profiler)
     : Config_(std::move(config))
     , Options_(options)
     , Automaton_(std::move(automaton))
@@ -627,7 +628,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SnapshotStore_(std::move(snapshotStore))
     , StateHashChecker_(std::move(stateHashChecker))
     , Logger(logger)
-    , Profiler(profiler)
+    , BatchCommitTimer_(profiler.Timer("/batch_commit_time"))
+    , SnapshotLoadTime_(profiler.Gauge("/snapshot_load_time"))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Automaton_);
@@ -731,25 +733,28 @@ void TDecoratedAutomaton::LoadSnapshot(
         snapshotId,
         version);
 
-    PROFILE_TIMING ("/snapshot_load_time") {
+    TWallTimer timer;
+    auto finally = Finally([&] {
+        SnapshotLoadTime_.Update(timer.GetElapsedTime().SecondsFloat());
+    });
+
+    Automaton_->Clear();
+    try {
+        AutomatonVersion_ = CommittedVersion_ = TVersion(-1, -1);
+        RandomSeed_ = 0;
+        SequenceNumber_ = 0;
+        StateHash_ = 0;
+        Automaton_->LoadSnapshot(reader);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
         Automaton_->Clear();
-        try {
-            AutomatonVersion_ = CommittedVersion_ = TVersion(-1, -1);
-            RandomSeed_ = 0;
-            SequenceNumber_ = 0;
-            StateHash_ = 0;
-            Automaton_->LoadSnapshot(reader);
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
-            Automaton_->Clear();
-            throw;
-        } catch (const TFiberCanceledException&) {
-            YT_LOG_INFO("Snapshot load fiber was canceled");
-            throw;
-        } catch (...) {
-            YT_LOG_ERROR("Snapshot load failed with an unknown error");
-            throw;
-        }
+        throw;
+    } catch (const TFiberCanceledException&) {
+        YT_LOG_INFO("Snapshot load fiber was canceled");
+        throw;
+    } catch (...) {
+        YT_LOG_ERROR("Snapshot load failed with an unknown error");
+        throw;
     }
 
     YT_LOG_INFO("Finished loading snapshot");
@@ -1057,53 +1062,52 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
     TForbidContextSwitchGuard contextSwitchGuard;
 
     TWallTimer timer;
-    PROFILE_AGGREGATED_TIMING (BatchCommitTimeCounter_) {
-        while (!PendingMutations_.empty()) {
-            auto& pendingMutation = PendingMutations_.front();
-            if (pendingMutation.Version >= CommittedVersion_) {
-                break;
-            }
+    TEventTimer timerGuard(BatchCommitTimer_);
+    while (!PendingMutations_.empty()) {
+        auto& pendingMutation = PendingMutations_.front();
+        if (pendingMutation.Version >= CommittedVersion_) {
+            break;
+        }
 
-            RotateAutomatonVersionIfNeeded(pendingMutation.Version);
+        RotateAutomatonVersionIfNeeded(pendingMutation.Version);
 
-            // Cf. YT-6908; see below.
-            auto commitPromise = pendingMutation.LocalCommitPromise;
+        // Cf. YT-6908; see below.
+        auto commitPromise = pendingMutation.LocalCommitPromise;
 
-            TMutationContext mutationContext(
-                AutomatonVersion_,
-                pendingMutation.Request,
-                pendingMutation.Timestamp,
-                pendingMutation.RandomSeed,
-                pendingMutation.PrevRandomSeed,
-                pendingMutation.SequenceNumber,
-                StateHash_);
+        TMutationContext mutationContext(
+            AutomatonVersion_,
+            pendingMutation.Request,
+            pendingMutation.Timestamp,
+            pendingMutation.RandomSeed,
+            pendingMutation.PrevRandomSeed,
+            pendingMutation.SequenceNumber,
+            StateHash_);
 
-            {
-                auto traceContext = pendingMutation.TraceContext
-                    ? NTracing::CreateChildTraceContext(
-                        pendingMutation.TraceContext,
-                        ConcatToString(TStringBuf("HydraManager:"), pendingMutation.Request.Type))
-                    : nullptr;
-                NTracing::TTraceContextGuard traceContextGuard(std::move(traceContext));
-                DoApplyMutation(&mutationContext);
-            }
+        {
+            auto traceContext = pendingMutation.TraceContext
+                ? NTracing::CreateChildTraceContext(
+                    pendingMutation.TraceContext,
+                    ConcatToString(TStringBuf("HydraManager:"), pendingMutation.Request.Type))
+                : nullptr;
+            NTracing::TTraceContextGuard traceContextGuard(std::move(traceContext));
+            DoApplyMutation(&mutationContext);
+        }
 
-            if (commitPromise) {
-                commitPromise.Set(TMutationResponse{
-                    EMutationResponseOrigin::Commit,
-                    mutationContext.GetResponseData()
-                });
-            }
+        if (commitPromise) {
+            commitPromise.Set(TMutationResponse{
+                EMutationResponseOrigin::Commit,
+                mutationContext.GetResponseData()
+            });
+        }
 
-            PendingMutations_.pop();
+        PendingMutations_.pop();
 
-            MaybeStartSnapshotBuilder();
+        MaybeStartSnapshotBuilder();
 
-            if (mayYield && timer.GetElapsedTime() > Config_->MaxCommitBatchDuration) {
-                EpochContext_->EpochUserAutomatonInvoker->Invoke(
-                    BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), true));
-                break;
-            }
+        if (mayYield && timer.GetElapsedTime() > Config_->MaxCommitBatchDuration) {
+            EpochContext_->EpochUserAutomatonInvoker->Invoke(
+                BIND(&TDecoratedAutomaton::ApplyPendingMutations, MakeStrong(this), true));
+            break;
         }
     }
 }

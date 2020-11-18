@@ -8,7 +8,7 @@
 #include <yt/core/misc/checkpointable_stream.h>
 #include <yt/core/misc/serialize.h>
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NHydra {
 
@@ -170,13 +170,12 @@ protected:
     i64 UpperWriteCountDumpLimit_ = std::numeric_limits<i64>::max();
 
     const NLogging::TLogger Logger;
-    NProfiling::TProfiler Profiler;
+    NProfiling::TRegistry Profiler_;
 
 protected:
     TCompositeAutomaton(
         IInvokerPtr asyncSnapshotInvoker,
-        TCellId cellId,
-        const NProfiling::TTagIdList& profilingTagIds = {});
+        TCellId cellId);
 
     void RegisterPart(TCompositeAutomatonPartPtr part);
 
@@ -201,7 +200,7 @@ private:
     struct TMethodDescriptor
     {
         TCallback<void(TMutationContext* context)> Callback;
-        NProfiling::TShardedMonotonicCounter CumulativeTimeCounter;
+        NProfiling::TTimeCounter CumulativeTimeCounter;
     };
 
     struct TSaverDescriptorBase
@@ -244,8 +243,8 @@ private:
 
     EFinalRecoveryAction FinalRecoveryAction_ = EFinalRecoveryAction::None;
 
-    NProfiling::TShardedMonotonicCounter MutationCounter_ = {"/mutation_count"};
-    NProfiling::TShardedAggregateGauge MutationWaitTimeCounter_ = {"/mutation_wait_time"};
+    NProfiling::TCounter MutationCounter_;
+    NProfiling::TEventTimer MutationWaitTimer_;
 
 private:
     void DoSaveSnapshot(

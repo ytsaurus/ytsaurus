@@ -26,7 +26,7 @@ public:
         const NChunkClient::IIOEnginePtr& ioEngine,
         const TFileChangelogDispatcherConfigPtr& config,
         const TString& threadName,
-        const NProfiling::TProfiler& profiler);
+        const NProfiling::TRegistry& profiler);
 
     ~TFileChangelogDispatcher();
 
