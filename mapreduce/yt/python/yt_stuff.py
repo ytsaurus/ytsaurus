@@ -13,8 +13,6 @@ import time
 import uuid
 import signal
 import fcntl
-import gzip
-import contextlib
 import copy
 
 import yatest.common
@@ -231,6 +229,8 @@ class YtStuff(object):
         if not os.path.isdir(self.yt_work_dir):
             os.mkdir(self.yt_work_dir)
 
+        self.yt_local_dir = os.path.join(self.yt_work_dir, self.yt_id)
+
         self.yt_wrapper_log_path = os.path.join(self.yt_work_dir, "yt_wrapper_%s.log" % self.yt_id)
 
         # Create files for yt_local stdout/stderr. We can't just open them in 'w' mode, because
@@ -335,7 +335,7 @@ class YtStuff(object):
             cmd = [str(s) for s in self.yt_local_exec + list(args)]
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
 
-            special_file = os.path.join(self.yt_work_dir, self.yt_id, "started")
+            special_file = os.path.join(self.yt_local_dir, "started")
 
             if os.path.lexists(special_file):
                 # It may be start after suspend
@@ -367,18 +367,18 @@ class YtStuff(object):
                 yt_daemon.stop()
                 return False
             if self.config.proxy_port is None:
-                info_yson_file = os.path.join(self.yt_work_dir, self.yt_id, "info.yson")
+                info_yson_file = os.path.join(self.yt_local_dir, "info.yson")
                 with open(info_yson_file, "rb") as f:
                     info = yson.load(f)
                 self.yt_proxy_port = int(info["http_proxies"][0]["address"].split(":")[1])
 
             self.cluster_config = dict()
-            with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "master-0-0.yson"), "rb") as f:
+            with open(os.path.join(self.yt_local_dir, "configs", "master-0-0.yson"), "rb") as f:
                 v = yson.load(f)
                 for field in ["primary_master", "secondary_masters", "timestamp_provider", "transaction_manager"]:
                     if field in v:
                         self.cluster_config[field] = v[field]
-            with open(os.path.join(self.yt_work_dir, self.yt_id, "configs", "driver-0.yson"), "rb") as f:
+            with open(os.path.join(self.yt_local_dir, "configs", "driver-0.yson"), "rb") as f:
                 v = yson.load(f)
                 for field in ["table_mount_cache", "cell_directory_synchronizer", "cluster_directory_synchronizer"]:
                     if field in v:
@@ -427,15 +427,14 @@ class YtStuff(object):
                 self.is_running = True
                 break
             else:
-                dirname = os.path.join(self.yt_work_dir, self.yt_id)
-                if os.path.exists(dirname):
+                if os.path.exists(self.yt_local_dir):
                     dir_i = i
                     while True:
-                        failed_dirname = "%s_FAILED_try_%d" % (dirname, dir_i)
+                        failed_dirname = "%s_FAILED_try_%d" % (self.yt_local_dir, dir_i)
                         if os.path.exists(failed_dirname):
                             dir_i += 1
                         else:
-                            os.rename(dirname, failed_dirname)
+                            os.rename(self.yt_local_dir, failed_dirname)
                             break
                 if self.tmpfs_path:
                     for dir_ in os.listdir(self.tmpfs_path):
@@ -450,9 +449,7 @@ class YtStuff(object):
 
     def suspend_local_yt(self):
         try:
-            cmd = self.yt_local_exec + [
-                "stop", os.path.join(self.yt_work_dir, self.yt_id),
-            ]
+            cmd = self.yt_local_exec + ["stop", self.yt_local_dir]
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
             yatest.common.process.execute(
                 cmd,
@@ -472,7 +469,7 @@ class YtStuff(object):
     def stop_local_yt(self):
         if self.is_running:
             self.suspend_local_yt()
-            with open(os.path.join(self.yt_work_dir, self.yt_id, "lock_file")) as lock_file:
+            with open(os.path.join(self.yt_local_dir, "lock_file")) as lock_file:
                 fcntl.flock(lock_file, fcntl.LOCK_EX)
                 fcntl.flock(lock_file, fcntl.LOCK_UN)
 
@@ -488,7 +485,7 @@ class YtStuff(object):
             self.config.save_runtime_data or \
             yatest.common.get_param("yt_save_runtime_data")
         if not save_runtime_data:
-            remove_runtime_data(self.yt_work_dir)
+            remove_runtime_data(self.yt_local_dir)
 
         collect_cores(
             self._get_pids(),
@@ -497,7 +494,7 @@ class YtStuff(object):
             logger=self.logger)
 
     def _get_pids(self):
-        pids_file = os.path.join(self.yt_work_dir, self.yt_id, "pids.txt")
+        pids_file = os.path.join(self.yt_local_dir, "pids.txt")
         pids = []
         if os.path.exists(pids_file):
             with open(pids_file) as f:
