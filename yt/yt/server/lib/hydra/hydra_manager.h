@@ -136,7 +136,11 @@ struct IHydraManager
      */
     virtual NYson::TYsonProducer GetMonitoringProducer() = 0;
 
-    virtual NElection::TPeerIdSet& AlivePeers() = 0;
+    //! Returns the set of peers that are known to be alive.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual NElection::TPeerIdSet GetAlivePeerIds() = 0;
 
     virtual TReign GetCurrentReign() = 0;
 
@@ -171,13 +175,6 @@ struct IHydraManager
     //! A subscriber must start an appropriate check and return a future
     //! summarizing its outcome.
     DECLARE_INTERFACE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
-
-    //! Raised when the set of alive peers changes.
-    //! On leader, it's raised when pinging one of the followers fails.
-    //! On followers, it's raised when a ping from the leader brings news about
-    //! a peer going away (or coming back).
-    //! TODO(aleksandra-zh): remove this signal
-    DECLARE_INTERFACE_SIGNAL(void (const NElection::TPeerIdSet&), AlivePeerSetChanged);
 
     // Extension methods.
     bool IsLeader() const;

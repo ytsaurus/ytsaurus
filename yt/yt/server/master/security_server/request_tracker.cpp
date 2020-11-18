@@ -56,11 +56,12 @@ void TRequestTracker::Start()
     OnDynamicConfigChanged();
 
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-    const auto& hydraManager = hydraFacade->GetHydraManager();
-    AlivePeerCount_ = static_cast<int>(hydraManager->AlivePeers().size());
-    hydraManager->SubscribeAlivePeerSetChanged(
-        BIND(&TRequestTracker::OnAlivePeerSetChanged, MakeWeak(this))
-            .Via(hydraFacade->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager)));
+    AlivePeerCountExecutor_ = New<TPeriodicExecutor>(
+        hydraFacade->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager),
+        BIND(&TRequestTracker::OnUpdateAlivePeerCount, MakeWeak(this)),
+        TDuration::Seconds(5));
+    AlivePeerCountExecutor_->Start();
+    OnUpdateAlivePeerCount();
 }
 
 void TRequestTracker::Stop()
@@ -214,9 +215,11 @@ void TRequestTracker::ReconfigureUserThrottlers()
     }
 }
 
-void TRequestTracker::OnAlivePeerSetChanged(const THashSet<NElection::TPeerId>& alivePeers)
+void TRequestTracker::OnUpdateAlivePeerCount()
 {
-    auto peerCount = static_cast<int>(alivePeers.size());
+    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+    const auto& hydraManager = hydraFacade->GetHydraManager();
+    int peerCount = static_cast<int>(hydraManager->GetAlivePeerIds().size());
     if (peerCount != AlivePeerCount_) {
         AlivePeerCount_ = peerCount;
         if (!GetDynamicConfig()->EnableDistributedThrottler) {

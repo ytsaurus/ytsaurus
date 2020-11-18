@@ -414,9 +414,11 @@ public:
         });
     }
 
-    virtual TPeerIdSet& AlivePeers() override
+    virtual TPeerIdSet GetAlivePeerIds() override
     {
-        return AlivePeers_;
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return AutomatonEpochContext_ ? AutomatonEpochContext_->AlivePeerIds.Load() : TPeerIdSet();
     }
 
     virtual TFuture<void> SyncWithLeader() override
@@ -539,8 +541,6 @@ public:
 
     DEFINE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
 
-    DEFINE_SIGNAL(void (const TPeerIdSet&), AlivePeerSetChanged);
-
 private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
@@ -583,7 +583,7 @@ private:
     TEpochContextPtr ControlEpochContext_;
     TEpochContextPtr AutomatonEpochContext_;
 
-    TPeerIdSet AlivePeers_;
+    TAtomicObject<TPeerIdSet> AlivePeers_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -772,10 +772,7 @@ private:
                 YT_ABORT();
         }
 
-        if (alivePeerIds != AlivePeers_) {
-            AlivePeers_ = std::move(alivePeerIds);
-            AlivePeerSetChanged_.Fire(AlivePeers_);
-        }
+        epochContext->AlivePeerIds.Store(alivePeerIds);
 
         response->set_state(ToProto<int>(GetControlState()));
 
@@ -1634,13 +1631,11 @@ private:
         return false;
     }
 
-    void OnElectionAlivePeerSetChanged(const TPeerIdSet& alivePeers)
+    void OnElectionAlivePeerSetChanged(const TPeerIdSet& peerIds)
     {
-        AlivePeers_ = alivePeers;
-        // Send the change to the followers.
-        ControlEpochContext_->LeaseTracker->SetAlivePeers(alivePeers);
-        // Fire the event here, on the leader.
-        AlivePeerSetChanged_.Fire(alivePeers);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        ControlEpochContext_->AlivePeerIds.Store(peerIds);
     }
 
     void OnElectionStopLeading(const TError& error)
