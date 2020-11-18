@@ -48,6 +48,8 @@ trait YtFileSystemBase extends FileSystem with LogLazy {
     log.debugLazy(s"Create new file: $f")
     val path = ytPath(f)
 
+    YtWrapper.createDir(ytPath(f.getParent), None, ignoreExisting = true)(yt)
+
     def createFile(ytRpcClient: Option[YtRpcClient], ytClient: YtClient): FSDataOutputStream = {
       YtWrapper.createFile(path)(ytClient)
       statistics.incrementWriteOps(1)
