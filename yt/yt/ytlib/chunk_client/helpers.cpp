@@ -153,9 +153,14 @@ void GetUserObjectBasicAttributes(
         userObject->ObjectId = FromProto<TObjectId>(rsp->object_id());
         userObject->ExternalCellTag = rsp->external_cell_tag();
         userObject->Type = TypeFromId(userObject->ObjectId);
-        userObject->Revision = rsp->revision();
-        userObject->ContentRevision = rsp->content_revision();
-        userObject->AttributeRevision = rsp->attribute_revision();
+
+        // COMPAT(shakurov, gritukan): Remove check when masters will be fresh enough.
+        if (rsp->revision() != NHydra::NullRevision) {
+            userObject->Revision = rsp->revision();
+            userObject->ContentRevision = rsp->content_revision();
+            userObject->AttributeRevision = rsp->attribute_revision();
+        }
+
         if (rsp->has_omitted_inaccessible_columns()) {
             userObject->OmittedInaccessibleColumns = FromProto<std::vector<TString>>(rsp->omitted_inaccessible_columns().items());
         }
