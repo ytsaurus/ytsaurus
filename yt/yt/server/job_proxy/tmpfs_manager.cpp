@@ -42,7 +42,7 @@ void TTmpfsManager::DumpTmpfsStatistics(
     statistics->AddSample(Format("%v/max_tmpfs_size", path), MaximumTmpfsSize_);
 }
 
-ui64 TTmpfsManager::GetTmpfsSize() const
+i64 TTmpfsManager::GetTmpfsSize() const
 {
     auto tmpfsSizes = GetTmpfsSizes();
     return std::accumulate(tmpfsSizes.begin(), tmpfsSizes.end(), 0ll);
@@ -58,9 +58,9 @@ bool TTmpfsManager::HasTmpfsVolumes() const
     return !Config_->TmpfsPaths.empty();
 }
 
-std::vector<ui64> TTmpfsManager::GetTmpfsSizes() const
+std::vector<i64> TTmpfsManager::GetTmpfsSizes() const
 {
-    std::vector<ui64> tmpfsSizes(Config_->TmpfsPaths.size(), 0);
+    std::vector<i64> tmpfsSizes(Config_->TmpfsPaths.size(), 0);
 
     auto guard = TWriterGuard(MaximumTmpfsSizesLock_);
 

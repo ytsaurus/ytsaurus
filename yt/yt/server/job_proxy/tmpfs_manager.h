@@ -19,7 +19,7 @@ public:
         const TString& path) const;
 
     //! Returns total tmpfs volumes size.
-    ui64 GetTmpfsSize() const;
+    i64 GetTmpfsSize() const;
 
     //! Returns |true| if |deviceId| is a device id of some tmpfs volume
     //! and |false| otherwise.
@@ -31,12 +31,12 @@ private:
     const TTmpfsManagerConfigPtr Config_;
 
     mutable NConcurrency::TReaderWriterSpinLock MaximumTmpfsSizesLock_;
-    mutable std::vector<ui64> MaximumTmpfsSizes_;
-    mutable ui64 MaximumTmpfsSize_ = 0;
+    mutable std::vector<i64> MaximumTmpfsSizes_;
+    mutable i64 MaximumTmpfsSize_ = 0;
 
     THashSet<int> TmpfsDeviceIds;
 
-    std::vector<ui64> GetTmpfsSizes() const;
+    std::vector<i64> GetTmpfsSizes() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTmpfsManager)
