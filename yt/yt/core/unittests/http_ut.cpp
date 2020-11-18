@@ -58,7 +58,7 @@ TEST(THttpUrlParse, Simple)
     ASSERT_EQ(url.Path, TStringBuf("/a/b/c"));
     ASSERT_EQ(url.RawQuery, TStringBuf("foo=bar&zog=%20"));
 
-    ASSERT_THROW(ParseUrl(AsStringBuf("\0")), TErrorException);
+    ASSERT_THROW(ParseUrl(TStringBuf("\0", 1)), TErrorException);
 }
 
 TEST(THttpUrlParse, IPv4)
