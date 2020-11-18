@@ -1,5 +1,5 @@
 {
-    cluster=freud;
+    cluster=hahn;
     pool="yt-integration-tests";
     cache_path="//home/yt-integration-tests";
     cache_ttl_hours=24;
