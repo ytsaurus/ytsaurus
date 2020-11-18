@@ -42,8 +42,8 @@ public:
 public:
     TJobStub() = default;
 
-    void AddDataSlice(const NChunkClient::TInputDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie, bool isPrimary);
-    void AddPreliminaryForeignDataSlice(const NChunkClient::TInputDataSlicePtr& dataSlice);
+    void AddDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie, bool isPrimary);
+    void AddPreliminaryForeignDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice);
 
     //! Removes all empty stripes, sets `Foreign` = true for all foreign stripes,
     //! calculates the statistics for the stripe list and maybe additionally sorts slices
@@ -114,7 +114,7 @@ public:
 
     void Invalidate(IChunkPoolInput::TCookie inputCookie);
 
-    std::vector<NChunkClient::TInputDataSlicePtr> ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie);
+    std::vector<NChunkClient::TLegacyDataSlicePtr> ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie);
 
     void Persist(const TPersistenceContext& context);
 

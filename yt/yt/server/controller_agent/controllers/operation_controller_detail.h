@@ -843,13 +843,13 @@ protected:
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
-    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
+    std::vector<NChunkClient::TLegacyDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
 
     //! Returns the list of all input data slices collected from all primary input tables.
-    std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize);
+    std::vector<NChunkClient::TLegacyDataSlicePtr> CollectPrimaryInputDataSlices(i64 versionedSliceSize);
 
     //! Returns the list of lists of all input chunks collected from all foreign input tables.
-    std::vector<std::deque<NChunkClient::TInputDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
+    std::vector<std::deque<NChunkClient::TLegacyDataSlicePtr>> CollectForeignInputDataSlices(int foreignKeyColumnCount) const;
 
     void InitUserJobSpec(
         NScheduler::NProto::TUserJobSpec* proto,

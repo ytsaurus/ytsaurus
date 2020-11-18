@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/ref_tracked.h>
@@ -482,7 +482,7 @@ private:
                         newProgressCategory = EProgressCategory::Completed;
                         break;
                     default:
-                        YT_ABORT(); 
+                        YT_ABORT();
                 }
 
                 CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, newProgressCategory);

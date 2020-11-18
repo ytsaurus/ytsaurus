@@ -39,8 +39,8 @@ struct TChunkStripe
     : public TRefCounted
 {
     TChunkStripe(bool foreign = false, bool solid = false);
-    explicit TChunkStripe(NChunkClient::TInputDataSlicePtr dataSlice, bool foreign = false, bool solid = false);
-    explicit TChunkStripe(const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices);
+    explicit TChunkStripe(NChunkClient::TLegacyDataSlicePtr dataSlice, bool foreign = false, bool solid = false);
+    explicit TChunkStripe(const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices);
     explicit TChunkStripe(NChunkClient::TChunkListId, TBoundaryKeys boundaryKeys = TBoundaryKeys());
 
     TChunkStripeStatistics GetStatistics() const;
@@ -52,7 +52,7 @@ struct TChunkStripe
 
     void Persist(const TPersistenceContext& context);
 
-    SmallVector<NChunkClient::TInputDataSlicePtr, 1> DataSlices;
+    SmallVector<NChunkClient::TLegacyDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
     bool Foreign = false;
     bool Solid = false;

@@ -282,7 +282,7 @@ private:
     std::vector<TSuspendableStripe> Stripes_;
 
     //! Stores all foreign data slices grouped by input stream index.
-    std::vector<std::vector<TInputDataSlicePtr>> ForeignDataSlicesByStreamIndex_;
+    std::vector<std::vector<TLegacyDataSlicePtr>> ForeignDataSlicesByStreamIndex_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
     TBernoulliSampler TeleportChunkSampler_;
@@ -324,11 +324,11 @@ private:
         std::vector<TInputChunkSlicePtr> unversionedChunkSlices;
 
         THashMap<TInputChunkPtr, IChunkPoolInput::TCookie> unversionedInputChunkToInputCookie;
-        THashMap<TInputChunkPtr, TInputDataSlicePtr> unversionedInputChunkToOwningDataSlice;
+        THashMap<TInputChunkPtr, TLegacyDataSlicePtr> unversionedInputChunkToOwningDataSlice;
 
         //! Either add data slice to builder or put it into `ForeignDataSlicesByStreamIndex_' depending on whether
         //! it is primary or foreign.
-        auto processDataSlice = [&] (const TInputDataSlicePtr& dataSlice, int inputCookie) {
+        auto processDataSlice = [&] (const TLegacyDataSlicePtr& dataSlice, int inputCookie) {
             YT_VERIFY(!dataSlice->IsLegacy);
             dataSlice->Tag = inputCookie;
             if (InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()) {
@@ -568,7 +568,7 @@ private:
     {
         auto yielder = CreatePeriodicYielder();
 
-        std::vector<std::pair<TInputDataSlicePtr, IChunkPoolInput::TCookie>> foreignDataSlices;
+        std::vector<std::pair<TLegacyDataSlicePtr, IChunkPoolInput::TCookie>> foreignDataSlices;
 
         for (int streamIndex = 0; streamIndex < ForeignDataSlicesByStreamIndex_.size(); ++streamIndex) {
             if (!InputStreamDirectory_.GetDescriptor(streamIndex).IsForeign()) {
@@ -580,7 +580,7 @@ private:
             auto& dataSlices = ForeignDataSlicesByStreamIndex_[streamIndex];
 
             // In most cases the foreign table stripes follow in sorted order, but still let's ensure that.
-            auto cmpStripesByKey = [&] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+            auto cmpStripesByKey = [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
                 auto lowerComparisonResult = ForeignComparator_.CompareKeyBounds(
                     lhs->LowerLimit().KeyBound,
                     rhs->LowerLimit().KeyBound);
@@ -692,8 +692,8 @@ private:
     }
 
     void SplitJob(
-        std::vector<TInputDataSlicePtr> unreadInputDataSlices,
-        std::vector<TInputDataSlicePtr> foreignInputDataSlices,
+        std::vector<TLegacyDataSlicePtr> unreadInputDataSlices,
+        std::vector<TLegacyDataSlicePtr> foreignInputDataSlices,
         int splitJobCount)
     {
         i64 dataWeight = 0;

@@ -11,7 +11,7 @@
 #include "config.h"
 
 #include <yt/ytlib/chunk_client/data_source.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>

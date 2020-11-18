@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>
@@ -125,7 +125,7 @@ protected:
             }));
     }
 
-    TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
+    TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlice->Tag = chunk->ChunkId().Parts64[0] ^ chunk->ChunkId().Parts64[1];
@@ -142,7 +142,7 @@ protected:
 
     IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
     {
-        std::vector<TInputDataSlicePtr> dataSlices;
+        std::vector<TLegacyDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
             auto dataSlice = BuildDataSliceByChunk(chunk);
             dataSlices.emplace_back(std::move(dataSlice));
@@ -313,7 +313,7 @@ protected:
         }
 
         // Second check.
-        auto unversionedDataSliceComparator = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+        auto unversionedDataSliceComparator = [] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
             auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
             auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
             if (lhsChunk != rhsChunk) {
@@ -322,7 +322,7 @@ protected:
                 return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
             }
         };
-        auto versionedDataSliceComparator = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+        auto versionedDataSliceComparator = [] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
             return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
         };
 

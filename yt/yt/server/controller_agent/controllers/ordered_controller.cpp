@@ -23,7 +23,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
@@ -306,7 +306,7 @@ protected:
 
     virtual i64 GetMinTeleportChunkSize() = 0;
 
-    virtual void ValidateInputDataSlice(const TInputDataSlicePtr& dataSlice)
+    virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& dataSlice)
     { }
 
     virtual TCpuResource GetCpuLimit() const
@@ -368,7 +368,7 @@ protected:
     }
 
     // XXX(max42): this helper seems redundant.
-    TChunkStripePtr CreateChunkStripe(TInputDataSlicePtr dataSlice)
+    TChunkStripePtr CreateChunkStripe(TLegacyDataSlicePtr dataSlice)
     {
         TChunkStripePtr chunkStripe = New<TChunkStripe>(false /* foreign */);
         chunkStripe->DataSlices.emplace_back(std::move(dataSlice));
@@ -1173,7 +1173,7 @@ private:
         }
     }
 
-    virtual void ValidateInputDataSlice(const TInputDataSlicePtr& dataSlice) override
+    virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& dataSlice) override
     {
         if (!dataSlice->IsTrivial()) {
             THROW_ERROR_EXCEPTION("Remote copy operation supports only unversioned tables");

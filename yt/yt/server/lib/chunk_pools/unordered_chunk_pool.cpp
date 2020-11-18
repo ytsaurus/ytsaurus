@@ -7,7 +7,7 @@
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -315,7 +315,7 @@ public:
         CheckCompleted();
     }
 
-    void SplitJob(const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices, int jobCount)
+    void SplitJob(const std::vector<NChunkClient::TLegacyDataSlicePtr>& dataSlices, int jobCount)
     {
         i64 unreadRowCount = GetCumulativeRowCount(dataSlices);
         i64 rowsPerJob = DivCeil<i64>(unreadRowCount, jobCount);
@@ -491,7 +491,7 @@ private:
     //! per stripe is either |maxSliceDataSize| or |TotalEstimateInputDataSize / jobCount|,
     //! whichever is smaller. If the resulting list contains less than
     //! |jobCount| stripes then |jobCount| is decreased appropriately.
-    void AddDataSlice(const TInputDataSlicePtr dataSlice, IChunkPoolInput::TCookie inputCookie)
+    void AddDataSlice(const TLegacyDataSlicePtr dataSlice, IChunkPoolInput::TCookie inputCookie)
     {
         dataSlice->Tag = inputCookie;
 
@@ -525,9 +525,9 @@ private:
                     RowBuffer_);
 
                 for (auto& slice : slices) {
-                    auto newDataSlice = New<TInputDataSlice>(
+                    auto newDataSlice = New<TLegacyDataSlice>(
                         EDataSourceType::UnversionedTable,
-                        TInputDataSlice::TChunkSliceList{slice},
+                        TLegacyDataSlice::TChunkSliceList{slice},
                         slice->LegacyLowerLimit(),
                         slice->LegacyUpperLimit());
                     newDataSlice->CopyPayloadFrom(*dataSlice);
@@ -541,9 +541,9 @@ private:
                         RowBuffer_);
 
                     for (auto& smallerSlice : smallerSlices) {
-                        auto newDataSlice = New <TInputDataSlice>(
+                        auto newDataSlice = New <TLegacyDataSlice>(
                             EDataSourceType::UnversionedTable,
-                            TInputDataSlice::TChunkSliceList{std::move(smallerSlice)});
+                            TLegacyDataSlice::TChunkSliceList{std::move(smallerSlice)});
                         newDataSlice->CopyPayloadFrom(*dataSlice);
                         AddStripe(New<TChunkStripe>(newDataSlice));
                     }

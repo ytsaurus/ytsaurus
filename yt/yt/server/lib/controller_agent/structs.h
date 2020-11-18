@@ -67,8 +67,8 @@ struct TCompletedJobSummary
     EInterruptReason InterruptReason = EInterruptReason::None;
 
     // These fields are for controller's use only.
-    std::vector<NChunkClient::TInputDataSlicePtr> UnreadInputDataSlices;
-    std::vector<NChunkClient::TInputDataSlicePtr> ReadInputDataSlices;
+    std::vector<NChunkClient::TLegacyDataSlicePtr> UnreadInputDataSlices;
+    std::vector<NChunkClient::TLegacyDataSlicePtr> ReadInputDataSlices;
     int SplitJobCount = 1;
 };
 

@@ -303,7 +303,7 @@ private:
                     }
                 }
 
-                std::vector<TInputDataSlicePtr> slicedDataSlices;
+                std::vector<TLegacyDataSlicePtr> slicedDataSlices;
                 if (dataSlice->Type == EDataSourceType::UnversionedTable && ShouldSliceByRowIndices_) {
                     auto chunkSlices = CreateInputChunkSlice(dataSlice->GetSingleUnversionedChunkOrThrow())
                         ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
@@ -334,7 +334,7 @@ private:
     }
 
     void SplitJob(
-        std::vector<TInputDataSlicePtr> unreadInputDataSlices,
+        std::vector<TLegacyDataSlicePtr> unreadInputDataSlices,
         int splitJobCount,
         IChunkPoolOutput::TCookie cookie)
     {
@@ -374,7 +374,7 @@ private:
     }
 
     void AddPrimaryDataSlice(
-        const TInputDataSlicePtr& dataSlice,
+        const TLegacyDataSlicePtr& dataSlice,
         IChunkPoolInput::TCookie cookie,
         i64 dataSizePerJob)
     {
@@ -444,7 +444,7 @@ private:
     }
 
     void CheckCompleted() {
-        bool completed = 
+        bool completed =
             Finished &&
             JobManager_->JobCounter()->GetPending() == 0 &&
             JobManager_->JobCounter()->GetRunning() == 0 &&

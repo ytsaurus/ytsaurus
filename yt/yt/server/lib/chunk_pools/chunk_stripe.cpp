@@ -1,7 +1,7 @@
 #include "chunk_stripe.h"
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -32,14 +32,14 @@ TChunkStripe::TChunkStripe(bool foreign, bool solid)
     , Solid(solid)
 { }
 
-TChunkStripe::TChunkStripe(TInputDataSlicePtr dataSlice, bool foreign, bool solid)
+TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice, bool foreign, bool solid)
     : Foreign(foreign)
     , Solid(solid)
 {
     DataSlices.emplace_back(std::move(dataSlice));
 }
 
-TChunkStripe::TChunkStripe(const std::vector<TInputDataSlicePtr>& dataSlices)
+TChunkStripe::TChunkStripe(const std::vector<TLegacyDataSlicePtr>& dataSlices)
 {
     DataSlices.insert(DataSlices.end(), dataSlices.begin(), dataSlices.end());
 }

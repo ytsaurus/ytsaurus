@@ -13,7 +13,7 @@
 #include <yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/client/table_client/row_buffer.h>
 
@@ -326,7 +326,7 @@ protected:
 
     IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
     {
-        std::vector<TInputDataSlicePtr> dataSlices;
+        std::vector<TLegacyDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
@@ -534,7 +534,7 @@ protected:
         }
 
         // Second check.
-        auto unversionedDataSliceComparator = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+        auto unversionedDataSliceComparator = [] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
             auto lhsChunk = lhs->GetSingleUnversionedChunkOrThrow();
             auto rhsChunk = rhs->GetSingleUnversionedChunkOrThrow();
             if (lhsChunk != rhsChunk) {
@@ -543,7 +543,7 @@ protected:
                 return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
             }
         };
-        auto versionedDataSliceComparator = [] (const TInputDataSlicePtr& lhs, const TInputDataSlicePtr& rhs) {
+        auto versionedDataSliceComparator = [] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
             return lhs->LegacyLowerLimit().Key <= rhs->LegacyLowerLimit().Key;
         };
 
@@ -1772,7 +1772,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobInterruption)
     ASSERT_EQ(ExtractedCookies_.size(), 1);
 
     const auto& stripeList = stripeLists[0];
-    std::vector<TInputDataSlicePtr> unreadDataSlices = {
+    std::vector<TLegacyDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(GetStripeByTableIndex(stripeList, 0)->DataSlices.front(), BuildRow({13})),
         CreateInputDataSlice(GetStripeByTableIndex(stripeList, 1)->DataSlices.front(), BuildRow({14})),
     };
@@ -1824,7 +1824,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptReason = EInterruptReason::JobSplit;
-    jobSummary.UnreadInputDataSlices = std::vector<TInputDataSlicePtr>(
+    jobSummary.UnreadInputDataSlices = std::vector<TLegacyDataSlicePtr>(
         stripeLists[0]->Stripes[0]->DataSlices.begin(),
         stripeLists[0]->Stripes[0]->DataSlices.end());
     jobSummary.SplitJobCount = 10;
@@ -1881,7 +1881,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptReason = EInterruptReason::JobSplit;
-    std::vector<TInputDataSlicePtr> unreadSlices;
+    std::vector<TLegacyDataSlicePtr> unreadSlices;
     unreadSlices.insert(
         unreadSlices.end(),
         GetStripeByTableIndex(stripeLists[0], 0)->DataSlices.begin(),
@@ -1947,7 +1947,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
     jobSummary.InterruptReason = EInterruptReason::JobSplit;
-    std::vector<TInputDataSlicePtr> unreadSlices;
+    std::vector<TLegacyDataSlicePtr> unreadSlices;
     unreadSlices.insert(
         unreadSlices.end(),
         GetStripeByTableIndex(stripeLists[0], 0)->DataSlices.begin(),
@@ -2776,7 +2776,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
     EXPECT_EQ(2, stripeList->Stripes[0]->DataSlices.size());
     EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->LegacyUpperLimit().Key);
 
-    std::vector<TInputDataSlicePtr> unreadDataSlices = {
+    std::vector<TLegacyDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[0]),
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[1]),
     };
@@ -2835,7 +2835,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
     EXPECT_EQ(2, stripeList->Stripes[0]->DataSlices.size());
     EXPECT_EQ(10, stripeList->Stripes[0]->DataSlices[0]->LegacyUpperLimit().RowIndex);
 
-    std::vector<TInputDataSlicePtr> unreadDataSlices = {
+    std::vector<TLegacyDataSlicePtr> unreadDataSlices = {
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[0]),
         CreateInputDataSlice(stripeList->Stripes[0]->DataSlices[1]),
     };

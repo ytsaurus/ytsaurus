@@ -36,7 +36,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -3084,7 +3084,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
                     std::remove_if(
                         inputStripe.Stripe->DataSlices.begin(),
                         inputStripe.Stripe->DataSlices.end(),
-                        [&] (TInputDataSlicePtr slice) {
+                        [&] (TLegacyDataSlicePtr slice) {
                             try {
                                 return chunkId == slice->GetSingleUnversionedChunkOrThrow()->ChunkId();
                             } catch (const std::exception& ex) {
@@ -6454,7 +6454,7 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryVersionedChu
     return CollectPrimaryChunks(true);
 }
 
-std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
+std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
 {
     auto createScraperForFetcher = [&] () -> IFetcherChunkScraperPtr {
         if (Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Wait) {
@@ -6501,7 +6501,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     WaitFor(AllSucceeded(asyncResults))
         .ThrowOnError();
 
-    std::vector<TInputDataSlicePtr> result;
+    std::vector<TLegacyDataSlicePtr> result;
     for (const auto& fetcher : fetchers) {
         auto dataSlices = CombineVersionedChunkSlices(fetcher->GetChunkSlices());
         for (auto& dataSlice : dataSlices) {
@@ -6519,9 +6519,9 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     return result;
 }
 
-std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
+std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDataSlices(i64 versionedSliceSize)
 {
-    std::vector<std::vector<TInputDataSlicePtr>> dataSlicesByTableIndex(InputTables_.size());
+    std::vector<std::vector<TLegacyDataSlicePtr>> dataSlicesByTableIndex(InputTables_.size());
     for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
@@ -6529,19 +6529,19 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDat
     for (auto& dataSlice : CollectPrimaryVersionedDataSlices(versionedSliceSize)) {
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
     }
-    std::vector<TInputDataSlicePtr> dataSlices;
+    std::vector<TLegacyDataSlicePtr> dataSlices;
     for (auto& tableDataSlices : dataSlicesByTableIndex) {
         std::move(tableDataSlices.begin(), tableDataSlices.end(), std::back_inserter(dataSlices));
     }
     return dataSlices;
 }
 
-std::vector<std::deque<TInputDataSlicePtr>> TOperationControllerBase::CollectForeignInputDataSlices(int foreignKeyColumnCount) const
+std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectForeignInputDataSlices(int foreignKeyColumnCount) const
 {
-    std::vector<std::deque<TInputDataSlicePtr>> result;
+    std::vector<std::deque<TLegacyDataSlicePtr>> result;
     for (const auto& table : InputTables_) {
         if (table->IsForeign()) {
-            result.push_back(std::deque<TInputDataSlicePtr>());
+            result.push_back(std::deque<TLegacyDataSlicePtr>());
 
             if (table->Dynamic && table->Schema->IsSorted()) {
                 std::vector<TInputChunkSlicePtr> chunkSlices;
@@ -6658,7 +6658,7 @@ TString TOperationControllerBase::GetLoggingProgress() const
 
 void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& jobSummary) const
 {
-    std::vector<TInputDataSlicePtr> dataSliceList;
+    std::vector<TLegacyDataSlicePtr> dataSliceList;
 
     const auto& result = jobSummary.Result;
     const auto& schedulerResultExt = result.GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
@@ -6696,7 +6696,7 @@ void TOperationControllerBase::ExtractInterruptDescriptor(TCompletedJobSummary& 
             auto chunkSlice = New<TInputChunkSlice>(*chunkIt, RowBuffer, protoChunkSpec);
             chunkSliceList.emplace_back(std::move(chunkSlice));
         }
-        TInputDataSlicePtr dataSlice;
+        TLegacyDataSlicePtr dataSlice;
         if (InputTables_[dataSliceDescriptor.GetDataSourceIndex()]->Dynamic) {
             dataSlice = CreateVersionedInputDataSlice(chunkSliceList);
         } else {

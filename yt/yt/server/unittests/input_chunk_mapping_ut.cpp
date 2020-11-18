@@ -7,7 +7,7 @@
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/ytlib/chunk_client/input_data_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 
 #include <yt/core/misc/blob_output.h>
@@ -78,7 +78,7 @@ protected:
 
     TChunkStripePtr CreateStripe(const std::vector<TInputChunkPtr>& chunks)
     {
-        std::vector<TInputDataSlicePtr> dataSlices;
+        std::vector<TLegacyDataSlicePtr> dataSlices;
         for (const auto& chunk : chunks) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
