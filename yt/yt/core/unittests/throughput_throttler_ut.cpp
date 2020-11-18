@@ -167,6 +167,8 @@ TEST(TReconfigurableThroughputThrottlerTest, TestOverdraft)
     EXPECT_FALSE(throttler->IsOverdraft());
 }
 
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_) && !defined(_tsan_enabled_)
+
 TEST(TReconfigurableThroughputThrottlerTest, StressTest)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(
@@ -192,6 +194,8 @@ TEST(TReconfigurableThroughputThrottlerTest, StressTest)
 
     EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 3000);
 }
+
+#endif
 
 TEST(TReconfigurableThroughputThrottlerTest, TestFractionalLimit)
 {
