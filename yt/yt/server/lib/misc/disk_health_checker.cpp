@@ -21,12 +21,14 @@ TDiskHealthChecker::TDiskHealthChecker(
     const TString& path,
     IInvokerPtr invoker,
     TLogger logger,
-    const TProfiler& profiler)
+    const TRegistry& profiler)
     : Config_(config)
     , Path_(path)
     , CheckInvoker_(invoker)
     , Logger(logger)
-    , Profiler(profiler)
+    , TotalTimer_(profiler.Timer("/disk_health_check/total_time"))
+    , ReadTimer_(profiler.Timer("/disk_health_check/read_time"))
+    , WriteTimer_(profiler.Timer("/disk_health_check/write_time"))
 {
     Logger.AddTag("Path: %v", Path_);
 }
@@ -87,29 +89,30 @@ void TDiskHealthChecker::DoRunCheck()
     auto fileName = NFS::CombinePaths(Path_, HealthCheckFileName);
 
     try {
-        PROFILE_TIMING("/disk_health_check/total") {
-            PROFILE_TIMING("/disk_health_check/write") {
-                try {
-                    TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
-                    file.Write(writeData.data(), Config_->TestSize);
-                } catch (const TSystemError& ex) {
-                    if (ex.Status() == ENOSPC) {
-                        YT_LOG_WARNING(ex, "Disk health check ignored");
-                        return;
-                    } else {
-                        throw;
-                    }
+        TEventTimer totalGuard(TotalTimer_);
+        {
+            TEventTimer totalGuard(WriteTimer_);
+            try {
+                TFile file(fileName, CreateAlways | WrOnly | Seq | Direct);
+                file.Write(writeData.data(), Config_->TestSize);
+            } catch (const TSystemError& ex) {
+                if (ex.Status() == ENOSPC) {
+                    YT_LOG_WARNING(ex, "Disk health check ignored");
+                    return;
+                } else {
+                    throw;
                 }
             }
-            PROFILE_TIMING("/disk_health_check/read") {
-                TFile file(fileName, OpenExisting | RdOnly | Seq | Direct);
-                if (file.GetLength() != Config_->TestSize) {
-                    THROW_ERROR_EXCEPTION("Wrong test file size: %v instead of %v",
-                        file.GetLength(),
-                        Config_->TestSize);
-                }
-                file.Read(readData.data(), Config_->TestSize);
+        }
+        {
+            TEventTimer totalGuard(ReadTimer_);
+            TFile file(fileName, OpenExisting | RdOnly | Seq | Direct);
+            if (file.GetLength() != Config_->TestSize) {
+                THROW_ERROR_EXCEPTION("Wrong test file size: %v instead of %v",
+                    file.GetLength(),
+                    Config_->TestSize);
             }
+            file.Read(readData.data(), Config_->TestSize);
         }
 
         NFS::Remove(fileName);

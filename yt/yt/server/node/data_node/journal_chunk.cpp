@@ -243,12 +243,10 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
             bytesRead,
             readTime);
 
-        const auto& locationProfiler = Location_->GetProfiler();
         auto& performanceCounters = Location_->GetPerformanceCounters();
-        locationProfiler.Update(performanceCounters.JournalBlockReadSize, bytesRead);
-        locationProfiler.Update(performanceCounters.JournalBlockReadTime, NProfiling::DurationToValue(readTime));
-        locationProfiler.Update(performanceCounters.JournalBlockReadThroughput, bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
-        locationProfiler.Increment(performanceCounters.JournalBlockReadBytes, bytesRead);
+        performanceCounters.JournalBlockReadSize.Record(bytesRead);
+        performanceCounters.JournalBlockReadTime.Record(readTime);
+        performanceCounters.JournalBlockReadBytes.Increment(bytesRead);
 
         ProfileReadBlockSetLatency(session);
 

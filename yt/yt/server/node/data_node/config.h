@@ -156,7 +156,7 @@ public:
     NChunkClient::EIOEngineType IOEngineType;
     NYTree::INodePtr IOConfig;
 
-    TDuration ThrottleCounterInterval;
+    TDuration ThrottleDuration;
 
     //! Maximum number of bytes in the gap between two adjacent read locations
     //! in order to join them together during read coalescing.
@@ -181,7 +181,7 @@ public:
             .Default(NChunkClient::EIOEngineType::ThreadPool);
         RegisterParameter("io_config", IOConfig)
             .Optional();
-        RegisterParameter("throttle_counter_interval", ThrottleCounterInterval)
+        RegisterParameter("throttle_counter_interval", ThrottleDuration)
             .Default(TDuration::Seconds(30));
         RegisterParameter("coalesced_read_max_gap_size", CoalescedReadMaxGapSize)
             .GreaterThanOrEqual(0)
@@ -615,7 +615,7 @@ public:
     //! Cf. TTcpDispatcherStatistics::PendingOutBytes
     i64 NetOutThrottlingLimit;
 
-    TDuration NetOutThrottleCounterInterval;
+    TDuration NetOutThrottleDuration;
 
     //! Write requests are throttled when the number of bytes queued for write exceeds this limit.
     //! This is a per-location limit.
@@ -836,7 +836,7 @@ public:
         RegisterParameter("net_out_throttling_limit", NetOutThrottlingLimit)
             .GreaterThan(0)
             .Default(512_MB);
-        RegisterParameter("net_out_throttle_counter_interval", NetOutThrottleCounterInterval)
+        RegisterParameter("net_out_throttle_duration", NetOutThrottleDuration)
             .Default(TDuration::Seconds(30));
 
         RegisterParameter("disk_write_throttling_limit", DiskWriteThrottlingLimit)

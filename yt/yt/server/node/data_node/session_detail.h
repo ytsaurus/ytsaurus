@@ -70,7 +70,6 @@ protected:
     const IInvokerPtr SessionInvoker_;
 
     const NLogging::TLogger Logger;
-    const NProfiling::TProfiler Profiler;
 
     // Affinity: session invoker.
     bool Active_ = false;

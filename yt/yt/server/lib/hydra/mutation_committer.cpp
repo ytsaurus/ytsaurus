@@ -40,14 +40,14 @@ TCommitterBase::TCommitterBase(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     NLogging::TLogger logger,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
     : Config_(std::move(config))
     , Options_(options)
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , EpochContext_(epochContext)
     , Logger(std::move(logger))
-    , Profiler(std::move(profiler))
     , CellManager_(EpochContext_->CellManager)
+    , LoggingSuspensionProfilingTimer_(profiler.Timer("/mutation_logging_suspention_time"))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(DecoratedAutomaton_);
@@ -80,7 +80,7 @@ void TCommitterBase::ResumeLogging()
 
     YT_LOG_DEBUG("Mutations logging resumed");
 
-    Profiler.Update(LoggingSuspensionTimeGauge_, NProfiling::DurationToValue(LoggingSuspensionTimer_->GetElapsedTime()));
+    LoggingSuspensionProfilingTimer_.Record(LoggingSuspensionTimer_->GetElapsedTime());
 
     LoggingSuspended_ = false;
     LoggingSuspensionTimer_.reset();
@@ -153,7 +153,7 @@ public:
             GetStartVersion(),
             GetMutationCount());
 
-        owner->Profiler.Enqueue("/commit_batch_size", GetMutationCount(), EMetricType::Gauge);
+        owner->BatchSize_.Record(GetMutationCount());
 
         std::vector<TFuture<void>> futures;
 
@@ -327,7 +327,7 @@ private:
             return;
         }
 
-        owner->Profiler.Update(owner->CommitTimeGauge_, CommitTimer_->GetElapsedValue());
+        owner->CommitTimer_.Record(CommitTimer_->GetElapsedTime());
 
         YT_LOG_DEBUG("Mutations are flushed by quorum (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
@@ -363,20 +363,22 @@ TLeaderCommitter::TLeaderCommitter(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     NLogging::TLogger logger,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
     : TCommitterBase(
         std::move(config),
         options,
         std::move(decoratedAutomaton),
         epochContext,
         std::move(logger),
-        std::move(profiler))
+        profiler)
     , AutoSnapshotCheckExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochUserAutomatonInvoker,
         BIND(&TLeaderCommitter::OnAutoSnapshotCheck, MakeWeak(this)),
         AutoSnapshotCheckPeriod))
     , BatchAlarm_(New<TInvokerAlarm>(
         EpochContext_->EpochUserAutomatonInvoker))
+    , CommitTimer_(profiler.Timer("/mutation_commit_time"))
+    , BatchSize_(profiler.Summary("/mutation_batch_size"))
 {
     AutoSnapshotCheckExecutor_->Start();
 }
@@ -585,7 +587,7 @@ TFollowerCommitter::TFollowerCommitter(
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     NLogging::TLogger logger,
-    NProfiling::TProfiler profiler)
+    NProfiling::TRegistry profiler)
     : TCommitterBase(
         std::move(config),
         options,

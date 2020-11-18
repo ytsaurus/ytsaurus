@@ -289,28 +289,28 @@ void TResourceTree::PerformPostponedActions()
 void TResourceTree::IncrementStructureLockReadCount()
 {
     if (EnableStructureLockProfiling) {
-        Profiler.Increment(StructureLockReadCount, 1);
+        StructureLockReadCount.Increment();
     }
 }
 
 void TResourceTree::IncrementStructureLockWriteCount()
 {
     if (EnableStructureLockProfiling) {
-        Profiler.Increment(StructureLockWriteCount, 1);
+        StructureLockWriteCount.Increment();
     }
 }
 
 void TResourceTree::IncrementUsageLockReadCount()
 {
     if (EnableUsageLockProfiling) {
-        Profiler.Increment(UsageLockReadCount, 1);
+        UsageLockReadCount.Increment();
     }
 }
 
 void TResourceTree::IncrementUsageLockWriteCount()
 {
     if (EnableUsageLockProfiling) {
-        Profiler.Increment(UsageLockWriteCount, 1);
+        UsageLockWriteCount.Increment();
     }
 }
 

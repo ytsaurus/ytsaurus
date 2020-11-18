@@ -862,13 +862,13 @@ public:
             Location_->GetIOEngine(),
             MultiplexedChangelogConfig_,
             "MFlush:" + Location_->GetId(),
-            Location_->GetProfiler().AppendPath("/multiplexed_changelogs"));
+            Location_->GetProfiler().WithPrefix("/multiplexed_changelogs"));
 
         SplitChangelogDispatcher_ = New<TFileChangelogDispatcher>(
             Location_->GetIOEngine(),
             MultiplexedChangelogConfig_,
             "SFlush:" + Location_->GetId(),
-            Location_->GetProfiler().AppendPath("/split_changelogs"));
+            Location_->GetProfiler().WithPrefix("/split_changelogs"));
 
         MultiplexedWriter_ = New<TMultiplexedWriter>(
             MultiplexedChangelogConfig_,
@@ -1017,9 +1017,7 @@ private:
             chunkId);
 
         {
-            NProfiling::TAggregatedTimingGuard timingGuard(
-                &Location_->GetProfiler(),
-                &Location_->GetPerformanceCounters().JournalChunkCreateTime);
+            NProfiling::TEventTimerGuard timingGuard(Location_->GetPerformanceCounters().JournalChunkCreateTime);
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
@@ -1040,9 +1038,7 @@ private:
             chunkId);
 
         {
-            NProfiling::TAggregatedTimingGuard timingGuard(
-                &Location_->GetProfiler(),
-                &Location_->GetPerformanceCounters().JournalChunkOpenTime);
+            NProfiling::TEventTimerGuard timingGuard(Location_->GetPerformanceCounters().JournalChunkOpenTime);
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->OpenChangelog(
                 fileName,
@@ -1057,9 +1053,7 @@ private:
 
     void DoRemoveChangelog(const TJournalChunkPtr& chunk)
     {
-        NProfiling::TAggregatedTimingGuard(
-            &Location_->GetProfiler(),
-            &Location_->GetPerformanceCounters().JournalChunkRemoveTime);
+        NProfiling::TEventTimerGuard guard(Location_->GetPerformanceCounters().JournalChunkRemoveTime);
         chunk->SyncRemove(false);
     }
 

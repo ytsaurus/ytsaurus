@@ -55,7 +55,7 @@ public:
         TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->BlockCache->CompressedData,
-            DataNodeProfilerRegistry.WithPrefix("/block_cache/" + FormatEnum(EBlockType::CompressedData)))
+            DataNodeProfiler.WithPrefix("/block_cache/" + FormatEnum(EBlockType::CompressedData)))
         , Config_(config)
         , Bootstrap_(bootstrap)
     { }

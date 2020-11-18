@@ -24,6 +24,8 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/yt/library/profiling/sensor.h>
+
 #include <atomic>
 
 namespace NYT::NHydra {
@@ -129,7 +131,7 @@ public:
         ISnapshotStorePtr snapshotStore,
         TStateHashCheckerPtr stateHashChecker,
         const NLogging::TLogger& logger,
-        const NProfiling::TProfiler& profiler);
+        const NProfiling::TRegistry& profiler);
 
     void Initialize();
     void OnStartLeading(TEpochContextPtr epochContext);
@@ -294,10 +296,10 @@ private:
     NProto::TMutationHeader MutationHeader_; // pooled instance
     TRingQueue<TPendingMutation> PendingMutations_;
 
-    NProfiling::TShardedAggregateGauge BatchCommitTimeCounter_{"/batch_commit_time"};
-
     const NLogging::TLogger Logger;
-    const NProfiling::TProfiler Profiler;
+
+    NProfiling::TEventTimer BatchCommitTimer_;
+    NProfiling::TGauge SnapshotLoadTime_;
 
     ui64 GetLastLoggedRandomSeed() const;
     i64 GetLastLoggedSequenceNumber() const;

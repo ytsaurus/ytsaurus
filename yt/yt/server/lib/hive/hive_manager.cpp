@@ -89,8 +89,7 @@ public:
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
-        TCompositeAutomatonPtr automaton,
-        const NProfiling::TTagIdList& profilingTagIds)
+        TCompositeAutomatonPtr automaton)
         : THydraServiceBase(
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             THiveServiceProxy::GetDescriptor(),
@@ -106,8 +105,11 @@ public:
         , AutomatonInvoker_(std::move(automatonInvoker))
         , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
         , HydraManager_(std::move(hydraManager))
-        , Profiler(HiveServerProfiler.AddTags(profilingTagIds))
     {
+        auto profiler = HiveServerProfiler.WithTag("cell_id", ToString(selfCellId));
+        SyncPostingTimeCounter_ = profiler.TimeCounter("/sync_posting_time");
+        AsyncPostingTimeCounter_ = profiler.TimeCounter("/async_posting_time");
+
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping)
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
@@ -325,8 +327,8 @@ private:
     THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
 
     const NProfiling::TProfiler Profiler;
-    TShardedMonotonicCounter SyncPostingTimeCounter_{"/sync_posting_time"};
-    TShardedMonotonicCounter AsyncPostingTimeCounter_{"/async_posting_time"};
+    TTimeCounter SyncPostingTimeCounter_;
+    TTimeCounter AsyncPostingTimeCounter_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -665,7 +667,10 @@ private:
 
     void UnreliablePostMessage(const TMailboxList& mailboxes, const TSerializedMessagePtr& message)
     {
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
+        TWallTimer timer;
+        auto finally = Finally([&] {
+            SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
+        });
 
         TStringBuilder logMessageBuilder;
         logMessageBuilder.AppendFormat("Sending unreliable outcoming message (MutationType: %v, SrcCellId: %v, DstCellIds: [",
@@ -1033,7 +1038,10 @@ private:
 
     void OnIdlePostOutcomingMessages(TCellId cellId)
     {
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
+        TWallTimer timer;
+        auto finally = Finally([&] {
+            SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
+        });
 
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -1051,7 +1059,10 @@ private:
 
         mailbox->SetPostBatchingCookie(TDelayedExecutor::Submit(
             BIND_DONT_CAPTURE_TRACE_CONTEXT([this, this_ = MakeStrong(this), cellId = mailbox->GetCellId()] {
-                TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
+                TWallTimer timer;
+                auto finally = Finally([&] {
+                    SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
+                });
 
                 auto* mailbox = FindMailbox(cellId);
                 if (!mailbox) {
@@ -1139,7 +1150,10 @@ private:
                 messagesToPost = std::move(messagesToPost),
                 epochAutomatonInvoker = EpochAutomatonInvoker_
             ] {
-                TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &AsyncPostingTimeCounter_);
+                TWallTimer timer;
+                auto finally = Finally([&] {
+                    AsyncPostingTimeCounter_.Add(timer.GetElapsedTime());
+                });
 
                 THiveServiceProxy proxy(std::move(channel));
 
@@ -1164,7 +1178,10 @@ private:
 
     void OnPostMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
+        TWallTimer timer;
+        auto finally = Finally([&] {
+            SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
+        });
 
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -1220,7 +1237,10 @@ private:
 
     void OnSendMessagesResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspSendMessagesPtr& rspOrError)
     {
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &SyncPostingTimeCounter_);
+        TWallTimer timer;
+        auto finally = Finally([&] {
+            SyncPostingTimeCounter_.Add(timer.GetElapsedTime());
+        });
 
         auto* mailbox = FindMailbox(cellId);
         if (!mailbox) {
@@ -1568,16 +1588,14 @@ THiveManager::THiveManager(
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
-    TCompositeAutomatonPtr automaton,
-    const NProfiling::TTagIdList& profilingTagIds)
+    TCompositeAutomatonPtr automaton)
     : Impl_(New<TImpl>(
         config,
         cellDirectory,
         selfCellId,
         automatonInvoker,
         hydraManager,
-        automaton,
-        profilingTagIds))
+        automaton))
 { }
 
 THiveManager::~THiveManager()

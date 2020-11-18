@@ -625,7 +625,7 @@ void TBootstrap::DoInitialize()
     ChangelogStoreFactory_ = CreateLocalChangelogStoreFactory(
         Config_->Changelogs,
         "ChangelogFlush",
-        NProfiling::TProfiler("/changelogs"));
+        NProfiling::TRegistry("/changelogs"));
 
     auto fileSnapshotStore = New<TFileSnapshotStore>(
         Config_->Snapshots);

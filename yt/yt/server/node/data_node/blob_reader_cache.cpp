@@ -91,7 +91,7 @@ public:
         NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->BlobReaderCache,
-            DataNodeProfilerRegistry.WithPrefix("/block_reader_cache"))
+            DataNodeProfiler.WithPrefix("/block_reader_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
     { }
@@ -109,9 +109,7 @@ public:
                 chunkId);
 
             try {
-                NProfiling::TAggregatedTimingGuard timingGuard(
-                    &location->GetProfiler(),
-                    &location->GetPerformanceCounters().BlobChunkReaderOpenTime);
+                NProfiling::TEventTimer timingGuard(location->GetPerformanceCounters().BlobChunkReaderOpenTime);
 
                 auto reader = New<TCachedReader>(
                     Bootstrap_->GetChunkMetaManager(),

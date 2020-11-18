@@ -234,22 +234,18 @@ void TChunkBase::ProfileReadBlockSetLatency(const TReadSessionBasePtr& session)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& locationProfiler = Location_->GetProfiler();
     auto& performanceCounters = Location_->GetPerformanceCounters();
-    locationProfiler.Update(
-        performanceCounters.BlobBlockReadLatencies[session->Options.WorkloadDescriptor.Category],
-        session->SessionTimer.GetElapsedValue());
+    performanceCounters.BlobBlockReadLatencies[session->Options.WorkloadDescriptor.Category]
+        .Record(session->SessionTimer.GetElapsedTime());
 }
 
 void TChunkBase::ProfileReadMetaLatency(const TReadSessionBasePtr& session)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& locationProfiler = Location_->GetProfiler();
     auto& performanceCounters = Location_->GetPerformanceCounters();
-    locationProfiler.Update(
-        performanceCounters.BlobChunkMetaReadLatencies[session->Options.WorkloadDescriptor.Category],
-        session->SessionTimer.GetElapsedValue());
+    performanceCounters.BlobChunkMetaReadLatencies[session->Options.WorkloadDescriptor.Category]
+        .Record(session->SessionTimer.GetElapsedTime());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

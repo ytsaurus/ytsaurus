@@ -178,10 +178,12 @@ public:
         , StateHashChecker_(New<TStateHashChecker>(Config_->MaxStateHashCheckerEntryCount, HydraLogger))
         , DynamicOptions_(dynamicOptions)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
-        , Profiler(HydraProfiler.AddTags(Options_.ProfilingTagIds))
+        , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
+
+        LeaderSyncTimer_ = Profiler_.Timer("/leader_sync_time");
 
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(
             Config_,
@@ -192,7 +194,7 @@ public:
             SnapshotStore_,
             StateHashChecker_,
             Logger,
-            Profiler);
+            Profiler_);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadChangeLog)
@@ -557,9 +559,9 @@ private:
 
     const IElectionCallbacksPtr ElectionCallbacks_;
 
-    const NProfiling::TProfiler Profiler;
-    int RestartCounter_ = 0;
-    NProfiling::TShardedAggregateGauge LeaderSyncTimeGauge_{"/leader_sync_time"};
+    const NProfiling::TRegistry Profiler_;
+    THashMap<TString, NProfiling::TCounter> RestartCounter_;
+    NProfiling::TEventTimer LeaderSyncTimer_;
 
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
 
@@ -1184,13 +1186,11 @@ private:
 
     void ProfileRestart(const TString& reason)
     {
-        Profiler.Enqueue(
-            "/restart_count",
-            ++RestartCounter_,
-            NProfiling::EMetricType::Gauge,
-            {
-                NProfiling::TProfileManager::Get()->RegisterTag("reason", reason)
-            });
+        auto it = RestartCounter_.find(reason);
+        if (it == RestartCounter_.end()) {
+            it = RestartCounter_.emplace(reason, Profiler_.WithTag("reason", reason).Counter("/restart_count")).first;
+        }
+        it->second.Increment();
     }
 
     void ProfileRestart(const TError& error)
@@ -1445,7 +1445,7 @@ private:
             DecoratedAutomaton_,
             epochContext.Get(),
             Logger,
-            Profiler);
+            Profiler_);
         epochContext->LeaderCommitter->SubscribeCheckpointNeeded(
             BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this)));
         epochContext->LeaderCommitter->SubscribeCommitFailed(
@@ -1695,7 +1695,7 @@ private:
             DecoratedAutomaton_,
             epochContext.Get(),
             Logger,
-            Profiler);
+            Profiler_);
         epochContext->FollowerCommitter->SubscribeLoggingFailed(
             BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
@@ -2029,7 +2029,7 @@ private:
             "Error synchronizing with leader");
 
         YT_LOG_DEBUG("Leader synchronization complete");
-        Profiler.Update(LeaderSyncTimeGauge_, timer.GetElapsedValue());
+        LeaderSyncTimer_.Record(timer.GetElapsedTime());
     }
 
     TFuture<void> StartSyncWithLeader()

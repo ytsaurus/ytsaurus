@@ -280,8 +280,7 @@ private:
             location->GetMediumName());
 
         if (location->GetPendingIOSize(EIODirection::Write, session->GetWorkloadDescriptor()) > Config_->DiskWriteThrottlingLimit) {
-            const auto& locationProfiler = location->GetProfiler();
-            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledWrites);
+            location->GetPerformanceCounters().ThrottleWrite();
             THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::WriteThrottlingActive, "Disk write throttling is active");
         }
 
@@ -306,8 +305,8 @@ private:
             if (!error.IsOK()) {
                 return;
             }
-            const auto& profiler = location->GetProfiler();
-            profiler.Update(location->GetPerformanceCounters().PutBlocksWallTime, DurationToValue(timer.GetElapsedTime()));
+
+            location->GetPerformanceCounters().PutBlocksWallTime.Record(timer.GetElapsedTime());
         }));
 
         context->ReplyFrom(result);
@@ -515,8 +514,7 @@ private:
         response->set_disk_throttling(diskThrottling);
         if (diskThrottling) {
             const auto& location = chunk->GetLocation();
-            const auto& locationProfiler = location->GetProfiler();
-            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledReads);
+            location->GetPerformanceCounters().ThrottleRead();
         }
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
@@ -641,8 +639,7 @@ private:
         response->set_disk_throttling(diskThrottling);
         if (diskThrottling) {
             const auto& location = chunk->GetLocation();
-            const auto& locationProfiler = location->GetProfiler();
-            locationProfiler.Increment(location->GetPerformanceCounters().ThrottledReads);
+            location->GetPerformanceCounters().ThrottleRead();
         }
 
         const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
@@ -759,7 +756,7 @@ private:
         response->set_disk_queue_size(diskQueueSize);
         if (diskThrottling) {
             const auto& location = chunk->GetLocation();
-            location->GetProfiler().Increment(location->GetPerformanceCounters().ThrottledReads);
+            location->GetPerformanceCounters().ThrottleRead();
         }
 
         i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();

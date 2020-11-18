@@ -24,8 +24,6 @@
 
 #include <yt/core/misc/fs.h>
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/core/concurrency/thread_pool.h>
@@ -48,6 +46,82 @@ static const int ChunkFilesPermissions = 0751;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TRegistry& registry)
+{
+    for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
+        for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+            auto r = registry
+                .WithTag("direction", FormatEnum(direction))
+                .WithTag("category", FormatEnum(category));
+
+            r.AddFuncGauge("/pending_data_size", MakeStrong(this), [this, direction, category] {
+                return PendingIOSize[direction][category].load();
+            });
+
+            CompletedIOSize[direction][category] = r.Counter("/blob_block_bytes");
+        }
+    }
+
+    ThrottledReads = registry.Counter("/throttled_reads");
+    ThrottledWrites = registry.Counter("/throttled_writes");
+
+    PutBlocksWallTime = registry.Timer("/put_blocks_wall_time");
+    BlobChunkMetaReadTime = registry.Timer("/blob_chunk_meta_read_time");
+
+    BlobChunkReaderOpenTime = registry.Timer("/blob_chunk_reader_open_time");
+
+    BlobChunkWriterOpenTime = registry.Timer("/blob_chunk_writer_open_time");
+    BlobChunkWriterAbortTime = registry.Timer("/blob_chunk_writer_abort_time");
+    BlobChunkWriterCloseTime = registry.Timer("/blob_chunk_writer_close_time");
+
+    BlobBlockReadSize = registry.Summary("/blob_block_read_size");
+    BlobBlockReadTime = registry.Timer("/blob_block_read_time");
+    BlobBlockReadBytes = registry.Counter("/blob_block_read_bytes");
+
+    for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
+        auto r = registry.WithTag("category", FormatEnum(category));
+
+        BlobBlockReadLatencies[category] = r.Timer("/blob_block_read_latency");
+        BlobChunkMetaReadLatencies[category] = r.Timer("/blob_chunk_meta_read_latency");
+    }
+
+    BlobBlockWriteSize = registry.Summary("/blob_block_write_size");
+    BlobBlockWriteTime = registry.Timer("/blob_block_write_time");
+    BlobBlockWriteBytes = registry.Counter("/blob_block_write_bytes");
+
+    JournalBlockReadSize = registry.Summary("/journal_block_read_size");
+    JournalBlockReadTime = registry.Timer("/journal_block_read_time");
+    JournalBlockReadBytes = registry.Counter("/journal_block_read_bytes");
+
+    JournalChunkCreateTime = registry.Timer("/journal_chunk_create_time");
+    JournalChunkOpenTime = registry.Timer("/journal_chunk_open_time");
+    JournalChunkRemoveTime = registry.Timer("/journal_chunk_remove_time");
+
+    for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
+        registry.WithTag("type", FormatEnum(type)).AddFuncGauge("/session_count", MakeStrong(this), [this, type] {
+            return SessionCount[type].load();
+        });
+    }
+
+    UsedSpace = registry.Gauge("/used_space");
+    AvailableSpace = registry.Gauge("/available_space");
+    Full = registry.Gauge("/full");
+}
+
+void TLocationPerformanceCounters::ThrottleRead()
+{
+    ThrottledReads.Increment();
+    LastReadThrottleTime = GetCpuInstant();
+}
+
+void TLocationPerformanceCounters::ThrottleWrite()
+{
+    ThrottledWrites.Increment();
+    LastWriteThrottleTime = GetCpuInstant();    
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLocation::TLocation(
     ELocationType type,
     const TString& id,
@@ -61,76 +135,24 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-{
-    auto* profileManager = NProfiling::TProfileManager::Get();
+{    
     Profiler_ = DataNodeProfiler
-        .AppendPath("/location")
-        .AddTags({
-            profileManager->RegisterTag("location_id", Id_),
-            profileManager->RegisterTag("location_type", Type_),
-            profileManager->RegisterTag("medium", GetMediumName())
-        });
-    
-    ProfilerRegistry_ = DataNodeProfilerRegistry
         .WithPrefix("/location")
-        .WithTag("medium", GetMediumName())
-        .WithTag("location_type", ToString(Type_), -1)
-        .WithTag("location_id", Id_);
+        .WithTag("location_type", ToString(Type_))
+        .WithTag("medium", GetMediumName(), -1)
+        .WithTag("location_id", Id_, -1);
 
-    PerformanceCounters_.ThrottledReads = {"/throttled_reads", {}, config->ThrottleCounterInterval};
-    PerformanceCounters_.ThrottledWrites = {"/throttled_writes", {}, config->ThrottleCounterInterval};
-    PerformanceCounters_.PutBlocksWallTime = {"/put_blocks_wall_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.BlobChunkMetaReadTime = {"/blob_chunk_meta_read_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.BlobChunkReaderOpenTime = {"/blob_chunk_reader_open_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.BlobBlockReadSize = {"/blob_block_read_size", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.BlobBlockReadTime = {"/blob_block_read_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.BlobBlockReadThroughput = {"/blob_block_read_throughput", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.BlobBlockReadBytes = {"/blob_block_read_bytes"};
-    for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
-        NProfiling::TTagIdList tagIds{
-            profileManager->RegisterTag("category", category)
-        };
-        PerformanceCounters_.BlobBlockReadLatencies[category] = {"/blob_block_read_latency", tagIds};
-        PerformanceCounters_.BlobChunkMetaReadLatencies[category] = {"/blob_chunk_meta_read_latency", tagIds};
-    }
-    PerformanceCounters_.BlobBlockWriteSize = {"/blob_block_write_size", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.BlobBlockWriteTime = {"/blob_block_write_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.BlobBlockWriteThroughput = {"/blob_block_write_throughput", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.BlobBlockWriteBytes = {"/blob_block_write_bytes"};
-    PerformanceCounters_.JournalBlockReadSize = {"/journal_block_read_size", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.JournalBlockReadTime = {"/journal_block_read_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.JournalBlockReadThroughput = {"/journal_block_read_throughput", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.JournalBlockReadBytes = {"/journal_block_read_bytes"};
-    PerformanceCounters_.JournalChunkCreateTime = {"/journal_chunk_create_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.JournalChunkOpenTime = {"/journal_chunk_open_time", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.JournalChunkOpenTime = {"/journal_chunk_remove_time", {}, NProfiling::EAggregateMode::All};
-    for (auto type : TEnumTraits<ESessionType>::GetDomainValues()) {
-        NProfiling::TTagIdList tagIds{
-            profileManager->RegisterTag("type", type)
-        };
-        PerformanceCounters_.SessionCount[type] = {"/session_count", tagIds};
-    }
-
-    PerformanceCounters_.UsedSpace = {"/used_space", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.AvailableSpace = {"/available_space", {}, NProfiling::EAggregateMode::All};
-    PerformanceCounters_.Full = {"/full"};
-
-    PerformanceCounters_.PendingIOSize.resize(
-        TEnumTraits<EIODirection>::DomainSize *
-        TEnumTraits<EIOCategory>::DomainSize);
-    PerformanceCounters_.CompletedIOSize.resize(
-        TEnumTraits<EIODirection>::DomainSize *
-        TEnumTraits<EIOCategory>::DomainSize);
+    PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
 
     IOEngine_ = CreateIOEngine(
         Config_->IOEngineType,
         Config_->IOConfig,
         id,
-        ProfilerRegistry_,
+        Profiler_,
         NLogging::TLogger(DataNodeLogger).AddTag("LocationId: %v", id));
 
     auto createThrottler = [&] (const auto& config, const auto& name) {
-        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, ProfilerRegistry_);
+        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, Profiler_);
     };
 
     ReplicationOutThrottler_ = createThrottler(config->ReplicationOutThrottler, "ReplicationOutThrottler");
@@ -140,7 +162,7 @@ TLocation::TLocation(
     TabletLoggingOutThrottler_ = createThrottler(config->TabletLoggingOutThrottler, "TabletLoggingOutThrottler");
     TabletPreloadOutThrottler_ = createThrottler(config->TabletPreloadOutThrottler, "TabletPreloadOutThrottler");
     TabletRecoveryOutThrottler_ = createThrottler(config->TabletRecoveryOutThrottler, "TabletRecoveryOutThrottler");
-    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", ProfilerRegistry_);
+    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", Profiler_);
 
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,
@@ -148,25 +170,6 @@ TLocation::TLocation(
         GetWritePoolInvoker(),
         DataNodeLogger,
         Profiler_);
-
-    static const NProfiling::TEnumMemberTagCache<EIODirection> DirectionTagCache("direction");
-    static const NProfiling::TEnumMemberTagCache<EIOCategory> CategoryTagCache("category");
-    auto initializeCounters = [&] (const TString& path, auto getCounter) {
-        for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
-            for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-                auto& counter = (this->*getCounter)(direction, category);
-                typedef typename std::remove_reference<decltype(counter)>::type TCounter;
-                counter = TCounter(
-                    path,
-                    {
-                        DirectionTagCache.GetTag(direction),
-                        CategoryTagCache.GetTag(category)
-                    });
-            }
-        }
-    };
-    initializeCounters("/pending_data_size", &TLocation::GetPendingIOSizeCounter);
-    initializeCounters("/blob_block_bytes", &TLocation::GetCompletedIOSizeCounter);
 }
 
 const NChunkClient::IIOEnginePtr& TLocation::GetIOEngine() const
@@ -218,25 +221,18 @@ void TLocation::SetMediumDescriptor(const TMediumDescriptor& descriptor)
     CurrentMediumDescriptor_ = MediumDescriptors_.back().get();
 }
 
-const NProfiling::TProfiler& TLocation::GetProfiler() const
+const NProfiling::TRegistry& TLocation::GetProfiler() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Profiler_;
 }
 
-const NProfiling::TRegistry& TLocation::GetProfilerRegistry() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return ProfilerRegistry_;
-}
-
 TLocationPerformanceCounters& TLocation::GetPerformanceCounters()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return PerformanceCounters_;
+    return *PerformanceCounters_;
 }
 
 const TString& TLocation::GetPath() const
@@ -383,7 +379,7 @@ i64 TLocation::GetPendingIOSize(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto category = ToIOCategory(workloadDescriptor);
-    return GetPendingIOSizeCounter(direction, category).GetCurrent();
+    return PerformanceCounters_->PendingIOSize[direction][category].load();
 }
 
 i64 TLocation::GetMaxPendingIOSize(EIODirection direction)
@@ -392,7 +388,7 @@ i64 TLocation::GetMaxPendingIOSize(EIODirection direction)
 
     i64 result = 0;
     for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
-        result = std::max(result, GetPendingIOSizeCounter(direction, category).GetCurrent());
+        result = std::max(result, PerformanceCounters_->PendingIOSize[direction][category].load());
     }
     return result;
 }
@@ -440,26 +436,6 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
     }
 }
 
-NProfiling::TAtomicGauge& TLocation::GetPendingIOSizeCounter(
-    EIODirection direction,
-    EIOCategory category)
-{
-    int index =
-        static_cast<int>(direction) +
-        TEnumTraits<EIODirection>::DomainSize * static_cast<int>(category);
-    return PerformanceCounters_.PendingIOSize[index];
-}
-
-NProfiling::TShardedMonotonicCounter& TLocation::GetCompletedIOSizeCounter(
-    EIODirection direction,
-    EIOCategory category)
-{
-    int index =
-        static_cast<int>(direction) +
-        TEnumTraits<EIODirection>::DomainSize * static_cast<int>(category);
-    return PerformanceCounters_.CompletedIOSize[index];
-}
-
 void TLocation::DecreasePendingIOSize(
     EIODirection direction,
     EIOCategory category,
@@ -476,9 +452,8 @@ void TLocation::UpdatePendingIOSize(
     i64 delta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-
-    auto& counter = GetPendingIOSizeCounter(direction, category);
-    i64 result = Profiler_.Increment(counter, delta);
+    
+    i64 result = PerformanceCounters_->PendingIOSize[direction][category].fetch_add(delta) + delta;
     YT_LOG_TRACE("Pending IO size updated (Direction: %v, Category: %v, PendingSize: %v, Delta: %v)",
         direction,
         category,
@@ -494,8 +469,7 @@ void TLocation::IncreaseCompletedIOSize(
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto category = ToIOCategory(workloadDescriptor);
-    auto& counter = GetCompletedIOSizeCounter(direction, category);
-    Profiler_.Increment(counter, delta);
+    PerformanceCounters_->CompletedIOSize[direction][category].Increment(delta);
 }
 
 void TLocation::UpdateSessionCount(ESessionType type, int delta)
@@ -619,16 +593,16 @@ bool TLocation::IsReadThrottling()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto deadline = PerformanceCounters_.ThrottledReads.GetUpdateDeadline();
-    return GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->ThrottleCounterInterval);
+    auto time = PerformanceCounters_->LastReadThrottleTime.load();
+    return GetCpuInstant() < time + 2 * DurationToCpuDuration(Config_->ThrottleDuration);
 }
 
 bool TLocation::IsWriteThrottling()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto deadline = PerformanceCounters_.ThrottledWrites.GetUpdateDeadline();
-    return GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->ThrottleCounterInterval);
+    auto time = PerformanceCounters_->LastWriteThrottleTime.load();
+    return GetCpuInstant() < time + 2 * DurationToCpuDuration(Config_->ThrottleDuration);
 }
 
 TString TLocation::GetRelativeChunkPath(TChunkId chunkId)
@@ -747,6 +721,10 @@ void TLocation::MarkAsDisabled(const TError& error)
         count.store(0);
     }
     ChunkCount_.store(0);
+
+    Profiler_
+        .WithTag("error_code", ToString(static_cast<int>(error.GetNonTrivialCode())))
+        .AddFuncGauge("/disabled", MakeStrong(this), [] { return 1.0; });
 }
 
 i64 TLocation::GetAdditionalSpace() const
@@ -838,7 +816,7 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         Config_->TrashCheckPeriod))
 {
-    auto diskThrottlerProfiler = GetProfilerRegistry().WithPrefix("/disk_throttler");
+    auto diskThrottlerProfiler = GetProfiler().WithPrefix("/disk_throttler");
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, diskThrottlerProfiler);
     };
@@ -1308,7 +1286,7 @@ TCacheLocation::TCacheLocation(
         Config_->InThrottler,
         "InThrottler",
         Logger,
-        ProfilerRegistry_.WithPrefix("/cache")))
+        Profiler_.WithPrefix("/cache")))
 { }
 
 const IThroughputThrottlerPtr& TCacheLocation::GetInThrottler() const

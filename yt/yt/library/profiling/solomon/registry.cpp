@@ -2,7 +2,6 @@
 
 #include "sensor.h"
 #include "percpu.h"
-#include "yt/core/misc/intrusive_ptr.h"
 
 #include <type_traits>
 #include <yt/core/misc/singleton.h>

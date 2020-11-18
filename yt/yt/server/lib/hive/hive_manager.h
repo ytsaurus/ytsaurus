@@ -47,8 +47,7 @@ public:
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
         NHydra::IHydraManagerPtr hydraManager,
-        NHydra::TCompositeAutomatonPtr automaton,
-        const NProfiling::TTagIdList& profilingTagIds = {});
+        NHydra::TCompositeAutomatonPtr automaton);
 
     ~THiveManager();
 

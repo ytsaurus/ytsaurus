@@ -48,7 +48,7 @@ protected:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
-        NProfiling::TProfiler profiler);
+        NProfiling::TRegistry profiler);
 
     virtual void DoSuspendLogging() = 0;
     virtual void DoResumeLogging() = 0;
@@ -59,11 +59,10 @@ protected:
     TEpochContext* const EpochContext_;
 
     const NLogging::TLogger Logger;
-    const NProfiling::TProfiler Profiler;
 
     const NElection::TCellManagerPtr CellManager_;
 
-    NProfiling::TAtomicGauge LoggingSuspensionTimeGauge_{"/mutation_logging_suspension_time"};
+    NProfiling::TEventTimer LoggingSuspensionProfilingTimer_;
 
     bool LoggingSuspended_ = false;
     std::optional<NProfiling::TWallTimer> LoggingSuspensionTimer_;
@@ -92,7 +91,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
-        NProfiling::TProfiler profiler);
+        NProfiling::TRegistry profiler);
 
     ~TLeaderCommitter();
 
@@ -168,7 +167,8 @@ private:
     TBatchPtr CurrentBatch_;
     TFuture<void> PrevBatchQuorumFlushFuture_ = VoidFuture;
 
-    NProfiling::TAtomicGauge CommitTimeGauge_{"/mutation_commit_time"};
+    NProfiling::TEventTimer CommitTimer_;
+    NProfiling::TSummary BatchSize_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLeaderCommitter)
@@ -189,7 +189,7 @@ public:
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         NLogging::TLogger logger,
-        NProfiling::TProfiler profiler);
+        NProfiling::TRegistry profiler);
 
     //! Logs a batch of mutations at the follower.
     TFuture<void> AcceptMutations(

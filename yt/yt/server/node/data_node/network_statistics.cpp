@@ -18,7 +18,7 @@ void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
 {
     auto counters = Counters_.FindOrInsert(name, [&] {
         auto counters = New<TNetworkCounters>();
-        counters->ThrottledReadsCounter = DataNodeProfilerRegistry
+        counters->ThrottledReadsCounter = DataNodeProfiler
             .WithTag("network", name)
             .Counter("/net_throttled_reads");
         return counters;
@@ -34,7 +34,7 @@ void TNetworkStatistics::UpdateStatistics(NNodeTrackerClient::NProto::TNodeStati
         auto* network = statistics->add_network();
         network->set_network(name);
 
-        auto resetAt = counters->UpdateTime.load() + 2 * DurationToCpuDuration(Config_->NetOutThrottleCounterInterval);
+        auto resetAt = counters->UpdateTime.load() + 2 * DurationToCpuDuration(Config_->NetOutThrottleDuration);
         network->set_throttling_reads(GetCpuInstant() < resetAt);
     });
 }

@@ -210,11 +210,19 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
     def _check_cell_stable(self, cell_id):
         addresses = [peer["address"] for peer in get("#" + cell_id + "/@peers")]
         metrics = [
-            Metric.at_node(address, "hydra/restart_count", with_tags={"cell_id": cell_id}) for address in addresses
+            Metric.at_node(address, "hydra/restart_count", with_tags={"cell_id": cell_id}, aggr_method="max") for address in addresses
         ]
+
         sleep(10.0)
+
+        counts = []
         for metric in metrics:
-            assert metric.update().get(verbose=True) == 0
+            counts.append(metric.update().get(verbose=True))
+
+        sleep(10.0)
+
+        for i, metric in enumerate(metrics):
+            assert metric.update().get(verbose=True) == counts[i]
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])

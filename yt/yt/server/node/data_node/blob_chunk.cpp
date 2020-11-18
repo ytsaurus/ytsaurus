@@ -244,9 +244,8 @@ void TBlobChunkBase::DoReadMeta(
 
     session->Options.ChunkReaderStatistics->MetaReadFromDiskTime += DurationToValue(readTime);
 
-    const auto& locationProfiler = Location_->GetProfiler();
     auto& performanceCounters = Location_->GetPerformanceCounters();
-    locationProfiler.Update(performanceCounters.BlobChunkMetaReadTime, DurationToValue(readTime));
+    performanceCounters.BlobChunkMetaReadTime.Record(readTime);
 
     YT_LOG_DEBUG("Finished reading chunk meta (ChunkId: %v, LocationId: %v, ReadSessionId: %v, ReadTime: %v)",
         Id_,
@@ -578,12 +577,10 @@ void TBlobChunkBase::OnBlocksRead(
         gapBlockSize,
         gapBlockCount);
 
-    const auto& locationProfiler = Location_->GetProfiler();
     auto& performanceCounters = Location_->GetPerformanceCounters();
-    locationProfiler.Update(performanceCounters.BlobBlockReadSize, bytesRead);
-    locationProfiler.Update(performanceCounters.BlobBlockReadTime, DurationToValue(readTime));
-    locationProfiler.Update(performanceCounters.BlobBlockReadThroughput, bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
-    locationProfiler.Increment(performanceCounters.BlobBlockReadBytes, bytesRead);
+    performanceCounters.BlobBlockReadSize.Record(bytesRead);
+    performanceCounters.BlobBlockReadTime.Record(readTime);
+    performanceCounters.BlobBlockReadBytes.Increment(bytesRead);
 
     Location_->IncreaseCompletedIOSize(EIODirection::Read, session->Options.WorkloadDescriptor, bytesRead);
 

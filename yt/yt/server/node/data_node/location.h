@@ -45,41 +45,59 @@ DEFINE_ENUM(EIOCategory,
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLocationPerformanceCounters
+    : public TRefCounted
 {
-    //! Indexed by |(ioDirection, ioCategory)|.
-    std::vector<NProfiling::TAtomicGauge> PendingIOSize;
-    std::vector<NProfiling::TShardedMonotonicCounter> CompletedIOSize;
+    explicit TLocationPerformanceCounters(const NProfiling::TRegistry& registry);
 
-    NProfiling::TShardedMonotonicCounter ThrottledReads;
-    NProfiling::TShardedMonotonicCounter ThrottledWrites;
+    TEnumIndexedVector<EIODirection, TEnumIndexedVector<EIOCategory, std::atomic<i64>>> PendingIOSize;
+    TEnumIndexedVector<EIODirection, TEnumIndexedVector<EIOCategory, NProfiling::TCounter>> CompletedIOSize;
 
-    NProfiling::TShardedAggregateGauge PutBlocksWallTime;
-    NProfiling::TShardedAggregateGauge BlobChunkMetaReadTime;
-    NProfiling::TShardedAggregateGauge BlobChunkReaderOpenTime;
-    NProfiling::TShardedAggregateGauge BlobBlockReadSize;
-    NProfiling::TShardedAggregateGauge BlobBlockReadTime;
-    NProfiling::TShardedAggregateGauge BlobBlockReadThroughput;
-    NProfiling::TShardedMonotonicCounter BlobBlockReadBytes;
-    TEnumIndexedVector<EWorkloadCategory, NProfiling::TShardedAggregateGauge> BlobBlockReadLatencies;
-    TEnumIndexedVector<EWorkloadCategory, NProfiling::TShardedAggregateGauge> BlobChunkMetaReadLatencies;
-    NProfiling::TShardedAggregateGauge BlobBlockWriteSize;
-    NProfiling::TShardedAggregateGauge BlobBlockWriteTime;
-    NProfiling::TShardedAggregateGauge BlobBlockWriteThroughput;
-    NProfiling::TShardedMonotonicCounter BlobBlockWriteBytes;
-    NProfiling::TShardedAggregateGauge JournalBlockReadSize;
-    NProfiling::TShardedAggregateGauge JournalBlockReadTime;
-    NProfiling::TShardedAggregateGauge JournalBlockReadThroughput;
-    NProfiling::TShardedMonotonicCounter JournalBlockReadBytes;
-    NProfiling::TShardedAggregateGauge JournalChunkCreateTime;
-    NProfiling::TShardedAggregateGauge JournalChunkOpenTime;
-    NProfiling::TShardedAggregateGauge JournalChunkRemoveTime;
+    NProfiling::TCounter ThrottledReads;
+    std::atomic<NProfiling::TCpuInstant> LastReadThrottleTime{};
 
-    TEnumIndexedVector<ESessionType, NProfiling::TAtomicGauge> SessionCount;
+    void ThrottleRead();
 
-    NProfiling::TShardedAggregateGauge UsedSpace;
-    NProfiling::TShardedAggregateGauge AvailableSpace;
-    NProfiling::TAtomicGauge Full;
+    NProfiling::TCounter ThrottledWrites;
+    std::atomic<NProfiling::TCpuInstant> LastWriteThrottleTime{};
+
+    void ThrottleWrite();
+
+    NProfiling::TEventTimer PutBlocksWallTime;
+    NProfiling::TEventTimer BlobChunkMetaReadTime;
+    NProfiling::TEventTimer BlobChunkReaderOpenTime;
+
+    NProfiling::TEventTimer BlobChunkWriterOpenTime;
+    NProfiling::TEventTimer BlobChunkWriterAbortTime;
+    NProfiling::TEventTimer BlobChunkWriterCloseTime;
+
+    NProfiling::TSummary BlobBlockReadSize;
+
+    NProfiling::TEventTimer BlobBlockReadTime;
+    NProfiling::TCounter BlobBlockReadBytes;
+
+    TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobBlockReadLatencies;
+    TEnumIndexedVector<EWorkloadCategory, NProfiling::TEventTimer> BlobChunkMetaReadLatencies;
+
+    NProfiling::TSummary BlobBlockWriteSize;
+    NProfiling::TEventTimer BlobBlockWriteTime;
+    NProfiling::TCounter BlobBlockWriteBytes;
+
+    NProfiling::TSummary JournalBlockReadSize;
+    NProfiling::TEventTimer JournalBlockReadTime;
+    NProfiling::TCounter JournalBlockReadBytes;
+
+    NProfiling::TEventTimer JournalChunkCreateTime;
+    NProfiling::TEventTimer JournalChunkOpenTime;
+    NProfiling::TEventTimer JournalChunkRemoveTime;
+
+    TEnumIndexedVector<ESessionType, std::atomic<int>> SessionCount;
+
+    NProfiling::TGauge UsedSpace;
+    NProfiling::TGauge AvailableSpace;
+    NProfiling::TGauge Full;
 };
+
+DEFINE_REFCOUNTED_TYPE(TLocationPerformanceCounters)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,10 +129,7 @@ public:
     //! Initializes the medium descriptor.
     void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);
 
-    //! Returns the profiler tagged with location id.
-    const NProfiling::TProfiler& GetProfiler() const;
-
-    const NProfiling::TRegistry& GetProfilerRegistry() const;
+    const NProfiling::TRegistry& GetProfiler() const;
 
     //! Returns various performance counters.
     TLocationPerformanceCounters& GetPerformanceCounters();
@@ -229,8 +244,7 @@ public:
 
 protected:
     NClusterNode::TBootstrap* const Bootstrap_;
-    NProfiling::TProfiler Profiler_;
-    NProfiling::TRegistry ProfilerRegistry_;
+    NProfiling::TRegistry Profiler_;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
     static void ForceHashDirectories(const TString& rootPath);
@@ -274,18 +288,12 @@ private:
 
     TDiskHealthCheckerPtr HealthChecker_;
 
-    TLocationPerformanceCounters PerformanceCounters_;
+    TLocationPerformanceCountersPtr PerformanceCounters_;
 
     TAdaptiveLock LockedChunksLock_;
     THashSet<TChunkId> LockedChunks_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
-    NProfiling::TAtomicGauge& GetPendingIOSizeCounter(
-        EIODirection direction,
-        EIOCategory category);
-    NProfiling::TShardedMonotonicCounter& GetCompletedIOSizeCounter(
-        EIODirection direction,
-        EIOCategory category);
 
     void DecreasePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
     void UpdatePendingIOSize(EIODirection direction, EIOCategory category, i64 delta);
