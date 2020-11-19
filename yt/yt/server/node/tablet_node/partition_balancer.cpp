@@ -7,6 +7,7 @@
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
+#include "yt/library/profiling/sensor.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 
@@ -52,6 +53,7 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletNode::NProto;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,17 +86,16 @@ private:
     const TAsyncSemaphorePtr Semaphore_;
     const TThrottlerManagerPtr ThrottlerManager_;
 
-    const NProfiling::TProfiler Profiler = TabletNodeProfiler.AppendPath("/partition_balancer");
-    NProfiling::TShardedMonotonicCounter ScheduledSplitsCounter_{"/scheduled_splits"};
-    NProfiling::TShardedMonotonicCounter ScheduledMergesCounter_{"/scheduled_merges"};
-
+    const TRegistry Profiler_ = TabletNodeProfiler.WithPrefix("/partition_balancer");
+    TCounter ScheduledSplitsCounter_ = Profiler_.Counter("/scheduled_splits");
+    TCounter ScheduledMergesCounter_ = Profiler_.Counter("/scheduled_merges");
+    TEventTimer ScanTime_ = Profiler_.Timer("/scan_time");
 
     void OnScanSlot(TTabletSlotPtr slot)
     {
         const auto& tagIdList = slot->GetProfilingTagIds();
-        PROFILE_TIMING("/scan_time", tagIdList) {
-            OnScanSlotImpl(slot, tagIdList);
-        }
+        TEventTimerGuard guard(ScanTime_);
+        OnScanSlotImpl(slot, tagIdList);
     }
 
     void OnScanSlotImpl(TTabletSlotPtr slot, const NProfiling::TTagIdList& tagIdList)
@@ -206,7 +207,7 @@ private:
         if (partition->IsImmediateSplitRequested()) {
             if (ValidateSplit(slot, partition, true)) {
                 partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
-                Profiler.Increment(ScheduledSplitsCounter_);
+                ScheduledSplitsCounter_.Increment();
                 DoRunImmediateSplit(slot, partition, Logger);
                 // This is inexact to say the least: immediate split is called when we expect that
                 // most of the stores will stay intact after splitting by the provided pivots.
@@ -233,7 +234,7 @@ private:
 
             if (splitFactor > 1 && ValidateSplit(slot, partition, false)) {
                 partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
-                Profiler.Increment(ScheduledSplitsCounter_);
+                ScheduledSplitsCounter_.Increment();
                 YT_LOG_DEBUG("Partition is scheduled for split");
                 tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
                     &TPartitionBalancer::DoRunSplit,
@@ -492,7 +493,7 @@ private:
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             tablet->PartitionList()[index]->CheckedSetState(EPartitionState::Normal, EPartitionState::Merging);
         }
-        Profiler.Increment(ScheduledMergesCounter_);
+        ScheduledMergesCounter_.Increment();
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("%v, CellId: %v, PartitionIds: %v",

@@ -212,9 +212,6 @@ private:
 
     TAsyncSemaphorePtr PreloadSemaphore_;
 
-    const NProfiling::TTagId PreloadTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "preload");
-    const NProfiling::TTagId PreloadFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "preload_failed");
-
     TReaderWriterSpinLock InterceptedDataSpinLock_;
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
@@ -312,7 +309,7 @@ private:
         bool failed = true;
         auto readerProfiler = New<TReaderProfiler>();
         auto profileGuard = Finally([&] () {
-            readerProfiler->Profile(tabletSnapshot, failed ? PreloadFailedTag_ : PreloadTag_);
+            readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Preload, failed);
         });
 
         try {

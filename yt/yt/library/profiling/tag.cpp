@@ -46,9 +46,9 @@ TTagSet TTagSet::WithTag(TTag tag, int parent)
 
 void TTagSet::AddTag(TTag tag, int parent)
 {
-    if (parent < 0) {
-        YT_VERIFY(static_cast<size_t>(-parent) <= Tags_.size());
-        Parents_.push_back(Tags_.size() - parent);
+    int parentIndex = Tags_.size() - parent;
+    if (parentIndex >= 0 && static_cast<size_t>(parentIndex) < Tags_.size()) {
+        Parents_.push_back(parentIndex);
     } else {
         Parents_.push_back(NoParentSentinel);
     }

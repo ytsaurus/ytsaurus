@@ -55,35 +55,6 @@ static const size_t RowBufferCapacity = 1000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TLookupCounters
-{
-    explicit TLookupCounters(const TTagIdList& list)
-        : CacheHits("/lookup/cache_hits", list)
-        , CacheMisses("/lookup/cache_misses", list)
-        , RowCount("/lookup/row_count", list)
-        , DataWeight("/lookup/data_weight", list)
-        , UnmergedRowCount("/lookup/unmerged_row_count", list)
-        , UnmergedDataWeight("/lookup/unmerged_data_weight", list)
-        , CpuTime("/lookup/cpu_time", list)
-        , DecompressionCpuTime("/lookup/decompression_cpu_time", list)
-        , ChunkReaderStatisticsCounters("/lookup/chunk_reader_statistics", list)
-    { }
-
-    TShardedMonotonicCounter CacheHits;
-    TShardedMonotonicCounter CacheMisses;
-    TShardedMonotonicCounter RowCount;
-    TShardedMonotonicCounter DataWeight;
-    TShardedMonotonicCounter UnmergedRowCount;
-    TShardedMonotonicCounter UnmergedDataWeight;
-    TShardedMonotonicCounter CpuTime;
-    TShardedMonotonicCounter DecompressionCpuTime;
-    TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
-};
-
-using TLookupProfilerTrait = TTagListProfilerTrait<TLookupCounters>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TLookupSessionBufferTag
 { };
 
@@ -107,11 +78,7 @@ public:
         , ColumnFilter_(columnFilter)
         , BlockReadOptions_(blockReadOptions)
         , LookupKeys_(std::move(lookupKeys))
-    {
-        if (TabletSnapshot_->IsProfilingEnabled()) {
-            Tags_ = AddCurrentUserTag(TabletSnapshot_->ProfilerTags);
-        }
-    }
+    { }
 
     void Run(
         const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
@@ -249,19 +216,22 @@ public:
         UpdateUnmergedStatistics(DynamicEdenSessions_);
         UpdateUnmergedStatistics(ChunkEdenSessions_);
 
-        auto cpuTime = timer.GetElapsedValue();
+        auto cpuTime = timer.GetElapsedTime();
 
-        if (IsProfilingEnabled()) {
-            auto& counters = GetLocallyGloballyCachedValue<TLookupProfilerTrait>(Tags_);
-            TabletNodeProfiler.Increment(counters.CacheHits, CacheHits_);
-            TabletNodeProfiler.Increment(counters.CacheMisses, CacheMisses_);
-            TabletNodeProfiler.Increment(counters.RowCount, FoundRowCount_);
-            TabletNodeProfiler.Increment(counters.DataWeight, FoundDataWeight_);
-            TabletNodeProfiler.Increment(counters.UnmergedRowCount, UnmergedRowCount_);
-            TabletNodeProfiler.Increment(counters.UnmergedDataWeight, UnmergedDataWeight_);
-            TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
-            TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(DecompressionCpuTime_));
-            counters.ChunkReaderStatisticsCounters.Increment(TabletNodeProfiler, BlockReadOptions_.ChunkReaderStatistics);
+        {
+            auto counters = TabletSnapshot_->TableProfiler->GetLookupCounters(GetCurrentProfilingUser());
+
+            counters->CacheHits.Increment(CacheHits_);
+            counters->CacheMisses.Increment(CacheMisses_);
+            counters->RowCount.Increment(FoundRowCount_);
+            counters->DataWeight.Increment(FoundDataWeight_);
+            counters->UnmergedRowCount.Increment(UnmergedRowCount_);
+            counters->UnmergedDataWeight.Increment(UnmergedDataWeight_);
+
+            counters->CpuTime.Add(cpuTime);
+            counters->DecompressionCpuTime.Add(DecompressionCpuTime_);
+
+            counters->ChunkReaderStatisticsCounters.Increment(BlockReadOptions_.ChunkReaderStatistics);
         }
 
         YT_LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, CacheHits: %v, CacheMisses: %v, "
@@ -272,7 +242,7 @@ public:
             CacheMisses_,
             FoundRowCount_,
             FoundDataWeight_,
-            ValueToDuration(cpuTime),
+            cpuTime,
             DecompressionCpuTime_,
             BlockReadOptions_.ReadSessionId);
     }
@@ -367,13 +337,6 @@ private:
     int UnmergedRowCount_ = 0;
     size_t UnmergedDataWeight_ = 0;
     TDuration DecompressionCpuTime_;
-
-    TTagIdList Tags_;
-
-    bool IsProfilingEnabled() const
-    {
-        return !Tags_.empty();
-    }
 
     std::vector<TFuture<void>> CreateReadSessions(
         TReadSessionList* sessions,

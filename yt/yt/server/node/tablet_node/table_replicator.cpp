@@ -57,6 +57,7 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NHydra;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,7 +99,6 @@ public:
             .AddTag("%v, ReplicaId: %v",
                 tablet->GetLoggingId(),
                 ReplicaId_))
-        , Profiler(TabletNodeProfiler)
         , NodeInThrottler_(std::move(nodeInThrottler))
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeOutThrottler),
@@ -144,7 +144,6 @@ private:
     const int TabletIndexColumnId_;
 
     const NLogging::TLogger Logger;
-    const NProfiling::TProfiler Profiler;
 
     const IThroughputThrottlerPtr NodeInThrottler_;
     const IThroughputThrottlerPtr Throttler_;
@@ -190,10 +189,10 @@ private:
 
             const auto& tabletRuntimeData = tabletSnapshot->TabletRuntimeData;
             const auto& replicaRuntimeData = replicaSnapshot->RuntimeData;
-            auto* counters = replicaSnapshot->Counters;
+            const auto& counters = replicaSnapshot->Counters;
             auto countError = Finally([&] {
                 if (std::uncaught_exception()) {
-                    Profiler.Increment(counters->ReplicationErrorCount);
+                    counters.ReplicationErrorCount.Increment();
                 }
             });
 
@@ -222,8 +221,9 @@ private:
                 auto time = (rowCount == 0)
                     ? TDuration::Zero()
                     : TimestampToInstant(timestampProvider->GetLatestTimestamp()).second - TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
-                Profiler.Update(counters->LagRowCount, rowCount);
-                Profiler.Update(counters->LagTime, NProfiling::DurationToValue(time));
+
+                counters.LagRowCount.Record(rowCount);
+                counters.LagTime.Record(time);
             });
 
             if (totalRowCount <= lastReplicationRowIndex) {
@@ -237,7 +237,9 @@ private:
 
             NNative::ITransactionPtr localTransaction;
             ITransactionPtr alienTransaction;
-            PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionStartTime) {
+            {
+                TEventTimer timerGuard(counters.ReplicationTransactionStartTime);
+
                 YT_LOG_DEBUG("Starting replication transactions");
 
                 auto localClient = LocalConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
@@ -274,7 +276,8 @@ private:
             blockReadOptions.ReadSessionId = TReadSessionId::Create();
             blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-            PROFILE_AGGREGATED_TIMING(counters->ReplicationRowsReadTime) {
+            {
+                TEventTimer timerGuard(counters.ReplicationRowsReadTime);
                 auto readReplicationBatch = [&]() {
                     return ReadReplicationBatch(
                         MountConfig_,
@@ -302,7 +305,9 @@ private:
                 }
             }
 
-            PROFILE_AGGREGATED_TIMING(counters->ReplicationRowsWriteTime) {
+            {
+                TEventTimer timerGuard(counters.ReplicationRowsWriteTime);
+
                 TModifyRowsOptions options;
                 options.UpstreamReplicaId = ReplicaId_;
                 alienTransaction->ModifyRows(
@@ -324,7 +329,8 @@ private:
                 localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));
             }
 
-            PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionCommitTime) {
+            {
+                TEventTimer timerGuard(counters.ReplicationTransactionCommitTime);
                 YT_LOG_DEBUG("Started committing replication transaction");
 
                 TTransactionCommitOptions commitOptions;
@@ -347,10 +353,10 @@ private:
             }
             replicaRuntimeData->Error.Store(TError());
 
-            Profiler.Update(counters->ReplicationBatchRowCount, batchRowCount);
-            Profiler.Update(counters->ReplicationBatchDataWeight, batchDataWeight);
-            Profiler.Increment(counters->ReplicationRowCount, batchRowCount);
-            Profiler.Increment(counters->ReplicationDataWeight, batchDataWeight);
+            counters.ReplicationBatchRowCount.Record(batchRowCount);
+            counters.ReplicationBatchDataWeight.Record(batchDataWeight);
+            counters.ReplicationRowCount.Increment(batchRowCount);
+            counters.ReplicationDataWeight.Increment(batchDataWeight);
         } catch (const std::exception& ex) {
             TError error(ex);
             if (replicaSnapshot) {

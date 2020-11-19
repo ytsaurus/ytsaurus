@@ -3,6 +3,7 @@
 #include "automaton.h"
 #include "tablet_slot.h"
 #include "transaction.h"
+#include "yt/library/profiling/sensor.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
@@ -127,8 +128,9 @@ public:
             Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
         , NativeCellTag_(Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag())
-        , Profiler(TabletNodeProfiler
-            .AddTags(slot->GetProfilingTagIds()))
+        , TransactionSerializationLagTimer_(TabletNodeProfiler
+            .WithTag("cell_id", ToString(slot->GetCellId()))
+            .Timer("/transaction_serialization_lag"))
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -542,8 +544,7 @@ private:
     const TTransactionLeaseTrackerPtr LeaseTracker_;
     const TCellTag NativeCellTag_;
 
-    const NProfiling::TProfiler Profiler;
-    NProfiling::TShardedAggregateGauge TransactionSerializationLagCounter_{"/transaction_serialization_lag"};
+    NProfiling::TEventTimer TransactionSerializationLagTimer_;
 
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
@@ -973,7 +974,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        Profiler.Update(TransactionSerializationLagCounter_, NProfiling::DurationToValue(ComputeTransactionSerializationLag()));
+        TransactionSerializationLagTimer_.Record(ComputeTransactionSerializationLag());
     }
 
 

@@ -6,6 +6,7 @@
 #include "public.h"
 #include "sorted_dynamic_comparer.h"
 #include "cached_row.h"
+#include "tablet_profiling.h"
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -52,6 +53,28 @@ DEFINE_REFCOUNTED_TYPE(TRowCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletPerformanceCounters
+    : public TChunkReaderPerformanceCounters
+{
+    std::atomic<i64> DynamicRowReadCount = {0};
+    std::atomic<i64> DynamicRowReadDataWeightCount = {0};
+    std::atomic<i64> DynamicRowLookupCount = {0};
+    std::atomic<i64> DynamicRowLookupDataWeightCount = {0};
+    std::atomic<i64> DynamicRowWriteCount = {0};
+    std::atomic<i64> DynamicRowWriteDataWeightCount = {0};
+    std::atomic<i64> DynamicRowDeleteCount = {0};
+    std::atomic<i64> UnmergedRowReadCount = {0};
+    std::atomic<i64> MergedRowReadCount = {0};
+    std::atomic<i64> CompactionDataWeightCount = {0};
+    std::atomic<i64> PartitioningDataWeightCount = {0};
+    std::atomic<i64> LookupErrorCount = {0};
+    std::atomic<i64> WriteErrorCount = {0};
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Cf. TRuntimeTabletData.
 struct TRuntimeTableReplicaData
     : public TRefCounted
@@ -73,36 +96,12 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTableReplicaData)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TReplicaCounters
-{
-    TReplicaCounters() = default;
-    explicit TReplicaCounters(const NProfiling::TTagIdList& list);
-
-    NProfiling::TShardedAggregateGauge LagRowCount;
-    NProfiling::TShardedAggregateGauge LagTime;
-    NProfiling::TShardedAggregateGauge ReplicationTransactionStartTime;
-    NProfiling::TShardedAggregateGauge ReplicationTransactionCommitTime;
-    NProfiling::TShardedAggregateGauge ReplicationRowsReadTime;
-    NProfiling::TShardedAggregateGauge ReplicationRowsWriteTime;
-    NProfiling::TShardedAggregateGauge ReplicationBatchRowCount;
-    NProfiling::TShardedAggregateGauge ReplicationBatchDataWeight;
-    NProfiling::TShardedMonotonicCounter ReplicationRowCount;
-    NProfiling::TShardedMonotonicCounter ReplicationDataWeight;
-    NProfiling::TShardedMonotonicCounter ReplicationErrorCount;
-
-    const NProfiling::TTagIdList Tags;
-};
-
-extern TReplicaCounters NullReplicaCounters;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTableReplicaSnapshot
     : public TRefCounted
 {
     NTransactionClient::TTimestamp StartReplicationTimestamp;
     TRuntimeTableReplicaDataPtr RuntimeData;
-    TReplicaCounters* Counters = &NullReplicaCounters;
+    TReplicaCounters Counters;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
@@ -173,8 +172,6 @@ struct TTabletSnapshot
 
     TSortedDynamicRowKeyComparer RowKeyComparer;
 
-    TTabletPerformanceCountersPtr PerformanceCounters;
-
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator;
 
     TRuntimeTabletDataPtr TabletRuntimeData;
@@ -182,8 +179,8 @@ struct TTabletSnapshot
 
     THashMap<TTableReplicaId, TTableReplicaSnapshotPtr> Replicas;
 
-    NProfiling::TTagIdList ProfilerTags;
-    NProfiling::TTagIdList DiskProfilerTags;
+    TTabletPerformanceCountersPtr PerformanceCounters;
+    TTableProfilerPtr TableProfiler;
 
     NConcurrency::IReconfigurableThroughputThrottlerPtr FlushThrottler;
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler;
@@ -220,7 +217,6 @@ struct TTabletSnapshot
 
     void ValidateCellId(NElection::TCellId cellId);
     void ValidateMountRevision(NHydra::TRevision mountRevision);
-    bool IsProfilingEnabled() const;
     void WaitOnLocks(TTimestamp timestamp) const;
 };
 
@@ -229,38 +225,6 @@ DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTabletPerformanceCounters
-    : public TChunkReaderPerformanceCounters
-{
-    std::atomic<i64> DynamicRowReadCount = {0};
-    std::atomic<i64> DynamicRowReadDataWeightCount = {0};
-    std::atomic<i64> DynamicRowLookupCount = {0};
-    std::atomic<i64> DynamicRowLookupDataWeightCount = {0};
-    std::atomic<i64> DynamicRowWriteCount = {0};
-    std::atomic<i64> DynamicRowWriteDataWeightCount = {0};
-    std::atomic<i64> DynamicRowDeleteCount = {0};
-    std::atomic<i64> UnmergedRowReadCount = {0};
-    std::atomic<i64> MergedRowReadCount = {0};
-    std::atomic<i64> CompactionDataWeightCount = {0};
-    std::atomic<i64> PartitioningDataWeightCount = {0};
-    std::atomic<i64> LookupErrorCount = {0};
-    std::atomic<i64> WriteErrorCount = {0};
-};
-
-DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTabletCounters
-{
-    TTabletCounters(const NProfiling::TTagIdList& list);
-
-    NProfiling::TShardedAggregateGauge OverlappingStoreCount;
-    NProfiling::TShardedAggregateGauge EdenStoreCount;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -300,7 +264,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
 
     DEFINE_BYVAL_RW_PROPERTY(TTableReplicatorPtr, Replicator);
-    DEFINE_BYVAL_RW_PROPERTY(TReplicaCounters*, Counters, &NullReplicaCounters);
+    DEFINE_BYVAL_RW_PROPERTY(TReplicaCounters, Counters);
 
 public:
     TTableReplicaInfo() = default;
@@ -392,8 +356,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(NConcurrency::TAsyncSemaphorePtr, StoresUpdateCommitSemaphore);
 
-    DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagIdList, ProfilerTags);
-    DEFINE_BYVAL_RO_PROPERTY(NProfiling::TTagIdList, DiskProfilerTags);
+    DEFINE_BYVAL_RO_PROPERTY(TTableProfilerPtr, TableProfiler, TTableProfiler::GetDisabled());
 
     DEFINE_BYREF_RO_PROPERTY(TTabletPerformanceCountersPtr, PerformanceCounters, New<TTabletPerformanceCounters>());
     DEFINE_BYREF_RO_PROPERTY(TRuntimeTabletDataPtr, RuntimeData, New<TRuntimeTabletData>());
@@ -513,9 +476,8 @@ public:
     i64 Unlock();
     i64 GetTabletLockCount() const;
 
-    void FillProfilerTags(TCellId cellId);
+    void FillProfilerTags();
     void UpdateReplicaCounters();
-    bool IsProfilingEnabled() const;
 
     void ReconfigureThrottlers();
 
@@ -563,10 +525,7 @@ private:
 
     TRowCachePtr RowCache_;
 
-
     i64 TabletLockCount_ = 0;
-
-    TTabletCounters* ProfilerCounters_ = nullptr;
 
     TLockManagerPtr LockManager_;
 

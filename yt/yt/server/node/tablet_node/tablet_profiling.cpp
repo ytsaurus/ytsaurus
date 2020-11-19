@@ -18,8 +18,11 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/profiler.h>
 
-#include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/farm_hash.h>
+#include <yt/core/misc/singleton.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/library/syncmap/map.h>
 
 namespace NYT::NTabletNode {
 
@@ -29,104 +32,22 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkWriteCounters
-{
-    explicit TChunkWriteCounters(const TTagIdList& tagIds)
-        : DiskSpace("/chunk_writer/disk_space", tagIds)
-        , DataWeight("/chunk_writer/data_weight", tagIds)
-        , CompressionCpuTime("/chunk_writer/compression_cpu_time", tagIds)
-    { }
-
-    TShardedMonotonicCounter DiskSpace;
-    TShardedMonotonicCounter DataWeight;
-    TShardedMonotonicCounter CompressionCpuTime;
-};
-
-using TChunkWriteProfilerTrait = TTagListProfilerTrait<TChunkWriteCounters>;
-
-void ProfileChunkWriter(
+void TWriterProfiler::Profile(
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TDataStatistics& dataStatistics,
-    const TCodecStatistics& codecStatistics,
-    TTagId methodTag)
+    EChunkWriteProfilingMethod method,
+    bool failed)
 {
     auto diskSpace = CalculateDiskSpaceUsage(
         tabletSnapshot->WriterOptions->ReplicationFactor,
-        dataStatistics.regular_disk_space(),
-        dataStatistics.erasure_disk_space());
-    auto compressionCpuTime = codecStatistics.GetTotalDuration();
-    auto tags = tabletSnapshot->DiskProfilerTags;
-    tags.push_back(methodTag);
-    auto& counters = GetLocallyGloballyCachedValue<TChunkWriteProfilerTrait>(tags);
-    TabletNodeProfiler.Increment(counters.DiskSpace, diskSpace);
-    TabletNodeProfiler.Increment(counters.DataWeight, dataStatistics.data_weight());
-    TabletNodeProfiler.Increment(counters.CompressionCpuTime, DurationToValue(compressionCpuTime));
-}
+        DataStatistics_.regular_disk_space(),
+        DataStatistics_.erasure_disk_space());
+    auto compressionCpuTime = CodecStatistics_.GetTotalDuration();
 
-////////////////////////////////////////////////////////////////////////////////
+    auto counters = tabletSnapshot->TableProfiler->GetWriteCounters(method, failed);
 
-struct TChunkReadCounters
-{
-    explicit TChunkReadCounters(const TTagIdList& tagIds)
-        : CompressedDataSize("/chunk_reader/compressed_data_size", tagIds)
-        , UnmergedDataWeight("/chunk_reader/unmerged_data_weight", tagIds)
-        , DecompressionCpuTime("/chunk_reader/decompression_cpu_time", tagIds)
-        , ChunkReaderStatisticsCounters("/chunk_reader_statistics", tagIds)
-    { }
-
-    TShardedMonotonicCounter CompressedDataSize;
-    TShardedMonotonicCounter UnmergedDataWeight;
-    TShardedMonotonicCounter DecompressionCpuTime;
-    TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
-};
-
-using TChunkReadProfilerTrait = TTagListProfilerTrait<TChunkReadCounters>;
-
-void ProfileChunkReader(
-    const TTabletSnapshotPtr& tabletSnapshot,
-    const TDataStatistics& dataStatistics,
-    const TCodecStatistics& codecStatistics,
-    const TChunkReaderStatisticsPtr& chunkReaderStatistics,
-    TTagId methodTag)
-{
-    auto compressionCpuTime = codecStatistics.GetTotalDuration();
-    auto tags = tabletSnapshot->DiskProfilerTags;
-    tags.push_back(methodTag);
-    auto& counters = GetLocallyGloballyCachedValue<TChunkReadProfilerTrait>(tags);
-    TabletNodeProfiler.Increment(counters.CompressedDataSize, dataStatistics.compressed_data_size());
-    TabletNodeProfiler.Increment(counters.UnmergedDataWeight, dataStatistics.data_weight());
-    TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(compressionCpuTime));
-    counters.ChunkReaderStatisticsCounters.Increment(TabletNodeProfiler, chunkReaderStatistics);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTabletStoresUpdateThrottlerWaitCounters
-{
-    explicit TTabletStoresUpdateThrottlerWaitCounters(const TTagIdList& tagIds)
-        : WaitTime("/tablet_stores_update_throttler_wait_time", tagIds)
-    { }
-
-    TShardedAggregateGauge WaitTime;
-};
-
-using TTabletStoresUpdateThrottlerWaitProfilerTrait = TTagListProfilerTrait<
-    TTabletStoresUpdateThrottlerWaitCounters>;
-
-void ProfileTabletStoresUpdateThrottlerWait(
-    const TTagIdList& tags,
-    TDuration elapsedTime)
-{
-    auto& counters = GetLocallyGloballyCachedValue<
-        TTabletStoresUpdateThrottlerWaitProfilerTrait>(tags);
-    TabletNodeProfiler.Update(counters.WaitTime, DurationToValue(elapsedTime));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TWriterProfiler::Profile(const TTabletSnapshotPtr& tabletSnapshot, TTagId tag)
-{
-    ProfileChunkWriter(tabletSnapshot, DataStatistics_, CodecStatistics_, tag);
+    counters->DiskSpace.Increment(diskSpace);
+    counters->DataWeight.Increment(DataStatistics_.data_weight());
+    counters->CompressionCpuTime.Add(compressionCpuTime);
 }
 
 void TWriterProfiler::Update(const NTableClient::IVersionedMultiChunkWriterPtr& writer)
@@ -145,11 +66,22 @@ void TWriterProfiler::Update(const IChunkWriterBasePtr& writer)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TReaderProfiler::Profile(
     const TTabletSnapshotPtr& tabletSnapshot,
-    TTagId tag)
+    EChunkReadProfilingMethod method,
+    bool failed)
 {
-    ProfileChunkReader(tabletSnapshot, DataStatistics_, CodecStatistics_, ChunkReaderStatistics_, tag);
+    auto compressionCpuTime = CodecStatistics_.GetTotalDuration();
+
+    auto counters = tabletSnapshot->TableProfiler->GetReadCounters(method, failed);
+
+    counters->CompressedDataSize.Increment(DataStatistics_.compressed_data_size());
+    counters->UnmergedDataWeight.Increment(DataStatistics_.data_weight());
+    counters->DecompressionCpuTime.Add(compressionCpuTime);
+
+    counters->ChunkReaderStatisticsCounters.Increment(ChunkReaderStatistics_);
 }
 
 void TReaderProfiler::Update(
@@ -176,6 +108,220 @@ void TReaderProfiler::SetCodecStatistics(const TCodecStatistics& codecStatistics
 void TReaderProfiler::SetChunkReaderStatistics(const TChunkReaderStatisticsPtr& chunkReaderStatistics)
 {
     ChunkReaderStatistics_ = chunkReaderStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletProfilerManager
+{
+public:
+    TTabletProfilerManager()
+        : ConsumedTableTags_(TabletNodeProfiler.Gauge("/consumed_table_tags"))
+    { }
+
+    TTableProfilerPtr CreateTabletProfiler(
+        EDynamicTableProfilingMode profilingMode,
+        const TString& tablePath,
+        const TString& tableTag,
+        const TString& account,
+        const TString& medium)
+    {
+        auto guard = Guard(Lock_);
+
+        TProfilerKey key;
+        switch (profilingMode) {
+            case EDynamicTableProfilingMode::Disabled:
+                key = {profilingMode, "", account, medium};
+                break;
+                
+            case EDynamicTableProfilingMode::Path:
+                key = {profilingMode, tablePath, account, medium};
+                AllTables_.insert(tablePath);
+                ConsumedTableTags_.Update(AllTables_.size());
+                break;
+
+            case EDynamicTableProfilingMode::Tag:
+                key = {profilingMode, tableTag, account, medium};
+                break;
+
+            default:
+                YT_VERIFY(false);
+        }
+
+        auto& profiler = Tables_[key];
+        auto p = profiler.Lock();
+        if (p) {
+            return p;
+        }
+
+        auto tableProfiler = TabletNodeProfiler.WithHot().WithSparse();
+        switch (profilingMode) {
+            case EDynamicTableProfilingMode::Disabled:
+                break;
+                
+            case EDynamicTableProfilingMode::Path:
+                tableProfiler = tableProfiler.WithTag("table_path", tablePath);
+                break;
+
+            case EDynamicTableProfilingMode::Tag:
+                tableProfiler = tableProfiler.WithTag("table_tag", tableTag);
+                break;
+
+            default:
+                YT_VERIFY(false);
+        }
+
+        auto diskProfiler = tableProfiler
+            .WithTag("account", account, -1)
+            .WithRequiredTag("medium", medium, -1);
+
+        p = New<TTableProfiler>(tableProfiler, diskProfiler);
+        profiler = p;
+        return p;
+    }
+
+private:
+    TSpinLock Lock_;
+
+    THashSet<TString> AllTables_;
+    TGauge ConsumedTableTags_;
+
+    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, TString, TString, TString>;
+
+    THashMap<TProfilerKey, TWeakPtr<TTableProfiler>> Tables_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TTableProfilerPtr CreateTableProfiler(
+    EDynamicTableProfilingMode profilingMode,
+    const TString& tablePath,
+    const TString& tableTag,
+    const TString& account,
+    const TString& medium)
+{
+    return Singleton<TTabletProfilerManager>()->CreateTabletProfiler(
+        profilingMode,
+        tablePath,
+        tableTag,
+        account,
+        medium);
+}
+
+template <class TCounter>
+TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
+    bool disabled,
+    const std::optional<TString>& userTag,
+    const NProfiling::TRegistry& profiler)
+{
+    if (disabled) {
+        static TCounter counter;
+        return &counter;
+    }
+
+    return Counters.FindOrInsert(userTag, [&] {
+        if (userTag) {
+            return TCounter{profiler.WithTag("user", *userTag)};
+        } else {
+            return TCounter{profiler};
+        }
+    }).first;
+}
+
+
+TTableProfiler::TTableProfiler(
+    const NProfiling::TRegistry& profiler,
+    const NProfiling::TRegistry& diskProfiler)
+    : Disabled_(false)
+    , Profiler_(profiler)
+    , TabletCounters_(profiler)
+{
+    for (auto method : TEnumTraits<EChunkWriteProfilingMethod>::GetDomainValues()) {
+        ChunkWriteCounters_[method] = {
+            TChunkWriteCounters{diskProfiler.WithTag("method", FormatEnum(method))},
+            TChunkWriteCounters{diskProfiler.WithTag("method", FormatEnum(method) + "_failed")}
+        };
+    }
+
+    for (auto method : TEnumTraits<EChunkReadProfilingMethod>::GetDomainValues()) {
+        ChunkReadCounters_[method] = {
+            TChunkReadCounters{diskProfiler.WithTag("method", FormatEnum(method))},
+            TChunkReadCounters{diskProfiler.WithTag("method", FormatEnum(method) + "_failed")}
+        };
+    }
+}
+
+TTableProfilerPtr TTableProfiler::GetDisabled()
+{
+    return RefCountedSingleton<TTableProfiler>();
+}
+
+TTabletCounters* TTableProfiler::GetTabletCounters()
+{
+    return &TabletCounters_;
+}
+
+TLookupCounters* TTableProfiler::GetLookupCounters(const std::optional<TString>& userTag)
+{
+    return LookupCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TWriteCounters* TTableProfiler::GetWriteCounters(const std::optional<TString>& userTag)
+{
+    return WriteCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TCommitCounters* TTableProfiler::GetCommitCounters(const std::optional<TString>& userTag)
+{
+    return CommitCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TSelectCpuCounters* TTableProfiler::GetSelectCpuCounters(const std::optional<TString>& userTag)
+{
+    return SelectCpuCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TSelectReadCounters* TTableProfiler::GetSelectReadCounters(const std::optional<TString>& userTag)
+{
+    return SelectReadCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TRemoteDynamicStoreReadCounters* TTableProfiler::GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag)
+{
+    return DynamicStoreReadCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TReplicaCounters TTableProfiler::GetReplicaCounters(
+    bool enableProfiling,
+    const TString& cluster,
+    const NYPath::TYPath& path,
+    const TTableReplicaId& replicaId)
+{
+    if (Disabled_) {
+        return {};
+    }
+
+    auto key = std::make_tuple(enableProfiling, cluster, path, replicaId);
+    return *ReplicaCounters_.FindOrInsert(key, [&] {
+        if (!enableProfiling) {
+            return TReplicaCounters{Profiler_.WithTag("replica_cluster", cluster, -1)};
+        }
+
+        return TReplicaCounters{Profiler_
+            .WithTag("replica_cluster", cluster, -1)
+            .WithTag("replica_path", path, -1)
+            .WithRequiredTag("replica_id", ToString(replicaId), -1)};
+    }).first;
+}
+
+TChunkWriteCounters* TTableProfiler::GetWriteCounters(EChunkWriteProfilingMethod method, bool failed)
+{
+    return &ChunkWriteCounters_[method][failed ? 1 : 0];
+}
+
+TChunkReadCounters* TTableProfiler::GetReadCounters(EChunkReadProfilingMethod method, bool failed)
+{
+    return &ChunkReadCounters_[method][failed ? 1 : 0];    
 }
 
 ////////////////////////////////////////////////////////////////////////////////

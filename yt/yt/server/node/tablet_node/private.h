@@ -37,8 +37,7 @@ static constexpr auto TabletStoresUpdateThrottlerRpcTimeout = TDuration::Minutes
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger TabletNodeLogger;
-extern const NProfiling::TProfiler TabletNodeProfiler;
-extern const NProfiling::TRegistry TabletNodeProfilerRegistry;
+extern const NProfiling::TRegistry TabletNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

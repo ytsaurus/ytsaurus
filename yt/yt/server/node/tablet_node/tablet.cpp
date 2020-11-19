@@ -96,37 +96,6 @@ void TRuntimeTableReplicaData::MergeFrom(const TTableReplicaStatistics& statisti
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicaCounters::TReplicaCounters(const TTagIdList& list)
-    : LagRowCount("/replica/lag_row_count", list, EAggregateMode::Max, TDuration::Seconds(1))
-    , LagTime("/replica/lag_time", list, EAggregateMode::Max, TDuration::Seconds(1))
-    , ReplicationTransactionStartTime("/replica/replication_transaction_start_time", list, EAggregateMode::All)
-    , ReplicationTransactionCommitTime("/replica/replication_transaction_commit_time", list, EAggregateMode::All)
-    , ReplicationRowsReadTime("/replica/replication_rows_read_time", list, EAggregateMode::All)
-    , ReplicationRowsWriteTime("/replica/replication_rows_write_time", list, EAggregateMode::All)
-    , ReplicationBatchRowCount("/replica/replication_batch_row_count", list, EAggregateMode::All)
-    , ReplicationBatchDataWeight("/replica/replication_batch_data_weight", list, EAggregateMode::All)
-    , ReplicationRowCount("/replica/replication_row_count", list)
-    , ReplicationDataWeight("/replica/replication_data_weight", list)
-    , ReplicationErrorCount("/replica/replication_error_count", list, TDuration::Seconds(1))
-    , Tags(list)
-{ }
-
-// Uses tablet_id and replica_id as the key.
-using TReplicaProfilerTrait = TTagListProfilerTrait<TReplicaCounters>;
-
-TReplicaCounters NullReplicaCounters;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTabletCounters::TTabletCounters(const NProfiling::TTagIdList& list)
-    : OverlappingStoreCount("/tablet/overlapping_store_count", list)
-    , EdenStoreCount("/tablet/eden_store_count", list)
-{ }
-
-using TTabletInternalProfilerTrait = TTagListProfilerTrait<TTabletCounters>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
 TTabletSnapshot::GetIntersectingPartitions(
     const TLegacyKey& lowerBound,
@@ -252,11 +221,6 @@ void TTabletSnapshot::ValidateMountRevision(NHydra::TRevision mountRevision)
             mountRevision)
             << TErrorAttribute("tablet_id", TabletId);
     }
-}
-
-bool TTabletSnapshot::IsProfilingEnabled() const
-{
-    return !ProfilerTags.empty();
 }
 
 void TTabletSnapshot::WaitOnLocks(TTimestamp timestamp) const
@@ -1299,8 +1263,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
 
     UpdateUnflushedTimestamp();
 
-    snapshot->ProfilerTags = ProfilerTags_;
-    snapshot->DiskProfilerTags = DiskProfilerTags_;
+    snapshot->TableProfiler = TableProfiler_;
 
     return snapshot;
 }
@@ -1352,38 +1315,14 @@ void TTablet::Initialize()
     }
 }
 
-void TTablet::FillProfilerTags(TCellId cellId)
+void TTablet::FillProfilerTags()
 {
-    ProfilerTags_.clear();
-
-    DiskProfilerTags_.assign({
-        TProfileManager::Get()->RegisterTag("account", WriterOptions_->Account),
-        TProfileManager::Get()->RegisterTag("medium", WriterOptions_->MediumName)});
-
-    auto addProfilingTag = [&] (const TString& tag, const TString& rawValue) {
-        const auto& value = rawValue ? rawValue : UnknownProfilingTag;
-        ProfilerTags_.push_back(TProfileManager::Get()->RegisterTag(tag, value));
-        DiskProfilerTags_.push_back(TProfileManager::Get()->RegisterTag(tag, value));
-    };
-
-    addProfilingTag("tablet_cell_bundle", Config_->TabletCellBundle);
-
-    switch (Config_->ProfilingMode) {
-        case EDynamicTableProfilingMode::Path:
-            addProfilingTag("table_path", TablePath_);
-            break;
-
-        case EDynamicTableProfilingMode::Tag:
-            addProfilingTag("table_tag", Config_->ProfilingTag);
-            break;
-
-        default:
-            break;
-    }
-
-    ProfilerCounters_ = !ProfilerTags_.empty()
-        ? &GetGloballyCachedValue<TTabletInternalProfilerTrait>(ProfilerTags_)
-        : nullptr;
+    TableProfiler_ = CreateTableProfiler(
+        Config_->ProfilingMode,
+        TablePath_,
+        Config_->ProfilingTag,
+        WriterOptions_->Account,
+        WriterOptions_->MediumName);
 }
 
 void TTablet::ReconfigureThrottlers()
@@ -1408,31 +1347,13 @@ std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory categ
 
 void TTablet::UpdateReplicaCounters()
 {
-    auto getCounters = [&] (TReplicaMap::const_reference replica) -> TReplicaCounters* {
-        if (!IsProfilingEnabled()) {
-            return nullptr;
-        }
-        auto replicaTags = ProfilerTags_;
-        if (Config_->EnableProfiling) {
-            replicaTags.append({
-                // replica_id must be the last tag. See tablet_profiling.cpp for details.
-                TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()),
-                TProfileManager::Get()->RegisterTag("replica_path", replica.second.GetReplicaPath()),
-                TProfileManager::Get()->RegisterTag("replica_id", replica.first)});
-        } else {
-            replicaTags.push_back(
-                TProfileManager::Get()->RegisterTag("replica_cluster", replica.second.GetClusterName()));
-        }
-        return &GetGloballyCachedValue<TReplicaProfilerTrait>(replicaTags);
-    };
-    for (auto& replica : Replicas_) {
-        replica.second.SetCounters(getCounters(replica));
+    for (auto& [replicaId, replica] : Replicas_) {
+        replica.SetCounters(TableProfiler_->GetReplicaCounters(
+            Config_->EnableProfiling,
+            replica.GetClusterName(),
+            replica.GetReplicaPath(),
+            replicaId));
     }
-}
-
-bool TTablet::IsProfilingEnabled() const
-{
-    return !ProfilerTags_.empty();
 }
 
 TPartition* TTablet::GetContainingPartition(const ISortedStorePtr& store)
@@ -1510,10 +1431,9 @@ void TTablet::UpdateOverlappingStoreCount()
     EdenOverlappingStoreCount_ = edenOverlappingStoreCount;
     CriticalPartitionCount_ = criticalPartitionCount;
 
-    if (ProfilerCounters_) {
-        TabletNodeProfiler.Update(ProfilerCounters_->OverlappingStoreCount, OverlappingStoreCount_);
-        TabletNodeProfiler.Update(ProfilerCounters_->EdenStoreCount, GetEdenStoreCount());
-    }
+    auto counters = TableProfiler_->GetTabletCounters();
+    counters->OverlappingStoreCount.Record(OverlappingStoreCount_);
+    counters->EdenStoreCount.Record(GetEdenStoreCount());
 }
 
 void TTablet::UpdateUnflushedTimestamp() const
@@ -1623,10 +1543,7 @@ void TTablet::ThrottleTabletStoresUpdate(
     YT_LOG_DEBUG("Finished waiting for tablet stores update throttler (ElapsedTime: %v, CellId: %v)",
         elapsedTime,
         slot->GetCellId());
-
-    if (IsProfilingEnabled()) {
-        ProfileTabletStoresUpdateThrottlerWait(GetProfilerTags(), elapsedTime);
-    }
+    TableProfiler_->GetTabletCounters()->StoresUpdateThrottlerWait.Record(elapsedTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

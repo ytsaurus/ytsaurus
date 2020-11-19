@@ -703,10 +703,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             return True
 
         table_profiling0 = self._get_table_profiling("//tmp/d/t0")
+        time.sleep(5)
         insert_rows("//tmp/d/t0", [{"key": 0, "value": "0"}])
         wait(lambda: _check(table_profiling0, "table_tag", "custom_tag0"))
 
         table_profiling1 = self._get_table_profiling("//tmp/d/t1")
+        time.sleep(5)
         insert_rows("//tmp/d/t1", [{"key": 0, "value": "0"}])
         wait(lambda: _check(table_profiling1, "table_tag", "custom_tag1"))
 

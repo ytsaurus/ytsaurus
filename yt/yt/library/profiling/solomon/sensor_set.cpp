@@ -260,6 +260,42 @@ void TSensorSet::LegacyReadSensors(const TString& name, TTagRegistry* tagRegistr
         sample->Value = state->Reader();
         return sample->Value == 0.0;
     });
+
+    readLegacy(Summaries_, [&] (auto state, auto* sample) -> bool {
+        sample->MetricType = EMetricType::Gauge;
+
+        auto owner = state->Owner.Lock();
+        if (!owner) {
+            sample->Value = 0.0;
+            return true;
+        }
+
+        auto value = owner->GetValue();
+        if (value.Count() == 0) {
+            return true;
+        }
+
+        sample->Value = value.Max();
+        return false;
+    });
+
+    readLegacy(Timers_, [&] (auto state, auto* sample) -> bool {
+        sample->MetricType = EMetricType::Gauge;
+
+        auto owner = state->Owner.Lock();
+        if (!owner) {
+            sample->Value = 0.0;
+            return true;
+        }
+
+        auto value = owner->GetValue();
+        if (value.Count() == 0) {
+            return true;
+        }
+
+        sample->Value = value.Max().MicroSeconds();
+        return false;
+    });
 }
 
 int TSensorSet::GetObjectCount() const
