@@ -39,9 +39,9 @@ class TFairShareContext;
 
 class TJobMetrics;
 
-using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, i64>;
-using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, i64>;
-using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterruptReason>, i64>;
+using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, std::pair<i64, NProfiling::TGauge>>;
+using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, NProfiling::TCounter>;
+using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterruptReason>, NProfiling::TCounter>;
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)
@@ -63,8 +63,7 @@ DEFINE_ENUM(EResourceTreeIncreaseResult,
 extern const NLogging::TLogger SchedulerEventLogger;
 extern const NLogging::TLogger SchedulerResourceMeteringLogger;
 
-extern const NProfiling::TProfiler SchedulerProfiler;
-extern const NProfiling::TRegistry SchedulerProfilerRegistry;
+extern const NProfiling::TRegistry SchedulerProfiler;
 
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 

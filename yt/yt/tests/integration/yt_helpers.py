@@ -61,7 +61,7 @@ class Metric(object):
     }
 
     # Default DequeuePeriod in profile manager is 100 ms, here we take 300 ms just in case.
-    FROM_TIME_GAP = 300000  # mcs
+    FROM_TIME_GAP = 1300000  # mcs
 
     def __init__(self, path, with_tags=None, grouped_by_tags=None, aggr_method="delta"):
         assert aggr_method in Metric.AGGREGATION_METHOD_TO_DEFAULT_FACTORY

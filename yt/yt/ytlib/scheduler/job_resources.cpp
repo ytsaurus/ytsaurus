@@ -251,6 +251,39 @@ TString FormatResources(const TExtendedJobResources& resources)
         resources.GetNetwork());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobResourcesProfiler::Init(const NProfiling::TRegistry& profiler)
+{
+#define XX(name, Name) Name = profiler.Gauge("/" #name);
+    ITERATE_JOB_RESOURCES(XX)
+#undef XX
+}
+
+void TJobResourcesProfiler::Reset()
+{
+#define XX(name, Name) Name = {};
+    ITERATE_JOB_RESOURCES(XX)
+#undef XX
+}
+
+void TJobResourcesProfiler::Update(const TJobResources& resources)
+{
+#define XX(name, Name) Name.Update(static_cast<double>(resources.Get##Name()));
+    ITERATE_JOB_RESOURCES(XX)
+#undef XX
+}
+
+void ProfileResources(
+    NProfiling::ISensorWriter* writer,
+    const TJobResources& resources,
+    const TString& prefix)
+{
+    #define XX(name, Name) writer->AddGauge(prefix + "/" #name, static_cast<i64>(resources.Get##Name()));
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+}
+
 void ProfileResources(
     const TProfiler& profiler,
     const TJobResources& resources,
@@ -272,6 +305,8 @@ void ProfileResources(
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 EJobResourceType GetDominantResource(
     const TJobResources& demand,

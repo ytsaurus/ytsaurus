@@ -56,17 +56,18 @@ DEFINE_ENUM(EPrescheduleJobOperationCriterion,
 
 struct TScheduleJobsProfilingCounters
 {
-    TScheduleJobsProfilingCounters(const TString& prefix, const NProfiling::TTagIdList& treeIdProfilingTags);
+    TScheduleJobsProfilingCounters(const NProfiling::TRegistry& profiler);
 
-    NProfiling::TShardedAggregateGauge PrescheduleJobTime;
-    NProfiling::TShardedAggregateGauge TotalControllerScheduleJobTime;
-    NProfiling::TShardedAggregateGauge ExecControllerScheduleJobTime;
-    NProfiling::TShardedAggregateGauge StrategyScheduleJobTime;
-    NProfiling::TShardedAggregateGauge PackingRecordHeartbeatTime;
-    NProfiling::TShardedAggregateGauge PackingCheckTime;
-    NProfiling::TShardedMonotonicCounter ScheduleJobAttemptCount;
-    NProfiling::TShardedMonotonicCounter ScheduleJobFailureCount;
-    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TShardedMonotonicCounter> ControllerScheduleJobFail;
+    NProfiling::TEventTimer PrescheduleJobTime;
+    NProfiling::TEventTimer TotalControllerScheduleJobTime;
+    NProfiling::TEventTimer ExecControllerScheduleJobTime;
+    NProfiling::TEventTimer StrategyScheduleJobTime;
+    NProfiling::TEventTimer PackingRecordHeartbeatTime;
+    NProfiling::TEventTimer PackingCheckTime;
+    NProfiling::TCounter ScheduleJobAttemptCount;
+    NProfiling::TCounter ScheduleJobFailureCount;
+
+    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TCounter> ControllerScheduleJobFail;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -480,10 +481,7 @@ public:
 
     void BuildYson(NYTree::TFluentMap fluent) const;
 
-    void Profile(
-        NProfiling::TMetricsAccumulator& accumulator,
-        const TString& profilingPrefix,
-        const NProfiling::TTagIdList& tags) const;
+    void Profile(NProfiling::ISensorWriter* writer) const;
 
     virtual bool AreDetailedLogsEnabled() const;
 
@@ -619,7 +617,8 @@ public:
     ESchedulingMode GetMode() const;
     void SetMode(ESchedulingMode);
 
-    NProfiling::TTagId GetProfilingTag() const;
+    void RegisterProfiler(const NProfiling::TRegistry& profiler);
+    void ProfileFull();
 
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
@@ -656,7 +655,7 @@ public:
     TJobResources GetIntegralPoolCapacity() const;
 
 protected:
-    const NProfiling::TTagId ProfilingTag_;
+    NProfiling::TBufferedProducerPtr ProducerBuffer_;
 
     using TChildMap = THashMap<TSchedulerElementPtr, int>;
     using TChildList = std::vector<TSchedulerElementPtr>;
@@ -1074,6 +1073,9 @@ public:
 
     std::optional<int> GetMaybeSlotIndex() const;
 
+    void RegisterProfiler(std::optional<int> slotIndex, const NProfiling::TRegistry& profiler);
+    void ProfileFull();
+
     TString GetUserName() const;
 
     virtual TResourceVector ComputeLimitsShare() const override;
@@ -1099,7 +1101,7 @@ public:
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime() const;
 
-    std::optional<NProfiling::TTagId> GetCustomProfilingTag();
+    std::optional<TString> GetCustomProfilingTag() const;
 
     void Disable(bool markAsNonAlive);
     void Enable();
@@ -1139,6 +1141,8 @@ private:
 
     bool RunningInThisPoolTree_ = false;
     TSchedulingTagFilter SchedulingTagFilter_;
+
+    NProfiling::TBufferedProducerPtr ProducerBuffer_;
 
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 

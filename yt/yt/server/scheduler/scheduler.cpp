@@ -118,7 +118,6 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
-static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -324,7 +323,7 @@ public:
             ->Cached(
                 Config_->StaticOrchidCacheUpdatePeriod,
                 OrchidWorkerPool_->GetInvoker(),
-                SchedulerProfilerRegistry.WithPrefix("/static_orchid"));
+                SchedulerProfiler.WithPrefix("/static_orchid"));
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YT_VERIFY(StaticOrchidService_);
 
@@ -1728,12 +1727,8 @@ private:
 
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
-    TProfiler TotalResourceLimitsProfiler_{SchedulerProfiler.AppendPath("/total_resource_limits")};
-    TProfiler TotalResourceUsageProfiler_{SchedulerProfiler.AppendPath("/total_resource_usage")};
-
-    TShardedMonotonicCounter TotalCompletedJobTimeCounter_{"/total_completed_job_time"};
-    TShardedMonotonicCounter TotalFailedJobTimeCounter_{"/total_failed_job_time"};
-    TShardedMonotonicCounter TotalAbortedJobTimeCounter_{"/total_aborted_job_time"};
+    TJobResourcesProfiler TotalResourceLimitsProfiler_;
+    TJobResourcesProfiler TotalResourceUsageProfiler_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;
@@ -1917,93 +1912,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        std::vector<TJobCounter> shardJobCounter(NodeShards_.size());
-        std::vector<TAbortedJobCounter> shardAbortedJobCounter(NodeShards_.size());
-        std::vector<TCompletedJobCounter> shardCompletedJobCounter(NodeShards_.size());
-
-        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-            const auto& nodeShard = NodeShards_[shardId];
-            shardJobCounter[shardId] = nodeShard->GetJobCounter();
-            shardAbortedJobCounter[shardId] = nodeShard->GetAbortedJobCounter();
-            shardCompletedJobCounter[shardId] = nodeShard->GetCompletedJobCounter();
-        }
-
-        static const NProfiling::TEnumMemberTagCache<EJobState> JobStateTagCache("state");
-        static const NProfiling::TEnumMemberTagCache<EJobType> JobTypeTagCache("job_type");
-        static const NProfiling::TEnumMemberTagCache<EAbortReason> JobAbortReasonTagCache("abort_reason");
-        static const NProfiling::TEnumMemberTagCache<EInterruptReason> JobInterruptReasonTagCache("interrupt_reason");
-
-        for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
-            if (type < FirstSchedulerJobType || type > LastSchedulerJobType) {
-                continue;
-            }
-            for (auto state : TEnumTraits<EJobState>::GetDomainValues()) {
-                TTagIdList commonTags{
-                    JobStateTagCache.GetTag(state),
-                    JobTypeTagCache.GetTag(type)
-                };
-                if (state == EJobState::Aborted) {
-                    for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-                        if (IsSentinelReason(reason)) {
-                            continue;
-                        }
-                        auto tags = commonTags;
-                        tags.push_back(JobAbortReasonTagCache.GetTag(reason));
-                        int counter = 0;
-                        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-                            const auto& map = shardAbortedJobCounter[shardId];
-                            auto it = map.find(std::make_tuple(type, state, reason));
-                            if (it != map.end()) {
-                                counter += it->second;
-                            }
-                        }
-                        Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
-                    }
-                } else if (state == EJobState::Completed) {
-                    for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
-                        auto tags = commonTags;
-                        tags.push_back(JobInterruptReasonTagCache.GetTag(reason));
-                        int counter = 0;
-                        for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-                            const auto& map = shardCompletedJobCounter[shardId];
-                            auto it = map.find(std::make_tuple(type, state, reason));
-                            if (it != map.end()) {
-                                counter += it->second;
-                            }
-                        }
-                        Profiler.Enqueue("/job_count", counter, EMetricType::Counter, tags);
-                    }
-                } else {
-                    int counter = 0;
-                    for (int shardId = 0; shardId < NodeShards_.size(); ++shardId) {
-                        const auto& map = shardJobCounter[shardId];
-                        auto it = map.find(std::make_tuple(type, state));
-                        if (it != map.end()) {
-                            counter += it->second;
-                        }
-                    }
-                    Profiler.Enqueue("/job_count", counter, EMetricType::Counter, commonTags);
-                }
-            }
-        }
-
-        Profiler.Enqueue("/active_job_count", GetActiveJobCount(), EMetricType::Gauge);
-
-        Profiler.Enqueue("/exec_node_count", GetExecNodeCount(), EMetricType::Gauge);
-        Profiler.Enqueue("/total_node_count", GetTotalNodeCount(), EMetricType::Gauge);
-
-        ProfileResources(TotalResourceLimitsProfiler_, GetResourceLimits(EmptySchedulingTagFilter));
-        ProfileResources(TotalResourceUsageProfiler_, GetResourceUsage(EmptySchedulingTagFilter));
-
-        {
-            TJobTimeStatisticsDelta jobTimeStatisticsDelta;
-            for (const auto& nodeShard : NodeShards_) {
-                jobTimeStatisticsDelta += nodeShard->GetJobTimeStatisticsDelta();
-            }
-            Profiler.Increment(TotalCompletedJobTimeCounter_, jobTimeStatisticsDelta.CompletedJobTimeDelta);
-            Profiler.Increment(TotalFailedJobTimeCounter_, jobTimeStatisticsDelta.FailedJobTimeDelta);
-            Profiler.Increment(TotalAbortedJobTimeCounter_, jobTimeStatisticsDelta.AbortedJobTimeDelta);
-        }
+        TotalResourceLimitsProfiler_.Update(GetResourceLimits(EmptySchedulingTagFilter));
+        TotalResourceUsageProfiler_.Update(GetResourceUsage(EmptySchedulingTagFilter));
     }
 
     void OnClusterInfoLogging()
@@ -2142,6 +2052,10 @@ private:
 
         Strategy_->OnMasterConnected();
 
+        TotalResourceLimitsProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_limits"));
+        TotalResourceUsageProfiler_.Init(SchedulerProfiler.WithPrefix("/total_resource_usage"));
+        SchedulingSegmentManager_.SetProfilingEnabled(true);
+
         LogEventFluently(ELogEventType::MasterConnected)
             .Item("address").Value(ServiceAddress_);
     }
@@ -2149,6 +2063,10 @@ private:
     void DoCleanup()
     {
         NodeIdToDescriptor_.clear();
+
+        TotalResourceLimitsProfiler_.Reset();
+        TotalResourceUsageProfiler_.Reset();
+        SchedulingSegmentManager_.SetProfilingEnabled(false);
 
         {
             auto error = TError(EErrorCode::MasterDisconnected, "Master disconnected");

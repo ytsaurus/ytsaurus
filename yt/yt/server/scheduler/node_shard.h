@@ -178,13 +178,6 @@ public:
     TJobResources GetResourceUsage(const TSchedulingTagFilter& filter);
 
     int GetActiveJobCount();
-
-    TJobCounter GetJobCounter();
-    TAbortedJobCounter GetAbortedJobCounter();
-    TCompletedJobCounter GetCompletedJobCounter();
-
-    TJobTimeStatisticsDelta GetJobTimeStatisticsDelta();
-
     int GetExecNodeCount();
     int GetTotalNodeCount();
 
@@ -240,13 +233,13 @@ private:
     std::atomic<int> ExecNodeCount_ = {0};
     std::atomic<int> TotalNodeCount_ = {0};
 
-    NConcurrency::TReaderWriterSpinLock JobTimeStatisticsDeltaLock_;
-    TJobTimeStatisticsDelta JobTimeStatisticsDelta_;
+    NProfiling::TTimeCounter TotalCompletedJobTime_;
+    NProfiling::TTimeCounter TotalFailedJobTime_;
+    NProfiling::TTimeCounter TotalAbortedJobTime_;
 
     std::atomic<int> JobReporterWriteFailuresCount_ = {0};
     std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = {0};
 
-    NConcurrency::TReaderWriterSpinLock JobCounterLock_;
     TJobCounter JobCounter_;
     TAbortedJobCounter AbortedJobCounter_;
     TCompletedJobCounter CompletedJobCounter_;
@@ -373,7 +366,7 @@ private:
     void OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool abandoned = false);
     void OnJobFailed(const TJobPtr& job, TJobStatus* status);
 
-    void IncreaseProfilingCounter(const TJobPtr& job, int value);
+    void UpdateProfilingCounter(const TJobPtr& job, int value);
 
     void SetJobState(const TJobPtr& job, EJobState state);
 

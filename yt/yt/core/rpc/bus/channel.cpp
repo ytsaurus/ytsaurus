@@ -641,21 +641,21 @@ private:
             {
                 TMethodMetadata metadata;
 
-                auto registry = RpcClientProfiler
+                auto profiler = RpcClientProfiler
                     .WithSparse()
                     .WithTag("yt_service", service)
                     .WithTag("method", method, -1);
 
-                metadata.AckTimeCounter = registry.Timer("/request_time/ack");
-                metadata.ReplyTimeCounter = registry.Timer("/request_time/reply");
-                metadata.TimeoutTimeCounter = registry.Timer("/request_time/timeout");
-                metadata.CancelTimeCounter = registry.Timer("/request_time/cancel");
-                metadata.TotalTimeCounter = registry.Timer("/request_time/total");
-                metadata.RequestCounter = registry.Counter("/request_count");
-                metadata.RequestMessageBodySizeCounter = registry.Counter("/request_message_body_bytes");
-                metadata.RequestMessageAttachmentSizeCounter = registry.Counter("/request_message_attachment_bytes");
-                metadata.ResponseMessageBodySizeCounter = registry.Counter("/response_message_body_bytes");
-                metadata.ResponseMessageAttachmentSizeCounter = registry.Counter("/response_message_attachment_bytes");
+                metadata.AckTimeCounter = profiler.Timer("/request_time/ack");
+                metadata.ReplyTimeCounter = profiler.Timer("/request_time/reply");
+                metadata.TimeoutTimeCounter = profiler.Timer("/request_time/timeout");
+                metadata.CancelTimeCounter = profiler.Timer("/request_time/cancel");
+                metadata.TotalTimeCounter = profiler.Timer("/request_time/total");
+                metadata.RequestCounter = profiler.Counter("/request_count");
+                metadata.RequestMessageBodySizeCounter = profiler.Counter("/request_message_body_bytes");
+                metadata.RequestMessageAttachmentSizeCounter = profiler.Counter("/request_message_attachment_bytes");
+                metadata.ResponseMessageBodySizeCounter = profiler.Counter("/response_message_body_bytes");
+                metadata.ResponseMessageAttachmentSizeCounter = profiler.Counter("/response_message_attachment_bytes");
 
                 return metadata;
             }

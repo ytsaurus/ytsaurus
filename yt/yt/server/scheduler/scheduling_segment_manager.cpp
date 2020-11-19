@@ -2,8 +2,6 @@
 #include "private.h"
 #include "persistent_scheduler_state.h"
 
-#include <yt/core/profiling/profile_manager.h>
-
 #include <util/generic/algorithm.h>
 
 namespace NYT::NScheduler {
@@ -16,7 +14,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = SchedulerLogger;
-static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +29,20 @@ double GetNodeResourceLimit(const TExecNodeDescriptor& node, EJobResourceType re
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TSchedulingSegmentManager::TSchedulingSegmentManager()
+    : BufferedProducer_(New<TBufferedProducer>())
+{ }
+
+void TSchedulingSegmentManager::SetProfilingEnabled(bool enabled)
+{
+    if (enabled) {
+        BufferedProducer_ = New<TBufferedProducer>();
+        SchedulerProfiler.AddProducer("/segments", BufferedProducer_);
+    } else {
+        BufferedProducer_.Reset();
+    }
+}
 
 ESchedulingSegment TSchedulingSegmentManager::GetSegmentForOperation(
     ESegmentedSchedulingMode mode,
@@ -59,6 +70,7 @@ EJobResourceType TSchedulingSegmentManager::GetSegmentBalancingKeyResource(ESegm
 
 void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext* context)
 {
+    TSensorBuffer buffer;
     for (const auto& [treeId, segmentsInfo] : context->SegmentsInfoPerTree) {
         auto& treeState = TreeIdToState_[treeId];
 
@@ -67,7 +79,7 @@ void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext*
                 ResetTree(context, treeId);
             }
 
-            LogAndProfileSegmentsInTree(context, treeId, /* currentResourceAmountPerSegment */ {});
+            LogAndProfileSegmentsInTree(context, treeId, /* currentResourceAmountPerSegment */ {}, &buffer);
 
             continue;
         }
@@ -82,7 +94,7 @@ void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext*
             currentResourceAmountPerSegment[node.SchedulingSegment] += resourceAmountOnNode;
         }
 
-        LogAndProfileSegmentsInTree(context, treeId, currentResourceAmountPerSegment);
+        LogAndProfileSegmentsInTree(context, treeId, currentResourceAmountPerSegment, &buffer);
 
         SmallVector<ESchedulingSegment, TEnumTraits<ESchedulingSegment>::DomainSize> unsatisfiedSegments;
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
@@ -121,6 +133,8 @@ void TSchedulingSegmentManager::ManageSegments(TManageSchedulingSegmentsContext*
 
         treeState.PreviousMode = segmentsInfo.Mode;
     }
+
+    BufferedProducer_->Update(std::move(buffer));
 }
 
 TPersistentSchedulingSegmentsStatePtr TSchedulingSegmentManager::BuildSegmentsState(TManageSchedulingSegmentsContext* context) const
@@ -174,21 +188,22 @@ void TSchedulingSegmentManager::ResetTree(TManageSchedulingSegmentsContext *cont
 void TSchedulingSegmentManager::LogAndProfileSegmentsInTree(
     TManageSchedulingSegmentsContext* context,
     const TString& treeId,
-    const TSegmentToResourceAmount& currentResourceAmountPerSegment) const
+    const TSegmentToResourceAmount& currentResourceAmountPerSegment,
+    ISensorWriter* sensorWriter) const
 {
-    static const TEnumMemberTagCache<ESchedulingSegment> SchedulingSegmentTagCache("segment");
+    sensorWriter->PushTag(TTag{"tree", treeId});
+    auto finally = Finally([&] { sensorWriter->PopTag(); });
 
     const auto& segmentsInfo = context->SegmentsInfoPerTree[treeId];
-    auto profiler = Profiler.AppendPath("/segments");
-
     if (segmentsInfo.Mode == ESegmentedSchedulingMode::Disabled) {
         YT_LOG_DEBUG("Segmented scheduling is disabled in tree, skipping (TreeId: %v)",
             treeId);
 
         for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-            TTagIdList tags{SchedulingSegmentTagCache.GetTag(segment), segmentsInfo.TreeIdProfilingTag};
-            profiler.Enqueue("/fair_resource_amount", 0.0, EMetricType::Gauge, tags);
-            profiler.Enqueue("/current_resource_amount", 0.0, EMetricType::Gauge, tags);
+            sensorWriter->PushTag(TTag{"segment", FormatEnum(segment)});
+            sensorWriter->AddGauge("/fair_resource_amount", 0.0);
+            sensorWriter->AddGauge("/current_resource_amount", 0.0);
+            sensorWriter->PopTag();
         }
 
         return;
@@ -206,9 +221,10 @@ void TSchedulingSegmentManager::LogAndProfileSegmentsInTree(
         currentResourceAmountPerSegment);
 
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
-        TTagIdList tags{SchedulingSegmentTagCache.GetTag(segment), segmentsInfo.TreeIdProfilingTag};
-        profiler.Enqueue("/fair_resource_amount", std::round(segmentsInfo.FairResourceAmountPerSegment[segment]), EMetricType::Gauge, tags);
-        profiler.Enqueue("/current_resource_amount", std::round(currentResourceAmountPerSegment[segment]), EMetricType::Gauge, tags);
+        sensorWriter->PushTag(TTag{"segment", FormatEnum(segment)});
+        sensorWriter->AddGauge("/fair_resource_amount", std::round(segmentsInfo.FairResourceAmountPerSegment[segment]));
+        sensorWriter->AddGauge("/current_resource_amount", std::round(currentResourceAmountPerSegment[segment]));
+        sensorWriter->PopTag();
     }
 }
 

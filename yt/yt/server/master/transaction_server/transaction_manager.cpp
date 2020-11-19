@@ -1710,7 +1710,6 @@ private:
         }
     }
 
-
     const TDynamicTransactionManagerConfigPtr& GetDynamicConfig()
     {
         return Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;

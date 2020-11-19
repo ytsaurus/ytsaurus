@@ -63,11 +63,11 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
     NConcurrency::TReaderWriterSpinLock StructureLock_;
 
-    NProfiling::TRegistry Profiler = NProfiling::TRegistry("/resource_tree").WithHot();
-    NProfiling::TCounter StructureLockReadCount = Profiler.Counter("/structure_lock_read_count");
-    NProfiling::TCounter StructureLockWriteCount = Profiler.Counter("/structure_lock_write_count");
-    NProfiling::TCounter UsageLockReadCount = Profiler.Counter("/usage_read_count");
-    NProfiling::TCounter UsageLockWriteCount = Profiler.Counter("/usage_write_count");
+    NProfiling::TRegistry Profiler_ = NProfiling::TRegistry{"/resource_tree"}.WithHot();
+    NProfiling::TCounter StructureLockReadCount_ = Profiler_.Counter("/structure_lock_read_count");
+    NProfiling::TCounter StructureLockWriteCount_ = Profiler_.Counter("/structure_lock_write_count");
+    NProfiling::TCounter UsageLockReadCount_ = Profiler_.Counter("/usage_read_count");
+    NProfiling::TCounter UsageLockWriteCount_ = Profiler_.Counter("/usage_write_count");
 
     void CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
     void DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);

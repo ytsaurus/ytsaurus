@@ -61,77 +61,38 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = SchedulerProfiler;
+namespace {
 
-static NProfiling::TShardedAggregateGauge AnalysisTimeCounter;
-static NProfiling::TShardedAggregateGauge StrategyJobProcessingTimeCounter;
-static NProfiling::TShardedAggregateGauge ScheduleTimeCounter;
-static NProfiling::TShardedAggregateGauge GracefulPreemptionTimeCounter;
+TCounter* GetJobErrorCounter(const TString& treeId, const TString& jobError)
+{
+    static TSyncMap<std::tuple<TString, TString>, TCounter> counters;
+    return counters.FindOrInsert(std::make_tuple(treeId, jobError), [&] {
+        return SchedulerProfiler
+            .WithTag("tree", treeId)
+            .WithTag("job_error", jobError)
+            .WithHot()
+            .Counter("/aborted_job_errors");
+    }).first;
+}
+
+void ProfileAbortedJobErrors(const TJobPtr& job, const TError& error)
+{
+    auto checkErrorCode = [&] (auto errorCode) {
+        if (error.FindMatching(errorCode)) {
+            GetJobErrorCounter(job->GetTreeId(), FormatEnum(errorCode))
+                ->Increment();
+        }
+    };
+
+    checkErrorCode(NRpc::EErrorCode::TransportError);
+    checkErrorCode(NNet::EErrorCode::ResolveTimedOut);
+}
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-    TTagId GetTreeProfilingTag(const TString& treeId)
-    {
-        static THashMap<TString, TTagId> tagIds;
-
-        auto it = tagIds.find(treeId);
-        if (it == tagIds.end()) {
-            it = tagIds.emplace(
-                treeId,
-                TProfileManager::Get()->RegisterTag("tree", treeId)
-            ).first;
-        }
-        return it->second;
-    }
-
-    TTagId GetJobErrorProfilingTag(const TString& jobError)
-    {
-        static THashMap<TString, TTagId> tagIds;
-
-        auto it = tagIds.find(jobError);
-        if (it == tagIds.end()) {
-            it = tagIds.emplace(
-                jobError,
-                TProfileManager::Get()->RegisterTag("job_error", jobError)
-            ).first;
-        }
-        return it->second;
-    }
-
-    TShardedMonotonicCounter GetJobErrorCounter(const TString& treeId, const TString& jobError)
-    {
-        static THashMap<std::tuple<TString, TString>, TShardedMonotonicCounter> counters;
-
-        auto pair = std::make_tuple(treeId, jobError);
-        auto it = counters.find(pair);
-        if (it == counters.end()) {
-            TTagIdList tags;
-            tags.push_back(GetTreeProfilingTag(treeId));
-            tags.push_back(GetJobErrorProfilingTag(jobError));
-
-            it = counters.emplace(
-                pair,
-                TShardedMonotonicCounter("/aborted_job_errors", tags)
-            ).first;
-        }
-
-        return it->second;
-    }
-
-    void ProfileAbortedJobErrors(const TJobPtr& job, const TError& error)
-    {
-        auto checkErrorCode = [&] (auto errorCode) {
-            if (error.FindMatching(errorCode)) {
-                auto counter = GetJobErrorCounter(job->GetTreeId(), FormatEnum(errorCode));
-                Profiler.Increment(counter);
-            }
-        };
-
-        checkErrorCode(NRpc::EErrorCode::TransportError);
-        checkErrorCode(NNet::EErrorCode::ResolveTimedOut);
-    }
-}
+static TRegistry NodeShardProfiler{"/scheduler/node_shard"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +120,21 @@ TNodeShard::TNodeShard(
         GetInvoker(),
         BIND(&TNodeShard::SubmitJobsToStrategy, MakeWeak(this)),
         Config_->NodeShardSubmitJobsToStrategyPeriod))
-{ }
+{
+    NodeShardProfiler.AddFuncCounter("/active_job_count", MakeStrong(this), [this] {
+        return ActiveJobCount_.load();
+    });
+    NodeShardProfiler.AddFuncCounter("/exec_node_count", MakeStrong(this), [this] {
+        return ExecNodeCount_.load();
+    });
+    NodeShardProfiler.AddFuncCounter("/total_job_count", MakeStrong(this), [this] {
+        return TotalNodeCount_.load();
+    });
+
+    TotalCompletedJobTime_ = NodeShardProfiler.TimeCounter("/total_completed_job_time");
+    TotalFailedJobTime_ = NodeShardProfiler.TimeCounter("/total_failed_job_time");
+    TotalAbortedJobTime_ = NodeShardProfiler.TimeCounter("/total_aborted_job_time");
+}
 
 int TNodeShard::GetId() const
 {
@@ -248,12 +223,9 @@ void TNodeShard::DoCleanup()
 
     ActiveJobCount_ = 0;
 
-    {
-        TWriterGuard guard(JobCounterLock_);
-        JobCounter_.clear();
-        AbortedJobCounter_.clear();
-        CompletedJobCounter_.clear();
-    }
+    JobCounter_.clear();
+    AbortedJobCounter_.clear();
+    CompletedJobCounter_.clear();
 
     JobsToSubmitToStrategy_.clear();
 
@@ -543,7 +515,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     std::vector<TJobPtr> runningJobs;
     bool hasWaitingJobs = false;
-    PROFILE_AGGREGATED_TIMING (AnalysisTimeCounter) {
+    YT_PROFILE_TIMING("/scheduler/analysis_time") {
         ProcessHeartbeatJobs(
             node,
             request,
@@ -593,7 +565,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         runningJobs,
         mediumDirectory);
 
-    PROFILE_AGGREGATED_TIMING (GracefulPreemptionTimeCounter) {
+    YT_PROFILE_TIMING("/scheduler/graceful_preemption_time") {
         bool hasGracefulPreemptionCandidates = false;
         for (const auto& job : runningJobs) {
             if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->GetPreempted()) {
@@ -606,12 +578,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
     }
 
-    PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+    YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
         SubmitJobsToStrategy();
     }
 
     if (!skipScheduleJobs) {
-        PROFILE_AGGREGATED_TIMING (ScheduleTimeCounter) {
+        YT_PROFILE_TIMING("/scheduler/schedule_time") {
             Y_UNUSED(WaitFor(Host_->GetStrategy()->ScheduleJobs(schedulingContext)));
         }
 
@@ -630,7 +602,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             /* requestContext */ context);
 
         // NB: some jobs maybe considered aborted after processing scheduled jobs.
-        PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+        YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
             SubmitJobsToStrategy();
         }
 
@@ -1268,44 +1240,6 @@ int TNodeShard::GetActiveJobCount()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return ActiveJobCount_;
-}
-
-TJobCounter TNodeShard::GetJobCounter()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TReaderGuard guard(JobCounterLock_);
-
-    return JobCounter_;
-}
-
-TAbortedJobCounter TNodeShard::GetAbortedJobCounter()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TReaderGuard guard(JobCounterLock_);
-
-    return AbortedJobCounter_;
-}
-
-TCompletedJobCounter TNodeShard::GetCompletedJobCounter()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TReaderGuard guard(JobCounterLock_);
-
-    return CompletedJobCounter_;
-}
-
-TJobTimeStatisticsDelta TNodeShard::GetJobTimeStatisticsDelta()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    TWriterGuard guard(JobTimeStatisticsDeltaLock_);
-
-    auto result = JobTimeStatisticsDelta_;
-    JobTimeStatisticsDelta_.Reset();
-    return result;
 }
 
 int TNodeShard::GetExecNodeCount()
@@ -2169,7 +2103,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
         }
 
         RegisterJob(job);
-        IncreaseProfilingCounter(job, 1);
+        UpdateProfilingCounter(job, 1);
 
         controller->OnJobStarted(job);
 
@@ -2347,27 +2281,24 @@ void TNodeShard::OnJobFinished(const TJobPtr& job)
     job->SetFinishTime(TInstant::Now());
     auto duration = job->GetDuration();
 
-    {
-        TWriterGuard guard(JobTimeStatisticsDeltaLock_);
-        switch (job->GetState()) {
-            case EJobState::Completed:
-                JobTimeStatisticsDelta_.CompletedJobTimeDelta += duration.MicroSeconds();
-                break;
-            case EJobState::Failed:
-                JobTimeStatisticsDelta_.FailedJobTimeDelta += duration.MicroSeconds();
-                break;
-            case EJobState::Aborted:
-                JobTimeStatisticsDelta_.AbortedJobTimeDelta += duration.MicroSeconds();
-                break;
-            default:
-                YT_ABORT();
-        }
+    switch (job->GetState()) {
+        case EJobState::Completed:
+            TotalCompletedJobTime_.Add(duration);
+            break;
+        case EJobState::Failed:
+            TotalFailedJobTime_.Add(duration);
+            break;
+        case EJobState::Aborted:
+            TotalAbortedJobTime_.Add(duration);
+            break;
+        default:
+            YT_ABORT();
     }
 }
 
 void TNodeShard::SubmitJobsToStrategy()
 {
-    PROFILE_AGGREGATED_TIMING (StrategyJobProcessingTimeCounter) {
+    YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
         if (!JobsToSubmitToStrategy_.empty()) {
             std::vector<TJobId> jobsToAbort;
             std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;
@@ -2393,23 +2324,57 @@ void TNodeShard::SubmitJobsToStrategy()
     }
 }
 
-void TNodeShard::IncreaseProfilingCounter(const TJobPtr& job, int value)
+void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
 {
-    TWriterGuard guard(JobCounterLock_);
     if (job->GetState() == EJobState::Aborted) {
-        AbortedJobCounter_[std::make_tuple(job->GetType(), job->GetState(), job->GetAbortReason())] += value;
+        auto key = std::make_tuple(job->GetType(), job->GetState(), job->GetAbortReason());
+        auto it = AbortedJobCounter_.find(key);
+        if (it == AbortedJobCounter_.end()) {
+            it = AbortedJobCounter_.emplace(
+                key,
+                NodeShardProfiler
+                    .WithTag("job_type", FormatEnum(job->GetType()))
+                    .WithTag("abort_reason", FormatEnum(job->GetAbortReason()))
+                    .Counter("/aborted_job_count")).first;
+        }
+        it->second.Increment(value);
     } else if (job->GetState() == EJobState::Completed) {
-        CompletedJobCounter_[std::make_tuple(job->GetType(), job->GetState(), job->GetInterruptReason())] += value;
+        auto key = std::make_tuple(job->GetType(), job->GetState(), job->GetInterruptReason());
+        auto it = CompletedJobCounter_.find(key);
+        if (it == CompletedJobCounter_.end()) {
+            it = CompletedJobCounter_.emplace(
+                key,
+                NodeShardProfiler
+                    .WithTag("job_type", FormatEnum(job->GetType()))
+                    .WithTag("interrupt_reason", FormatEnum(job->GetInterruptReason()))
+                    .Counter("/completed_job_count")).first;
+        }
+        it->second.Increment(value);
     } else {
-        JobCounter_[std::make_tuple(job->GetType(), job->GetState())] += value;
+        auto key = std::make_tuple(job->GetType(), job->GetState());
+        auto it = JobCounter_.find(key);
+        if (it == JobCounter_.end()) {
+            it = JobCounter_.emplace(
+                key,
+                std::make_pair(
+                    0, 
+                    NodeShardProfiler
+                        .WithTag("job_type", FormatEnum(job->GetType()))
+                        .WithTag("state", FormatEnum(job->GetState()))
+                        .Gauge("/running_job_count"))).first;
+        }
+
+        auto& [count, gauge] = it->second;
+        count += value;
+        gauge.Update(count);
     }
 }
 
 void TNodeShard::SetJobState(const TJobPtr& job, EJobState state)
 {
-    IncreaseProfilingCounter(job, -1);
+    UpdateProfilingCounter(job, -1);
     job->SetState(state);
-    IncreaseProfilingCounter(job, 1);
+    UpdateProfilingCounter(job, 1);
 }
 
 void TNodeShard::RegisterJob(const TJobPtr& job)

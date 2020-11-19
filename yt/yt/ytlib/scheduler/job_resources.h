@@ -13,6 +13,8 @@
 
 #include <yt/core/profiling/metrics_accumulator.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,6 +148,25 @@ TString FormatResources(const TExtendedJobResources& resources);
 
 void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */);
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TJobResourcesProfiler
+{
+public:
+    void Init(const NProfiling::TRegistry& profiler);
+    void Reset();
+    void Update(const TJobResources& resources);
+
+private:
+#define XX(name, Name) NProfiling::TGauge Name;
+    ITERATE_JOB_RESOURCES(XX)
+#undef XX
+};
+
+void ProfileResources(
+    NProfiling::ISensorWriter* writer,
+    const TJobResources& resources,
+    const TString& prefix);
 void ProfileResources(
     const NProfiling::TProfiler& profiler,
     const TJobResources& resources,
@@ -156,6 +177,8 @@ void ProfileResources(
     const TJobResources& resources,
     const TString& prefix = {},
     const NProfiling::TTagIdList& tagIds = {});
+
+////////////////////////////////////////////////////////////////////////////////
 
 EJobResourceType GetDominantResource(
     const TJobResources& demand,

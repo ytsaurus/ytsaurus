@@ -41,10 +41,6 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = SchedulerProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(
     IOperationStrategyHost* host,
     const TFairShareStrategyOperationControllerConfigPtr& config)
@@ -61,40 +57,6 @@ void TFairShareStrategyOperationState::UpdateConfig(const TFairShareStrategyOper
 {
     Controller_->UpdateConfig(config);
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-TTagId GetSlotIndexProfilingTag(int slotIndex)
-{
-    static THashMap<int, TTagId> slotIndexToTagIdMap;
-
-    auto it = slotIndexToTagIdMap.find(slotIndex);
-    if (it == slotIndexToTagIdMap.end()) {
-        it = slotIndexToTagIdMap.emplace(
-            slotIndex,
-            TProfileManager::Get()->RegisterTag("slot_index", ToString(slotIndex))
-        ).first;
-    }
-    return it->second;
-}
-
-TTagId GetUserNameProfilingTag(const TString& userName)
-{
-    static THashMap<TString, TTagId> userNameToTagIdMap;
-
-    auto it = userNameToTagIdMap.find(userName);
-    if (it == userNameToTagIdMap.end()) {
-        it = userNameToTagIdMap.emplace(
-            userName,
-            TProfileManager::Get()->RegisterTag("user_name", userName)
-        ).first;
-    }
-    return it->second;
-};
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,35 +119,34 @@ public:
         , FeasibleInvokers_(std::move(feasibleInvokers))
         , TreeId_(std::move(treeId))
         , TreeIdProfilingTag_(TProfileManager::Get()->RegisterTag("tree", TreeId_))
+        , TreeProfiler_(SchedulerProfiler.WithTag("tree", TreeId_))
         , Logger(NLogging::TLogger(SchedulerLogger)
             .AddTag("TreeId: %v", TreeId_))
         , NonPreemptiveSchedulingStage_(
             /* nameInLogs */ "Non preemptive",
-            TScheduleJobsProfilingCounters("/non_preemptive", {TreeIdProfilingTag_}))
+            TreeProfiler_.WithPrefix("/non_preemptive"))
         , AggressivelyPreemptiveSchedulingStage_(
             /* nameInLogs */ "Aggressively preemptive",
-            TScheduleJobsProfilingCounters("/aggressively_preemptive", {TreeIdProfilingTag_}))
+            TreeProfiler_.WithPrefix("/aggressively_preemptive"))
         , PreemptiveSchedulingStage_(
             /* nameInLogs */ "Preemptive",
-            TScheduleJobsProfilingCounters("/preemptive", {TreeIdProfilingTag_}))
+            TreeProfiler_.WithPrefix("/preemptive"))
         , PackingFallbackSchedulingStage_(
             /* nameInLogs */ "Packing fallback",
-            TScheduleJobsProfilingCounters("/packing_fallback", {TreeIdProfilingTag_}))
-        , FairSharePreUpdateTimeCounter_("/fair_share_preupdate_time", {TreeIdProfilingTag_})
-        , FairShareUpdateTimeCounter_("/fair_share_update_time", {TreeIdProfilingTag_})
-        , FairShareFluentLogTimeCounter_("/fair_share_fluent_log_time", {TreeIdProfilingTag_})
-        , FairShareTextLogTimeCounter_("/fair_share_text_log_time", {TreeIdProfilingTag_})
-        , AnalyzePreemptableJobsTimeCounter_("/analyze_preemptable_jobs_time", {TreeIdProfilingTag_})
+            TreeProfiler_.WithPrefix("/packing_fallback"))
+        , FairSharePreUpdateTimer_(TreeProfiler_.Timer("/fair_share_preupdate_time"))
+        , FairShareUpdateTimer_(TreeProfiler_.Timer("/fair_share_update_time"))
+        , FairShareFluentLogTimer_(TreeProfiler_.Timer("/fair_share_fluent_log_time"))
+        , FairShareTextLogTimer_(TreeProfiler_.Timer("/fair_share_text_log_time"))
+        , AnalyzePreemptableJobsTimer_(TreeProfiler_.Timer("/analyze_preemptable_jobs_time"))
+        , PoolCountGauge_(TreeProfiler_.WithGlobal().Gauge("/pools/pool_count"))
     {
-        for (auto state : {EOperationState::Aborted, EOperationState::Failed, EOperationState::Completed}) {
-            OperationStateToProfilingTagId_.emplace(
-                state,
-                TProfileManager::Get()->RegisterTag("state", FormatEnum(state)));
-        }
-
         RootElement_ = New<TRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 
-        DoRegisterPoolProfilingCounters(RootElement_->GetId(), RootElement_->GetProfilingTag());
+        DoRegisterPoolProfilingCounters(RootElement_->GetId());
+        RootElement_->RegisterProfiler(TreeProfiler_
+            .WithGlobal()
+            .WithRequiredTag("pool", RootElement_->GetId(), -1));
 
         YT_LOG_INFO("Fair share tree created");
     }
@@ -825,19 +786,6 @@ public:
         return ResourceTree_.Get();
     }
 
-    virtual TShardedAggregateGauge& GetProfilingCounter(const TString& name) override
-    {
-        TGuard<TAdaptiveLock> guard(CustomProfilingCountersLock_);
-
-        auto it = CustomProfilingCounters_.find(name);
-        if (it == CustomProfilingCounters_.end()) {
-            auto tag = TProfileManager::Get()->RegisterTag("tree", TreeId_);
-            auto ptr = std::make_unique<TShardedAggregateGauge>(name, TTagIdList{tag});
-            it = CustomProfilingCounters_.emplace(name, std::move(ptr)).first;
-        }
-        return *it->second;
-    }
-
 private:
     TFairShareStrategyTreeConfigPtr Config_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
@@ -855,6 +803,7 @@ private:
 
     const TString TreeId_;
     const TTagId TreeIdProfilingTag_;
+    const TRegistry TreeProfiler_;
 
     const NLogging::TLogger Logger;
 
@@ -863,12 +812,11 @@ private:
     std::optional<TInstant> LastFairShareUpdateTime_;
 
     THashMap<TString, TTagId> PoolIdToProfilingTagId_;
-    THashMap<EOperationState, TTagId> OperationStateToProfilingTagId_;
 
     struct TUnregisterOperationCounters
     {
-        THashMap<EOperationState, TShardedMonotonicCounter> FinishedCounters;
-        TShardedMonotonicCounter BannedCounter;
+        TEnumIndexedVector<EOperationState, TCounter> FinishedCounters;
+        TCounter BannedCounter;
     };
     THashMap<TString, TUnregisterOperationCounters> PoolToUnregisterOperationCounters_;
 
@@ -1073,14 +1021,12 @@ private:
     TFairShareSchedulingStage PreemptiveSchedulingStage_;
     TFairShareSchedulingStage PackingFallbackSchedulingStage_;
 
-    mutable TShardedAggregateGauge FairSharePreUpdateTimeCounter_;
-    mutable TShardedAggregateGauge FairShareUpdateTimeCounter_;
-    mutable TShardedAggregateGauge FairShareFluentLogTimeCounter_;
-    mutable TShardedAggregateGauge FairShareTextLogTimeCounter_;
-    mutable TShardedAggregateGauge AnalyzePreemptableJobsTimeCounter_;
-
-    TAdaptiveLock CustomProfilingCountersLock_;
-    THashMap<TString, std::unique_ptr<TShardedAggregateGauge>> CustomProfilingCounters_;
+    TEventTimer FairSharePreUpdateTimer_;
+    TEventTimer FairShareUpdateTimer_;
+    TEventTimer FairShareFluentLogTimer_;
+    TEventTimer FairShareTextLogTimer_;
+    TEventTimer AnalyzePreemptableJobsTimer_;
+    TGauge PoolCountGauge_;
 
     TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
@@ -1097,14 +1043,16 @@ private:
         updateContext.PreviousUpdateTime = LastFairShareUpdateTime_;
 
         auto rootElement = RootElement_->Clone();
-        PROFILE_AGGREGATED_TIMING(FairSharePreUpdateTimeCounter_) {
+        {
+            TEventTimer timer(FairSharePreUpdateTimer_);
             rootElement->PreUpdate(&dynamicAttributes, &updateContext);
         }
 
         TRootElementSnapshotPtr rootElementSnapshot;
         auto asyncUpdate = BIND([&]
             {
-                PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
+                {
+                    TEventTimer timer(FairShareUpdateTimer_);
                     rootElement->Update(&dynamicAttributes, &updateContext);
                 }
 
@@ -1436,7 +1384,8 @@ private:
             isAggressive ? "aggressively preemptable" : "preemptable");
         THashSet<const TCompositeSchedulerElement *> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
-        PROFILE_AGGREGATED_TIMING(AnalyzePreemptableJobsTimeCounter_) {
+        {
+            TEventTimerGuard timer(AnalyzePreemptableJobsTimer_);
             for (const auto& job : context->SchedulingContext()->RunningJobs()) {
                 auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
@@ -1673,7 +1622,10 @@ private:
         YT_VERIFY(Pools_.emplace(pool->GetId(), pool).second);
         YT_VERIFY(PoolToMinUnusedSlotIndex_.emplace(pool->GetId(), 0).second);
 
-        DoRegisterPoolProfilingCounters(pool->GetId(), pool->GetProfilingTag());
+        DoRegisterPoolProfilingCounters(pool->GetId());
+        pool->RegisterProfiler(TreeProfiler_
+            .WithGlobal()
+            .WithRequiredTag("pool", pool->GetId(), -1));
     }
 
     void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
@@ -1769,15 +1721,20 @@ private:
         return pool;
     }
 
-    void DoRegisterPoolProfilingCounters(const TString& poolName, TTagId profilingTag)
+    void DoRegisterPoolProfilingCounters(const TString& poolName)
     {
+        auto poolProfiler = TreeProfiler_
+            .WithTag("pool", poolName, -1)
+            .WithGlobal();
+
         TUnregisterOperationCounters counters;
-        for (const auto& [state, stateTag] : OperationStateToProfilingTagId_) {
-            counters.FinishedCounters.emplace(
-                state,
-                TShardedMonotonicCounter("/pools/finished_operation_count", {stateTag, profilingTag, TreeIdProfilingTag_}));
+        counters.BannedCounter = poolProfiler.Counter("/pools/banned_operation_count");
+
+        for (auto state : TEnumTraits<EOperationState>::GetDomainValues()) {
+            counters.FinishedCounters[state] = poolProfiler
+                .WithTag("state", FormatEnum(state), -1)
+                .Counter("/pools/finished_operation_count");
         }
-        counters.BannedCounter = TShardedMonotonicCounter("/pools/banned_operation_count", {profilingTag, TreeIdProfilingTag_});
         PoolToUnregisterOperationCounters_.emplace(poolName, std::move(counters));
     }
 
@@ -1800,7 +1757,7 @@ private:
         }
     }
 
-    void AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
+    std::optional<int> AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
     {
         auto slotIndex = state->GetHost()->FindSlotIndex(TreeId_);
 
@@ -1811,7 +1768,7 @@ private:
                     state->GetHost()->GetId(),
                     poolName,
                     *slotIndex);
-                return;
+                return slotIndex;
             }
             YT_LOG_ERROR("Failed to reuse slot index during revive (OperationId: %v, Pool: %v, SlotIndex: %v)",
                 state->GetHost()->GetId(),
@@ -1831,11 +1788,11 @@ private:
         }
 
         state->GetHost()->SetSlotIndex(TreeId_, *slotIndex);
-
         YT_LOG_DEBUG("Operation slot index allocated (OperationId: %v, Pool: %v, SlotIndex: %v)",
             state->GetHost()->GetId(),
             poolName,
             *slotIndex);
+        return slotIndex;
     }
 
     void ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
@@ -1921,10 +1878,10 @@ private:
         while (currentPool) {
             auto& counters = GetOrCrash(PoolToUnregisterOperationCounters_, currentPool->GetId());
             if (IsOperationFinished(state)) {
-                Profiler.Increment(GetOrCrash(counters.FinishedCounters, state), 1);
+                counters.FinishedCounters[state].Increment();
             } else {
                 // Unregistration for running operation is considered as ban.
-                Profiler.Increment(counters.BannedCounter, 1);
+                counters.BannedCounter.Increment();
             }
             currentPool = currentPool->GetParent();
         }
@@ -1955,7 +1912,8 @@ private:
         const TFairShareStrategyOperationStatePtr& state,
         const TOperationElementPtr& operationElement)
     {
-        AllocateOperationSlotIndex(state, operationElement->GetParent()->GetId());
+        auto slotIndex = AllocateOperationSlotIndex(state, operationElement->GetParent()->GetId());
+        operationElement->RegisterProfiler(slotIndex, TreeProfiler_.WithGlobal());
 
         auto violatedPool = FindPoolViolatingMaxRunningOperationCount(operationElement->GetMutableParent());
         if (!violatedPool) {
@@ -2290,152 +2248,31 @@ private:
 
     void DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshot) const
     {
-        TMetricsAccumulator accumulator;
+        PoolCountGauge_.Update(rootElementSnapshot->PoolNameToElement.size());
 
         for (const auto& [poolName, pool] : rootElementSnapshot->PoolNameToElement) {
-            ProfileCompositeSchedulerElement(accumulator, pool);
+            pool->ProfileFull();
         }
-        ProfileCompositeSchedulerElement(accumulator, rootElementSnapshot->RootElement.Get());
+        rootElementSnapshot->RootElement.Get()->ProfileFull();
+
         if (Config_->EnableOperationsProfiling) {
             for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
-                ProfileOperationElement(accumulator, element);
+                element->ProfileFull();
             }
         }
-
-        accumulator.Add(
-            "/pool_count",
-            rootElementSnapshot->PoolNameToElement.size(),
-            EMetricType::Gauge,
-            {TreeIdProfilingTag_});
-
-        accumulator.Publish(&Profiler);
-    }
-
-    void ProfileOperationElement(TMetricsAccumulator& accumulator, const TOperationElementPtr& element) const
-    {
-        if (auto slotIndex = element->GetMaybeSlotIndex()) {
-            auto poolTag = element->GetParent()->GetProfilingTag();
-            auto slotIndexTag = GetSlotIndexProfilingTag(*slotIndex);
-
-            ProfileSchedulerElement(accumulator, element, "/operations_by_slot", {poolTag, slotIndexTag, TreeIdProfilingTag_});
-        }
-
-        auto parent = element->GetParent();
-        while (parent != nullptr) {
-            bool enableProfiling = false;
-            if (!parent->IsRoot()) {
-                const auto* pool = static_cast<const TPool*>(parent);
-                if (pool->GetConfig()->EnableByUserProfiling) {
-                    enableProfiling = *pool->GetConfig()->EnableByUserProfiling;
-                } else {
-                    enableProfiling = Config_->EnableByUserProfiling;
-                }
-            } else {
-                enableProfiling = Config_->EnableByUserProfiling;
-            }
-
-            auto poolTag = parent->GetProfilingTag();
-            auto userNameTag = GetUserNameProfilingTag(element->GetUserName());
-            TTagIdList byUserTags = {poolTag, userNameTag, TreeIdProfilingTag_};
-            auto customTag = element->GetCustomProfilingTag();
-            if (customTag) {
-                byUserTags.push_back(*customTag);
-            }
-            ProfileSchedulerElement(accumulator, element, "/operations_by_user", byUserTags);
-
-            parent = parent->GetParent();
-        }
-    }
-
-    void ProfileCompositeSchedulerElement(TMetricsAccumulator& accumulator, const TCompositeSchedulerElementPtr& element) const
-    {
-        auto tag = element->GetProfilingTag();
-        ProfileSchedulerElement(accumulator, element, "/pools", {tag, TreeIdProfilingTag_});
-
-        accumulator.Add(
-            "/pools/max_operation_count",
-            element->GetMaxOperationCount(),
-            EMetricType::Gauge,
-            {tag, TreeIdProfilingTag_});
-        accumulator.Add(
-            "/pools/max_running_operation_count",
-            element->GetMaxRunningOperationCount(),
-            EMetricType::Gauge,
-            {tag, TreeIdProfilingTag_});
-        accumulator.Add(
-            "/pools/running_operation_count",
-            element->RunningOperationCount(),
-            EMetricType::Gauge,
-            {tag, TreeIdProfilingTag_});
-        accumulator.Add(
-            "/pools/total_operation_count",
-            element->OperationCount(),
-            EMetricType::Gauge,
-            {tag, TreeIdProfilingTag_});
-
-        ProfileResources(accumulator, element->GetMinShareResources(), "/pools/min_share_resources", {tag, TreeIdProfilingTag_});
-
-        // TODO(eshcherbin): Add historic usage profiling.
-    }
-
-    void ProfileSchedulerElement(
-        TMetricsAccumulator& accumulator,
-        const TSchedulerElementPtr& element,
-        const TString& profilingPrefix,
-        const TTagIdList& tags) const
-    {
-        accumulator.Add(
-            profilingPrefix + "/fair_share_ratio_x100000",
-            static_cast<i64>(element->Attributes().GetFairShareRatio() * 1e5),
-            EMetricType::Gauge,
-            tags);
-        accumulator.Add(
-            profilingPrefix + "/usage_ratio_x100000",
-            static_cast<i64>(element->GetResourceUsageRatioAtUpdate() * 1e5),
-            EMetricType::Gauge,
-            tags);
-        accumulator.Add(
-            profilingPrefix + "/demand_ratio_x100000",
-            static_cast<i64>(element->Attributes().GetDemandRatio() * 1e5),
-            EMetricType::Gauge,
-            tags);
-        accumulator.Add(
-            profilingPrefix + "/unlimited_demand_fair_share_ratio_x100000",
-            static_cast<i64>(MaxComponent(element->Attributes().UnlimitedDemandFairShare) * 1e5),
-            EMetricType::Gauge,
-            tags);
-        accumulator.Add(
-            profilingPrefix + "/accumulated_resource_ratio_volume_x100000",
-            static_cast<i64>(element->GetAccumulatedResourceRatioVolume() * 1e5),
-            EMetricType::Gauge,
-            tags);
-        accumulator.Add(
-            profilingPrefix + "/accumulated_resource_volume_cpu",
-            static_cast<i64>(element->GetAccumulatedResourceVolume().GetCpu()),
-            EMetricType::Gauge,
-            tags);
-
-        ProfileResources(accumulator, element->ResourceUsageAtUpdate(), profilingPrefix + "/resource_usage", tags);
-        ProfileResources(accumulator, element->ResourceLimits(), profilingPrefix + "/resource_limits", tags);
-        ProfileResources(accumulator, element->ResourceDemand(), profilingPrefix + "/resource_demand", tags);
-
-        element->GetJobMetrics().Profile(
-            accumulator,
-            profilingPrefix + "/metrics",
-            tags);
-
-        element->Profile(accumulator, profilingPrefix, tags);
     }
 
     void DoLogFairShare(const TRootElementSnapshotPtr& rootElementSnapshot, NEventLog::TFluentLogEvent fluent) const
     {
-        PROFILE_AGGREGATED_TIMING(FairShareFluentLogTimeCounter_) {
+        {
+            TEventTimer timer(FairShareFluentLogTimer_);
             fluent
                 .Item("tree_id").Value(TreeId_)
                 .Do(BIND(&TFairShareTree::DoBuildFairShareInfo, Unretained(this), rootElementSnapshot));
         }
 
-        PROFILE_AGGREGATED_TIMING(FairShareTextLogTimeCounter_) {
+        {
+            TEventTimer timer(FairShareTextLogTimer_);
             LogPoolsInfo(rootElementSnapshot);
             LogOperationsInfo(rootElementSnapshot);
         }
@@ -2443,13 +2280,15 @@ private:
 
     void DoEssentialLogFairShare(const TRootElementSnapshotPtr& rootElementSnapshot, NEventLog::TFluentLogEvent fluent) const
     {
-        PROFILE_AGGREGATED_TIMING(FairShareFluentLogTimeCounter_) {
+        {
+            TEventTimer timer(FairShareFluentLogTimer_);
             fluent
                 .Item("tree_id").Value(TreeId_)
                 .Do(BIND(&TFairShareTree::DoBuildEssentialFairShareInfo, Unretained(this), rootElementSnapshot));
         }
 
-        PROFILE_AGGREGATED_TIMING(FairShareTextLogTimeCounter_) {
+        {
+            TEventTimer timer(FairShareTextLogTimer_);
             LogPoolsInfo(rootElementSnapshot);
             LogOperationsInfo(rootElementSnapshot);
         }
