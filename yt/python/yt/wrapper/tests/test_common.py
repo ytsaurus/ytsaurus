@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from .conftest import authors
+from .helpers import yatest_common # noqa
 
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth, bool_to_string,
@@ -90,6 +91,7 @@ def test_merge_blobs_by_size():
     assert list(merge_blobs_by_size([b"abcdef"], 2)) == [b"abcdef"]
 
 @authors("levysotsky")
+@pytest.mark.skipif('yatest_common.context.sanitize == "address"')
 def test_merge_blobs_by_size_performance():
     start = datetime.now()
     size = 1000000
