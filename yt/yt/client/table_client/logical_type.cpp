@@ -927,6 +927,18 @@ bool IsV3Composite(const TLogicalTypePtr& logicalType)
     return info.IsPureV1Type == false && info.V1Type == ESimpleLogicalValueType::Any;
 }
 
+TLogicalTypePtr DenullifyLogicalType(const TLogicalTypePtr& type)
+{
+    auto detagged = DetagLogicalType(type);
+    if (detagged->GetMetatype() == ELogicalMetatype::Optional) {
+        const auto& optional = detagged->AsOptionalTypeRef();
+        if (!optional.IsElementNullable()) {
+            return optional.GetElement();
+        }
+    }
+    return detagged;
+}
+
 bool operator != (const TLogicalType& lhs, const TLogicalType& rhs)
 {
     return !(lhs == rhs);

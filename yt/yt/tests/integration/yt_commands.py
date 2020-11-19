@@ -2373,8 +2373,15 @@ def sync_alter_table_replica_mode(replica_id, mode, driver=None):
     wait(check)
 
 
-def create_table(path, **attributes):
-    create("table", path, attributes=attributes)
+def create_table(path, force=None, dynamic=None, schema=None):
+    kwargs = {}
+    if force is not None:
+        kwargs["force"] = force
+    if dynamic is not None:
+        kwargs.setdefault("attributes", {})["dynamic"] = dynamic
+    if schema is not None:
+        kwargs.setdefault("attributes", {})["schema"] = schema
+    create("table", path, **kwargs)
 
 
 def create_dynamic_table(path, **attributes):

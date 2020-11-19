@@ -123,6 +123,10 @@ bool IsV1Type(const TLogicalTypePtr& logicalType);
 // Return true if this is new type expressable with EValueType::Composite type.
 bool IsV3Composite(const TLogicalTypePtr& logicalTypePtr);
 
+// Try to remove top level optional type if that doesn't change UnversionedValue representation
+// of non null types.
+TLogicalTypePtr DenullifyLogicalType(const TLogicalTypePtr& type);
+
 // Returns copy of the logical type with all tagged types replaces with its elements.
 TLogicalTypePtr DetagLogicalType(const TLogicalTypePtr& type);
 
