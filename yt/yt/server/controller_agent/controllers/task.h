@@ -55,11 +55,8 @@ public:
     //! for builtin tasks. For example, "SortedReduce" or "PartitionMap".
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const;
     //! Human-readable title of a particular task that appears in logging. For builtin tasks it coincides
-    //! with the vertex descriptor and a partition index in brackets (if applicable).
+    //! with the vertex descriptor and a task level in brackets (if applicable).
     virtual TString GetTitle() const;
-
-    //! Human-readable name of a particular task that appears in archive. Supported for vanilla tasks only for now.
-    virtual TString GetName() const;
 
     virtual int GetPendingJobCount() const;
     int GetPendingJobCountDelta();

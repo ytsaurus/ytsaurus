@@ -62,11 +62,6 @@ public:
         return Format("Vanilla(%v)", Name_);
     }
 
-    virtual TString GetName() const override
-    {
-        return Name_;
-    }
-
     virtual TString GetVertexDescriptor() const override
     {
         return Spec_->TaskTitle;
