@@ -129,8 +129,9 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
         }
     }
 
-    if (context.GetVersion() != NCellMaster::GetCurrentReign() && Attributes_) {
+    if (context.GetVersion() != NCellMaster::GetCurrentReign() && !IsRoot_ && Attributes_) {
         const auto& schedulerPoolManager = context.GetBootstrap()->GetSchedulerPoolManager();
+        std::vector<TString> keysToRemove;
         for (const auto& [key, value] : Attributes_->Attributes()) {
             auto internedKey = TInternedAttributeKey::Lookup(key);
             if (internedKey == InvalidInternedAttribute) {
@@ -142,27 +143,30 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
                         "(ObjectId: %v, AttributeName: %v, CommonAttributeValue: %v, SpecifiedAttributeValue: %v)",
                         Id_,
                         key,
-                        value,
-                        SpecifiedAttributes_[internedKey]);
+                        ConvertToYsonString(value, EYsonFormat::Text),
+                        ConvertToYsonString(SpecifiedAttributes_[internedKey]), EYsonFormat::Text);
                 } else {
                     try {
                         YT_LOG_INFO("Moving pool attribute from common attributes map to SpecifiedAttributes map "
                             "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
                             Id_,
                             key,
-                            value);
+                            ConvertToYsonString(value, EYsonFormat::Text));
                         FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value), EMergeStrategy::Overwrite);
                         YT_VERIFY(SpecifiedAttributes_.emplace(internedKey, std::move(value)).second);
-                        YT_VERIFY(Attributes_->Remove(key));
+                        keysToRemove.push_back(key);
                     } catch (const std::exception& e) {
                         YT_LOG_ERROR(e, "Cannot parse value of pool attribute "
                             "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
                             Id_,
                             key,
-                            value);
+                            ConvertToYsonString(value, EYsonFormat::Text));
                     }
                 }
             }
+        }
+        for (const auto& key : keysToRemove) {
+            YT_VERIFY(Attributes_->Remove(key));
         }
     }
 }
