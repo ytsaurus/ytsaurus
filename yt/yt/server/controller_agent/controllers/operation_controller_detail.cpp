@@ -2366,7 +2366,7 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
 
     auto joblet = GetJoblet(jobId);
     joblet->LastActivityTime = jobSummary->StartTime;
-    joblet->TaskName = joblet->Task->GetName();
+    joblet->TaskName = joblet->Task->GetVertexDescriptor();
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
