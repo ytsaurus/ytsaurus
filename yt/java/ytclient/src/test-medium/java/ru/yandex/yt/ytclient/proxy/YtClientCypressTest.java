@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
@@ -15,6 +17,7 @@ import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
@@ -25,7 +28,9 @@ public class YtClientCypressTest extends YtClientTestBase {
 
     @Test(timeout = 1000000)
     public void testBanningProxyReadingWritingTable() throws Exception {
-        var tablePath = testDirectory.child("static-table");
+        var ytFixture = createYtFixture();
+        var tablePath = ytFixture.testDirectory.child("static-table");
+        var yt = ytFixture.yt;
 
         // Create some test data.
         List<TableRow> data = new ArrayList<>();
@@ -93,7 +98,9 @@ public class YtClientCypressTest extends YtClientTestBase {
 
     @Test(timeout = 1000000)
     public void testBanningProxyReadingWritingFile() throws Exception {
-        var tablePath = testDirectory.child("static-table");
+        var ytFixture = createYtFixture();
+        var tablePath = ytFixture.testDirectory.child("static-table");
+        var yt = ytFixture.yt;
 
         yt.createNode(tablePath.toString(), ObjectType.File).get(2, TimeUnit.SECONDS);
         var writer = yt.writeFile(
@@ -165,6 +172,33 @@ public class YtClientCypressTest extends YtClientTestBase {
         }
 
         assertThat(actualData, is(expectedData));
+    }
+
+    @Test(timeout = 10000)
+    public void testRediscoverWhenAllBanned() {
+        var rpcOptions = new RpcOptions();
+        rpcOptions.setProxyUpdateTimeout(Duration.ofHours(1));
+        rpcOptions.setChannelPoolSize(1);
+
+        var fixture = createYtFixture();
+        var yt = fixture.yt;
+        var testPath = fixture.testDirectory.child("value");
+        final var expectedValue = YTree.integerNode(42);
+        yt.setNode(testPath.toString(), expectedValue).join();
+        var aliveDestinations = yt.getAliveDestinations();
+        assertThat(aliveDestinations.size(), is(1));
+        int totalBanned = 0;
+        for (var destinationList : aliveDestinations.values()) {
+            for (var destination : destinationList) {
+                var proxy = destination.getRpcProxyAddress();
+                yt.banProxy(proxy).join();
+                totalBanned += 1;
+            }
+        }
+        assertThat(totalBanned, is(1));
+
+        var actualValue = yt.getNode(testPath.toString()).join();
+        assertThat(actualValue, is(expectedValue));
     }
 
     @YTreeObject

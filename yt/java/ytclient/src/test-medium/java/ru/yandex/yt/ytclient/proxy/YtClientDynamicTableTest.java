@@ -21,10 +21,14 @@ public class YtClientDynamicTableTest extends YtClientTestBase {
             .build();
 
     private YPath keyValueTablePath;
+    private YtClient yt;
 
     @Before
     public void setUpTables() {
-        keyValueTablePath = testDirectory.child("key-value-table");
+        var ytFixture = createYtFixture();
+        yt = ytFixture.yt;
+
+        keyValueTablePath = ytFixture.testDirectory.child("key-value-table");
         yt.createNode(
                 new CreateNode(keyValueTablePath, ObjectType.Table)
                         .setRecursive(true)

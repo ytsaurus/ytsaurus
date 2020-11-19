@@ -229,7 +229,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         synchronized (this) {
             if (state == State.NOT_STARTED) {
                 state = State.RUNNING;
-                nextUpdate = executorService.submit(this::doUpdate);
+                setOnAllBannedCallback(()->doUpdate(false));
+                nextUpdate = executorService.submit(() -> doUpdate(true));
             } else {
                 throw new IllegalArgumentException("ClientPoolService is in invalid state: " + state);
             }
@@ -257,7 +258,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         }
     }
 
-    private void doUpdate() {
+    private void doUpdate(boolean scheduleNextUpdate) {
         CompletableFuture<List<HostPort>> proxiesFuture = proxyGetter.getProxies();
         proxiesFuture.whenCompleteAsync((result, error) -> {
             if (error == null) {
@@ -268,11 +269,16 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 updateWithError(error);
             }
 
-            synchronized (this) {
-                if (state == State.RUNNING) {
-                    nextUpdate = executorService.schedule(this::doUpdate, updatePeriodMs, TimeUnit.MILLISECONDS);
-                } else if (state != State.STOPPED) {
-                    throw new IllegalArgumentException("ClientPoolService is in unexpected state: " + state);
+            if (scheduleNextUpdate) {
+                synchronized (this) {
+                    if (state == State.RUNNING) {
+                        nextUpdate = executorService.schedule(
+                                () -> doUpdate(true),
+                                updatePeriodMs,
+                                TimeUnit.MILLISECONDS);
+                    } else if (state != State.STOPPED) {
+                        throw new IllegalArgumentException("ClientPoolService is in unexpected state: " + state);
+                    }
                 }
             }
         }, executorService);
@@ -433,6 +439,7 @@ class ClientPool implements DataCenterRpcClientPool {
     private final String dataCenterName;
     private final int maxSize;
     private final RpcClientFactory clientFactory;
+    private final ExecutorService unsafeExecutorService;
     private final SerializedExecutorService safeExecutorService;
     private final Random random;
 
@@ -443,6 +450,7 @@ class ClientPool implements DataCenterRpcClientPool {
 
     // Array of healthy clients that are used for optimization of peekClient.
     private volatile PooledRpcClient[] clientCache = new PooledRpcClient[0];
+    @Nullable private volatile Runnable onAllBannedCallback = null;
 
     ClientPool(
             String dataCenterName,
@@ -452,6 +460,7 @@ class ClientPool implements DataCenterRpcClientPool {
             Random random)
     {
         this.dataCenterName = dataCenterName;
+        this.unsafeExecutorService = executorService;
         this.safeExecutorService = new SerializedExecutorService(executorService);
         this.random = random;
         this.maxSize = maxSize;
@@ -478,6 +487,10 @@ class ClientPool implements DataCenterRpcClientPool {
 
     public String getDataCenterName() {
         return dataCenterName;
+    }
+
+    void setOnAllBannedCallback(Runnable onAllBannedCallback) {
+        this.onAllBannedCallback = onAllBannedCallback;
     }
 
     RpcClient[] getAliveClients() {
@@ -611,6 +624,10 @@ class ClientPool implements DataCenterRpcClientPool {
 
         if (updateClientCache) {
             updateGoodClientsCacheUnsafe();
+            Runnable cb = onAllBannedCallback;
+            if (activeClients.isEmpty() && cb != null) {
+                unsafeExecutorService.execute(cb);
+            }
         }
     }
 
