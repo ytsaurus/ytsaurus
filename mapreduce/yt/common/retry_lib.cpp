@@ -192,11 +192,6 @@ static bool IsRetriableChunkError(const TSet<int>& codes)
     return isChunkError;
 }
 
-bool IsChunkImportingError(const TYtError& error)
-{
-    return error.ContainsText("Error importing chunks in transaction");
-}
-
 static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorResponse)
 {
     int httpCode = errorResponse.GetHttpCode();
@@ -217,7 +212,7 @@ static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorRespon
         // limit for the number of concurrent operations exceeded
         return TConfig::Get()->StartOperationRetryInterval;
     }
-    if (IsRetriableChunkError(allCodes) || IsChunkImportingError(errorResponse.GetError())) {
+    if (IsRetriableChunkError(allCodes)) {
         // chunk client errors
         return TConfig::Get()->ChunkErrorsRetryInterval;
     }
@@ -225,6 +220,7 @@ static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorRespon
         NRpc::TransportError,
         NRpc::Unavailable,
         NApi::OperationProgressOutdated,
+        Canceled,
     }) {
         if (allCodes.contains(code)) {
             return TConfig::Get()->RetryInterval;
