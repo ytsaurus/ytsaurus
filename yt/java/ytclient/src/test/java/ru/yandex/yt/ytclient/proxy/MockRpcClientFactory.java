@@ -70,7 +70,7 @@ class MockRpcClientFactory implements RpcClientFactory {
 
             @Override
             public String getAddressString() {
-                return null;
+                return hostPort.toString();
             }
 
             @Override

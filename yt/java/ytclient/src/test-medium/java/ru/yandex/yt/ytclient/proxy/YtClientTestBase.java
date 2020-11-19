@@ -1,9 +1,9 @@
 package ru.yandex.yt.ytclient.proxy;
 
-import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 
@@ -17,41 +17,64 @@ import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 public class YtClientTestBase {
+    static class YtFixture {
+        final YtClient yt;
+        final YPath testDirectory;
+
+        YtFixture(YtClient yt, YPath testDirectory) {
+            this.yt = yt;
+            this.testDirectory = testDirectory;
+        }
+    }
+
     @Rule
     public TestName name = new TestName();
     private final GUID runId = GUID.create();
-    YtClient yt;
-    YPath testDirectory;
+    List<YtFixture> ytFixtures = new ArrayList<>();
 
-    @Before
-    final public void setUpClient() {
+    final public YtFixture createYtFixture() {
         RpcOptions rpcOptions = new RpcOptions();
-        rpcOptions.setNewDiscoveryServiceEnabled(true);
-        rpcOptions.setProxyUpdateTimeout(Duration.ofSeconds(5));
+        return createYtFixture(rpcOptions);
+    }
 
-        yt = YtClient.builder()
+    final public YtFixture createYtFixture(RpcOptions rpcOptions) {
+        rpcOptions.setNewDiscoveryServiceEnabled(true);
+        var yt = YtClient.builder()
                 .setCluster(LocalYt.getAddress())
                 .setRpcOptions(rpcOptions)
                 .setRpcCredentials(new RpcCredentials("root", ""))
                 .build();
 
-        testDirectory = YPath.simple("//tmp/ytclient-test/" + runId + "-" + name.getMethodName());
+        var testDirectory = YPath.simple("//tmp/ytclient-test/" + runId + "-" + name.getMethodName());
 
         yt.createNode(
                 new CreateNode(testDirectory, ObjectType.MapNode)
                         .setRecursive(true)
                         .setForce(true)
         ).join();
+
+        YtFixture result = new YtFixture(yt, testDirectory);
+        ytFixtures.add(result);
+        return result;
     }
 
     @After
-    final public void tearDownClient() {
-        if (yt == null) {
-            return;
+    final public void tearDown() throws Throwable {
+        Throwable error = null;
+        for (var fixture : ytFixtures) {
+            try (var yt = fixture.yt) {
+                yt.removeNode(new RemoveNode(fixture.testDirectory).setForce(true)).join();
+            } catch (Throwable ex) {
+                if (error == null) {
+                    error = new RuntimeException("Error while tear down test", ex);
+                } else {
+                    error.addSuppressed(ex);
+                }
+            }
         }
-
-        try (var ignored = yt) {
-            yt.removeNode(new RemoveNode(testDirectory).setForce(true)).join();
+        ytFixtures.clear();
+        if (error != null) {
+            throw error;
         }
     }
 }

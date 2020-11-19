@@ -19,6 +19,9 @@ public class UnmountWaitTest extends YtClientTestBase {
 
     @Test
     public void createUnmountAndWait() {
+        var ytFixture = createYtFixture();
+        var yt = ytFixture.yt;
+        var testDirectory = ytFixture.testDirectory;
 
         while (!yt.getNode("//sys/tablet_cell_bundles/default/@health").join().stringValue().equals("good")) {
             try {
