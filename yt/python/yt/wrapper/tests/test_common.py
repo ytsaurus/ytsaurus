@@ -13,8 +13,20 @@ from yt.packages.six.moves import xrange, cPickle as pickle
 
 import yt.wrapper as yt
 
+from flaky import flaky
+
 from datetime import datetime, timedelta
 import pytest
+
+
+def is_debug():
+    try:
+        from yson_lib import is_debug_build
+    except ImportError:
+        from yt_yson_bindings.yson_lib import is_debug_build
+
+    return is_debug_build()
+
 
 @authors("ignat")
 def test_update():
@@ -91,8 +103,11 @@ def test_merge_blobs_by_size():
     assert list(merge_blobs_by_size([b"abcdef"], 2)) == [b"abcdef"]
 
 @authors("levysotsky")
+@flaky(max_runs=3)
 @pytest.mark.skipif('yatest_common.context.sanitize == "address"')
 def test_merge_blobs_by_size_performance():
+    if is_debug():
+        pytest.skip()
     start = datetime.now()
     size = 1000000
     s = (b"x" for _ in xrange(size))
