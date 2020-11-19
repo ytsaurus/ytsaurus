@@ -58,6 +58,14 @@ public:
             .Default(NLogging::TLogManagerConfig::CreateDefault());
         RegisterParameter("tracing", Tracing)
             .DefaultNew();
+        
+        // COMPAT(prime@): backward compatible config for CHYT
+        RegisterPostprocessor([this] {
+            if (!ProfileManager->GlobalTags.empty()) {
+                SolomonExporter->Host = "";
+                SolomonExporter->InstanceTags = ProfileManager->GlobalTags;
+            }
+        });
     }
 };
 
