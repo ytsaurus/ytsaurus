@@ -651,7 +651,7 @@ test_force_drop()
 
     check "" "`$MAPREDUCE_YT -read ignat/some_table`"
 
-    kill $bg_pid || true
+    kill -9 $bg_pid || true
 }
 
 test_parallel_dstappend()
