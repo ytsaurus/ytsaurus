@@ -14,7 +14,7 @@
 
 #include <yt/ytlib/object_client/proto/object_ypath.pb.h>
 
-#include <yt/core/profiling/public.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NObjectServer {
 
@@ -225,8 +225,7 @@ public:
         TObject* object,
         TCellTag cellTag);
 
-    const NProfiling::TProfiler& GetProfiler();
-    NProfiling::TShardedMonotonicCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
+    NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
 
     TEpoch GetCurrentEpoch();
 

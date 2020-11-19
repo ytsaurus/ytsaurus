@@ -1,8 +1,7 @@
 #include "request_profiling_manager.h"
+#include "yt/server/master/object_server/private.h"
 
-#include <yt/core/concurrency/rw_spinlock.h>
-
-#include <yt/core/profiling/profile_manager.h>
+#include <yt/yt/library/syncmap/map.h>
 
 namespace NYT::NObjectServer {
 
@@ -10,15 +9,15 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestProfilingCounters::TRequestProfilingCounters(const TTagIdList& tagIds)
-    : TotalReadRequestCounter("/total_read_request_count", tagIds)
-    , TotalWriteRequestCounter("/total_write_request_count", tagIds)
-    , LocalReadRequestCounter("/local_read_request_count", tagIds)
-    , LocalWriteRequestCounter("/local_write_request_count", tagIds)
-    , LeaderFallbackRequestCounter("/leader_fallback_request_count", tagIds)
-    , IntraCellForwardingRequestCounter("/intra_cell_forwarding_request_count", tagIds)
-    , CrossCellForwardingRequestCounter("/cross_cell_forwarding_request_count", tagIds)
-    , AutomatonForwardingRequestCounter("/automaton_forwarding_request_count", tagIds)
+TRequestProfilingCounters::TRequestProfilingCounters(const TRegistry& profiler)
+    : TotalReadRequestCounter(profiler.Counter("/total_read_request_count"))
+    , TotalWriteRequestCounter(profiler.Counter("/total_write_request_count"))
+    , LocalReadRequestCounter(profiler.Counter("/local_read_request_count"))
+    , LocalWriteRequestCounter(profiler.Counter("/local_write_request_count"))
+    , LeaderFallbackRequestCounter(profiler.Counter("/leader_fallback_request_count"))
+    , IntraCellForwardingRequestCounter(profiler.Counter("/intra_cell_forwarding_request_count"))
+    , CrossCellForwardingRequestCounter(profiler.Counter("/cross_cell_forwarding_request_count"))
+    , AutomatonForwardingRequestCounter(profiler.Counter("/automaton_forwarding_request_count"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,32 +28,20 @@ public:
     TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method)
     {
         auto key = std::make_tuple(user, method);
-
-        {
-            NConcurrency::TReaderGuard guard(Lock_);
-            if (auto it = KeyToCounters_.find(key)) {
-                return it->second;
-            }
-        }
-
-        TTagIdList tagIds{
-            TProfileManager::Get()->RegisterTag("user", user),
-            TProfileManager::Get()->RegisterTag("method", method)
-        };
-        auto counters = New<TRequestProfilingCounters>(tagIds);
-
-        {
-            NConcurrency::TWriterGuard guard(Lock_);
-            auto [it, inserted] = KeyToCounters_.emplace(key, std::move(counters));
-            return it->second;
-        }
+        return *KeyToCounters_.FindOrInsert(key, [&] {
+            return New<TRequestProfilingCounters>(
+                ObjectServerProfiler
+                    .WithHot()
+                    .WithSparse()
+                    .WithTag("user", user)
+                    .WithTag("method", method));
+        }).first;
     }
 
 private:
     // (user, method)
     using TKey = std::tuple<TString, TString>;
-    NConcurrency::TReaderWriterSpinLock Lock_;
-    THashMap<TKey, TRequestProfilingCountersPtr> KeyToCounters_;
+    NConcurrency::TSyncMap<TKey, TRequestProfilingCountersPtr> KeyToCounters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

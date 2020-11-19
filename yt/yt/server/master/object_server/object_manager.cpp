@@ -238,8 +238,7 @@ public:
         TObject* object,
         TCellTag cellTag);
 
-    const NProfiling::TProfiler& GetProfiler();
-    NProfiling::TShardedMonotonicCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
+    NProfiling::TTimeCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
 
     TEpoch GetCurrentEpoch();
 
@@ -250,7 +249,7 @@ private:
     using TRootServicePtr = TIntrusivePtr<TRootService>;
     class TRemoteProxy;
 
-    NProfiling::TProfiler Profiler;
+    NProfiling::TBufferedProducerPtr BufferedProducer_ = New<NProfiling::TBufferedProducer>();
 
     struct TTypeEntry
     {
@@ -264,7 +263,7 @@ private:
 
     struct TMethodEntry
     {
-        NProfiling::TShardedMonotonicCounter CumulativeExecuteTimeCounter;
+        NProfiling::TTimeCounter CumulativeExecuteTimeCounter;
     };
 
     THashMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
@@ -451,7 +450,7 @@ public:
 
         const auto& requestProfilingManager = Bootstrap_->GetRequestProfilingManager();
         auto counters = requestProfilingManager->GetCounters(context->GetAuthenticationIdentity().UserTag, context->GetMethod());
-        ObjectServerProfiler.Increment(counters->AutomatonForwardingRequestCounter);
+        counters->AutomatonForwardingRequestCounter.Increment();
 
         YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
             "TargetPath: %v, %v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
@@ -607,11 +606,12 @@ private:
 
 TObjectManager::TImpl::TImpl(TBootstrap* bootstrap)
     : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ObjectManager)
-    , Profiler(ObjectServerProfiler)
     , RootService_(New<TRootService>(Bootstrap_))
     , GarbageCollector_(New<TGarbageCollector>(Bootstrap_))
     , MutationIdempotizer_(New<TMutationIdempotizer>(Bootstrap_))
 {
+    ObjectServerProfiler.AddProducer("", BufferedProducer_);
+
     YT_VERIFY(bootstrap);
 
     RegisterLoader(
@@ -985,7 +985,7 @@ void TObjectManager::TImpl::OnRecoveryStarted()
 {
     TMasterAutomatonPart::OnRecoveryStarted();
 
-    Profiler.SetEnabled(false);
+    BufferedProducer_->SetEnabled(false);
 
     ++CurrentEpoch_;
     GarbageCollector_->Reset();
@@ -995,7 +995,7 @@ void TObjectManager::TImpl::OnRecoveryComplete()
 {
     TMasterAutomatonPart::OnRecoveryComplete();
 
-    Profiler.SetEnabled(true);
+    BufferedProducer_->SetEnabled(true);
 }
 
 void TObjectManager::TImpl::OnLeaderActive()
@@ -2021,12 +2021,7 @@ void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TO
     }
 }
 
-const TProfiler& TObjectManager::TImpl::GetProfiler()
-{
-    return Profiler;
-}
-
-NProfiling::TShardedMonotonicCounter* TObjectManager::TImpl::GetMethodCumulativeExecuteTimeCounter(
+NProfiling::TTimeCounter* TObjectManager::TImpl::GetMethodCumulativeExecuteTimeCounter(
     EObjectType type,
     const TString& method)
 {
@@ -2034,12 +2029,10 @@ NProfiling::TShardedMonotonicCounter* TObjectManager::TImpl::GetMethodCumulative
     auto it = MethodToEntry_.find(key);
     if (it == MethodToEntry_.end()) {
         auto entry = std::make_unique<TMethodEntry>();
-        entry->CumulativeExecuteTimeCounter = NProfiling::TShardedMonotonicCounter(
-            "/cumulative_execute_time",
-            {
-                TProfileManager::Get()->RegisterTag("type", type),
-                TProfileManager::Get()->RegisterTag("method", method)
-            });
+        entry->CumulativeExecuteTimeCounter = ObjectServerProfiler
+            .WithTag("type", FormatEnum(type))
+            .WithTag("method", method)
+            .TimeCounter("/cumulative_execute_time");
         it = MethodToEntry_.emplace(key, std::move(entry)).first;
     }
     return &it->second->CumulativeExecuteTimeCounter;
@@ -2054,13 +2047,15 @@ void TObjectManager::TImpl::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    Profiler.Enqueue("/zombie_object_count", GarbageCollector_->GetZombieCount(), EMetricType::Gauge);
-    Profiler.Enqueue("/ephemeral_ghost_object_count", GarbageCollector_->GetEphemeralGhostCount(), EMetricType::Gauge);
-    Profiler.Enqueue("/weak_ghost_object_count", GarbageCollector_->GetWeakGhostCount(), EMetricType::Gauge);
-    Profiler.Enqueue("/locked_object_count", GarbageCollector_->GetLockedCount(), EMetricType::Gauge);
-    Profiler.Enqueue("/created_objects", CreatedObjects_, EMetricType::Counter);
-    Profiler.Enqueue("/destroyed_objects", DestroyedObjects_, EMetricType::Counter);
-    Profiler.Enqueue("/recently_finished_mutation_count", MutationIdempotizer_->RecentlyFinishedMutationCount(), EMetricType::Counter);
+    TSensorBuffer buffer;
+    buffer.AddGauge("/zombie_object_count", GarbageCollector_->GetZombieCount());
+    buffer.AddGauge("/ephemeral_ghost_object_count", GarbageCollector_->GetEphemeralGhostCount());
+    buffer.AddGauge("/weak_ghost_object_count", GarbageCollector_->GetWeakGhostCount());
+    buffer.AddGauge("/locked_object_count", GarbageCollector_->GetLockedCount());
+    buffer.AddCounter("/created_objects", CreatedObjects_);
+    buffer.AddCounter("/destroyed_objects", DestroyedObjects_);
+    buffer.AddGauge("/recently_finished_mutation_count", MutationIdempotizer_->RecentlyFinishedMutationCount());
+    BufferedProducer_->Update(std::move(buffer));
 }
 
 IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
@@ -2356,12 +2351,7 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(TObject* object,
     Impl_->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
 }
 
-const NProfiling::TProfiler& TObjectManager::GetProfiler()
-{
-    return Impl_->GetProfiler();
-}
-
-NProfiling::TShardedMonotonicCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method)
+NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method)
 {
     return Impl_->GetMethodCumulativeExecuteTimeCounter(type, method);
 }

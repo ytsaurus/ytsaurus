@@ -11,8 +11,7 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger ObjectServerLogger;
-extern const NProfiling::TProfiler ObjectServerProfiler;
-extern const NProfiling::TRegistry ObjectServerProfilerRegistry;
+extern const NProfiling::TRegistry ObjectServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

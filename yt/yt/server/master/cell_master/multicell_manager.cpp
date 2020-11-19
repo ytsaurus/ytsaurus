@@ -57,7 +57,6 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CellMasterLogger;
-static const auto& Profiler = CellMasterProfiler;
 static const auto RegisterRetryPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -464,7 +463,7 @@ private:
     static const TCellTagList EmptyCellTagList;
 
     const TIntrusivePtr<TAsyncBatcher<void>> UpstreamSyncBatcher_;
-    NProfiling::TShardedAggregateGauge UpstreamSyncTimeGauge_{"/upstream_sync_time"};
+    NProfiling::TEventTimer UpstreamSyncTimer_ = CellMasterProfiler.Timer("/upstream_sync_time");
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -933,7 +932,7 @@ private:
             "Error synchronizing with upstream");
 
         YT_LOG_DEBUG("Upstream synchronization complete");
-        Profiler.Update(UpstreamSyncTimeGauge_, timer.GetElapsedValue());
+        UpstreamSyncTimer_.Record(timer.GetElapsedTime());
     }
 
 

@@ -1,6 +1,6 @@
 #include "public.h"
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NObjectServer {
 
@@ -9,16 +9,16 @@ namespace NYT::NObjectServer {
 struct TRequestProfilingCounters
     : public TRefCounted
 {
-    explicit TRequestProfilingCounters(const NProfiling::TTagIdList& tagIds);
+    explicit TRequestProfilingCounters(const NProfiling::TRegistry& profiler);
 
-    NProfiling::TShardedMonotonicCounter TotalReadRequestCounter;
-    NProfiling::TShardedMonotonicCounter TotalWriteRequestCounter;
-    NProfiling::TShardedMonotonicCounter LocalReadRequestCounter;
-    NProfiling::TShardedMonotonicCounter LocalWriteRequestCounter;
-    NProfiling::TShardedMonotonicCounter LeaderFallbackRequestCounter;
-    NProfiling::TShardedMonotonicCounter IntraCellForwardingRequestCounter;
-    NProfiling::TShardedMonotonicCounter CrossCellForwardingRequestCounter;
-    NProfiling::TShardedMonotonicCounter AutomatonForwardingRequestCounter;
+    NProfiling::TCounter TotalReadRequestCounter;
+    NProfiling::TCounter TotalWriteRequestCounter;
+    NProfiling::TCounter LocalReadRequestCounter;
+    NProfiling::TCounter LocalWriteRequestCounter;
+    NProfiling::TCounter LeaderFallbackRequestCounter;
+    NProfiling::TCounter IntraCellForwardingRequestCounter;
+    NProfiling::TCounter CrossCellForwardingRequestCounter;
+    NProfiling::TCounter AutomatonForwardingRequestCounter;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRequestProfilingCounters)

@@ -77,8 +77,7 @@ public:
         , ConfigCheckExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
             BIND(&TImpl::OnCheckConfig, MakeWeak(this))))
-        , Profiler("/tablet_server/tablet_balancer")
-        , QueueSizeCounter_("/queue_size")
+        , QueueSizeGauge_(TabletServerProfiler.Gauge("/tablet_balancer/queue_size"))
         , LastBalancingTime_(TruncatedNow())
     { }
 
@@ -122,7 +121,7 @@ public:
             auto bundleId = tablet->GetTable()->GetTabletCellBundle()->GetId();
             TabletIdQueue_[bundleId].push_back(tablet->GetId());
             QueuedTabletIds_.insert(tablet->GetId());
-            Profiler.Increment(QueueSizeCounter_);
+            QueueSizeGauge_.Update(++TotalQueueSize_);
             YT_LOG_DEBUG("Tablet is put into balancer queue (TableId: %v, TabletId: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId());
@@ -149,8 +148,8 @@ private:
     THashMap<TTablet*, const TTabletCell*> TabletToTargetCellMap_;
     std::vector<TTabletActionId> SpawnedTabletActionIds_;
 
-    const NProfiling::TProfiler Profiler;
-    NProfiling::TAtomicGauge QueueSizeCounter_;
+    int TotalQueueSize_ = 0;
+    NProfiling::TGauge QueueSizeGauge_;
 
     TInstant LastBalancingTime_;
     TInstant CurrentTime_;
@@ -224,15 +223,15 @@ private:
         Context_.TouchedTablets.clear();
         PurgeDeletedBundles();
 
-        size_t totalSize = 0;
+        TotalQueueSize_ = 0;
         for (const auto& bundleQueue : TabletIdQueue_) {
-            totalSize += bundleQueue.second.size();
+            TotalQueueSize_ += bundleQueue.second.size();
         }
-        Profiler.Update(QueueSizeCounter_, totalSize);
+        QueueSizeGauge_.Update(TotalQueueSize_);
 
         LastBalancingTime_ = CurrentTime_;
 
-        PROFILE_TIMING("/balance_tablets") {
+        YT_PROFILE_TIMING("/tablet_server/tablet_balancer/balance_tablets") {
             for (auto* bundle : forReshard) {
                 YT_LOG_DEBUG("Balancing tablets for bundle (Bundle: %v)",
                     bundle->GetName());
@@ -240,7 +239,7 @@ private:
             }
         }
 
-        PROFILE_TIMING("/balance_cells_in_memory") {
+        YT_PROFILE_TIMING("/tablet_server/tablet_balancer/balance_cells_in_memory") {
             for (auto* bundle : forMove) {
                 YT_LOG_DEBUG("Balancing in memory cells for bundle (Bundle: %v)",
                     bundle->GetName());
@@ -248,7 +247,7 @@ private:
             }
         }
 
-        PROFILE_TIMING("/balance_cells_ext_memory") {
+        YT_PROFILE_TIMING("/tablet_server/tablet_balancer/balance_cells_ext_memory") {
             for (auto* bundle : forMove) {
                 YT_LOG_DEBUG("Balancing ext memory cells for bundle (Bundle: %v)",
                     bundle->GetName());

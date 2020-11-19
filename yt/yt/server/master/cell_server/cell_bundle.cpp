@@ -101,7 +101,7 @@ void TCellBundle::SetDynamicOptions(TDynamicTabletCellOptionsPtr dynamicOptions)
 
 void TCellBundle::InitializeProfilingCounters()
 {
-    auto profiler = TabletServerProfilerRegistry
+    auto profiler = TabletServerProfiler
         .WithTag("tablet_cell_bundle", Name_);
 
     ProfilingCounters_.Profiler = profiler;

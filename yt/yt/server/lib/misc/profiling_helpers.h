@@ -61,19 +61,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCumulativeServiceProfilerGuard
-    : public TServiceProfilerGuard
-{
-public:
-    TCumulativeServiceProfilerGuard(
-        const NProfiling::TProfiler* profiler,
-        const NYPath::TYPath& path);
-
-    ~TCumulativeServiceProfilerGuard();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT
 
 #define PROFILING_HELPERS_INL_H_

@@ -46,7 +46,6 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    const NProfiling::TProfiler Profiler;
     TIntrusivePtr<TCellTrackerImpl> CellTrackerImpl_;
 
     TInstant StartTime_;
@@ -65,7 +64,6 @@ private:
 
 TCellTracker::TImpl::TImpl(NCellMaster::TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
-    , Profiler("/cell_server/cell_balancer")
 {
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
@@ -148,7 +146,7 @@ void TCellTracker::TImpl::ScanCells()
     if (!IsEnabled())
         return;
 
-    PROFILE_TIMING("/scan_cells") {
+    YT_PROFILE_TIMING("/cell_server/cell_balancer/scan_cells") {
         const auto& config = GetDynamicConfig()->TabletCellBalancer;
         if (config->EnableTabletCellBalancer) {
             CellTrackerImpl_->ScanCells();
