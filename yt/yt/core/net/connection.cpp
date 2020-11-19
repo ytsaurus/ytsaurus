@@ -404,6 +404,9 @@ public:
         YT_VERIFY(TryClose(FD_, false));
         FD_ = -1;
 
+        ReadDirection_.OnShutdown();
+        WriteDirection_.OnShutdown();
+
         ShutdownPromise_.Set();
     }
 
@@ -644,10 +647,11 @@ private:
     struct TIODirection
     {
         std::unique_ptr<IIOOperation> Operation;
-        std::atomic<i64> BytesTransferred = {0};
+        std::atomic<i64> BytesTransferred = 0;
         TDuration IdleDuration;
         TDuration BusyDuration;
         TCpuInstant StartTime = GetCpuInstant();
+        std::optional<TCpuInstant> EndTime;
         bool Pending = false;
         bool Running = false;
 
@@ -665,10 +669,16 @@ private:
             StartTime = now;
         }
 
+        void OnShutdown()
+        {
+            EndTime = GetCpuInstant();
+        }
+
         TConnectionStatistics GetStatistics() const
         {
             TConnectionStatistics statistics{IdleDuration, BusyDuration};
-            (Operation ? statistics.BusyDuration : statistics.IdleDuration) += CpuDurationToDuration(GetCpuInstant() - StartTime);
+            auto lastEventTime = EndTime.value_or(GetCpuInstant());
+            (Operation ? statistics.BusyDuration : statistics.IdleDuration) += CpuDurationToDuration(lastEventTime - StartTime);
             return statistics;
         }
     };
