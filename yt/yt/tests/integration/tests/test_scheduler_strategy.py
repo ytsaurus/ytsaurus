@@ -988,6 +988,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@config/preemption_satisfaction_threshold", 0.99)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance", 0.7)
         set("//sys/pool_trees/default/@config/fair_share_starvation_tolerance_limit", 0.9)
+        set("//sys/pool_trees/default/@config/fair_share_preemption_timeout", 1000)
         set("//sys/pool_trees/default/@config/max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@config/preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@config/job_graceful_interrupt_timeout", 10000)
@@ -1312,6 +1313,79 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: check_events())
 
         op0.abort()
+
+    @authors("ignat")
+    def test_waiting_job_timeout(self):
+        # Pool tree misconfiguration
+        set("//sys/pool_trees/default/@config/waiting_job_timeout", 10000)
+        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 5000)
+
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        create_pool("poolA", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("poolB")
+
+        command = """(trap "sleep 15; exit 0" SIGINT; BREAKPOINT)"""
+
+        opB = run_test_vanilla(
+            with_breakpoint(command),
+            spec={
+                "pool": "poolB",
+            },
+            task_patch={
+                "interruption_signal": "SIGINT",
+            },
+            job_count=3,
+        )
+        job_ids = wait_breakpoint(job_count=3)
+        assert len(job_ids) == 3
+
+        opA = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "pool": "poolA",
+            },
+            job_count=1,
+        )
+
+        opA.track()
+
+        assert opA.get_job_count("completed") == 1
+        assert opA.get_job_count("aborted") == 0
+
+    @authors("ignat")
+    def test_inconsistent_waiting_job_timeout(self):
+        # Pool tree misconfiguration
+        set("//sys/pool_trees/default/@config/waiting_job_timeout", 5000)
+        set("//sys/pool_trees/default/@config/job_interrupt_timeout", 15000)
+
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        create_pool("poolA", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("poolB")
+
+        command = """(trap "sleep 10; exit 0" SIGINT; BREAKPOINT)"""
+
+        opB = run_test_vanilla(
+            with_breakpoint(command),
+            spec={
+                "pool": "poolB",
+            },
+            task_patch={
+                "interruption_signal": "SIGINT",
+            },
+            job_count=3,
+        )
+        job_ids = wait_breakpoint(job_count=3)
+        assert len(job_ids) == 3
+
+        opA = run_test_vanilla(
+            "cat",
+            spec={
+                "pool": "poolA",
+            },
+            job_count=1,
+        )
+
+        wait(lambda: opA.get_job_count("aborted") == 1)
 
 
 class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):

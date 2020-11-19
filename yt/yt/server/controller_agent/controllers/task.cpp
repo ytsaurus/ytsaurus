@@ -420,6 +420,7 @@ void TTask::ScheduleJob(
     joblet->JobSpecProtoFuture = BIND([
         weakTaskHost = MakeWeak(TaskHost_),
         joblet,
+        scheduleJobSpec = context->GetScheduleJobSpec(),
         discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard),
         Logger = Logger
     ] {
@@ -427,7 +428,7 @@ void TTask::ScheduleJob(
             YT_LOG_DEBUG("Started building job spec (JobId: %v)",
                 joblet->JobId);
             auto startTime = TInstant::Now();
-            auto jobSpecProto = taskHost->BuildJobSpecProto(joblet);
+            auto jobSpecProto = taskHost->BuildJobSpecProto(joblet, scheduleJobSpec);
             auto endTime = TInstant::Now();
             YT_LOG_DEBUG("Job spec built (JobId: %v, TimeElapsed: %v)",
                 joblet->JobId,
@@ -1160,7 +1161,7 @@ bool TTask::IsInputDataWeightHistogramSupported() const
     return true;
 }
 
-TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
+TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
 {
     auto jobSpec = ObjectPool<NJobTrackerClient::NProto::TJobSpec>().Allocate();
 
@@ -1177,6 +1178,8 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
 
     if (TaskHost_->GetSpec()->WaitingJobTimeout) {
         schedulerJobSpecExt->set_waiting_job_timeout(ToProto<i64>(*TaskHost_->GetSpec()->WaitingJobTimeout));
+    } else if (scheduleJobSpec.has_waiting_job_timeout()) {
+        schedulerJobSpecExt->set_waiting_job_timeout(scheduleJobSpec.waiting_job_timeout());
     }
 
     // Adjust sizes if approximation flag is set.

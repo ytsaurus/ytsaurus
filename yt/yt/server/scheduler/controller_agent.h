@@ -46,6 +46,11 @@ struct TSchedulerToAgentOperationEvent
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TScheduleJobSpec
+{
+    std::optional<TDuration> WaitingJobTimeout;
+};
+
 struct TScheduleJobRequest
 {
     TOperationId OperationId;
@@ -55,9 +60,12 @@ struct TScheduleJobRequest
     NNodeTrackerClient::TNodeId NodeId;
     TJobResources NodeResourceLimits;
     NNodeTrackerClient::NProto::TDiskResources NodeDiskResources;
+    TScheduleJobSpec Spec;
 };
 
 using TScheduleJobRequestPtr = std::unique_ptr<TScheduleJobRequest>;
+
+void ToProto(NProto::TScheduleJobRequest* protoRequest, const TScheduleJobRequest& request);
 
 ////////////////////////////////////////////////////////////////////////////////
 

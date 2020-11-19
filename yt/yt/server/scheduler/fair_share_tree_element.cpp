@@ -3950,7 +3950,8 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
         context->SchedulingContext(),
         availableResources,
         ControllerConfig_->ScheduleJobTimeLimit,
-        GetTreeId());
+        GetTreeId(),
+        TreeConfig_);
 
     // Discard the job in case of resource overcommit.
     if (scheduleJobResult->StartDescriptor) {

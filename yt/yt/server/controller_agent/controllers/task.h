@@ -12,6 +12,8 @@
 #include <yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
 
+#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
 #include <yt/server/lib/controller_agent/progress_counter.h>
 #include <yt/server/lib/controller_agent/serialize.h>
 
@@ -169,7 +171,7 @@ public:
 
     void LogTentativeTreeStatistics() const;
 
-    TSharedRef BuildJobSpecProto(TJobletPtr joblet);
+    TSharedRef BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec);
 
     virtual bool IsJobInterruptible() const = 0;
 

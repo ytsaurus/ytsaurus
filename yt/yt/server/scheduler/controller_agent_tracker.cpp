@@ -729,7 +729,8 @@ public:
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& jobLimits,
-        const TString& treeId) override
+        const TString& treeId,
+        const TFairShareStrategyTreeConfigPtr& treeConfig) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -745,6 +746,7 @@ public:
         request->NodeId = nodeId;
         request->NodeResourceLimits = context->ResourceLimits();
         request->NodeDiskResources = context->DiskResources();
+        request->Spec.WaitingJobTimeout = treeConfig->WaitingJobTimeout;
 
         TIncarnationId incarnationId;
         {
@@ -1415,12 +1417,7 @@ public:
             agent->GetScheduleJobRequestsOutbox()->BuildOutcoming(
                 response->mutable_scheduler_to_agent_schedule_job_requests(),
                 [] (auto* protoRequest, const auto& request) {
-                    ToProto(protoRequest->mutable_operation_id(), request->OperationId);
-                    ToProto(protoRequest->mutable_job_id(), request->JobId);
-                    protoRequest->set_tree_id(request->TreeId);
-                    ToProto(protoRequest->mutable_job_resource_limits(), request->JobResourceLimits);
-                    ToProto(protoRequest->mutable_node_resource_limits(), request->NodeResourceLimits);
-                    protoRequest->mutable_node_disk_resources()->CopyFrom(request->NodeDiskResources);
+                    ToProto(protoRequest, *request);
                 });
         });
 

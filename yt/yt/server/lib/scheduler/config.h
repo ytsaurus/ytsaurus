@@ -267,6 +267,8 @@ public:
     THashSet<EJobResourceType> ProfiledPoolResources;
     THashSet<EJobResourceType> ProfiledOperationResources;
 
+    std::optional<TDuration> WaitingJobTimeout;
+
     TFairShareStrategyTreeConfig();
 };
 

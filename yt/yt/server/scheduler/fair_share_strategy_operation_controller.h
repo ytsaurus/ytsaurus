@@ -32,7 +32,8 @@ public:
         const ISchedulingContextPtr& schedulingContext,
         const TJobResources& availableResources,
         TDuration timeLimit,
-        const TString& treeId);
+        const TString& treeId,
+        const TFairShareStrategyTreeConfigPtr& treeConfig);
 
     void AbortJob(
         TJobId jobId,

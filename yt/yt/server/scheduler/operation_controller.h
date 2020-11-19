@@ -20,7 +20,8 @@ struct IOperationControllerStrategyHost
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& availableResources,
-        const TString& treeId) = 0;
+        const TString& treeId,
+        const TFairShareStrategyTreeConfigPtr& treeConfig) = 0;
 
     //! Called during scheduling to notify the controller that a (nonscheduled) job has been aborted.
     virtual void OnNonscheduledJobAborted(

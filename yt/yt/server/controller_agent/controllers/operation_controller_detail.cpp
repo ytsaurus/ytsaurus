@@ -7608,13 +7608,13 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
     }
 }
 
-TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet)
+TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
 {
     if (auto buildJobSpecProtoDelay = Spec_->TestingOperationOptions->BuildJobSpecProtoDelay) {
         Sleep(*buildJobSpecProtoDelay);
     }
 
-    return joblet->Task->BuildJobSpecProto(joblet);
+    return joblet->Task->BuildJobSpecProto(joblet, scheduleJobSpec);
 }
 
 TSharedRef TOperationControllerBase::ExtractJobSpec(TJobId jobId) const

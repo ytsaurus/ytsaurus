@@ -412,6 +412,7 @@
     XX(Version, version) \
     XX(ViolatedResourceLimits, violated_resource_limits) \
     XX(Vital, vital) \
+    XX(WaitingJobTimeout, waiting_job_timeout) \
     XX(Weight, weight) \
     XX(WeakRefCounter, weak_ref_counter) \
     XX(WithAlertsNodeCount, with_alerts_node_count) \

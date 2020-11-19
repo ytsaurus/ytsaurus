@@ -195,7 +195,7 @@ private: \
         false)
 
     //! Called by task's ScheduleJob to wrap the job spec proto building routine with safe environment.
-    IMPLEMENT_SAFE_METHOD(TSharedRef, BuildJobSpecProto, (const TJobletPtr& joblet), (joblet), true)
+    IMPLEMENT_SAFE_METHOD(TSharedRef, BuildJobSpecProto, (const TJobletPtr& joblet, const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec), (joblet, scheduleJobSpec), true)
 
 #undef IMPLEMENT_SAFE_METHOD
 

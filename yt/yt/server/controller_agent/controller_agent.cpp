@@ -16,6 +16,7 @@
 #include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 #include <yt/server/lib/scheduler/exec_node_descriptor.h>
 #include <yt/server/lib/scheduler/helpers.h>
+#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/ytlib/api/native/connection.h>
 
@@ -86,11 +87,13 @@ class TSchedulingContext
 public:
     TSchedulingContext(
         const NScheduler::NProto::TScheduleJobRequest* request,
-        const TExecNodeDescriptor& nodeDescriptor)
+        const TExecNodeDescriptor& nodeDescriptor,
+        const NScheduler::NProto::TScheduleJobSpec& scheduleJobSpec)
         : ResourceLimits_(FromProto<TJobResources>(request->node_resource_limits()))
         , DiskResources_(request->node_disk_resources())
         , JobId_(FromProto<TJobId>(request->job_id()))
         , NodeDescriptor_(nodeDescriptor)
+        , ScheduleJobSpec_(scheduleJobSpec)
     { }
 
     virtual const TExecNodeDescriptor& GetNodeDescriptor() const override
@@ -118,11 +121,17 @@ public:
         return NProfiling::GetCpuInstant();
     }
 
+    virtual const NScheduler::NProto::TScheduleJobSpec& GetScheduleJobSpec() const override
+    {
+        return ScheduleJobSpec_;
+    }
+
 private:
     const TJobResources ResourceLimits_;
     const NNodeTrackerClient::NProto::TDiskResources& DiskResources_;
     const TJobId JobId_;
     const TExecNodeDescriptor& NodeDescriptor_;
+    const NScheduler::NProto::TScheduleJobSpec ScheduleJobSpec_;
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -1604,7 +1613,7 @@ private:
                         const auto& treeId = protoRequest->tree_id();
 
                         TAgentToSchedulerScheduleJobResponse response;
-                        TSchedulingContext context(protoRequest, descriptorIt->second);
+                        TSchedulingContext context(protoRequest, descriptorIt->second, protoRequest->spec());
 
                         TJobResourcesWithQuota jobLimitsWithQuota(jobLimits);
                         jobLimitsWithQuota.SetDiskQuota(GetMaxAvailableDiskSpace(context.DiskResources()));
