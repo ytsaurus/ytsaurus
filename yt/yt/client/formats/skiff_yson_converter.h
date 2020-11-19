@@ -3,7 +3,9 @@
 #include <yt/client/table_client/public.h>
 #include <yt/client/table_client/row_base.h>
 
+#include <yt/library/decimal/decimal.h>
 #include <yt/library/skiff/public.h>
+#include <yt/library/skiff/skiff.h>
 #include <yt/core/yson/public.h>
 
 namespace NYT::NFormats {
@@ -28,7 +30,7 @@ struct TYsonToSkiffConverterConfig
 };
 
 TYsonToSkiffConverter CreateYsonToSkiffConverter(
-    NTableClient::TComplexTypeFieldDescriptor descriptor,
+    const NTableClient::TComplexTypeFieldDescriptor& descriptor,
     const NSkiff::TSkiffSchemaPtr& skiffSchema,
     const TYsonToSkiffConverterConfig& config = {});
 
@@ -39,10 +41,52 @@ struct TSkiffToYsonConverterConfig
 };
 
 TSkiffToYsonConverter CreateSkiffToYsonConverter(
-    NTableClient::TComplexTypeFieldDescriptor descriptor,
+    const NTableClient::TComplexTypeFieldDescriptor& descriptor,
     const NSkiff::TSkiffSchemaPtr& skiffSchema,
     const TSkiffToYsonConverterConfig& config = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <NSkiff::EWireType wireType>
+struct TSimpleSkiffParser
+{
+    Y_FORCE_INLINE auto operator () (NSkiff::TCheckedInDebugSkiffParser* parser) const;
+};
+
+template <NSkiff::EWireType SkiffWireType>
+class TDecimalSkiffParser
+{
+public:
+    explicit TDecimalSkiffParser(int precision);
+    Y_FORCE_INLINE TStringBuf operator() (NSkiff::TCheckedInDebugSkiffParser* parser) const;
+
+private:
+    const int Precision_;
+    mutable char Buffer_[NDecimal::TDecimal::MaxBinarySize];
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <NSkiff::EWireType SkiffWireType>
+class TDecimalSkiffWriter
+{
+public:
+    explicit TDecimalSkiffWriter(int precision);
+
+    void operator() (TStringBuf value, NSkiff::TCheckedInDebugSkiffWriter* writer) const;
+
+private:
+    const int Precision_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+void CheckSkiffWireTypeForDecimal(int precision, NSkiff::EWireType wireType);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::Formats
+
+#define SKIFF_YSON_CONVERTER_INL_H_
+#include "skiff_yson_converter-inl.h"
+#undef SKIFF_YSON_CONVERTER_INL_H_

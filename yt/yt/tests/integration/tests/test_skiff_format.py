@@ -1,7 +1,11 @@
+from decimal_helpers import *
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from decimal import Decimal
 from random import shuffle
+
+import pytest
 
 
 def with_name(skiff_type, name=None):
@@ -34,24 +38,30 @@ def skiff_optional(inner, name=None):
     )
 
 
-def skiff_tuple(children, name=None):
+def skiff_tuple(*children, **kwargs):
     return with_name(
         {
             "wire_type": "tuple",
             "children": children,
         },
-        name,
+        **kwargs
     )
 
 
-def skiff_repeated_variant8(children, name=None):
+def skiff_repeated_variant8(*children, **kwargs):
     return with_name(
         {
             "wire_type": "repeated_variant8",
             "children": children,
         },
-        name,
+        **kwargs
     )
+
+
+def make_skiff_format(*table_skiff_schemas):
+    format = yson.YsonString("skiff")
+    format.attributes["table_skiff_schemas"] = table_skiff_schemas
+    return format
 
 
 class TestSkiffFormat(YTEnvSetup):
@@ -259,39 +269,30 @@ class TestSkiffFormat(YTEnvSetup):
 
         create("table", "//tmp/t_out", attributes={"schema": schema})
 
-        format = yson.YsonString("skiff")
-        format.attributes["table_skiff_schemas"] = [
+        format = make_skiff_format(
             skiff_tuple(
-                [
-                    skiff_repeated_variant8([skiff_simple("string32")], name="list_of_strings"),
-                    skiff_optional(
-                        skiff_repeated_variant8([skiff_simple("string32")]),
-                        name="optional_list_of_strings",
+                skiff_repeated_variant8(skiff_simple("string32"), name="list_of_strings"),
+                skiff_optional(
+                    skiff_repeated_variant8(skiff_simple("string32")),
+                    name="optional_list_of_strings",
+                ),
+                skiff_optional(
+                    skiff_optional(skiff_simple("boolean")),
+                    name="optional_optional_boolean",
+                ),
+                skiff_tuple(
+                    skiff_simple("string32", name="key"),
+                    skiff_repeated_variant8(
+                        skiff_tuple(
+                            skiff_simple("int64", name="x"),
+                            skiff_simple("int64", name="y"),
+                        ),
+                        name="points",
                     ),
-                    skiff_optional(
-                        skiff_optional(skiff_simple("boolean")),
-                        name="optional_optional_boolean",
-                    ),
-                    skiff_tuple(
-                        [
-                            skiff_simple("string32", name="key"),
-                            skiff_repeated_variant8(
-                                [
-                                    skiff_tuple(
-                                        [
-                                            skiff_simple("int64", name="x"),
-                                            skiff_simple("int64", name="y"),
-                                        ]
-                                    )
-                                ],
-                                name="points",
-                            ),
-                        ],
-                        name="struct",
-                    ),
-                ]
-            )
-        ]
+                    name="struct",
+                ),
+            ),
+        )
 
         map(
             in_="//tmp/t_in",
@@ -309,37 +310,18 @@ class TestSkiffFormat(YTEnvSetup):
     @authors("ermolovd")
     def test_read_complex_types(self):
         schema = [
-            {
-                "name": "list_of_strings",
-                "type_v3": list_type("string"),
-            },
-            {
-                "name": "optional_list_of_strings",
-                "type_v3": optional_type(list_type("string")),
-            },
-            {
-                "name": "optional_optional_boolean",
-                "type_v3": optional_type(optional_type("bool")),
-            },
-            {
-                "name": "struct",
-                "type_v3": struct_type(
-                    [
-                        ("key", "string"),
-                        (
-                            "points",
-                            list_type(
-                                struct_type(
-                                    [
-                                        ("x", "int64"),
-                                        ("y", "int64"),
-                                    ]
-                                )
-                            ),
-                        ),
-                    ]
-                ),
-            },
+            make_column("list_of_strings", list_type("string")),
+            make_column("optional_list_of_strings", optional_type(list_type("string"))),
+            make_column("optional_optional_boolean", optional_type(optional_type("bool"))),
+            make_column("struct", struct_type(
+                [
+                    ("key", "string"),
+                    ("points", list_type(
+                        struct_type([("x", "int64"), ("y", "int64")])
+                    )),
+                ]
+            )),
+
         ]
         create("table", "//tmp/table1", attributes={"schema": schema})
         write_table(
@@ -363,39 +345,30 @@ class TestSkiffFormat(YTEnvSetup):
             ],
         )
 
-        format = yson.YsonString("skiff")
-        format.attributes["table_skiff_schemas"] = [
+        format = make_skiff_format(
             skiff_tuple(
-                [
-                    skiff_repeated_variant8([skiff_simple("string32")], name="list_of_strings"),
-                    skiff_optional(
-                        skiff_repeated_variant8([skiff_simple("string32")]),
-                        name="optional_list_of_strings",
+                skiff_repeated_variant8(skiff_simple("string32"), name="list_of_strings"),
+                skiff_optional(
+                    skiff_repeated_variant8(skiff_simple("string32")),
+                    name="optional_list_of_strings",
+                ),
+                skiff_optional(
+                    skiff_optional(skiff_simple("boolean")),
+                    name="optional_optional_boolean",
+                ),
+                skiff_tuple(
+                    skiff_simple("string32", name="key"),
+                    skiff_repeated_variant8(
+                        skiff_tuple(
+                            skiff_simple("int64", name="x"),
+                            skiff_simple("int64", name="y"),
+                        ),
+                        name="points",
                     ),
-                    skiff_optional(
-                        skiff_optional(skiff_simple("boolean")),
-                        name="optional_optional_boolean",
-                    ),
-                    skiff_tuple(
-                        [
-                            skiff_simple("string32", name="key"),
-                            skiff_repeated_variant8(
-                                [
-                                    skiff_tuple(
-                                        [
-                                            skiff_simple("int64", name="x"),
-                                            skiff_simple("int64", name="y"),
-                                        ]
-                                    )
-                                ],
-                                name="points",
-                            ),
-                        ],
-                        name="struct",
-                    ),
-                ]
+                    name="struct",
+                ),
             )
-        ]
+        )
         skiff_dump = read_table("//tmp/table1", output_format=format)
 
         # Check that column name is not in our table dump.
@@ -449,15 +422,12 @@ class TestSkiffFormat(YTEnvSetup):
             ],
         )
 
-        format = yson.YsonString("skiff")
-        format.attributes["table_skiff_schemas"] = [
+        format = make_skiff_format(
             skiff_tuple(
-                [
-                    skiff_simple("string32", name="key"),
-                    skiff_repeated_variant8([skiff_simple("int64")], name="value"),
-                ]
+                skiff_simple("string32", name="key"),
+                skiff_repeated_variant8(skiff_simple("int64"), name="value"),
             )
-        ]
+        )
 
         mapper_output_format = yson.YsonString("skiff")
         mapper_output_format.attributes["override_intermediate_table_schema"] = schema
@@ -581,18 +551,14 @@ while True:
         input_format = yson.YsonString("skiff")
         input_format.attributes["table_skiff_schemas"] = [
             skiff_tuple(
-                [
-                    skiff_simple("int64", name="key1"),
-                    skiff_simple("nothing", name="key2"),
-                    skiff_simple("int64", name="key3"),
-                ]
+                skiff_simple("int64", name="key1"),
+                skiff_simple("nothing", name="key2"),
+                skiff_simple("int64", name="key3"),
             ),
             skiff_tuple(
-                [
-                    skiff_simple("int64", name="key1"),
-                    skiff_simple("int64", name="key2"),
-                    skiff_simple("nothing", name="key3"),
-                ]
+                skiff_simple("int64", name="key1"),
+                skiff_simple("int64", name="key2"),
+                skiff_simple("nothing", name="key3"),
             ),
         ]
         map_reduce(
@@ -635,19 +601,7 @@ while True:
             },
         )
 
-        format = yson.YsonString("skiff")
-        format.attributes["table_skiff_schemas"] = [
-            {
-                "wire_type": "tuple",
-                "children": [
-                    {
-                        "wire_type": "tuple",
-                        "children": [],
-                        "name": "column",
-                    }
-                ],
-            }
-        ]
+        format = make_skiff_format(skiff_tuple(skiff_tuple(name="column")))
 
         skiff_data = "\x00\x00" "\x00\x00"
 
@@ -660,32 +614,12 @@ while True:
     def test_read_missing_complex_optional(self):
         create("table", "//tmp/table")
 
-        format = yson.YsonString("skiff")
-        format.attributes["table_skiff_schemas"] = [
-            {
-                "wire_type": "tuple",
-                "children": [
-                    {"wire_type": "int64", "name": "column"},
-                    {
-                        "wire_type": "variant8",
-                        "children": [
-                            {
-                                "wire_type": "nothing",
-                            },
-                            {
-                                "wire_type": "repeated_variant8",
-                                "children": [
-                                    {
-                                        "wire_type": "int64",
-                                    }
-                                ],
-                            },
-                        ],
-                        "name": "missing_column",
-                    },
-                ],
-            }
-        ]
+        format = make_skiff_format(
+            skiff_tuple(
+                skiff_simple("int64", name="column"),
+                skiff_optional(skiff_repeated_variant8(skiff_simple("int64")), name="missing_column"),
+            )
+        )
 
         write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": None}])
         read_data = read_table("//tmp/table", is_raw=True, output_format=format)
@@ -702,4 +636,171 @@ while True:
 
         write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": "GG"}])
         with raises_yt_error("Cannot represent nonnull value of column"):
-            read_data = read_table("//tmp/table", is_raw=True, output_format=format)
+            read_table("//tmp/table", is_raw=True, output_format=format)
+
+    @authors("ermolovd")
+    def test_incorrect_wire_type_skiff_decimal(self):
+        schema = [{"name": "column", "type_v3": decimal_type(5, 2)}]
+        create_table("//tmp/table", schema=schema, force=True)
+        write_table("//tmp/table", [
+            {"column": encode_decimal("3.14", 5, 2)},
+            {"column": encode_decimal("2.71", 5, 2)},
+        ])
+        format = make_skiff_format(
+            skiff_tuple(skiff_simple("int64", name="column"))
+        )
+        with raises_yt_error("Skiff type Int64 cannot represent"):
+            read_table("//tmp/table", is_raw=True, output_format=format)
+
+        with raises_yt_error("Skiff type Int64 cannot represent"):
+            write_table("//tmp/table", "", is_raw=True, input_format=format)
+
+
+@pytest.mark.parametrize("precision,binary_size,skiff_type", [
+    (3, 4, "int32"),
+    (15, 8, "int64"),
+    (35, 16, "int128")
+])
+@authors("ermolovd")
+class TestGoodSkiffDecimal(YTEnvSetup):
+    @authors("ermolovd")
+    def test_skiff_nonoptional_schema_nonoptional_skiff(self, precision, binary_size, skiff_type):
+        schema = [{"name": "column", "type_v3": decimal_type(precision, 2)}]
+        create_table("//tmp/table", schema=schema, force=True)
+        format = make_skiff_format(
+            skiff_tuple(skiff_simple(skiff_type, name="column"))
+        )
+        skiff_data = (
+            "\x00\x00\x3a\x01" + "\x00" * (binary_size - 2)
+            + "\x00\x00\xf1\xfe" + "\xff" * (binary_size - 2)
+        )
+        write_table(
+            "//tmp/table",
+            skiff_data,
+            is_raw=True,
+            input_format=format,
+        )
+        assert [decode_decimal(row["column"], precision, 2) for row in read_table("//tmp/table")] == [
+            Decimal("3.14"),
+            Decimal("-2.71"),
+        ]
+
+        assert skiff_data == read_table("//tmp/table", is_raw=True, output_format=format)
+
+    @authors("ermolovd")
+    def test_skiff_optional_schema_nonoptional_skiff(self, precision, binary_size, skiff_type):
+        schema = [{"name": "column", "type_v3": optional_type(decimal_type(precision, 2))}]
+        create_table("//tmp/table", schema=schema, force=True)
+
+        format = make_skiff_format(
+            skiff_tuple(skiff_simple(skiff_type, name="column"))
+        )
+        skiff_data = (
+            "\x00\x00\x3a\x01" + "\x00" * (binary_size - 2)
+            + "\x00\x00\xf1\xfe" + "\xff" * (binary_size - 2)
+        )
+        write_table(
+            "//tmp/table",
+            skiff_data,
+            is_raw=True,
+            input_format=format)
+        assert [decode_decimal(row["column"], precision, 2) for row in read_table("//tmp/table")] == [
+            Decimal("3.14"),
+            Decimal("-2.71"),
+        ]
+        assert skiff_data == read_table("//tmp/table", is_raw=True, output_format=format)
+
+    @authors("ermolovd")
+    def test_skiff_optional_schema_optional_skiff(self, precision, binary_size, skiff_type):
+        schema = [{"name": "column", "type_v3": optional_type(decimal_type(precision, 2))}]
+        create_table("//tmp/table", schema=schema, force=True)
+
+        format = make_skiff_format(
+            skiff_tuple(skiff_optional(skiff_simple(skiff_type), name="column"))
+        )
+        skiff_data = (
+            "\x00\x00\x01\x3a\x01" + "\x00" * (binary_size - 2)
+            + "\x00\x00\x00"
+            + "\x00\x00\x01\xf1\xfe" + "\xff" * (binary_size - 2)
+        )
+        write_table(
+            "//tmp/table",
+            skiff_data,
+            is_raw=True,
+            input_format=format)
+        actual =[
+            decode_decimal(row["column"], precision, 2) if row["column"] else None
+            for row in read_table("//tmp/table")
+        ]
+        assert actual == [
+            Decimal("3.14"),
+            None,
+            Decimal("-2.71"),
+        ]
+        assert skiff_data == read_table("//tmp/table", is_raw=True, output_format=format)
+
+    @authors("ermolovd")
+    def test_skiff_nonoptional_schema_optional_skiff(self, precision, binary_size, skiff_type):
+        schema = [{"name": "column", "type_v3": decimal_type(precision, 2)}]
+        create_table("//tmp/table", schema=schema, force=True)
+
+        format=make_skiff_format(
+            skiff_tuple(skiff_optional(skiff_simple(skiff_type), name="column"))
+        )
+        skiff_data = (
+            "\x00\x00\x01\x3a\x01" + "\x00" * (binary_size - 2)
+            + "\x00\x00\x01\xf1\xfe" + "\xff" * (binary_size - 2)
+        )
+        write_table(
+            "//tmp/table",
+            skiff_data,
+            is_raw=True,
+            input_format=format)
+        assert [decode_decimal(row["column"], precision, 2) for row in read_table("//tmp/table")] == [
+            Decimal("3.14"),
+            Decimal("-2.71"),
+        ]
+        with raises_yt_error(SchemaViolation):
+            write_table(
+                "//tmp/table",
+                "\x00\x00\x00",
+                is_raw=True,
+                input_format=format)
+
+        assert skiff_data == read_table("//tmp/table", is_raw=True, output_format=format)
+
+    @authors("ermolovd")
+    def test_skiff_decimal_inside_composite(self, precision, binary_size, skiff_type):
+        schema = [
+            make_column(
+                "column",
+                struct_type([("decimal_field", decimal_type(precision, 2)), ("string_field", "utf8")]))
+        ]
+        create_table("//tmp/table", schema=schema, force=True)
+
+        format=make_skiff_format(
+            skiff_tuple(
+                skiff_tuple(
+                    skiff_simple(skiff_type, name="decimal_field"),
+                    skiff_simple("string32", name="string_field"),
+                    name="column",
+                )
+            )
+        )
+        skiff_data = (
+            "\x00\x00\x3a\x01" + "\x00" * (binary_size - 2) + "\x02\x00\x00\x00" "pi"
+            + "\x00\x00\xf1\xfe" + "\xff" * (binary_size - 2) + "\x07\x00\x00\x00" "minus e"
+        )
+        write_table(
+            "//tmp/table",
+            skiff_data,
+            is_raw=True,
+            input_format=format)
+        assert [
+            (decode_decimal(row["column"]["decimal_field"], precision, 2), row["column"]["string_field"])
+            for row in read_table("//tmp/table")
+        ] == [
+            (Decimal("3.14"), "pi"),
+            (Decimal("-2.71"), "minus e"),
+        ]
+        assert skiff_data == read_table("//tmp/table", is_raw=True, output_format=format)
