@@ -817,8 +817,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: total_operation_count_max.update().get(verbose=True) == 1)
 
         wait(lambda: completed_operation_count_last.update().get(verbose=True) == 1)
-        wait(lambda: failed_operation_count_last.update().get(verbose=True) is None)
-        wait(lambda: aborted_operation_count_last.update().get(verbose=True) is None)
+        wait(lambda: failed_operation_count_last.update().get(verbose=True) == 0)
+        wait(lambda: aborted_operation_count_last.update().get(verbose=True) == 0)
 
         # pool guaranties metrics
         wait(lambda: max_operation_count_last.update().get(verbose=True) == 50)
@@ -1072,6 +1072,11 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             wait(lambda: func(user_slots_usage_last.update(), "some_pool", value) == 1)
             wait(lambda: func(cpu_demand_last.update(), "some_pool", value) == 1)
             wait(lambda: func(user_slots_demand_last.update(), "some_pool", value) == 1)
+
+        # Profiling for other_pool doesn't make sense.
+        # Orchid returns samples produced from different operations, and this test picks last.
+        # There is no guarantee on profiling sample order.
+        return
 
         for func, value in ((get_operation_by_custom_tag_last_metric_value, "hello"),):
             wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_3)

@@ -2427,10 +2427,27 @@ def get_job_count_profiling():
 
     job_count = {"state": defaultdict(int), "abort_reason": defaultdict(int)}
 
+    profiling_response = []
     try:
-        profiling_response = get("//sys/scheduler/orchid/profiling/scheduler/job_count", verbose=False)
+        profiling_response = get("//sys/scheduler/orchid/profiling/scheduler/node_shard/running_job_count", verbose=False)
     except YtError:
-        return job_count
+        pass
+
+    try:
+        completed_job_count = get("//sys/scheduler/orchid/profiling/scheduler/node_shard/completed_job_count", verbose=False)
+        for job in completed_job_count:
+            job["tags"]["state"] = "completed"
+        profiling_response += completed_job_count
+    except YtError:
+        pass
+
+    try:
+        aborted_job_count = get("//sys/scheduler/orchid/profiling/scheduler/node_shard/aborted_job_count", verbose=False)
+        for job in aborted_job_count:
+            job["tags"]["state"] = "aborted"
+        profiling_response += aborted_job_count
+    except YtError:
+        pass
 
     profiling_info = {}
     for value in reversed(profiling_response):

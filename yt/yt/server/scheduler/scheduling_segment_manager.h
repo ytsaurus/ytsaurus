@@ -5,6 +5,8 @@
 
 #include <yt/server/lib/scheduler/structs.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +43,10 @@ public:
 
     TPersistentSchedulingSegmentsStatePtr BuildSegmentsState(TManageSchedulingSegmentsContext* context) const;
 
+    TSchedulingSegmentManager();
+
+    void SetProfilingEnabled(bool enable);
+
 private:
     struct TTreeSchedulingSegmentsState
     {
@@ -49,12 +55,15 @@ private:
     };
     THashMap<TString, TTreeSchedulingSegmentsState> TreeIdToState_;
 
+    NProfiling::TBufferedProducerPtr BufferedProducer_;
+
     void ResetTree(TManageSchedulingSegmentsContext *context, const TString& treeId);
 
     void LogAndProfileSegmentsInTree(
         TManageSchedulingSegmentsContext* context,
         const TString& treeId,
-        const TSegmentToResourceAmount& currentResourceAmountPerSegment) const;
+        const TSegmentToResourceAmount& currentResourceAmountPerSegment,
+        NProfiling::ISensorWriter* sensorWriter) const;
 
     void RebalanceSegmentsInTree(
         TManageSchedulingSegmentsContext* context,

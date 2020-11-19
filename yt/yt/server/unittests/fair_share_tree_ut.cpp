@@ -378,18 +378,12 @@ public:
         : ResourceTree_(New<TResourceTree>(treeConfig))
     { }
 
-    virtual NProfiling::TShardedAggregateGauge& GetProfilingCounter(const TString& name) override
-    {
-        return FakeCounter_;
-    }
-
     virtual TResourceTree* GetResourceTree() override
     {
         return ResourceTree_.Get();
     }
 
 private:
-    NProfiling::TShardedAggregateGauge FakeCounter_;
     TResourceTreePtr ResourceTree_;
 };
 
@@ -408,7 +402,7 @@ protected:
     TIntrusivePtr<TFairShareTreeHostMock> FairShareTreeHostMock_ = New<TFairShareTreeHostMock>(TreeConfig_);
     TFairShareSchedulingStage SchedulingStageMock_ = TFairShareSchedulingStage(
         /* nameInLogs */ "Test scheduling stage",
-        TScheduleJobsProfilingCounters("/test_scheduling_stage", /* treeIdProfilingTags */ {}));
+        TScheduleJobsProfilingCounters(NProfiling::TRegistry{"/test_scheduling_stage"}));
 
     TDiskQuota CreateDiskQuota(i64 diskSpace)
     {

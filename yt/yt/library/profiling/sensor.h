@@ -211,7 +211,7 @@ private:
 
 //! Measures execution time of the statement that immediately follows this macro.
 #define YT_PROFILE_TIMING(name) \
-    static auto YT_PROFILE_GENNAME(__LINE__) = ::NYT::NProfiling::TRegistry{name}.Timer(""); \
+    static auto YT_PROFILE_GENNAME(__LINE__) = ::NYT::NProfiling::TRegistry{name}.WithHot().Timer(""); \
     if (auto PROFILE_TIMING__Guard = ::NYT::NProfiling::TEventTimerGuard(YT_PROFILE_GENNAME(__LINE__)); false) \
     { YT_ABORT(); } \
     else

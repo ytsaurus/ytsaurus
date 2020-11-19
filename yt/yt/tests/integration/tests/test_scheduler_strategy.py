@@ -2397,7 +2397,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         def get_orchid_pool_count():
             return get_from_tree_orchid("default", "fair_share_info/pool_count")
 
-        pool_count_last = Metric.at_scheduler("scheduler/pool_count", with_tags={"tree": "default"}, aggr_method="last")
+        pool_count_last = Metric.at_scheduler("scheduler/pools/pool_count", with_tags={"tree": "default"}, aggr_method="last")
 
         def check_pool_count(expected_pool_count):
             wait(lambda: get_orchid_pool_count() == expected_pool_count)

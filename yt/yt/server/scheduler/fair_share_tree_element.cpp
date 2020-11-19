@@ -32,29 +32,11 @@ using NProfiling::CpuDurationToDuration;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = SchedulerProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const TString MissingCustomProfilingTag("missing");
+static const TString InvalidCustomProfilingTag("invalid");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-TTagId GetCustomProfilingTag(const TString& tagName)
-{
-    static THashMap<TString, TTagId> tagNameToTagIdMap;
-
-    auto it = tagNameToTagIdMap.find(tagName);
-    if (it == tagNameToTagIdMap.end()) {
-        it = tagNameToTagIdMap.emplace(
-            tagName,
-            TProfileManager::Get()->RegisterTag("custom", tagName)
-        ).first;
-    }
-    return it->second;
-}
 
 TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResources defaultValue)
 {
@@ -76,35 +58,25 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
     return defaultValue;
 }
 
-NProfiling::TTagIdList GetFailReasonProfilingTags(NControllerAgent::EScheduleJobFailReason reason)
-{
-    static const NProfiling::TEnumMemberTagCache<NControllerAgent::EScheduleJobFailReason> ReasonTagCache("reason");
-    return {ReasonTagCache.GetTag(reason)};
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
-    const TString& prefix,
-    const NProfiling::TTagIdList& treeIdProfilingTags)
-    : PrescheduleJobTime(prefix + "/preschedule_job_time", treeIdProfilingTags)
-    , TotalControllerScheduleJobTime(prefix + "/controller_schedule_job_time/total", treeIdProfilingTags)
-    , ExecControllerScheduleJobTime(prefix + "/controller_schedule_job_time/exec", treeIdProfilingTags)
-    , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", treeIdProfilingTags)
-    , PackingRecordHeartbeatTime(prefix + "/packing_record_heartbeat_time", treeIdProfilingTags)
-    , PackingCheckTime(prefix + "/packing_check_time", treeIdProfilingTags)
-    , ScheduleJobAttemptCount(prefix + "/schedule_job_attempt_count", treeIdProfilingTags)
-    , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", treeIdProfilingTags)
+    const NProfiling::TRegistry& profiler)
+    : PrescheduleJobTime(profiler.Timer("/preschedule_job_time"))
+    , TotalControllerScheduleJobTime(profiler.Timer("/controller_schedule_job_time/total"))
+    , ExecControllerScheduleJobTime(profiler.Timer("/controller_schedule_job_time/exec"))
+    , StrategyScheduleJobTime(profiler.Timer("/strategy_schedule_job_time"))
+    , PackingRecordHeartbeatTime(profiler.Timer("/packing_record_heartbeat_time"))
+    , PackingCheckTime(profiler.Timer("/packing_check_time"))
+    , ScheduleJobAttemptCount(profiler.Counter("/schedule_job_attempt_count"))
+    , ScheduleJobFailureCount(profiler.Counter("/schedule_job_failure_count"))
 {
     for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues()) {
-        auto tags = GetFailReasonProfilingTags(reason);
-        tags.insert(tags.end(), treeIdProfilingTags.begin(), treeIdProfilingTags.end());
-
-        ControllerScheduleJobFail[reason] = NProfiling::TShardedMonotonicCounter(
-            prefix + "/controller_schedule_job_fail",
-            tags);
+        ControllerScheduleJobFail[reason] = profiler
+            .WithTag("reason", FormatEnum(reason))
+            .Counter("/controller_schedule_job_fail");
     }
 }
 
@@ -213,38 +185,23 @@ void TFairShareContext::ProfileStageTimings()
 
     auto* profilingCounters = &StageState_->SchedulingStage->ProfilingCounters;
 
-    Profiler.Update(
-        profilingCounters->PrescheduleJobTime,
-        StageState_->PrescheduleDuration.MicroSeconds());
+    profilingCounters->PrescheduleJobTime.Record(StageState_->PrescheduleDuration);
 
     auto strategyScheduleJobDuration = StageState_->TotalDuration
         - StageState_->PrescheduleDuration
         - StageState_->TotalScheduleJobDuration;
-    Profiler.Update(profilingCounters->StrategyScheduleJobTime, strategyScheduleJobDuration.MicroSeconds());
+    profilingCounters->StrategyScheduleJobTime.Record(strategyScheduleJobDuration);
 
-    Profiler.Update(
-        profilingCounters->TotalControllerScheduleJobTime,
-        StageState_->TotalScheduleJobDuration.MicroSeconds());
+    profilingCounters->TotalControllerScheduleJobTime.Record(StageState_->TotalScheduleJobDuration);
+    profilingCounters->ExecControllerScheduleJobTime.Record(StageState_->ExecScheduleJobDuration);
+    profilingCounters->PackingRecordHeartbeatTime.Record(StageState_->PackingRecordHeartbeatDuration);
+    profilingCounters->PackingCheckTime.Record(StageState_->PackingCheckDuration);
 
-    Profiler.Update(
-        profilingCounters->ExecControllerScheduleJobTime,
-        StageState_->ExecScheduleJobDuration.MicroSeconds());
-
-    Profiler.Update(
-        profilingCounters->PackingRecordHeartbeatTime,
-        StageState_->PackingRecordHeartbeatDuration.MicroSeconds());
-
-    Profiler.Update(
-        profilingCounters->PackingCheckTime,
-        StageState_->PackingCheckDuration.MicroSeconds());
-
-    Profiler.Increment(profilingCounters->ScheduleJobAttemptCount, StageState_->ScheduleJobAttemptCount);
-    Profiler.Increment(profilingCounters->ScheduleJobFailureCount, StageState_->ScheduleJobFailureCount);
+    profilingCounters->ScheduleJobAttemptCount.Increment(StageState_->ScheduleJobAttemptCount);
+    profilingCounters->ScheduleJobFailureCount.Increment(StageState_->ScheduleJobFailureCount);
 
     for (auto reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
-        Profiler.Increment(
-            profilingCounters->ControllerScheduleJobFail[reason],
-            StageState_->FailedScheduleJob[reason]);
+        profilingCounters->ControllerScheduleJobFail[reason].Increment(StageState_->FailedScheduleJob[reason]);
     }
 }
 
@@ -1036,11 +993,21 @@ void TSchedulerElement::BuildYson(TFluentMap fluent) const
         .Item("local_satisfaction_ratio").Value(Attributes_.LocalSatisfactionRatio);
 }
 
-void TSchedulerElement::Profile(
-    TMetricsAccumulator& accumulator,
-    const TString& profilingPrefix,
-    const TTagIdList& tags) const
+void TSchedulerElement::Profile(ISensorWriter* writer) const
 {
+    writer->AddGauge("/fair_share_ratio_x100000", static_cast<i64>(Attributes().GetFairShareRatio() * 1e5));
+    writer->AddGauge("/usage_ratio_x100000", static_cast<i64>(GetResourceUsageRatioAtUpdate() * 1e5));
+    writer->AddGauge("/demand_ratio_x100000", static_cast<i64>(Attributes().GetDemandRatio() * 1e5));
+    writer->AddGauge("/unlimited_demand_fair_share_ratio_x100000", static_cast<i64>(MaxComponent(Attributes().UnlimitedDemandFairShare) * 1e5));
+    writer->AddGauge("/accumulated_resource_ratio_volume_x100000", static_cast<i64>(GetAccumulatedResourceRatioVolume() * 1e5));
+    writer->AddGauge("/accumulated_resource_volume_cpu", static_cast<i64>(GetAccumulatedResourceVolume().GetCpu()));
+
+    ProfileResources(writer, ResourceUsageAtUpdate(), "/resource_usage");
+    ProfileResources(writer, ResourceLimits(), "/resource_limits");
+    ProfileResources(writer, ResourceDemand(), "/resource_demand");
+
+    GetJobMetrics().Profile(writer);
+
     bool enableVectorProfiling;
     if (IsOperation()) {
         enableVectorProfiling = TreeConfig_->EnableOperationsVectorProfiling;
@@ -1050,21 +1017,9 @@ void TSchedulerElement::Profile(
 
     auto detailedFairShare = Attributes_.FairShare;
 
-    accumulator.Add(
-        profilingPrefix + "/min_share_guarantee_ratio_x100000",
-        static_cast<i64>(MaxComponent(detailedFairShare.MinShareGuarantee) * 1e5),
-        EMetricType::Gauge,
-        tags);
-    accumulator.Add(
-        profilingPrefix + "/integral_guarantee_ratio_x100000",
-        static_cast<i64>(MaxComponent(detailedFairShare.IntegralGuarantee) * 1e5),
-        EMetricType::Gauge,
-        tags);
-    accumulator.Add(
-        profilingPrefix + "/weight_proportional_ratio_x100000",
-        static_cast<i64>(MaxComponent(detailedFairShare.WeightProportional) * 1e5),
-        EMetricType::Gauge,
-        tags);
+    writer->AddGauge("/min_share_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.MinShareGuarantee) * 1e5));
+    writer->AddGauge("/integral_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.IntegralGuarantee) * 1e5));
+    writer->AddGauge("/weight_proportional_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.WeightProportional) * 1e5));
 
     if (enableVectorProfiling) {
         const auto& profiledResources = IsOperation()
@@ -1072,71 +1027,61 @@ void TSchedulerElement::Profile(
             : TreeConfig_->ProfiledPoolResources;
 
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             detailedFairShare.MinShareGuarantee,
-            profilingPrefix + "/fair_share/min_share_guarantee",
-            tags);
+            "/fair_share/min_share_guarantee");
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             detailedFairShare.IntegralGuarantee,
-            profilingPrefix + "/fair_share/integral_guarantee",
-            tags);
+            "/fair_share/integral_guarantee");
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             detailedFairShare.WeightProportional,
-            profilingPrefix + "/fair_share/weight_proportional",
-            tags);
+            "/fair_share/weight_proportional");
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             detailedFairShare.Total,
-            profilingPrefix + "/fair_share/total",
-            tags);
+            "/fair_share/total");
 
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             Attributes_.UsageShare,
-            profilingPrefix + "/usage_share",
-            tags);
+            "/usage_share");
 
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             Attributes_.DemandShare,
-            profilingPrefix + "/demand_share",
-            tags);
+            "/demand_share");
 
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             Attributes_.LimitsShare,
-            profilingPrefix + "/limits_share",
-            tags);
+            "/limits_share");
 
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             Attributes_.MinShare,
-            profilingPrefix + "/min_share",
-            tags);
+            "/min_share");
 
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             Attributes_.ProposedIntegralShare,
-            profilingPrefix + "/proposed_integral_share",
-            tags);
+            "/proposed_integral_share");
 
         ProfileResourceVector(
-            accumulator,
+            writer,
             profiledResources,
             Attributes_.UnlimitedDemandFairShare,
-            profilingPrefix + "/unlimited_demand_fair_share",
-            tags);
+            "/unlimited_demand_fair_share");
     }
 }
 
@@ -1156,7 +1101,7 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     const TString& id,
     const NLogging::TLogger& logger)
     : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, id, logger)
-    , ProfilingTag_(profilingTag)
+    , ProducerBuffer_(New<TBufferedProducer>())
 { }
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
@@ -1164,7 +1109,7 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     TCompositeSchedulerElement* clonedParent)
     : TSchedulerElement(other, clonedParent)
     , TCompositeSchedulerElementFixedState(other)
-    , ProfilingTag_(other.ProfilingTag_)
+    , ProducerBuffer_(other.ProducerBuffer_)
 {
     auto cloneChildren = [&] (
         const std::vector<TSchedulerElementPtr>& list,
@@ -1589,9 +1534,21 @@ void TCompositeSchedulerElement::SetMode(ESchedulingMode mode)
     Mode_ = mode;
 }
 
-NProfiling::TTagId TCompositeSchedulerElement::GetProfilingTag() const
+void TCompositeSchedulerElement::RegisterProfiler(const NProfiling::TRegistry& profiler)
 {
-    return ProfilingTag_;
+    profiler.AddProducer("/pools", ProducerBuffer_);
+}
+
+void TCompositeSchedulerElement::ProfileFull()
+{
+    TSensorBuffer buffer;
+    Profile(&buffer);
+    buffer.AddGauge("/max_operation_count", GetMaxOperationCount());
+    buffer.AddGauge("/max_running_operation_count", GetMaxRunningOperationCount());
+    buffer.AddGauge("/running_operation_count", RunningOperationCount());
+    buffer.AddGauge("/total_operation_count", OperationCount());
+    ProfileResources(&buffer, GetMinShareResources(), "/min_share_resources");    
+    ProducerBuffer_->Update(std::move(buffer));
 }
 
 template <class TValue, class TGetter, class TSetter>
@@ -2968,10 +2925,15 @@ TEnumIndexedVector<EDeactivationReason, int> TOperationElement::GetDeactivationR
     return OperationElementSharedState_->GetDeactivationReasonsFromLastNonStarvingTime();
 }
 
-std::optional<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
+std::optional<TString> TOperationElement::GetCustomProfilingTag() const
 {
+    auto tagName = Spec_->CustomProfilingTag;
+    if (!tagName) {
+        return {};
+    }
+
     if (!GetParent()) {
-        return std::nullopt;
+        return {};
     }
 
     THashSet<TString> allowedProfilingTags;
@@ -2983,20 +2945,14 @@ std::optional<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
         parent = parent->GetParent();
     }
 
-    auto tagName = Spec_->CustomProfilingTag;
-    if (tagName && (
-            allowedProfilingTags.find(*tagName) == allowedProfilingTags.end() ||
-            (TreeConfig_->CustomProfilingTagFilter && NRe2::TRe2::FullMatch(NRe2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter))
-        ))
+    if (allowedProfilingTags.find(*tagName) == allowedProfilingTags.end() ||
+        (TreeConfig_->CustomProfilingTagFilter && 
+         NRe2::TRe2::FullMatch(NRe2::StringPiece(*tagName), *TreeConfig_->CustomProfilingTagFilter)))
     {
-        tagName = std::nullopt;
+        tagName = InvalidCustomProfilingTag;
     }
 
-    if (tagName) {
-        return NScheduler::GetCustomProfilingTag(*tagName);
-    } else {
-        return NScheduler::GetCustomProfilingTag(MissingCustomProfilingTag);
-    }
+    return tagName;
 }
 
 bool TOperationElement::IsOperation() const
@@ -3152,6 +3108,7 @@ TOperationElement::TOperationElement(
     , OperationElementSharedState_(New<TOperationElementSharedState>(Spec_->UpdatePreemptableJobsListLoggingPeriod, Logger))
     , Controller_(std::move(controller))
     , SchedulingTagFilter_(Spec_->SchedulingTagFilter)
+    , ProducerBuffer_(New<TBufferedProducer>())
 { }
 
 TOperationElement::TOperationElement(
@@ -3166,6 +3123,7 @@ TOperationElement::TOperationElement(
     , Controller_(other.Controller_)
     , RunningInThisPoolTree_(other.RunningInThisPoolTree_)
     , SchedulingTagFilter_(other.SchedulingTagFilter_)
+    , ProducerBuffer_(other.ProducerBuffer_)
 { }
 
 double TOperationElement::GetFairShareStarvationTolerance() const
@@ -3821,6 +3779,55 @@ std::optional<int> TOperationElement::GetMaybeSlotIndex() const
     return SlotIndex_;
 }
 
+void TOperationElement::RegisterProfiler(std::optional<int> slotIndex, const NProfiling::TRegistry& profiler)
+{
+    YT_VERIFY(GetParent());
+
+    if (slotIndex) {
+        profiler
+            .WithTag("pool", GetParent()->GetId(), -1)
+            .WithRequiredTag("slot_index", ToString(*slotIndex), -1)
+            .AddProducer("/operations_by_slot", ProducerBuffer_);
+    }
+
+    auto parent = GetParent();
+    while (parent != nullptr) {
+        bool enableProfiling = false;
+        if (!parent->IsRoot()) {
+            const auto* pool = static_cast<const TPool*>(parent);
+            if (pool->GetConfig()->EnableByUserProfiling) {
+                enableProfiling = *pool->GetConfig()->EnableByUserProfiling;
+            } else {
+                enableProfiling = TreeConfig_->EnableByUserProfiling;
+            }
+        } else {
+            enableProfiling = TreeConfig_->EnableByUserProfiling;
+        }
+
+        if (!enableProfiling) {
+            continue;
+        }
+
+        auto userProfiler = profiler
+            .WithTag("pool", GetParent()->GetId(), -1)
+            .WithRequiredTag("user_name", GetUserName(), -1);
+
+        if (auto customTag = GetCustomProfilingTag()) {
+            userProfiler = userProfiler.WithTag("custom", *customTag, -1);
+        }
+
+        userProfiler.AddProducer("/operations_by_user", ProducerBuffer_);
+        parent = parent->GetParent();
+    }
+}
+
+void TOperationElement::ProfileFull()
+{
+    TSensorBuffer buffer;
+    Profile(&buffer);
+    ProducerBuffer_->Update(std::move(buffer));
+}
+
 TString TOperationElement::GetUserName() const
 {
     return UserName_;
@@ -4038,9 +4045,6 @@ void TOperationElement::UpdatePreemptableJobsList()
         this);
 
     auto elapsed = timer.GetElapsedTime();
-
-    Profiler.Update(GetTreeHost()->GetProfilingCounter("/preemptable_list_update_time"), DurationToValue(elapsed));
-    Profiler.Update(GetTreeHost()->GetProfilingCounter("/preemptable_list_update_move_count"), moveCount);
 
     if (elapsed > TreeConfig_->UpdatePreemptableListDurationLoggingThreshold) {
         YT_LOG_DEBUG("Preemptable list update is too long (Duration: %v, MoveCount: %v)",

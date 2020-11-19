@@ -162,6 +162,22 @@ bool TJobMetrics::IsEmpty() const
         std::all_of(CustomValues_.begin(), CustomValues_.end(), [] (const auto& pair) { return pair.second == 0; });
 }
 
+void TJobMetrics::Profile(NProfiling::ISensorWriter* writer) const
+{
+    for (auto metricName : TEnumTraits<EJobMetricName>::GetDomainValues()) {
+        // TODO(prime@): This makes no sense for most metric types.
+        writer->AddCounter("/metrics/" + FormatEnum(metricName), Values_[metricName]);
+    }
+
+    for (const auto& [jobMetriDescription, value] : CustomValues_) {
+        if (jobMetriDescription.AggregateType != EAggregateType::Sum) {
+            continue;
+        }
+
+        writer->AddGauge("/metrics/" + jobMetriDescription.ProfilingName, value);
+    }
+}
+
 void TJobMetrics::Profile(
     TMetricsAccumulator& accumulator,
     const TString& prefix,

@@ -9,6 +9,8 @@
 #include <yt/core/misc/phoenix.h>
 #include <yt/core/misc/public.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <util/system/defaults.h>
 
 namespace NYT::NScheduler {
@@ -102,6 +104,8 @@ public:
         NProfiling::TMetricsAccumulator& accumulator,
         const TString& prefix,
         const NProfiling::TTagIdList& tagIds) const;
+
+    void Profile(NProfiling::ISensorWriter* writer) const;
 
     void Persist(const NPhoenix::TPersistenceContext& context);
 

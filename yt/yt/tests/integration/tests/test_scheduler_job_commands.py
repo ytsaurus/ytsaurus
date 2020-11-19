@@ -15,6 +15,12 @@ class TestJobProber(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "node_shard_count": 1
+        }
+    }
+
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "test_poll_job_shell": True,

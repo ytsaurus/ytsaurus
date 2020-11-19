@@ -239,6 +239,8 @@ void TProducerSet::LegacyReadSensors()
             continue;
         }
 
+        auto commonTags = TagRegistry_->EncodeLegacy(producer->TagIds);
+
         TSensorBuffer buffer;
         owner->Collect(&buffer);
 
@@ -254,7 +256,7 @@ void TProducerSet::LegacyReadSensors()
             sample.Time = GetCpuInstant();
             sample.Path = fullName;
             sample.Value = value;
-            sample.TagIds = TagRegistry_->EncodeLegacy(TagRegistry_->Encode(tags));
+            sample.TagIds = commonTags + TagRegistry_->EncodeLegacy(TagRegistry_->Encode(tags));
             sample.MetricType = EMetricType::Counter;
 
             TProfileManager::Get()->Enqueue(sample, false);
@@ -272,7 +274,7 @@ void TProducerSet::LegacyReadSensors()
             sample.Time = GetCpuInstant();
             sample.Path = fullName;
             sample.Value = value;
-            sample.TagIds = TagRegistry_->EncodeLegacy(TagRegistry_->Encode(tags));
+            sample.TagIds = commonTags + TagRegistry_->EncodeLegacy(TagRegistry_->Encode(tags));
             sample.MetricType = EMetricType::Gauge;
 
             TProfileManager::Get()->Enqueue(sample, false);

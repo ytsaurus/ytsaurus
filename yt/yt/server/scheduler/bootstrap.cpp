@@ -145,7 +145,7 @@ void TBootstrap::DoRun()
         Config_->ResponseKeeper,
         GetControlInvoker(EControlQueue::UserRequest),
         SchedulerLogger,
-        SchedulerProfilerRegistry);
+        SchedulerProfiler);
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
