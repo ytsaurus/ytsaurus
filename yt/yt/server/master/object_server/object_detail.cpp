@@ -872,6 +872,12 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 
     auto* transaction = GetTransaction();
 
+    // Strip away prerequisite transactions.
+    if (context->RequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
+        auto* prerequisitesExt = context->RequestHeader().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+        prerequisitesExt->Clear();
+    }
+
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToSecondaryMasters(
         TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)));

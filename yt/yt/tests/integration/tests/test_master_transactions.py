@@ -636,6 +636,29 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
             with pytest.raises(YtError):
                 start_transaction(prerequisite_transaction_ids=[tx1, tx2])
 
+    @authors("shakurov")
+    def test_object_prerequisite_transactions(self):
+        create_group("g")
+
+        tx = start_transaction(timeout=60000)
+        assert get("#" + tx + "/@replicated_to_cell_tags") == []
+
+        add_member("root", "g", prerequisite_transaction_ids=[tx])
+
+        assert "g" in get("//sys/users/root/@member_of")
+        for cell_tag in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
+            assert "g" in get("//sys/users/root/@member_of", driver=get_driver(cell_tag))
+
+        assert get("#" + tx + "/@replicated_to_cell_tags") == [0]
+
+        remove_member("root", "g", prerequisite_transaction_ids=[tx])
+
+        assert "g" not in get("//sys/users/root/@member_of")
+        for cell_tag in range(self.NUM_SECONDARY_MASTER_CELLS + 1):
+            assert "g" not in get("//sys/users/root/@member_of", driver=get_driver(cell_tag))
+
+        assert get("#" + tx + "/@replicated_to_cell_tags") == [0]
+
 
 class TestMasterTransactionsShardedTxNoBoomerangs(TestMasterTransactionsShardedTx):
     def setup_method(self, method):
