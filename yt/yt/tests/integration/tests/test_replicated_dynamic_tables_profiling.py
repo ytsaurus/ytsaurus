@@ -114,7 +114,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
         assert 4 <= get_lag_time() <= 10
 
         sync_mount_table(replica_table_path, driver=self.replica_driver)
-        sleep(2)
+        sleep(10)
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0

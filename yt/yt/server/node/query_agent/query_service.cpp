@@ -94,29 +94,6 @@ static constexpr double DefaultQLPoolWeight = 1.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRemoteDynamicStoreReadCounters
-{
-    explicit TRemoteDynamicStoreReadCounters(const TTagIdList& list)
-        : RowCount("/dynamic_store_read/row_count", list)
-        , DataWeight("/dynamic_store_read/data_weight", list)
-        , CpuTime("/dynamic_store_read/cpu_time", list)
-        , SessionRowCount("/dynamic_store_read/session_row_count", list)
-        , SessionDataWeight("/dynamic_store_read/session_data_weight", list)
-        , SessionWallTime("/dynamic_store_read/session_wall_time", list)
-    { }
-
-    TShardedMonotonicCounter RowCount;
-    TShardedMonotonicCounter DataWeight;
-    TShardedMonotonicCounter CpuTime;
-    TShardedAggregateGauge SessionRowCount;
-    TShardedAggregateGauge SessionDataWeight;
-    TShardedAggregateGauge SessionWallTime;
-};
-
-using TRemoteDynamicStoreReadProfilerTrait = TTagListProfilerTrait<TRemoteDynamicStoreReadCounters>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsRetriableError(const TError& error)
 {
     return
@@ -422,9 +399,10 @@ private:
             auto attachment = request->Attachments()[index];
 
             if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId, mountRevision)) {
-                if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
-                    profilerGuard.SetProfilerTags(AddCurrentUserTag(tabletSnapshot->ProfilerTags));
-                }
+                // TODO(prime@):
+                // if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
+                //     profilerGuard.SetProfilerTags(AddCurrentUserTag(tabletSnapshot->ProfilerTags));
+                // }
             }
 
             auto callback = BIND([=, identity = NRpc::GetCurrentAuthenticationIdentity()] {
@@ -546,11 +524,7 @@ private:
             return;
         }
 
-        TTagIdList tags;
-        if (tabletSnapshot->IsProfilingEnabled()) {
-            tags = AddCurrentUserTag(tabletSnapshot->ProfilerTags);
-        }
-        auto& profilingCounters = GetLocallyGloballyCachedValue<TRemoteDynamicStoreReadProfilerTrait>(tags);
+        auto profilingCounters = tabletSnapshot->TableProfiler->GetRemoteDynamicStoreReadCounters(GetCurrentProfilingUser());
 
         TWallTimer wallTimer;
         i64 sessionRowCount = 0;
@@ -613,9 +587,9 @@ private:
                 i64 rowCount = 0;
                 i64 dataWeight = 0;
                 auto finallyGuard = Finally([&] {
-                    Profiler.Increment(profilingCounters.RowCount, rowCount);
-                    Profiler.Increment(profilingCounters.DataWeight, dataWeight);
-                    Profiler.Increment(profilingCounters.CpuTime, timer.GetElapsedValue());
+                    profilingCounters->RowCount.Increment(rowCount);
+                    profilingCounters->DataWeight.Increment(dataWeight);
+                    profilingCounters->CpuTime.Add(timer.GetElapsedTime());
 
                     sessionRowCount += rowCount;
                     sessionDataWeight += dataWeight;
@@ -643,9 +617,9 @@ private:
                 return mergedRef;
             });
 
-            Profiler.Update(profilingCounters.SessionRowCount, sessionRowCount);
-            Profiler.Update(profilingCounters.SessionDataWeight, sessionDataWeight);
-            Profiler.Update(profilingCounters.SessionWallTime, wallTimer.GetElapsedValue());
+            profilingCounters->SessionRowCount.Record(sessionRowCount);
+            profilingCounters->SessionDataWeight.Record(sessionDataWeight);
+            profilingCounters->SessionWallTime.Record(wallTimer.GetElapsedTime());
         } else {
             THROW_ERROR_EXCEPTION("Remote reader for ordered dynamic stores is not implemented");
         }

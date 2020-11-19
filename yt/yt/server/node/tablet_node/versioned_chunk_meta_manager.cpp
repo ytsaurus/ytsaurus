@@ -54,7 +54,7 @@ public:
         NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->VersionedChunkMetaCache,
-            TabletNodeProfilerRegistry.WithPrefix("/versioned_chunk_meta_cache"))
+            TabletNodeProfiler.WithPrefix("/versioned_chunk_meta_cache"))
         , Bootstrap_(bootstrap)
     { }
 

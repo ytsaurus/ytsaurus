@@ -1259,7 +1259,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         filter = {"table_path": path, "method": "compaction"}
 
-        disk_space_metric = Metric.at_tablet_node(path, "chunk_writer/disk_space", with_tags=filter)
+        disk_space_metric = Metric.at_tablet_node(path, "chunk_writer/disk_space", with_tags=filter, aggr_method="max")
         data_weight_metric = Metric.at_tablet_node(path, "chunk_writer/data_weight", with_tags=filter)
         data_bytes_metric = Metric.at_tablet_node(
             path, "chunk_reader_statistics/data_bytes_read_from_disk", with_tags=filter)
@@ -1267,9 +1267,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows(path, [{"key": 0, "value": "test"}])
         sync_compact_table(path)
 
-        assert disk_space_metric.update().get() > 0
-        assert data_weight_metric.update().get() > 0
-        assert data_bytes_metric.update().get() > 0
+        assert disk_space_metric.update().get(verbose=True) > 0
+        assert data_weight_metric.update().get(verbose=True) > 0
+        assert data_bytes_metric.update().get(verbose=True) > 0
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

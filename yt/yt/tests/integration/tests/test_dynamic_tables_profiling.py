@@ -27,7 +27,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         tablet_profiling = self._get_table_profiling(table_path, user="u")
 
         def get_all_counters(count_name):
-            return (
+            all_counters = (
                 tablet_profiling.get_counter("lookup/" + count_name),
                 tablet_profiling.get_counter("lookup/unmerged_" + count_name),
                 tablet_profiling.get_counter("select/" + count_name),
@@ -35,6 +35,8 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
                 tablet_profiling.get_counter("write/" + count_name),
                 tablet_profiling.get_counter("commit/" + count_name),
             )
+            print_debug("all_counters = {}".format(all_counters))
+            return all_counters
 
         assert get_all_counters("row_count") == (0, 0, 0, 0, 0, 0)
         assert get_all_counters("data_weight") == (0, 0, 0, 0, 0, 0)

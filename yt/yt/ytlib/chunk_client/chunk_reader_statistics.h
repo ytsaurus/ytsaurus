@@ -19,6 +19,8 @@ struct TChunkReaderStatistics
     std::atomic<i64> DataBytesTransmitted{0};
     std::atomic<i64> DataBytesReadFromCache{0};
     std::atomic<i64> MetaBytesReadFromDisk{0};
+
+    // TODO(prime@): replace with max time. Cumulative disk IO time has not physical meaning.
     std::atomic<NProfiling::TValue> DataWaitTime{0};
     std::atomic<NProfiling::TValue> MetaWaitTime{0};
     std::atomic<NProfiling::TValue> MetaReadFromDiskTime{0};
@@ -48,23 +50,22 @@ void DumpChunkReaderStatistics(
 class TChunkReaderStatisticsCounters
 {
 public:
-    explicit TChunkReaderStatisticsCounters(
-        const NYPath::TYPath& path = {},
-        const NProfiling::TTagIdList& tagIds = {});
+    TChunkReaderStatisticsCounters() = default;
 
-    void Increment(
-        const NProfiling::TProfiler& profiler,
-        const TChunkReaderStatisticsPtr& chunkReaderStatistics);
+    explicit TChunkReaderStatisticsCounters(const NProfiling::TRegistry& profiler);
+
+    void Increment(const TChunkReaderStatisticsPtr& chunkReaderStatistics);
 
 private:
-    NProfiling::TShardedMonotonicCounter DataBytesReadFromDisk;
-    NProfiling::TShardedMonotonicCounter DataBytesTransmitted;
-    NProfiling::TShardedMonotonicCounter DataBytesReadFromCache;
-    NProfiling::TShardedMonotonicCounter MetaBytesReadFromDisk;
-    NProfiling::TShardedMonotonicCounter DataWaitTime;
-    NProfiling::TShardedMonotonicCounter MetaWaitTime;
-    NProfiling::TShardedMonotonicCounter MetaReadFromDiskTime;
-    NProfiling::TShardedMonotonicCounter PickPeerWaitTime;
+    NProfiling::TCounter DataBytesReadFromDisk_;
+    NProfiling::TCounter DataBytesTransmitted_;
+    NProfiling::TCounter DataBytesReadFromCache_;
+    NProfiling::TCounter MetaBytesReadFromDisk_;
+
+    NProfiling::TTimeCounter DataWaitTime_;
+    NProfiling::TTimeCounter MetaWaitTime_;
+    NProfiling::TTimeCounter MetaReadFromDiskTime_;
+    NProfiling::TTimeCounter PickPeerWaitTime_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -47,6 +47,19 @@ TTagIdList AddCurrentUserTag(TTagIdList tags)
     return AddUserTag(tags, identity);
 }
 
+std::optional<TString> GetCurrentProfilingUser()
+{
+    return GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity());
+}
+
+std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& identity)
+{
+    if (&identity == &NRpc::GetRootAuthenticationIdentity()) {
+        return {};
+    }
+    return identity.User;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TServiceProfilerCounters

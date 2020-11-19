@@ -134,51 +134,19 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
     return TColumnFilter(std::move(columnFilterIndexes));
 }
 
-struct TSelectCpuCounters
-{
-    explicit TSelectCpuCounters(const TTagIdList& list)
-        : CpuTime("/select/cpu_time", list)
-        , ChunkReaderStatisticsCounters("/select/chunk_reader_statistics", list)
-    { }
-
-    TShardedMonotonicCounter CpuTime;
-    TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
-};
-
-using TSelectCpuProfilerTrait = TTagListProfilerTrait<TSelectCpuCounters>;
-
-struct TSelectReadCounters
-{
-    explicit TSelectReadCounters(const TTagIdList& list)
-        : RowCount("/select/row_count", list)
-        , DataWeight("/select/data_weight", list)
-        , UnmergedRowCount("/select/unmerged_row_count", list)
-        , UnmergedDataWeight("/select/unmerged_data_weight", list)
-        , DecompressionCpuTime("/select/decompression_cpu_time", list)
-    { }
-
-    TShardedMonotonicCounter RowCount;
-    TShardedMonotonicCounter DataWeight;
-    TShardedMonotonicCounter UnmergedRowCount;
-    TShardedMonotonicCounter UnmergedDataWeight;
-    TShardedMonotonicCounter DecompressionCpuTime;
-};
-
-using TSelectReadProfilerTrait = TTagListProfilerTrait<TSelectReadCounters>;
-
 class TProfilingReaderWrapper
     : public ISchemafulUnversionedReader
 {
 private:
     const ISchemafulUnversionedReaderPtr Underlying_;
-    const NProfiling::TTagIdList Tags_;
+    const TSelectReadCounters Counters_;
 
 public:
     TProfilingReaderWrapper(
         ISchemafulUnversionedReaderPtr underlying,
-        const NProfiling::TTagIdList& tags)
+        TSelectReadCounters counters)
         : Underlying_(std::move(underlying))
-        , Tags_(tags)
+        , Counters_(std::move(counters))
     { }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -215,12 +183,12 @@ public:
     {
         auto statistics = GetDataStatistics();
         auto decompressionCpuTime = GetDecompressionStatistics().GetTotalDuration();
-        auto& counters = GetLocallyGloballyCachedValue<TSelectReadProfilerTrait>(Tags_);
-        TabletNodeProfiler.Increment(counters.RowCount, statistics.row_count());
-        TabletNodeProfiler.Increment(counters.DataWeight, statistics.data_weight());
-        TabletNodeProfiler.Increment(counters.UnmergedRowCount, statistics.unmerged_row_count());
-        TabletNodeProfiler.Increment(counters.UnmergedDataWeight, statistics.unmerged_data_weight());
-        TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(decompressionCpuTime));
+
+        Counters_.RowCount.Increment(statistics.row_count());
+        Counters_.DataWeight.Increment(statistics.data_weight());
+        Counters_.UnmergedRowCount.Increment(statistics.unmerged_row_count());
+        Counters_.UnmergedDataWeight.Increment(statistics.unmerged_data_weight());
+        Counters_.DecompressionCpuTime.Add(decompressionCpuTime);
     }
 };
 
@@ -264,7 +232,7 @@ public:
             }
 
             TableId_ = tabletSnapshot->TableId;
-            ProfilerTags_ = tabletSnapshot->ProfilerTags;
+            TableProfiler_ = tabletSnapshot->TableProfiler;
         }
 
         if (!suppressAccessTracking) {
@@ -272,9 +240,13 @@ public:
         }
     }
 
-    NProfiling::TTagIdList GetProfilerTags()
+    TTableProfilerPtr GetTableProfiler()
     {
-        return MultipleTables_ ? NProfiling::TTagIdList() : ProfilerTags_;
+        if (MultipleTables_ || !TableProfiler_) {
+            return TTableProfiler::GetDisabled();
+        }
+
+        return TableProfiler_;
     }
 
     TTabletSnapshotPtr GetCachedTabletSnapshot(TTabletId tabletId)
@@ -288,8 +260,10 @@ private:
 
     THashMap<TTabletId, TTabletSnapshotPtr> Map_;
     TObjectId TableId_;
+
     NProfiling::TTagIdList ProfilerTags_;
     bool MultipleTables_ = false;
+    TTableProfilerPtr TableProfiler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -344,9 +318,10 @@ public:
             }
         }
 
-        if (profilerGuard.GetProfilerTags().empty() && !TabletSnapshots_.GetProfilerTags().empty()) {
-            profilerGuard.SetProfilerTags(AddUserTag(TabletSnapshots_.GetProfilerTags(), Identity_));
-        }
+        // TODO(prime@)
+        // if (profilerGuard.GetProfilerTags().empty() && !TabletSnapshots_.GetProfilerTags().empty()) {
+        //     profilerGuard.SetProfilerTags(AddUserTag(TabletSnapshots_.GetProfilerTags(), Identity_));
+        // }
 
         return DoExecute();
     }
@@ -655,16 +630,15 @@ private:
     {
         auto statistics = DoExecuteImpl();
 
-        auto profilerTags = AddUserTag(TabletSnapshots_.GetProfilerTags(), Identity_);
-        if (!profilerTags.empty()) {
-            auto cpuTime = DurationToValue(statistics.SyncTime);
-            for (const auto& innerStatistics : statistics.InnerStatistics) {
-                cpuTime += DurationToValue(innerStatistics.SyncTime);
-            }
-            auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(profilerTags);
-            TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
-            counters.ChunkReaderStatisticsCounters.Increment(TabletNodeProfiler, BlockReadOptions_.ChunkReaderStatistics);
+        auto counters = TabletSnapshots_.GetTableProfiler()->GetSelectCpuCounters(GetProfilingUser(Identity_));
+
+        auto cpuTime = statistics.SyncTime;
+        for (const auto& innerStatistics : statistics.InnerStatistics) {
+            cpuTime += innerStatistics.SyncTime;
         }
+
+        counters->CpuTime.Add(cpuTime);
+        counters->ChunkReaderStatisticsCounters.Increment(BlockReadOptions_.ChunkReaderStatistics);
 
         return statistics;
     }
@@ -976,7 +950,8 @@ private:
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
         auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
-        auto profilerTags = tabletSnapshot->ProfilerTags;
+        auto tableProfiler = tabletSnapshot->TableProfiler;
+        auto userTag = GetProfilingUser(Identity_);
 
         ISchemafulUnversionedReaderPtr reader;
 
@@ -1016,7 +991,7 @@ private:
                 BlockReadOptions_);
         }
 
-        return New<TProfilingReaderWrapper>(reader, AddUserTag(profilerTags, Identity_));
+        return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));
     }
 
     ISchemafulUnversionedReaderPtr GetTabletReader(
@@ -1025,7 +1000,8 @@ private:
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
         auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
-        auto profilerTags = tabletSnapshot->ProfilerTags;
+        auto tableProfiler = tabletSnapshot->TableProfiler;
+        auto userTag = GetProfilingUser(Identity_);
 
         auto reader = CreateSchemafulTabletReader(
             std::move(tabletSnapshot),
@@ -1034,7 +1010,7 @@ private:
             Options_.Timestamp,
             BlockReadOptions_);
 
-        return New<TProfilingReaderWrapper>(reader, AddUserTag(profilerTags, Identity_));
+        return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));
     }
 };
 

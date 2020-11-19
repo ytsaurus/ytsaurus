@@ -74,7 +74,7 @@ TSolomonExporter::TSolomonExporter(
     , CoreProfilingPusher_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TSolomonExporter::DoPushCoreProfiling, MakeWeak(this)),
-        TDuration::Seconds(1)))
+        TDuration::MilliSeconds(500)))
     , CollectionStartDelay_(Registry_->GetSelfProfiler().Timer("/collection_delay"))
     , WindowErrors_(Registry_->GetSelfProfiler().Counter("/window_error_count"))
     , ReadDelays_(Registry_->GetSelfProfiler().Counter("/read_delay_count"))

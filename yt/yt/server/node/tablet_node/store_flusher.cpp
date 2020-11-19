@@ -77,7 +77,7 @@ public:
         , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
         , Semaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreFlusher->MaxConcurrentFlushes,
-            ProfilerRegistry.Gauge("/running_store_flushes")))
+            Profiler.Gauge("/running_store_flushes")))
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
@@ -89,19 +89,15 @@ private:
     const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
-    const NProfiling::TProfiler Profiler = TabletNodeProfiler.AppendPath("/store_flusher");
-    const NProfiling::TRegistry ProfilerRegistry = TabletNodeProfilerRegistry.WithPrefix("/store_flusher");
+    const NProfiling::TRegistry Profiler = TabletNodeProfiler.WithPrefix("/store_flusher");
 
     const TThreadPoolPtr ThreadPool_;
     const TProfiledAsyncSemaphorePtr Semaphore_;
 
-    const NProfiling::TTagId StoreFlushTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "store_flush");
-    const NProfiling::TTagId StoreFlushFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "store_flush_failed");
-
-    NProfiling::TAtomicGauge DynamicMemoryUsageActiveCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "active")}};
-    NProfiling::TAtomicGauge DynamicMemoryUsagePassiveCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "passive")}};
-    NProfiling::TAtomicGauge DynamicMemoryUsageBackingCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "backing")}};
-    NProfiling::TAtomicGauge DynamicMemoryUsageOtherCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "other")}};
+    NProfiling::TGauge DynamicMemoryUsageActiveCounter_ = Profiler.WithTag("memory_type", "active").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsagePassiveCounter_ = Profiler.WithTag("memory_type", "passive").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsageBackingCounter_ = Profiler.WithTag("memory_type", "backing").Gauge("/dynamic_memory_usage");
+    NProfiling::TGauge DynamicMemoryUsageOtherCounter_ = Profiler.WithTag("memory_type", "other").Gauge("/dynamic_memory_usage");
 
     struct TForcedRotationCandidate
     {
@@ -177,10 +173,10 @@ private:
         auto otherUsage = tracker->GetUsed(EMemoryCategory::TabletDynamic) -
             ActiveMemoryUsage_ - PassiveMemoryUsage_ - BackingMemoryUsage_;
 
-        Profiler.Update(DynamicMemoryUsageActiveCounter_, ActiveMemoryUsage_);
-        Profiler.Update(DynamicMemoryUsagePassiveCounter_, PassiveMemoryUsage_);
-        Profiler.Update(DynamicMemoryUsageBackingCounter_, BackingMemoryUsage_);
-        Profiler.Update(DynamicMemoryUsageOtherCounter_, otherUsage);
+        DynamicMemoryUsageActiveCounter_.Update(ActiveMemoryUsage_);
+        DynamicMemoryUsagePassiveCounter_.Update(PassiveMemoryUsage_);
+        DynamicMemoryUsageBackingCounter_.Update(BackingMemoryUsage_);
+        DynamicMemoryUsageOtherCounter_.Update(otherUsage);
 
         const auto& dynamicConfig = Bootstrap_->GetDynamicConfig()->TabletNode;
         bool enableForcedRotationBackingMemoryAccounting =
@@ -519,7 +515,8 @@ private:
             storeManager->BackoffStoreFlush(store);
             failed = true;
         }
-        writerProfiler->Profile(tabletSnapshot, failed ? StoreFlushFailedTag_ : StoreFlushTag_);
+
+        writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::StoreFlush, failed);
     }
 };
 

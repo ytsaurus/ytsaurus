@@ -80,6 +80,7 @@ using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYTAlloc;
 using namespace NYson;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,10 +109,10 @@ public:
         , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
         , PartitioningSemaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreCompactor->MaxConcurrentPartitionings,
-            ProfilerRegistry.Gauge("/running_partitionings")))
+            Profiler_.Gauge("/running_partitionings")))
         , CompactionSemaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreCompactor->MaxConcurrentCompactions,
-            ProfilerRegistry.Gauge("/running_compactions")))
+            Profiler_.Gauge("/running_compactions")))
         , OrchidService_(CreateOrchidService())
     { }
 
@@ -132,22 +133,16 @@ private:
     const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
-    const NProfiling::TProfiler Profiler = TabletNodeProfiler.AppendPath("/store_compactor");
-    const NProfiling::TRegistry ProfilerRegistry = TabletNodeProfilerRegistry.WithPrefix("/store_compactor");
+    const TRegistry Profiler_ = TabletNodeProfiler.WithPrefix("/store_compactor");
+    const TGauge FeasiblePartitioningsCounter_ = Profiler_.Gauge("/feasible_partitionings");
+    const TGauge FeasibleCompactionsCounter_ = Profiler_.Gauge("/feasible_compactions");
+    const TCounter ScheduledPartitioningsCounter_ = Profiler_.Counter("/scheduled_partitionings");
+    const TCounter ScheduledCompactionsCounter_ = Profiler_.Counter("/scheduled_compactions");
+    const TEventTimer ScanTimer_ = Profiler_.Timer("/scan_time");
 
     const TThreadPoolPtr ThreadPool_;
     const TAsyncSemaphorePtr PartitioningSemaphore_;
     const TAsyncSemaphorePtr CompactionSemaphore_;
-
-    NProfiling::TAtomicGauge FeasiblePartitioningsCounter_{"/feasible_partitionings"};
-    NProfiling::TAtomicGauge FeasibleCompactionsCounter_{"/feasible_compactions"};
-    NProfiling::TShardedMonotonicCounter ScheduledPartitioningsCounter_{"/scheduled_partitionings"};
-    NProfiling::TShardedMonotonicCounter ScheduledCompactionsCounter_{"/scheduled_compactions"};
-
-    const NProfiling::TTagId CompactionTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction");
-    const NProfiling::TTagId CompactionFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction_failed");
-    const NProfiling::TTagId PartitioningTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning");
-    const NProfiling::TTagId PartitioningFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning_failed");
 
     IYPathServicePtr CreateOrchidService()
     {
@@ -416,9 +411,8 @@ private:
     void OnScanSlot(const TTabletSlotPtr& slot)
     {
         const auto& tagIdList = slot->GetProfilingTagIds();
-        PROFILE_TIMING("/scan_time", tagIdList) {
-            OnScanSlotImpl(slot, tagIdList);
-        }
+        TEventTimer timerGuard(ScanTimer_);
+        OnScanSlotImpl(slot, tagIdList);
     }
 
     void OnScanSlotImpl(const TTabletSlotPtr& slot, const NProfiling::TTagIdList& tagIdList)
@@ -853,9 +847,9 @@ private:
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
         const TOrchidServiceManagerPtr& orchidServiceManager,
-        NProfiling::TAtomicGauge& counter)
+        const NProfiling::TGauge& counter)
     {
-        Profiler.Update(counter, candidates->size());
+        counter.Update(candidates->size());
 
         MakeHeap(candidates->begin(), candidates->end(), TTask::Comparer);
 
@@ -894,7 +888,7 @@ private:
         size_t* index,
         const TOrchidServiceManagerPtr& orchidServiceManager,
         const TAsyncSemaphorePtr& semaphore,
-        NProfiling::TShardedMonotonicCounter& counter,
+        const TCounter& counter,
         void (TStoreCompactor::*action)(TTask*))
     {
         auto taskGuard = Guard(TaskSpinLock_);
@@ -941,7 +935,7 @@ private:
         }
 
         if (scheduled > 0) {
-            Profiler.Increment(counter, scheduled);
+            counter.Increment(scheduled);
         }
     }
 
@@ -1281,10 +1275,9 @@ private:
             writerProfiler->Update(writer);
         }
 
-        auto tag = failed ? PartitioningFailedTag_ : PartitioningTag_;
         readerProfiler->Update(reader, blockReadOptions.ChunkReaderStatistics);
-        writerProfiler->Profile(tabletSnapshot, tag);
-        readerProfiler->Profile(tabletSnapshot, tag);
+        writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Partitioning, failed);
+        readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Partitioning, failed);
 
         eden->CheckedSetState(EPartitionState::Partitioning, EPartitionState::Normal);
     }
@@ -1766,11 +1759,11 @@ private:
             failed = true;
         }
 
-        auto tag = failed ? CompactionFailedTag_ : CompactionTag_;
         writerProfiler->Update(writer);
         readerProfiler->Update(reader, blockReadOptions.ChunkReaderStatistics);
-        writerProfiler->Profile(tabletSnapshot, tag);
-        readerProfiler->Profile(tabletSnapshot, tag);
+
+        writerProfiler->Profile(tabletSnapshot, EChunkWriteProfilingMethod::Compaction, failed);
+        readerProfiler->Profile(tabletSnapshot, EChunkReadProfilingMethod::Compaction, failed);
 
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
     }

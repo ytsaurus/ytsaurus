@@ -118,34 +118,6 @@ using namespace NDistributedThrottler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TWriteCounters
-{
-    TWriteCounters(const TTagIdList& list)
-        : RowCount("/write/row_count", list)
-        , DataWeight("/write/data_weight", list)
-    { }
-
-    TShardedMonotonicCounter RowCount;
-    TShardedMonotonicCounter DataWeight;
-};
-
-using TWriteProfilerTrait = TTagListProfilerTrait<TWriteCounters>;
-
-struct TCommitCounters
-{
-    TCommitCounters(const TTagIdList& list)
-        : RowCount("/commit/row_count", list)
-        , DataWeight("/commit/data_weight", list)
-    { }
-
-    TShardedMonotonicCounter RowCount;
-    TShardedMonotonicCounter DataWeight;
-};
-
-using TCommitProfilerTrait = TTagListProfilerTrait<TCommitCounters>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletManager::TImpl
     : public TTabletAutomatonPart
 {
@@ -402,11 +374,9 @@ public:
                     identity));
                 *commitResult = mutation->Commit().As<void>();
 
-                if (tablet->IsProfilingEnabled()) {
-                    auto& counters = GetLocallyGloballyCachedValue<TWriteProfilerTrait>(AddCurrentUserTag(tablet->GetProfilerTags()));
-                    TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
-                    TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
-                }
+                auto counters = tablet->GetTableProfiler()->GetWriteCounters(GetCurrentProfilingUser());
+                counters->RowCount.Increment(writeRecord.RowCount);
+                counters->DataWeight.Increment(writeRecord.DataWeight);
             } else if (transactionIsFresh) {
                 transactionManager->DropTransaction(transaction);
             }
@@ -768,7 +738,7 @@ private:
         for (auto [tabletId, tablet] : TabletMap_) {
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
-            tablet->FillProfilerTags(Slot_->GetCellId());
+            tablet->FillProfilerTags();
             tablet->UpdateReplicaCounters();
         }
 
@@ -954,7 +924,7 @@ private:
             upstreamReplicaId,
             retainedTimestamp);
 
-        tabletHolder->FillProfilerTags(Slot_->GetCellId());
+        tabletHolder->FillProfilerTags();
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
 
         UpdateTabletDistributedThrottlers(tablet);
@@ -1091,7 +1061,7 @@ private:
         storeManager->Remount(mountConfig, readerConfig, writerConfig, writerOptions);
 
         tablet->ReconfigureThrottlers();
-        tablet->FillProfilerTags(Slot_->GetCellId());
+        tablet->FillProfilerTags();
         tablet->UpdateReplicaCounters();
         UpdateTabletDistributedThrottlers(tablet);
         UpdateTabletSnapshot(tablet);
@@ -1494,11 +1464,9 @@ private:
                 YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
                 YT_VERIFY(writeRecord.RowCount == context.RowCount);
 
-                if (tablet->IsProfilingEnabled()) {
-                    auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(AddCurrentUserTag(tablet->GetProfilerTags()));
-                    TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
-                    TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
-                }
+                auto counters = tablet->GetTableProfiler()->GetCommitCounters(GetCurrentProfilingUser());
+                counters->RowCount.Increment(writeRecord.RowCount);
+                counters->DataWeight.Increment(writeRecord.DataWeight);
 
                 YT_LOG_DEBUG("Non-atomic rows committed (TransactionId: %v, TabletId: %v, "
                     "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %llx)",
@@ -2617,14 +2585,10 @@ private:
                 if (!tablet) {
                     continue;
                 }
-                if (!tablet->IsProfilingEnabled()) {
-                    continue;
-                }
 
-                auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
-                    AddCurrentUserTag(tablet->GetProfilerTags()));
-                TabletNodeProfiler.Increment(counters.RowCount, record.RowCount);
-                TabletNodeProfiler.Increment(counters.DataWeight, record.DataWeight);
+                auto counters = tablet->GetTableProfiler()->GetCommitCounters(GetCurrentProfilingUser());
+                counters->RowCount.Increment(record.RowCount);
+                counters->DataWeight.Increment(record.DataWeight);
             }
         };
         updateProfileCounters(transaction->ImmediateLockedWriteLog());
