@@ -2,61 +2,88 @@
 
 #include <yt/ytlib/chunk_client/key_set.h>
 
+#include <yt/client/table_client/key_bound.h>
+
 #include <yt/core/misc/blob_output.h>
 
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
 
-////////////////////////////////////////////////////////////////////////////////
-
 // IMPORTANT: Think twice before changing logic in any of the classes below!
 // You may occasionally end up in a situation when partition jobs in same operation
 // act differently (for example, during node rolling update) leading to partitioning
 // invariant violation.
 
+////////////////////////////////////////////////////////////////////////////////
+
+// Used only for YT_LOG_FATAL below.
+const static NLogging::TLogger Logger("Partitioner");
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOrderedPartitioner
     : public IPartitioner
 {
 public:
-    TOrderedPartitioner(const TSharedRef& wirePartitionKeys, int keyColumnCount)
-        : KeySetReader_(wirePartitionKeys)
-        , Keys_(KeySetReader_.GetKeys())
-        , KeyColumnCount_(keyColumnCount)
-    { }
+    TOrderedPartitioner(const TSharedRef& wirePivots, TComparator comparator)
+        : KeySetReader_(wirePivots)
+        , Comparator_(comparator)
+    {
+        for (const auto& key : KeySetReader_.GetKeys()) {
+            PartitionUpperBounds_.push_back(
+                KeyBoundFromLegacyRow(
+                    /* key */key,
+                    /* isUpper */true,
+                    /* keyLength */Comparator_.GetLength()));
+        }
+        PartitionUpperBounds_.push_back(TOwningKeyBound::MakeUniversal(/* isUpper */true));
+
+        for (int index = 0; index + 1 < PartitionUpperBounds_.size(); ++index) {
+            const auto& partition = PartitionUpperBounds_[index];
+            const auto& nextPartition = PartitionUpperBounds_[index + 1];
+            // TODO(gritukan): Check if pivots are not equal.
+            YT_LOG_FATAL_IF(
+                Comparator_.CompareKeyBounds(partition, nextPartition) > 0,
+                "Pivot keys order violation (Index: %v, PartitionUpperBound: %v, NextPartitionUpperBound: %v)",
+                index,
+                partition,
+                nextPartition);
+        }
+    }
 
     virtual int GetPartitionCount() override
     {
-        return Keys_.Size() + 1;
+        return PartitionUpperBounds_.size();
     }
 
     virtual int GetPartitionIndex(TUnversionedRow row) override
     {
-        auto it = std::upper_bound(
-            Keys_.Begin(),
-            Keys_.End(),
-            row,
-            [=] (TUnversionedRow row, const TLegacyKey& element) {
-                // We consider only key prefix of the row; note that remaining
-                // values of the row may be incomparable at all (like double NaN).
-                return CompareRows(
-                    row.Begin(),
-                    row.Begin() + KeyColumnCount_,
-                    element.Begin(),
-                    element.End()) < 0;
-            });
-        return std::distance(Keys_.Begin(), it);
+        auto key = TKey::FromRow(row, Comparator_.GetLength());
+
+        // Recall upper_bound returns first such iterator it that comp(key, *it).
+        auto partitionsIt = std::upper_bound(
+            PartitionUpperBounds_.begin(),
+            PartitionUpperBounds_.end(),
+            key,
+            [=] (const TKey& key, const TKeyBound& partitionUpperBound) {
+                return Comparator_.TestKey(key, partitionUpperBound);
+            }
+        );
+
+        YT_VERIFY(partitionsIt != PartitionUpperBounds_.end());
+        return partitionsIt - PartitionUpperBounds_.begin();
     }
 
 private:
     const TKeySetReader KeySetReader_;
-    const TRange<TLegacyKey> Keys_;
-    const int KeyColumnCount_;
+    std::vector<TOwningKeyBound> PartitionUpperBounds_;
+    const TComparator Comparator_;
 };
 
-IPartitionerPtr CreateOrderedPartitioner(const TSharedRef& wirePartitionKeys, int keyColumnCount)
+IPartitionerPtr CreateOrderedPartitioner(const TSharedRef& wirePivots, TComparator comparator)
 {
-    return New<TOrderedPartitioner>(wirePartitionKeys, keyColumnCount);
+    return New<TOrderedPartitioner>(wirePivots, comparator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,9 +106,6 @@ public:
     virtual int GetPartitionIndex(TUnversionedRow row) override
     {
         auto rowHash = GetHash(row, KeyColumnCount_);
-        // TODO(gritukan): Seems like many map-reduce tests rely on distribution keys by partitions,
-        // so I'll keep the old hash function for root partition task for a while.
-        // NB: This relies on the fact that FarmHash(0) = 0.
         if (Salt_ != 0) {
             rowHash = FarmHash(rowHash ^ Salt_);
         }
