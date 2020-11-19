@@ -944,19 +944,19 @@ private:
         TablePipeWriters_.push_back(asyncOutput);
 
         auto transferInput = UserJobReadController_->PrepareJobInputTransfer(asyncOutput);
-        InputActions_.push_back(BIND([=] () {
+        InputActions_.push_back(BIND([=] {
             try {
                 auto transferComplete = transferInput();
                 WaitFor(transferComplete)
-                      .ThrowOnError();
+                    .ThrowOnError();
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Table input pipe failed")
-                        << TErrorAttribute("fd", jobDescriptor)
-                        << ex;
+                    << TErrorAttribute("fd", jobDescriptor)
+                    << ex;
             }
         }));
 
-        FinalizeActions_.push_back(BIND([=] () {
+        FinalizeActions_.push_back(BIND([=] {
             bool throwOnFailure = UserJobSpec_.check_input_fully_consumed();
 
             try {
