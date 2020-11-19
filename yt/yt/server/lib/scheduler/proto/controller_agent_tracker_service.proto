@@ -123,6 +123,11 @@ message TSchedulerToAgentOperationEvent
     required int32 event_type = 2; // ESchedulerToAgentOperationEventType
 }
 
+message TScheduleJobSpec
+{
+    optional int64 waiting_job_timeout = 1;
+}
+
 message TScheduleJobRequest
 {
     required NYT.NProto.TGuid operation_id = 1;
@@ -131,6 +136,7 @@ message TScheduleJobRequest
     required TJobResources job_resource_limits = 4;
     required TJobResources node_resource_limits = 5;
     required NNodeTrackerClient.NProto.TDiskResources node_disk_resources = 6;
+    optional TScheduleJobSpec spec = 7;
 }
 
 message TScheduleJobResponse

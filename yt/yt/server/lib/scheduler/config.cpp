@@ -235,6 +235,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
             EJobResourceType::Network
         });
 
+    RegisterParameter("waiting_job_timeout", WaitingJobTimeout)
+        .Default();
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")

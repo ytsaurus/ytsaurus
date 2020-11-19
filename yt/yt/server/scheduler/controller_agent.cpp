@@ -7,6 +7,24 @@
 
 namespace NYT::NScheduler {
 
+using NYT::ToProto; 
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TScheduleJobRequest* protoRequest, const TScheduleJobRequest& request)
+{
+    ToProto(protoRequest->mutable_operation_id(), request.OperationId);
+    ToProto(protoRequest->mutable_job_id(), request.JobId);
+    protoRequest->set_tree_id(request.TreeId);
+    ToProto(protoRequest->mutable_job_resource_limits(), request.JobResourceLimits);
+    ToProto(protoRequest->mutable_node_resource_limits(), request.NodeResourceLimits);
+    protoRequest->mutable_node_disk_resources()->CopyFrom(request.NodeDiskResources);
+    auto* spec = protoRequest->mutable_spec();
+    if (request.Spec.WaitingJobTimeout) {
+        spec->set_waiting_job_timeout(ToProto<i64>(*request.Spec.WaitingJobTimeout));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TControllerAgent::TControllerAgent(

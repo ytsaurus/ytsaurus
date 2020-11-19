@@ -203,7 +203,8 @@ public:
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
         const TJobResourcesWithQuota& nodeLimits,
-        const TString& /* treeId */) override;
+        const TString& /* treeId */,
+        const TFairShareStrategyTreeConfigPtr& /* treeConfig */) override;
 
     virtual void UpdateMinNeededJobResources() override;
     virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
@@ -436,7 +437,8 @@ bool TSimulatorOperationController::FindJobToSchedule(
 TFuture<TControllerScheduleJobResultPtr> TSimulatorOperationController::ScheduleJob(
     const ISchedulingContextPtr& context,
     const TJobResourcesWithQuota& nodeLimits,
-    const TString& /* treeId */)
+    const TString& /* treeId */,
+    const TFairShareStrategyTreeConfigPtr& /* treeConfig */)
 {
     if (ScheduleJobDelay_) {
         TDelayedExecutor::WaitForDuration(*ScheduleJobDelay_);

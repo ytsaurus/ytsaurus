@@ -206,7 +206,7 @@ private:
 
     void ScheduleStart();
 
-    void OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob);
+    void OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob, TDuration waitingJobTimeout);
 
     void OnResourcesUpdated(
         const TWeakPtr<IJob>& job,
@@ -761,13 +761,13 @@ IJobPtr TJobController::TImpl::CreateJob(
 
     // Use #Apply instead of #Subscribe to match #OnWaitingJobTimeout signature.
     TDelayedExecutor::MakeDelayed(waitingJobTimeout)
-        .Apply(BIND(&TImpl::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(job))
+        .Apply(BIND(&TImpl::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(job), waitingJobTimeout)
         .Via(Bootstrap_->GetJobInvoker()));
 
     return job;
 }
 
-void TJobController::TImpl::OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob)
+void TJobController::TImpl::OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob, TDuration waitingJobTimeout)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -778,7 +778,7 @@ void TJobController::TImpl::OnWaitingJobTimeout(const TWeakPtr<IJob>& weakJob)
 
     if (job->GetState() == EJobState::Waiting) {
         job->Abort(TError(NExecAgent::EErrorCode::WaitingJobTimeout, "Job waiting has timed out")
-            << TErrorAttribute("timeout", Config_->WaitingJobsTimeout));
+            << TErrorAttribute("timeout", waitingJobTimeout));
     }
 }
 
