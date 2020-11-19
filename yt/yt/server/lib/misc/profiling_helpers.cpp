@@ -118,23 +118,4 @@ void TServiceProfilerGuard::Disable()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCumulativeServiceProfilerGuard::TCumulativeServiceProfilerGuard(
-    const TProfiler* profiler,
-    const TYPath& path)
-    : TServiceProfilerGuard(profiler, path)
-{ }
-
-TCumulativeServiceProfilerGuard::~TCumulativeServiceProfilerGuard()
-{
-    if (!Enabled_ || GetProfilerTags().empty()) {
-        return;
-    }
-
-    auto value = CpuDurationToValue(GetCpuInstant() - StartInstant_);
-    auto& counters = GetLocallyGloballyCachedValue<TServiceProfilerTrait>(TServiceProfilerCounters::TKey{Path_, TagIds_});
-    Profiler_->Increment(counters.CumulativeTime, value);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT

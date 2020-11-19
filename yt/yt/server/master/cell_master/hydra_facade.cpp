@@ -86,7 +86,7 @@ public:
             Config_->HydraManager->ResponseKeeper,
             GetAutomatonInvoker(EAutomatonThreadQueue::ResponseKeeper),
             NObjectServer::ObjectServerLogger,
-            NObjectServer::ObjectServerProfilerRegistry);
+            NObjectServer::ObjectServerProfiler);
 
         auto electionManagerThunk = New<TElectionManagerThunk>();
 

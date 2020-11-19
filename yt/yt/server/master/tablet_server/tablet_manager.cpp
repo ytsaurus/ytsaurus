@@ -145,24 +145,25 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletServerLogger;
-static const auto& Profiler = TabletServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TProfilingCounters
 {
-    TProfilingCounters(const TTagIdList& list)
-        : CopyChunkListIfSharedActionCount("/copy_chunk_list_if_shared/action_count", list)
-        , UpdateTabletStoresStoreCount("/update_tablet_stores/store_count", list)
+    TProfilingCounters() = default;
+
+    TProfilingCounters(const TRegistry& registry)
+        : CopyChunkListIfSharedActionCount(registry.Counter("/copy_chunk_list_if_shared/action_count"))
+        , UpdateTabletStoresStoreCount(registry.Counter("/update_tablet_stores/store_count"))
+        , UpdateTabletStoreTime(registry.TimeCounter("/update_tablet_stores/cumulative_time"))
+        , CopyChunkListTime(registry.TimeCounter("/copy_chunk_list_if_shared/cumulative_time"))
     { }
 
-    TShardedMonotonicCounter CopyChunkListIfSharedActionCount;
-    TShardedMonotonicCounter UpdateTabletStoresStoreCount;
+    TCounter CopyChunkListIfSharedActionCount;
+    TCounter UpdateTabletStoresStoreCount;
+    TTimeCounter UpdateTabletStoreTime;
+    TTimeCounter CopyChunkListTime;
 };
-
-using TTabletManagerProfilerTrait = TTagListProfilerTrait<TProfilingCounters>;
-
-static TShardedMonotonicCounter IncrementalHeartbeatCounter("/incremental_heartbeat");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,7 +183,7 @@ public:
         , TableStatisticsGossipThrottler_(CreateReconfigurableThroughputThrottler(
             New<TThroughputThrottlerConfig>(),
             TabletServerLogger,
-            TabletServerProfilerRegistry.WithPrefix("/table_statistics_gossip_throttler")))
+            TabletServerProfiler.WithPrefix("/table_statistics_gossip_throttler")))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -2449,9 +2450,42 @@ private:
 
     IReconfigurableThroughputThrottlerPtr TableStatisticsGossipThrottler_;
 
-    const NProfiling::TTagId SortedTableProfilerTag_ = TProfileManager::Get()->RegisterTag("table_type", "sorted");
-    const NProfiling::TTagId OrderedTableProfilerTag_ = TProfileManager::Get()->RegisterTag("table_type", "ordered");
-    const TEnumMemberTagCache<ETabletStoresUpdateReason> UpdateTabletStoresProfilerTags_{"operation_type"};
+    using TProfilerKey = std::tuple<std::optional<ETabletStoresUpdateReason>, TString, bool>;
+
+    TTimeCounter IncrementalHeartbeatCounter_ = TabletServerProfiler.TimeCounter("/incremental_heartbeat");
+    THashMap<TProfilerKey, TProfilingCounters> Counters_;
+
+    TProfilingCounters* GetCounters(std::optional<ETabletStoresUpdateReason> reason, TTableNode* table)
+    {
+        static TProfilingCounters nullCounters;
+        if (IsRecovery()) {
+            return &nullCounters;
+        }
+
+        if (!table->GetTabletCellBundle()) {
+            return &nullCounters;
+        }
+
+        TProfilerKey key{reason, table->GetTabletCellBundle()->GetName(), table->IsPhysicallySorted()};
+        auto it = Counters_.find(key);
+        if (it != Counters_.end()) {
+            return &it->second;
+        }
+
+        auto profiler = TabletServerProfiler
+            .WithSparse()
+            .WithTag("tablet_cell_bundle", std::get<TString>(key))
+            .WithTag("table_type", table->IsPhysicallySorted() ? "sorted" : "ordered");
+        
+        if (reason) {
+            profiler = profiler.WithTag("operation_type", FormatEnum(*reason));
+        }
+
+        it = Counters_.emplace(
+            key,
+            TProfilingCounters{profiler}).first;
+        return &it->second;
+    }
 
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
@@ -4442,7 +4476,7 @@ private:
             TabletBalancer_->OnTabletHeartbeat(tablet);
         }
 
-        TabletServerProfiler.Increment(IncrementalHeartbeatCounter, timer.GetElapsedValue());
+        IncrementalHeartbeatCounter_.Add(timer.GetElapsedTime());
     }
 
     void HydraUpdateUpstreamTabletState(TReqUpdateUpstreamTabletState* request)
@@ -5054,21 +5088,11 @@ private:
         int lastTabletIndex,
         bool force = false)
     {
-        TCumulativeServiceProfilerGuard profilerGuard(&Profiler, "/copy_chunk_list_if_shared");
-        TTagIdList tagIds;
-
-        // NB: When the table is resharded during creation it has no tablet cell bundle.
-        if (IsRecovery() || !table->GetTabletCellBundle()) {
-            profilerGuard.Disable();
-        } else {
-            tagIds = TTagIdList{
-                TProfileManager::Get()->RegisterTag("tablet_cell_bundle", table->GetTabletCellBundle()->GetName()),
-                table->IsPhysicallySorted()
-                    ? SortedTableProfilerTag_
-                    : OrderedTableProfilerTag_
-            };
-            profilerGuard.SetProfilerTags(tagIds);
-        }
+        TWallTimer timer;
+        auto counters = GetCounters({}, table);
+        auto reportTime = Finally([&] { 
+            counters->CopyChunkListTime.Add(timer.GetElapsedTime());
+        });
 
         int actionCount = 0;
 
@@ -5151,11 +5175,8 @@ private:
             }
         }
 
-        if (actionCount > 0 && !IsRecovery()) {
-            auto& counters = GetLocallyGloballyCachedValue<TTabletManagerProfilerTrait>(tagIds);
-            Profiler.Increment(
-                counters.CopyChunkListIfSharedActionCount,
-                actionCount);
+        if (actionCount > 0) {
+            counters->CopyChunkListIfSharedActionCount.Increment(actionCount);
         }
     }
 
@@ -5321,19 +5342,12 @@ private:
             return;
         }
 
-        TCumulativeServiceProfilerGuard profilerGuard(&Profiler, "/update_tablet_stores");
+        TWallTimer timer;
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
-        auto tagIds = TTagIdList{
-            TProfileManager::Get()->RegisterTag("tablet_cell_bundle", tablet->GetTable()->GetTabletCellBundle()->GetName()),
-            UpdateTabletStoresProfilerTags_.GetTag(updateReason),
-            tablet->GetTable()->IsPhysicallySorted()
-                ? SortedTableProfilerTag_
-                : OrderedTableProfilerTag_
-        };
-        profilerGuard.SetProfilerTags(tagIds);
-        if (IsRecovery()) {
-            profilerGuard.Disable();
-        }
+        auto counters = GetCounters(updateReason, tablet->GetTable());
+        auto updateTime = Finally([&] {
+            counters->UpdateTabletStoreTime.Add(timer.GetElapsedTime());
+        });
 
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update commit for an improperly prepared tablet; ignored "
@@ -5523,13 +5537,7 @@ private:
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
         ScheduleTableStatisticsUpdate(table);
 
-        if (!IsRecovery()) {
-            int storeCount = chunksToAttach.size() + chunksToDetach.size();
-            auto& counters = GetLocallyGloballyCachedValue<TTabletManagerProfilerTrait>(tagIds);
-            Profiler.Increment(
-                counters.UpdateTabletStoresStoreCount,
-                storeCount);
-        }
+        counters->UpdateTabletStoresStoreCount.Increment(chunksToAttach.size() + chunksToDetach.size());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "

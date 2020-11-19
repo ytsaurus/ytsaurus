@@ -294,9 +294,8 @@ void TObjectProxyBase::Invoke(const IServiceContextPtr& context)
 
     TSupportsAttributes::Invoke(context);
 
-    const auto& Profiler = objectManager->GetProfiler();
     auto* counter = objectManager->GetMethodCumulativeExecuteTimeCounter(Object_->GetType(), context->GetMethod());
-    Profiler.Increment(*counter, timer.GetElapsedValue());
+    counter->Add(timer.GetElapsedTime());
 }
 
 void TObjectProxyBase::DoWriteAttributesFragment(

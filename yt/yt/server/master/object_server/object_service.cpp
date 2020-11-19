@@ -83,10 +83,6 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = ObjectServerProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TStickyUserErrorCache
 {
 public:
@@ -159,7 +155,7 @@ public:
         , Cache_(New<TObjectServiceCache>(
             Config_->MasterCache,
             ObjectServerLogger,
-            ObjectServerProfilerRegistry.WithPrefix("/master_cache")))
+            ObjectServerProfiler.WithPrefix("/master_cache")))
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
@@ -608,9 +604,10 @@ private:
                 requestHeader.service(),
                 requestHeader.method());
 
-            Profiler.Increment(subrequest.YPathExt->mutating()
-                ? subrequest.ProfilingCounters->TotalWriteRequestCounter
-                : subrequest.ProfilingCounters->TotalReadRequestCounter);
+            if (subrequest.YPathExt->mutating()) {
+                subrequest.ProfilingCounters->TotalWriteRequestCounter.Increment();
+                subrequest.ProfilingCounters->TotalReadRequestCounter.Increment();
+            }
         }
     }
 
@@ -838,10 +835,10 @@ private:
             subrequest->Mutation = objectManager->CreateExecuteMutation(subrequest->RpcContext, subrequest->RpcContext->GetAuthenticationIdentity());
             subrequest->Mutation->SetMutationId(subrequest->RpcContext->GetMutationId(), subrequest->RpcContext->IsRetry());
             subrequest->Type = EExecutionSessionSubrequestType::LocalWrite;
-            Profiler.Increment(subrequest->ProfilingCounters->LocalWriteRequestCounter);
+            subrequest->ProfilingCounters->LocalWriteRequestCounter.Increment();
         } else {
             subrequest->Type = EExecutionSessionSubrequestType::LocalRead;
-            Profiler.Increment(subrequest->ProfilingCounters->LocalReadRequestCounter);
+            subrequest->ProfilingCounters->LocalReadRequestCounter.Increment();
         }
     }
 
@@ -850,7 +847,7 @@ private:
         subrequest->ForwardedCellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         subrequest->RemoteRequestMessage = subrequest->RequestMessage;
         subrequest->Type = EExecutionSessionSubrequestType::Remote;
-        Profiler.Increment(subrequest->ProfilingCounters->IntraCellForwardingRequestCounter);
+        subrequest->ProfilingCounters->IntraCellForwardingRequestCounter.Increment();
     }
 
     void MarkSubrequestRemoteCrossCell(TSubrequest* subrequest, TCellTag forwardedCellTag)
@@ -884,7 +881,7 @@ private:
         subrequest->ForwardedCellTag = forwardedCellTag;
         subrequest->RemoteRequestMessage = SetRequestHeader(subrequest->RequestMessage, remoteRequestHeader);
         subrequest->Type = EExecutionSessionSubrequestType::Remote;
-        Profiler.Increment(subrequest->ProfilingCounters->CrossCellForwardingRequestCounter);
+        subrequest->ProfilingCounters->CrossCellForwardingRequestCounter.Increment();
     }
 
     void DecideSubrequestType(TSubrequest* subrequest)
@@ -1549,7 +1546,7 @@ private:
         YT_LOG_DEBUG("Performing leader fallback (RequestId: %v)",
             RequestId_);
 
-        Profiler.Increment(subrequest->ProfilingCounters->LeaderFallbackRequestCounter);
+        subrequest->ProfilingCounters->LeaderFallbackRequestCounter.Increment();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto asyncSubresponse = objectManager->ForwardObjectRequest(

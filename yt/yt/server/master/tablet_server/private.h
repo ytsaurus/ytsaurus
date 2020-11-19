@@ -17,8 +17,7 @@ DECLARE_REFCOUNTED_CLASS(TTabletTracker)
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger TabletServerLogger;
-extern const NProfiling::TProfiler TabletServerProfiler;
-extern const NProfiling::TRegistry TabletServerProfilerRegistry;
+extern const NProfiling::TRegistry TabletServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
