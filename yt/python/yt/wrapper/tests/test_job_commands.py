@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import TEST_DIR, create_job_events
+from .helpers import TEST_DIR, create_job_events, wait
 
 import yt.environment.arcadia_interop as arcadia_interop
 
@@ -175,7 +175,7 @@ class TestJobCommands(object):
         op = yt.run_map(mapper, input_table, output_table, format=yt.DsvFormat(), sync=False)
         job_id = job_events.wait_breakpoint()[0]
 
-        assert b"STDERR OUTPUT\n" == yt.get_job_stderr(op.id, job_id).read()
+        wait(lambda: b"STDERR OUTPUT\n" == yt.get_job_stderr(op.id, job_id).read())
 
         job_events.release_breakpoint()
         op.wait()
