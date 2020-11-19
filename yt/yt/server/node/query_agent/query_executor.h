@@ -21,19 +21,26 @@ namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NQueryClient::TQueryStatistics ExecuteSubquery(
+struct IQuerySubexecutor
+    : public virtual TRefCounted
+{
+    virtual TFuture<NQueryClient::TQueryStatistics> Execute(
+        NQueryClient::TConstQueryPtr query,
+        NQueryClient::TConstExternalCGInfoPtr externalCGInfo,
+        std::vector<NQueryClient::TDataRanges> dataSources,
+        NTableClient::IUnversionedRowsetWriterPtr writer,
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NQueryClient::TQueryOptions& options,
+        TServiceProfilerGuard& profilerGuard) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IQuerySubexecutor)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IQuerySubexecutorPtr CreateQuerySubexecutor(
     TQueryAgentConfigPtr config,
-    NQueryClient::TFunctionImplCachePtr functionImplCache,
-    NClusterNode::TBootstrap* const bootstrap,
-    NQueryClient::TEvaluatorPtr evaluator,
-    NQueryClient::TConstQueryPtr query,
-    NQueryClient::TConstExternalCGInfoPtr externalCGInfo,
-    std::vector<NQueryClient::TDataRanges> dataSources,
-    NQueryClient::IUnversionedRowsetWriterPtr writer,
-    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-    const NQueryClient::TQueryOptions& options,
-    IInvokerPtr invoker,
-    TServiceProfilerGuard& profilerGuard);
+    NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
