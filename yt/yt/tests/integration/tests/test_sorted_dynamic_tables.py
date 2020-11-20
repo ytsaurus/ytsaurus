@@ -9,6 +9,8 @@ from yt_env_setup import wait, parametrize_external, Restarter, NODES_SERVICE
 from yt_commands import *
 from yt.yson import YsonEntity, loads
 
+from flaky import flaky
+
 from time import sleep
 from random import randint, choice, sample
 from string import ascii_lowercase
@@ -1251,6 +1253,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             select_rows("* from [//tmp/t]", timestamp=ts)
 
     @authors("avmatrosov")
+    @flaky(max_runs=5)
     def test_chunk_profiling(self):
         path = "//tmp/t"
         sync_create_cells(1)
