@@ -218,6 +218,15 @@ std::optional<TKey> TComparator::TryAsSingletonKey(const TKeyBound& lowerBound, 
     return TKey::FromRowUnchecked(lowerBound.Prefix);
 }
 
+TComparator TComparator::Trim(int keyColumnCount) const
+{
+    YT_VERIFY(keyColumnCount <= SortOrders_.size());
+
+    auto sortOrders = SortOrders_;
+    sortOrders.resize(keyColumnCount);
+    return TComparator(std::move(sortOrders));
+}
+
 void FormatValue(TStringBuilderBase* builder, const TComparator& comparator, TStringBuf /* spec */)
 {
     builder->AppendFormat("{Length: %v}", comparator.GetLength());

@@ -12,6 +12,8 @@
 #include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/client/chunk_client/config.h>
 
+#include <yt/client/table_client/schema.h>
+
 #include <yt/core/compression/public.h>
 
 #include <yt/library/erasure/public.h>
@@ -112,15 +114,10 @@ public:
 
     NErasure::ECodec ErasureCodec;
 
-    //! Key column count in table schema and chunk schema might differ.
-    //! By default they are assumed to be equal, this value overrides
-    //! key column count in table schema, if set.
-    std::optional<int> TableKeyColumnCount;
-
-    //! Unique keys schema flag in table schema and chunk schema might differ.
-    //! By default they are assumed to be equal, this value overrides
-    //! unique keys schema flag in table schema, if set.
-    std::optional<bool> TableUniqueKeys;
+    //! Table and chunk schema might differ. By default they are assumed
+    //! to be equal, this value overrides table schema, if set. Table schema
+    //! cannot be stricter than chunk schema.
+    NTableClient::TTableSchemaPtr TableSchema;
 
     TMultiChunkWriterOptions()
     {
@@ -139,9 +136,7 @@ public:
             .Default(NErasure::ECodec::None);
         RegisterParameter("table_index", TableIndex)
             .Default(InvalidTableIndex);
-        RegisterParameter("table_key_column_count", TableKeyColumnCount)
-            .Default();
-        RegisterParameter("table_unique_keys", TableUniqueKeys)
+        RegisterParameter("table_schema", TableSchema)
             .Default();
     }
 };

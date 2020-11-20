@@ -61,6 +61,9 @@ public:
     //! If there exists such key K that #lhs == ">= K" and #rhs == "<= K", return it.
     std::optional<TKey> TryAsSingletonKey(const TKeyBound& lhs, const TKeyBound& rhs) const;
 
+    //! Returns a comparator that compares rows by first #keyColumnCount columns and ignores other.
+    TComparator Trim(int keyColumnCount) const;
+
 private:
     void ValidateKey(const TKey& key) const;
     void ValidateKeyBound(const TKeyBound& keyBound) const;
