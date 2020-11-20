@@ -21,6 +21,7 @@ using namespace NApi::NNative;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ObjectClientLogger;
+static const auto ExecuteMethodDescriptor = TMethodDescriptor("Execute");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,36 +44,28 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     : TClientRequest(
         std::move(channel),
         TObjectServiceProxy::GetDescriptor(),
-        TMethodDescriptor("Execute"))
+        ExecuteMethodDescriptor)
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , SubbatchSize_(subbatchSize)
 {
     SetHeavy(true);
 }
 
-TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(const TReqExecuteSubbatch& other)
-    : TClientRequest(other)
-    , StickyGroupSizeCache_(other.StickyGroupSizeCache_)
-    , OriginalRequestId_(other.OriginalRequestId_)
-    , SuppressUpstreamSync_(other.SuppressUpstreamSync_)
-    , SuppressTransactionCoordinatorSync_(other.SuppressTransactionCoordinatorSync_)
-    , SubbatchSize_(other.SubbatchSize_)
-{
-    // Undo some work done by the base class's copy ctor and make some tweaks.
-    Attachments_.clear();
-    ToProto(Header_.mutable_request_id(), TRequestId::Create());
-    SerializedData_.Reset();
-    Hash_.reset();
-
-    FirstTimeSerialization_ = true;
-}
-
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     const TReqExecuteSubbatch& other,
     std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors)
-    : TReqExecuteSubbatch(other)
+    : TClientRequest(other)
+    , StickyGroupSizeCache_(other.StickyGroupSizeCache_)
+    , SubbatchSize_(other.SubbatchSize_)
+    , InnerRequestDescriptors_(std::move(innerRequestDescriptors))
+    , OriginalRequestId_(other.OriginalRequestId_)
+    , SuppressUpstreamSync_(other.SuppressUpstreamSync_)
+    , SuppressTransactionCoordinatorSync_(other.SuppressTransactionCoordinatorSync_)
 {
-    InnerRequestDescriptors_ = std::move(innerRequestDescriptors);
+    // Undo some work done by the base class's copy ctor and make some tweaks.
+    // XXX(babenko): refactor this, maybe avoid TClientRequest copying.
+    Attachments().clear();
+    ToProto(Header().mutable_request_id(), TRequestId::Create());
 }
 
 int TObjectServiceProxy::TReqExecuteSubbatch::GetSize() const
@@ -104,7 +97,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::DoInvoke()
     return promise;
 }
 
-TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
+TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeHeaderless() const
 {
     NProto::TReqExecute req;
     if (OriginalRequestId_) {
@@ -115,8 +108,8 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
     req.set_allow_backoff(true);
     req.set_supports_portals(true);
 
-    if (Header_.HasExtension(NRpc::NProto::TBalancingExt::balancing_ext)) {
-        auto currentStickyGroupSize = Header_.GetExtension(NRpc::NProto::TBalancingExt::balancing_ext).sticky_group_size();
+    if (Header().HasExtension(NRpc::NProto::TBalancingExt::balancing_ext)) {
+        auto currentStickyGroupSize = Header().GetExtension(NRpc::NProto::TBalancingExt::balancing_ext).sticky_group_size();
         req.set_current_sticky_group_size(currentStickyGroupSize);
     }
 
@@ -133,24 +126,21 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
     return TSharedRefArray(std::move(data), TSharedRefArray::TMoveParts{});
 }
 
-size_t TObjectServiceProxy::TReqExecuteSubbatch::GetHash() const
+size_t TObjectServiceProxy::TReqExecuteSubbatch::ComputeHash() const
 {
-    if (!Hash_) {
-        size_t hash = 0;
-        HashCombine(hash, SuppressUpstreamSync_);
-        HashCombine(hash, SuppressTransactionCoordinatorSync_);
-        for (const auto& descriptor : InnerRequestDescriptors_) {
-            if (descriptor.Hash) {
-                HashCombine(hash, descriptor.Hash);
-            } else {
-                for (auto* it = descriptor.Message.Begin(); it != descriptor.Message.End(); ++it) {
-                    HashCombine(hash, GetChecksum(*it));
-                }
+    size_t hash = 0;
+    HashCombine(hash, SuppressUpstreamSync_);
+    HashCombine(hash, SuppressTransactionCoordinatorSync_);
+    for (const auto& descriptor : InnerRequestDescriptors_) {
+        if (descriptor.Hash) {
+            HashCombine(hash, descriptor.Hash);
+        } else {
+            for (auto* it = descriptor.Message.Begin(); it != descriptor.Message.End(); ++it) {
+                HashCombine(hash, GetChecksum(*it));
             }
         }
-        Hash_ = hash;
     }
-    return *Hash_;
+    return hash;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,11 +150,6 @@ TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
     int subbatchSize,
     TStickyGroupSizeCachePtr stickyGroupSizeCache)
     : TReqExecuteSubbatch(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
-{ }
-
-TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
-    const TObjectServiceProxy::TReqExecuteBatchBase& other)
-    : TReqExecuteSubbatch(other)
 { }
 
 TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
@@ -224,8 +209,8 @@ void TObjectServiceProxy::TReqExecuteBatchBase::AddRequestMessage(
 void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
 {
     // Push TPrerequisitesExt down to individual requests.
-    if (Header_.HasExtension(NProto::TPrerequisitesExt::prerequisites_ext)) {
-        const auto& batchPrerequisitesExt = Header_.GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
+    if (Header().HasExtension(NProto::TPrerequisitesExt::prerequisites_ext)) {
+        const auto& batchPrerequisitesExt = Header().GetExtension(NProto::TPrerequisitesExt::prerequisites_ext);
         for (auto& descriptor : InnerRequestDescriptors_) {
             NRpc::NProto::TRequestHeader requestHeader;
             YT_VERIFY(ParseRequestHeader(descriptor.Message, &requestHeader));
@@ -235,7 +220,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
             prerequisitesExt->mutable_revisions()->MergeFrom(batchPrerequisitesExt.revisions());
             descriptor.Message = SetRequestHeader(descriptor.Message, requestHeader);
         }
-        Header_.ClearExtension(NProto::TPrerequisitesExt::prerequisites_ext);
+        Header().ClearExtension(NProto::TPrerequisitesExt::prerequisites_ext);
     }
 }
 
@@ -274,7 +259,8 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     : TReqExecuteBatchBase(other, std::move(innerRequestDescriptors))
 { }
 
-TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(IChannelPtr channel,
+TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
+    IChannelPtr channel,
     int subbatchSize,
     TStickyGroupSizeCachePtr stickyGroupSizeCache)
     : TReqExecuteBatchBase(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
@@ -413,7 +399,7 @@ void TObjectServiceProxy::TReqExecuteBatch::SetBalancingHeader()
         return;
     }
 
-    auto* balancingHeaderExt = Header_.MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+    auto* balancingHeaderExt = Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
     balancingHeaderExt->set_enable_stickiness(true);
 
     auto stickyGroupSize = *DefaultStickyGroupSize_;

@@ -27,6 +27,13 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  \note
+ *  Thread affinity: single-threaded.
+ *  Notable exceptions are IClientRequest::Serialize and IClientRequest::GetHash.
+ *  Once the request is fully configured (from a single thread), these could be
+ *  invoked from arbitrary threads concurrently.
+ */
 struct IClientRequest
     : public virtual TRefCounted
 {
@@ -153,6 +160,8 @@ public:
     virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override;
     virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override;
 
+    virtual bool IsHeavy() const override;
+
     virtual TRequestId GetRequestId() const override;
     virtual TRealmId GetRealmId() const override;
     virtual const TString& GetService() const override;
@@ -188,12 +197,34 @@ protected:
     const bool StreamingEnabled_;
     const TFeatureIdFormatter FeatureIdFormatter_;
 
-    mutable NProto::TRequestHeader Header_;
-    mutable TSharedRefArray SerializedData_;
-    mutable std::optional<size_t> Hash_;
+    TClientRequest(
+        IChannelPtr channel,
+        const TServiceDescriptor& serviceDescriptor,
+        const TMethodDescriptor& methodDescriptor);
+    TClientRequest(const TClientRequest& other);
+
+    virtual TSharedRefArray SerializeHeaderless() const = 0;
+    virtual size_t ComputeHash() const;
+
+    TClientContextPtr CreateClientContext();
+
+    IClientRequestControlPtr Send(IClientResponseHandlerPtr responseHandler);
+
+private:
+    std::atomic<bool> Serialized_ = false;
+
+    std::atomic<bool> HeaderPrepared_ = false;
+    TAdaptiveLock HeaderPreparationLock_;
+    NProto::TRequestHeader Header_;
+
+    mutable TSharedRefArray SerializedHeaderlessMessage_;
+    mutable std::atomic<bool> SerializedHeaderlessMessageLatch_ = false;
+    mutable std::atomic<bool> SerializedHeaderlessMessageSet_ = false;
+
+    static constexpr auto UnknownHash = static_cast<size_t>(-1);
+    mutable std::atomic<size_t> Hash_ = UnknownHash;
 
     EMultiplexingBand MultiplexingBand_ = EMultiplexingBand::Default;
-    bool FirstTimeSerialization_ = true;
 
     TStreamingParameters ClientAttachmentsStreamingParameters_;
     TStreamingParameters ServerAttachmentsStreamingParameters_;
@@ -204,24 +235,8 @@ protected:
     TString User_;
     TString UserTag_;
 
+    TWeakPtr<IClientRequestControl> RequestControl_;
 
-    TClientRequest(
-        IChannelPtr channel,
-        const TServiceDescriptor& serviceDescriptor,
-        const TMethodDescriptor& methodDescriptor);
-
-    // NB: doesn't copy base class.
-    TClientRequest(const TClientRequest& other);
-
-    virtual bool IsHeavy() const override;
-
-    virtual TSharedRefArray SerializeData() const = 0;
-
-    TClientContextPtr CreateClientContext();
-
-    IClientRequestControlPtr Send(IClientResponseHandlerPtr responseHandler);
-
-private:
     void OnPullRequestAttachmentsStream();
     void OnRequestStreamingPayloadAcked(int sequenceNumber, const TError& error);
     void OnResponseAttachmentsStreamRead();
@@ -232,9 +247,7 @@ private:
     void TraceRequest(const NTracing::TTraceContextPtr& traceContext);
 
     void PrepareHeader();
-    const TSharedRefArray& GetSerializedData() const;
-
-    TWeakPtr<IClientRequestControl> RequestControl_;
+    TSharedRefArray GetHeaderlessMessage() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientRequest)
@@ -257,7 +270,7 @@ public:
     TFuture<typename TResponse::TResult> Invoke();
 
 private:
-    virtual TSharedRefArray SerializeData() const override;
+    virtual TSharedRefArray SerializeHeaderless() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

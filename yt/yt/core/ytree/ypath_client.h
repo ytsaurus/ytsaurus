@@ -83,9 +83,7 @@ protected:
     std::vector<TSharedRef> Attachments_;
 
     virtual bool IsHeavy() const override;
-
     virtual TSharedRef SerializeBody() const = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TYPathRequest)
