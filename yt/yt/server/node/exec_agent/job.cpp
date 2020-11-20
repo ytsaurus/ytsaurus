@@ -1426,6 +1426,9 @@ private:
             proxyConfig->MakeRootFSWritable = false;
         }
 
+        std::vector<TIP6Address> ipAddresses;
+        ipAddresses.reserve(ResolvedNodeAddresses_.size());
+
         if (NetworkProjectId_) {
             for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
                 auto networkAddress = New<TUserJobNetworkAddress>();
@@ -1436,6 +1439,7 @@ private:
                 networkAddress->Name = addressName;
 
                 proxyConfig->NetworkAddresses.push_back(networkAddress);
+                ipAddresses.push_back(networkAddress->Address);
             }
 
             if (proxyConfig->NetworkAddresses.empty()) {
@@ -1445,15 +1449,19 @@ private:
             proxyConfig->HostName = Format("slot_%v.%v",
                 Slot_->GetSlotIndex(),
                 Bootstrap_->GetConfig()->Addresses[0].second);
+        } else {
+            for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
+                ipAddresses.push_back(address);
+            }
         }
 
         {
             ExecAttributes_.SlotIndex = Slot_->GetSlotIndex();
             ExecAttributes_.SandboxPath = Slot_->GetSandboxPath(ESandboxKind::User);
 
-            ExecAttributes_.IPAddresses.reserve(proxyConfig->NetworkAddresses.size());
-            for (const auto& address : proxyConfig->NetworkAddresses) {
-                ExecAttributes_.IPAddresses.push_back(ToString(address->Address));
+            ExecAttributes_.IPAddresses.reserve(ipAddresses.size());
+            for (const auto& address : ipAddresses) {
+                ExecAttributes_.IPAddresses.push_back(ToString(address));
             }
 
             ExecAttributes_.GpuDevices.reserve(GpuSlots_.size());
