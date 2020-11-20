@@ -9,10 +9,10 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.EDurability;
 import ru.yandex.yt.rpcproxy.ETransactionType;
+import ru.yandex.yt.ytclient.proxy.request.Atomicity;
+import ru.yandex.yt.ytclient.proxy.request.Durability;
+import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 
-/**
- * Опции для открытия транзакций
- */
 public class ApiServiceTransactionOptions {
     private final ETransactionType type;
     private Duration timeout;
@@ -142,5 +142,66 @@ public class ApiServiceTransactionOptions {
     public ApiServiceTransactionOptions setPingPeriod(Duration pingPeriod) {
         this.pingPeriod = pingPeriod;
         return this;
+    }
+
+    public StartTransaction toStartTransaction() {
+        StartTransaction startTransaction;
+        switch (getType()) {
+            case TT_MASTER:
+                if (getSticky()) {
+                    startTransaction = StartTransaction.stickyMaster();
+                } else {
+                    startTransaction = StartTransaction.master();
+                }
+                break;
+            case TT_TABLET:
+                startTransaction = StartTransaction.tablet();
+                break;
+            default:
+                throw new IllegalStateException("Unexpected type of transaction: " + getType());
+        }
+        if (timeout != null) {
+            startTransaction.setTimeout(timeout);
+        }
+        if (deadline != null) {
+            startTransaction.setDeadline(deadline);
+        }
+        if (id != null && !id.isEmpty()) {
+            startTransaction.setId(id);
+        }
+        if (parentId != null && !parentId.isEmpty()) {
+            startTransaction.setParentId(parentId);
+        }
+        if (ping != null) {
+            startTransaction.setPing(ping);
+        }
+        if (pingAncestors != null) {
+            startTransaction.setPingAncestors(pingAncestors);
+        }
+        if (atomicity != null) {
+            switch (atomicity) {
+                case A_FULL:
+                    startTransaction.setAtomicity(Atomicity.Full);
+                    break;
+                case A_NONE:
+                    startTransaction.setAtomicity(Atomicity.None);
+                    break;
+            }
+        }
+        if (durability != null) {
+            switch (durability) {
+                case D_SYNC:
+                    startTransaction.setDurability(Durability.Sync);
+                    break;
+                case D_ASYNC:
+                    startTransaction.setDurability(Durability.Async);
+                    break;
+            }
+        }
+        if (prerequisiteTransactionIds != null) {
+            throw new RuntimeException("prerequisite_transaction_ids is not supported in RPC proxy API yet");
+        }
+
+        return startTransaction;
     }
 }

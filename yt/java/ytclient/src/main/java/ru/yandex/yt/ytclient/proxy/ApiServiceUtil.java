@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 import ru.yandex.bolts.function.Function;
@@ -172,5 +173,9 @@ public class ApiServiceUtil {
         long micros = Math.multiplyExact(duration.getSeconds(), MICROS_PER_SECOND);
         micros = Math.addExact(micros, duration.getNano() / 1000);
         return micros;
+    }
+
+    public static long instantToYtMicros(Instant instant) {
+        return Math.multiplyExact(instant.toEpochMilli(), 1000);
     }
 }
