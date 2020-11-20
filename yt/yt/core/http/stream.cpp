@@ -394,8 +394,7 @@ bool THttpInput::ReceiveHeaders()
             UnconsumedData_ = Parser_.Feed(UnconsumedData_);
         } catch (const TErrorException& ex) {
             if (!readResult.IsOK()) {
-                TErrorException augmented(ex);
-                throw augmented << readResult;
+                THROW_ERROR_EXCEPTION(ex) << readResult;
             } else {
                 throw;
             }
