@@ -59,7 +59,6 @@ public:
     using TErrorOrRspExecuteBatchPtr = TErrorOr<TRspExecuteBatchPtr>;
 
 private:
-
     class TReqExecuteSubbatch
         : public NRpc::TClientRequest
     {
@@ -77,10 +76,9 @@ private:
         //! Returns the current number of individual requests in the batch.
         int GetSize() const;
 
-        virtual size_t GetHash() const override;
-
     protected:
         const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
+        const int SubbatchSize_;
 
         std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
         NRpc::TRequestId OriginalRequestId_;
@@ -91,21 +89,19 @@ private:
             NRpc::IChannelPtr channel,
             int subbatchSize,
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
-        explicit TReqExecuteSubbatch(const TReqExecuteSubbatch& other);
         TReqExecuteSubbatch(
             const TReqExecuteSubbatch& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
 
         TFuture<TRspExecuteBatchPtr> DoInvoke();
 
-        int SubbatchSize_;
-
     private:
         friend class TReqExecuteBatch;
 
         DECLARE_NEW_FRIEND();
 
-        virtual TSharedRefArray SerializeData() const override;
+        virtual TSharedRefArray SerializeHeaderless() const override;
+        virtual size_t ComputeHash() const override;
     };
 
     using TReqExecuteSubbatchPtr = TIntrusivePtr<TReqExecuteSubbatch>;
@@ -154,7 +150,6 @@ public:
             NRpc::IChannelPtr channel,
             int subbatchSize,
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
-        explicit TReqExecuteBatchBase(const TReqExecuteBatchBase& other);
         TReqExecuteBatchBase(
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);

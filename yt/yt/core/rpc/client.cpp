@@ -85,27 +85,32 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , StreamingEnabled_(other.StreamingEnabled_)
     , FeatureIdFormatter_(other.FeatureIdFormatter_)
     , Header_(other.Header_)
-    , SerializedData_(other.SerializedData_)
-    , Hash_(other.Hash_)
     , MultiplexingBand_(other.MultiplexingBand_)
-    , FirstTimeSerialization_(other.FirstTimeSerialization_)
+    , ClientAttachmentsStreamingParameters_(other.ClientAttachmentsStreamingParameters_)
+    , ServerAttachmentsStreamingParameters_(other.ServerAttachmentsStreamingParameters_)
+    , User_(other.User_)
+    , UserTag_(other.UserTag_)
 { }
 
 TSharedRefArray TClientRequest::Serialize()
 {
-    if (FirstTimeSerialization_) {
-        PrepareHeader();
-    } else {
-        if (StreamingEnabled_) {
-            THROW_ERROR_EXCEPTION("Retries are not supported for requests with streaming");
-        }
-        Header_.set_retry(true);
-    }
-    FirstTimeSerialization_ = false;
+    bool retry = Serialized_.exchange(true);
 
-    return CreateRequestMessage(
-        Header_,
-        GetSerializedData());
+    PrepareHeader();
+
+    auto headerlessMessage = GetHeaderlessMessage();
+
+    if (!retry) {
+        return CreateRequestMessage(Header_, headerlessMessage);
+    }
+
+    if (StreamingEnabled_) {
+        THROW_ERROR_EXCEPTION("Retries are not supported for requests with streaming");
+    }
+
+    auto patchedHeader = Header_;
+    patchedHeader.set_retry(true);
+    return CreateRequestMessage(patchedHeader, headerlessMessage);
 }
 
 IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
@@ -262,15 +267,13 @@ void TClientRequest::SetMutationId(TMutationId id)
 
 size_t TClientRequest::GetHash() const
 {
-    if (!Hash_) {
-        size_t hash = 0;
-        auto serializedData = GetSerializedData();
-        for (auto ref : serializedData) {
-            HashCombine(hash, GetChecksum(ref));
-        }
-        Hash_ = hash;
+    auto hash = Hash_.load(std::memory_order_relaxed);
+    if (hash == UnknownHash) {
+        hash = ComputeHash();
+        auto oldHash = Hash_.exchange(hash);
+        YT_VERIFY(oldHash == UnknownHash || oldHash == hash);
     }
-    return *Hash_;
+    return hash;
 }
 
 EMultiplexingBand TClientRequest::GetMultiplexingBand() const
@@ -282,6 +285,15 @@ void TClientRequest::SetMultiplexingBand(EMultiplexingBand band)
 {
     MultiplexingBand_ = band;
     Header_.set_tos_level(TDispatcher::Get()->GetTosLevelForBand(band, Channel_->GetNetworkId()));
+}
+
+size_t TClientRequest::ComputeHash() const
+{
+    size_t hash = 0;
+    for (const auto& part : GetHeaderlessMessage()) {
+        HashCombine(hash, GetChecksum(part));
+    }
+    return hash;
 }
 
 TClientContextPtr TClientRequest::CreateClientContext()
@@ -407,6 +419,16 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContextPtr& traceContext
 
 void TClientRequest::PrepareHeader()
 {
+    if (HeaderPrepared_.load()) {
+        return;
+    }
+
+    auto guard = Guard(HeaderPreparationLock_);
+
+    if (HeaderPrepared_.load()) {
+        return;
+    }
+
     // COMPAT(kiselyovp): legacy RPC codecs
     if (!EnableLegacyRpcCodecs_) {
         Header_.set_request_codec(ToProto<int>(RequestCodec_));
@@ -424,14 +446,21 @@ void TClientRequest::PrepareHeader()
     if (UserTag_ && UserTag_ != Header_.user()) {
         Header_.set_user_tag(UserTag_);
     }
+
+    HeaderPrepared_.store(true);
 }
 
-const TSharedRefArray& TClientRequest::GetSerializedData() const
+TSharedRefArray TClientRequest::GetHeaderlessMessage() const
 {
-    if (!SerializedData_) {
-        SerializedData_ = SerializeData();
+    if (SerializedHeaderlessMessageSet_.load()) {
+        return SerializedHeaderlessMessage_;
     }
-    return SerializedData_;
+    auto message = SerializeHeaderless();
+    if (!SerializedHeaderlessMessageLatch_.exchange(true)) {
+        SerializedHeaderlessMessage_ = message;
+        SerializedHeaderlessMessageSet_.store(true);
+    }
+    return message;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

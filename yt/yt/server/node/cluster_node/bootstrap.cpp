@@ -141,7 +141,6 @@
 #include <yt/core/rpc/bus/server.h>
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/channel.h>
-#include <yt/core/rpc/redirector_service.h>
 #include <yt/core/rpc/server.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>

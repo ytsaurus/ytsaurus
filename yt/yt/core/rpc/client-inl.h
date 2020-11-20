@@ -82,24 +82,24 @@ TFuture<typename TResponse::TResult> TTypedClientRequest<TRequestMessage, TRespo
 }
 
 template <class TRequestMessage, class TResponse>
-TSharedRefArray TTypedClientRequest<TRequestMessage, TResponse>::SerializeData() const
+TSharedRefArray TTypedClientRequest<TRequestMessage, TResponse>::SerializeHeaderless() const
 {
-    SmallVector<TSharedRef, TypicalMessagePartCount> parts;
-    parts.reserve(Attachments().size() + 1);
+    TSharedRefArrayBuilder builder(Attachments().size() + 1);
 
     // COMPAT(kiselyovp): legacy RPC codecs
-    auto serializedBody = EnableLegacyRpcCodecs_
+    builder.Add(EnableLegacyRpcCodecs_
         ? SerializeProtoToRefWithEnvelope(*this, RequestCodec_, false)
-        : SerializeProtoToRefWithCompression(*this, RequestCodec_, false);
-    parts.push_back(std::move(serializedBody));
+        : SerializeProtoToRefWithCompression(*this, RequestCodec_, false));
 
     auto attachmentCodecId = EnableLegacyRpcCodecs_
         ? NCompression::ECodec::None
         : RequestCodec_;
     auto compressedAttachments = CompressAttachments(Attachments(), attachmentCodecId);
-    parts.insert(parts.end(), compressedAttachments.begin(), compressedAttachments.end());
+    for (auto&& attachment : compressedAttachments) {
+        builder.Add(std::move(attachment));
+    }
 
-    return TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{});
+    return builder.Finish();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
