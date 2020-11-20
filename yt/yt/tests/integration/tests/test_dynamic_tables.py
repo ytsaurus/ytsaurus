@@ -677,6 +677,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert not exists("//tmp/t1/@profiling_tag")
 
     @authors("akozhikhov")
+    @flaky(max_runs=5)
     def test_profiling_mode_inheritance(self):
         sync_create_cells(1)
         set("//tmp/@profiling_mode", "tag")
