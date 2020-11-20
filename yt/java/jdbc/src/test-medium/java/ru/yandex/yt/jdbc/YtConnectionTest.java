@@ -24,8 +24,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
@@ -39,9 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 // Самый простой тест
 class YtConnectionTest {
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(YtConnectionTest.class);
-
     // Нужно для того, чтобы не закрывалось подключение к RPC YT (оно останется открытым, пока есть
     // хотя бы одно JDBC подключение)
     private static String url;
@@ -55,7 +50,6 @@ class YtConnectionTest {
     private static ObjectWriter writer;
 
     private Connection connection;
-    private YTreeObjectSerializer<MappedObject> serializer;
 
     @BeforeAll
     static void initYtConnection() throws SQLException {

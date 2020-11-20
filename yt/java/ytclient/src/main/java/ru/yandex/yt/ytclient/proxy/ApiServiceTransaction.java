@@ -105,7 +105,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         this.pingPeriod = pingPeriod;
         this.executor = executor;
 
-        if (ping && ! pingPeriod.isZero() && ! pingPeriod.isNegative()) {
+        if (pingPeriod != null && !pingPeriod.isZero() && !pingPeriod.isNegative()) {
             executor.schedule(this::runPeriodicPings, pingPeriod.toMillis(), TimeUnit.MILLISECONDS);
         }
     }

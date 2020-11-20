@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -170,6 +169,7 @@ import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
+import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
@@ -229,69 +229,50 @@ public class ApiServiceClient extends TransactionalClient {
         return service;
     }
 
-    public CompletableFuture<ApiServiceTransaction> startTransaction(ApiServiceTransactionOptions options) {
+    /**
+     * Start new master or tablet transaction.
+     * @see StartTransaction
+     */
+    public CompletableFuture<ApiServiceTransaction> startTransaction(StartTransaction startTransaction) {
         RpcClientRequestBuilder<TReqStartTransaction.Builder, RpcClientResponse<TRspStartTransaction>> builder =
                 service.startTransaction();
-        builder.body().setType(options.getType());
-        Duration timeout = options.getTimeout();
-        if (timeout != null) {
-            builder.body().setTimeout(ApiServiceUtil.durationToYtMicros(timeout));
-        }
-        Instant deadline = options.getDeadline();
-        if (deadline != null) {
-            builder.body().setDeadline(deadline.toEpochMilli());
-        }
-        if (options.getId() != null && !options.getId().isEmpty()) {
-            builder.body().setId(RpcUtil.toProto(options.getId()));
-        }
-        if (options.getParentId() != null && !options.getParentId().isEmpty()) {
-            builder.body().setParentId(RpcUtil.toProto(options.getParentId()));
-        }
-        if (options.getAutoAbort() != null) {
-            builder.body().setAutoAbort(options.getAutoAbort());
-        }
-        if (options.getPing() != null) {
-            builder.body().setPing(options.getPing());
-        }
-        if (options.getPingAncestors() != null) {
-            builder.body().setPingAncestors(options.getPingAncestors());
-        }
-        if (options.getSticky() != null) {
-            builder.body().setSticky(options.getSticky());
-        }
-        if (options.getAtomicity() != null) {
-            builder.body().setAtomicity(options.getAtomicity());
-        }
-        if (options.getDurability() != null) {
-            builder.body().setDurability(options.getDurability());
-        }
-        if (options.getPrerequisiteTransactionIds() != null) {
-            // builder.body().setPrerequisiteTransactionIds(options.getPrerequisiteTransactionIds());
-            throw new RuntimeException("prerequisite_transaction_ids is not supported in RPC proxy API yet");
-        }
-        final boolean ping = builder.body().getPing();
-        final boolean pingAncestors = builder.body().getPingAncestors();
-        final boolean sticky = builder.body().getSticky();
-        final Duration pingPeriod = options.getPingPeriod();
-
-        return RpcUtil.apply(invoke(builder), response -> {
+        return RpcUtil.apply(sendRequest(startTransaction, builder), response -> {
             GUID id = RpcUtil.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
             RpcClient sender = response.sender();
             ApiServiceTransaction result;
             if (rpcClient != null && rpcClient.equals(sender)) {
-                result = new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod,
+                result = new ApiServiceTransaction(
+                        this,
+                        id,
+                        startTimestamp,
+                        startTransaction.getPing(),
+                        startTransaction.getPingAncestors(),
+                        startTransaction.getSticky(),
+                        startTransaction.getPingPeriod().orElse(null),
                         sender.executor());
             } else {
-                result = new ApiServiceTransaction(sender, rpcOptions, id, startTimestamp, ping, pingAncestors, sticky,
-                        pingPeriod, sender.executor());
+                result = new ApiServiceTransaction(
+                        sender,
+                        rpcOptions,
+                        id,
+                        startTimestamp,
+                        startTransaction.getPing(),
+                        startTransaction.getPingAncestors(),
+                        startTransaction.getSticky(),
+                        startTransaction.getPingPeriod().orElse(null),
+                        sender.executor());
             }
 
             sender.ref();
             result.getTransactionCompleteFuture().whenComplete((ignored, ex) -> sender.unref());
-
+            logger.debug("New transaction {} has started by {}", id, builder);
             return result;
         });
+    }
+
+    public CompletableFuture<ApiServiceTransaction> startTransaction(ApiServiceTransactionOptions options) {
+        return startTransaction(options.toStartTransaction());
     }
 
     public CompletableFuture<Void> pingTransaction(GUID id, boolean sticky) {
