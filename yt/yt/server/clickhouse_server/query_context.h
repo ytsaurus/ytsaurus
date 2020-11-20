@@ -95,8 +95,6 @@ public:
     TStorageContext* GetOrRegisterStorageContext(const DB::IStorage* storage, const DB::Context& context);
 
 private:
-    NTracing::TTraceContextGuard TraceContextGuard_;
-
     TInstant StartTime_;
 
     mutable TAdaptiveLock PhaseLock_;

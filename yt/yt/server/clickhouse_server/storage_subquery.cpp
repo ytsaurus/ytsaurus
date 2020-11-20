@@ -14,10 +14,11 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace NConcurrency;
 using namespace NChunkClient;
-using namespace NTableClient;
+using namespace NConcurrency;
 using namespace NLogging;
+using namespace NTableClient;
+using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +64,8 @@ public:
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
     {
+        TTraceContextGuard guard(QueryContext_->TraceContext);
+
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
         StorageContext_ = QueryContext_->GetOrRegisterStorageContext(this, context);
 

@@ -144,6 +144,11 @@ public:
 
             auto* traceContext = GetCurrentTraceContext();
             YT_VERIFY(traceContext);
+            traceContext->AddTag("user", User_);
+            traceContext->AddTag("clique_id", ToString(OperationId_));
+            if (OperationAlias_) {
+                traceContext->AddTag("clique_alias", *OperationAlias_);
+            }
 
             if (isDatalens) {
                 if (auto tracingOverride = Config_->DatalensTracingOverride) {
@@ -479,7 +484,7 @@ private:
         try {
             auto cookie = DiscoveryCache_->BeginInsert(OperationId_);
             if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Clique cache missed (CliqueIdOrAlias: %v)", OperationId_);
+                YT_LOG_DEBUG("Clique cache missed (CliqueId: %v)", OperationId_);
 
                 TString path = Config_->DiscoveryPath + "/" + ToString(OperationId_);
                 NApi::TGetNodeOptions options;

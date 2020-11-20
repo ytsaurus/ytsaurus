@@ -62,7 +62,6 @@ TQueryContext::TQueryContext(
     , Host(host)
     , DataLensRequestId(std::move(dataLensRequestId))
     , RowBuffer(New<NTableClient::TRowBuffer>())
-    , TraceContextGuard_(TraceContext)
 {
     Logger.AddTag("QueryId: %v", QueryId);
     if (DataLensRequestId) {

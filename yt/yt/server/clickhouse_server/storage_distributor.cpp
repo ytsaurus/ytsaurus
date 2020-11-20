@@ -216,6 +216,8 @@ public:
     {
         YT_LOG_DEBUG("Preparing distribution (QueryAST: %v)", *QueryInfo_.query, static_cast<void*>(this));
 
+        NTracing::TChildTraceContextGuard guard("ClickHouseYt.Prepare");
+
         if (StorageContext_->Settings->ThrowTestingExceptionInDistributor) {
             THROW_ERROR_EXCEPTION("Testing exception in distributor")
                 << TErrorAttribute("storage_index", StorageContext_->Index);
@@ -340,7 +342,6 @@ public:
         const std::vector<std::string>& columnNames,
         const DB::Context& context)
     {
-        NTracing::TChildTraceContextGuard guard("ClickHouseYt.Prepare", /* forceTracing */ true);
         NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", ToString(subqueryCount));
         NTracing::GetCurrentTraceContext()->AddTag("chyt.column_names", Format("%v", MakeFormattableView(columnNames, TDefaultFormatter())));
 
@@ -416,9 +417,11 @@ public:
             QueryContext_->Host->GetConfig()->Subquery);
 
         size_t totalInputDataWeight = 0;
+        size_t totalChunkCount = 0;
 
         for (const auto& subquery : Subqueries_) {
             totalInputDataWeight += subquery.StripeList->TotalDataWeight;
+            totalChunkCount += subquery.StripeList->TotalChunkCount;
         }
 
         for (const auto& subquery : Subqueries_) {
@@ -434,6 +437,7 @@ public:
         }
 
         NTracing::GetCurrentTraceContext()->AddTag("chyt.total_input_data_weight", ToString(totalInputDataWeight));
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.total_chunk_count", ToString(totalChunkCount));
     }
 
 private:
@@ -476,6 +480,8 @@ public:
 
     virtual void startup() override
     {
+        TTraceContextGuard guard(QueryContext_->TraceContext);
+
         YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
         if (Schema_->GetColumnCount() == 0) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
@@ -554,6 +560,8 @@ public:
         size_t /* maxBlockSize */,
         unsigned /* numStreams */) override
     {
+        TTraceContextGuard guard(QueryContext_->TraceContext);
+
         auto* queryContext = GetQueryContext(context);
         auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
 
@@ -570,7 +578,7 @@ public:
 
     virtual DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::StorageMetadataPtr& /*metadata_snapshot*/, const DB::Context& /* context */) override
     {
-        // Set append if it is not set.
+        TTraceContextGuard guard(QueryContext_->TraceContext);
 
         if (Tables_.size() != 1) {
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
@@ -586,6 +594,7 @@ public:
                 QueryContext_->Client(),
                 QueryContext_->Logger);
         } else {
+            // Set append if it is not set.
             path.SetAppend(path.GetAppend(true /* defaultValue */));
             return CreateStaticTableBlockOutputStream(
                 path,
@@ -622,6 +631,8 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     auto* queryContext = GetQueryContext(args.local_context);
     const auto& client = queryContext->Client();
     const auto& Logger = queryContext->Logger;
+
+    TTraceContextGuard guard(queryContext->TraceContext);
 
     TKeyColumns keyColumns;
 

@@ -155,7 +155,6 @@ DB::Block TBlockInputStream::getHeader() const
 void TBlockInputStream::readPrefixImpl()
 {
     TTraceContextGuard guard(TraceContext_);
-    TraceContext_ = GetCurrentTraceContext();
     YT_LOG_DEBUG("readPrefixImpl() is called");
 
     IdleTimer_.Start();
@@ -176,8 +175,9 @@ void TBlockInputStream::readSuffixImpl()
         ReadCount_);
 
     if (TraceContext_) {
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.data_statistics", ToString(Reader_->GetDataStatistics()));
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.codec_statistics", ToString(Reader_->GetDecompressionStatistics()));
+        TraceContext_->AddTag("chyt.reader.data_statistics", ToString(Reader_->GetDataStatistics()));
+        TraceContext_->AddTag("chyt.reader.codec_statistics", ToString(Reader_->GetDecompressionStatistics()));
+        TraceContext_->AddTag("chyt.reader.idle_time", ToString(IdleTimer_.GetElapsedTime()));
         TraceContext_->Finish();
     }
 }
