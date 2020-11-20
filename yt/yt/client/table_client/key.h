@@ -35,7 +35,7 @@ private:
 
     const TUnversionedValue* Begin_;
 
-    const int Length_;
+    int Length_;
 
     static void ValidateValueTypes(
         const TUnversionedValue* begin,

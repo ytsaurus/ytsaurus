@@ -1006,7 +1006,7 @@ public:
         , Options_(std::move(options))
         , NameTable_(std::move(nameTable))
         , Schema_(std::move(schema))
-        , LastKey_(std::move(lastKey))
+        , LastKeyHolder_(std::move(lastKey))
     {
         if (Options_->EvaluateComputedColumns) {
             ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
@@ -1014,6 +1014,17 @@ public:
 
         if (Options_->EnableSkynetSharing) {
             SkynetColumnEvaluator_ = New<TSkynetColumnEvaluator>(*Schema_);
+        }
+
+        if (LastKeyHolder_) {
+            LastKey_ = TKey::FromRow(LastKeyHolder_);
+        }
+
+        if (Options_->TableSchema) {
+            ValidateKeyColumnCount(
+                Options_->TableSchema->GetKeyColumnCount(),
+                Schema_->GetKeyColumnCount(),
+                Options_->TableSchema->IsUniqueKeys());
         }
     }
 
@@ -1132,13 +1143,16 @@ protected:
             result.push_back(mutableRow);
         }
 
-        ValidateSortAndUnique(result);
+        ValidateSortOrderAndUniqueness(result);
         return result;
     }
 
 private:
     TUnversionedOwningRowBuilder KeyBuilder_;
-    TLegacyOwningKey LastKey_;
+    TUnversionedOwningRow LastKeyHolder_;
+    std::optional<TKey> LastKey_;
+
+    bool IsFirstRow_ = true;
 
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemalessChunkWriterTag());
 
@@ -1173,8 +1187,8 @@ private:
         }
 
         THROW_ERROR_EXCEPTION("Too many columns in row")
-                << TErrorAttribute("column_count", columnCount)
-                << TErrorAttribute("max_column_count", MaxColumnId);
+            << TErrorAttribute("column_count", columnCount)
+            << TErrorAttribute("max_column_count", MaxColumnId);
     }
 
     void ValidateDuplicateIds(TUnversionedRow row)
@@ -1199,74 +1213,102 @@ private:
         }
     }
 
-    void ValidateSortAndUnique(const std::vector<TUnversionedRow>& rows)
+    void ValidateSortOrderAndUniqueness(const std::vector<TUnversionedRow>& rows)
     {
         if (!Options_->ValidateSorted || rows.empty()) {
             return;
         }
 
-        if (Schema_->IsSorted() || Options_->TableKeyColumnCount) {
-            auto tableKeyColumnCount = Options_->TableKeyColumnCount.value_or(Schema_->GetKeyColumnCount());
-            auto tableUniqueKeys = Options_->TableUniqueKeys.value_or(Schema_->IsUniqueKeys());
-            ValidateSortOrder(LastKey_.Get(), rows.front(), tableKeyColumnCount, tableUniqueKeys);
+        // Table schema and chunk schema might differ, but table schema is never stricter
+        // than chunk schema. Rows order and uniqueness inside chunk is validated according to
+        // chunk schema however last row of some chunk and first row of next chunk are validated
+        // according to table schema.
+        if (LastKey_ && IsFirstRow_) {
+            auto tableSchema = Options_->TableSchema;
+            // If table schema is not defined explicitly, chunk schema is used instead.
+            if (!tableSchema) {
+                tableSchema = Schema_;
+            }
 
+            if (tableSchema->IsSorted()) {
+                auto firstKey = TKey::FromRow(rows.front(), tableSchema->GetKeyColumnCount());
+                ValidateSortOrderAndUniqueness(
+                    *LastKey_,
+                    firstKey,
+                    tableSchema->ToComparator(),
+                    tableSchema->IsUniqueKeys());
+            }
+        } else if (LastKey_) {
+            YT_VERIFY(!IsFirstRow_);
             if (Schema_->IsSorted()) {
-                auto chunkKeyColumnCount = Schema_->GetKeyColumnCount();
-                auto chunkUniqueKeys = Schema_->IsUniqueKeys();
-
-                ValidateKeyColumnCount(tableKeyColumnCount, chunkKeyColumnCount, tableUniqueKeys);
-
-                for (int rowIndex = 1; rowIndex < rows.size(); ++rowIndex) {
-                    ValidateSortOrder(rows[rowIndex - 1], rows[rowIndex], chunkKeyColumnCount, chunkUniqueKeys);
-                }
-
-                const auto& lastKey = rows.back();
-                for (int keyColumnIndex = 0; keyColumnIndex < Schema_->GetKeyColumnCount(); ++keyColumnIndex) {
-                    KeyBuilder_.AddValue(lastKey[keyColumnIndex]);
-                }
-                LastKey_ = KeyBuilder_.FinishRow();
+                auto firstKey = TKey::FromRow(rows.front(), Schema_->GetKeyColumnCount());
+                ValidateSortOrderAndUniqueness(
+                    *LastKey_,
+                    firstKey,
+                    Schema_->ToComparator(),
+                    Schema_->IsUniqueKeys());
             }
         }
+
+        if (Schema_->IsSorted()) {
+            for (int rowIndex = 0; rowIndex + 1 < rows.size(); ++rowIndex) {
+                auto currentKey = TKey::FromRow(rows[rowIndex], Schema_->GetKeyColumnCount());
+                auto nextKey = TKey::FromRow(rows[rowIndex + 1], Schema_->GetKeyColumnCount());
+                ValidateSortOrderAndUniqueness(
+                    currentKey,
+                    nextKey,
+                    Schema_->ToComparator(),
+                    Schema_->IsUniqueKeys());
+            }
+
+            const auto& lastKey = rows.back();
+            for (int keyColumnIndex = 0; keyColumnIndex < Schema_->GetKeyColumnCount(); ++keyColumnIndex) {
+                KeyBuilder_.AddValue(lastKey[keyColumnIndex]);
+            }
+            LastKeyHolder_ = KeyBuilder_.FinishRow();
+            LastKey_ = TKey::FromRow(LastKeyHolder_);
+        }
+
+        IsFirstRow_ = false;
     }
 
-    void ValidateSortOrder(
-        TUnversionedRow lhs,
-        TUnversionedRow rhs,
-        int keyColumnCount,
+    void ValidateSortOrderAndUniqueness(
+        TKey currentKey,
+        TKey nextKey,
+        const TComparator& comparator,
         bool checkKeysUniqueness)
     {
-        int cmp = CompareRows(lhs, rhs, keyColumnCount);
-        if (cmp < 0) {
+        int comparisonResult = comparator.CompareKeys(currentKey, nextKey);
+
+        if (comparisonResult < 0) {
             return;
         }
 
-        if (cmp == 0 && (!checkKeysUniqueness || !Options_->ValidateUniqueKeys)) {
+        checkKeysUniqueness &= Options_->ValidateUniqueKeys;
+        if (comparisonResult == 0 && !checkKeysUniqueness) {
             return;
         }
 
-        // Output error.
-        TUnversionedOwningRowBuilder leftBuilder, rightBuilder;
-        for (int keyColumnIndex = 0; keyColumnIndex < keyColumnCount; ++keyColumnIndex) {
-            leftBuilder.AddValue(lhs[keyColumnIndex]);
-            rightBuilder.AddValue(rhs[keyColumnIndex]);
-        }
-
-        if (cmp == 0) {
-            THROW_ERROR_EXCEPTION(
+        TError error;
+        if (comparisonResult == 0) {
+            YT_VERIFY(checkKeysUniqueness);
+            error = TError(
                 EErrorCode::UniqueKeyViolation,
                 "Duplicate key %v",
-                leftBuilder.FinishRow().Get());
+                currentKey);
         } else {
-            auto error = TError(
+            error = TError(
                 EErrorCode::SortOrderViolation,
-                "Sort order violation %v > %v",
-                leftBuilder.FinishRow().Get(),
-                rightBuilder.FinishRow().Get());
-
-            YT_LOG_FATAL_IF(Options_->ExplodeOnValidationError, error);
-
-            THROW_ERROR_EXCEPTION(error);
+                "Sort order violation: %v > %v",
+                currentKey,
+                nextKey);
         }
+
+        if (Options_->ExplodeOnValidationError) {
+            YT_LOG_FATAL(error);
+        }
+
+        THROW_ERROR_EXCEPTION(error);
     }
 };
 
@@ -2150,8 +2192,7 @@ private:
 
             Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;
             Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema->HasComputedColumns();
-            Options_->TableKeyColumnCount = GetSchema()->GetKeyColumnCount();
-            Options_->TableUniqueKeys = GetSchema()->IsUniqueKeys();
+            Options_->TableSchema = GetSchema();
 
             auto chunkWriterConfig = attributes.FindYson("chunk_writer");
             if (chunkWriterConfig) {
