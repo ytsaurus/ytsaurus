@@ -105,6 +105,23 @@ class TestMasterCellAddition(YTEnvSetup):
     def _do_for_cell(self, cell_index, callback):
         return callback(get_driver(cell_index))
 
+    def check_media(self):
+        create_medium("ssd")
+        create_account("a")
+        set("//sys/accounts/a/@resource_limits/disk_space_per_medium/ssd", 42)
+
+        yield
+
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: exists("//sys/media/ssd", driver=driver))
+        assert exists("//sys/media/ssd")
+
+        assert_true_for_secondary_cells(
+            self.Env,
+            lambda driver: get("//sys/accounts/a/@resource_limits/disk_space_per_medium/ssd", driver=driver)) == 42
+        assert get("//sys/accounts/a/@resource_limits/disk_space_per_medium/ssd") == 42
+
     def check_accounts(self):
         create_account("acc_sync_create")
 
@@ -193,18 +210,19 @@ class TestMasterCellAddition(YTEnvSetup):
     def check_transactions(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 2})
         tx = start_transaction(timeout=120000)
-        table_id = create("table", "//tmp/p1/t", tx=tx)  # replicate tx to cell 2
+        create("table", "//tmp/p1/t", tx=tx)  # replicate tx to cell 2
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [2]
 
         yield
 
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 3})
-        table_id = create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 3
+        create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 3
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [2, 3]
 
     @authors("shakurov")
     def test_add_new_cell(self):
         CHECKER_LIST = [
+            self.check_media,
             self.check_accounts,
             self.check_sys_masters_node,
             self.check_transactions,
