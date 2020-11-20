@@ -1130,14 +1130,62 @@ class TestPortals(YTEnvSetup):
     @authors("shakurov")
     def test_link_not_externalizable(self):
         create("map_node", "//tmp/m")
-        create("link", "//tmp/l", attributes={"target_path": "//tmp/m"})
+        link("//tmp/m", "//tmp/l")
         with pytest.raises(YtError):
             externalize("//tmp/l", 1)
 
     @authors("shakurov")
+    def test_link_not_internalizable(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        link("//tmp/p", "//tmp/l")
+        with pytest.raises(YtError):
+            internalize("//tmp/l")
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("remove_source", [False, True])
+    def test_cross_shard_copy_link1(self, remove_source):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/p/t", attributes={"external_cell_tag": 2})
+        link("//tmp/p/t", "//tmp/l1")
+        link("//tmp/p/t", "//tmp/p/l2")
+
+        copier = move if remove_source else copy
+
+        with pytest.raises(YtError):
+            copier("//tmp/l1", "//tmp/l1_copy")
+
+        copier("//tmp/p/l2", "//tmp/l2_copy")
+
+        get("//tmp/l2_copy&/@type") == "table"
+        assert exists("//tmp/p/t&") == (not remove_source)
+        assert get("//tmp/p/l2&/@target_path") == "//tmp/p/t"
+        assert get("//tmp/p/l2&/@broken") == remove_source
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("remove_source", [False, True])
+    def test_cross_shard_copy_link2(self, remove_source):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
+        link("//tmp/t", "//tmp/l1")
+        link("//tmp/t", "//tmp/p/l2")
+
+        copier = move if remove_source else copy
+
+        copier("//tmp/l1", "//tmp/p/l1_copy")
+
+        assert get("//tmp/p/l1_copy&/@type") == "table"
+
+        assert exists("//tmp/t&") == (not remove_source)
+        assert get("//tmp/l1&/@target_path") == "//tmp/t"
+        assert get("//tmp/l1&/@broken") == remove_source
+
+        with pytest.raises(YtError):
+            copier("//tmp/p/l2", "//tmp/p/l2_copy")
+
+    @authors("shakurov")
     def test_link_to_portal_not_broken(self):
         create("map_node", "//tmp/m")
-        create("link", "//tmp/l", attributes={"target_path": "//tmp/m"})
+        link("//tmp/m", "//tmp/l")
 
         externalize("//tmp/m", 1)
 
