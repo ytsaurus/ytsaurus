@@ -130,7 +130,7 @@ struct TExecAttributes
     int SlotIndex = -1;
 
     //! Job container IP addresses.
-    //! If empty, job is not using network isolation and its IPs
+    //! If job is not using network isolation its IPs
     //! coincide with node's IPs.
     std::vector<TString> IPAddresses;
 
