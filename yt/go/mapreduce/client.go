@@ -96,7 +96,12 @@ func (mr *client) doUploadSelf(ctx context.Context) error {
 		return nil
 	}
 
-	exe, err := os.Open("/proc/self/exe")
+	exePath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	exe, err := os.Open(exePath)
 	if err != nil {
 		return err
 	}
