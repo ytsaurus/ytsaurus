@@ -566,6 +566,11 @@ private:
                 transactionId,
                 EObjectType::EstimatedCreationTimeMap);
 
+            ScheduleCreateNode(
+                "//sys/ql_pools",
+                transactionId,
+                EObjectType::MapNode);
+
             FlushScheduled();
 
             // Level 3

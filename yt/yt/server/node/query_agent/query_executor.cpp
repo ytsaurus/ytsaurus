@@ -39,8 +39,6 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/object_client/object_service_proxy.h>
-
 #include <yt/client/query_client/query_statistics.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
@@ -74,15 +72,10 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/chunked_memory_pool.h>
-#include <yt/core/misc/async_expiring_cache.h>
 
 #include <yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NQueryClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-static constexpr double DefaultQLPoolWeight = 1.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -288,16 +281,16 @@ public:
     TQueryExecution(
         TQueryAgentConfigPtr config,
         TFunctionImplCachePtr functionImplCache,
-        TBootstrap* const bootstrap,
+        TBootstrap* bootstrap,
         TColumnEvaluatorCachePtr columnEvaluatorCache,
         TEvaluatorPtr evaluator,
         TConstQueryPtr query,
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         IUnversionedRowsetWriterPtr writer,
+        IInvokerPtr invoker,
         const TClientBlockReadOptions& blockReadOptions,
-        const TQueryOptions& options,
-        IInvokerPtr invoker)
+        const TQueryOptions& queryOptions)
         : Config_(std::move(config))
         , FunctionImplCache_(std::move(functionImplCache))
         , Bootstrap_(bootstrap)
@@ -307,11 +300,11 @@ public:
         , ExternalCGInfo_(std::move(externalCGInfo))
         , DataSources_(std::move(dataSources))
         , Writer_(std::move(writer))
-        , Options_(std::move(options))
+        , Invoker_(std::move(invoker))
+        , QueryOptions_(std::move(queryOptions))
         , BlockReadOptions_(blockReadOptions)
         , Logger(MakeQueryLogger(Query_))
         , TabletSnapshots_(Bootstrap_->GetTabletSlotManager(), Logger)
-        , Invoker_(std::move(invoker))
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
     { }
 
@@ -322,8 +315,8 @@ public:
                 TabletSnapshots_.ValidateAndRegisterTabletSnapshot(
                     source.Id,
                     source.MountRevision,
-                    Options_.Timestamp,
-                    Options_.SuppressAccessTracking);
+                    QueryOptions_.Timestamp,
+                    QueryOptions_.SuppressAccessTracking);
             } else {
                 THROW_ERROR_EXCEPTION("Unsupported data split type %Qlv",
                     TypeFromId(source.Id));
@@ -353,13 +346,13 @@ private:
     const std::vector<TDataRanges> DataSources_;
     const IUnversionedRowsetWriterPtr Writer_;
 
-    const TQueryOptions Options_;
+    const IInvokerPtr Invoker_;
+    const TQueryOptions QueryOptions_;
     const TClientBlockReadOptions BlockReadOptions_;
 
     const NLogging::TLogger Logger;
 
     TTabletSnapshotCache TabletSnapshots_;
-    const IInvokerPtr Invoker_;
 
     const NRpc::TAuthenticationIdentity Identity_;
 
@@ -367,7 +360,7 @@ private:
 
     void LogSplits(const std::vector<TDataRanges>& splits)
     {
-        if (Options_.VerboseLogging) {
+        if (QueryOptions_.VerboseLogging) {
             for (const auto& split : splits) {
                 YT_LOG_DEBUG("Ranges in split %v: %v",
                     split.Id,
@@ -420,7 +413,7 @@ private:
                     this,
                     this_ = MakeStrong(this)
                 ] (const TQueryPtr& subquery, const TConstJoinClausePtr& joinClause) -> TJoinSubqueryEvaluator {
-                    auto remoteOptions = Options_;
+                    auto remoteOptions = QueryOptions_;
                     remoteOptions.MaxSubqueries = 1;
 
                     size_t minKeyWidth = std::numeric_limits<size_t>::max();
@@ -467,7 +460,7 @@ private:
 
                                 prefixRanges.emplace_back(lowerBound, upperBound);
 
-                                YT_LOG_DEBUG_IF(Options_.VerboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
+                                YT_LOG_DEBUG_IF(QueryOptions_.VerboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
                                     range.first,
                                     range.second,
                                     lowerBound,
@@ -595,7 +588,7 @@ private:
                         foreignProfileCallback,
                         functionGenerators,
                         aggregateGenerators,
-                        Options_);
+                        QueryOptions_);
 
                 asyncStatistics = asyncStatistics.Apply(BIND([
                     =,
@@ -634,7 +627,7 @@ private:
                     nullptr,
                     functionGenerators,
                     aggregateGenerators,
-                    Options_);
+                    QueryOptions_);
                 YT_LOG_DEBUG("Finished evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return result;
             });
@@ -860,7 +853,7 @@ private:
         };
 
         int splitCount = splits.size();
-        auto maxSubqueries = std::min({Options_.MaxSubqueries, Config_->MaxSubqueries, splitCount});
+        auto maxSubqueries = std::min({QueryOptions_.MaxSubqueries, Config_->MaxSubqueries, splitCount});
         int splitOffset = 0;
         int queryIndex = 1;
         int nextSplitOffset = queryIndex * splitCount / maxSubqueries;
@@ -922,7 +915,7 @@ private:
                 ranges,
                 rowBuffer,
                 Config_->MaxSubsplitsPerTablet,
-                Options_.VerboseLogging,
+                QueryOptions_.VerboseLogging,
                 Logger);
 
             for (const auto& split : splits) {
@@ -991,7 +984,7 @@ private:
                     columnFilter,
                     lowerBound,
                     upperBound,
-                    Options_.Timestamp,
+                    QueryOptions_.Timestamp,
                     BlockReadOptions_);
             };
 
@@ -1001,7 +994,7 @@ private:
                 std::move(tabletSnapshot),
                 columnFilter,
                 bounds,
-                Options_.Timestamp,
+                QueryOptions_.Timestamp,
                 BlockReadOptions_);
         }
 
@@ -1021,73 +1014,12 @@ private:
             std::move(tabletSnapshot),
             columnFilter,
             keys,
-            Options_.Timestamp,
+            QueryOptions_.Timestamp,
             BlockReadOptions_);
 
         return New<TProfilingReaderWrapper>(reader, *tableProfiler->GetSelectReadCounters(userTag));
     }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
-
-class TPoolWeightCache
-    : public TAsyncExpiringCache<TString, double>
-{
-public:
-    TPoolWeightCache(
-        TAsyncExpiringCacheConfigPtr config,
-        TWeakPtr<NApi::NNative::IClient> client,
-        IInvokerPtr invoker)
-        : TAsyncExpiringCache(
-            std::move(config),
-            NLogging::TLogger(QueryClientLogger)
-                .AddTag("Cache: PoolWeight"))
-        , Client_(std::move(client))
-        , Invoker_(std::move(invoker))
-    { }
-
-private:
-    const TWeakPtr<NApi::NNative::IClient> Client_;
-    const IInvokerPtr Invoker_;
-
-    virtual TFuture<double> DoGet(
-        const TString& key,
-        bool /*isPeriodicUpdate*/) noexcept override
-    {
-        auto client = Client_.Lock();
-        if (!client) {
-            return MakeFuture<double>(TError(NYT::EErrorCode::Canceled, "Client destroyed"));
-        }
-        return BIND(GetPoolWeight, std::move(client), key)
-            .AsyncVia(Invoker_)
-            .Run();
-    }
-
-    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& pool)
-    {
-        auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(pool);
-
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Cache));
-        auto req = TYPathProxy::Get(path + "/@weight");
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return DefaultQLPoolWeight;
-        }
-
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            rspOrError,
-            "Failed to get pool %Qv weight from Cypress",
-            pool);
-
-        const auto& rsp = rspOrError.Value();
-        return ConvertTo<double>(NYson::TYsonString(rsp->value()));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1113,10 +1045,6 @@ public:
             ->GetMasterClient()
             ->GetNativeConnection()
             ->GetColumnEvaluatorCache())
-        , PoolWeightCache_(New<TPoolWeightCache>(
-            config->PoolWeightCache,
-            Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetQueryPoolInvoker({}, DefaultQLPoolWeight, {})))
     { }
 
     // IQuerySubexecutor implementation.
@@ -1125,23 +1053,14 @@ public:
         TConstExternalCGInfoPtr externalCGInfo,
         std::vector<TDataRanges> dataSources,
         IUnversionedRowsetWriterPtr writer,
+        IInvokerPtr invoker,
         const TClientBlockReadOptions& blockReadOptions,
-        const TQueryOptions& options,
+        const TQueryOptions& queryOptions,
         TServiceProfilerGuard& profilerGuard) override
     {
-        ValidateReadTimestamp(options.Timestamp);
+        ValidateReadTimestamp(queryOptions.Timestamp);
 
-        double weight = options.ExecutionPool
-            ? WaitFor(PoolWeightCache_->Get(*options.ExecutionPool))
-                .ValueOrThrow()
-            : DefaultQLPoolWeight;
-
-        auto queryInvoker = Bootstrap_->GetQueryPoolInvoker(
-            options.ExecutionPool.value_or(""),
-            weight,
-            ToString(options.ReadSessionId));
-
-        auto execution = New<TQueryExecution>(
+        return New<TQueryExecution>(
             Config_,
             FunctionImplCache_,
             Bootstrap_,
@@ -1151,11 +1070,10 @@ public:
             std::move(externalCGInfo),
             std::move(dataSources),
             std::move(writer),
+            std::move(invoker),
             blockReadOptions,
-            options,
-            queryInvoker);
-
-        return execution->Execute(profilerGuard);
+            queryOptions)
+            ->Execute(profilerGuard);
     }
 
 private:
@@ -1164,8 +1082,6 @@ private:
     TBootstrap* const Bootstrap_;
     const TEvaluatorPtr Evaluator_;
     const TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    const TPoolWeightCachePtr PoolWeightCache_;
-
 };
 
 IQuerySubexecutorPtr CreateQuerySubexecutor(

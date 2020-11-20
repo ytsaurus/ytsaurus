@@ -624,8 +624,7 @@ class YTEnvSetup(object):
 
             if self.USE_DYNAMIC_TABLES:
                 self._setup_tablet_manager(driver=driver)
-
-            if self.USE_DYNAMIC_TABLES:
+                self._clear_ql_pools(driver=driver)
                 self._restore_default_bundle_options(driver=driver)
 
             yt_commands.wait_for_nodes(driver=driver)
@@ -1049,6 +1048,9 @@ class YTEnvSetup(object):
             driver=driver,
         ):
             assert not yt_commands.get_batch_error(response)
+
+    def _clear_ql_pools(self, driver=None):
+        yt_commands.remove("//sys/ql_pools/*", driver=driver)
 
     def _restore_default_bundle_options(self, driver=None):
         def do():

@@ -29,8 +29,9 @@ struct IQuerySubexecutor
         NQueryClient::TConstExternalCGInfoPtr externalCGInfo,
         std::vector<NQueryClient::TDataRanges> dataSources,
         NTableClient::IUnversionedRowsetWriterPtr writer,
+        IInvokerPtr invoker,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        const NQueryClient::TQueryOptions& options,
+        const NQueryClient::TQueryOptions& queryOptions,
         TServiceProfilerGuard& profilerGuard) = 0;
 };
 

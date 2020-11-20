@@ -11,6 +11,7 @@
 #include "stream.h"
 
 #include <atomic>
+
 #include <yt/core/bus/bus.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
@@ -49,13 +50,99 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TMethodDescriptor::TMethodDescriptor(
-    const TString& method,
+    TString method,
     TLiteHandler liteHandler,
     THeavyHandler heavyHandler)
-    : Method(method)
+    : Method(std::move(method))
     , LiteHandler(std::move(liteHandler))
     , HeavyHandler(std::move(heavyHandler))
 { }
+
+auto TServiceBase::TMethodDescriptor::SetInvoker(IInvokerPtr value) -> TMethodDescriptor&
+{
+    Invoker = std::move(value);
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetInvokerProvider(TInvokerProvider value) -> TMethodDescriptor&
+{
+    InvokerProvider = std::move(value);
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetHeavy(bool value) -> TMethodDescriptor&
+{
+    Options.Heavy = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetResponseCodec(NCompression::ECodec value) -> TMethodDescriptor&
+{
+    Options.ResponseCodec = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetQueueSizeLimit(int value) -> TMethodDescriptor&
+{
+    QueueSizeLimit = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetConcurrencyLimit(int value) -> TMethodDescriptor&
+{
+    ConcurrencyLimit = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetSystem(bool value) -> TMethodDescriptor&
+{
+    System = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetLogLevel(NLogging::ELogLevel value) -> TMethodDescriptor&
+{
+    LogLevel = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetLoggingSuppressionTimeout(TDuration timeout) -> TMethodDescriptor&
+{
+    LoggingSuppressionTimeout = timeout;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetCancelable(bool value) -> TMethodDescriptor&
+{
+    Cancelable = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetGenerateAttachmentChecksums(bool value) -> TMethodDescriptor&
+{
+    GenerateAttachmentChecksums = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetStreamingEnabled(bool value) -> TMethodDescriptor&
+{
+    StreamingEnabled = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetPooled(bool value) -> TMethodDescriptor&
+{
+    Pooled = value;
+    return *this;
+}
+
+auto TServiceBase::TMethodDescriptor::SetRequestBytesThrottler(TThroughputThrottlerConfigPtr config) -> TMethodDescriptor&
+{
+    RequestBytesThrottlerConfig = std::move(config);
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TServiceBase::TMethodPerformanceCounters::TMethodPerformanceCounters(const NProfiling::TRegistry& registry)
     : RequestCounter(registry.Counter("/request_count"))
@@ -186,7 +273,19 @@ public:
 
     void Run(const TLiteHandler& handler)
     {
-        GetInvoker()->Invoke(BIND(&TServiceContext::DoRun, MakeStrong(this), handler));
+        auto this_ = MakeStrong(this);
+        const auto& descriptor = RuntimeInfo_->Descriptor;
+        IInvoker* invoker;
+        IInvokerPtr invokerHolder;
+        if (descriptor.InvokerProvider) {
+            invokerHolder = descriptor.InvokerProvider(this_);
+            invoker = invokerHolder.Get();
+        } else if (descriptor.Invoker) {
+            invoker = descriptor.Invoker.Get();
+        } else {
+            invoker = Service_->DefaultInvoker_.Get();
+        }
+        invoker->Invoke(BIND(&TServiceContext::DoRun, std::move(this_), handler));
     }
 
     virtual void SubscribeCanceled(const TClosure& callback) override
