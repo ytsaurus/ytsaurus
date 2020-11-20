@@ -415,14 +415,6 @@ public:
         nodeTracker->SubscribeDataCenterRenamed(BIND(&TImpl::OnDataCenterRenamed, MakeWeak(this)));
         nodeTracker->SubscribeDataCenterDestroyed(BIND(&TImpl::OnDataCenterDestroyed, MakeWeak(this)));
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->SubscribeReplicateKeysToSecondaryMaster(
-                BIND(&TImpl::OnReplicateKeysToSecondaryMaster, MakeWeak(this)));
-            multicellManager->SubscribeReplicateValuesToSecondaryMaster(
-                BIND(&TImpl::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
-        }
-
         BufferedProducer_ = New<TBufferedProducer>();
         ChunkServerProfilerRegistry
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetPrimaryCellTag()))
@@ -433,39 +425,6 @@ public:
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
             ProfilingPeriod);
         ProfilingExecutor_->Start();
-    }
-
-    void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        // Sort media by index to make sure they have the same indexing in the secondary
-        // cell. Also, this makes the code deterministic which is a must.
-        std::vector<TMedium*> media;
-        media.reserve(MediumMap_.size());
-        for (auto [mediumId, medium] : MediumMap_) {
-            if (IsObjectAlive(medium)) {
-                media.push_back(medium);
-            }
-        }
-        auto indexLess = [] (TMedium* lhs, TMedium* rhs) {
-            return lhs->GetIndex() < rhs->GetIndex();
-        };
-        std::sort(media.begin(), media.end(), indexLess);
-
-        for (auto* medium : media) {
-            objectManager->ReplicateObjectCreationToSecondaryMaster(medium, cellTag);
-        }
-    }
-
-    void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        auto media = GetValuesSortedByKey(MediumMap_);
-        for (auto* medium : media) {
-            objectManager->ReplicateObjectAttributesToSecondaryMaster(medium, cellTag);
-        }
     }
 
     IYPathServicePtr GetOrchidService()

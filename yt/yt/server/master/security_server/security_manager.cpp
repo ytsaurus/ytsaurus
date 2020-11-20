@@ -3108,6 +3108,27 @@ private:
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        // NB: media are referenced by accounts, so the former must be replicated
+        // before the latter. That's why it's done here and not in the chunk manager.
+
+        // Sort media by index to make sure they have the same indexing in the secondary
+        // cell. Also, this makes the code deterministic which is a must.
+        std::vector<TMedium*> media;
+        media.reserve(chunkManager->Media().size());
+        for (auto [mediumId, medium] : chunkManager->Media()) {
+            if (IsObjectAlive(medium)) {
+                media.push_back(medium);
+            }
+        }
+        auto indexLess = [] (TMedium* lhs, TMedium* rhs) {
+            return lhs->GetIndex() < rhs->GetIndex();
+        };
+        std::sort(media.begin(), media.end(), indexLess);
+        for (auto* medium : media) {
+            objectManager->ReplicateObjectCreationToSecondaryMaster(medium, cellTag);
+        }
 
         auto accounts = GetValuesSortedByKey(AccountMap_);
         for (auto* account : accounts) {
@@ -3128,6 +3149,12 @@ private:
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        auto media = GetValuesSortedByKey(chunkManager->Media());
+        for (auto* medium : media) {
+            objectManager->ReplicateObjectAttributesToSecondaryMaster(medium, cellTag);
+        }
 
         auto accounts = GetValuesSortedByKey(AccountMap_);
         for (auto* account : accounts) {
