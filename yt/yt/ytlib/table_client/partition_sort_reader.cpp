@@ -1,4 +1,4 @@
-#include "schemaless_partition_sort_reader.h"
+#include "partition_sort_reader.h"
 #include "private.h"
 #include "config.h"
 #include "partition_chunk_reader.h"
@@ -46,34 +46,36 @@ static const double ReallocationFactor = 1.1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSchemalessPartitionSortReaderTag
+struct TPartitionSortReaderTag
 { };
 
-class TSchemalessPartitionSortReader
+class TPartitionSortReader
     : public ISchemalessMultiChunkReader
     , public TTimingReaderBase
 {
 public:
-    TSchemalessPartitionSortReader(
+    TPartitionSortReader(
         TMultiChunkReaderConfigPtr config,
         NApi::NNative::IClientPtr client,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
         TKeyColumns keyColumns,
+        TComparator comparator,
         TNameTablePtr nameTable,
         TClosure onNetworkReleased,
-        const TDataSourceDirectoryPtr& dataSourceDirectory,
+        TDataSourceDirectoryPtr dataSourceDirectory,
         std::vector<TDataSliceDescriptor> dataSliceDescriptors,
         int estimatedRowCount,
         bool approximate,
         int partitionTag,
-        const TClientBlockReadOptions& blockReadOptions,
+        TClientBlockReadOptions blockReadOptions,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
         : KeyColumns_(std::move(keyColumns))
-        , KeyColumnCount_(static_cast<int>(KeyColumns_.size()))
+        , Comparator_(std::move(comparator))
+        , KeyColumnCount_(KeyColumns_.size())
         , OnNetworkReleased_(std::move(onNetworkReleased))
         , NameTable_(std::move(nameTable))
         , Approximate_(approximate)
@@ -84,7 +86,7 @@ public:
         , BucketStart_(this)
         , SortComparer_(this)
         , MergeComparer_(this)
-        , MemoryPool_(TSchemalessPartitionSortReaderTag())
+        , MemoryPool_(TPartitionSortReaderTag())
     {
         YT_VERIFY(EstimatedRowCount_ <= std::numeric_limits<i32>::max());
 
@@ -104,13 +106,13 @@ public:
             NameTable_,
             KeyColumns_,
             partitionTag,
-            blockReadOptions,
+            std::move(blockReadOptions),
             std::move(trafficMeter),
             std::move(bandwidthThrottler),
             std::move(rpsThrottler),
             std::move(multiReaderMemoryManager));
 
-        SetReadyEvent(BIND(&TSchemalessPartitionSortReader::DoOpen, MakeWeak(this))
+        SetReadyEvent(BIND(&TPartitionSortReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run());
     }
@@ -155,8 +157,8 @@ public:
         i64 dataWeight = 0;
 
         while (ReadRowCount_ < sortedRowCount &&
-               rows.size() < options.MaxRowsPerRead &&
-               dataWeight < options.MaxDataWeightPerRead)
+            rows.size() < options.MaxRowsPerRead &&
+            dataWeight < options.MaxDataWeightPerRead)
         {
             auto sortedIndex = SortedIndexes_[ReadRowCount_];
             auto& rowDescriptor = RowDescriptorBuffer_[sortedIndex];
@@ -251,31 +253,24 @@ private:
     class TComparerBase
     {
     public:
-        explicit TComparerBase(TSchemalessPartitionSortReader* reader)
-            : KeyColumnCount_(reader->KeyColumnCount_)
+        explicit TComparerBase(TPartitionSortReader* reader)
+            : Comparator_(reader->Comparator_)
             , KeyBuffer_(reader->KeyBuffer_)
         { }
 
     protected:
-        int KeyColumnCount_;
-        std::vector<TUnversionedValue>& KeyBuffer_;
+        const TComparator Comparator_;
+        const std::vector<TUnversionedValue>& KeyBuffer_;
 
+        //! Returns |True| iff row[lhs] < row[rhs].
         bool CompareRows(i64 lhs, i64 rhs) const
         {
-            i64 lhsStartIndex = lhs * KeyColumnCount_;
-            i64 lhsEndIndex   = lhsStartIndex + KeyColumnCount_;
-            i64 rhsStartIndex = rhs * KeyColumnCount_;
-            for (i64 lhsIndex = lhsStartIndex, rhsIndex = rhsStartIndex;
-                lhsIndex < lhsEndIndex;
-                ++lhsIndex, ++rhsIndex)
-            {
-                auto res = CompareRowValues(KeyBuffer_[lhsIndex], KeyBuffer_[rhsIndex]);
-                if (res < 0)
-                    return true;
-                if (res > 0)
-                    return false;
-            }
-            return false;
+            int keyColumnCount = Comparator_.GetLength();
+            i64 lhsStartIndex = lhs * keyColumnCount;
+            i64 rhsStartIndex = rhs * keyColumnCount;
+            TKey lhsKey(KeyBuffer_.data() + lhsStartIndex, keyColumnCount);
+            TKey rhsKey(KeyBuffer_.data() + rhsStartIndex, keyColumnCount);
+            return Comparator_.CompareKeys(lhsKey, rhsKey) < 0;
         }
     };
 
@@ -283,12 +278,12 @@ private:
         : public TComparerBase
     {
     public:
-        explicit TSortComparer(TSchemalessPartitionSortReader* reader)
+        explicit TSortComparer(TPartitionSortReader* reader)
             : TComparerBase(reader)
         { }
 
-        // Returns True iff row[lhs] < row[rhs]
-        bool operator () (i32 lhs, i32 rhs) const
+        //! Returns |True| iff row[lhs] < row[rhs].
+        bool operator()(i64 lhs, i64 rhs) const
         {
             return CompareRows(lhs, rhs);
         }
@@ -298,20 +293,19 @@ private:
         : public TComparerBase
     {
     public:
-        explicit TMergeComparer(TSchemalessPartitionSortReader* reader)
+        explicit TMergeComparer(TPartitionSortReader* reader)
             : TComparerBase(reader)
             , Buckets_(reader->Buckets_)
         { }
 
-        // Returns True iff row[Buckets[lhs]] < row[Buckets[rhs]]
-        bool operator () (int lhs, int rhs) const
+        //! Returns |True| iff row[Buckets[lhs]] < row[Buckets[rhs]].
+        bool operator()(int lhs, int rhs) const
         {
             return CompareRows(Buckets_[lhs], Buckets_[rhs]);
         }
 
     private:
-        std::vector<i32>& Buckets_;
-
+        const std::vector<i32>& Buckets_;
     };
 
     template <class T>
@@ -319,7 +313,7 @@ private:
         : public std::vector<T>
     {
     public:
-        explicit TSafeVector(TSchemalessPartitionSortReader* reader)
+        explicit TSafeVector(TPartitionSortReader* reader)
             : UnderlyingReader_(reader)
         { }
 
@@ -340,7 +334,7 @@ private:
         using std::vector<T>::size;
 
     private:
-        TSchemalessPartitionSortReader* UnderlyingReader_;
+        TPartitionSortReader* UnderlyingReader_;
 
         void EnsureCapacity()
         {
@@ -349,10 +343,10 @@ private:
                 reserve(static_cast<size_t>(size() * ReallocationFactor));
             }
         }
-
     };
 
     const TKeyColumns KeyColumns_;
+    const TComparator Comparator_;
     const int KeyColumnCount_;
     const TClosure OnNetworkReleased_;
     const TNameTablePtr NameTable_;
@@ -363,7 +357,7 @@ private:
     int EstimatedBucketCount_;
 
     i64 TotalRowCount_ = 0;
-    std::atomic<i64> SortedRowCount_ = {0};
+    std::atomic<i64> SortedRowCount_ = 0;
     i64 ReadRowCount_ = 0;
     i64 ReadDataWeight_ = 0;
 
@@ -388,7 +382,7 @@ private:
     std::vector<TFuture<void>> SortErrors_;
 
     TError MergeError_;
-    std::atomic_bool MergeFinished_ = { false };
+    std::atomic_bool MergeFinished_ = false;
 
     void DoOpen()
     {
@@ -419,7 +413,7 @@ private:
         int bucketSize = 0;
         int rowIndex = 0;
 
-        auto flushBucket = [&] () {
+        auto flushBucket = [&] {
             Buckets_.push_back(BucketEndSentinel);
             BucketStart_.push_back(Buckets_.size());
 
@@ -555,14 +549,14 @@ private:
 
     void SortQueueBarrier()
     {
-        BIND([] () { }).AsyncVia(SortQueue_->GetInvoker()).Run().Get();
+        BIND([] { }).AsyncVia(SortQueue_->GetInvoker()).Run().Get();
     }
 
     TFuture<void> InvokeSortBucket(int bucketId)
     {
         return
             BIND(
-                &TSchemalessPartitionSortReader::DoSortBucket,
+                &TPartitionSortReader::DoSortBucket,
                 MakeWeak(this),
                 bucketId)
             .AsyncVia(SortQueue_->GetInvoker())
@@ -572,50 +566,51 @@ private:
     void InvokeMerge()
     {
         SortQueue_->GetInvoker()->Invoke(BIND(
-            &TSchemalessPartitionSortReader::DoMerge,
+            &TPartitionSortReader::DoMerge,
             MakeWeak(this)));
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
+ISchemalessMultiChunkReaderPtr CreatePartitionSortReader(
     TMultiChunkReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     IBlockCachePtr blockCache,
     TNodeDirectoryPtr nodeDirectory,
-    const TKeyColumns& keyColumns,
+    TKeyColumns keyColumns,
+    TComparator comparator,
     TNameTablePtr nameTable,
     TClosure onNetworkReleased,
-    const TDataSourceDirectoryPtr& dataSourceDirectory,
-    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
+    TDataSourceDirectoryPtr dataSourceDirectory,
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors,
     i64 estimatedRowCount,
     bool approximate,
     int partitionTag,
-    const TClientBlockReadOptions& blockReadOptions,
+    TClientBlockReadOptions blockReadOptions,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
-    return New<TSchemalessPartitionSortReader>(
-        config,
-        client,
-        blockCache,
-        nodeDirectory,
-        keyColumns,
-        nameTable,
+    return New<TPartitionSortReader>(
+        std::move(config),
+        std::move(client),
+        std::move(blockCache),
+        std::move(nodeDirectory),
+        std::move(keyColumns),
+        std::move(comparator),
+        std::move(nameTable),
         onNetworkReleased,
-        dataSourceDirectory,
-        dataSliceDescriptors,
+        std::move(dataSourceDirectory),
+        std::move(dataSliceDescriptors),
         estimatedRowCount,
         approximate,
         partitionTag,
-        blockReadOptions,
-        trafficMeter,
-        bandwidthThrottler,
-        rpsThrottler,
+        std::move(blockReadOptions),
+        std::move(trafficMeter),
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler),
         std::move(multiReaderMemoryManager));
 }
 

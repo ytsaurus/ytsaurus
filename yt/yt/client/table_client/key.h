@@ -11,6 +11,8 @@ namespace NYT::NTableClient {
 class TKey
 {
 public:
+    TKey(const TUnversionedValue* begin, int length);
+
     //! Construct from a given row and possibly key length and validate that row does not contain
     //! setntinels of types Min, Max and Bottom. If key length is not specified, row length will be used instead.
     static TKey FromRow(const TUnversionedRow& row, std::optional<int> length = std::nullopt);
@@ -31,8 +33,6 @@ public:
     const TUnversionedValue* End() const;
 
 private:
-    TKey(const TUnversionedValue* begin, int length);
-
     const TUnversionedValue* Begin_;
 
     int Length_;
