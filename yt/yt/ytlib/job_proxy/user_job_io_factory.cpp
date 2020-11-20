@@ -15,9 +15,9 @@
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/table_client/partitioner.h>
+#include <yt/ytlib/table_client/partition_sort_reader.h>
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaless_partition_sort_reader.h>
 #include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
 
 #include <yt/client/api/public.h>
@@ -585,12 +585,16 @@ public:
         }
         YT_VERIFY(partitionTag);
 
-        return CreateSchemalessPartitionSortReader(
+        // TODO(gritukan): Always pass output schema to partition reduce jobs.
+        TComparator comparator(std::vector<ESortOrder>(keyColumns.size(), ESortOrder::Ascending));
+
+        return CreatePartitionSortReader(
             JobSpecHelper_->GetJobIOConfig()->TableReader,
             std::move(client),
             GetNullBlockCache(),
             JobSpecHelper_->GetInputNodeDirectory(),
             keyColumns,
+            comparator,
             nameTable,
             onNetworkReleased,
             dataSourceDirectory,

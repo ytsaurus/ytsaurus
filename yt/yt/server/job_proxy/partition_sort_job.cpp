@@ -8,11 +8,12 @@
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
-#include <yt/client/table_client/name_table.h>
+#include <yt/ytlib/table_client/partition_sort_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-#include <yt/ytlib/table_client/schemaless_partition_sort_reader.h>
 
 #include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/name_table.h>
 
 namespace NYT::NJobProxy {
 
@@ -66,13 +67,19 @@ public:
         }
         YT_VERIFY(partitionTag);
 
+        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
+        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
+        TTableSchemaPtr outputSchema;
+        DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
+
         const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
-        Reader_ = CreateSchemalessPartitionSortReader(
+        Reader_ = CreatePartitionSortReader(
             tableReaderConfig,
             Host_->GetClient(),
             Host_->GetBlockCache(),
             Host_->GetInputNodeDirectory(),
             keyColumns,
+            outputSchema->ToComparator(),
             nameTable,
             BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             dataSourceDirectory,
@@ -86,9 +93,7 @@ public:
             Host_->GetOutRpsThrottler(),
             MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
 
-        YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
 
-        const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
@@ -103,14 +108,11 @@ public:
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
-        TTableSchemaPtr schema;
-        DeserializeFromWireProto(&schema, outputSpec.table_schema());
-
         Writer_ = CreateSchemalessMultiChunkWriter(
             writerConfig,
             options,
             nameTable,
-            schema,
+            outputSchema,
             TLegacyOwningKey(),
             Host_->GetClient(),
             CellTagFromId(chunkListId),
