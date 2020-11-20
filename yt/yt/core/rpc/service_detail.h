@@ -444,18 +444,25 @@ protected:
     class TServiceContext;
     using TServiceContextPtr = TIntrusivePtr<TServiceContext>;
 
+    using TInvokerProvider = TCallback<IInvokerPtr(const IServiceContextPtr&)>;
+
     //! Information needed to a register a service method.
     struct TMethodDescriptor
     {
         // Defaults.
         TMethodDescriptor(
-            const TString& method,
+            TString method,
             TLiteHandler liteHandler,
             THeavyHandler heavyHandler);
 
         //! Invoker used for executing the handler.
-        //! If |nullptr| then the default one is used.
+        //! Overrides the default one (unless null).
         IInvokerPtr Invoker;
+
+        //! Invoker provider is called upon receiving a request to determine
+        //! the actual invoker to be used for handling the request.
+        //! Overrides #Invoker (unless null).
+        TInvokerProvider InvokerProvider;
 
         //! Service method name.
         TString Method;
@@ -505,83 +512,20 @@ protected:
 
         NConcurrency::TThroughputThrottlerConfigPtr RequestBytesThrottlerConfig;
 
-        TMethodDescriptor& SetInvoker(IInvokerPtr value)
-        {
-            Invoker = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetHeavy(bool value)
-        {
-            Options.Heavy = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetResponseCodec(NCompression::ECodec value)
-        {
-            Options.ResponseCodec = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetQueueSizeLimit(int value)
-        {
-            QueueSizeLimit = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetConcurrencyLimit(int value)
-        {
-            ConcurrencyLimit = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetSystem(bool value)
-        {
-            System = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetLogLevel(NLogging::ELogLevel value)
-        {
-            LogLevel = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetLoggingSuppressionTimeout(TDuration timeout)
-        {
-            LoggingSuppressionTimeout = timeout;
-            return *this;
-        }
-
-        TMethodDescriptor& SetCancelable(bool value)
-        {
-            Cancelable = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetGenerateAttachmentChecksums(bool value)
-        {
-            GenerateAttachmentChecksums = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetStreamingEnabled(bool value)
-        {
-            StreamingEnabled = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetPooled(bool value)
-        {
-            Pooled = value;
-            return *this;
-        }
-
-        TMethodDescriptor& SetRequestBytesThrottler(const NConcurrency::TThroughputThrottlerConfigPtr& config)
-        {
-            RequestBytesThrottlerConfig = config;
-            return *this;
-        }
+        TMethodDescriptor& SetInvoker(IInvokerPtr value);
+        TMethodDescriptor& SetInvokerProvider(TInvokerProvider value);
+        TMethodDescriptor& SetHeavy(bool value);
+        TMethodDescriptor& SetResponseCodec(NCompression::ECodec value);
+        TMethodDescriptor& SetQueueSizeLimit(int value);
+        TMethodDescriptor& SetConcurrencyLimit(int value);
+        TMethodDescriptor& SetSystem(bool value);
+        TMethodDescriptor& SetLogLevel(NLogging::ELogLevel value);
+        TMethodDescriptor& SetLoggingSuppressionTimeout(TDuration timeout);
+        TMethodDescriptor& SetCancelable(bool value);
+        TMethodDescriptor& SetGenerateAttachmentChecksums(bool value);
+        TMethodDescriptor& SetStreamingEnabled(bool value);
+        TMethodDescriptor& SetPooled(bool value);
+        TMethodDescriptor& SetRequestBytesThrottler(NConcurrency::TThroughputThrottlerConfigPtr config);
     };
 
     //! Per-user and per-method profiling counters.

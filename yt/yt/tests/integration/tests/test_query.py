@@ -101,19 +101,30 @@ class TestQuery(YTEnvSetup):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
 
+        create("map_node", "//sys/ql_pools/configured_pool", attributes={
+            "weight": 10.0,
+            "acl": [make_ace("allow", "u", "use")]
+        })
         select_rows(
             "* from [//tmp/t]",
             allow_full_scan=True,
-            execution_pool="p",
+            execution_pool="configured_pool",
             authenticated_user="u",
         )
-        create("map_node", "//sys/ql_pools")
-        create("document", "//sys/ql_pools/s")
+
+        select_rows(
+            "* from [//tmp/t]",
+            allow_full_scan=True,
+            execution_pool="unconfigured_pool",
+            authenticated_user="u",
+        )
+
+        create("map_node", "//sys/ql_pools/secured_pool")
         with pytest.raises(YtError):
             select_rows(
                 "* from [//tmp/t]",
                 allow_full_scan=True,
-                execution_pool="s",
+                execution_pool="secured_pool",
                 authenticated_user="u",
             )
 

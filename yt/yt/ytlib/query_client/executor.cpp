@@ -398,6 +398,14 @@ private:
             req->SetTimeout(options.Deadline - Now());
         }
 
+        {
+            auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+            if (options.ExecutionPool) {
+                ext->set_execution_pool_name(*options.ExecutionPool);
+                ext->set_execution_tag(ToString(options.ReadSessionId));
+            }
+        }
+
         TDuration serializationTime;
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&serializationTime);

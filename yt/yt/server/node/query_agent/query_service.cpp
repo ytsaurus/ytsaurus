@@ -27,6 +27,8 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/query_client/query.h>
@@ -47,11 +49,14 @@
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/tls_cache.h>
+#include <yt/core/misc/async_expiring_cache.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/authentication_identity.h>
+
+#include <yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NQueryAgent {
 
@@ -62,6 +67,7 @@ using namespace NConcurrency;
 using namespace NHydra;
 using namespace NProfiling;
 using namespace NQueryClient;
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -73,6 +79,7 @@ using NChunkClient::NProto::TMiscExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = QueryAgentLogger;
 static const auto& Profiler = QueryAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,6 +87,10 @@ static const auto& Profiler = QueryAgentProfiler;
 // TODO(ifsmirnov): YT_12491 - move this to reader config and dynamically choose
 // row count based on desired streaming window data size.
 static constexpr size_t MaxRowsPerRemoteDynamicStoreRead = 1024;
+
+static const TString DefaultQLExecutionPoolName = "default";
+static const TString DefaultQLExecutionTag = "default";
+static constexpr double DefaultQLExecutionPoolWeight = 1.0;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -136,6 +147,74 @@ void ValidateColumnFilterContainsAllKeyColumns(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
+
+class TPoolWeightCache
+    : public TAsyncExpiringCache<TString, double>
+{
+public:
+    TPoolWeightCache(
+        TAsyncExpiringCacheConfigPtr config,
+        TWeakPtr<NApi::NNative::IClient> client,
+        IInvokerPtr invoker)
+        : TAsyncExpiringCache(
+            std::move(config),
+            NLogging::TLogger(QueryAgentLogger)
+                .AddTag("Cache: PoolWeight"))
+        , Client_(std::move(client))
+        , Invoker_(std::move(invoker))
+    { }
+
+private:
+    const TWeakPtr<NApi::NNative::IClient> Client_;
+    const IInvokerPtr Invoker_;
+
+    virtual TFuture<double> DoGet(
+        const TString& poolName,
+        bool /*isPeriodicUpdate*/) noexcept override
+    {
+        auto client = Client_.Lock();
+        if (!client) {
+            return MakeFuture<double>(TError(NYT::EErrorCode::Canceled, "Client destroyed"));
+        }
+        return BIND(GetPoolWeight, std::move(client), poolName)
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
+    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& poolName)
+    {
+        auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(poolName);
+
+        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Cache));
+        auto req = TYPathProxy::Get(path + "/@weight");
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return DefaultQLExecutionPoolWeight;
+        }
+
+        if (!rspOrError.IsOK()) {
+            YT_LOG_WARNING(rspOrError, "Failed to get pool info from Cypress, assuming defaults (Pool: %v)",
+                poolName);
+            return DefaultQLExecutionPoolWeight;
+        }
+
+        const auto& rsp = rspOrError.Value();
+        try {
+            return ConvertTo<double>(NYson::TYsonString(rsp->value()));
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error parsing pool weight retrieved from Cypress, assuming default (Pool: %v)",
+                poolName);
+            return DefaultQLExecutionPoolWeight;
+        }
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueryService
     : public TServiceBase
 {
@@ -144,14 +223,26 @@ public:
         TQueryAgentConfigPtr config,
         NClusterNode::TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetQueryPoolInvoker({}, 1.0, {}),
+            bootstrap->GetQueryPoolInvoker(
+                DefaultQLExecutionPoolName,
+                DefaultQLExecutionPoolWeight,
+                DefaultQLExecutionTag),
             TQueryServiceProxy::GetDescriptor(),
             QueryAgentLogger)
         , Config_(config)
         , Bootstrap_(bootstrap)
+        , PoolWeightCache_(New<TPoolWeightCache>(
+            config->PoolWeightCache,
+            Bootstrap_->GetMasterClient(),
+            GetDefaultInvoker()))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
-            .SetCancelable(true));
+            .SetCancelable(true)
+            .SetInvokerProvider(BIND(
+                &TQueryService::GetExecuteInvoker,
+                Bootstrap_,
+                PoolWeightCache_,
+                GetDefaultInvoker())));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
             .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
@@ -169,6 +260,34 @@ private:
     const TQueryAgentConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
+    const TPoolWeightCachePtr PoolWeightCache_;
+
+
+    static IInvokerPtr GetExecuteInvoker(
+        NClusterNode::TBootstrap* bootstrap,
+        const TPoolWeightCachePtr& poolWeightCache,
+        const IInvokerPtr& defaultInvoker,
+        const IServiceContextPtr& context)
+    {
+        const auto& ext = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+
+        if (!ext.has_execution_pool_name()) {
+            return defaultInvoker;
+        }
+
+        const auto& poolName = ext.execution_pool_name();
+        const auto& tag = ext.execution_tag();
+
+        auto poolWeight = DefaultQLExecutionPoolWeight;
+        auto weightFuture = poolWeightCache->Get(poolName);
+        if (auto optionalWeightOrError = weightFuture.TryGet()) {
+            poolWeight = optionalWeightOrError->ValueOrThrow();
+        }
+
+        context->SetIncrementalResponseInfo("ExecutionPool: %v", poolName);
+
+        return bootstrap->GetQueryPoolInvoker(poolName, poolWeight, tag);
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
@@ -177,15 +296,15 @@ private:
         YT_LOG_DEBUG("Deserializing subfragment");
 
         auto query = FromProto<TConstQueryPtr>(request->query());
-        context->SetRequestInfo("FragmentId: %v", query->Id);
+        context->SetIncrementalResponseInfo("FragmentId: %v", query->Id);
 
         auto externalCGInfo = New<TExternalCGInfo>();
         FromProto(&externalCGInfo->Functions, request->external_functions());
         externalCGInfo->NodeDirectory->MergeFrom(request->node_directory());
 
-        auto options = FromProto<TQueryOptions>(request->options());
-        options.InputRowLimit = request->query().input_row_limit();
-        options.OutputRowLimit = request->query().output_row_limit();
+        auto queryOptions = FromProto<TQueryOptions>(request->options());
+        queryOptions.InputRowLimit = request->query().input_row_limit();
+        queryOptions.OutputRowLimit = request->query().output_row_limit();
 
         auto dataSources = FromProto<std::vector<TDataRanges>>(request->data_sources());
 
@@ -193,20 +312,23 @@ private:
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
             "ReadSesisonId: %v, MemoryLimitPerNode: %v, DataRangeCount: %v)",
             query->Id,
-            options.InputRowLimit,
-            options.OutputRowLimit,
-            options.RangeExpansionLimit,
-            options.MaxSubqueries,
-            options.EnableCodeCache,
-            options.WorkloadDescriptor,
-            options.ReadSessionId,
-            options.MemoryLimitPerNode,
+            queryOptions.InputRowLimit,
+            queryOptions.OutputRowLimit,
+            queryOptions.RangeExpansionLimit,
+            queryOptions.MaxSubqueries,
+            queryOptions.EnableCodeCache,
+            queryOptions.WorkloadDescriptor,
+            queryOptions.ReadSessionId,
+            queryOptions.MemoryLimitPerNode,
             dataSources.size());
 
         TClientBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = options.WorkloadDescriptor;
+        blockReadOptions.WorkloadDescriptor = queryOptions.WorkloadDescriptor;
         blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = options.ReadSessionId;
+        blockReadOptions.ReadSessionId = queryOptions.ReadSessionId;
+
+        // Grab the invoker provided by GetExecuteInvoker.
+        auto invoker = GetCurrentInvoker();
 
         ExecuteRequestWithRetries<void>(
             Config_->MaxQueryRetries,
@@ -226,8 +348,9 @@ private:
                     externalCGInfo,
                     dataSources,
                     writer,
+                    invoker,
                     blockReadOptions,
-                    options,
+                    queryOptions,
                     profilerGuard);
                 auto result = WaitFor(asyncResult)
                     .ValueOrThrow();
@@ -244,7 +367,8 @@ private:
 
         auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
         auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
-        auto timestamp = TTimestamp(request->timestamp());
+        auto timestamp = FromProto<TTimestamp>(request->timestamp());
+
         // TODO(sandello): Extract this out of RPC request.
         TClientBlockReadOptions blockReadOptions;
         blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
@@ -258,7 +382,7 @@ private:
 
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
-        size_t batchCount = request->tablet_ids_size();
+        int batchCount = request->tablet_ids_size();
         YT_VERIFY(batchCount == request->mount_revisions_size());
         YT_VERIFY(batchCount == request->Attachments().size());
 

@@ -7,9 +7,21 @@ import "yt/client/chunk_client/proto/read_limit.proto";
 import "yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt/ytlib/query_client/proto/query.proto";
 import "yt/ytlib/query_client/proto/functions_cache.proto";
+import "yt/core/rpc/proto/rpc.proto";
 import "yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqExecuteExt
+{
+    extend NRpc.NProto.TRequestHeader
+    {
+        optional TReqExecuteExt req_execute_ext = 200;
+    }
+
+    optional string execution_pool_name = 1;
+    optional string execution_tag = 2;
+}
 
 message TReqExecute
 {
