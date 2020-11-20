@@ -317,7 +317,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
         else:
             client.create("scheduler_pool_tree", ignore_existing=True, attributes={
                 "name": "physical",
-                "nodes_filter": "internal"
+                "config": {"nodes_filter": "internal"}
             })
             client.create("scheduler_pool", ignore_existing=True, attributes={
                 "name": "research",
@@ -330,7 +330,7 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
             })
         client.set("//sys/pool_trees/@default_tree", "physical")
         client.link("//sys/pool_trees/physical", "//sys/pools", force=True)
-        client.set("//sys/pool_trees/physical/@default_parent_pool", "research")
+        client.set("//sys/pool_trees/physical/@config/default_parent_pool", "research")
         add_acl("//sys/pool_trees/physical/transfer_manager",
                 {"subjects": ["transfer_manager"], "permissions": ["write", "remove"], "action": "allow"},
                 client)
