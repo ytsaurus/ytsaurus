@@ -167,6 +167,7 @@ protected:
     std::vector<TSerializedSubtree> SerializedSubtrees_;
 
     TNodeId SrcNodeId_;
+    TYPath ResolvedSrcNodePath_;
     TNodeId DstNodeId_;
 
     std::vector<TCellTag> ExternalCellTags_;
@@ -194,13 +195,19 @@ protected:
     }
 
     template <class TOptions>
-    void BeginCopy(const TYPath& srcPath, const TOptions& options)
+    void BeginCopy(const TYPath& srcPath, const TOptions& options, bool allowRootLink)
     {
+        if (allowRootLink) {
+            ResolveSourceNode(srcPath);
+        } else {
+            ResolvedSrcNodePath_ = srcPath;
+        }
+
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(std::move(channel));
 
         std::queue<TYPath> subtreeSerializationQueue;
-        subtreeSerializationQueue.push(srcPath);
+        subtreeSerializationQueue.push(ResolvedSrcNodePath_);
 
         while (!subtreeSerializationQueue.empty()) {
             auto subtreePath = subtreeSerializationQueue.front();
@@ -227,7 +234,8 @@ protected:
             auto externalCellTags = FromProto<TCellTagList>(rsp->external_cell_tags());
             auto opaqueChildPaths = FromProto<std::vector<TYPath>>(rsp->opaque_child_paths());
             auto nodeId = FromProto<TNodeId>(rsp->node_id());
-            if (subtreePath == srcPath) {
+
+            if (!allowRootLink && subtreePath == srcPath) {
                 SrcNodeId_ = nodeId;
             }
 
@@ -241,7 +249,7 @@ protected:
                  externalCellTags,
                  opaqueChildPaths);
 
-            auto relativePath = TryComputeYPathSuffix(subtreePath, srcPath);
+            auto relativePath = TryComputeYPathSuffix(subtreePath, ResolvedSrcNodePath_);
             YT_VERIFY(relativePath);
 
             SerializedSubtrees_.emplace_back(*relativePath, std::move(*rsp->mutable_serialized_tree()));
@@ -256,6 +264,36 @@ protected:
         }
 
         SortUnique(ExternalCellTags_);
+    }
+
+    void ResolveSourceNode(const TYPath& srcPath)
+    {
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        TObjectServiceProxy proxy(std::move(channel));
+
+        YT_LOG_DEBUG("Resolving source node (SourceNodePath: %v)", srcPath);
+
+        auto batchReq = proxy.ExecuteBatch();
+        auto req = TYPathProxy::Get(srcPath + "/@");
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{"id", "path"});
+        SetTransactionId(req, Transaction_->GetId());
+        batchReq->AddRequest(req);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+            "Error resolving source node %v", srcPath);
+
+        const auto& batchRsp = batchRspOrError.Value();
+        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspGet>(0);
+        const auto& rsp = rspOrError.Value();
+        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+        SrcNodeId_ = attributes->Get<TNodeId>("id");
+        ResolvedSrcNodePath_ = attributes->Get<TYPath>("path");
+
+        YT_LOG_DEBUG("Source node resolved successfully (SourceNodePath: %v, SourceNodeId: %v, ResolvedSrcNodePath: %v)",
+            srcPath,
+            SrcNodeId_,
+            ResolvedSrcNodePath_);
     }
 
     template <class TOptions>
@@ -372,7 +410,7 @@ public:
         StartTransaction(
             Format("Clone %v to %v", SrcPath_, DstPath_),
             Options_);
-        BeginCopy(SrcPath_, Options_);
+        BeginCopy(SrcPath_, Options_, true);
         SyncExternalCellsWithSourceNodeCell();
         EndCopy(DstPath_, Options_, false);
         if constexpr(std::is_assignable_v<TOptions, TMoveNodeOptions>) {
@@ -428,7 +466,7 @@ public:
             Format("Externalize %v to %v", Path_, CellTag_),
             Options_);
         RequestRootEffectiveAcl();
-        BeginCopy(Path_, GetOptions());
+        BeginCopy(Path_, GetOptions(), false);
         SyncExternalCellsWithSourceNodeCell();
         if (TypeFromId(SrcNodeId_) != EObjectType::MapNode) {
             THROW_ERROR_EXCEPTION("%v is not a map node", Path_);
@@ -533,7 +571,7 @@ public:
         StartTransaction(
             Format("Internalize %v", Path_),
             Options_);
-        BeginCopy(Path_, GetOptions());
+        BeginCopy(Path_, GetOptions(), false);
         SyncExternalCellsWithSourceNodeCell();
         if (TypeFromId(SrcNodeId_) != EObjectType::PortalExit) {
             THROW_ERROR_EXCEPTION("%v is not a portal", Path_);
