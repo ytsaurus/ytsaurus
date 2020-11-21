@@ -18,6 +18,7 @@ from flaky import flaky
 
 class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
     @authors("savrus")
+    @flaky(max_runs=5)
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_replicated_tablet_node_profiling(self, schema):
         self._create_cells()
