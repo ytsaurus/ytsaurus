@@ -358,6 +358,7 @@ TFuture<TLockNodeResult> TClientBase::LockNode(
         TLockNodeResult result;
         FromProto(&result.NodeId, rsp->node_id());
         FromProto(&result.LockId, rsp->lock_id());
+        FromProto(&result.Revision, rsp->revision());
         return result;
     }));
 }

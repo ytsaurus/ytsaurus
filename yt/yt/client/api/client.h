@@ -593,7 +593,7 @@ struct TLockNodeResult
 {
     NCypressClient::TLockId LockId;
     NCypressClient::TNodeId NodeId;
-    NHydra::TRevision Revision;
+    NHydra::TRevision Revision = NHydra::NullRevision;
 };
 
 struct TUnlockNodeOptions

@@ -1264,10 +1264,12 @@ private:
                 auto* response = &context->Response();
                 ToProto(response->mutable_node_id(), result.NodeId);
                 ToProto(response->mutable_lock_id(), result.LockId);
+                response->set_revision(result.Revision);
 
-                context->SetResponseInfo("NodeId: %v, LockId",
+                context->SetResponseInfo("NodeId: %v, LockId: %v, Revision: %llx",
                     result.NodeId,
-                    result.LockId);
+                    result.LockId,
+                    result.Revision);
             });
     }
 
