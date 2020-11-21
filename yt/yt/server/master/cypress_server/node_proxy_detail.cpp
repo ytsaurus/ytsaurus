@@ -1355,7 +1355,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     ValidateLockPossible();
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto* lock = cypressManager->CreateLock(
+    auto lockResult = cypressManager->CreateLock(
         TrunkNode_,
         Transaction_,
         lockRequest,
@@ -1371,8 +1371,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
         ? transactionManager->ExternalizeTransaction(Transaction_, externalCellTag)
         : Transaction_->GetId();
 
-    auto lockId = lock->GetId();
-    auto revision = TrunkNode_->GetRevision();
+    auto lockId = lockResult.Lock->GetId();
+    auto revision = lockResult.BranchedNode ? lockResult.BranchedNode->GetRevision() : NHydra::NullRevision;
 
     ToProto(response->mutable_lock_id(), lockId);
     ToProto(response->mutable_node_id(), TrunkNode_->GetId());

@@ -65,6 +65,38 @@ class TestCypressLocks(YTEnvSetup):
         assert rsp["node_id"] == get("//tmp/node/@id", tx=tx, driver=driver)
         assert rsp["revision"] == get("//tmp/node/@revision", tx=tx, driver=driver)
 
+    @authors("babenko")
+    def test_lock_nonnull_revision_yt_13962(self):
+        driver = get_driver(api_version=4)
+
+        tx1 = start_transaction(driver=driver)
+        tx2 = start_transaction(tx=tx1, driver=driver)
+
+        create("file", "//tmp/f", tx=tx1)
+        r1 = get("//tmp/f/@revision", tx=tx1)
+        set("//tmp/f/@attr", "value", tx=tx1)
+        r2 = get("//tmp/f/@revision", tx=tx1)
+
+        assert r2 > r1
+
+        rsp = lock("//tmp/f", mode="snapshot", tx=tx2, full_response=True, driver=driver)
+        assert rsp["revision"] == r2
+
+    @authors("babenko")
+    def test_lock_null_revision_yt_13962(self):
+        driver = get_driver(api_version=4)
+
+        tx1 = start_transaction(driver=driver)
+        tx2 = start_transaction(driver=driver)
+
+        create("file", "//tmp/f")
+
+        rsp1 = lock("//tmp/f", mode="exclusive", tx=tx1, full_response=True, driver=driver)
+        assert rsp1["revision"] == get("//tmp/f/@revision")
+
+        rsp2 = lock("//tmp/f", mode="exclusive", tx=tx2, waitable=True, full_response=True, driver=driver)
+        assert rsp2["revision"] == 0
+
     @authors("panin")
     def test_shared_lock_inside_tx(self):
         tx_outer = start_transaction()
