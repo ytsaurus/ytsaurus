@@ -647,13 +647,21 @@ SOCKET TConnectionPool::DoConnect(TAddressCache::TAddressPtr address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TMaybe<TString> GetProxyName(const THttpInput& input)
+{
+    if (auto proxyHeader = input.Headers().FindHeader("X-YT-Proxy")) {
+        return proxyHeader->Value();
+    }
+    return Nothing();
+}
+
 THttpResponse::THttpResponse(
     IInputStream* socketStream,
     const TString& requestId,
     const TString& hostName)
     : HttpInput_(socketStream)
     , RequestId_(requestId)
-    , HostName_(hostName)
+    , HostName_(GetProxyName(HttpInput_).GetOrElse(hostName))
 {
     HttpCode_ = ParseHttpRetCode(HttpInput_.FirstLine());
     if (HttpCode_ == 200 || HttpCode_ == 202) {
@@ -725,6 +733,11 @@ bool THttpResponse::IsExhausted() const
 int THttpResponse::GetHttpCode() const
 {
     return HttpCode_;
+}
+
+const TString& THttpResponse::GetHostName() const
+{
+    return HostName_;
 }
 
 bool THttpResponse::IsKeepAlive() const
@@ -846,13 +859,13 @@ IOutputStream* THttpRequest::StartRequestImpl(const THttpHeader& header, bool in
     const auto parametersDebugString = GetParametersDebugString(header);
     auto getLoggedAttributes = [&] (size_t sizeLimit) {
         TStringStream out;
-        out << "HostName: " << HostName << "; "
-            << "Method: " << Url_ << "; "
+        out << "Method: " << Url_ << "; "
             << "X-YT-Parameters (sent in " << (includeParameters ? "header" : "body") << "): " << TruncateForLogs(parametersDebugString, sizeLimit);
         return out.Str();
     };
-    LOG_DEBUG("REQ %s - sending request (%s)",
+    LOG_DEBUG("REQ %s - sending request (HostName: %s; %s)",
         RequestId.data(),
+        HostName.c_str(),
         getLoggedAttributes(Max<size_t>()).c_str());
 
     LoggedAttributes_ = getLoggedAttributes(128);
@@ -919,7 +932,10 @@ TString THttpRequest::GetResponse()
     TString result = GetResponseStream()->ReadAll();
 
     TStringStream loggedAttributes;
-    loggedAttributes << "Time: " << TInstant::Now() - StartTime_ << "; " << LoggedAttributes_;
+    loggedAttributes
+        << "Time: " << TInstant::Now() - StartTime_ << "; "
+        << "HostName: " << GetResponseStream()->GetHostName() << "; "
+        << LoggedAttributes_;
 
     if (LogResponse) {
         constexpr auto sizeLimit = 1 << 7;
