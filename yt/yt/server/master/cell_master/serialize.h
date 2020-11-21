@@ -106,6 +106,7 @@ DEFINE_ENUM(EMasterReign,
     ((OverlayedJournals)                                            (1421))  // babenko
     ((YT_12193_BetterAlterTable)                                    (1422))  // ermolovd
     ((YT_12559_AbortStuckExternalizedTransactions)                  (1423))  // shakurov
+    ((DedicatedUploadTransactionTypesByDefault)                     (1424))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

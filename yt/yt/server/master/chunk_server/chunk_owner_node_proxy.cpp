@@ -1238,6 +1238,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             if (uploadTransactionTitle) {
                 startRequest.set_title(*uploadTransactionTitle);
             }
+            startRequest.set_upload(true);
 
             multicellManager->PostToMaster(startRequest, dstCellTag);
         }
