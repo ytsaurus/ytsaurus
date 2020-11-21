@@ -939,6 +939,7 @@ message TRspLockNode
 {
     required NYT.NProto.TGuid node_id = 1;
     required NYT.NProto.TGuid lock_id = 2;
+    optional uint64 revision = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

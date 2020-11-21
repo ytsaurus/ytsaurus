@@ -1497,6 +1497,15 @@ class TestCypressLocksMulticell(TestCypressLocks):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+class TestCypressLocksRpcProxy(TestCypressLocks):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+
+class TestCypressLocksMulticellRpcProxy(TestCypressLocksMulticell, TestCypressLocksRpcProxy):
+    pass
+
+
 ##################################################################
 
 
