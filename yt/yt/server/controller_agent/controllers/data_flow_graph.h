@@ -37,6 +37,10 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
+    void RegisterEdge(
+        const TVertexDescriptor& from,
+        const TVertexDescriptor& to);
+
     void UpdateEdgeJobDataStatistics(
         const TVertexDescriptor& from,
         const TVertexDescriptor& to,

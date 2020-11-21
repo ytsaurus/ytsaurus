@@ -55,6 +55,8 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             },
         )
 
+        wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 2, ignore_exceptions=True)
+
         # Ensure that all three jobs have started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("slave_job_started_0", timeout=datetime.timedelta(1000))
