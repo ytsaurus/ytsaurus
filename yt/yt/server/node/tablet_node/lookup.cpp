@@ -436,10 +436,12 @@ private:
 
         for (int index = startKeyIndex; index < endKeyIndex; ++index) {
             auto rowFromCache = std::move(RowsFromCache_[index]);
+            bool populateFromDynamicStore = true;
             if (rowFromCache) {
                 YT_LOG_TRACE("Using row from cache (Row: %v)", rowFromCache->GetVersionedRow());
                 // Consider only versions before unflushed timestamp.
                 onPartialRow(rowFromCache->GetVersionedRow(), UnflushedTimestamp_);
+                populateFromDynamicStore = false;
             } else {
                 processSessions(*partitionSessions);
                 processSessions(ChunkEdenSessions_);
@@ -456,6 +458,7 @@ private:
                         YT_LOG_TRACE("Populating cache (Row: %v)", cachedRow->GetVersionedRow());
 
                         accessor->Insert(std::move(cachedRow));
+                        populateFromDynamicStore = false;
                     }
                 }
             }
@@ -464,8 +467,8 @@ private:
                 auto row = session.FetchRow();
                 onPartialRow(row, MaxTimestamp);
 
-                // Row not present in cache but present in dynamic store.
-                if (row && accessor && !rowFromCache) {
+                // Row not present in cache and in chunks but present in dynamic store.
+                if (accessor && row && populateFromDynamicStore) {
                     auto cachedRow = CachedKeyFromVersionedRow(
                         &TabletSnapshot_->RowCache->Allocator,
                         row);
