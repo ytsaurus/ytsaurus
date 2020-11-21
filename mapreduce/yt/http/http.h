@@ -140,6 +140,7 @@ public:
     void CheckErrorResponse() const;
     bool IsExhausted() const;
     int GetHttpCode() const;
+    const TString& GetHostName() const;
     bool IsKeepAlive() const;
 
 protected:
