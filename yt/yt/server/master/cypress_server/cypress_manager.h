@@ -153,7 +153,13 @@ public:
         bool recursive = false,
         bool dontLockForeign = false);
 
-    TLock* CreateLock(
+    struct TCreateLockResult
+    {
+        TLock* Lock;
+        TCypressNode* BranchedNode;
+    };
+
+    TCreateLockResult CreateLock(
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,

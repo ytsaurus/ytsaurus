@@ -1691,7 +1691,7 @@ public:
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Branched node removed (NodeId: %v)", branchedNodeId);
     }
 
-    TLock* CreateLock(
+    TCreateLockResult CreateLock(
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& request,
@@ -1721,8 +1721,8 @@ public:
         // Is it OK?
         if (error.IsOK()) {
             auto* lock = DoCreateLock(trunkNode, transaction, request, false);
-            DoAcquireLock(lock);
-            return lock;
+            auto* branchedNode = DoAcquireLock(lock);
+            return {lock, branchedNode};
         }
 
         // Should we wait?
@@ -1731,7 +1731,7 @@ public:
         }
 
         // Will wait.
-        return DoCreateLock(trunkNode, transaction, request, false);
+        return {DoCreateLock(trunkNode, transaction, request, false), nullptr};
     }
 
     void SetModified(
@@ -3950,7 +3950,7 @@ TCypressNode* TCypressManager::LockNode(
     return Impl_->LockNode(trunkNode, transaction, request, recursive, dontLockForeign);
 }
 
-TLock* TCypressManager::CreateLock(
+TCypressManager::TCreateLockResult TCypressManager::CreateLock(
     TCypressNode* trunkNode,
     TTransaction* transaction,
     const TLockRequest& request,

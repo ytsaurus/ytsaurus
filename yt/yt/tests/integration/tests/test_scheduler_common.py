@@ -1055,6 +1055,15 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
         )
         assert get(op.get_path() + "/@progress/jobs/total") == 2
 
+    @authors("babenko")
+    def test_lock_revisions_yt_13962(self):
+        tx = start_transaction()
+        create("table", "//tmp/t", tx=tx)
+        data = [{"key": "value"}]
+        write_table("//tmp/t", data, tx=tx)
+        merge(in_=["//tmp/t"], out="//tmp/t", mode="ordered", tx=tx)
+        assert read_table("//tmp/t", tx=tx) == data
+
 
 ##################################################################
 
