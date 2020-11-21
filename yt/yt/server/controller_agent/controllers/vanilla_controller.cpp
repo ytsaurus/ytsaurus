@@ -233,6 +233,11 @@ public:
             auto task = New<TVanillaTask>(this, taskSpec, taskName, std::move(streamDescriptors));
             RegisterTask(task);
             FinishTaskInput(task);
+
+            GetDataFlowGraph()->RegisterEdge(
+                TDataFlowGraph::SourceDescriptor,
+                task->GetVertexDescriptor());
+
             Tasks_.emplace_back(std::move(task));
             ValidateUserFileCount(taskSpec, taskName);
         }

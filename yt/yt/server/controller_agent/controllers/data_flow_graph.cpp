@@ -354,6 +354,14 @@ public:
         }
     }
 
+    void RegisterEdge(
+        const TDataFlowGraph::TVertexDescriptor& from,
+        const TDataFlowGraph::TVertexDescriptor& to)
+    {
+        TopologicalOrdering_.AddEdge(from, to);
+        GetOrRegisterEdge(from, to);
+    }
+
     void UpdateEdgeJobDataStatistics(
         const TDataFlowGraph::TVertexDescriptor& from,
         const TDataFlowGraph::TVertexDescriptor& to,
@@ -521,6 +529,13 @@ IYPathServicePtr TDataFlowGraph::GetService() const
 void TDataFlowGraph::Persist(const TPersistenceContext& context)
 {
     Impl_->Persist(context);
+}
+
+void TDataFlowGraph::RegisterEdge(
+    const TVertexDescriptor& from,
+    const TVertexDescriptor& to)
+{
+    Impl_->RegisterEdge(from, to);
 }
 
 void TDataFlowGraph::UpdateEdgeJobDataStatistics(
