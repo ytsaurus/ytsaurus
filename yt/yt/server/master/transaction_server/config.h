@@ -86,8 +86,10 @@ public:
         RegisterParameter("boomerang_tracker", BoomerangTracker)
             .DefaultNew();
 
+        // COMPAT(shakurov): this is an emergency button for unforeseen circumstances.
+        // To be removed once sharded transactions (a.k.a. v. 20.3) are stabilized.
         RegisterParameter("enable_dedicated_upload_transaction_object_types", EnableDedicatedUploadTransactionObjectTypes)
-            .Default(false);
+            .Default(true);
     }
 };
 

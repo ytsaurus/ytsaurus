@@ -42,12 +42,7 @@ TTransaction::TTransaction(TTransactionId id, bool upload)
     , StartTime_(TInstant::Zero())
     , Acd_(this)
     , Upload_(upload)
-{
-    YT_VERIFY(
-        TypeFromId(id) != EObjectType::UploadTransaction &&
-        TypeFromId(id) != EObjectType::UploadNestedTransaction ||
-        Upload_);
-}
+{ }
 
 bool TTransaction::IsUpload() const
 {
