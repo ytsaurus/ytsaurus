@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -34,7 +34,7 @@ private:
         TValue Value;
     };
 
-    NConcurrency::TReaderWriterSpinLock MapLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MapLock_);
     THashMap<TKey, TEntry> Map_;
 
     const TCallback<TValue(const TKey&)> CalculateValueAction_;

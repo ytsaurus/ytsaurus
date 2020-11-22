@@ -208,7 +208,7 @@ private:
 
     std::atomic<i64> ModifyRowsRequestSequenceCounter_ = 0;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     // XXX(babenko): drop once YTADMINREQ-22173 is resolved
     int SpinLockTag_ = -1;
     ETransactionState State_ = ETransactionState::Active;
@@ -227,7 +227,9 @@ private:
     void RunPeriodicPings();
     bool IsPingableState();
 
-    TFuture<void> DoAbort(TGuard<TAdaptiveLock>* guard, const TTransactionAbortOptions& options = {});
+    TFuture<void> DoAbort(
+        NConcurrency::TSpinlockGuard<TAdaptiveLock>* guard,
+        const TTransactionAbortOptions& options = {});
 
     void ValidateActive();
     void DoValidateActive();

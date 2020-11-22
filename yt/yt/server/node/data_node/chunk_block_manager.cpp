@@ -181,7 +181,7 @@ private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    TAdaptiveLock BlocksWithSourceLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, BlocksWithSourceLock_);
     std::vector<TWeakPtr<TCachedBlock>> BlocksWithSource_;
 
 

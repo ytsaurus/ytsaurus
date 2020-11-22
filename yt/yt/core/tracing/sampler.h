@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 namespace NYT::NTracing {
 
@@ -26,7 +26,7 @@ private:
         std::atomic<uint64_t> SampleCount;
     };
 
-    NConcurrency::TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
     TSamplingConfigPtr Config_;
     THashMap<TString, TIntrusivePtr<TUserState>> UserState_;
 };

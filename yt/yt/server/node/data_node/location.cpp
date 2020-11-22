@@ -117,7 +117,7 @@ void TLocationPerformanceCounters::ThrottleRead()
 void TLocationPerformanceCounters::ThrottleWrite()
 {
     ThrottledWrites.Increment();
-    LastWriteThrottleTime = GetCpuInstant();    
+    LastWriteThrottleTime = GetCpuInstant();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,7 +135,7 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-{    
+{
     Profiler_ = DataNodeProfiler
         .WithPrefix("/location")
         .WithTag("location_type", ToString(Type_))
@@ -452,7 +452,7 @@ void TLocation::UpdatePendingIOSize(
     i64 delta)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
+
     i64 result = PerformanceCounters_->PendingIOSize[direction][category].fetch_add(delta) + delta;
     YT_LOG_TRACE("Pending IO size updated (Direction: %v, Category: %v, PendingSize: %v, Delta: %v)",
         direction,
@@ -943,7 +943,7 @@ void TStoreLocation::RegisterTrashChunk(TChunkId chunkId)
     }
 
     {
-        TGuard<TAdaptiveLock> guard(TrashMapSpinLock_);
+        auto guard = Guard(TrashMapSpinLock_);
         TrashMap_.emplace(timestamp, TTrashChunkEntry{chunkId, diskSpace});
         TrashDiskSpace_ += diskSpace;
     }
@@ -975,7 +975,7 @@ void TStoreLocation::CheckTrashTtl()
     while (true) {
         TTrashChunkEntry entry;
         {
-            TGuard<TAdaptiveLock> guard(TrashMapSpinLock_);
+            auto guard = Guard(TrashMapSpinLock_);
             if (TrashMap_.empty())
                 break;
             auto it = TrashMap_.begin();
@@ -994,7 +994,7 @@ void TStoreLocation::CheckTrashWatermark()
     bool needsCleanup;
     i64 availableSpace;
     {
-        TGuard<TAdaptiveLock> guard(TrashMapSpinLock_);
+        auto guard = Guard(TrashMapSpinLock_);
         // NB: Available space includes trash disk space.
         availableSpace = GetAvailableSpace() - TrashDiskSpace_.load();
         needsCleanup = availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
@@ -1010,7 +1010,7 @@ void TStoreLocation::CheckTrashWatermark()
     while (availableSpace < Config_->TrashCleanupWatermark) {
         TTrashChunkEntry entry;
         {
-            TGuard<TAdaptiveLock> guard(TrashMapSpinLock_);
+            auto guard = Guard(TrashMapSpinLock_);
             if (TrashMap_.empty()) {
                 break;
             }

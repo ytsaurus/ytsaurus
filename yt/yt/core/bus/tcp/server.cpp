@@ -19,7 +19,7 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <cerrno>
 
@@ -99,7 +99,7 @@ public:
 
         decltype(Connections_) connections;
         {
-            TWriterGuard guard(ConnectionsSpinLock_);
+            auto guard = WriterGuard(ConnectionsSpinLock_);
             std::swap(connections, Connections_);
         }
 
@@ -115,10 +115,10 @@ protected:
     const IPollerPtr Poller_;
     const IMessageHandlerPtr Handler_;
 
-    TAdaptiveLock ControlSpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ControlSpinLock_);
     int ServerSocket_ = INVALID_SOCKET;
 
-    TReaderWriterSpinLock ConnectionsSpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ConnectionsSpinLock_);
     THashSet<TTcpConnectionPtr> Connections_;
 
     NLogging::TLogger Logger = BusLogger;
@@ -131,7 +131,7 @@ protected:
 
     void OnConnectionTerminated(const TTcpConnectionPtr& connection, const TError& /*error*/)
     {
-        TWriterGuard guard(ConnectionsSpinLock_);
+        auto guard = WriterGuard(ConnectionsSpinLock_);
         // NB: Connection could be missing, see OnShutdown.
         Connections_.erase(connection);
     }
@@ -230,7 +230,7 @@ protected:
                 TTcpDispatcher::TImpl::Get()->GetXferPoller());
 
             {
-                TWriterGuard guard(ConnectionsSpinLock_);
+                auto guard = WriterGuard(ConnectionsSpinLock_);
                 YT_VERIFY(Connections_.insert(connection).second);
             }
 
@@ -429,7 +429,7 @@ public:
 private:
     const TTcpBusServerConfigPtr Config_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TIntrusivePtr<TServer> Server_;
 
 };

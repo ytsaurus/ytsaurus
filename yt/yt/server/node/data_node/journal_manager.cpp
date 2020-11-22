@@ -534,7 +534,7 @@ public:
     TPromise<void> RegisterBarrier()
     {
         auto barrier = NewPromise<void>();
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         YT_VERIFY(Barriers_.insert(barrier).second);
         return barrier;
     }
@@ -595,7 +595,7 @@ private:
     const NLogging::TLogger Logger;
 
     //! Protects a section of members.
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
     //! The current multiplexed changelog.
     IChangelogPtr MultiplexedChangelog_;
@@ -655,7 +655,7 @@ private:
             changelogRecords.push_back(multiplexedData.Slice(changelogRecordPtr, currentDataPtr));
         }
 
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         auto appendResult = MultiplexedChangelog_->Append(changelogRecords);
 
@@ -809,7 +809,7 @@ private:
 
     void OnBarrierCleanup()
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         std::vector<TFuture<void>> activeBarriers;
         activeBarriers.reserve(Barriers_.size());

@@ -27,6 +27,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NNet;
 using namespace NRpc;
+using namespace NConcurrency;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -361,7 +362,7 @@ void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
     std::vector<const NProto::TNodeDirectory_TItem*> items;
     items.reserve(source.items_size());
     {
-        NConcurrency::TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         for (const auto& item : source.items()) {
             if (NeedToAddDescriptor(item.node_id(), item.node_descriptor())) {
                 items.push_back(&item);
@@ -369,7 +370,7 @@ void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
         }
     }
     {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         for (const auto* item : items) {
             DoAddDescriptor(item->node_id(), item->node_descriptor());
         }
@@ -384,8 +385,8 @@ void TNodeDirectory::MergeFrom(const TNodeDirectoryPtr& source)
 
     std::vector<std::pair<TNodeId, TNodeDescriptor>> items;
     {
-        NConcurrency::TWriterGuard thisGuard(SpinLock_);
-        NConcurrency::TReaderGuard sourceGuard(source->SpinLock_);
+        auto thisGuard = WriterGuard(SpinLock_);
+        auto sourceGuard = ReaderGuard(source->SpinLock_);
         items.reserve(source->IdToDescriptor_.size());
         for (auto [id, descriptor] : source->IdToDescriptor_) {
             if (NeedToAddDescriptor(id, *descriptor)) {
@@ -394,7 +395,7 @@ void TNodeDirectory::MergeFrom(const TNodeDirectoryPtr& source)
         }
     }
     {
-        NConcurrency::TWriterGuard thisGuard(SpinLock_);
+        auto thisGuard = WriterGuard(SpinLock_);
         for (const auto& [id, descriptor] : items) {
             DoAddDescriptor(id, descriptor);
         }
@@ -403,7 +404,7 @@ void TNodeDirectory::MergeFrom(const TNodeDirectoryPtr& source)
 
 void TNodeDirectory::DumpTo(NProto::TNodeDirectory* destination)
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     for (auto [id, descriptor] : IdToDescriptor_) {
         auto* item = destination->add_items();
         item->set_node_id(id);
@@ -413,7 +414,7 @@ void TNodeDirectory::DumpTo(NProto::TNodeDirectory* destination)
 
 void TNodeDirectory::Serialize(IYsonConsumer* consumer) const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     BuildYsonFluently(consumer)
         .BeginList()
@@ -435,7 +436,7 @@ void Serialize(const TNodeDirectory& nodeDirectory, NYson::IYsonConsumer* consum
 
 void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     DoAddDescriptor(id, descriptor);
 }
 
@@ -480,7 +481,7 @@ void TNodeDirectory::DoCaptureAndAddDescriptor(TNodeId id, TNodeDescriptor&& des
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(TNodeId id) const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     auto it = IdToDescriptor_.find(id);
     return it == IdToDescriptor_.end() ? nullptr : it->second;
 }
@@ -508,7 +509,7 @@ std::vector<TNodeDescriptor> TNodeDirectory::GetDescriptors(const TChunkReplicaL
 
 std::vector<std::pair<TNodeId, TNodeDescriptor>> TNodeDirectory::GetAllDescriptors() const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     std::vector<std::pair<TNodeId, TNodeDescriptor>> result;
     result.reserve(IdToDescriptor_.size());
@@ -520,7 +521,7 @@ std::vector<std::pair<TNodeId, TNodeDescriptor>> TNodeDirectory::GetAllDescripto
 
 const TNodeDescriptor* TNodeDirectory::FindDescriptor(const TString& address)
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     auto it = AddressToDescriptor_.find(address);
     return it == AddressToDescriptor_.end() ? nullptr : it->second;
 }
@@ -536,7 +537,7 @@ void TNodeDirectory::Save(TStreamSaveContext& context) const
 {
     THashMap<TNodeId, TNodeDescriptor> idToDescriptor;
     {
-        NConcurrency::TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         for (auto [id, descriptor] : IdToDescriptor_) {
             YT_VERIFY(idToDescriptor.emplace(id, *descriptor).second);
         }
@@ -549,7 +550,7 @@ void TNodeDirectory::Load(TStreamLoadContext& context)
 {
     using NYT::Load;
     auto idToDescriptor = Load<THashMap<TNodeId, TNodeDescriptor>>(context);
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     for (const auto& [id, descriptor] : idToDescriptor) {
         DoAddDescriptor(id, descriptor);
     }

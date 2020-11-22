@@ -17,7 +17,7 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
 {
     TEntryPtr entry;
     {
-        NConcurrency::TReaderGuard readerGuard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         auto it = Cache_.find(key);
         if (it != Cache_.end()) {
             entry = it->second;
@@ -39,14 +39,14 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
 
             auto context = entry->Context;
             guard.Release();
-        
+
             DoGet(entry->Key, context)
                 .Apply(BIND([entry] (const TErrorOr<TValue>& value) {
                     auto transientError = !value.IsOK() && !value.FindMatching(NRpc::EErrorCode::InvalidCredentials);
 
                     auto guard = Guard(entry->Lock);
                     entry->Updating = false;
-                
+
                     if (transientError) {
                         return;
                     }
@@ -66,7 +66,7 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
     bool inserted = false;
 
     {
-        NConcurrency::TWriterGuard writerGuard(SpinLock_);
+        auto writerGuard = WriterGuard(SpinLock_);
         auto it = Cache_.find(key);
         if (it == Cache_.end()) {
             inserted = true;
@@ -98,7 +98,7 @@ void TAuthCache<TKey, TValue, TContext>::TryErase(const TWeakPtr<TEntry>& weakEn
 
     auto guard = Guard(entry->Lock);
     if (entry->IsExpired(Config_->OptimisticCacheTtl)) {
-        NConcurrency::TWriterGuard writerGuard(SpinLock_);
+        auto writerGuard = WriterGuard(SpinLock_);
         auto it = Cache_.find(entry->Key);
         if (it != Cache_.end() && it->second == entry) {
             Cache_.erase(it);
@@ -119,7 +119,7 @@ bool TAuthCache<TKey, TValue, TContext>::TEntry::IsOutdated(TDuration ttl, TDura
 
     auto value = Future.TryGet();
     if (value && !value->IsOK()) {
-        return now > LastUpdateTime + NProfiling::DurationToCpuDuration(errorTtl);        
+        return now > LastUpdateTime + NProfiling::DurationToCpuDuration(errorTtl);
     } else {
         return now > LastUpdateTime + NProfiling::DurationToCpuDuration(ttl);
     }

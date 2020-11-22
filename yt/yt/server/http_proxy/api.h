@@ -7,7 +7,7 @@
 
 #include <yt/core/http/http.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -96,7 +96,7 @@ private:
 
     TString GetNetworkNameForAddress(const NNet::TNetworkAddress& address) const;
 
-    NConcurrency::TReaderWriterSpinLock BanCacheLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, BanCacheLock_);
     THashMap<TString, TInstant> BanCache_;
 
     struct TProfilingCounters

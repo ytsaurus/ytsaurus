@@ -6,7 +6,7 @@ namespace NYT::NConcurrency {
 
 TFuture<void> TAsyncReaderWriterLock::AcquireReader()
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     if (!HasActiveWriter_ && WriterPromiseQueue_.empty()) {
         ++ActiveReaderCount_;
@@ -20,7 +20,7 @@ TFuture<void> TAsyncReaderWriterLock::AcquireReader()
 
 void TAsyncReaderWriterLock::ReleaseReader()
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     YT_VERIFY(ActiveReaderCount_ > 0);
 
@@ -36,7 +36,7 @@ void TAsyncReaderWriterLock::ReleaseReader()
 
 TFuture<void> TAsyncReaderWriterLock::AcquireWriter()
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     if (ActiveReaderCount_ == 0 && !HasActiveWriter_) {
         HasActiveWriter_ = true;
@@ -50,7 +50,7 @@ TFuture<void> TAsyncReaderWriterLock::AcquireWriter()
 
 void TAsyncReaderWriterLock::ReleaseWriter()
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     YT_VERIFY(HasActiveWriter_);
 

@@ -167,7 +167,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
                 WaitFor(JobDirectoryManager_->ApplyQuota(sandboxPath, properties))
                     .ThrowOnError();
                 {
-                    TWriterGuard guard(SlotsLock_);
+                    auto guard = WriterGuard(SlotsLock_);
                     SlotsWithQuota_.insert(slotIndex);
                 }
             } catch (const std::exception& ex) {
@@ -196,7 +196,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
         }
 
         {
-            TWriterGuard guard(SlotsLock_);
+            auto guard = WriterGuard(SlotsLock_);
             YT_VERIFY(OccupiedSlotToDiskLimit_.emplace(slotIndex, options.DiskSpaceLimit).second);
         }
 
@@ -228,7 +228,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
                     .ThrowOnError();
 
                 {
-                    TWriterGuard guard(SlotsLock_);
+                    auto guard = WriterGuard(SlotsLock_);
                     YT_VERIFY(TmpfsPaths_.insert(tmpfsPath).second);
                 }
 
@@ -305,7 +305,7 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
         auto processError = [&] (const std::exception& ex, bool noSpace) {
             bool slotWithQuota = false;
             {
-                TReaderGuard guard(SlotsLock_);
+                auto guard = ReaderGuard(SlotsLock_);
                 slotWithQuota = SlotsWithQuota_.contains(slotIndex);
             }
 
@@ -523,7 +523,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
         ValidateEnabled();
 
         {
-            TWriterGuard guard(SlotsLock_);
+            auto guard = WriterGuard(SlotsLock_);
 
             // There may be no slotIndex in this map
             // (e.g. during SlotMananager::Initialize)
@@ -551,7 +551,7 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                 }
 
                 {
-                    TWriterGuard guard(SlotsLock_);
+                    auto guard = WriterGuard(SlotsLock_);
 
                     auto it = TmpfsPaths_.lower_bound(sandboxPath);
                     while (it != TmpfsPaths_.end() && it->StartsWith(sandboxPath)) {
@@ -637,7 +637,7 @@ TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) c
 
 bool TSlotLocation::IsInsideTmpfs(const TString& path) const
 {
-    TReaderGuard guard(SlotsLock_);
+    auto guard = ReaderGuard(SlotsLock_);
 
     auto it = TmpfsPaths_.lower_bound(path);
     if (it != TmpfsPaths_.begin()) {
@@ -716,7 +716,7 @@ void TSlotLocation::UpdateDiskResources()
         THashMap<int, std::optional<i64>> occupiedSlotToDiskLimit;
 
         {
-            TReaderGuard guard(SlotsLock_);
+            auto guard = ReaderGuard(SlotsLock_);
             occupiedSlotToDiskLimit = OccupiedSlotToDiskLimit_;
         }
 
@@ -753,7 +753,7 @@ void TSlotLocation::UpdateDiskResources()
 
         auto mediumDescriptor = GetMediumDescriptor();
         if (mediumDescriptor.Index != NChunkClient::GenericMediumIndex) {
-            auto guard = TWriterGuard(DiskResourcesLock_);
+            auto guard = WriterGuard(DiskResourcesLock_);
             DiskResources_.set_usage(diskUsage);
             DiskResources_.set_limit(diskLimit);
             DiskResources_.set_medium_index(mediumDescriptor.Index);
@@ -769,7 +769,7 @@ void TSlotLocation::UpdateDiskResources()
 
 NNodeTrackerClient::NProto::TDiskLocationResources TSlotLocation::GetDiskResources() const
 {
-    auto guard = TReaderGuard(DiskResourcesLock_);
+    auto guard = ReaderGuard(DiskResourcesLock_);
     return DiskResources_;
 }
 

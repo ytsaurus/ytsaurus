@@ -5,7 +5,7 @@
 #include "roaming_channel.h"
 #include "dynamic_channel_pool.h"
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -131,7 +131,7 @@ public:
     {
         std::vector<TBalancingChannelSubproviderPtr> subproviders;
         {
-            TReaderGuard guard(SpinLock_);
+            auto guard = ReaderGuard(SpinLock_);
             for (const auto& [_, subprovider] : SubproviderMap_) {
                 subproviders.push_back(subprovider);
             }
@@ -150,14 +150,14 @@ private:
     const TString EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
-    mutable TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TString, TBalancingChannelSubproviderPtr> SubproviderMap_;
 
 
     TBalancingChannelSubproviderPtr GetSubprovider(const TString& serviceName)
     {
         {
-            TReaderGuard guard(SpinLock_);
+            auto guard = ReaderGuard(SpinLock_);
             auto it = SubproviderMap_.find(serviceName);
             if (it != SubproviderMap_.end()) {
                 return it->second;
@@ -165,7 +165,7 @@ private:
         }
 
         {
-            TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             auto it = SubproviderMap_.find(serviceName);
             if (it != SubproviderMap_.end()) {
                 return it->second;

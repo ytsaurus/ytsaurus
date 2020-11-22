@@ -16,3 +16,10 @@ IF(GCC)
         -Wno-maybe-uninitialized
     )
 ENDIF()
+
+IF(YT_ENABLE_SPINLOCK_PROFILING)
+    SET(YT_ARCADIA_CXXFLAGS
+        ${YT_ARCADIA_CXXFLAGS}
+        -DYT_ENABLE_SPINLOCK_PROFILING
+    )
+ENDIF()

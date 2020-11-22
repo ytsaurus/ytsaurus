@@ -238,7 +238,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(MasterCellRolesLock_);
+        auto guard = ReaderGuard(MasterCellRolesLock_);
 
         auto it = MasterCellRolesMap_.find(cellTag);
         return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
@@ -248,7 +248,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(MasterCellRolesLock_);
+        auto guard = ReaderGuard(MasterCellRolesLock_);
 
         auto it = RoleMasterCellsMap_.find(cellRole);
         return it == RoleMasterCellsMap_.end() ? EmptyCellTagList : it->second;
@@ -365,7 +365,7 @@ public:
         auto key = std::make_tuple(cellTag, peerKind);
 
         {
-            TReaderGuard guard(MasterChannelCacheLock_);
+            auto guard = ReaderGuard(MasterChannelCacheLock_);
             auto it = MasterChannelCache_.find(key);
             if (it != MasterChannelCache_.end()) {
                 return it->second;
@@ -385,7 +385,7 @@ public:
 
         {
             // NB: Insertions are racy.
-            TWriterGuard guard(MasterChannelCacheLock_);
+            auto guard = WriterGuard(MasterChannelCacheLock_);
             MasterChannelCache_.emplace(key, channel);
         }
 
@@ -453,10 +453,10 @@ private:
     TPeriodicExecutorPtr CellStatisticsGossipExecutor_;
 
     //! Caches master channels returned by FindMasterChannel and GetMasterChannelOrThrow.
-    NConcurrency::TReaderWriterSpinLock MasterChannelCacheLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MasterChannelCacheLock_);
     THashMap<std::tuple<TCellTag, EPeerKind>, IChannelPtr> MasterChannelCache_;
 
-    NConcurrency::TReaderWriterSpinLock MasterCellRolesLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MasterCellRolesLock_);
     THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
     THashMap<EMasterCellRoles, TCellTagList> RoleMasterCellsMap_;
 
@@ -613,7 +613,7 @@ private:
 
     void ClearCaches()
     {
-        TWriterGuard guard(MasterChannelCacheLock_);
+        auto guard = WriterGuard(MasterChannelCacheLock_);
         MasterChannelCache_.clear();
     }
 
@@ -1005,7 +1005,7 @@ private:
 
     void RecomputeMasterCellRoles()
     {
-        TWriterGuard guard(MasterCellRolesLock_);
+        auto guard = WriterGuard(MasterCellRolesLock_);
 
         MasterCellRolesMap_.clear();
         RoleMasterCellsMap_.clear();

@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/async_cache.h>
 
@@ -83,10 +83,10 @@ private:
 
     NChunkClient::NProto::TChunkInfo Info_;
 
-    NConcurrency::TReaderWriterSpinLock BlocksExtLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, BlocksExtLock_);
     TWeakPtr<NChunkClient::TRefCountedBlocksExt> WeakBlocksExt_;
 
-    TAdaptiveLock CachedReaderSpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, CachedReaderSpinLock_);
     TWeakPtr<NChunkClient::TFileReader> CachedWeakReader_;
 
     //! Returns true if location must be disabled.

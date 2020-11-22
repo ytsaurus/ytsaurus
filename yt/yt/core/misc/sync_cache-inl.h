@@ -59,7 +59,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
 {
     for (size_t i = 0; i < Config_->ShardCount; ++i) {
         auto& shard = Shards_[i];
-        NConcurrency::TWriterGuard guard(shard.SpinLock);
+        auto guard = WriterGuard(shard.SpinLock);
 
         shard.TouchBufferPosition = 0;
 
@@ -101,7 +101,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 {
     auto* shard = GetShardByKey(key);
 
-    NConcurrency::TReaderGuard readerGuard(shard->SpinLock);
+    auto readerGuard = ReaderGuard(shard->SpinLock);
 
     auto itemIt = shard->ItemMap.find(key);
     if (itemIt == shard->ItemMap.end()) {
@@ -118,7 +118,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     readerGuard.Release();
 
     if (needToDrain) {
-        NConcurrency::TWriterGuard writerGuard(shard->SpinLock);
+        auto writerGuard = WriterGuard(shard->SpinLock);
         DrainTouchBuffer(shard);
     }
 
@@ -132,7 +132,7 @@ TSyncSlruCacheBase<TKey, TValue, THash>::GetAll()
     std::vector<TValuePtr> result;
     result.reseve(GetSize());
     for (const auto& shard : Shards_) {
-        NConcurrency::TReaderGuard guard(shard->SpinLock);
+        auto guard = ReaderGuard(shard->SpinLock);
         for (const auto& [key, item] : shard->ItemMap) {
             result.push_back(item->Value);
         }
@@ -147,7 +147,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(const TValuePtr& value, 
     auto weight = GetWeight(value);
     auto* shard = GetShardByKey(key);
 
-    NConcurrency::TWriterGuard guard(shard->SpinLock);
+    auto guard = WriterGuard(shard->SpinLock);
 
     DrainTouchBuffer(shard);
 
@@ -177,7 +177,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryInsert(const TValuePtr& value, 
 }
 
 template <class TKey, class TValue, class THash>
-void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::TWriterGuard& guard)
+void TSyncSlruCacheBase<TKey, TValue, THash>::Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard)
 {
     // Move from older to younger.
     while (!shard->OlderLruList.Empty() &&
@@ -217,7 +217,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
 {
     auto* shard = GetShardByKey(key);
 
-    NConcurrency::TWriterGuard guard(shard->SpinLock);
+    auto guard = WriterGuard(shard->SpinLock);
 
     DrainTouchBuffer(shard);
 
@@ -249,7 +249,7 @@ bool TSyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TValuePtr& value)
     const auto& key = value->GetKey();
     auto* shard = GetShardByKey(key);
 
-    NConcurrency::TWriterGuard guard(shard->SpinLock);
+    auto guard = WriterGuard(shard->SpinLock);
 
     DrainTouchBuffer(shard);
 

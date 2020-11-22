@@ -97,7 +97,7 @@ void TSlotManager::Initialize()
         auto error =  TError("Failed to initialize slot locations") << initResults;
         Disable(error);
     } else {
-        // We ignore results from initLocationsFutures, 
+        // We ignore results from initLocationsFutures,
         // they are provided via TSlotLocation::IsEnabled method.
         for (const auto& location: Locations_) {
             if (!location->IsEnabled()) {
@@ -178,34 +178,34 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
 void TSlotManager::ReleaseSlot(int slotIndex)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
-    
+
     YT_VERIFY(FreeSlots_.insert(slotIndex).second);
 }
 
 int TSlotManager::GetSlotCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
-    
+
     return IsEnabled() ? SlotCount_ : 0;
 }
 
 int TSlotManager::GetUsedSlotCount() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
-    
+
     return IsEnabled() ? SlotCount_ - FreeSlots_.size() : 0;
 }
 
 bool TSlotManager::IsEnabled() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
-    
+
     bool enabled =
         SlotCount_ > 0 &&
         !AliveLocations_.empty() &&
         JobEnvironment_->IsEnabled();
 
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     return enabled && !PersistentAlert_ && !TransientAlert_;
 }
 
@@ -225,8 +225,8 @@ void TSlotManager::OnJobsCpuLimitUpdated()
 void TSlotManager::Disable(const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+
+    auto guard = Guard(SpinLock_);
 
     if (PersistentAlert_) {
         return;
@@ -243,7 +243,7 @@ void TSlotManager::OnJobFinished(const IJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     if (job->GetState() == EJobState::Aborted) {
         ++ConsecutiveAbortedJobCount_;
@@ -266,7 +266,7 @@ void TSlotManager::ResetTransientAlert()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     TransientAlert_ = std::nullopt;
     ConsecutiveAbortedJobCount_ = 0;
 }
@@ -275,7 +275,7 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     if (TransientAlert_) {
         alerts->push_back(*TransientAlert_);
     }
@@ -287,9 +287,9 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
 void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
+
     {
-        TGuard guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         fluent
             .Item("slot_count").Value(SlotCount_)
             .Item("free_slot_count").Value(FreeSlots_.size())

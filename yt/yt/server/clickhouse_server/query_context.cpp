@@ -132,12 +132,12 @@ const NApi::NNative::IClientPtr& TQueryContext::Client() const
 {
     bool clientPresent;
     {
-        auto readerGuard = TReaderGuard(&ClientLock_);
+        auto readerGuard = ReaderGuard(ClientLock_);
         clientPresent = static_cast<bool>(Client_);
     }
 
     if (!clientPresent) {
-        auto writerGuard = TWriterGuard(&ClientLock_);
+        auto writerGuard = WriterGuard(ClientLock_);
         Client_ = Host->CreateClient(User);
     }
 
@@ -152,7 +152,7 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
         return;
     }
 
-    TGuard<TAdaptiveLock> readerGuard(PhaseLock_);
+    auto readerGuard = Guard(PhaseLock_);
 
     if (nextPhase <= QueryPhase_.load()) {
         return;
@@ -195,7 +195,7 @@ EQueryPhase TQueryContext::GetQueryPhase() const
 TStorageContext* TQueryContext::FindStorageContext(const DB::IStorage* storage)
 {
     {
-        auto readerGuard = TReaderGuard(StorageToStorageContextLock_);
+        auto readerGuard = ReaderGuard(StorageToStorageContextLock_);
         auto it = StorageToStorageContext_.find(storage);
         if (it != StorageToStorageContext_.end()) {
             return it->second.Get();
@@ -211,7 +211,7 @@ TStorageContext* TQueryContext::GetOrRegisterStorageContext(const DB::IStorage* 
     }
 
     {
-        auto writerGuard = TWriterGuard(StorageToStorageContextLock_);
+        auto writerGuard = WriterGuard(StorageToStorageContextLock_);
         auto storageIndex = StorageToStorageContext_.size();
         const auto& storageContext = (StorageToStorageContext_[storage] =
             New<TStorageContext>(storageIndex, context, this));

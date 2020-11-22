@@ -6,7 +6,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 namespace NYT::NTableClient {
 
@@ -66,7 +66,7 @@ public:
 
                 const auto& error = session.ReadyEvent->Get();
                 if (!error.IsOK()) {
-                    TWriterGuard guard(SpinLock_);
+                    auto guard = WriterGuard(SpinLock_);
                     ReadyEvent_ = MakePromise<void>(error);
                     return CreateEmptyUnversionedRowBatch();
                 }
@@ -99,7 +99,7 @@ public:
 
         auto readyEvent = NewPromise<void>();
         {
-            TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             ReadyEvent_ = readyEvent;
         }
 
@@ -121,7 +121,7 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         auto dataStatistics = DataStatistics_;
         for (const auto& session : Sessions_) {
             if (session.Reader) {
@@ -133,7 +133,7 @@ public:
 
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         auto result = DecompressionStatistics_;
         for (const auto& session : Sessions_) {
             if (session.Reader) {
@@ -145,7 +145,7 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         for (const auto& session : Sessions_) {
             if (session.Reader && !session.Reader->IsFetchingCompleted()) {
                 return false;
@@ -156,7 +156,7 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         auto result = FailedChunkIds_;
         for (const auto& session : Sessions_) {
             if (session.Reader) {
@@ -189,11 +189,11 @@ private:
 
     TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
-    mutable TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
 
     TPromise<void> DoGetReadyEvent() const
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         return ReadyEvent_;
     }
 
@@ -209,7 +209,7 @@ private:
         auto dataStatistics = session.Reader->GetDataStatistics();
         auto cpuCompressionStatistics = session.Reader->GetDecompressionStatistics();
         {
-            TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             DataStatistics_ += dataStatistics;
             DecompressionStatistics_ += cpuCompressionStatistics;
             auto failedChunkIds = session.Reader->GetFailedChunkIds();
@@ -228,7 +228,7 @@ private:
         }
 
         {
-            TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             session.Exhausted = false;
             session.Reader = std::move(reader);
         }

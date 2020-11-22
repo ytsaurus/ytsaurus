@@ -36,7 +36,7 @@ bool TExecNode::CanSchedule(const TSchedulingTagFilter& filter) const
 
 TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
 {
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     return TExecNodeDescriptor(
         Id_,
@@ -53,7 +53,7 @@ TExecNodeDescriptor TExecNode::BuildExecDescriptor() const
 
 void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)
 {
-    TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     // NB: surely, something smarter than this should be done with individual medium weights here.
     IOWeight_ = 0.0;
     for (const auto& [medium, weight] : mediumToWeight) {
@@ -68,7 +68,7 @@ const TJobResources& TExecNode::GetResourceLimits() const
 
 void TExecNode::SetResourceLimits(const TJobResources& value)
 {
-    TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     ResourceLimits_ = value;
 }
 

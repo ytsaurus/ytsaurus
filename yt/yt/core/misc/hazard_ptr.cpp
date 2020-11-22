@@ -6,24 +6,21 @@
 #include <yt/core/misc/ring_queue.h>
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/fiber_api.h>
 
 #include <pthread.h>
 
 namespace NYT {
 
+using namespace NConcurrency;
+
 /////////////////////////////////////////////////////////////////////////////
 
 const NLogging::TLogger LockFreePtrLogger("LockFreeHelpers");
-
 static const auto& Logger = LockFreePtrLogger;
 
 ////////////////////////////////////////////////////////////////////////////
-
-using NConcurrency::TWriterGuard;
-using NConcurrency::TReaderGuard;
-using NConcurrency::TReaderWriterSpinLock;
 
 thread_local std::atomic<void*> HazardPointer = {nullptr};
 
@@ -143,7 +140,7 @@ private:
     std::atomic<size_t> ThreadCount_ = {0};
 
     TDeleteQueue<TRetiredPtr> DeleteQueue_;
-    TReaderWriterSpinLock ThreadRegistryLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ThreadRegistryLock_);
     TIntrusiveLinkedList<THazardThreadState, THazardThreadStateToRegistryNode> ThreadRegistry_;
     pthread_key_t ThreadDtorKey_;
 };
@@ -162,7 +159,7 @@ THazardPointerManager::THazardPointerManager()
 THazardPointerManager::~THazardPointerManager()
 {
     {
-        NConcurrency::TWriterGuard guard(ThreadRegistryLock_);
+        auto guard = WriterGuard(ThreadRegistryLock_);
         YT_VERIFY(ThreadRegistry_.GetSize() <= 1);
 
         if (ThreadRegistry_.GetSize() > 0) {
@@ -199,7 +196,7 @@ THazardThreadState* THazardPointerManager::AllocateThread()
     pthread_setspecific(ThreadDtorKey_, threadState);
 
     {
-        NConcurrency::TWriterGuard guard(ThreadRegistryLock_);
+        auto guard = WriterGuard(ThreadRegistryLock_);
         ThreadRegistry_.PushBack(threadState);
     }
     ++ThreadCount_;
@@ -216,7 +213,7 @@ bool THazardPointerManager::Scan(THazardThreadState* threadState)
     YT_VERIFY(protectedPointers.empty());
 
     {
-        TReaderGuard guard(ThreadRegistryLock_);
+        auto guard = ReaderGuard(ThreadRegistryLock_);
         for (
             auto* current = ThreadRegistry_.GetFront();
             current;
@@ -276,7 +273,7 @@ void THazardPointerManager::DestroyThread(void* ptr)
     auto* threadState = static_cast<THazardThreadState*>(ptr);
 
     {
-        TWriterGuard guard(ThreadRegistryLock_);
+        auto guard = WriterGuard(ThreadRegistryLock_);
         ThreadRegistry_.Remove(threadState);
         --ThreadCount_;
     }
@@ -335,12 +332,12 @@ void FlushDeleteList()
 
 THazardPtrFlushGuard::THazardPtrFlushGuard()
 {
-    NConcurrency::PushContextHandler(FlushDeleteList, nullptr);
+    PushContextHandler(FlushDeleteList, nullptr);
 }
 
 THazardPtrFlushGuard::~THazardPtrFlushGuard()
 {
-    NConcurrency::PopContextHandler();
+    PopContextHandler();
     FlushDeleteList();
 }
 

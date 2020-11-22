@@ -17,7 +17,7 @@ struct TLeaseEntry
     TDuration Timeout;
     TClosure OnExpired;
     NConcurrency::TDelayedExecutorCookie Cookie;
-    TAdaptiveLock SpinLock;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock);
 
     TLeaseEntry(TDuration timeout, TClosure onExpired)
         : Timeout(timeout)
@@ -50,7 +50,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
         YT_ASSERT(lease);
 
-        TGuard<TAdaptiveLock> guard(lease->SpinLock);
+        auto guard = Guard(lease->SpinLock);
 
         if (!lease->IsValid) {
             return false;
@@ -76,7 +76,7 @@ public:
             return false;
         }
 
-        TGuard<TAdaptiveLock> guard(lease->SpinLock);
+        auto guard = Guard(lease->SpinLock);
 
         if (!lease->IsValid) {
             return false;
@@ -89,7 +89,7 @@ public:
 private:
     static void OnLeaseExpired(TLease lease, bool /*aborted*/)
     {
-        TGuard<TAdaptiveLock> guard(lease->SpinLock);
+        auto guard = Guard(lease->SpinLock);
 
         if (!lease->IsValid) {
             return;

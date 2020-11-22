@@ -167,7 +167,7 @@ void TAttachmentsInputStream::AbortUnlessClosed(const TError& error, bool fireAb
         fireAborted);
 }
 
-void TAttachmentsInputStream::DoAbort(TGuard<TAdaptiveLock>& guard, const TError& error, bool fireAborted)
+void TAttachmentsInputStream::DoAbort(TSpinlockGuard<TAdaptiveLock>& guard, const TError& error, bool fireAborted)
 {
     if (!Error_.IsOK()) {
         return;
@@ -256,7 +256,7 @@ TFuture<void> TAttachmentsOutputStream::Write(const TSharedRef& data)
     return promise.ToFuture();
 }
 
-void TAttachmentsOutputStream::OnWindowPacketsReady(TMutableRange<TWindowPacket> packets, TGuard<TAdaptiveLock>& guard)
+void TAttachmentsOutputStream::OnWindowPacketsReady(TMutableRange<TWindowPacket> packets, TSpinlockGuard<TAdaptiveLock>& guard)
 {
     if (ClosePromise_) {
         guard.Release();
@@ -358,7 +358,7 @@ void TAttachmentsOutputStream::AbortUnlessClosed(const TError& error, bool fireA
         fireAborted);
 }
 
-void TAttachmentsOutputStream::DoAbort(TGuard<TAdaptiveLock>& guard, const TError& error, bool fireAborted)
+void TAttachmentsOutputStream::DoAbort(TSpinlockGuard<TAdaptiveLock>& guard, const TError& error, bool fireAborted)
 {
     if (!Error_.IsOK()) {
         return;
@@ -476,7 +476,7 @@ std::optional<TStreamingPayload> TAttachmentsOutputStream::TryPull()
     return result;
 }
 
-void TAttachmentsOutputStream::MaybeInvokePullCallback(TGuard<TAdaptiveLock>& guard)
+void TAttachmentsOutputStream::MaybeInvokePullCallback(TSpinlockGuard<TAdaptiveLock>& guard)
 {
     if (CanPullMore(true)) {
         guard.Release();

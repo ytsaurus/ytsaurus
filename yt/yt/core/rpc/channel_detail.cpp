@@ -65,7 +65,7 @@ void TClientRequestControlThunk::SetUnderlying(IClientRequestControlPtr underlyi
         return;
     }
 
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     // NB: SetUnderlying can only be invoked once.
     // This protects from races on unguarded reads since once Underlying_ is non-null, it never changes.
@@ -95,7 +95,7 @@ void TClientRequestControlThunk::Cancel()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     if (Canceled_) {
         return;
@@ -112,7 +112,7 @@ void TClientRequestControlThunk::Cancel()
 
 TFuture<void> TClientRequestControlThunk::SendStreamingPayload(const TStreamingPayload& payload)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     if (Underlying_) {
         guard.Release();
@@ -129,7 +129,7 @@ TFuture<void> TClientRequestControlThunk::SendStreamingPayload(const TStreamingP
 
 TFuture<void> TClientRequestControlThunk::SendStreamingFeedback(const TStreamingFeedback& feedback)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     if (Underlying_) {
         guard.Release();

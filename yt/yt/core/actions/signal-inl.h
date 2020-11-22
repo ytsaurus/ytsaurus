@@ -17,14 +17,14 @@ namespace NYT {
 template <class TResult, class... TArgs>
 void TCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& callback)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     Callbacks_.push_back(callback);
 }
 
 template <class TResult, class... TArgs>
 void TCallbackList<TResult(TArgs...)>::Unsubscribe(const TCallback& callback)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     for (auto it = Callbacks_.begin(); it != Callbacks_.end(); ++it) {
         if (*it == callback) {
             Callbacks_.erase(it);
@@ -36,28 +36,28 @@ void TCallbackList<TResult(TArgs...)>::Unsubscribe(const TCallback& callback)
 template <class TResult, class... TArgs>
 std::vector<TCallback<TResult(TArgs...)>> TCallbackList<TResult(TArgs...)>::ToVector() const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return std::vector<TCallback>(Callbacks_.begin(), Callbacks_.end());
 }
 
 template <class TResult, class... TArgs>
 int TCallbackList<TResult(TArgs...)>::Size() const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return Callbacks_.size();
 }
 
 template <class TResult, class... TArgs>
 bool TCallbackList<TResult(TArgs...)>::Empty() const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return Callbacks_.empty();
 }
 
 template <class TResult, class... TArgs>
 void TCallbackList<TResult(TArgs...)>::Clear()
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     Callbacks_.clear();
 }
 
@@ -66,7 +66,7 @@ void TCallbackList<TResult(TArgs...)>::Fire(const TArgs&... args) const
 {
     TCallbackVector callbacks;
     {
-        NConcurrency::TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         callbacks = Callbacks_;
     }
 
@@ -80,7 +80,7 @@ void TCallbackList<TResult(TArgs...)>::FireAndClear(const TArgs&... args)
 {
     TCallbackVector callbacks;
     {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         callbacks.swap(Callbacks_);
     }
 
@@ -94,7 +94,7 @@ void TCallbackList<TResult(TArgs...)>::FireAndClear(const TArgs&... args)
 template <class TResult, class... TArgs>
 void TSingleShotCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& callback)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     if (Fired_.load(std::memory_order_acquire)) {
         guard.Release();
         std::apply(callback, Args_);
@@ -106,7 +106,7 @@ void TSingleShotCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& call
 template <class TResult, class... TArgs>
 bool TSingleShotCallbackList<TResult(TArgs...)>::TrySubscribe(const TCallback& callback)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     if (Fired_.load(std::memory_order_acquire)) {
         return false;
     }
@@ -117,7 +117,7 @@ bool TSingleShotCallbackList<TResult(TArgs...)>::TrySubscribe(const TCallback& c
 template <class TResult, class... TArgs>
 void TSingleShotCallbackList<TResult(TArgs...)>::Unsubscribe(const TCallback& callback)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     for (auto it = Callbacks_.begin(); it != Callbacks_.end(); ++it) {
         if (*it == callback) {
             Callbacks_.erase(it);
@@ -129,7 +129,7 @@ void TSingleShotCallbackList<TResult(TArgs...)>::Unsubscribe(const TCallback& ca
 template <class TResult, class... TArgs>
 std::vector<TCallback<TResult(TArgs...)>> TSingleShotCallbackList<TResult(TArgs...)>::ToVector() const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return std::vector<TCallback>(Callbacks_.begin(), Callbacks_.end());
 }
 
@@ -139,7 +139,7 @@ bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
 {
     TCallbackVector callbacks;
     {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         if (Fired_.load(std::memory_order_acquire)) {
             return false;
         }

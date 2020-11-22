@@ -57,7 +57,8 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <util/generic/algorithm.h>
 #include <atomic>
@@ -94,7 +95,7 @@ public:
     {
         auto now = GetCpuInstant();
         {
-            TReaderGuard guard(Lock_);
+            auto guard = ReaderGuard(Lock_);
             auto it = Map_.find(userName);
             if (it == Map_.end()) {
                 return {};
@@ -105,7 +106,7 @@ public:
         }
         TError expiredError;
         {
-            TWriterGuard guard(Lock_);
+            auto guard = WriterGuard(Lock_);
             auto it = Map_.find(userName);
             if (it != Map_.end() && now > it->second.second) {
                 // Prevent destructing the error under spin lock.
@@ -120,7 +121,7 @@ public:
     {
         auto now = GetCpuInstant();
         {
-            TWriterGuard guard(Lock_);
+            auto guard = WriterGuard(Lock_);
             Map_.emplace(userName, std::make_pair(error, now + ExpireTime_));
         }
     }
@@ -128,7 +129,7 @@ public:
 private:
     const TCpuDuration ExpireTime_;
 
-    TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock_);
     //! Maps user name to (error, deadline) pairs.
     THashMap<TString, std::pair<TError, TCpuInstant>> Map_;
 };
@@ -468,7 +469,7 @@ private:
     // If this is locked, the automaton invoker is currently busy serving
     // some local subrequest.
     // NB: only TryAcquire() is called on this lock, never Acquire().
-    TAdaptiveLock LocalExecutionLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, LocalExecutionLock_);
 
     // Has the time to backoff come?
     std::atomic<bool> BackoffAlarmTriggered_ = false;
@@ -1451,7 +1452,7 @@ private:
             }
 
             {
-                TTryGuard<TAdaptiveLock> guard(LocalExecutionLock_);
+                TTryGuard guard(LocalExecutionLock_);
                 if (!guard.WasAcquired()) {
                     Reschedule();
                     break;
@@ -1948,7 +1949,7 @@ private:
             return true;
         }
 
-        TTryGuard<TAdaptiveLock> guard(LocalExecutionLock_);
+        TTryGuard guard(LocalExecutionLock_);
         if (!guard.WasAcquired()) {
             TObjectService::GetRpcInvoker()->Invoke(
                 BIND(&TObjectService::TExecuteSession::ScheduleReplyIfNeeded, MakeStrong(this)));

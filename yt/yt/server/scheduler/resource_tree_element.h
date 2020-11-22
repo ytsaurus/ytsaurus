@@ -7,7 +7,7 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/atomic_object.h>
 
@@ -20,7 +20,7 @@ class TResourceTreeElement
 {
 public:
     TResourceTreeElement(TResourceTree* resourceTree, const TString& id);
-    
+
     TJobResources GetResourceUsage();
 
     TJobResources GetResourceUsageWithPrecommit();

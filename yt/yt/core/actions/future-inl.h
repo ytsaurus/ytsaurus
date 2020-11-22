@@ -12,6 +12,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/event_count.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/small_vector.h>
 
@@ -74,7 +75,7 @@ public:
         return cookie;
     }
 
-    bool TryRemove(TFutureCallbackCookie cookie, TGuard<TAdaptiveLock>* guard)
+    bool TryRemove(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<TAdaptiveLock>* guard)
     {
         if (!IsValidCookie(cookie)) {
             return false;
@@ -308,7 +309,7 @@ protected:
     std::atomic<int> FutureRefCount_;
 
     //! Protects the following section of members.
-    mutable TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::atomic<bool> Canceled_ = false;
     TError CancelationError_;
     std::atomic<bool> Set_;
@@ -347,7 +348,7 @@ protected:
         NConcurrency::TEvent* readyEvent = nullptr;
         bool canceled;
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             YT_ASSERT(!AbandonedUnset_);
             if (MustSet && !Canceled_) {
                 YT_VERIFY(!Set_);
@@ -384,7 +385,7 @@ protected:
         });
     }
 
-    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, TGuard<TAdaptiveLock>* guard);
+    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<TAdaptiveLock>* guard);
 
     void WaitUntilSet() const;
     bool CheckIfSet() const;
@@ -492,7 +493,7 @@ private:
         Result_ = error;
     }
 
-    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, TGuard<TAdaptiveLock>* guard) override
+    virtual bool DoUnsubscribe(TFutureCallbackCookie cookie, NConcurrency::TSpinlockGuard<TAdaptiveLock>* guard) override
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
         return
@@ -1785,7 +1786,7 @@ private:
     const TFutureCombinerOptions Options_;
     const TPromise<T> Promise_ = NewPromise<T>();
 
-    TAdaptiveLock ErrorsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ErrorsLock_);
     std::vector<TError> Errors_;
 
     void OnFutureSet(const TErrorOr<T>& result)
@@ -1965,7 +1966,7 @@ private:
 
     std::atomic<int> ResponseCount_ = 0;
 
-    TAdaptiveLock ErrorsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ErrorsLock_);
     std::vector<TError> Errors_;
 
     void OnFutureSet(int /*index*/, const TErrorOr<T>& result)

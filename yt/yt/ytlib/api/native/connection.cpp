@@ -52,7 +52,6 @@
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/rw_spinlock.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -470,7 +469,7 @@ public:
 private:
     const TConnectionConfigPtr Config_;
     const TConnectionOptions Options_;
-    
+
     const TString LoggingId_;
     const TString ClusterId_;
 

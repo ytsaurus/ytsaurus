@@ -7,7 +7,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/rpc/public.h>
 

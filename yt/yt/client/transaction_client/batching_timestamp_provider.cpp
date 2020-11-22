@@ -29,7 +29,7 @@ public:
         TFuture<TTimestamp> result;
 
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             PendingRequests_.emplace_back();
             PendingRequests_.back().Count = count;
             PendingRequests_.back().Promise = NewPromise<TTimestamp>();
@@ -57,14 +57,14 @@ public:
         TPromise<TTimestamp> Promise;
     };
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     bool GenerateInProgress_ = false;
     bool FlushScheduled_ = false;
     std::vector<TRequest> PendingRequests_;
 
     TInstant LastRequestTime_;
 
-    void MaybeScheduleSendGenerateRequest(TGuard<TAdaptiveLock>& guard)
+    void MaybeScheduleSendGenerateRequest(TSpinlockGuard<TAdaptiveLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -79,7 +79,7 @@ public:
         } else if (!FlushScheduled_) {
             FlushScheduled_ = true;
             TDelayedExecutor::Submit(BIND([=, this_ = MakeStrong(this)] {
-                TGuard<TAdaptiveLock> guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
                 FlushScheduled_ = false;
                 if (GenerateInProgress_) {
                     return;
@@ -89,7 +89,7 @@ public:
         }
     }
 
-    void SendGenerateRequest(TGuard<TAdaptiveLock>& guard)
+    void SendGenerateRequest(TSpinlockGuard<TAdaptiveLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
@@ -122,7 +122,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             YT_VERIFY(GenerateInProgress_);
             GenerateInProgress_ = false;

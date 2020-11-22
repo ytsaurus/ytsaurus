@@ -59,7 +59,7 @@ protected:
 
     std::atomic<int> Version_ = 0;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TFuture<void> RemovedFuture_;  // if not null then remove is scheduled
     TPromise<void> RemovedPromise_;
     int ReadLockCounter_ = 0;
@@ -90,7 +90,7 @@ protected:
         TLocationPtr location,
         TChunkId id);
     ~TChunkBase();
-    
+
     void StartAsyncRemove();
     virtual TFuture<void> AsyncRemove() = 0;
 

@@ -61,7 +61,7 @@ struct TOperationStatistics
     TString OperationState;
     bool InTimeframe = false;
 
-    TAdaptiveLock Lock;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
 };
 
 class TSharedOperationStatistics
@@ -173,7 +173,7 @@ public:
 private:
     std::ofstream OutputStream_;
     bool HeaderPrinted_ = false;
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
 };
 
 

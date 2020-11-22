@@ -4,7 +4,7 @@
 
 #include <yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/rpc/helpers.h>
 
@@ -152,7 +152,7 @@ public:
     void Load(TStreamLoadContext& context);
 
 private:
-    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     THashMap<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
     THashMap<TString, const TNodeDescriptor*> AddressToDescriptor_;
     THashSet<TNodeDescriptor> Descriptors_;

@@ -6,7 +6,7 @@
 #include "private.h"
 
 #include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/lock_free.h>
 
@@ -111,7 +111,7 @@ public:
 
     void EvictChannel(const TString& address, IChannel* evictableChannel)
     {
-        TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
 
         YT_LOG_DEBUG("Cached channel evicted (Endpoint: %v)",
             evictableChannel->GetEndpointDescription());
@@ -135,7 +135,7 @@ private:
 
     TPeriodicExecutorPtr ExpirationExecutor_;
 
-    TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TString, TCachedChannelPtr> StrongChannelMap_;
     THashMap<TString, TWeakPtr<TCachedChannel>> WeakChannelMap_;
 
@@ -147,7 +147,7 @@ private:
     IChannelPtr DoCreateChannel(const TString& address, const TFactory& factory)
     {
         {
-            TReaderGuard readerGuard(SpinLock_);
+            auto readerGuard = ReaderGuard(SpinLock_);
 
             if (auto it = StrongChannelMap_.find(address)) {
                 auto channel = it->second;
@@ -161,7 +161,7 @@ private:
                     readerGuard.Release();
 
                     {
-                        TWriterGuard writerGuard(SpinLock_);
+                        auto writerGuard = WriterGuard(SpinLock_);
                         // Check if the weak map still contains the same channel.
                         if (auto jt = WeakChannelMap_.find(address); jt != WeakChannelMap_.end() && jt->second == weakChannel) {
                             StrongChannelMap_.emplace(address, channel);
@@ -179,7 +179,7 @@ private:
         auto wrappedChannel = New<TCachedChannel>(this, underlyingChannel, address);
 
         {
-            TWriterGuard writerGuard(SpinLock_);
+            auto writerGuard = WriterGuard(SpinLock_);
             // Check if another channel has been inserted while the lock was released.
             if (auto it = WeakChannelMap_.find(address)) {
                 const auto& weakChannel = it->second;
@@ -234,7 +234,7 @@ private:
         }
 
         if (!expiredItems.empty()) {
-            TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             for (auto& item : expiredItems) {
                 if (auto it = StrongChannelMap_.find(item.first)) {
                     if (it->second == item.second) {

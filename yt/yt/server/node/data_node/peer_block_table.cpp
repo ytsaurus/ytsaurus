@@ -107,7 +107,7 @@ TBlockPeerDataPtr TPeerBlockTable::FindOrCreatePeerData(const TBlockId& blockId,
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         auto it = BlockIdToData_.find(blockId);
         if (it != BlockIdToData_.end()) {
             return it->second;
@@ -119,7 +119,7 @@ TBlockPeerDataPtr TPeerBlockTable::FindOrCreatePeerData(const TBlockId& blockId,
     }
 
     {
-        TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         auto it = BlockIdToData_.find(blockId);
         if (it == BlockIdToData_.end()) {
             it = BlockIdToData_.emplace(blockId, New<TBlockPeerData>(Config_->MaxPeersPerBlock)).first;
@@ -136,7 +136,7 @@ void TPeerBlockTable::OnSweep()
 
     std::vector<std::pair<TBlockId, TBlockPeerDataPtr>> snapshot;
     {
-        TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         snapshot.reserve(BlockIdToData_.size());
         for (const auto& pair : BlockIdToData_) {
             snapshot.push_back(pair);
@@ -154,7 +154,7 @@ void TPeerBlockTable::OnSweep()
     }
 
     if (!blockIdsToEvict.empty()) {
-        TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         for (auto blockId : blockIdsToEvict) {
             BlockIdToData_.erase(blockId);
         }

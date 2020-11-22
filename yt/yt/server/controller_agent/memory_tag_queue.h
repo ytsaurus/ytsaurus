@@ -8,7 +8,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <library/cpp/ytalloc/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -48,7 +48,7 @@ private:
 
     int AllocatedTagCount_ = DefaultMemoryTagCount;
 
-    NConcurrency::TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
 
     //! A queue of spare tags.
     std::queue<NYTAlloc::TMemoryTag> AvailableTags_;

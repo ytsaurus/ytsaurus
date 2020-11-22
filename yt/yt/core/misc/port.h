@@ -23,6 +23,10 @@
     // This define enables checking that all required protobuf fields are present
     // during serialization.
     #define YT_VALIDATE_REQUIRED_PROTO_FIELDS
+
+    // This define enables spinlock profiling that detects long-taking acquisitions of
+    // spinlocks declared with YT_DECLARE_SPINLOCK.
+    #define YT_ENABLE_SPINLOCK_PROFILING
 #endif
 
 // Configure SSE usage.

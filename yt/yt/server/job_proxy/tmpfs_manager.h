@@ -12,7 +12,7 @@ class TTmpfsManager
     : public TRefCounted
 {
 public:
-    TTmpfsManager(TTmpfsManagerConfigPtr config);
+    explicit TTmpfsManager(TTmpfsManagerConfigPtr config);
 
     void DumpTmpfsStatistics(
         TStatistics* statistcs,
@@ -30,7 +30,7 @@ public:
 private:
     const TTmpfsManagerConfigPtr Config_;
 
-    mutable NConcurrency::TReaderWriterSpinLock MaximumTmpfsSizesLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MaximumTmpfsSizesLock_);
     mutable std::vector<i64> MaximumTmpfsSizes_;
     mutable i64 MaximumTmpfsSize_ = 0;
 

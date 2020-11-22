@@ -79,7 +79,7 @@ private:
 
     TPromise<void> InitializedPromise_ = NewPromise<void>();
 
-    TAdaptiveLock KeyMappingSpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, KeyMappingSpinLock_);
     using TKeyMappingOrError = TErrorOr<THashMap<TString, IYPathServicePtr>>;
     TKeyMappingOrError KeyMapping_;
 
@@ -94,7 +94,7 @@ private:
 
     virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override
     {
-        TGuard<TAdaptiveLock> guard(KeyMappingSpinLock_);
+        auto guard = Guard(KeyMappingSpinLock_);
         const auto& keyMapping = KeyMapping_.ValueOrThrow();
 
         NYPath::TTokenizer tokenizer(path);
@@ -297,7 +297,7 @@ private:
 
     void ValidateKeyMapping()
     {
-        TGuard<TAdaptiveLock> guard(KeyMappingSpinLock_);
+        auto guard = Guard(KeyMappingSpinLock_);
         // If several services already share the same key, we'd better throw an error and do nothing.
         KeyMapping_.ThrowOnError();
     }
@@ -305,7 +305,7 @@ private:
     void SetKeyMapping(TKeyMappingOrError keyMapping)
     {
         {
-            TGuard<TAdaptiveLock> guard(KeyMappingSpinLock_);
+            auto guard = Guard(KeyMappingSpinLock_);
             KeyMapping_ = std::move(keyMapping);
         }
         InitializedPromise_.TrySet();

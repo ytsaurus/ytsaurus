@@ -73,7 +73,7 @@ void TMember::RenewLease(TDuration timeout)
 {
     auto newLeaseDeadline = timeout.ToDeadLine();
 
-    TWriterGuard guard(Lock_);
+    auto guard = WriterGuard(Lock_);
     if (newLeaseDeadline > LeaseDeadline_) {
         LeaseDeadline_ = newLeaseDeadline;
         TLeaseManager::RenewLease(Lease_, timeout);
@@ -82,7 +82,7 @@ void TMember::RenewLease(TDuration timeout)
 
 bool TMember::UpdatePriority(i64 priority)
 {
-    TWriterGuard guard(Lock_);
+    auto guard = WriterGuard(Lock_);
     if (Priority_ == priority) {
         return false;
     }
@@ -102,25 +102,25 @@ const TGroupId& TMember::GetGroupId() const
 
 i64 TMember::GetPriority() const
 {
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
     return Priority_;
 }
 
 TInstant TMember::GetLeaseDeadline() const
 {
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
     return LeaseDeadline_;
 }
 
 TInstant TMember::GetLastHeartbeatTime() const
 {
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
     return LastHeartbeatTime_;
 }
 
 TInstant TMember::GetLastAttributesUpdateTime() const
 {
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
     return LastAttributesUpdateTime_;
 }
 

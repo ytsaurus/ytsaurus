@@ -381,7 +381,7 @@ private:
         const TPeriodicExecutorPtr ProbationExecutor_;
         const NLogging::TLogger Logger;
 
-        TAdaptiveLock SpinLock_;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
         ITransactionParticipantPtr Underlying_;
         std::vector<TClosure> PendingSenders_;
         bool Up_ = true;

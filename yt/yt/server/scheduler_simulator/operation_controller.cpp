@@ -222,7 +222,7 @@ private:
     TLockProtectedMap<TJobId, TJobDescription> IdToDescription_;
     NLogging::TLogger Logger;
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     // Protected by Lock_.
     int PendingJobCount_ = 0;
     int CompletedJobCount_ = 0;

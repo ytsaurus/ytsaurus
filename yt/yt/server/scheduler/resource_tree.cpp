@@ -34,11 +34,11 @@ void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const T
 
 void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent)
 {
-    TWriterGuard guard(StructureLock_);
+    auto structureGuard = WriterGuard(StructureLock_);
 
     IncrementStructureLockWriteCount();
 
-    TWriterGuard resourceUsageLock(element->ResourceUsageLock_);
+    auto resourceUsageGuard = WriterGuard(element->ResourceUsageLock_);
     YT_VERIFY(element->Parent_);
     YT_VERIFY(element->Initialized_);
 
@@ -66,7 +66,7 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, boo
         return;
     }
 
-    TReaderGuard guard(StructureLock_);
+    auto guard = ReaderGuard(StructureLock_);
 
     IncrementStructureLockReadCount();
 
@@ -117,7 +117,7 @@ void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElement
         return;
     }
 
-    TReaderGuard guard(StructureLock_);
+    auto guard = ReaderGuard(StructureLock_);
 
     IncrementStructureLockReadCount();
 
@@ -129,7 +129,7 @@ void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElement
 void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
     YT_VERIFY(element->Initialized_);
-    
+
     TResourceTreeElement* current = element.Get();
     if (!current->IncreaseLocalResourceUsage(delta)) {
         YT_LOG_DEBUG("Local increase of usage failed (Id: %v)", element->GetId());
@@ -150,7 +150,7 @@ void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTr
         return;
     }
 
-    TReaderGuard guard(StructureLock_);
+    auto guard = ReaderGuard(StructureLock_);
 
     IncrementStructureLockReadCount();
 
@@ -164,7 +164,7 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta)
 {
     YT_VERIFY(element->Initialized_);
-    
+
     TResourceTreeElement* current = element.Get();
     if (!current->IncreaseLocalResourceUsagePrecommit(delta)) {
         YT_LOG_DEBUG("Local increase of usage precommit failed (Id: %v)", element->GetId());
@@ -188,7 +188,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
         return EResourceTreeIncreaseResult::ElementIsNotAlive;
     }
 
-    TReaderGuard guard(StructureLock_);
+    auto guard = ReaderGuard(StructureLock_);
 
     IncrementStructureLockReadCount();
 
@@ -231,10 +231,10 @@ void TResourceTree::CommitHierarchicalResourceUsage(
     const TJobResources& resourceUsageDelta,
     const TJobResources& precommittedResources)
 {
-    TReaderGuard guard(StructureLock_);
+    auto guard = ReaderGuard(StructureLock_);
 
     IncrementStructureLockReadCount();
-    
+
     YT_VERIFY(element->Initialized_);
 
     TResourceTreeElement* current = element.Get();
@@ -253,7 +253,7 @@ void TResourceTree::CommitHierarchicalResourceUsage(
 
 void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementPtr& element, const TJobMetrics& delta)
 {
-    TReaderGuard guard(StructureLock_);
+    auto guard = ReaderGuard(StructureLock_);
 
     IncrementStructureLockReadCount();
 
@@ -268,7 +268,7 @@ void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementP
 
 void TResourceTree::PerformPostponedActions()
 {
-    TWriterGuard guard(StructureLock_);
+    auto guard = WriterGuard(StructureLock_);
 
     IncrementStructureLockWriteCount();
 

@@ -127,7 +127,7 @@ private:
                 THROW_ERROR_EXCEPTION("Retries are not supported by batcher");
             }
 
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             if (!CurrentBatch_) {
                 CurrentBatch_ = New<TBatch>();
@@ -171,7 +171,7 @@ private:
         TChunkServiceProxy LeaderProxy_;
         TChunkServiceProxy FollowerProxy_;
 
-        TAdaptiveLock SpinLock_;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
         TBatchPtr CurrentBatch_;
 
 
@@ -242,7 +242,7 @@ private:
     private:
         void OnTimeout(const TBatchPtr& batch)
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             if (CurrentBatch_ == batch) {
                 DoFlush();
             }

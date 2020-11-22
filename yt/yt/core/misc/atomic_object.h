@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 namespace NYT {
 
@@ -33,7 +33,7 @@ public:
 
 private:
     T Object_;
-    NConcurrency::TReaderWriterSpinLock Spinlock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Spinlock_);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

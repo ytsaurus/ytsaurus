@@ -164,7 +164,7 @@ public:
     friend class TTrackedMemoryChunkProvider;
 
 private:
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     THashMap<TString, TWeakPtr<TTrackedMemoryChunkProvider>> Map_;
 };
 

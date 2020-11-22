@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/ref_counted.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
 

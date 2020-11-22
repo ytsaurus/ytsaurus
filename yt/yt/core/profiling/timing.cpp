@@ -58,7 +58,7 @@ private:
     };
 
     std::atomic<TCpuInstant> NextCalibrationCpuInstant_ = {0};
-    TAdaptiveLock CalibrationLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, CalibrationLock_);
     std::array<TCalibrationState, 2> CalibrationStates_;
     std::atomic<size_t> CalibrationStateIndex_ = {0};
 
@@ -76,7 +76,7 @@ private:
             return;
         }
 
-        TTryGuard<TAdaptiveLock> guard(CalibrationLock_);
+        TTryGuard guard(CalibrationLock_);
         if (!guard.WasAcquired()) {
             return;
         }
@@ -99,7 +99,7 @@ private:
         if (NSan::TSanIsOn()) {
             // The data structure is designed to avoid locking on read
             // but we cannot explain it to TSan.
-            TGuard<TAdaptiveLock> guard(CalibrationLock_);
+            auto guard = Guard(CalibrationLock_);
             return CalibrationStates_[CalibrationStateIndex_];
         } else {
             return CalibrationStates_[CalibrationStateIndex_];

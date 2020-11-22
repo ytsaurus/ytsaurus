@@ -344,7 +344,7 @@ private:
         NProfiling::TCounter FailureCounter;
     };
 
-    TAdaptiveLock CommandLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, CommandLock_);
     THashMap<TString, TCommandEntry> CommandToEntry_;
 
     static const std::vector<TString> ContainerRequestVars_;
@@ -408,7 +408,7 @@ private:
     {
         TVector<TString> containers;
         ExecuteApiCall(
-            [&] { return Api_->List(containers); }, 
+            [&] { return Api_->List(containers); },
             "List");
         return {containers.begin(), containers.end()};
     }
@@ -450,7 +450,7 @@ private:
         const TString& metric)
     {
         TVector<TString> containers_(containers.begin(), containers.end());
-        
+
         TMap<TString, ui64> result;
 
         ExecuteApiCall(

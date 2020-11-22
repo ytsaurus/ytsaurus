@@ -104,7 +104,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
         bool ampersandSkipped = tokenizer.Skip(NYPath::ETokenType::Ampersand);
         bool slashSkipped = tokenizer.Skip(NYPath::ETokenType::Slash);
 
-        TReaderGuard guard(currentNode->Lock);
+        auto guard = ReaderGuard(currentNode->Lock);
         if (const auto* mapPayload = std::get_if<TResolveCacheNode::TMapPayload>(&currentNode->Payload)) {
             if (!slashSkipped) {
                 return std::nullopt;
@@ -162,7 +162,7 @@ TResolveCacheNodePtr TResolveCache::FindNode(TNodeId nodeId)
     VERIFY_THREAD_AFFINITY_ANY();
 
     // TODO(babenko): fastpath for root
-    TReaderGuard guard(IdToNodeLock_);
+    auto guard = ReaderGuard(IdToNodeLock_);
     auto it = IdToNode_.find(nodeId);
     return it == IdToNode_.end() ? nullptr : it->second;
 }
@@ -179,7 +179,7 @@ TResolveCacheNodePtr TResolveCache::InsertNode(
     trunkNode->SetResolveCacheNode(node.Get());
 
     {
-        TWriterGuard guard(IdToNodeLock_);
+        auto guard = WriterGuard(IdToNodeLock_);
         YT_VERIFY(IdToNode_.emplace(nodeId, node).second);
     }
 
@@ -196,7 +196,7 @@ void TResolveCache::AddNodeChild(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    TWriterGuard guard(parentNode->Lock);
+    auto guard = WriterGuard(parentNode->Lock);
     YT_ASSERT(std::holds_alternative<TResolveCacheNode::TMapPayload>(parentNode->Payload));
     auto& parentPayload = std::get<TResolveCacheNode::TMapPayload>(parentNode->Payload);
     auto it = parentPayload.KeyToChild.find(key);
@@ -242,7 +242,7 @@ void TResolveCache::InvalidateNode(TCypressNode* node)
 
     auto* currentCacheNode = cacheNode.Get();
     while (auto* parentCacheNode = currentCacheNode->Parent) {
-        TWriterGuard guard(parentCacheNode->Lock);
+        auto guard = WriterGuard(parentCacheNode->Lock);
         YT_ASSERT(std::holds_alternative<TResolveCacheNode::TMapPayload>(parentCacheNode->Payload));
         auto& parentPayload = std::get<TResolveCacheNode::TMapPayload>(parentCacheNode->Payload);
         parentPayload.KeyToChild.erase(currentCacheNode->ParentKeyToChildIt);
@@ -258,7 +258,7 @@ void TResolveCache::InvalidateNode(TCypressNode* node)
     }
 
     {
-        TWriterGuard guard(IdToNodeLock_);
+        auto guard = WriterGuard(IdToNodeLock_);
         for (auto* trunkNode : invalidatedNodes) {
             ResetNode(trunkNode);
             YT_VERIFY(IdToNode_.erase(trunkNode->GetId()) == 1);
@@ -282,7 +282,7 @@ void TResolveCache::Clear()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     {
-        TWriterGuard guard(IdToNodeLock_);
+        auto guard = WriterGuard(IdToNodeLock_);
         for (auto [nodeId, cacheNode] : IdToNode_) {
             ResetNode(cacheNode->TrunkNode);
         }

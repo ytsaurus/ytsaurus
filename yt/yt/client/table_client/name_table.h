@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/optional.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,7 +36,7 @@ public:
     std::vector<TString> GetNames() const;
 
 private:
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
     bool EnableColumnNameValidation_ = false;
 

@@ -4447,7 +4447,7 @@ void TOperationControllerBase::IncreaseNeededResources(const TJobResources& reso
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(CachedNeededResourcesLock);
+    auto guard = WriterGuard(CachedNeededResourcesLock);
     CachedNeededResources += resourcesDelta;
 }
 
@@ -4455,7 +4455,7 @@ TJobResources TOperationControllerBase::GetNeededResources() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(CachedNeededResourcesLock);
+    auto guard = ReaderGuard(CachedNeededResourcesLock);
     return CachedNeededResources;
 }
 
@@ -7099,7 +7099,7 @@ void TOperationControllerBase::Dispose()
     YT_VERIFY(IsFinished());
 
     {
-        TGuard<TAdaptiveLock> guard(JobMetricsDeltaPerTreeLock_);
+        auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 
         for (auto& [treeId, metrics] : JobMetricsDeltaPerTree_) {
             auto totalTime = TotalTimePerTree_.at(treeId);
@@ -7144,7 +7144,7 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
 
 TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
 {
-    TGuard<TAdaptiveLock> guard(JobMetricsDeltaPerTreeLock_);
+    auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 
     auto now = NProfiling::GetCpuInstant();
     if (!force && LastJobMetricsDeltaReportTime_ + DurationToCpuDuration(Config->JobMetricsReportPeriod) > now) {
@@ -7167,7 +7167,7 @@ TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
 
 TOperationAlertMap TOperationControllerBase::GetAlerts()
 {
-    TGuard<TAdaptiveLock> guard(AlertsLock_);
+    auto guard = Guard(AlertsLock_);
     return Alerts_;
 }
 
@@ -7326,7 +7326,7 @@ bool TOperationControllerBase::HasProgress() const
     }
 
     {
-        TGuard<TAdaptiveLock> guard(ProgressLock_);
+        auto guard = Guard(ProgressLock_);
         return ProgressString_ && BriefProgressString_;
     }
 }
@@ -7495,7 +7495,7 @@ void TOperationControllerBase::BuildAndSaveProgress()
         .EndMap();
 
     {
-        TGuard<TAdaptiveLock> guard(ProgressLock_);
+        auto guard = Guard(ProgressLock_);
         if (!ProgressString_ || ProgressString_ != progressString ||
             !BriefProgressString_ || BriefProgressString_ != briefProgressString)
         {
@@ -7510,13 +7510,13 @@ void TOperationControllerBase::BuildAndSaveProgress()
 
 TYsonString TOperationControllerBase::GetProgress() const
 {
-    TGuard<TAdaptiveLock> guard(ProgressLock_);
+    auto guard = Guard(ProgressLock_);
     return ProgressString_;
 }
 
 TYsonString TOperationControllerBase::GetBriefProgress() const
 {
-    TGuard<TAdaptiveLock> guard(ProgressLock_);
+    auto guard = Guard(ProgressLock_);
     return BriefProgressString_;
 }
 
@@ -7645,7 +7645,7 @@ TYsonString TOperationControllerBase::GetSuspiciousJobsYson() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(CachedSuspiciousJobsYsonLock_);
+    auto guard = ReaderGuard(CachedSuspiciousJobsYsonLock_);
     return CachedSuspiciousJobsYson_;
 }
 
@@ -7689,7 +7689,7 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
         .Finish();
 
     {
-        TWriterGuard guard(CachedSuspiciousJobsYsonLock_);
+        auto guard = WriterGuard(CachedSuspiciousJobsYsonLock_);
         CachedSuspiciousJobsYson_ = yson;
     }
 }
@@ -7784,7 +7784,7 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
 
     auto delta = joblet->UpdateJobMetrics(jobSummary);
     {
-        TGuard<TAdaptiveLock> guard(JobMetricsDeltaPerTreeLock_);
+        auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 
         auto it = JobMetricsDeltaPerTree_.find(joblet->TreeId);
         if (it == JobMetricsDeltaPerTree_.end()) {
@@ -8656,7 +8656,7 @@ void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
 
 void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, const TError& alert)
 {
-    TGuard<TAdaptiveLock> guard(AlertsLock_);
+    auto guard = Guard(AlertsLock_);
 
     auto& existingAlert = Alerts_[alertType];
     if (alert.IsOK() && !existingAlert.IsOK()) {

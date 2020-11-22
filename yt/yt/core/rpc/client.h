@@ -19,7 +19,7 @@
 
 #include <yt/core/tracing/trace_context.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <atomic>
 
@@ -214,7 +214,7 @@ private:
     std::atomic<bool> Serialized_ = false;
 
     std::atomic<bool> HeaderPrepared_ = false;
-    TAdaptiveLock HeaderPreparationLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, HeaderPreparationLock_);
     NProto::TRequestHeader Header_;
 
     mutable TSharedRefArray SerializedHeaderlessMessage_;

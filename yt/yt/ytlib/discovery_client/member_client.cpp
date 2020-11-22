@@ -10,7 +10,7 @@
 
 #include <yt/core/rpc/caching_channel_factory.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NDiscoveryClient {
@@ -127,7 +127,7 @@ public:
 
     void Reconfigure(TMemberClientConfigPtr config)
     {
-        TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
 
         if (config->HeartbeatPeriod != Config_->HeartbeatPeriod) {
             PeriodicExecutor_->SetPeriod(config->HeartbeatPeriod);
@@ -150,7 +150,7 @@ private:
     const NLogging::TLogger Logger;
     const TServerAddressPoolPtr AddressPool_;
 
-    TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock_);
     TMemberClientConfigPtr Config_;
 
     std::atomic<i64> Priority_ = std::numeric_limits<i64>::max();
@@ -172,7 +172,7 @@ private:
         auto now = TInstant::Now();
         THeartbeatSessionPtr session;
         {
-            TReaderGuard guard(Lock_);
+            auto guard = ReaderGuard(Lock_);
             if (now - LastAttributesUpdateTime_ > Config_->AttributeUpdatePeriod) {
                 attributes = ThreadSafeAttributes_->Clone();
             }

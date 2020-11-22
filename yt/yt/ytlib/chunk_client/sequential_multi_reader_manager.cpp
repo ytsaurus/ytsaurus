@@ -127,7 +127,7 @@ TFuture<void> TSequentialMultiReaderManager::WaitForNextReader()
 void TSequentialMultiReaderManager::OnGotNextReader(const IReaderBasePtr& reader)
 {
     {
-        TGuard<TAdaptiveLock> guard(ActiveReadersLock_);
+        auto guard = Guard(ActiveReadersLock_);
         CurrentSession_.Index = NextReaderIndex_;
         CurrentSession_.Reader = reader;
         ++NextReaderIndex_;
@@ -156,7 +156,7 @@ void TSequentialMultiReaderManager::OnCurrentReaderReady(const TError& error)
 
 TMultiReaderManagerUnreadState TSequentialMultiReaderManager::GetUnreadState() const
 {
-    TGuard<TAdaptiveLock> guard(ActiveReadersLock_);
+    auto guard = Guard(ActiveReadersLock_);
     TMultiReaderManagerUnreadState state;
     state.CurrentReader = CurrentSession_.Reader;
     for (int index = NextReaderIndex_; index < static_cast<int>(ReaderFactories_.size()); ++index) {

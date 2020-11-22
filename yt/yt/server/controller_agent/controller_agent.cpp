@@ -859,7 +859,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         if (filter.IsEmpty() && !onlineOnly) {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
+            auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
             return CachedExecNodeDescriptors_;
         }
 
@@ -871,7 +871,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(ExecNodeDescriptorsLock_);
+        auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
         return OnlineExecNodeCount_;
     }
 
@@ -929,7 +929,7 @@ private:
 
     TOperationIdToOperationMap IdToOperation_;
 
-    TReaderWriterSpinLock ExecNodeDescriptorsLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     struct TFilteredExecNodeDescriptors
@@ -1416,7 +1416,7 @@ private:
                     std::move(descriptor)).second);
             }
             {
-                TWriterGuard guard(ExecNodeDescriptorsLock_);
+                auto guard = WriterGuard(ExecNodeDescriptorsLock_);
                 std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
                 OnlineExecNodeCount_ = onlineExecNodeCount;
             }
@@ -1654,7 +1654,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(ExecNodeDescriptorsLock_);
+        auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
 
         TFilteredExecNodeDescriptors result;
         result.All = New<TRefCountedExecNodeDescriptorMap>();

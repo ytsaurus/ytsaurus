@@ -83,7 +83,7 @@ private:
 
     THashSet<int> FreeSlots_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::optional<TError> PersistentAlert_;
     std::optional<TError> TransientAlert_;
     //! If we observe too many consecutive aborts, we disable user slots on

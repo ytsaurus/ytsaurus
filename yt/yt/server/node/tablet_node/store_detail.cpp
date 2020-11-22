@@ -529,7 +529,7 @@ IDynamicStorePtr TChunkStoreBase::GetBackingStore()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return BackingStore_;
 }
 
@@ -537,7 +537,7 @@ void TChunkStoreBase::SetBackingStore(IDynamicStorePtr store)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     std::swap(store, BackingStore_);
 }
 
@@ -545,7 +545,7 @@ bool TChunkStoreBase::HasBackingStore() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return BackingStore_.operator bool();
 }
 
@@ -701,14 +701,14 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(const IThroughputThrottlerPtr&
 
     // Periodic check.
     if (now > LocalChunkCheckDeadline_.load()) {
-        TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         createCachedReader();
         return makeResult();
     }
 
     // Fast lane.
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         if (hasValidCachedLocalReader() || hasValidCachedRemoteReader()) {
             return makeResult();
         }
@@ -716,7 +716,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(const IThroughputThrottlerPtr&
 
     // Slow lane.
     {
-        TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         createCachedReader();
         return makeResult();
     }
@@ -756,7 +756,7 @@ EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return InMemoryMode_;
 }
 
@@ -764,7 +764,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     if (InMemoryMode_ != mode) {
         YT_LOG_INFO("Changed in-memory mode (CurrentMode: %v, NewMode: %v)",
@@ -798,7 +798,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     // Otherwise action must be cancelled.
     YT_VERIFY(chunkData->InMemoryMode == InMemoryMode_);
@@ -834,7 +834,7 @@ TTimestamp TChunkStoreBase::GetOverrideTimestamp() const
 
 TChunkReplicaList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId) const
 {
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     if (CachedChunkReader_ && !CachedReadersLocal_) {
         auto* remoteReader = dynamic_cast<IRemoteChunkReader*>(CachedChunkReader_.Get());
@@ -878,7 +878,7 @@ IBlockCachePtr TChunkStoreBase::GetBlockCache()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     return DoGetBlockCache();
 }
 

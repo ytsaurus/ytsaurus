@@ -80,7 +80,7 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetLimit(ECategory category, const
     auto categoryLimit = Categories_[category].Limit.load();
 
     if (poolTag) {
-        TGuard guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         auto* pool = FindPool(*poolTag);
         return GetPoolLimit(pool, categoryLimit);
@@ -93,7 +93,7 @@ template <class ECategory, class TPoolTag>
 i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetUsed(ECategory category, const std::optional<TPoolTag>& poolTag) const
 {
     if (poolTag) {
-        TGuard guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         auto* pool = FindPool(*poolTag);
         return pool ? pool->Used[category].load() : 0;
@@ -109,7 +109,7 @@ i64 TMemoryUsageTracker<ECategory, TPoolTag>::GetFree(ECategory category, const 
     i64 result = std::min(categoryLimit - GetUsed(category), GetTotalFree());
 
     if (poolTag) {
-        TGuard guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (auto* pool = FindPool(*poolTag)) {
             result = std::min(
@@ -137,7 +137,7 @@ bool TMemoryUsageTracker<ECategory, TPoolTag>::IsExceeded(ECategory category, co
     }
 
     if (poolTag) {
-        TGuard guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (auto* pool = FindPool(*poolTag)) {
             if (pool->Used[category].load() > GetPoolLimit(pool, categoryLimit)) {
@@ -166,7 +166,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::SetCategoryLimit(ECategory catego
 template <class ECategory, class TPoolTag>
 void TMemoryUsageTracker<ECategory, TPoolTag>::SetPoolWeight(const TPoolTag& poolTag, i64 newWeight)
 {
-    TGuard guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     auto* pool = GetOrRegisterPool(poolTag);
     TotalPoolWeight_ += newWeight - pool->Weight;
@@ -176,7 +176,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::SetPoolWeight(const TPoolTag& poo
 template <class ECategory, class TPoolTag>
 void TMemoryUsageTracker<ECategory, TPoolTag>::Acquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
 {
-    TGuard guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     auto* pool = poolTag ? GetOrRegisterPool(*poolTag) : nullptr;
 
@@ -215,7 +215,7 @@ void TMemoryUsageTracker<ECategory, TPoolTag>::Acquire(ECategory category, i64 s
 template <class ECategory, class TPoolTag>
 TError TMemoryUsageTracker<ECategory, TPoolTag>::TryAcquire(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
 {
-    TGuard guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
 
     i64 free = GetFree(category);
     if (size > GetFree(category)) {
@@ -264,11 +264,11 @@ template <class ECategory, class TPoolTag>
 void TMemoryUsageTracker<ECategory, TPoolTag>::Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag)
 {
     YT_VERIFY(size >= 0);
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     TotalUsed_ -= size;
     TotalFree_ += size;
     Categories_[category].Used -= size;
-    
+
     if (poolTag) {
         auto pool = GetOrRegisterPool(*poolTag);
         pool->Used[category] -= size;
@@ -285,7 +285,7 @@ TMemoryUsageTracker<ECategory, TPoolTag>::GetOrRegisterPool(const TPoolTag& pool
         return it->second.Get();
     }
 
-    TGuard guard(PoolMapSpinLock_);
+    auto guard = Guard(PoolMapSpinLock_);
 
     auto pool = New<TPool>();
     for (auto category : TEnumTraits<ECategory>::GetDomainValues()) {

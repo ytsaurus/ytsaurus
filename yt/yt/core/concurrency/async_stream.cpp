@@ -548,7 +548,7 @@ private:
         TPromise<void> Promise;
     };
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::queue<TEntry> Queue_;
     TError Error_;
     bool Closed_ = false;
@@ -558,7 +558,7 @@ private:
         TPromise<void> promise;
         bool needInvoke;
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             YT_VERIFY(!Closed_);
             if (!Error_.IsOK()) {
                 return MakeFuture(Error_);
@@ -610,7 +610,7 @@ private:
         TPromise<void> promise;
         bool hasData = false;
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             auto& entry = Queue_.front();
             promise = std::move(entry.Promise);
             if (!error.IsOK() && Error_.IsOK()) {
@@ -684,7 +684,7 @@ public:
 
     virtual TFuture<TSharedRef> Read() override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         if (!Error_.IsOK()) {
             return MakeFuture<TSharedRef>(Error_);
         }
@@ -699,14 +699,14 @@ private:
     const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
     const size_t WindowSize_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TError Error_;
     std::queue<TSharedRef> PrefetchedBlocks_;
     size_t PrefetchedSize_ = 0;
     TFuture<void> OutstandingResult_;
 
 
-    TFuture<void> Prefetch(TGuard<TAdaptiveLock>* guard)
+    TFuture<void> Prefetch(TSpinlockGuard<TAdaptiveLock>* guard)
     {
         if (OutstandingResult_) {
             return OutstandingResult_;
@@ -724,7 +724,7 @@ private:
     void OnRead(TPromise<void> promise, const TErrorOr<TSharedRef>& result)
     {
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             PushBlock(&guard, result);
         }
         promise.Set(result);
@@ -732,11 +732,11 @@ private:
 
     TSharedRef OnPrefetched()
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         return PopBlock(&guard);
     }
 
-    void PushBlock(TGuard<TAdaptiveLock>* guard, const TErrorOr<TSharedRef>& result)
+    void PushBlock(TSpinlockGuard<TAdaptiveLock>* guard, const TErrorOr<TSharedRef>& result)
     {
         YT_ASSERT(OutstandingResult_);
         OutstandingResult_.Reset();
@@ -752,7 +752,7 @@ private:
         }
     }
 
-    TSharedRef PopBlock(TGuard<TAdaptiveLock>* guard)
+    TSharedRef PopBlock(TSpinlockGuard<TAdaptiveLock>* guard)
     {
         YT_ASSERT(!PrefetchedBlocks_.empty());
         auto block = PrefetchedBlocks_.front();
@@ -795,7 +795,7 @@ public:
 
     virtual TFuture<TSharedRef> Read() override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         if (PrefetchedSize_ == 0) {
             if (EndOfStream_) {
                 return MakeFuture<TSharedRef>(TSharedRef());
@@ -813,7 +813,7 @@ private:
     const IAsyncInputStreamPtr UnderlyingStream_;
     const size_t WindowSize_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TError Error_;
     TSharedMutableRef Prefetched_;
     TSharedMutableRef Buffer_;
@@ -821,7 +821,7 @@ private:
     bool EndOfStream_ = false;
     TFuture<void> OutstandingResult_;
 
-    TFuture<void> Prefetch(TGuard<TAdaptiveLock>* guard)
+    TFuture<void> Prefetch(TSpinlockGuard<TAdaptiveLock>* guard)
     {
         if (OutstandingResult_) {
             return OutstandingResult_;
@@ -839,7 +839,7 @@ private:
     void OnRead(TPromise<void> promise, const TErrorOr<size_t>& result)
     {
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             AppendPrefetched(&guard, result);
         }
         promise.Set(result);
@@ -847,12 +847,12 @@ private:
 
     TSharedRef OnPrefetched()
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         YT_ASSERT(PrefetchedSize_ != 0);
         return CopyPrefetched(&guard);
     }
 
-    void AppendPrefetched(TGuard<TAdaptiveLock>* guard, const TErrorOr<size_t>& result)
+    void AppendPrefetched(TSpinlockGuard<TAdaptiveLock>* guard, const TErrorOr<size_t>& result)
     {
         YT_ASSERT(OutstandingResult_);
         OutstandingResult_.Reset();
@@ -880,7 +880,7 @@ private:
         }
     }
 
-    TSharedRef CopyPrefetched(TGuard<TAdaptiveLock>* guard)
+    TSharedRef CopyPrefetched(TSpinlockGuard<TAdaptiveLock>* guard)
     {
         YT_ASSERT(PrefetchedSize_ != 0);
         auto block = Prefetched_.Slice(0, PrefetchedSize_);
@@ -919,7 +919,7 @@ public:
 
     virtual TFuture<TSharedRef> Read() override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (PendingBlock_) {
             auto block = std::move(PendingBlock_);
@@ -949,7 +949,7 @@ private:
     const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
     const TDuration Timeout_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
     bool Fetching_ = false;
     std::optional<TErrorOr<TSharedRef>> PendingBlock_;
@@ -959,7 +959,7 @@ private:
     void OnRead(const TErrorOr<TSharedRef>& value)
     {
         TPromise<TSharedRef> promise;
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         Fetching_ = false;
         if (Promise_) {
             swap(Promise_, promise);
@@ -976,7 +976,7 @@ private:
     {
         bool timedOut = false;
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             if (promise == Promise_) {
                 Promise_ = TPromise<TSharedRef>();
                 timedOut = true;
@@ -1018,7 +1018,7 @@ public:
 
     virtual TFuture<TSharedRef> Read() override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (PendingBlock_) {
             auto block = std::move(PendingBlock_);
@@ -1049,7 +1049,7 @@ public:
 private:
     const IAsyncZeroCopyInputStreamPtr UnderlyingStream_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
     bool Fetching_ = false;
     std::optional<TErrorOr<TSharedRef>> PendingBlock_;
@@ -1059,7 +1059,7 @@ private:
     {
         TPromise<TSharedRef> promise;
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             Fetching_ = false;
             YT_ASSERT(Promise_);
             swap(promise, Promise_);
@@ -1083,8 +1083,8 @@ IAsyncZeroCopyInputStreamPtr CreateConcurrentAdapter(
 
 // NB(levysotsky): Doesn't close the output stream.
 void PipeInputToOutput(
-    NConcurrency::IAsyncZeroCopyInputStreamPtr input,
-    NConcurrency::IAsyncOutputStreamPtr output)
+    IAsyncZeroCopyInputStreamPtr input,
+    IAsyncOutputStreamPtr output)
 {
     while (true) {
         auto asyncBlock = input->Read();

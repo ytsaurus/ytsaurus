@@ -236,7 +236,7 @@ public:
     bool IsSick() const;
 
     //! Returns |true| if location does not contain
-    //! files corresponding to given chunk id. 
+    //! files corresponding to given chunk id.
     bool TryLock(TChunkId chunkId, bool verbose = true);
 
     //! Called when all the chunk files are destroyed.
@@ -262,7 +262,7 @@ private:
 
     TLocationUuid Uuid_;
 
-    TAdaptiveLock MediumDescriptorLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, MediumDescriptorLock_);
     std::atomic<NChunkClient::TMediumDescriptor*> CurrentMediumDescriptor_ = nullptr;
     std::vector<std::unique_ptr<NChunkClient::TMediumDescriptor>> MediumDescriptors_;
 
@@ -290,7 +290,7 @@ private:
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
-    TAdaptiveLock LockedChunksLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunks_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
@@ -360,7 +360,7 @@ private:
         i64 DiskSpace;
     };
 
-    TAdaptiveLock TrashMapSpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, TrashMapSpinLock_);
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
     std::atomic<i64> TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;

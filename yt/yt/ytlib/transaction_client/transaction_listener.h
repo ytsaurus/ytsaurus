@@ -4,7 +4,8 @@
 
 #include <yt/client/api/public.h>
 
-#include <yt/core/concurrency/public.h>
+#include <yt/core/concurrency/spinlock.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NTransactionClient {
 
@@ -40,7 +41,7 @@ protected:
 private:
     std::atomic<bool> Aborted_ = {false};
 
-    mutable TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::vector<TTransactionId> IgnoredTransactionIds_;
     std::vector<TTransactionId> AbortedTransactionIds_;
     THashMap<TTransactionId, NConcurrency::TPeriodicExecutorPtr> TransactionIdToProbeExecutor_;

@@ -96,7 +96,7 @@ private:
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();
     bool Initialized_ = false;
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TProxyEntryPtr Self_;
     TDynamicConfigPtr DynamicConfig_;
     NTracing::TSampler Sampler_;

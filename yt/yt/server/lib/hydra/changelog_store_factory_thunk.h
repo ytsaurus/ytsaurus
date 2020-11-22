@@ -15,7 +15,7 @@ public:
     void SetUnderlying(IChangelogStoreFactoryPtr underlying);
 
 private:
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     IChangelogStoreFactoryPtr Underlying_;
 
 

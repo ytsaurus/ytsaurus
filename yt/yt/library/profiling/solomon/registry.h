@@ -7,6 +7,8 @@
 
 #include <yt/core/misc/lock_free.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 #include <yt/core/profiling/public.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -79,7 +81,7 @@ public:
     void ReadSensors(
         const TReadOptions& options,
         ::NMonitoring::IMetricConsumer* consumer) const;
-    
+
     //! LegacyReadSensors sends sensor values to core/profiling.
     void LegacyReadSensors();
 
@@ -97,7 +99,7 @@ private:
     std::optional<int> WindowSize_;
     const TRegistry SelfProfiler_;
 
-    TAdaptiveLock DynamicTagsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, DynamicTagsLock_);
     std::vector<TTag> DynamicTags_;
 
     std::atomic<bool> Disabled_ = false;

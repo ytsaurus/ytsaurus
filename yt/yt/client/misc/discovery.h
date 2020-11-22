@@ -5,6 +5,8 @@
 #include <yt/client/api/public.h>
 #include <yt/client/api/client.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +61,7 @@ private:
     THashMap<TString, TInstant> BannedSince_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     NApi::TListNodeOptions ListOptions_;
-    mutable NConcurrency::TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
     NApi::ITransactionPtr Transaction_;
     const NLogging::TLogger Logger;
     std::optional<std::pair<TString, NYTree::IAttributeDictionaryPtr>> NameAndAttributes_;

@@ -222,10 +222,10 @@ private:
 
     std::atomic<int> ActiveJobCount_ = {0};
 
-    NConcurrency::TReaderWriterSpinLock ResourcesLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ResourcesLock_);
     TJobResources TotalResourceUsage_;
 
-    NConcurrency::TReaderWriterSpinLock CachedExecNodeDescriptorsLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, CachedExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     THashMap<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;

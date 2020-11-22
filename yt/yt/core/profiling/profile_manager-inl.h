@@ -53,7 +53,7 @@ template <class T>
 TTagId TTagCache<T>::GetTag(const T& value) const
 {
     {
-        NConcurrency::TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         if (auto it = ValueToTagId_.find(value)) {
             return it->second;
         }
@@ -62,7 +62,7 @@ TTagId TTagCache<T>::GetTag(const T& value) const
     auto tagId = TProfileManager::Get()->RegisterTag(Key_, value);
 
     {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         ValueToTagId_[value] = tagId;
     }
 

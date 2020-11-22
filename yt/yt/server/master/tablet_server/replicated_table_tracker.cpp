@@ -669,7 +669,7 @@ private:
         const NProfiling::TCounter ReplicaSwitchCounter_;
         NTableServer::TReplicatedTableOptionsPtr Config_;
 
-        TAdaptiveLock Lock_;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
         std::vector<TReplicaPtr> Replicas_;
 
         TFuture<int> CheckFuture_;
@@ -677,7 +677,7 @@ private:
 
     using TTablePtr = TIntrusivePtr<TTable>;
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     THashMap<TObjectId, TTablePtr> Tables_;
 
     TPeriodicExecutorPtr UpdaterExecutor_;

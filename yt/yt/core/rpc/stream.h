@@ -4,6 +4,7 @@
 
 #include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/range.h>
@@ -61,7 +62,7 @@ private:
         size_t CompressedSize;
     };
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TSlidingWindow<TWindowPacket> Window_;
     TRingQueue<TQueueEntry> Queue_;
     TError Error_;
@@ -76,7 +77,7 @@ private:
         const TStreamingPayload& payload,
         const std::vector<TSharedRef>& decompressedAttachments);
     void DoAbort(
-        TGuard<TAdaptiveLock>& guard,
+        NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard,
         const TError& error,
         bool fireAborted = true);
     void OnTimeout();
@@ -130,7 +131,7 @@ private:
         NConcurrency::TDelayedExecutorCookie TimeoutCookie;
     };
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     std::atomic<size_t> CompressionSequenceNumber_ = {0};
     TSlidingWindow<TWindowPacket> Window_;
     TError Error_;
@@ -144,11 +145,13 @@ private:
     ssize_t ReadPosition_ = 0;
     int PayloadSequenceNumber_ = 0;
 
-    void OnWindowPacketsReady(TMutableRange<TWindowPacket> packets, TGuard<TAdaptiveLock>& guard);
-    void MaybeInvokePullCallback(TGuard<TAdaptiveLock>& guard);
+    void OnWindowPacketsReady(
+        TMutableRange<TWindowPacket> packets,
+        NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard);
+    void MaybeInvokePullCallback(NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard);
     bool CanPullMore(bool first) const;
     void DoAbort(
-        TGuard<TAdaptiveLock>& guard,
+        NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard,
         const TError& error,
         bool fireAborted = true);
     void OnTimeout();
@@ -225,7 +228,7 @@ private:
     NConcurrency::IAsyncZeroCopyInputStreamPtr FeedbackStream_;
     bool FeedbackEnabled_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TRingQueue<TPromise<void>> ConfirmationQueue_;
     TError Error_;
 

@@ -58,7 +58,7 @@ TFuture<void> TDiscovery::Leave()
 
 TFuture<void> TDiscovery::UpdateList(TDuration ageThreshold)
 {
-    TWriterGuard guard(Lock_);
+    auto guard = WriterGuard(Lock_);
     if (LastUpdate_ + ageThreshold >= TInstant::Now()) {
         return VoidFuture;
     }
@@ -77,7 +77,7 @@ THashMap<TString, IAttributeDictionaryPtr> TDiscovery::List(bool includeBanned) 
     THashMap<TString, TInstant> bannedSince;
     decltype(NameAndAttributes_) nameAndAttributes;
     {
-        TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         result = List_;
         bannedSince = BannedSince_;
         nameAndAttributes = NameAndAttributes_;
@@ -101,7 +101,7 @@ THashMap<TString, IAttributeDictionaryPtr> TDiscovery::List(bool includeBanned) 
 
 void TDiscovery::Ban(TString name)
 {
-    TWriterGuard guard(Lock_);
+    auto guard = WriterGuard(Lock_);
     BannedSince_[name] = TInstant::Now();
     YT_LOG_INFO("Participant banned (Name: %v, Duration: %v)", name, Config_->BanTimeout);
 }
@@ -119,7 +119,7 @@ TFuture<void> TDiscovery::StopPolling()
 
 i64 TDiscovery::GetWeight()
 {
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
     return List_.size();
 }
 
@@ -129,7 +129,7 @@ void TDiscovery::DoEnter(TString name, IAttributeDictionaryPtr attributes)
     YT_LOG_INFO("Entering the group");
 
     {
-        TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         NameAndAttributes_ = {name, attributes};
     }
 
@@ -160,7 +160,7 @@ void TDiscovery::DoLeave()
     YT_LOG_INFO("Left the group (TransactionId: %v)", transactionId);
 
     {
-        TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         NameAndAttributes_.reset();
     }
 
@@ -200,7 +200,7 @@ void TDiscovery::DoUpdateList()
         }
     }
     {
-        TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         swap(List_, newList);
         LastUpdate_ = TInstant::Now();
     }

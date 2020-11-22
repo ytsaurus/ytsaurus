@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -94,7 +94,7 @@ private:
 
     using TEntryPtr = TIntrusivePtr<TEntry>;
 
-    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, TEntryPtr> Map_;
 
     NProfiling::TCounter HitCounter_;

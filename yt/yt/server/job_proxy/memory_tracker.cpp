@@ -51,7 +51,7 @@ i64 TMemoryTracker::GetMemoryUsage()
 
 TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
 {
-    TGuard guard(MemoryStatisticsLock_);
+    auto guard = Guard(MemoryStatisticsLock_);
 
     if (!Environment_) {
         return {};
@@ -84,7 +84,7 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
             return {};
         }
 
-        if (Config_->UseSMapsMemoryTracker && TmpfsManager_->HasTmpfsVolumes()) {          
+        if (Config_->UseSMapsMemoryTracker && TmpfsManager_->HasTmpfsVolumes()) {
             TMemoryMappingStatistics memoryMappingStatistics;
             i64 skippedBecauseOfTmpfs = 0;
             for (auto pid : pids) {

@@ -11,7 +11,7 @@ namespace NYT::NScheduler {
 
 TJobMetrics TResourceTreeElement::GetJobMetrics()
 {
-    NConcurrency::TReaderGuard guard(JobMetricsLock_);
+    auto guard = ReaderGuard(JobMetricsLock_);
 
     return JobMetrics_;
 }
@@ -24,7 +24,7 @@ bool TResourceTreeElement::GetAlive() const
 void TResourceTreeElement::SetNonAlive()
 {
     // We need a barrier to be sure that nobody tries to change some usages.
-    NConcurrency::TWriterGuard guard(ResourceUsageLock_);
+    auto guard = WriterGuard(ResourceUsageLock_);
 
     Alive_ = false;
 }
@@ -56,7 +56,7 @@ const TString& TResourceTreeElement::GetId()
 
 void TResourceTreeElement::ApplyLocalJobMetricsDelta(const TJobMetrics& delta)
 {
-    NConcurrency::TWriterGuard guard(JobMetricsLock_);
+    auto guard = WriterGuard(JobMetricsLock_);
 
     JobMetrics_ += delta;
 }

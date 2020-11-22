@@ -105,7 +105,7 @@ void TChunkStore::RegisterNewChunk(const IChunkPtr& chunk)
     auto entry = BuildChunkEntry(chunk);
 
     {
-        TWriterGuard guard(ChunkMapLock_);
+        auto guard = WriterGuard(ChunkMapLock_);
 
         auto oldChunk = DoFindExistingChunk(chunk).Chunk;
         YT_LOG_FATAL_IF(
@@ -148,7 +148,7 @@ IChunkPtr TChunkStore::FindChunk(TChunkId chunkId, int mediumIndex) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(ChunkMapLock_);
+    auto guard = ReaderGuard(ChunkMapLock_);
 
     auto itRange = ChunkMap_.equal_range(chunkId);
     if (itRange.first == itRange.second) {
@@ -232,7 +232,7 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 
     IChunkPtr oldChunk;
     {
-        TReaderGuard guard(ChunkMapLock_);
+        auto guard = ReaderGuard(ChunkMapLock_);
         oldChunk = DoFindExistingChunk(chunk).Chunk;
     }
 
@@ -299,7 +299,7 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
     if (doRegister) {
         auto chunkEntry = BuildChunkEntry(chunk);
         {
-            TWriterGuard guard(ChunkMapLock_);
+            auto guard = WriterGuard(ChunkMapLock_);
             ChunkMap_.emplace(chunk->GetId(), chunkEntry);
         }
         OnChunkRegistered(chunk);
@@ -358,7 +358,7 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
     TChunkEntry oldChunkEntry;
     TChunkEntry newChunkEntry;
     {
-        TWriterGuard guard(ChunkMapLock_);
+        auto guard = WriterGuard(ChunkMapLock_);
 
         oldChunkEntry = DoFindExistingChunk(chunk);
         if (!oldChunkEntry.Chunk) {
@@ -389,7 +389,7 @@ void TChunkStore::UnregisterChunk(const IChunkPtr& chunk)
 
     TChunkEntry chunkEntry;
     {
-        TWriterGuard guard(ChunkMapLock_);
+        auto guard = WriterGuard(ChunkMapLock_);
         chunkEntry = DoEraseChunk(chunk);
         // NB: Concurrent chunk removals are possible.
         if (!chunkEntry.Chunk) {
@@ -434,7 +434,7 @@ std::vector<IChunkPtr> TChunkStore::GetChunks() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(ChunkMapLock_);
+    auto guard = ReaderGuard(ChunkMapLock_);
     std::vector<IChunkPtr> result;
     result.reserve(ChunkMap_.size());
     for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
@@ -447,7 +447,7 @@ int TChunkStore::GetChunkCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(ChunkMapLock_);
+    auto guard = ReaderGuard(ChunkMapLock_);
     return static_cast<int>(ChunkMap_.size());
 }
 

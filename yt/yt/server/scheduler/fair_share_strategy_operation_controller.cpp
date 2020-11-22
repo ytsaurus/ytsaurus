@@ -183,7 +183,7 @@ void TFairShareStrategyOperationController::OnScheduleJobFailed(
     }
 
     if (scheduleJobResult->Failed[EScheduleJobFailReason::TentativeTreeDeclined] > 0) {
-        TWriterGuard guard(SaturatedTentativeTreesLock_);
+        auto guard = WriterGuard(SaturatedTentativeTreesLock_);
         TentativeTreeIdToSaturationTime_[treeId] = now;
     }
 }
@@ -200,7 +200,7 @@ TJobResources TFairShareStrategyOperationController::GetNeededResources() const
 
 bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const
 {
-    TReaderGuard guard(SaturatedTentativeTreesLock_);
+    auto guard = ReaderGuard(SaturatedTentativeTreesLock_);
 
     auto it = TentativeTreeIdToSaturationTime_.find(treeId);
     if (it == TentativeTreeIdToSaturationTime_.end()) {
@@ -213,14 +213,14 @@ bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(TCpuInsta
 
 void TFairShareStrategyOperationController::UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
 {
-    TWriterGuard guard(ConfigLock_);
+    auto guard = WriterGuard(ConfigLock_);
 
     Config_ = config;
 }
 
 TFairShareStrategyOperationControllerConfigPtr TFairShareStrategyOperationController::GetConfig()
 {
-    TReaderGuard guard(ConfigLock_);
+    auto guard = ReaderGuard(ConfigLock_);
 
     return Config_;
 }

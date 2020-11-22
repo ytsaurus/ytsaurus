@@ -362,7 +362,7 @@ private:
 
         using TTaskInfoPtr = TIntrusivePtr<TTaskInfo>;
 
-        TAdaptiveLock QueueSpinLock_;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, QueueSpinLock_);
         std::deque<TTaskInfoPtr> TaskQueue_;
         std::deque<TTaskInfoPtr> FinishedTaskQueue_;
 
@@ -375,21 +375,21 @@ private:
     using TOrchidServiceManagerPtr = TIntrusivePtr<TOrchidServiceManager>;
 
     // Variables below contain per-iteration state for slot scan.
-    TAdaptiveLock ScanSpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ScanSpinLock_);
     bool ScanForPartitioning_;
     bool ScanForCompactions_;
     std::vector<std::unique_ptr<TTask>> PartitioningCandidates_;
     std::vector<std::unique_ptr<TTask>> CompactionCandidates_;
 
     // Variables below are actually used during the scheduling.
-    TAdaptiveLock TaskSpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, TaskSpinLock_);
     std::vector<std::unique_ptr<TTask>> PartitioningTasks_; // Min-heap.
     size_t PartitioningTaskIndex_ = 0; // Heap end boundary.
     std::vector<std::unique_ptr<TTask>> CompactionTasks_; // Min-heap.
     size_t CompactionTaskIndex_ = 0; // Heap end boundary.
 
     // These are for the future accounting.
-    TReaderWriterSpinLock FutureEffectLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, FutureEffectLock_);
     THashMap<TTabletId, int> FutureEffect_;
 
     const TOrchidServiceManagerPtr CompactionOrchidServiceManager_ = New<TOrchidServiceManager>();
@@ -863,7 +863,7 @@ private:
         candidates->clear();
     }
 
-    void PickMorePartitionings(TGuard<TAdaptiveLock>&)
+    void PickMorePartitionings(TSpinlockGuard<TAdaptiveLock>& /*guard*/)
     {
         PickMoreTasks(
             &PartitioningCandidates_,
@@ -873,7 +873,7 @@ private:
             FeasiblePartitioningsCounter_);
     }
 
-    void PickMoreCompactions(TGuard<TAdaptiveLock>&)
+    void PickMoreCompactions(TSpinlockGuard<TAdaptiveLock>& /*guard*/)
     {
         PickMoreTasks(
             &CompactionCandidates_,
@@ -908,7 +908,7 @@ private:
             // Check if we have to fix the heap. If the smallest element is okay, we just keep going.
             // Hopefully, we will rarely decide to operate on the same tablet.
             {
-                TReaderGuard guard(FutureEffectLock_);
+                auto guard = ReaderGuard(FutureEffectLock_);
                 auto&& firstTask = tasks->at(0);
                 if (firstTask->FutureEffect != LockedGetFutureEffect(guard, firstTask->TabletId)) {
                     for (size_t i = 0; i < *index; ++i) {
@@ -961,7 +961,7 @@ private:
             &TStoreCompactor::CompactPartition);
     }
 
-    int LockedGetFutureEffect(TReaderGuard&, TTabletId tabletId)
+    int LockedGetFutureEffect(NConcurrency::TSpinlockReaderGuard<TReaderWriterSpinLock>&, TTabletId tabletId)
     {
         auto it = FutureEffect_.find(tabletId);
         return it != FutureEffect_.end() ? it->second : 0;
@@ -969,7 +969,7 @@ private:
 
     int GetFutureEffect(TTabletId tabletId)
     {
-        TReaderGuard guard(FutureEffectLock_);
+        auto guard = ReaderGuard(FutureEffectLock_);
         return LockedGetFutureEffect(guard, tabletId);
     }
 
@@ -978,7 +978,7 @@ private:
         if (delta == 0) {
             return;
         }
-        TWriterGuard guard(FutureEffectLock_);
+        auto guard = WriterGuard(FutureEffectLock_);
         auto pair = FutureEffect_.emplace(tabletId, delta);
         if (!pair.second) {
             pair.first->second += delta;

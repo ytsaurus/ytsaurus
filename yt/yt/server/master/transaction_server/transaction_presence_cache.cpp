@@ -32,7 +32,7 @@ template <class K, class V, size_t B, class L>
 void ClearConcurrentHashMap(TConcurrentHashMap<K, V, B, L>* map)
 {
     for (auto& bucket : map->Buckets) {
-        TGuard<TAdaptiveLock> guard(bucket.GetMutex());
+        auto guard = Guard(bucket.GetMutex());
         bucket.GetMap().clear();
     }
 }
@@ -156,7 +156,7 @@ void TTransactionPresenceCache::SetTransactionRecentlyFinished(TTransactionId tr
 
     {
         auto& bucket = ReplicatedTransactions_.GetBucketForKey(transactionId);
-        TGuard<TAdaptiveLock> guard(bucket.GetMutex());
+        auto guard = Guard(bucket.GetMutex());
         auto [it, emplaced] = bucket.GetMap().emplace(transactionId, ETransactionPresence::RecentlyFinished);
         newTransaction = emplaced;
         if (it->second != ETransactionPresence::RecentlyFinished) {
@@ -246,7 +246,7 @@ TFuture<void> TTransactionPresenceCache::SubscribeRemoteTransactionReplicated(TT
     auto& bucket = TransactionReplicationSubscriptions_.GetBucketForKey(transactionId);
     TFuture<void> result;
     {
-        TGuard<TAdaptiveLock> guard(bucket.GetMutex());
+        auto guard = Guard(bucket.GetMutex());
         auto& bucketMap = bucket.GetMap();
         auto it = bucketMap.find(transactionId);
 
@@ -289,7 +289,7 @@ void TTransactionPresenceCache::NotifyRemoteTransactionReplicated(TTransactionId
     TPromise<void> promise;
     auto& bucket = TransactionReplicationSubscriptions_.GetBucketForKey(transactionId);
     {
-        TGuard<TAdaptiveLock> guard(bucket.GetMutex());
+        auto guard = Guard(bucket.GetMutex());
         auto& bucketMap = bucket.GetMap();
         auto it = bucketMap.find(transactionId);
         if (it != bucketMap.end()) {

@@ -165,7 +165,7 @@ private:
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
 
-    TAdaptiveLock MemoryStatisticsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, MemoryStatisticsLock_);
     std::optional<TControllerAgentMemoryStatistics> MemoryStatistics_;
 };
 

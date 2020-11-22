@@ -43,7 +43,7 @@
 
 #include <yt/core/net/helpers.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <limits>
 
@@ -121,7 +121,7 @@ private:
 
     THashMap<EJobType, TJobFactory> JobFactoryMap_;
 
-    NConcurrency::TReaderWriterSpinLock JobMapLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, IJobPtr> JobMap_;
 
     // Map of jobs to hold after remove. It is used to prolong lifetime of stderrs and job specs.
@@ -315,7 +315,7 @@ IJobPtr TJobController::TImpl::FindJob(TJobId jobId) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    NConcurrency::TReaderGuard guard(JobMapLock_);
+    auto guard = ReaderGuard(JobMapLock_);
     auto it = JobMap_.find(jobId);
     return it == JobMap_.end() ? nullptr : it->second;
 }
@@ -347,7 +347,7 @@ std::vector<IJobPtr> TJobController::TImpl::GetJobs() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    NConcurrency::TReaderGuard guard(JobMapLock_);
+    auto guard = ReaderGuard(JobMapLock_);
     std::vector<IJobPtr> result;
     result.reserve(JobMap_.size());
     for (const auto& [id, job] : JobMap_) {
@@ -753,7 +753,7 @@ IJobPtr TJobController::TImpl::CreateJob(
         type);
 
     {
-        NConcurrency::TWriterGuard guard(JobMapLock_);
+        auto guard = WriterGuard(JobMapLock_);
         YT_VERIFY(JobMap_.emplace(jobId, job).second);
     }
 
@@ -872,7 +872,7 @@ void TJobController::TImpl::RemoveJob(
     }
 
     {
-        NConcurrency::TWriterGuard guard(JobMapLock_);
+        auto guard = WriterGuard(JobMapLock_);
         YT_VERIFY(JobMap_.erase(job->GetId()) == 1);
     }
 

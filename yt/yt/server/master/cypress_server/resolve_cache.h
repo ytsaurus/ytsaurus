@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/ypath/public.h>
@@ -23,7 +23,7 @@ struct TResolveCacheNode
     TResolveCacheNode* Parent = nullptr;
 
     // These fields are mutated in automaton thread and are read in any thread.
-    NConcurrency::TReaderWriterSpinLock Lock;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock);
     THashMap<TString, TResolveCacheNodePtr>::iterator ParentKeyToChildIt;
 
     struct TLinkPayload
@@ -81,7 +81,7 @@ public:
 private:
     const TNodeId RootNodeId_;
 
-    NConcurrency::TReaderWriterSpinLock IdToNodeLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, IdToNodeLock_);
     THashMap<TNodeId, TResolveCacheNodePtr> IdToNode_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);

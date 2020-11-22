@@ -25,20 +25,20 @@ class TLockProtectedMap
 public:
     V& Get(const K& key)
     {
-        auto guard = NConcurrency::TReaderGuard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         return GetOrCrash(Map_, key);
     }
 
     const V& Get(const K& key) const
     {
-        auto guard = NConcurrency::TReaderGuard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         return GetOrCrash(Map_, key);
     }
 
     template <typename F>
     void ApplyRead(F f) const
     {
-        auto guard = NConcurrency::TReaderGuard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         for (const auto& elem : Map_) {
             f(elem);
         }
@@ -46,14 +46,14 @@ public:
 
     void Insert(const K& key, V value)
     {
-        auto guard = NConcurrency::TWriterGuard(Lock_);
+        auto guard = WriterGuard(Lock_);
         YT_VERIFY(Map_.find(key) == Map_.end());
         Map_.emplace(key, std::move(value));
     }
 
     void Erase(const K& key)
     {
-        auto guard = NConcurrency::TWriterGuard(Lock_);
+        auto guard = WriterGuard(Lock_);
         auto it = Map_.find(key);
         YT_VERIFY(it != Map_.end());
         Map_.erase(it);

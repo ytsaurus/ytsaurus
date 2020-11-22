@@ -831,7 +831,7 @@ private:
 
     std::vector<TOperationId> ActivatableOperationIds_;
 
-    TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, NodeIdToLastPreemptiveSchedulingTimeLock_);
     THashMap<TNodeId, TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;
 
     std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
@@ -1154,7 +1154,7 @@ private:
         {
             bool nodeIsMissing = false;
             {
-                TReaderGuard guard(NodeIdToLastPreemptiveSchedulingTimeLock_);
+                auto guard = ReaderGuard(NodeIdToLastPreemptiveSchedulingTimeLock_);
                 auto it = NodeIdToLastPreemptiveSchedulingTime_.find(nodeId);
                 if (it == NodeIdToLastPreemptiveSchedulingTime_.end()) {
                     nodeIsMissing = true;
@@ -1165,7 +1165,7 @@ private:
                 }
             }
             if (nodeIsMissing) {
-                TWriterGuard guard(NodeIdToLastPreemptiveSchedulingTimeLock_);
+                auto guard = WriterGuard(NodeIdToLastPreemptiveSchedulingTimeLock_);
                 NodeIdToLastPreemptiveSchedulingTime_[nodeId] = now;
             }
         }

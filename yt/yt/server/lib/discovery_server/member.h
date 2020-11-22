@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -27,7 +27,7 @@ public:
     private:
         const TMemberPtr Member_;
 
-        NConcurrency::TReaderGuard Guard_;
+        NConcurrency::TSpinlockReaderGuard<NConcurrency::TReaderWriterSpinLock> Guard_;
 
         friend class TMember;
         explicit TAttributeReader(TMemberPtr member);
@@ -42,7 +42,7 @@ public:
     private:
         const TMemberPtr Member_;
 
-        NConcurrency::TWriterGuard Guard_;
+        NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock> Guard_;
 
         friend class TMember;
         explicit TAttributeWriter(TMemberPtr member);
@@ -67,7 +67,7 @@ private:
     const TMemberId Id_;
     const TGroupId GroupId_;
 
-    NConcurrency::TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
     i64 Priority_ = 0;
     i64 Revision_ = 0;
     NYTree::IAttributeDictionaryPtr Attributes_;

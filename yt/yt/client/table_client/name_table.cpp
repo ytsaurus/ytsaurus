@@ -29,25 +29,25 @@ TNameTablePtr TNameTable::FromKeyColumns(const TKeyColumns& keyColumns)
 
 int TNameTable::GetSize() const
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     return IdToName_.size();
 }
 
 i64 TNameTable::GetByteSize() const
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     return ByteSize_;
 }
 
 void TNameTable::SetEnableColumnNameValidation()
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     EnableColumnNameValidation_ = true;
 }
 
 std::optional<int> TNameTable::FindId(TStringBuf name) const
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     auto it = NameToId_.find(name);
     if (it == NameToId_.end()) {
         return std::nullopt;
@@ -74,14 +74,14 @@ int TNameTable::GetId(TStringBuf name) const
 
 TStringBuf TNameTable::GetName(int id) const
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     YT_VERIFY(id >= 0 && id < IdToName_.size());
     return IdToName_[id];
 }
 
 TStringBuf TNameTable::GetNameOrThrow(int id) const
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     if (id < 0 || id >= IdToName_.size()) {
         THROW_ERROR_EXCEPTION("Invalid column requested from name table: expected in range [0, %v), got %v",
             IdToName_.size(),
@@ -92,19 +92,19 @@ TStringBuf TNameTable::GetNameOrThrow(int id) const
 
 int TNameTable::RegisterName(TStringBuf name)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     return DoRegisterName(name);
 }
 
 int TNameTable::RegisterNameOrThrow(TStringBuf name)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     return DoRegisterNameOrThrow(name);
 }
 
 int TNameTable::GetIdOrRegisterName(TStringBuf name)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     auto it = NameToId_.find(name);
     if (it == NameToId_.end()) {
         return DoRegisterName(name);
@@ -151,7 +151,7 @@ int TNameTable::DoRegisterNameOrThrow(TStringBuf name)
 
 std::vector<TString> TNameTable::GetNames() const
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     return IdToName_;
 }
 

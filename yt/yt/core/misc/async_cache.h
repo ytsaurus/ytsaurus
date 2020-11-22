@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/error.h>
 
@@ -132,7 +132,7 @@ private:
         bool Younger;
     };
 
-    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
 
     TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList_;
     TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList_;
@@ -156,7 +156,7 @@ private:
 
     void DoTryRemove(const TKey& key, const TValuePtr& value, bool forbidResurrection);
 
-    void Trim(NConcurrency::TWriterGuard& guard);
+    void Trim(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
 
     void EndInsert(TValuePtr value);
     void CancelInsert(const TKey& key, const TError& error);

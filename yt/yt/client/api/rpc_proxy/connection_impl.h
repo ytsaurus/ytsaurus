@@ -61,7 +61,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
     NRpc::IChannelPtr DiscoveryChannel_;
 
-    TAdaptiveLock HttpDiscoveryLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, HttpDiscoveryLock_);
     // TODO(prime@): Create http endpoint for discovery that works without authentication.
     std::optional<NApi::TClientOptions> HttpCredentials_;
 

@@ -76,7 +76,7 @@ void TAsyncBatcher<T>::OnDeadlineReached()
 }
 
 template <class T>
-void TAsyncBatcher<T>::DoRun(TGuard<TAdaptiveLock>& guard)
+void TAsyncBatcher<T>::DoRun(TSpinlockGuard<TAdaptiveLock>& guard)
 {
     VERIFY_SPINLOCK_AFFINITY(Lock_);
 

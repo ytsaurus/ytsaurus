@@ -31,7 +31,7 @@ void TTmpfsManager::DumpTmpfsStatistics(
 {
     auto tmpfsSizes = GetTmpfsSizes();
 
-    TReaderGuard guard(MaximumTmpfsSizesLock_);
+    auto guard = ReaderGuard(MaximumTmpfsSizesLock_);
 
     for (int index = 0; index < tmpfsSizes.size(); ++index) {
         statistics->AddSample(Format("%v/tmpfs_volumes/%v/size", path, index), tmpfsSizes[index]);
@@ -62,7 +62,7 @@ std::vector<i64> TTmpfsManager::GetTmpfsSizes() const
 {
     std::vector<i64> tmpfsSizes(Config_->TmpfsPaths.size(), 0);
 
-    auto guard = TWriterGuard(MaximumTmpfsSizesLock_);
+    auto guard = WriterGuard(MaximumTmpfsSizesLock_);
 
     for (int index = 0; index < Config_->TmpfsPaths.size(); ++index) {
         const auto& tmpfsPath = Config_->TmpfsPaths[index];

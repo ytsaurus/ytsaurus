@@ -47,7 +47,7 @@ TFuture<TChunkReplicaList> TChunkReplicaLocator::GetReplicas()
 
     if (!ReplicasPromise_) {
         ReplicasPromise_ = NewPromise<TChunkReplicaList>();
-        
+
         auto locateChunkCallback = BIND(&TChunkReplicaLocator::LocateChunk, MakeStrong(this))
             .Via(TDispatcher::Get()->GetReaderInvoker());
 
@@ -84,7 +84,7 @@ void TChunkReplicaLocator::OnChunkLocated(const TChunkServiceProxy::TErrorOrRspL
 
     TPromise<TChunkReplicaList> promise;
     {
-        TGuard<TAdaptiveLock> guard(Lock_);
+        auto guard = Guard(Lock_);
         Timestamp_ = TInstant::Now();
         promise = ReplicasPromise_;
     }

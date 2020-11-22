@@ -7,7 +7,7 @@
 
 #include <yt/core/rpc/server.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/ytlib/discovery_client/helpers.h>
@@ -39,7 +39,7 @@ private:
     const TGroupTreePtr GroupTree_;
     const NYTree::IYPathServicePtr YPathService_;
 
-    TAdaptiveLock ModifiedMembersLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ModifiedMembersLock_);
     THashSet<TMemberPtr> ModifiedMembers_;
 
     THashMap<TGroupId, TGroupPtr> GetOrCreateGroups(const std::vector<TGroupId>& groupIds);

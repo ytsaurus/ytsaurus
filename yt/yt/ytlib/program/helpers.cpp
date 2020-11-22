@@ -17,6 +17,8 @@
 
 #include <yt/core/concurrency/execution_stack.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/spinlock.h>
+#include <yt/core/concurrency/private.h>
 
 #include <yt/core/net/address.h>
 #include <yt/core/net/local_address.h>
@@ -29,8 +31,25 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void SpinlockHiccupHandler(const ::TSourceLocation& location, ESpinlockActivityKind activityKind, i64 elapsedTicks)
+{
+    const auto& Logger = NConcurrency::ConcurrencyLogger;
+    YT_LOG_DEBUG("Spinlock acquisition took too long (SourceLocation: %v:%v, ActivityKind: %v, Elapsed: %v)",
+        location.File,
+        location.Line,
+        activityKind,
+        NProfiling::CpuDurationToDuration(elapsedTicks));
+}
+
+} // namespace
+
 void ConfigureSingletons(const TSingletonsConfigPtr& config)
 {
+    NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(config->SpinlockHiccupThreshold));
+    NConcurrency::SetSpinlockHiccupHandler(&SpinlockHiccupHandler);
+
     if (!NYTAlloc::ConfigureFromEnv() && config->YTAlloc) {
         NYTAlloc::Configure(config->YTAlloc);
     }

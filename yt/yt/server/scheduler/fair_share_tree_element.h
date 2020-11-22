@@ -19,7 +19,7 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/historic_usage_aggregator.h>
 
@@ -238,9 +238,9 @@ private:
         int ScheduleJobFailureCount = 0;
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;
     };
-    
+
     DEFINE_BYVAL_RW_PROPERTY(bool, Initialized, false);
-    
+
     DEFINE_BYREF_RW_PROPERTY(std::vector<bool>, CanSchedule);
 
     DEFINE_BYREF_RW_PROPERTY(TDynamicAttributesList, DynamicAttributesList);
@@ -253,7 +253,7 @@ private:
     DEFINE_BYREF_RW_PROPERTY(TFairShareSchedulingStatistics, SchedulingStatistics);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TOperationElementPtr>, BadPackingOperations);
-    
+
     DEFINE_BYREF_RW_PROPERTY(std::optional<TStageState>, StageState);
 
 public:
@@ -956,11 +956,11 @@ private:
         TJobResources ResourceUsage;
     };
 
-    NConcurrency::TReaderWriterSpinLock JobPropertiesMapLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, JobPropertiesMapLock_);
     THashMap<TJobId, TJobProperties> JobPropertiesMap_;
     TInstant LastScheduleJobSuccessTime_;
 
-    TAdaptiveLock PreemptionStatusStatisticsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, PreemptionStatusStatisticsLock_);
     TPreemptionStatusStatisticsVector PreemptionStatusStatistics_;
 
     const NLogging::TLogger Logger;

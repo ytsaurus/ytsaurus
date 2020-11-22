@@ -649,7 +649,7 @@ TRefCountedExecNodeDescriptorMapPtr TNodeShard::GetExecNodeDescriptors()
     UpdateExecNodeDescriptors();
 
     {
-        TReaderGuard guard(CachedExecNodeDescriptorsLock_);
+        auto guard = ReaderGuard(CachedExecNodeDescriptorsLock_);
         return CachedExecNodeDescriptors_;
     }
 }
@@ -684,7 +684,7 @@ void TNodeShard::UpdateExecNodeDescriptors()
     }
 
     {
-        TWriterGuard guard(CachedExecNodeDescriptorsLock_);
+        auto guard = WriterGuard(CachedExecNodeDescriptorsLock_);
         std::swap(CachedExecNodeDescriptors_, result);
     }
 }
@@ -1208,7 +1208,7 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
 
     TRefCountedExecNodeDescriptorMapPtr descriptors;
     {
-        TReaderGuard guard(CachedExecNodeDescriptorsLock_);
+        auto guard = ReaderGuard(CachedExecNodeDescriptorsLock_);
         descriptors = CachedExecNodeDescriptors_;
     }
 
@@ -1964,7 +1964,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
 void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 {
-    TWriterGuard guard(ResourcesLock_);
+    auto guard = WriterGuard(ResourcesLock_);
 
     TotalNodeCount_ -= 1;
     if (node->GetResourceLimits().GetUserSlots() > 0) {
@@ -1974,7 +1974,7 @@ void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 
 void TNodeShard::AddNodeResources(const TExecNodePtr& node)
 {
-    TWriterGuard guard(ResourcesLock_);
+    auto guard = WriterGuard(ResourcesLock_);
 
     TotalNodeCount_ += 1;
 
@@ -2012,7 +2012,7 @@ void TNodeShard::UpdateNodeResources(
     }
 
     if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
-        TWriterGuard guard(ResourcesLock_);
+        auto guard = WriterGuard(ResourcesLock_);
 
         // Clear cache if node has come with non-zero usage.
         if (oldResourceLimits.GetUserSlots() == 0 && node->GetResourceUsage().GetUserSlots() > 0) {
@@ -2357,7 +2357,7 @@ void TNodeShard::UpdateProfilingCounter(const TJobPtr& job, int value)
             it = JobCounter_.emplace(
                 key,
                 std::make_pair(
-                    0, 
+                    0,
                     NodeShardProfiler
                         .WithTag("job_type", FormatEnum(job->GetType()))
                         .WithTag("state", FormatEnum(job->GetState()))

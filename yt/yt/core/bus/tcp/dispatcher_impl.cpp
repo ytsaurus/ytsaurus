@@ -80,7 +80,7 @@ const TIntrusivePtr<TTcpDispatcher::TImpl>& TTcpDispatcher::TImpl::Get()
 void TTcpDispatcher::TImpl::Shutdown()
 {
     {
-        TGuard guard(PeriodicExecutorsLock_);
+        auto guard = Guard(PeriodicExecutorsLock_);
         if (LivenessCheckExecutor_) {
             LivenessCheckExecutor_->Stop();
         }
@@ -109,7 +109,7 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
     };
 
     {
-        TReaderGuard guard(PollerLock_);
+        auto guard = ReaderGuard(PollerLock_);
         if (Terminated_) {
             throwAlreadyTerminated();
         }
@@ -120,7 +120,7 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
 
     IPollerPtr createdPoller;
     {
-        TWriterGuard guard(PollerLock_);
+        auto guard = WriterGuard(PollerLock_);
         if (Terminated_) {
             throwAlreadyTerminated();
         }
@@ -139,7 +139,7 @@ void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* poller)
 {
     IPollerPtr swappedPoller;
     {
-        TWriterGuard guard(PollerLock_);
+        auto guard = WriterGuard(PollerLock_);
         Terminated_ = true;
         std::swap(*poller, swappedPoller);
     }
@@ -182,7 +182,7 @@ void TTcpDispatcher::TImpl::StartPeriodicExecutors()
 {
     auto invoker = GetXferPoller()->GetInvoker();
 
-    TGuard guard(PeriodicExecutorsLock_);
+    auto guard = Guard(PeriodicExecutorsLock_);
     if (!LivenessCheckExecutor_) {
         LivenessCheckExecutor_ = New<TPeriodicExecutor>(
             invoker,

@@ -350,7 +350,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(ExecNodeDescriptorsLock_);
+        auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
         return CachedExecNodeDescriptors_;
     }
 
@@ -1693,7 +1693,7 @@ private:
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> Connected_ = {false};
 
-    mutable TReaderWriterSpinLock MediumDirectoryLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, MediumDirectoryLock_);
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
     TOperationsCleanerPtr OperationsCleaner_;
@@ -1722,7 +1722,7 @@ private:
 
     THashMap<TOperationId, TOperationPtr> IdToStartingOperation_;
 
-    mutable TReaderWriterSpinLock ExecNodeDescriptorsLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
@@ -1766,7 +1766,7 @@ private:
 
     // Special map to support node consistency between node shards YT-11381.
     std::atomic<bool> HandleNodeIdChangesStrictly_;
-    TAdaptiveLock NodeAddressToNodeShardIdLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, NodeAddressToNodeShardIdLock_);
     THashMap<TString, int> NodeAddressToNodeShardId_;
 
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
@@ -2510,7 +2510,7 @@ private:
         }
 
         {
-            TWriterGuard guard(ExecNodeDescriptorsLock_);
+            auto guard = WriterGuard(ExecNodeDescriptorsLock_);
             std::swap(CachedExecNodeDescriptors_, result);
         }
     }
@@ -2565,7 +2565,7 @@ private:
 
         TRefCountedExecNodeDescriptorMapPtr descriptors;
         {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
+            auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
             descriptors = CachedExecNodeDescriptors_;
         }
 
@@ -2589,7 +2589,7 @@ private:
         TMemoryDistribution result;
 
         {
-            TReaderGuard guard(ExecNodeDescriptorsLock_);
+            auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
 
             for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
                 if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
