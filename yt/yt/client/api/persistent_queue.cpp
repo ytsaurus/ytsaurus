@@ -119,7 +119,7 @@ public:
 
         auto promise = NewPromise<IPersistentQueueRowsetPtr>();
         auto state = GetState();
-        TGuard<TAdaptiveLock> guard(state->SpinLock);
+        auto guard = Guard(state->SpinLock);
         state->Promises.push_back(promise);
         TryFulfillPromises(state, &guard);
         return promise;
@@ -148,7 +148,7 @@ private:
     struct TState
         : public TRefCounted
     {
-        TAdaptiveLock SpinLock;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock);
         std::deque<TPromise<IPersistentQueueRowsetPtr>> Promises;
         std::deque<TBatch> Batches;
         int BatchesRowCount = 0;
@@ -230,7 +230,7 @@ private:
     const NLogging::TLogger Logger;
     const IInvokerPtr Invoker_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TStatePtr State_;
 
     std::vector<TPeriodicExecutorPtr> PollExecutors_;
@@ -239,7 +239,7 @@ private:
 
     TStatePtr GetState()
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         return State_;
     }
 
@@ -290,7 +290,7 @@ private:
 
         auto stateRows = ReadStateTable(Client_);
 
-        TGuard<TAdaptiveLock> guard(state->SpinLock);
+        auto guard = Guard(state->SpinLock);
 
         for (auto& [tabletId, tabletState] : state->TabletMap) {
             tabletState.FetchRowIndex = 0;
@@ -344,7 +344,7 @@ private:
         }
 
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             if (State_) {
                 state->Promises = std::move(State_->Promises);
             }
@@ -368,7 +368,7 @@ private:
 
         auto rowLimit = Config_->MaxRowsPerFetch;
         {
-            TGuard<TAdaptiveLock> guard(state->SpinLock);
+            auto guard = Guard(state->SpinLock);
             if (tablet.FetchRowIndex > tablet.LastTrimmedRowIndex + Config_->MaxFetchedUntrimmedRowCount) {
                 YT_LOG_INFO("Number of fetched but trimmed rows exceeds the limit; fetching new rows suspended (TabletIndex: %v, RowCount: %v, Limit: %v)",
                     tabletIndex,
@@ -485,7 +485,7 @@ private:
         endBatch();
 
         {
-            TGuard<TAdaptiveLock> guard(state->SpinLock);
+            auto guard = Guard(state->SpinLock);
 
             for (const auto& batch : batches) {
                 state->Batches.push_back(batch);
@@ -514,7 +514,7 @@ private:
     }
 
 
-    void TryFulfillPromises(const TStatePtr& state, TGuard<TAdaptiveLock>* guard)
+    void TryFulfillPromises(const TStatePtr& state, TSpinlockGuard<TAdaptiveLock>* guard)
     {
         if (state->Failed) {
             return;
@@ -548,7 +548,7 @@ private:
         const TStatePtr& state,
         TBatch batch)
     {
-        TGuard<TAdaptiveLock> guard(state->SpinLock);
+        auto guard = Guard(state->SpinLock);
 
         if (State_ != state) {
             return;
@@ -755,7 +755,7 @@ private:
         }
 
         {
-            TGuard<TAdaptiveLock> guard(state->SpinLock);
+            auto guard = Guard(state->SpinLock);
             for (const auto& [tabletIndex, statistics] : tabletStatisticsMap) {
                 auto& tablet = GetOrCrash(state->TabletMap, tabletIndex);
                 tablet.LastTrimmedRowIndex = statistics.LastTrimmedRowIndex;

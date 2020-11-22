@@ -43,7 +43,7 @@ TMemoryTag TMemoryTagQueue::AssignTagToOperation(TOperationId operationId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(Lock_);
+    auto guard = WriterGuard(Lock_);
 
     if (UsedTags_.size() > MemoryTagQueueLoadFactor * AllocatedTagCount_) {
         AllocateNewTags();
@@ -67,7 +67,7 @@ void TMemoryTagQueue::ReclaimTag(TMemoryTag tag)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(Lock_);
+    auto guard = WriterGuard(Lock_);
 
     YT_VERIFY(UsedTags_.erase(tag));
 
@@ -105,7 +105,7 @@ void TMemoryTagQueue::AllocateNewTags()
 
 void TMemoryTagQueue::UpdateStatisticsIfNeeded()
 {
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
 
     auto now = NProfiling::GetInstant();
     if (CachedTaggedMemoryStatisticsLastUpdateTime_ + Config_->TaggedMemoryStatisticsUpdatePeriod < now) {
@@ -121,7 +121,7 @@ void TMemoryTagQueue::UpdateStatistics()
     std::vector<TMemoryTag> tags;
     std::vector<size_t> usages;
     {
-        TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         tags.resize(AllocatedTagCount_ - 1);
         std::iota(tags.begin(), tags.end(), 1);
         usages.resize(AllocatedTagCount_ - 1);
@@ -132,7 +132,7 @@ void TMemoryTagQueue::UpdateStatistics()
     YT_LOG_INFO("Finished building tagged memory statistics (EntryCount: %v)", tags.size());
 
     {
-        TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         CachedTotalUsage_ = 0;
         for (int index = 0; index < tags.size(); ++index) {
             auto tag = tags[index];
@@ -159,7 +159,7 @@ i64 TMemoryTagQueue::GetTotalUsage()
 {
     UpdateStatisticsIfNeeded();
 
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
 
     return CachedTotalUsage_;
 }
@@ -171,7 +171,7 @@ void TMemoryTagQueue::Collect(ISensorWriter* writer)
     THashMap<TMemoryTag, i64> cachedMemoryUsage;
     int cachedTagCount;
     {
-        TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         cachedMemoryUsage = CachedMemoryUsage_;
         cachedTagCount = AllocatedTagCount_;
     }

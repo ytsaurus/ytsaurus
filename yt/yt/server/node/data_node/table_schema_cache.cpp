@@ -40,13 +40,13 @@ TCachedTableSchemaWrapper::TCachedTableSchemaWrapper(
     , RequestTimeout_(requestTimeout)
     , SchemaSize_(schemaSize)
     , NextRequestTime_(NProfiling::GetInstant())
-{ 
+{
     YT_VERIFY(SchemaSize_ > 0);
 }
 
 bool TCachedTableSchemaWrapper::IsSet()
 {
-    TReaderGuard readerGuard(SpinLock_);
+    auto readerGuard = ReaderGuard(SpinLock_);
     return CheckSchemaSet();
 }
 
@@ -67,14 +67,14 @@ bool TCachedTableSchemaWrapper::TryRequestSchema()
 
 TCachedTableSchemaPtr TCachedTableSchemaWrapper::GetValue()
 {
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     YT_VERIFY(CheckSchemaSet());
     return CachedTableSchema_;
 }
 
 void TCachedTableSchemaWrapper::SetValue(TCachedTableSchemaPtr cachedTableSchema)
 {
-    TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     if (CheckSchemaSet()) {
         YT_VERIFY(*CachedTableSchema_->TableSchema == *cachedTableSchema->TableSchema);
         return;

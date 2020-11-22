@@ -8,7 +8,7 @@
 
 #include <yt/client/misc/workload.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/action_queue.h>
 
@@ -80,7 +80,7 @@ private:
     const IInvokerPtr ReaderInvoker_ = CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker());
 
     TPartIndexSet BannedPartIndices_;
-    TReaderWriterSpinLock IndicesLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, IndicesLock_);
     std::vector<TInstant> SlowReaderBanTimes_;
     TPeriodicExecutorPtr ExpirationTimesExecutor_;
 };
@@ -137,7 +137,7 @@ private:
     const std::vector<int> BlockIndexes_;
     const std::optional<i64> EstimatedSize_;
     const TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
-    
+
     const IInvokerPtr ReaderInvoker_ = CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker());
 
     std::vector<TBlock> DoRun()
@@ -313,7 +313,7 @@ void TRepairingReader::UpdateBannedPartIndices()
     TPartIndexList failedReaderIndices;
     {
         auto now = NProfiling::GetInstant();
-        TReaderGuard guard(IndicesLock_);
+        auto guard = ReaderGuard(IndicesLock_);
         for (size_t index = 0; index < Readers_.size(); ++index) {
             if (CheckReaderRecentlyFailed(now, index) && !BannedPartIndices_.test(index)) {
                 failedReaderIndices.push_back(index);
@@ -326,7 +326,7 @@ void TRepairingReader::UpdateBannedPartIndices()
     }
 
     {
-        TWriterGuard guard(IndicesLock_);
+        auto guard = WriterGuard(IndicesLock_);
         for (auto index : failedReaderIndices) {
             BannedPartIndices_.set(index);
         }
@@ -335,13 +335,13 @@ void TRepairingReader::UpdateBannedPartIndices()
 
 TPartIndexSet TRepairingReader::GetBannedPartIndices()
 {
-    TReaderGuard guard(IndicesLock_);
+    auto guard = ReaderGuard(IndicesLock_);
     return BannedPartIndices_;
 }
 
 void TRepairingReader::MaybeUnbanReaders()
 {
-    TWriterGuard guard(IndicesLock_);
+    auto guard = WriterGuard(IndicesLock_);
 
     auto now = NProfiling::GetInstant();
     for (size_t index = 0; index < SlowReaderBanTimes_.size(); ++index) {
@@ -371,7 +371,7 @@ TError TRepairingReader::CheckPartReaderIsSlow(int partIndex, i64 bytesReceived,
     }
 
     {
-        TWriterGuard guard(IndicesLock_);
+        auto guard = WriterGuard(IndicesLock_);
         if (BannedPartIndices_.test(partIndex)) {
             return TError("Reader of part %v is already banned", partIndex);
         }
@@ -411,7 +411,7 @@ TRefCountedChunkMetaPtr TRepairingReader::DoGetMeta(
         }
         errors.push_back(result);
     }
-    
+
     THROW_ERROR_EXCEPTION("Failed to get chunk meta of chunk %v from any of valid part readers",
         GetChunkId())
         << errors;

@@ -3,7 +3,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/core/misc/lazy_ptr.h>
@@ -43,7 +43,7 @@ public:
         CompressionPool_->Configure(config->CompressionPoolSize);
         // NB: TFairShareThreadPool::Configure() has dummy implementation.
         CompressionFairShareThreadPool_->Configure(config->CompressionPoolSize);
-        TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
 
         for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
             const auto& bandConfig = config->MultiplexingBands[band];
@@ -84,7 +84,7 @@ public:
 
     TTosLevel GetTosLevelForBand(EMultiplexingBand band, TNetworkId networkId)
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         const auto& bandDescriptor = BandToDescriptor_[band];
         return bandDescriptor.NetworkIdToTosLevel[networkId];
     }
@@ -92,14 +92,14 @@ public:
     TNetworkId GetNetworkId(const TString& networkName)
     {
         {
-            TReaderGuard guard(SpinLock_);
+            auto guard = ReaderGuard(SpinLock_);
             auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
             if (it != NetworkNames_.end()) {
                 return std::distance(NetworkNames_.begin(), it);
             }
         }
 
-        TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         return DoRegisterNetwork(networkName);
     }
 
@@ -151,7 +151,7 @@ private:
     TLazyIntrusivePtr<IFairShareThreadPool> CompressionFairShareThreadPool_;
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
 
-    TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
     TEnumIndexedVector<EMultiplexingBand, TBandDescriptor> BandToDescriptor_;
 
     // Using linear search in vector since number of networks is very small.

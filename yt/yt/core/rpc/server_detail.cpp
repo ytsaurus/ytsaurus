@@ -595,7 +595,7 @@ void TServerBase::RegisterService(IServicePtr service)
     auto serviceId = service->GetServiceId();
 
     {
-        TWriterGuard guard(ServicesLock_);
+        auto guard = WriterGuard(ServicesLock_);
         YT_VERIFY(ServiceMap_.emplace(serviceId, service).second);
         if (Config_) {
             auto it = Config_->Services.find(serviceId.ServiceName);
@@ -620,7 +620,7 @@ bool TServerBase::UnregisterService(IServicePtr service)
     auto serviceId = service->GetServiceId();
 
     {
-        TWriterGuard guard(ServicesLock_);
+        auto guard = WriterGuard(ServicesLock_);
         auto it = ServiceMap_.find(serviceId);
         if (it == ServiceMap_.end() || it->second != service) {
             return false;
@@ -637,14 +637,14 @@ bool TServerBase::UnregisterService(IServicePtr service)
 
 IServicePtr TServerBase::FindService(const TServiceId& serviceId)
 {
-    TReaderGuard guard(ServicesLock_);
+    auto guard = ReaderGuard(ServicesLock_);
     auto it = ServiceMap_.find(serviceId);
     return it == ServiceMap_.end() ? nullptr : it->second;
 }
 
 void TServerBase::Configure(TServerConfigPtr config)
 {
-    TWriterGuard guard(ServicesLock_);
+    auto guard = WriterGuard(ServicesLock_);
 
     // Future services will be configured appropriately.
     Config_ = config;
@@ -699,7 +699,7 @@ TFuture<void> TServerBase::DoStop(bool graceful)
     if (graceful) {
         std::vector<IServicePtr> services;
         {
-            TReaderGuard guard(ServicesLock_);
+            auto guard = ReaderGuard(ServicesLock_);
             for (const auto& [serviceId, service] : ServiceMap_) {
                 services.push_back(service);
             }

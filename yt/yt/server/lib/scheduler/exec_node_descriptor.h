@@ -13,7 +13,7 @@
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/lease_manager.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/property.h>
 

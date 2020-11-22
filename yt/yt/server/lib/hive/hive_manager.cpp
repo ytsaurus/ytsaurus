@@ -177,7 +177,7 @@ public:
         auto* mailbox = MailboxMap_.Insert(cellId, std::move(mailboxHolder));
 
         {
-            TWriterGuard guard(MailboxRuntimeDataMapLock_);
+            auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
             YT_VERIFY(MailboxRuntimeDataMap_.emplace(cellId, mailbox->GetRuntimeData()).second);
         }
 
@@ -202,7 +202,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(MailboxRuntimeDataMapLock_);
+        auto guard = ReaderGuard(MailboxRuntimeDataMapLock_);
         auto it = MailboxRuntimeDataMap_.find(cellId);
         return it == MailboxRuntimeDataMap_.end()
             ? nullptr
@@ -241,7 +241,7 @@ public:
         MailboxMap_.Remove(cellId);
 
         {
-            TWriterGuard guard(MailboxRuntimeDataMapLock_);
+            auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
             YT_VERIFY(MailboxRuntimeDataMap_.erase(cellId) == 1);
         }
 
@@ -318,12 +318,12 @@ private:
     TEntityMap<TMailbox> MailboxMap_;
     THashMap<TCellId, TMessageId> CellIdToNextTransientIncomingMessageId_;
 
-    TReaderWriterSpinLock MailboxRuntimeDataMapLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, MailboxRuntimeDataMapLock_);
     THashMap<TCellId, TMailboxRuntimeDataPtr> MailboxRuntimeDataMap_;
 
     THashSet<TCellId> RemovedCellIds_;
 
-    TReaderWriterSpinLock CellToIdToBatcherLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, CellToIdToBatcherLock_);
     THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
 
     const NProfiling::TProfiler Profiler;
@@ -756,7 +756,7 @@ private:
     {
         decltype(CellToIdToBatcher_) cellToIdToBatcher;
         {
-            TWriterGuard guard(CellToIdToBatcherLock_);
+            auto guard = WriterGuard(CellToIdToBatcherLock_);
             std::swap(cellToIdToBatcher, CellToIdToBatcher_);
         }
 
@@ -891,7 +891,7 @@ private:
     TIntrusivePtr<TAsyncBatcher<void>> GetOrCreateSyncBatcher(TCellId cellId)
     {
         {
-            TReaderGuard readerGuard(CellToIdToBatcherLock_);
+            auto readerGuard = ReaderGuard(CellToIdToBatcherLock_);
             auto it = CellToIdToBatcher_.find(cellId);
             if (it != CellToIdToBatcher_.end()) {
                 return it->second;
@@ -903,7 +903,7 @@ private:
             Config_->SyncDelay);
 
         {
-            TWriterGuard writerGuard(CellToIdToBatcherLock_);
+            auto writerGuard = WriterGuard(CellToIdToBatcherLock_);
             auto it = CellToIdToBatcher_.emplace(cellId, std::move(batcher)).first;
             return it->second;
         }
@@ -1501,7 +1501,7 @@ private:
         MailboxMap_.Clear();
 
         {
-            TWriterGuard guard(MailboxRuntimeDataMapLock_);
+            auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
             MailboxRuntimeDataMap_.clear();
         }
     }
@@ -1531,7 +1531,7 @@ private:
         }
 
         {
-            TWriterGuard guard(MailboxRuntimeDataMapLock_);
+            auto guard = WriterGuard(MailboxRuntimeDataMapLock_);
             MailboxRuntimeDataMap_.clear();
             for (auto [id, mailbox] : MailboxMap_) {
                 YT_VERIFY(MailboxRuntimeDataMap_.emplace(id, mailbox->GetRuntimeData()).second);

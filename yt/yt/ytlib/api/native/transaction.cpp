@@ -533,7 +533,7 @@ private:
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TNativeTransactionBufferTag());
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     ETransactionState State_ = ETransactionState::Active;
     TPromise<void> AbortPromise_;
     std::vector<NApi::ITransactionPtr> AlienTransactions_;
@@ -1502,7 +1502,7 @@ private:
         return it->second;
     }
 
-    TFuture<void> DoAbort(TGuard<TAdaptiveLock>* guard, const TTransactionAbortOptions& options = {})
+    TFuture<void> DoAbort(TSpinlockGuard<TAdaptiveLock>* guard, const TTransactionAbortOptions& options = {})
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 

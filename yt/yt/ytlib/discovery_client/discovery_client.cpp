@@ -6,7 +6,7 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/rpc/caching_channel_factory.h>
 
@@ -38,7 +38,7 @@ TFuture<std::vector<TMemberInfo>> TDiscoveryClient::ListMembers(
     const TString& groupId,
     const TListMembersOptions& options)
 {
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
 
     auto session = New<TListMembersRequestSession>(
         AddressPool_,
@@ -52,7 +52,7 @@ TFuture<std::vector<TMemberInfo>> TDiscoveryClient::ListMembers(
 
 TFuture<TGroupMeta> TDiscoveryClient::GetGroupMeta(const TString& groupId)
 {
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
 
     auto session = New<TGetGroupMetaRequestSession>(
         AddressPool_,
@@ -65,7 +65,7 @@ TFuture<TGroupMeta> TDiscoveryClient::GetGroupMeta(const TString& groupId)
 
 void TDiscoveryClient::Reconfigure(TDiscoveryClientConfigPtr config)
 {
-    TWriterGuard guard(Lock_);
+    auto guard = WriterGuard(Lock_);
 
     if (config->ServerBanTimeout != Config_->ServerBanTimeout) {
         AddressPool_->SetBanTimeout(config->ServerBanTimeout);

@@ -821,7 +821,7 @@ private:
     const EPreemptionMode PreemptionMode_;
     const NLogging::TLogger Logger;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
     TIncarnationId IncarnationId_;
     TWeakPtr<TControllerAgent> Agent_;

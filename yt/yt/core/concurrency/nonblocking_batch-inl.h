@@ -21,7 +21,7 @@ TNonblockingBatch<T>::TNonblockingBatch(int maxBatchSize, TDuration batchDuratio
 template <class T>
 TNonblockingBatch<T>::~TNonblockingBatch()
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     ResetTimer(guard);
 }
 
@@ -29,7 +29,7 @@ template <class T>
 template <class... U>
 void TNonblockingBatch<T>::Enqueue(U&& ... u)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     CurrentBatch_.emplace_back(std::forward<U>(u)...);
     StartTimer(guard);
     CheckFlush(guard);
@@ -38,7 +38,7 @@ void TNonblockingBatch<T>::Enqueue(U&& ... u)
 template <class T>
 TFuture<typename TNonblockingBatch<T>::TBatch> TNonblockingBatch<T>::DequeueBatch()
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     auto promise = NewPromise<TBatch>();
     Promises_.push_back(promise);
     StartTimer(guard);
@@ -52,7 +52,7 @@ void TNonblockingBatch<T>::Drop()
     std::queue<TBatch> batches;
     std::deque<TPromise<TBatch>> promises;
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         Batches_.swap(batches);
         Promises_.swap(promises);
         CurrentBatch_.clear();
@@ -62,25 +62,25 @@ void TNonblockingBatch<T>::Drop()
         promise.Set(TBatch{});
     }
 }
-    
+
 template <class T>
 void TNonblockingBatch<T>::UpdateMaxBatchSize(int maxBatchSize)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     MaxBatchSize_ = maxBatchSize;
 }
 
 template <class T>
 void TNonblockingBatch<T>::UpdateBatchDuration(TDuration batchDuration)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     BatchDuration_ = batchDuration;
 }
 
 void UpdateBatchDuration(int batchDuration);
 
 template <class T>
-void TNonblockingBatch<T>::ResetTimer(TGuard<TAdaptiveLock>& guard)
+void TNonblockingBatch<T>::ResetTimer(TSpinlockGuard<TAdaptiveLock>& guard)
 {
     if (TimerState_ == ETimerState::Started) {
         ++FlushGeneration_;
@@ -90,7 +90,7 @@ void TNonblockingBatch<T>::ResetTimer(TGuard<TAdaptiveLock>& guard)
 }
 
 template <class T>
-void TNonblockingBatch<T>::StartTimer(TGuard<TAdaptiveLock>& guard)
+void TNonblockingBatch<T>::StartTimer(TSpinlockGuard<TAdaptiveLock>& guard)
 {
     if (TimerState_ == ETimerState::Initial && !Promises_.empty() && !CurrentBatch_.empty()) {
         TimerState_ = ETimerState::Started;
@@ -101,7 +101,7 @@ void TNonblockingBatch<T>::StartTimer(TGuard<TAdaptiveLock>& guard)
 }
 
 template <class T>
-bool TNonblockingBatch<T>::IsFlushNeeded(TGuard<TAdaptiveLock>& guard) const
+bool TNonblockingBatch<T>::IsFlushNeeded(TSpinlockGuard<TAdaptiveLock>& guard) const
 {
     return
         static_cast<int>(CurrentBatch_.size()) == MaxBatchSize_ ||
@@ -109,7 +109,7 @@ bool TNonblockingBatch<T>::IsFlushNeeded(TGuard<TAdaptiveLock>& guard) const
 }
 
 template <class T>
-void TNonblockingBatch<T>::CheckFlush(TGuard<TAdaptiveLock>& guard)
+void TNonblockingBatch<T>::CheckFlush(TSpinlockGuard<TAdaptiveLock>& guard)
 {
     if (!IsFlushNeeded(guard)) {
         return;
@@ -121,7 +121,7 @@ void TNonblockingBatch<T>::CheckFlush(TGuard<TAdaptiveLock>& guard)
 }
 
 template <class T>
-void TNonblockingBatch<T>::CheckReturn(TGuard<TAdaptiveLock>& guard)
+void TNonblockingBatch<T>::CheckReturn(TSpinlockGuard<TAdaptiveLock>& guard)
 {
     if (Promises_.empty() || Batches_.empty()) {
         return;
@@ -137,7 +137,7 @@ void TNonblockingBatch<T>::CheckReturn(TGuard<TAdaptiveLock>& guard)
 template <class T>
 void TNonblockingBatch<T>::OnBatchTimeout(ui64 generation)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     if (generation != FlushGeneration_) {
         // Chunk had been prepared.
         return;

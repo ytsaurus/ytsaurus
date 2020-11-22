@@ -32,7 +32,7 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
     auto deadline = now - ExpirationTimeout_.load();
 
     {
-        NConcurrency::TReaderGuard guard(MapLock_);
+        auto guard = ReaderGuard(MapLock_);
 
         auto it = Map_.find(key);
         if (it != Map_.end()) {
@@ -47,7 +47,7 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
     auto result = CalculateValueAction_.Run(key);
 
     {
-        NConcurrency::TWriterGuard guard(MapLock_);
+        auto guard = WriterGuard(MapLock_);
 
         auto it = Map_.find(key);
         if (it != Map_.end()) {
@@ -68,7 +68,7 @@ std::optional<TValue> TSyncExpiringCache<TKey, TValue>::Find(const TKey& key)
     auto now = NProfiling::GetCpuInstant();
     auto deadline = now - ExpirationTimeout_.load();
 
-    NConcurrency::TReaderGuard guard(MapLock_);
+    auto guard = ReaderGuard(MapLock_);
 
     auto it = Map_.find(key);
     if (it != Map_.end()) {
@@ -87,7 +87,7 @@ void TSyncExpiringCache<TKey, TValue>::Set(const TKey& key, TValue value)
 {
     auto now = NProfiling::GetCpuInstant();
 
-    NConcurrency::TWriterGuard guard(MapLock_);
+    auto guard = WriterGuard(MapLock_);
 
     Map_[key] = {now, now, std::move(value)};
 }
@@ -97,7 +97,7 @@ void TSyncExpiringCache<TKey, TValue>::Clear()
 {
     decltype(Map_) map;
     {
-        NConcurrency::TWriterGuard guard(MapLock_);
+        auto guard = WriterGuard(MapLock_);
         Map_.swap(map);
     }
 }
@@ -118,7 +118,7 @@ void TSyncExpiringCache<TKey, TValue>::DeleteExpiredItems()
 
     std::vector<TKey> keysToRemove;
     {
-        NConcurrency::TReaderGuard guard(MapLock_);
+        auto guard = ReaderGuard(MapLock_);
         for (const auto& [key, entry] : Map_) {
             if (entry.LastAccessTime < deadline) {
                 keysToRemove.push_back(key);
@@ -133,7 +133,7 @@ void TSyncExpiringCache<TKey, TValue>::DeleteExpiredItems()
     std::vector<TValue> valuesToRemove;
     valuesToRemove.reserve(keysToRemove.size());
     {
-        NConcurrency::TWriterGuard guard(MapLock_);
+        auto guard = WriterGuard(MapLock_);
         for (const auto& key : keysToRemove) {
             auto it = Map_.find(key);
             auto& entry = it->second;

@@ -60,7 +60,7 @@ TFuture<TResponse> TRequestSession<TResponse>::Run()
 template <class TResponse>
 void TRequestSession<TResponse>::AddError(const TError& error)
 {
-    TGuard guard(ErrorsLock_);
+    auto guard = Guard(ErrorsLock_);
     Errors_.push_back(error);
 }
 

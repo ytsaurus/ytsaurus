@@ -12,7 +12,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 namespace NYT::NDataNode {
 
@@ -51,7 +51,7 @@ private:
 
     const int EntryCountLimit_;
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     SmallVector<TBlockPeerEntry, TypicalPeerCount * 2> Entries_;
 };
 
@@ -88,7 +88,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr SweepExecutor_;
 
-    NConcurrency::TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
     THashMap<TBlockId, TBlockPeerDataPtr> BlockIdToData_;
 
     void OnSweep();

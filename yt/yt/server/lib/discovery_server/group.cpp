@@ -2,7 +2,7 @@
 
 #include <yt/core/ytree/attributes.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/ytlib/discovery_client/helpers.h>
 
@@ -30,7 +30,7 @@ TMemberPtr TGroup::AddOrUpdateMember(const TMemberInfo& memberInfo, TDuration le
         leaseTimeout);
 
     {
-        TReaderGuard readerGuard(MembersLock_);
+        auto readerGuard = ReaderGuard(MembersLock_);
 
         auto it = IdToMember_.find(memberInfo.Id);
         if (it != IdToMember_.end() && it->second->GetPriority() == memberInfo.Priority) {
@@ -42,7 +42,7 @@ TMemberPtr TGroup::AddOrUpdateMember(const TMemberInfo& memberInfo, TDuration le
     }
 
     // Slow path.
-    TWriterGuard writerGuard(MembersLock_);
+    auto writerGuard = WriterGuard(MembersLock_);
     return UpdateMember(memberInfo, leaseTimeout);
 }
 
@@ -53,7 +53,7 @@ TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeo
     auto onMemberLeaseExpired = BIND([=, memberId = memberInfo.Id, this_ = MakeStrong(this)] {
         YT_LOG_DEBUG("Member lease expired (MemberId: %v)", memberId);
 
-        TWriterGuard guard(MembersLock_);
+        auto guard = WriterGuard(MembersLock_);
 
         auto it = IdToMember_.find(memberId);
         if (it == IdToMember_.end()) {
@@ -119,7 +119,7 @@ TMemberPtr TGroup::UpdateMember(const TMemberInfo& memberInfo, TDuration leaseTi
 
 std::vector<TMemberPtr> TGroup::ListMembers(std::optional<int> limit)
 {
-    TReaderGuard guard(MembersLock_);
+    auto guard = ReaderGuard(MembersLock_);
 
     if (!limit) {
         return {Members_.begin(), Members_.end()};
@@ -132,14 +132,14 @@ std::vector<TMemberPtr> TGroup::ListMembers(std::optional<int> limit)
 
 bool TGroup::HasMember(const TMemberId& memberId)
 {
-    TReaderGuard guard(MembersLock_);
+    auto guard = ReaderGuard(MembersLock_);
 
     return IdToMember_.contains(memberId);
 }
 
 TMemberPtr TGroup::FindMember(const TMemberId& memberId)
 {
-    TReaderGuard guard(MembersLock_);
+    auto guard = ReaderGuard(MembersLock_);
 
     auto it = IdToMember_.find(memberId);
     return it == IdToMember_.end() ? nullptr : it->second;
@@ -164,7 +164,7 @@ const TGroupId& TGroup::GetId()
 
 int TGroup::GetMemberCount()
 {
-    TReaderGuard guard(MembersLock_);
+    auto guard = ReaderGuard(MembersLock_);
     return static_cast<int>(Members_.size());
 }
 

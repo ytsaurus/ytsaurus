@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "spinlock.h"
 
 #include <yt/core/actions/future.h>
 
@@ -28,13 +28,13 @@ private:
     const TCallback<TFuture<T>()> Provider_;
     const TDuration BatchingDelay_;
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TPromise<T> ActivePromise_;
     TPromise<T> PendingPromise_;
     bool DeadlineReached_ = false;
 
     void OnDeadlineReached();
-    void DoRun(TGuard<TAdaptiveLock>& guard);
+    void DoRun(TSpinlockGuard<TAdaptiveLock>& guard);
     void OnResult(const TErrorOr<T>& result);
 };
 

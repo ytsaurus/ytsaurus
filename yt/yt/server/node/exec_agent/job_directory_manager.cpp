@@ -114,7 +114,7 @@ private:
     const TString Path_;
     const IPortoExecutorPtr Executor_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::set<TString> ManagedVolumes_;
 
     TFuture<void> DoCreateVolume(const TString& path, const TJobDirectoryProperties& properties, bool isTmpfs)

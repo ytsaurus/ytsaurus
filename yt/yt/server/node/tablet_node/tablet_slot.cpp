@@ -235,7 +235,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TAdaptiveLock> guard(InvokersLock_);
+        auto guard = Guard(InvokersLock_);
         return EpochAutomatonInvokers_[queue];
     }
 
@@ -243,7 +243,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TAdaptiveLock> guard(InvokersLock_);
+        auto guard = Guard(InvokersLock_);
         return GuardedAutomatonInvokers_[queue];
     }
 
@@ -344,7 +344,7 @@ public:
 
             DynamicConfigVersion_ = updateInfo.dynamic_config_version();
             {
-                TGuard<TAdaptiveLock> guard(DynamicOptionsLock_);
+                auto guard = Guard(DynamicOptionsLock_);
                 DynamicOptions_ = std::move(dynamicOptions);
             }
 
@@ -502,7 +502,7 @@ public:
                     .AsyncVia(Bootstrap_->GetControlInvoker()));
 
             {
-                TGuard<TAdaptiveLock> guard(InvokersLock_);
+                auto guard = Guard(InvokersLock_);
                 for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
                     auto unguardedInvoker = GetAutomatonInvoker(queue);
                     GuardedAutomatonInvokers_[queue] = hydraManager->CreateGuardedAutomatonInvoker(unguardedInvoker);
@@ -633,7 +633,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TAdaptiveLock> guard(DynamicOptionsLock_);
+        auto guard = Guard(DynamicOptionsLock_);
         auto options = DynamicOptions_;
         guard.Release();
         return options;
@@ -668,7 +668,7 @@ private:
 
     TTabletCellOptionsPtr Options_;
 
-    TAdaptiveLock DynamicOptionsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, DynamicOptionsLock_);
     TDynamicTabletCellOptionsPtr DynamicOptions_ = New<TDynamicTabletCellOptions>();
 
     int DynamicConfigVersion_ = -1;
@@ -680,7 +680,7 @@ private:
 
     IElectionManagerPtr ElectionManager_;
 
-    TAdaptiveLock HydraManagerLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, HydraManagerLock_);
     IDistributedHydraManagerPtr HydraManager_;
 
     TResponseKeeperPtr ResponseKeeper_;
@@ -696,7 +696,7 @@ private:
 
     TTabletAutomatonPtr Automaton_;
 
-    TAdaptiveLock InvokersLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, InvokersLock_);
     TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochAutomatonInvokers_;
     TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> GuardedAutomatonInvokers_;
 
@@ -784,7 +784,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TAdaptiveLock> guard(InvokersLock_);
+            auto guard = Guard(InvokersLock_);
             std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
         }
     }
@@ -794,7 +794,7 @@ private:
         VERIFY_THREAD_AFFINITY_ANY();
 
         {
-            TGuard<TAdaptiveLock> guard(InvokersLock_);
+            auto guard = Guard(InvokersLock_);
             std::fill(GuardedAutomatonInvokers_.begin(), GuardedAutomatonInvokers_.end(), GetNullInvoker());
         }
     }
@@ -810,7 +810,7 @@ private:
         }
 
         {
-            TGuard<TAdaptiveLock> guard(InvokersLock_);
+            auto guard = Guard(InvokersLock_);
             for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
                 EpochAutomatonInvokers_[queue] = hydraManager
                     ->GetAutomatonCancelableContext()

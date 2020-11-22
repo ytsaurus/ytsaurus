@@ -3,7 +3,7 @@
 #include "public.h"
 #include "cypress_integration.h"
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/rpc/server.h>
 
@@ -59,7 +59,7 @@ void TGroupManager::ProcessHeartbeat(
     auto member = group->AddOrUpdateMember(memberInfo, leaseTimeout);
 
     {
-        TGuard guard(ModifiedMembersLock_);
+        auto guard = Guard(ModifiedMembersLock_);
         ModifiedMembers_.insert(member);
     }
 }
@@ -84,7 +84,7 @@ THashSet<TMemberPtr> TGroupManager::GetModifiedMembers()
 {
     THashSet<TMemberPtr> modifiedMembers;
     {
-        TGuard guard(ModifiedMembersLock_);
+        auto guard = Guard(ModifiedMembersLock_);
         ModifiedMembers_.swap(modifiedMembers);
     }
     return modifiedMembers;

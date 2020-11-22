@@ -22,7 +22,7 @@
 #include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/dense_map.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/delayed_executor.h>
 
 #include <yt/core/ytree/node.h>
@@ -425,10 +425,10 @@ public:
 private:
     std::atomic<int> PendingJobCount_ = {0};
 
-    mutable NConcurrency::TReaderWriterSpinLock NeededResourcesLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, NeededResourcesLock_);
     TJobResources NeededResources_;
 
-    mutable NConcurrency::TReaderWriterSpinLock MinNeededResourcesJobLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, MinNeededResourcesJobLock_);
     TJobResourcesWithQuotaList MinNeededJobResources_;
 };
 

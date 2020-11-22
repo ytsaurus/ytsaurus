@@ -24,7 +24,7 @@ public:
 
     virtual int GetRecordCount() const override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         return UnderlyingChangelog_
             ? UnderlyingChangelog_->GetRecordCount()
             : BacklogRecords_.size();
@@ -32,7 +32,7 @@ public:
 
     virtual i64 GetDataSize() const override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         return UnderlyingChangelog_
             ? UnderlyingChangelog_->GetDataSize()
             : BacklogDataSize_;
@@ -40,7 +40,7 @@ public:
 
     virtual TFuture<void> Append(TRange<TSharedRef> records) override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (!UnderlyingError_.IsOK()) {
             return MakeFuture(UnderlyingError_);
@@ -69,7 +69,7 @@ public:
         int maxRecords,
         i64 maxBytes) const override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (!UnderlyingError_.IsOK()) {
             return MakeFuture<std::vector<TSharedRef>>(UnderlyingError_);
@@ -118,7 +118,7 @@ public:
 private:
     TFuture<IChangelogPtr> FutureChangelog_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
     //! If non-OK then the underlying changelog could not open.
     TError UnderlyingError_;
@@ -139,7 +139,7 @@ private:
 
     void OnUnderlyingChangelogReady(TErrorOr<IChangelogPtr> changelogOrError)
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (!changelogOrError.IsOK()) {
             UnderlyingError_ = changelogOrError;

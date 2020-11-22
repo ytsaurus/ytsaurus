@@ -10,7 +10,7 @@
 
 #include <yt/core/ytree/convert.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/profiling/proto/profiling.pb.h>
 
@@ -151,7 +151,7 @@ public:
 private:
     const TString Key_;
 
-    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     mutable THashMap<T, TTagId> ValueToTagId_;
 };
 

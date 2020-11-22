@@ -6,7 +6,7 @@
 
 #include <yt/server/node/cluster_node/public.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <atomic>
 
@@ -53,7 +53,7 @@ private:
     const TDataNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
-    NConcurrency::TReaderWriterSpinLock SessionMapLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TSessionId, ISessionPtr> SessionMap_;
 
     std::atomic<bool> DisableWriteSessions_ = false;

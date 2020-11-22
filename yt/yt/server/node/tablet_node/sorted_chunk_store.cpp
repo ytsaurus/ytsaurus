@@ -314,7 +314,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     if (!ValidateBlockCachePreloaded()) {
         return nullptr;
@@ -436,7 +436,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     if (!ValidateBlockCachePreloaded()) {
         return nullptr;

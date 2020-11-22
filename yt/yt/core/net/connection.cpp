@@ -683,7 +683,7 @@ private:
         }
     };
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     TIODirection ReadDirection_;
     TIODirection WriteDirection_;
     bool ShutdownRequested_ = false;

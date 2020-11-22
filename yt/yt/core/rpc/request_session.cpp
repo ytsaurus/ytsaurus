@@ -21,20 +21,20 @@ TServerAddressPool::TServerAddressPool(
 
 std::vector<TString> TServerAddressPool::GetUpAddresses()
 {
-    TGuard guard(Lock_);
+    auto guard = Guard(Lock_);
     return {UpAddresses_.begin(), UpAddresses_.end()};
 }
 
 std::vector<TString> TServerAddressPool::GetProbationAddresses()
 {
-    TGuard guard(Lock_);
+    auto guard = Guard(Lock_);
     return {ProbationAddresses_.begin(), ProbationAddresses_.end()};
 }
 
 void TServerAddressPool::BanAddress(const TString& address)
 {
     {
-        TGuard guard(Lock_);
+        auto guard = Guard(Lock_);
         auto it = UpAddresses_.find(address);
         if (it == UpAddresses_.end()) {
             YT_LOG_WARNING("Cannot ban server: server is already banned (Address: %v)", address);
@@ -53,7 +53,7 @@ void TServerAddressPool::BanAddress(const TString& address)
 
 void TServerAddressPool::UnbanAddress(const TString& address)
 {
-    TGuard guard(Lock_);
+    auto guard = Guard(Lock_);
 
     auto it = ProbationAddresses_.find(address);
     if (it == ProbationAddresses_.end()) {
@@ -72,7 +72,7 @@ void TServerAddressPool::SetBanTimeout(TDuration banTimeout)
 
 void TServerAddressPool::SetAddresses(const std::vector<TString>& addresses)
 {
-    TGuard guard(Lock_);
+    auto guard = Guard(Lock_);
 
     YT_LOG_INFO("Address list changed (Addresses: %v)", addresses);
 
@@ -83,7 +83,7 @@ void TServerAddressPool::SetAddresses(const std::vector<TString>& addresses)
 
 void TServerAddressPool::OnBanTimeoutExpired(const TString& address)
 {
-    TGuard guard(Lock_);
+    auto guard = Guard(Lock_);
 
     auto it = DownAddresses_.find(address);
     if (it == DownAddresses_.end()) {

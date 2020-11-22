@@ -122,7 +122,7 @@ TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
     VERIFY_THREAD_AFFINITY_ANY();
 
     {
-        TReaderGuard guard(BlocksExtLock_);
+        auto guard = ReaderGuard(BlocksExtLock_);
         if (auto blocksExt = WeakBlocksExt_.Lock()) {
             return blocksExt;
         }
@@ -135,7 +135,7 @@ TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
     }
 
     {
-        TWriterGuard guard(BlocksExtLock_);
+        auto guard = WriterGuard(BlocksExtLock_);
         WeakBlocksExt_ = blocksExt;
     }
 
@@ -597,7 +597,7 @@ bool TBlobChunkBase::ShouldSyncOnClose()
     if (!blocksExt) {
         return true;
     }
-    
+
     return blocksExt->sync_on_close();
 }
 
@@ -672,7 +672,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                     if (result.IsOK()) {
                         auto blocksExt = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(result.Value()->extensions()));
                         {
-                            TWriterGuard guard(BlocksExtLock_);
+                            auto guard = WriterGuard(BlocksExtLock_);
                             WeakBlocksExt_ = blocksExt;
                         }
                         chunkMetaManager->EndInsertCachedBlocksExt(std::move(cookie), blocksExt);

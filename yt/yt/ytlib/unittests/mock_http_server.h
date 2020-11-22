@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/public.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 #include <library/cpp/http/server/http.h>
 
 #include <library/cpp/testing/unittest/tests_data.h>
@@ -52,7 +54,7 @@ private:
             THttpServerImpl* const Owner_;
         };
 
-        TAdaptiveLock Lock_;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
         TCallback Callback_;
     };
 

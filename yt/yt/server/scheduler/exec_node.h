@@ -19,7 +19,7 @@
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/lease_manager.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/property.h>
 
@@ -166,7 +166,7 @@ private:
     TJobResources ResourceUsage_;
     NNodeTrackerClient::NProto::TDiskResources DiskResources_;
 
-    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     TJobResources ResourceLimits_;
 };
 

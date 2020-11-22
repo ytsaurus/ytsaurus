@@ -174,7 +174,7 @@ private:
 
         TFuture<void> Write(TRange<TSharedRef> rows)
         {
-            TGuard<TAdaptiveLock> guard(CurrentBatchSpinLock_);
+            auto guard = Guard(CurrentBatchSpinLock_);
 
             if (!Error_.IsOK()) {
                 return MakeFuture(Error_);
@@ -223,19 +223,19 @@ private:
             i64 FirstRowIndex = -1;
             i64 RowCount = 0;
             i64 DataSize = 0;
-            
+
             std::vector<TSharedRef> Rows;
             std::vector<std::vector<TSharedRef>> ErasureRows;
-            
+
             const TPromise<void> FlushedPromise = NewPromise<void>();
             int FlushedReplicas = 0;
-            
+
             TCpuInstant StartTime;
         };
 
         using TBatchPtr = TIntrusivePtr<TBatch>;
 
-        TAdaptiveLock CurrentBatchSpinLock_;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, CurrentBatchSpinLock_);
         TError Error_;
         TBatchPtr CurrentBatch_;
         TDelayedExecutorCookie CurrentBatchFlushCookie_;
@@ -312,20 +312,20 @@ private:
             explicit TChunkSession(int index)
                 : Index(index)
             { }
-            
+
             const int Index;
-            
+
             TSessionId Id;
             std::vector<TNodePtr> Nodes;
-            
+
             i64 FlushedRowCount = 0;
             i64 FlushedDataSize = 0;
-            
+
             EChunkSessionState State = EChunkSessionState::Allocating;
             bool SwitchScheduled = false;
 
             i64 FirstRowIndex = -1;
-            
+
             TSharedRef HeaderRow;
         };
 
@@ -806,16 +806,16 @@ private:
             if (AllocatedChunkSessionPromise_) {
                 return;
             }
-            
+
             AllocatedChunkSessionIndex_ = NextChunkSessionIndex_++;
             AllocatedChunkSessionPromise_ = NewPromise<TChunkSessionPtr>();
-            
+
             YT_LOG_DEBUG("Scheduling chunk session allocation (SessionIndex: %v)",
                 AllocatedChunkSessionIndex_);
 
             ScheduleAllocateChunkSession(AllocatedChunkSessionPromise_, AllocatedChunkSessionIndex_);
         }
-        
+
         void ScheduleAllocateChunkSession(TPromise<TChunkSessionPtr> promise, int sessionIndex)
         {
             BIND(&TImpl::TryOpenChunkSession, MakeStrong(this), sessionIndex)
@@ -846,7 +846,7 @@ private:
                         // NB: Avoid overwriting EChunkSessionState::Discarded state.
                         if (session->State == EChunkSessionState::Allocating) {
                             session->State = EChunkSessionState::Allocated;
-                        }                         
+                        }
 
                         YT_LOG_DEBUG("Chunk session allocated (SessionIndex: %v, SessionId: %v, SessionState: %v)",
                             sessionIndex,
@@ -860,9 +860,9 @@ private:
         {
             while (true) {
                 ScheduleChunkSessionAllocation();
-                
+
                 auto future = AllocatedChunkSessionPromise_.ToFuture();
-                
+
                 AllocatedChunkSessionIndex_ = -1;
                 AllocatedChunkSessionPromise_.Reset();
 
@@ -1102,7 +1102,7 @@ private:
             YT_LOG_WARNING(error, "Journal writer failed");
 
             {
-                TGuard<TAdaptiveLock> guard(CurrentBatchSpinLock_);
+                auto guard = Guard(CurrentBatchSpinLock_);
                 Error_ = error;
                 if (CurrentBatch_) {
                     auto promise = CurrentBatch_->FlushedPromise;
@@ -1173,7 +1173,7 @@ private:
 
         void OnBatchTimeout(const TBatchPtr& batch)
         {
-            TGuard<TAdaptiveLock> guard(CurrentBatchSpinLock_);
+            auto guard = Guard(CurrentBatchSpinLock_);
             if (CurrentBatch_ == batch) {
                 FlushCurrentBatch();
             }
@@ -1427,7 +1427,7 @@ private:
                     session->Id);
                 ScheduleChunkSessionSwitch(session);
             }
-            
+
             if (!session->SwitchScheduled && session->FlushedDataSize >= Config_->MaxChunkDataSize) {
                 YT_LOG_DEBUG("Chunk data size limit exceeded; requesting chunk switch (DataSize: %v, SessionId: %v)",
                     session->FlushedDataSize,
@@ -1525,7 +1525,7 @@ private:
             }
         }
 
-        
+
         void ScheduleChunkSessionSwitch(const TChunkSessionPtr& session)
         {
             if (session->SwitchScheduled) {
@@ -1538,7 +1538,7 @@ private:
             YT_LOG_DEBUG("Scheduling chunk session switch (SessionId: %v, SessionState: %v)",
                 session->Id,
                 session->State);
-            
+
             switch (session->State) {
                 case EChunkSessionState::Current:
                     EnqueueCommand(TSwitchChunkCommand{session});
@@ -1565,7 +1565,7 @@ private:
             }
         }
 
-        
+
         void UpdateReplicaLag(const TChunkSessionPtr& session, const TNodePtr& node, TCpuDuration lagTime)
         {
             node->LagTime = lagTime;
@@ -1587,7 +1587,7 @@ private:
                         CpuDurationToDuration(replica.first));
                 }));
         }
-        
+
         TSessionId GetSessionIdForNode(const TChunkSessionPtr& session, const TNodePtr& node)
         {
             auto chunkId = ErasureCodec_ == NErasure::ECodec::None

@@ -11,7 +11,7 @@
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/property.h>
@@ -143,11 +143,11 @@ private:
         std::multimap<TInstant, NChunkClient::TPlacementId>::iterator DeadlineIterator;
     };
 
-    TAdaptiveLock PlacementLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, PlacementLock_);
     THashMap<NChunkClient::TPlacementId, TPlacementInfo> PlacementIdToInfo_;
     std::multimap<TInstant, NChunkClient::TPlacementId> DeadlineToPlacementId_;
 
-    NConcurrency::TReaderWriterSpinLock ChunkMapLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ChunkMapLock_);
     // A chunk may have multiple copies present on one node - as long as those
     // copies are placed on distinct media.
     // Such copies may have different sizes, too.

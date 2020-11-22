@@ -12,7 +12,7 @@
 
 #include <yt/core/ytree/fluent.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -86,7 +86,7 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         if (!TerminationError_.IsOK()) {
             auto error = TerminationError_;
             guard.Release();
@@ -103,7 +103,7 @@ public:
     virtual void Terminate(const TError& error) override
     {
         {
-            TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
 
             if (!TerminationError_.IsOK()) {
                 return;
@@ -134,7 +134,7 @@ private:
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
     TError TerminationError_;
     TGrpcLibraryLockPtr LibraryLock_ = TDispatcher::Get()->CreateLibraryLock();
     TGrpcChannelPtr Channel_;
@@ -305,7 +305,7 @@ private:
         const TSendOptions Options_;
         const IClientRequestPtr Request_;
 
-        TAdaptiveLock ResponseHandlerLock_;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, ResponseHandlerLock_);
         IClientResponseHandlerPtr ResponseHandler_;
 
         grpc_completion_queue* const CompletionQueue_;

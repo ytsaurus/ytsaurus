@@ -7,7 +7,7 @@
 #include <yt/core/ytree/interned_attributes.h>
 #include <yt/core/ytree/ypath_client.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
@@ -114,14 +114,14 @@ public:
             /* parent */ nullptr))
         , Logger(std::move(logger))
     {
-        NConcurrency::TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
 
         YT_VERIFY(IdToNode_.emplace("", Root_).second);
     }
 
     TYsonString List(const TYPath& path)
     {
-        NConcurrency::TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
 
         auto [node, unresolvedPath] = ResolvePath(path);
         const auto& group = node->GetGroup();
@@ -202,7 +202,7 @@ public:
 
     TYsonString Get(const TYPath& path)
     {
-        NConcurrency::TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
 
         auto [node, unresolvedPath] = ResolvePath(path);
         const auto& group = node->GetGroup();
@@ -335,7 +335,7 @@ public:
 
     bool Exists(const TYPath& path)
     {
-        NConcurrency::TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
 
         auto [node, unresolvedSuffix] = ResolvePath(path);
         if (unresolvedSuffix.empty()) {
@@ -416,7 +416,7 @@ public:
 
     TGroupPtr FindGroup(const TYPath& path)
     {
-        NConcurrency::TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         return DoFindGroup(path);
     }
 
@@ -427,7 +427,7 @@ public:
 
         // Fast path.
         {
-            NConcurrency::TReaderGuard guard(Lock_);
+            auto guard = ReaderGuard(Lock_);
             for (const auto& id : groupIds) {
                 if (result.contains(id)) {
                     continue;
@@ -500,7 +500,7 @@ public:
 
         // Slow path.
         {
-            NConcurrency::TWriterGuard guard(Lock_);
+            auto guard = WriterGuard(Lock_);
             for (const auto& id : nonexistingGroupIds) {
                 if (result.contains(id)) {
                     continue;
@@ -516,7 +516,7 @@ private:
     const TGroupNodePtr Root_;
     const NLogging::TLogger Logger;
 
-    NConcurrency::TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
     THashMap<TGroupId, TGroupNodePtr> IdToNode_;
 
     TString GetNodePath(const TGroupNodePtr& node)
@@ -626,7 +626,7 @@ private:
             return;
         }
 
-        NConcurrency::TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
 
         if (!DoFindGroup(groupId)) {
             YT_LOG_WARNING("Empty group is already deleted (GroupId: %v)", groupId);

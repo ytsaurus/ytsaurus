@@ -686,7 +686,7 @@ private:
     std::optional<TString> User_;
     std::optional<int> GroupId_;
 
-    mutable TAdaptiveLock ContextSwitchMapLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ContextSwitchMapLock_);
     mutable i64 TotalContextSwitches_ = 0;
     mutable THashMap<TString, i64> ContextSwitchMap_;
 

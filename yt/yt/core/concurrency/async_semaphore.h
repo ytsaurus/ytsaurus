@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include "rw_spinlock.h"
+#include "spinlock.h"
 
 #include <yt/core/actions/future.h>
 
@@ -61,7 +61,7 @@ public:
     TFuture<void> GetReadyEvent();
 
 private:
-    TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
     i64 TotalSlots_;
     i64 FreeSlots_;
 

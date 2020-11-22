@@ -18,7 +18,7 @@
 #include <yt/core/net/public.h>
 
 #include <yt/core/concurrency/poller.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <util/network/init.h>
 
@@ -169,7 +169,7 @@ private:
     // Actually stores NConcurrency::EPollControl.
     std::atomic<ui64> PendingControl_ = static_cast<ui64>(NConcurrency::EPollControl::Offline);
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
 
     SOCKET Socket_ = INVALID_SOCKET;
 

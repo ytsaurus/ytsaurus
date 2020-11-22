@@ -376,10 +376,10 @@ private:
     const bool UseDirectIO_;
     const i64 Alignment_ = 4_KB;
 
-    TAdaptiveLock ReadWaiTAdaptiveLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ReadWaiTAdaptiveLock_);
     std::optional<TInstant> SickReadWaitStart_;
 
-    TAdaptiveLock WriteWaiTAdaptiveLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, WriteWaiTAdaptiveLock_);
     std::optional<TInstant> SickWriteWaitStart_;
 
     std::atomic<bool> Sick_ = false;

@@ -12,7 +12,7 @@ public:
 
     void Update(const std::vector<NElection::TCellId>& toRemove, const std::vector<NElection::TCellId>& toAdd);
 private:
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     THashSet<NElection::TCellId> CellIds_;
 };
 

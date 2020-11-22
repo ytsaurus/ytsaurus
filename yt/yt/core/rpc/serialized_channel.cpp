@@ -30,7 +30,7 @@ public:
             options);
 
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             Queue_.push(entry);
         }
 
@@ -47,7 +47,7 @@ public:
     void OnRequestCompleted()
     {
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             YT_VERIFY(RequestInProgress_);
             RequestInProgress_ = false;
         }
@@ -120,14 +120,14 @@ private:
 
     typedef TIntrusivePtr<TEntry> TEntryPtr;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::queue<TEntryPtr> Queue_;
     bool RequestInProgress_ = false;
 
 
     void TrySendQueuedRequests()
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         while (!RequestInProgress_ && !Queue_.empty()) {
             auto entry = Queue_.front();
             Queue_.pop();

@@ -51,7 +51,7 @@ public:
         decltype(Threads_) threadsToStart;
         decltype(Threads_) threadsToShutdown;
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             while (static_cast<int>(Threads_.size()) < threadCount) {
                 auto thread = SpawnThread(static_cast<int>(Threads_.size()));
@@ -86,7 +86,7 @@ public:
 
         decltype(Threads_) threads;
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             std::swap(threads, Threads_);
         }
 
@@ -110,8 +110,8 @@ private:
     const bool EnableLogging_;
     const bool EnableProfiling_;
 
-    std::atomic<bool> StartFlag_ = false;
-    std::atomic<bool> ShutdownFlag_ = false;
+    std::atomic<bool> StartFlag_ = {false};
+    std::atomic<bool> ShutdownFlag_ = {false};
 
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
@@ -119,7 +119,7 @@ private:
 
     IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::vector<TSchedulerThreadPtr> Threads_;
 
     void EnsureStarted()
@@ -131,7 +131,7 @@ private:
 
         decltype(Threads_) threads;
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             threads = Threads_;
         }
 

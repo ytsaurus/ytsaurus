@@ -15,7 +15,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/async_batcher.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -266,7 +266,7 @@ private:
     std::atomic<int> UserLock_ = {0};
     std::atomic<int> SystemLock_ = {0};
 
-    NConcurrency::TReaderWriterSpinLock EpochContextLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, EpochContextLock_);
     TEpochContextPtr EpochContext_;
 
     IChangelogPtr Changelog_;

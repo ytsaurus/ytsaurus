@@ -27,6 +27,7 @@ namespace NYT::NRpc::NGrpc {
 using namespace NRpc;
 using namespace NBus;
 using namespace NYTree;
+using namespace NConcurrency;
 using namespace NNet;
 
 using NYT::FromProto;
@@ -313,7 +314,7 @@ private:
         grpc_completion_queue* const CompletionQueue_;
         const NLogging::TLogger& Logger;
 
-        TAdaptiveLock SpinLock_;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
         EServerCallStage Stage_ = EServerCallStage::Accept;
         bool CancelRequested_ = false;
         TSharedRefArray ResponseMessage_;
@@ -813,7 +814,7 @@ private:
             }
         }
 
-        void SendResponse(TGuard<TAdaptiveLock>& guard)
+        void SendResponse(TSpinlockGuard<TAdaptiveLock>& guard)
         {
             Stage_ = EServerCallStage::SendingResponse;
             guard.Release();
@@ -918,7 +919,7 @@ private:
             }
         }
 
-        void CheckCanceled(TGuard<TAdaptiveLock>& guard)
+        void CheckCanceled(TSpinlockGuard<TAdaptiveLock>& guard)
         {
             if (CancelRequested_ && Stage_ == EServerCallStage::WaitingForService) {
                 Stage_ = EServerCallStage::Done;

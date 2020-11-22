@@ -19,7 +19,7 @@
 #include <yt/client/cell_master_client/proto/cell_directory.pb.h>
 
 #include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/random.h>
@@ -124,7 +124,7 @@ public:
 
         size_t randomIndex = 0;
         {
-            TReaderGuard guard(SpinLock_);
+            auto guard = ReaderGuard(SpinLock_);
             randomIndex = RandomGenerator_.Generate<size_t>();
         }
 
@@ -221,7 +221,7 @@ public:
             cellRoles);
 
         {
-            TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             CellRoleMap_ = std::move(cellRoles);
             RoleCellsMap_ = std::move(roleCells);
         }
@@ -230,7 +230,7 @@ public:
     void UpdateDefault()
     {
         {
-            TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
 
             CellRoleMap_.clear();
             RoleCellsMap_.clear();
@@ -267,7 +267,7 @@ private:
 
     /*const*/ THashMap<TCellTag, TEnumIndexedVector<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
 
-    TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellTag, EMasterCellRoles> CellRoleMap_;
     // The keys are always single roles (i.e. each key is a role set consisting of exactly on member).
     THashMultiMap<EMasterCellRoles, TCellTag> RoleCellsMap_;
@@ -280,7 +280,7 @@ private:
         TCellTagList result;
 
         {
-            TReaderGuard guard(SpinLock_);
+            auto guard = ReaderGuard(SpinLock_);
             auto range = RoleCellsMap_.equal_range(role);
             for (auto it = range.first; it != range.second; ++it) {
                 result.emplace_back(it->second);

@@ -47,8 +47,8 @@ public:
     void Release(ECategory category, i64 size, const std::optional<TPoolTag>& poolTag = {});
 
 private:
-    TAdaptiveLock SpinLock_;
-    TAdaptiveLock PoolMapSpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, PoolMapSpinLock_);
 
     std::atomic<i64> TotalLimit_;
 

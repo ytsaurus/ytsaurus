@@ -57,13 +57,13 @@ public:
     template <typename... U>
     typename TTrait::TValue& Find(U&&... u)
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         return *Cache_.Find(std::forward<U>(u)...);
     }
 
 private:
     TCache<TSynchronizedTrait<TTrait>> Cache_;
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 };
 
 template <typename TBaseTrait>

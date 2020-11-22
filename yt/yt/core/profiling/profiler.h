@@ -8,6 +8,8 @@
 
 #include <yt/core/ypath/public.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 #include <atomic>
 
 namespace NYT::NProfiling {
@@ -146,7 +148,7 @@ protected:
 
     std::unique_ptr<TDynamicData> DynamicData_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
     struct TStats
     {

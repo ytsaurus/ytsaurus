@@ -77,7 +77,7 @@ public:
 
     virtual TFuture<void> Close() override
     {
-        TGuard guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         Closed_ = true;
         RotateBuffers();
         return AllSucceeded(std::vector<TFuture<void>>(BufferFlushedFutures_.begin(), BufferFlushedFutures_.end()));
@@ -85,7 +85,7 @@ public:
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         YT_VERIFY(!Closed_);
 
@@ -178,7 +178,7 @@ private:
     std::array<std::unique_ptr<TBuffer>, 2> Buffers_;
 
     // Guards the following section of members.
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     int CurrentBufferIndex_ = -1;
     i64 DroppedRowCount_ = 0;
     TBuffer* CurrentBuffer_ = nullptr;
@@ -194,7 +194,7 @@ private:
 
     void OnPeriodicFlush()
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         if (PendingFlushes_ > 0) {
             return;
@@ -265,7 +265,7 @@ private:
                 buffer->Clear();
 
                 {
-                    TGuard<TAdaptiveLock> guard(SpinLock_);
+                    auto guard = Guard(SpinLock_);
                     EmptyBuffers_.push(buffer);
                     --PendingFlushes_;
                 }

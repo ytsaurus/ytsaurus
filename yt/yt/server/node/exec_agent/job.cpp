@@ -483,7 +483,7 @@ public:
     virtual i64 GetStderrSize() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         return StderrSize_;
     }
 
@@ -501,28 +501,28 @@ public:
     virtual void SetStderr(const TString& value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         Stderr_ = value;
     }
 
     virtual void SetFailContext(const TString& value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         FailContext_ = value;
     }
 
     virtual void SetProfile(const TJobProfile& value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         Profile_ = value;
     }
 
     virtual void SetCoreInfos(TCoreInfos value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         CoreInfos_ = std::move(value);
     }
 
@@ -657,7 +657,7 @@ public:
     virtual void ReportSpec() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         ReportStatistics(MakeDefaultJobStatistics()
             .Spec(JobSpec_));
     }
@@ -673,7 +673,7 @@ public:
     virtual void ReportFailContext() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         if (auto failContext = GetFailContext()) {
             ReportStatistics(TNodeJobReport()
                 .FailContext(*failContext));
@@ -683,7 +683,7 @@ public:
     virtual void ReportProfile() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         if (auto profile = GetProfile()) {
             ReportStatistics(TNodeJobReport()
                 .Profile(*profile));
@@ -732,14 +732,14 @@ public:
     virtual bool GetStored() const override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         return Stored_;
     }
 
     virtual void SetStored(bool value) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         Stored_ = value;
     }
 
@@ -823,7 +823,7 @@ private:
     //! True if scheduler asked to store this job.
     bool Stored_ = false;
 
-    TAdaptiveLock JobProbeLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, JobProbeLock_);
     IJobProbePtr JobProbe_;
 
     std::vector<std::pair<TString, TIP6Address>> ResolvedNodeAddresses_;
@@ -879,7 +879,7 @@ private:
     void DoSetResult(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), error);
         DoSetResult(std::move(jobResult));
@@ -888,14 +888,14 @@ private:
     void DoSetResult(TJobResult jobResult)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         if (JobResult_) {
             auto error = FromProto<TError>(JobResult_->error());
             if (!error.IsOK()) {
                 return;
             }
         }
-        
+
         if (Config_->TestJobErrorTruncation) {
             auto error = FromProto<TError>(jobResult.error());
             if (!error.IsOK()) {
@@ -1043,7 +1043,7 @@ private:
     void OnVolumePrepared(const TErrorOr<IVolumePtr>& volumeOrError)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         FinishPrepareVolumeTime_ = TInstant::Now();
 
         GuardedAction([&] {
@@ -1090,7 +1090,7 @@ private:
     void RunJobProxy()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         ExecTime_ = TInstant::Now();
         SetJobPhase(EJobPhase::PreparingProxy);
         InitializeJobProbe();
@@ -1173,7 +1173,7 @@ private:
     void GuardedAction(std::function<void()> action)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         if (HandleFinishingPhase()) {
             return;
         }
@@ -1297,7 +1297,7 @@ private:
     void PrepareNodeDirectory()
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        
+
         auto* schedulerJobSpecExt = JobSpec_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
         if (schedulerJobSpecExt->has_input_node_directory()) {
@@ -1596,7 +1596,7 @@ private:
     TFuture<std::vector<NDataNode::IChunkPtr>> DownloadArtifacts()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         const auto& chunkCache = Bootstrap_->GetChunkCache();
 
         std::vector<TFuture<IChunkPtr>> asyncChunks;
@@ -1684,7 +1684,7 @@ private:
     void PrepareArtifacts()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         YT_LOG_INFO("Started preparing artifacts");
 
         for (const auto& artifact : Artifacts_) {
@@ -1711,7 +1711,7 @@ private:
     TFuture<void> RunSetupCommands()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         auto commands = GetSetupCommands();
         if (commands.empty()) {
             return VoidFuture;
@@ -1932,7 +1932,7 @@ private:
     std::vector<TShellCommandConfigPtr> GetSetupCommands()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         std::vector<TShellCommandConfigPtr> result;
 
         auto addIfPresent = [&] (const std::optional<TShellCommandConfigPtr>& command) {

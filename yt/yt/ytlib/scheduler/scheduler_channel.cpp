@@ -60,7 +60,7 @@ public:
 
     virtual TNetworkId GetNetworkId() const override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         if (CachedChannel_) {
             return CachedChannel_->GetNetworkId();
         } else {
@@ -72,7 +72,7 @@ public:
     virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
     {
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             if (CachedChannel_) {
                 return MakeFuture(CachedChannel_);
             }
@@ -99,7 +99,7 @@ public:
                     BIND(&TSchedulerChannelProvider::OnChannelFailed, MakeWeak(this)));
 
                 {
-                    TGuard<TAdaptiveLock> guard(SpinLock_);
+                    auto guard = Guard(SpinLock_);
                     CachedChannel_ = channel;
                 }
 
@@ -109,7 +109,7 @@ public:
 
     virtual void Terminate(const TError& error) override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         if (CachedChannel_) {
             CachedChannel_->Terminate(error);
         }
@@ -124,13 +124,13 @@ private:
     const TString EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     IChannelPtr CachedChannel_;
 
 
     void OnChannelFailed(const IChannelPtr& channel, const TError& /*error*/)
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         if (CachedChannel_ == channel) {
             CachedChannel_.Reset();
         }

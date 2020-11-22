@@ -1198,7 +1198,7 @@ TEST_P(TFairShareSchedulerTest, Test)
 
     std::vector<TFuture<void>> futures;
 
-    TAdaptiveLock lock;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, lock);
 
     for (size_t id = 0; id < numWorkers; ++id) {
         auto invoker = threadPool->GetInvoker(Format("pool%v", id % numPools), 1.0, Format("worker%v", id));
@@ -1208,7 +1208,7 @@ TEST_P(TFairShareSchedulerTest, Test)
             auto initialShift = getShift(id);
             auto sleepDuration = DoSleep(initialShift);
             {
-                TGuard<TAdaptiveLock> guard(lock);
+                auto guard = Guard(lock);
                 pools[poolId] += sleepDuration;
                 progresses[id] += sleepDuration;
             }
@@ -1218,7 +1218,7 @@ TEST_P(TFairShareSchedulerTest, Test)
             while (progresses[id] < work + initialShift) {
                 NProfiling::TWallTimer timer;
                 {
-                    TGuard<TAdaptiveLock> guard(lock);
+                    auto guard = Guard(lock);
 
                     if (numThreads == 1) {
                         auto minPool = TDuration::Max();
@@ -1279,7 +1279,7 @@ TEST_P(TFairShareSchedulerTest, Test)
 
                 auto sleepDuration = DoSleep(FSSleepQuantum - timer.GetElapsedTime());
                 {
-                    TGuard<TAdaptiveLock> guard(lock);
+                    auto guard = Guard(lock);
                     pools[poolId] += sleepDuration;
                     progresses[id] += sleepDuration;
                 }
@@ -1327,7 +1327,7 @@ TEST_P(TFairShareSchedulerTest, Test2)
 
     std::vector<TFuture<void>> futures;
 
-    TAdaptiveLock lock;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, lock);
 
     for (size_t id = 0; id < numWorkers; ++id) {
         auto invoker = threadPool->GetInvoker(Format("worker%v", id));
@@ -1336,7 +1336,7 @@ TEST_P(TFairShareSchedulerTest, Test2)
             auto initialShift = getShift(id);
             auto sleepDuration = DoSleep(initialShift);
             {
-                TGuard<TAdaptiveLock> guard(lock);
+                auto guard = Guard(lock);
                 progresses[id] += sleepDuration;
             }
             Yield();
@@ -1344,7 +1344,7 @@ TEST_P(TFairShareSchedulerTest, Test2)
             while (progresses[id] < work + initialShift) {
                 NProfiling::TWallTimer timer;
                 {
-                    TGuard<TAdaptiveLock> guard(lock);
+                    auto guard = Guard(lock);
 
                     if (numThreads == 1) {
                         auto min = TDuration::Max();
@@ -1371,7 +1371,7 @@ TEST_P(TFairShareSchedulerTest, Test2)
 
                 auto sleepDuration = DoSleep(FSSleepQuantum - timer.GetElapsedTime());
                 {
-                    TGuard<TAdaptiveLock> guard(lock);
+                    auto guard = Guard(lock);
                     progresses[id] += sleepDuration;
                 }
 

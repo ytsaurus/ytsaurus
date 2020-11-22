@@ -7,7 +7,7 @@
 
 #include <yt/yt/library/syncmap/map.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/net/address.h>
 
@@ -59,7 +59,7 @@ private:
 
     void DisableNetworking();
 
-    mutable NConcurrency::TReaderWriterSpinLock PollerLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, PollerLock_);
     bool Terminated_ = false;
     NConcurrency::IPollerPtr AcceptorPoller_;
     NConcurrency::IPollerPtr XferPoller_;
@@ -75,7 +75,8 @@ private:
 
     NConcurrency::TSyncMap<TString, TNetworkStatistics> NetworkStatistics_;
 
-    TAdaptiveLock PeriodicExecutorsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, PeriodicExecutorsLock_);
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     NConcurrency::TPeriodicExecutorPtr LivenessCheckExecutor_;
 
     std::atomic<bool> NetworkingDisabled_ = false;

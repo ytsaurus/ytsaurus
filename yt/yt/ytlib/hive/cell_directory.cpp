@@ -11,7 +11,7 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 namespace NYT::NHiveClient {
 
@@ -154,7 +154,7 @@ public:
 
     IChannelPtr FindChannel(TCellId cellId, EPeerKind peerKind)
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         auto it = RegisteredCellMap_.find(cellId);
         return it == RegisteredCellMap_.end() ? nullptr : it->second.Channels[peerKind];
     }
@@ -178,7 +178,7 @@ public:
 
     std::vector<TCellInfo> GetRegisteredCells()
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         std::vector<TCellInfo> result;
         result.reserve(RegisteredCellMap_.size());
         for (const auto& [cellId, entry] : RegisteredCellMap_) {
@@ -189,13 +189,13 @@ public:
 
     bool IsCellUnregistered(TCellId cellId)
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         return UnregisteredCellIds_.find(cellId) != UnregisteredCellIds_.end();
     }
 
     std::optional<TCellDescriptor> FindDescriptor(TCellId cellId)
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         auto it = RegisteredCellMap_.find(cellId);
         return it == RegisteredCellMap_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
     }
@@ -212,7 +212,7 @@ public:
 
     TSynchronizationResult Synchronize(const std::vector<TCellInfo>& knownCells)
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
 
         TSynchronizationResult result;
         auto trySynchronize = [&] (bool trackMissingCells) {
@@ -281,7 +281,7 @@ public:
 
     bool ReconfigureCell(const TCellDescriptor& descriptor)
     {
-        TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         if (UnregisteredCellIds_.find(descriptor.CellId) != UnregisteredCellIds_.end()) {
             return false;
         }
@@ -315,7 +315,7 @@ public:
 
     bool UnregisterCell(TCellId cellId)
     {
-        TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         UnregisteredCellIds_.insert(cellId);
         if (RegisteredCellMap_.erase(cellId) == 0) {
             return false;
@@ -327,7 +327,7 @@ public:
 
     void Clear()
     {
-        TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         RegisteredCellMap_.clear();
     }
 
@@ -347,7 +347,7 @@ private:
         TEnumIndexedVector<EPeerKind, IChannelPtr> Channels;
     };
 
-    TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellId, TEntry> RegisteredCellMap_;
     THashSet<TCellId> UnregisteredCellIds_;
 

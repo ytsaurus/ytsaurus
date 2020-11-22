@@ -14,11 +14,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger = DriverLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::atomic<bool> TDriverResponseHolder::ShuttingDown_ = {};
+std::atomic<bool> TDriverResponseHolder::ShuttingDown_;
 TAdaptiveLock TDriverResponseHolder::DestructionSpinLock_;
 
 TAdaptiveLock AliveDriverResponseHoldersLock;
@@ -77,13 +73,13 @@ TDriverResponseHolder::~TDriverResponseHolder()
 		if (ShuttingDown_) {
 			return;
 		}
-        
+
         {
             TGilGuard gilGuard;
             Destroy();
         }
     }
-    
+
     {
         auto guard = Guard(AliveDriverResponseHoldersLock);
         YT_VERIFY(AliveDriverResponseHolders.erase(this) == 1);
@@ -96,7 +92,7 @@ void TDriverResponseHolder::OnBeforePythonFinalize()
 
     {
         auto guard = Guard(AliveDriverResponseHoldersLock);
-    
+
         {
             for (auto* holder : AliveDriverResponseHolders) {
                 holder->Destroy();

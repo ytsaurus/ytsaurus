@@ -31,7 +31,7 @@ bool TMediumDescriptor::operator!=(const TMediumDescriptor& other) const
 
 const TMediumDescriptor* TMediumDirectory::FindByIndex(int index) const
 {
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     auto it = IndexToDescriptor_.find(index);
     return it == IndexToDescriptor_.end() ? nullptr : it->second;
 }
@@ -47,7 +47,7 @@ const TMediumDescriptor* TMediumDirectory::GetByIndexOrThrow(int index) const
 
 const TMediumDescriptor* TMediumDirectory::FindByName(const TString& name) const
 {
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     auto it = NameToDescriptor_.find(name);
     return it == NameToDescriptor_.end() ? nullptr : it->second;
 }
@@ -63,7 +63,7 @@ const TMediumDescriptor* TMediumDirectory::GetByNameOrThrow(const TString& name)
 
 std::vector<int> TMediumDirectory::GetMediumIndexes() const
 {
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     std::vector<int> result;
     result.reserve(IndexToDescriptor_.size());
     for (const auto& [index, descriptor] : IndexToDescriptor_) {
@@ -74,7 +74,7 @@ std::vector<int> TMediumDirectory::GetMediumIndexes() const
 
 void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
 {
-    TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     auto oldIndexToDescriptor = std::move(IndexToDescriptor_);
     IndexToDescriptor_.clear();
     NameToDescriptor_.clear();
@@ -101,7 +101,7 @@ void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
 
 void TMediumDirectory::Clear()
 {
-    TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     IndexToDescriptor_.clear();
     NameToDescriptor_.clear();
     Descriptors_.clear();

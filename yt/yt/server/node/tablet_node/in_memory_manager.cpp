@@ -38,7 +38,7 @@
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -159,7 +159,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TWriterGuard guard(InterceptedDataSpinLock_);
+        auto guard = WriterGuard(InterceptedDataSpinLock_);
 
         auto it = ChunkIdToData_.find(chunkId);
         if (it == ChunkIdToData_.end()) {
@@ -184,7 +184,7 @@ public:
         TInMemoryChunkDataPtr data;
 
         {
-            TWriterGuard guard(InterceptedDataSpinLock_);
+            auto guard = WriterGuard(InterceptedDataSpinLock_);
             auto it = ChunkIdToData_.find(chunkId);
             if (it != ChunkIdToData_.end()) {
                 data = it->second;
@@ -212,7 +212,7 @@ private:
 
     TAsyncSemaphorePtr PreloadSemaphore_;
 
-    TReaderWriterSpinLock InterceptedDataSpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, InterceptedDataSpinLock_);
     THashMap<TChunkId, TInMemoryChunkDataPtr> ChunkIdToData_;
 
     IThroughputThrottlerPtr Throttler_;
@@ -388,7 +388,7 @@ private:
                 return;
             }
 
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
 
             if (Owner_->IsMemoryLimitExceeded()) {
                 Dropped_ = true;
@@ -440,14 +440,14 @@ private:
         const EInMemoryMode Mode_;
         const EBlockType BlockType_;
 
-        TAdaptiveLock SpinLock_;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
         THashSet<TChunkId> ChunkIds_;
         bool Dropped_ = false;
     };
 
     TInMemoryChunkDataPtr GetChunkData(TChunkId chunkId, EInMemoryMode mode)
     {
-        TReaderGuard guard(InterceptedDataSpinLock_);
+        auto guard = ReaderGuard(InterceptedDataSpinLock_);
 
         auto chunkData = GetOrCrash(ChunkIdToData_, chunkId);
         YT_VERIFY(chunkData->InMemoryMode == mode);
@@ -457,7 +457,7 @@ private:
 
     TInMemoryChunkDataPtr CreateChunkData(TChunkId chunkId, EInMemoryMode mode)
     {
-        TWriterGuard guard(InterceptedDataSpinLock_);
+        auto guard = WriterGuard(InterceptedDataSpinLock_);
 
         auto chunkData = New<TInMemoryChunkData>();
         chunkData->InMemoryMode = mode;
@@ -480,7 +480,7 @@ private:
 
     void DropChunkData(TChunkId chunkId)
     {
-        TWriterGuard guard(InterceptedDataSpinLock_);
+        auto guard = WriterGuard(InterceptedDataSpinLock_);
 
         if (ChunkIdToData_.erase(chunkId) == 1) {
             YT_LOG_WARNING("Intercepted chunk data dropped due to memory pressure (ChunkId: %v)",
@@ -973,7 +973,7 @@ private:
     std::atomic<bool> Sending_ = {false};
     std::atomic<bool> Dropped_ = {false};
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::deque<std::pair<TBlockId, TSharedRef>> Blocks_;
     size_t CurrentSize_ = 0;
 

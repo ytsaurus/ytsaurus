@@ -116,13 +116,13 @@ private:
 
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
-    NConcurrency::TReaderWriterSpinLock SlotsLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SlotsLock_);
 
     std::set<TString> TmpfsPaths_;
     THashSet<int> SlotsWithQuota_;
     THashMap<int, std::optional<i64>> OccupiedSlotToDiskLimit_;
 
-    NConcurrency::TReaderWriterSpinLock DiskResourcesLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, DiskResourcesLock_);
     NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;
 
     void ValidateEnabled() const;

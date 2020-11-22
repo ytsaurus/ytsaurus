@@ -374,7 +374,7 @@ private:
 
     bool CloseDemanded_ = false;
 
-    TAdaptiveLock CandidateNodesLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, CandidateNodesLock_);
     //! Stores the set of nodes where write sessions could have been started.
     //! Used to avoid leaving dangling sessions behind on writer cancelation.
     THashSet<IChannelPtr> CandidateNodes_;

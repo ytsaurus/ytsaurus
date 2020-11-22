@@ -219,8 +219,11 @@ private:
         request.set_timestamp(commitTimestamp);
 
         auto mutation = CreateMutation(HydraManager_, request);
-        BIND([mutation = std::move(mutation)] {
-            return mutation->Commit();
+        BIND([=, mutation = std::move(mutation)] {
+            NProfiling::TWallTimer timer;
+            auto result = mutation->Commit();
+            YT_LOG_INFO("XXX %v", timer.GetElapsedTime());
+            return result;
         })
             .AsyncVia(AutomatonInvoker_)
             .Run()

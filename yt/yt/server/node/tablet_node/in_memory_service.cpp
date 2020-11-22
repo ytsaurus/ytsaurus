@@ -76,7 +76,7 @@ private:
     const TInMemoryManagerConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
-    TReaderWriterSpinLock SessionMapLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SessionMapLock_);
     THashMap<TInMemorySessionId, TInMemorySessionPtr> SessionMap_;
 
 
@@ -150,7 +150,7 @@ private:
         }
 
         {
-            TWriterGuard guard(SessionMapLock_);
+            auto guard = WriterGuard(SessionMapLock_);
             if (auto it = SessionMap_.find(sessionId)) {
                 const auto& session = it->second;
                 TLeaseManager::CloseLease(session->Lease);
@@ -204,7 +204,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, PingSession)
     {
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
-        
+
         context->SetRequestInfo("SessionId: %v", sessionId);
 
         auto session = GetSessionOrThrow(sessionId);
@@ -213,10 +213,10 @@ private:
         context->Reply();
     }
 
-    
+
     void OnSessionLeaseExpired(TInMemorySessionId sessionId)
     {
-        TWriterGuard guard(SessionMapLock_);
+        auto guard = WriterGuard(SessionMapLock_);
 
         auto it = SessionMap_.find(sessionId);
         if (it == SessionMap_.end()) {
@@ -231,13 +231,13 @@ private:
 
     void RegisterSession(TInMemorySessionId sessionId, TInMemorySessionPtr session)
     {
-        TWriterGuard guard(SessionMapLock_);
+        auto guard = WriterGuard(SessionMapLock_);
         YT_VERIFY(SessionMap_.emplace(sessionId, std::move(session)).second);
     }
 
     TInMemorySessionPtr FindSession(TInMemorySessionId sessionId)
     {
-        TReaderGuard guard(SessionMapLock_);
+        auto guard = ReaderGuard(SessionMapLock_);
         auto it = SessionMap_.find(sessionId);
         return it == SessionMap_.end() ? nullptr : it->second;
     }

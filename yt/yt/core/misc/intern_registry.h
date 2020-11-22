@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/concurrency/spinlock.h>
+
 #include <util/system/spinlock.h>
 
 #include <util/generic/hash_set.h>
@@ -40,7 +42,7 @@ private:
         bool operator() (const TInternedObjectData<T>* lhs, const T& rhs) const;
     };
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
 
     using TRegistrySet = THashSet<TInternedObjectData<T>*, THash, TEqual>;
     TRegistrySet Registry_;

@@ -82,7 +82,7 @@ private:
     const TDuration Splay_;
     const double Jitter_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     bool Started_ = false;
     bool Busy_ = false;
     bool OutOfBandRequested_ = false;
@@ -92,7 +92,7 @@ private:
     TPromise<void> IdlePromise_;
     TPromise<void> ExecutedPromise_;
 
-    void DoStop(TGuard<TAdaptiveLock>& guard);
+    void DoStop(NConcurrency::TSpinlockGuard<TAdaptiveLock>& guard);
 
     static TError MakeStoppedError();
 

@@ -21,13 +21,13 @@ TFuture<int> TSnapshotStoreThunk::GetLatestSnapshotId(int maxSnapshotId)
 
 void TSnapshotStoreThunk::SetUnderlying(ISnapshotStorePtr underlying)
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     Underlying_ = underlying;
 }
 
 ISnapshotStorePtr TSnapshotStoreThunk::GetUnderlying()
 {
-    TGuard<TAdaptiveLock> guard(SpinLock_);
+    auto guard = Guard(SpinLock_);
     return Underlying_;
 }
 

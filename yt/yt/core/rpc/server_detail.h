@@ -6,7 +6,7 @@
 
 #include <yt/core/ytalloc/memory_zone.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -129,7 +129,7 @@ protected:
     virtual void LogResponse() = 0;
 
 private:
-    mutable TAdaptiveLock ResponseLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ResponseLock_);
     TSharedRefArray ResponseMessage_; // cached
     mutable TPromise<TSharedRefArray> AsyncResponseMessage_; // created on-demand
 
@@ -232,7 +232,7 @@ protected:
 
     std::atomic<bool> Started_ = false;
 
-    NConcurrency::TReaderWriterSpinLock ServicesLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ServicesLock_);
     TServerConfigPtr Config_;
     THashMap<TServiceId, IServicePtr> ServiceMap_;
 

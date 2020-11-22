@@ -32,7 +32,7 @@ private:
     const IInvokerPtr Invoker_;
     TFuture<void> PendingOperationFuture_ = VoidFuture;
     bool Closed_ = false;
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
 
 private:
     TFuture<void> DoWriteFrame(TString header, const std::optional<TSharedRef>& frame);

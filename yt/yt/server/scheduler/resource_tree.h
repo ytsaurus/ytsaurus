@@ -61,7 +61,7 @@ private:
     std::atomic<bool> EnableUsageLockProfiling = false;
 
     TMultipleProducerSingleConsumerLockFreeStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
-    NConcurrency::TReaderWriterSpinLock StructureLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StructureLock_);
 
     NProfiling::TRegistry Profiler_ = NProfiling::TRegistry{"/resource_tree"}.WithHot();
     NProfiling::TCounter StructureLockReadCount_ = Profiler_.Counter("/structure_lock_read_count");

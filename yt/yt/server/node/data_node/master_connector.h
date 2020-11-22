@@ -155,11 +155,11 @@ private:
     int JobHeartbeatCellIndex_ = 0;
 
     //! Protects #Alerts.
-    TAdaptiveLock AlertsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, AlertsLock_);
     //! A list of statically registered alerts.
     std::vector<TError> StaticAlerts_;
 
-    TAdaptiveLock LocalDescriptorLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, LocalDescriptorLock_);
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
     //! Returns the list of all active alerts, including those induced

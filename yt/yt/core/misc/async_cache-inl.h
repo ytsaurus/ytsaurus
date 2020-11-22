@@ -56,7 +56,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::TAsyncSlruCacheBase(
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::Clear()
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     TouchBufferPosition_ = 0;
 
@@ -79,7 +79,7 @@ template <class TKey, class TValue, class THash>
 typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr
 TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
 {
-    NConcurrency::TReaderGuard readerGuard(SpinLock_);
+    auto readerGuard = ReaderGuard(SpinLock_);
 
     auto itemIt = ItemMap_.find(key);
     if (itemIt == ItemMap_.end()) {
@@ -100,7 +100,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Find(const TKey& key)
     readerGuard.Release();
 
     if (needToDrain) {
-        NConcurrency::TWriterGuard writerGuard(SpinLock_);
+        auto writerGuard = WriterGuard(SpinLock_);
         DrainTouchBuffer();
     }
 
@@ -117,7 +117,7 @@ template <class TKey, class TValue, class THash>
 std::vector<typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValuePtr>
 TAsyncSlruCacheBase<TKey, TValue, THash>::GetAll()
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     std::vector<TValuePtr> result;
     result.reserve(ValueMap_.size());
@@ -134,7 +134,7 @@ typename TAsyncSlruCacheBase<TKey, TValue, THash>::TValueFuture
 TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
 {
     while (true) {
-        NConcurrency::TReaderGuard readerGuard(SpinLock_);
+        auto readerGuard = ReaderGuard(SpinLock_);
 
         auto itemIt = ItemMap_.find(key);
         if (itemIt != ItemMap_.end()) {
@@ -150,7 +150,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             readerGuard.Release();
 
             if (needToDrain) {
-                NConcurrency::TWriterGuard guard(SpinLock_);
+                auto guard = WriterGuard(SpinLock_);
                 DrainTouchBuffer();
             }
 
@@ -167,7 +167,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
         readerGuard.Release();
 
         if (value) {
-            NConcurrency::TWriterGuard writerGuard(SpinLock_);
+            auto writerGuard = WriterGuard(SpinLock_);
 
             DrainTouchBuffer();
 
@@ -199,7 +199,7 @@ template <class TKey, class TValue, class THash>
 auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> TInsertCookie
 {
     while (true) {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
 
         DrainTouchBuffer();
 
@@ -275,7 +275,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
     YT_VERIFY(value);
     auto key = value->GetKey();
 
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     DrainTouchBuffer();
 
@@ -301,7 +301,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, const TError& error)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     DrainTouchBuffer();
 
@@ -324,7 +324,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, con
 template <class TKey, class TValue, class THash>
 void TAsyncSlruCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     DrainTouchBuffer();
 
@@ -350,7 +350,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::DoTryRemove(
     const TValuePtr& value,
     bool forbidResurrection)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     DrainTouchBuffer();
 
@@ -493,7 +493,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Pop(TItem* item)
 }
 
 template <class TKey, class TValue, class THash>
-void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TWriterGuard& guard)
+void TAsyncSlruCacheBase<TKey, TValue, THash>::Trim(NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard)
 {
     // Move from older to younger.
     while (!OlderLruList_.Empty() &&

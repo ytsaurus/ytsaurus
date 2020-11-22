@@ -473,7 +473,7 @@ private:
 
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
-    TAdaptiveLock OperationsArchiveChannelsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, OperationsArchiveChannelsLock_);
     std::optional<TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr>> OperationsArchiveChannels_;
     NNodeTrackerClient::INodeChannelFactoryPtr ChannelFactory_;
     NTransactionClient::TTransactionManagerPtr TransactionManager_;

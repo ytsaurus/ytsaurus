@@ -5,6 +5,8 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/guid.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 #include <yt/core/profiling/public.h>
 
 #include <atomic>
@@ -90,7 +92,7 @@ private:
     const TTraceContextPtr ParentContext_;
     const TString SpanName_;
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     NProfiling::TCpuInstant StartTime_;
     NProfiling::TCpuDuration Duration_;
     TSpanContext SpanContext_;

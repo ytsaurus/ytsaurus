@@ -28,6 +28,7 @@ class TSingletonsConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    TDuration SpinlockHiccupThreshold;
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
     THashMap<TString, int> FiberStackPoolSizes;
     NNet::TAddressResolverConfigPtr AddressResolver;
@@ -40,6 +41,8 @@ public:
 
     TSingletonsConfig()
     {
+        RegisterParameter("spinlock_hiccup_threshold", SpinlockHiccupThreshold)
+            .Default(TDuration::MicroSeconds(100));
         RegisterParameter("yt_alloc", YTAlloc)
             .Default();
         RegisterParameter("fiber_stack_pool_sizes", FiberStackPoolSizes)
@@ -58,7 +61,7 @@ public:
             .Default(NLogging::TLogManagerConfig::CreateDefault());
         RegisterParameter("tracing", Tracing)
             .DefaultNew();
-        
+
         // COMPAT(prime@): backward compatible config for CHYT
         RegisterPostprocessor([this] {
             if (!ProfileManager->GlobalTags.empty()) {

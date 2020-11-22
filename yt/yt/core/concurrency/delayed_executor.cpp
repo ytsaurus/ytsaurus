@@ -225,7 +225,7 @@ private:
     std::atomic<TInstant> ScheduledWakeupTime_ = {TInstant::Max()};
 #endif
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TActionQueuePtr DelayedQueue_;
     IInvokerPtr DelayedInvoker_;
 
@@ -246,7 +246,7 @@ private:
      */
     bool EnsureStarted()
     {
-        auto handleStarted = [&] (TGuard<TAdaptiveLock>* guard) {
+        auto handleStarted = [&] (TSpinlockGuard<TAdaptiveLock>* guard) {
             if (Stopping_) {
                 if (guard) {
                     guard->Release();

@@ -36,7 +36,7 @@ public:
         }
 
         {
-            TGuard guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             YT_VERIFY(SharedQueue_.emplace(timestamp, NewPromise<void>()).second);
         }
     }
@@ -59,7 +59,7 @@ public:
             LockCounter_--;
 
             {
-                TGuard guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 auto it = SharedQueue_.find(timestamp);
                 YT_VERIFY(it != SharedQueue_.end());
@@ -152,7 +152,7 @@ private:
     std::vector<TTransactionId> UnconfirmedTransactions_;
     TTimestamp LastCommitTimestamp_ = MinTimestamp;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::map<TTimestamp, TPromise<void>> SharedQueue_;
 
 
@@ -164,7 +164,7 @@ private:
             future.Reset();
 
             {
-                TGuard guard(SpinLock_);
+                auto guard = Guard(SpinLock_);
 
                 if (auto it = SharedQueue_.begin(); !SharedQueue_.empty() && it->first < timestamp) {
                     future = it->second;

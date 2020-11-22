@@ -101,7 +101,7 @@ private:
     const TTcpBusClientConfigPtr TcpBusClientConfig_;
     const TJobId JobId_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::unique_ptr<TJobProberServiceProxy> JobProberProxy_;
 
 

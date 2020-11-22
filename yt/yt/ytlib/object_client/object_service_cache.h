@@ -5,6 +5,8 @@
 #include <yt/core/misc/async_cache.h>
 #include <yt/core/misc/historic_usage_aggregator.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 #include <yt/client/hydra/public.h>
 
 #include <util/generic/ymath.h>
@@ -66,7 +68,7 @@ public:
 private:
     std::atomic<double> ByteRate_ = 0;
     std::atomic<TInstant> LastUpdateTime_ = TInstant::Zero();
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheEntry)
@@ -118,15 +120,15 @@ private:
     const NProfiling::TRegistry Profiler_;
     const double TopEntryByteRateThreshold_;
 
-    NConcurrency::TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
 
     using TProfilingCountersKey = std::tuple<TString, TString>;
     THashMap<TProfilingCountersKey, TCacheProfilingCountersPtr> KeyToCounters_;
 
-    NConcurrency::TReaderWriterSpinLock ExpiredEntriesLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ExpiredEntriesLock_);
     THashMap<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr> ExpiredEntries_;
 
-    NConcurrency::TReaderWriterSpinLock TopEntriesLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, TopEntriesLock_);
     THashMap<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr> TopEntries_;
 
     TCacheProfilingCountersPtr GetProfilingCounters(const TString& user, const TString& method);

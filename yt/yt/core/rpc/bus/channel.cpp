@@ -14,7 +14,7 @@
 #include <yt/core/bus/tcp/client.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/singleton.h>
@@ -109,7 +109,7 @@ public:
 
         std::vector<TSessionPtr> sessions;
         for (auto& bucket : Buckets_) {
-            TWriterGuard guard(bucket.Lock);
+            auto guard = WriterGuard(bucket.Lock);
 
             if (bucket.Session) {
                 sessions.push_back(bucket.Session);
@@ -150,7 +150,7 @@ private:
 
     struct TBandBucket
     {
-        TReaderWriterSpinLock Lock;
+        YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock);
         TSessionPtr Session;
         bool Terminated = false;
     };
@@ -166,7 +166,7 @@ private:
 
         // Fast path.
         {
-            TReaderGuard guard(bucket.Lock);
+            auto guard = ReaderGuard(bucket.Lock);
 
             if (bucket.Session) {
                 return bucket.Session;
@@ -179,7 +179,7 @@ private:
         // Slow path.
         {
             auto networkId = TDispatcher::Get()->GetNetworkId(Client_->GetNetworkName());
-            TWriterGuard guard(bucket.Lock);
+            auto guard = WriterGuard(bucket.Lock);
 
             if (bucket.Session) {
                 return bucket.Session;
@@ -220,7 +220,7 @@ private:
         auto& bucket = Buckets_[band];
 
         {
-            TWriterGuard guard(bucket.Lock);
+            auto guard = WriterGuard(bucket.Lock);
 
             if (bucket.Session == session_) {
                 bucket.Session.Reset();
@@ -673,7 +673,7 @@ private:
 
         struct TBucket
         {
-            TAdaptiveLock Lock;
+            YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
             IBusPtr Bus;
             bool Terminated = false;
             THashMap<TRequestId, TClientRequestControlPtr> ActiveRequestMap;
@@ -1131,7 +1131,7 @@ private:
             return TotalTime_;
         }
 
-        bool IsActive(const TGuard<TAdaptiveLock>&) const
+        bool IsActive(const TSpinlockGuard<TAdaptiveLock>&) const
         {
             return static_cast<bool>(ResponseHandler_);
         }
@@ -1153,12 +1153,12 @@ private:
             TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
         }
 
-        IClientResponseHandlerPtr GetResponseHandler(const TGuard<TAdaptiveLock>&)
+        IClientResponseHandlerPtr GetResponseHandler(const TSpinlockGuard<TAdaptiveLock>&)
         {
             return ResponseHandler_;
         }
 
-        IClientResponseHandlerPtr Finalize(const TGuard<TAdaptiveLock>&)
+        IClientResponseHandlerPtr Finalize(const TSpinlockGuard<TAdaptiveLock>&)
         {
             TotalTime_ = DoProfile(MethodMetadata_->TotalTimeCounter);
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);

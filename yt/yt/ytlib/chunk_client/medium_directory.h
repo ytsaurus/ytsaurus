@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/api/native/public.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 namespace NYT::NChunkClient {
 
@@ -37,7 +37,7 @@ public:
     void Clear();
 
 private:
-    mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     THashMap<TString, const TMediumDescriptor*> NameToDescriptor_;
     THashMap<int, const TMediumDescriptor*> IndexToDescriptor_;
 

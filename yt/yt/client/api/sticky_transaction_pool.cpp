@@ -1,7 +1,9 @@
 #include "sticky_transaction_pool.h"
 
 #include "transaction.h"
+
 #include <yt/core/concurrency/lease_manager.h>
+#include <yt/core/concurrency/spinlock.h>
 
 namespace NYT::NApi {
 
@@ -48,7 +50,7 @@ public:
         };
 
         {
-            NConcurrency::TWriterGuard guard(StickyTransactionLock_);
+            auto guard = WriterGuard(StickyTransactionLock_);
             YT_VERIFY(IdToStickyTransactionEntry_.emplace(transactionId, entry).second);
         }
 
@@ -67,7 +69,7 @@ public:
     {
         TStickyTransactionEntry entry;
         {
-            NConcurrency::TWriterGuard guard(StickyTransactionLock_);
+            auto guard = WriterGuard(StickyTransactionLock_);
             auto it = IdToStickyTransactionEntry_.find(transactionId);
             if (it == IdToStickyTransactionEntry_.end()) {
                 return;
@@ -85,7 +87,7 @@ public:
         ITransactionPtr transaction;
         NConcurrency::TLease lease;
         {
-            NConcurrency::TReaderGuard guard(StickyTransactionLock_);
+            auto guard = ReaderGuard(StickyTransactionLock_);
             auto it = IdToStickyTransactionEntry_.find(transactionId);
             if (it == IdToStickyTransactionEntry_.end()) {
                 return nullptr;
@@ -109,14 +111,14 @@ private:
         NConcurrency::TLease Lease;
     };
 
-    NConcurrency::TReaderWriterSpinLock StickyTransactionLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StickyTransactionLock_);
     THashMap<TTransactionId, TStickyTransactionEntry> IdToStickyTransactionEntry_;
 
     void OnStickyTransactionLeaseExpired(TTransactionId transactionId)
     {
         ITransactionPtr transaction;
         {
-            NConcurrency::TWriterGuard guard(StickyTransactionLock_);
+            auto guard = WriterGuard(StickyTransactionLock_);
             auto it = IdToStickyTransactionEntry_.find(transactionId);
             if (it == IdToStickyTransactionEntry_.end()) {
                 return;
@@ -134,7 +136,7 @@ private:
     {
         NConcurrency::TLease lease;
         {
-            NConcurrency::TWriterGuard guard(StickyTransactionLock_);
+            auto guard = WriterGuard(StickyTransactionLock_);
             auto it = IdToStickyTransactionEntry_.find(transactionId);
             if (it == IdToStickyTransactionEntry_.end()) {
                 return;

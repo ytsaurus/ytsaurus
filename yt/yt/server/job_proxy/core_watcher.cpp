@@ -150,7 +150,7 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
         YT_LOG_INFO("Cores processing did not finish within timeout");
     }
 
-    TGuard<TAdaptiveLock> guard(CoreInfosLock_);
+    auto guard = Guard(CoreInfosLock_);
 
     auto& coreInfos = CoreResult_.CoreInfos;
     if (expectedCoreCount > coreInfos.size()) {
@@ -229,9 +229,9 @@ void TCoreWatcher::DoWatchCores()
                         SeenCoreNames_.insert(fileName);
 
                         auto coreInfoFuture = BIND(
-                            &TCoreWatcher::DoProcessGpuCore, 
-                            MakeStrong(this), 
-                            GpuCoreReader_->CreateAsyncReader(), 
+                            &TCoreWatcher::DoProcessGpuCore,
+                            MakeStrong(this),
+                            GpuCoreReader_->CreateAsyncReader(),
                             coreIndex)
                             .AsyncVia(IOInvoker_)
                             .Run();
@@ -400,7 +400,7 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TStri
 
 void TCoreWatcher::DoAddCoreInfo(const TCoreInfo& coreInfo)
 {
-    TGuard<TAdaptiveLock> guard(CoreInfosLock_);
+    auto guard = Guard(CoreInfosLock_);
 
     auto coreIndex = coreInfo.core_index();
     if (coreIndex >= CoreResult_.CoreInfos.size()) {

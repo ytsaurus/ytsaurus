@@ -66,7 +66,8 @@ struct TCacheKey
 template <>
 struct THash<NYT::NYTree::TCacheKey>
 {
-    size_t operator()(const NYT::NYTree::TCacheKey& key) const {
+    size_t operator()(const NYT::NYTree::TCacheKey& key) const
+    {
         size_t result = 0;
         NYT::HashCombine(result, key.Path);
         NYT::HashCombine(result, key.Method);
@@ -364,7 +365,7 @@ public:
 
     void AddResponseToCache(const TCacheKey& key, const TErrorOr<TSharedRefArray>& response)
     {
-        auto guard = TWriterGuard(Lock_);
+        auto guard = WriterGuard(Lock_);
 
         decltype(CachedReplies_)::insert_ctx ctx;
         auto it = CachedReplies_.find(key, ctx);
@@ -378,7 +379,7 @@ public:
 
     std::optional<TErrorOr<TSharedRefArray>> LookupResponse(const TCacheKey& key) const
     {
-        auto guard = TReaderGuard(Lock_);
+        auto guard = ReaderGuard(Lock_);
 
         auto it = CachedReplies_.find(key);
         if (it == CachedReplies_.end()) {
@@ -390,7 +391,8 @@ public:
 
 private:
     const TErrorOr<INodePtr> TreeOrError_;
-    TReaderWriterSpinLock Lock_;
+
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock_);
     THashMap<TCacheKey, TErrorOr<TSharedRefArray>> CachedReplies_;
     TCacheProfilingCountersPtr ProfilingCounters_;
 };

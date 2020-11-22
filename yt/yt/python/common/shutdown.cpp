@@ -23,7 +23,7 @@ static std::array<TCallback<void()>, MaxAdditionalShutdownCallbackCount> AfterSh
 
 static std::atomic<i64> ReleaseAcquiredCounter = 0;
 
-static TAdaptiveLock FutureSpinLock;
+static YT_DECLARE_SPINLOCK(TAdaptiveLock, FutureSpinLock);
 static i64 FutureCookieCounter = 0;
 static bool FutureFinalizationStarted = false;
 static THashMap<TFutureCookie, TFuture<void>> RegisteredFutures;

@@ -413,7 +413,7 @@ private:
         TChunkDescriptor Descriptor;
     };
 
-    TAdaptiveLock RegisteredChunkMapLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, RegisteredChunkMapLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
 
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
@@ -432,7 +432,7 @@ private:
         location->Start();
     }
 
-    void RunBackgroundValidation() 
+    void RunBackgroundValidation()
     {
         Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND([this_ = MakeStrong(this), this] () {
             // Delay start of background validation to populate chunk cache with useful artifacts.
@@ -452,7 +452,7 @@ private:
 
                 TArtifactDownloadOptions options;
                 options.NodeDirectory = Bootstrap_->GetNodeDirectory();
-            
+
                 auto errorOrChunk = WaitFor(DownloadArtifact(artifactKey, options));
                 if (!errorOrChunk.IsOK()) {
                     YT_LOG_WARNING(errorOrChunk, "Background artifact validation failed (ArtifactKey: %v)", artifactKey);

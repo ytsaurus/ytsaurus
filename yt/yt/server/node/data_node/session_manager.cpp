@@ -55,7 +55,7 @@ ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
     VERIFY_THREAD_AFFINITY_ANY();
     YT_VERIFY(sessionId.MediumIndex != AllMediaIndex);
 
-    TReaderGuard guard(SessionMapLock_);
+    auto guard = ReaderGuard(SessionMapLock_);
     auto it = SessionMap_.find(sessionId);
     return it == SessionMap_.end() ? nullptr : it->second;
 }
@@ -80,7 +80,7 @@ ISessionPtr TSessionManager::StartSession(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TWriterGuard guard(SessionMapLock_);
+    auto guard = WriterGuard(SessionMapLock_);
 
     if (SessionMap_.size() >= Config_->MaxWriteSessions) {
         THROW_ERROR_EXCEPTION("Maximum concurrent write session limit %v has been reached",
@@ -188,7 +188,7 @@ void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& weakSession, c
         session->GetId());
 
     {
-        TWriterGuard guard(SessionMapLock_);
+        auto guard = WriterGuard(SessionMapLock_);
         UnregisterSession(session);
     }
 }

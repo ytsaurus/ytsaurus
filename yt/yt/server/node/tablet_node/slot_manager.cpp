@@ -22,7 +22,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/delayed_executor.h>
 
@@ -216,7 +216,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(TabletSnapshotsSpinLock_);
+        auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
         std::vector<TTabletSnapshotPtr> snapshots;
         snapshots.reserve(TabletIdToSnapshot_.size());
         for (const auto& [tabletId, snapshot] : TabletIdToSnapshot_) {
@@ -292,7 +292,7 @@ public:
         auto newSnapshot = tablet->BuildSnapshot(slot, epoch);
 
         {
-            TWriterGuard guard(TabletSnapshotsSpinLock_);
+            auto guard = WriterGuard(TabletSnapshotsSpinLock_);
             auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
             for (auto it = range.first; it != range.second; ++it) {
                 auto& snapshot = it->second;
@@ -320,7 +320,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(TabletSnapshotsSpinLock_);
+        auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
         auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
         for (auto it = range.first; it != range.second; ++it) {
             auto snapshot = it->second;
@@ -349,7 +349,7 @@ public:
         std::vector<TTabletSnapshotPtr> deadSnapshots;
 
         {
-            TWriterGuard guard(TabletSnapshotsSpinLock_);
+            auto guard = WriterGuard(TabletSnapshotsSpinLock_);
             for (auto it = TabletIdToSnapshot_.begin(); it != TabletIdToSnapshot_.end();) {
                 auto jt = it++;
                 auto& snapshot = jt->second;
@@ -391,7 +391,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TReaderGuard guard(TabletSnapshotsSpinLock_);
+        auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
 
         // TODO(sandello): Make this one symmetrical to checks in tablet_manager.cpp
         /*
@@ -534,7 +534,7 @@ private:
 
     TPeriodicExecutorPtr SlotScanExecutor_;
 
-    TReaderWriterSpinLock TabletSnapshotsSpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, TabletSnapshotsSpinLock_);
     THashMultiMap<TTabletId, TTabletSnapshotPtr> TabletIdToSnapshot_;
 
     IYPathServicePtr OrchidService_;
@@ -547,7 +547,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TWriterGuard guard(TabletSnapshotsSpinLock_);
+        auto guard = WriterGuard(TabletSnapshotsSpinLock_);
 
         auto range = TabletIdToSnapshot_.equal_range(tabletId);
         for (auto it = range.first; it != range.second; ++it) {
@@ -615,7 +615,7 @@ private:
 
         TTabletSnapshotPtr snapshot;
 
-        TReaderGuard guard(TabletSnapshotsSpinLock_);
+        auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
         auto range = TabletIdToSnapshot_.equal_range(tabletId);
 
         // NB: It is uncommon but possible to have multiple cells pretending to serve the same tablet.

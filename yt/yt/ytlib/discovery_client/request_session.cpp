@@ -59,7 +59,7 @@ TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
     ToProto(req->mutable_options(), Options_);
 
     return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TDiscoveryClientServiceProxy::TRspListMembersPtr& rsp) {
-        TGuard guard(Lock_);
+        auto guard = Guard(Lock_);
         for (const auto& protoMemberInfo : rsp->members()) {
             auto member = FromProto<TMemberInfo>(protoMemberInfo);
             if (auto it = IdToMember_.find(member.Id); it == IdToMember_.end()) {
@@ -109,7 +109,7 @@ TFuture<void> TGetGroupMetaRequestSession::MakeRequest(const TString& address)
     auto req = proxy.GetGroupMeta();
     req->set_group_id(GroupId_);
     return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TDiscoveryClientServiceProxy::TRspGetGroupMetaPtr& rsp) {
-        TGuard guard(Lock_);
+        auto guard = Guard(Lock_);
 
         auto groupMeta = FromProto<TGroupMeta>(rsp->meta());
         GroupMeta_.MemberCount = std::max(GroupMeta_.MemberCount, groupMeta.MemberCount);

@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/invoker_detail.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/ring_queue.h>
@@ -70,7 +70,7 @@ public:
 private:
     using TBuckets = std::vector<TRingQueue<TClosure>>;
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
 
     TBuckets Buckets_;
     std::vector<TCpuDuration> ExcessTimes_;
@@ -145,7 +145,7 @@ public:
     {
         auto now = GetInstant();
         {
-            TWriterGuard guard(InvokerQueueStatesLock_);
+            auto guard = WriterGuard(InvokerQueueStatesLock_);
 
             auto& queueState = InvokerQueueStates_[index];
 
@@ -173,7 +173,7 @@ protected:
 
         auto now = GetInstant();
 
-        TReaderGuard guard(InvokerQueueStatesLock_);
+        auto guard = ReaderGuard(InvokerQueueStatesLock_);
 
         const auto& queueState = InvokerQueueStates_[index];
 
@@ -203,7 +203,7 @@ private:
         ui64 DequeuedActionCount = 0;
     };
 
-    NConcurrency::TReaderWriterSpinLock InvokerQueueStatesLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, InvokerQueueStatesLock_);
     std::vector<TInvokerQueueState> InvokerQueueStates_;
 
     IFairShareCallbackQueuePtr Queue_;
@@ -279,7 +279,7 @@ private:
         TCurrentInvokerGuard currentInvokerGuard(Invokers_[bucketIndex]);
 
         {
-            TWriterGuard guard(InvokerQueueStatesLock_);
+            auto guard = WriterGuard(InvokerQueueStatesLock_);
 
             auto& queueState = InvokerQueueStates_[bucketIndex];
             YT_VERIFY(!queueState.ActionEnqueueTimes.empty());

@@ -955,7 +955,7 @@ private:
     std::atomic<int> CachedPendingJobCount = {0};
     int CachedTotalJobCount = 0;
 
-    NConcurrency::TReaderWriterSpinLock CachedNeededResourcesLock;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, CachedNeededResourcesLock);
     TJobResources CachedNeededResources;
 
     TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededJobResources;
@@ -964,7 +964,7 @@ private:
     mutable NYson::TYsonString CachedRunningJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
 
     NYson::TYsonString CachedSuspiciousJobsYson_ = NYson::TYsonString("", NYson::EYsonType::MapFragment);
-    NConcurrency::TReaderWriterSpinLock CachedSuspiciousJobsYsonLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, CachedSuspiciousJobsYsonLock_);
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
 
     //! Maps an intermediate chunk id to its originating completed job.
@@ -988,7 +988,7 @@ private:
     //! Aggregates job statistics.
     TStatistics JobStatistics;
 
-    TAdaptiveLock JobMetricsDeltaPerTreeLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, JobMetricsDeltaPerTreeLock_);
     //! Delta of job metrics that was not reported to scheduler.
     THashMap<TString, NScheduler::TJobMetrics> JobMetricsDeltaPerTree_;
     // NB(eshcherbin): this is very ad-hoc and hopefully temporary. We need to get the total time
@@ -1047,7 +1047,7 @@ private:
 
     std::vector<TStreamDescriptor> StandardStreamDescriptors_;
 
-    TAdaptiveLock ProgressLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, ProgressLock_);
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
@@ -1107,7 +1107,7 @@ private:
 
     THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 
-    TAdaptiveLock AlertsLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, AlertsLock_);
     TOperationAlertMap Alerts_;
 
     bool IsLegacyLivePreviewSuppressed = false;

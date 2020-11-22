@@ -21,7 +21,7 @@ bool TSampler::IsTraceSampled(const TString& user)
     TSamplingConfigPtr config;
 
     {
-        TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         config = Config_;
     }
 
@@ -43,14 +43,14 @@ bool TSampler::IsTraceSampled(const TString& user)
     if (config->MinUserTraceCount != 0) {
         TIntrusivePtr<TUserState> state;
         {
-            TReaderGuard guard(Lock_);
+            auto guard = ReaderGuard(Lock_);
             if (auto it = UserState_.find(user); it != UserState_.end()) {
                 state = it->second;
             }
         }
 
         if (!state) {
-            TWriterGuard guard(Lock_);
+            auto guard = WriterGuard(Lock_);
             if (auto it = UserState_.find(user); it != UserState_.end()) {
                 state = it->second;
             } else {
@@ -69,7 +69,7 @@ bool TSampler::IsTraceSampled(const TString& user)
 
 void TSampler::ResetPerUserLimits()
 {
-    TReaderGuard guard(Lock_);
+    auto guard = ReaderGuard(Lock_);
     for (auto& state : UserState_) {
         state.second->SampleCount = 0;
     }
@@ -80,7 +80,7 @@ void TSampler::UpdateConfig(const TSamplingConfigPtr& config)
     TSamplingConfigPtr newConfig = config;
 
     {
-        TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         std::swap(Config_, newConfig);
     }
 }

@@ -61,7 +61,7 @@ private:
 
     std::atomic<TSnapshot*> Snapshot_ = nullptr;
 
-    TAdaptiveLock Lock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
 
     TIntrusivePtr<TMap> DirtyMap_;
 

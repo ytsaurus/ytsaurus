@@ -494,25 +494,25 @@ void TOperationControllerData::SetPendingJobCount(int value)
 
 NScheduler::TJobResources TOperationControllerData::GetNeededResources()
 {
-    NConcurrency::TReaderGuard guard(NeededResourcesLock_);
+    auto guard = ReaderGuard(NeededResourcesLock_);
     return NeededResources_;
 }
 
 void TOperationControllerData::SetNeededResources(const NScheduler::TJobResources& value)
 {
-    NConcurrency::TWriterGuard guard(NeededResourcesLock_);
+    auto guard = WriterGuard(NeededResourcesLock_);
     NeededResources_ = value;
 }
 
 TJobResourcesWithQuotaList TOperationControllerData::GetMinNeededJobResources() const
 {
-    NConcurrency::TReaderGuard guard(MinNeededResourcesJobLock_);
+    auto guard = ReaderGuard(MinNeededResourcesJobLock_);
     return MinNeededJobResources_;
 }
 
 void TOperationControllerData::SetMinNeededJobResources(const TJobResourcesWithQuotaList& value)
 {
-    NConcurrency::TWriterGuard guard(MinNeededResourcesJobLock_);
+    auto guard = WriterGuard(MinNeededResourcesJobLock_);
     MinNeededJobResources_ = value;
 }
 

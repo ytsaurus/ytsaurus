@@ -8,6 +8,8 @@
 
 #include <yt/core/misc/property.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 #include <vector>
 
 namespace NYT::NCGroup {
@@ -178,7 +180,7 @@ public:
 
 private:
     //! Guards device ids.
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     //! Set of all seen device ids.
     mutable THashSet<TString> DeviceIds_;
 

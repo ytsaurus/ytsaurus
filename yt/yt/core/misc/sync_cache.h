@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -72,7 +72,7 @@ private:
 
     struct TShard
     {
-        NConcurrency::TReaderWriterSpinLock SpinLock;
+        YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock);
 
         TIntrusiveListWithAutoDelete<TItem, TDelete> YoungerLruList;
         TIntrusiveListWithAutoDelete<TItem, TDelete> OlderLruList;
@@ -101,7 +101,7 @@ private:
     bool Touch(TShard* shard, TItem* item);
     void DrainTouchBuffer(TShard* shard);
 
-    void Trim(TShard* shard, NConcurrency::TWriterGuard& guard);
+    void Trim(TShard* shard, NConcurrency::TSpinlockWriterGuard<NConcurrency::TReaderWriterSpinLock>& guard);
 
     void PushToYounger(TShard* shard, TItem* item);
     void MoveToYounger(TShard* shard, TItem* item);

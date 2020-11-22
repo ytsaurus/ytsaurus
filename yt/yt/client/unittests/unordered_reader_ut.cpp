@@ -7,7 +7,8 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
+
 #include <yt/core/actions/future.h>
 
 namespace NYT {

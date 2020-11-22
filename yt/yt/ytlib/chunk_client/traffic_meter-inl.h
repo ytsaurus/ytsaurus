@@ -12,7 +12,7 @@ namespace NYT::NChunkClient {
 template <typename T>
 void TTrafficMeter::IncrementByteCountImpl(THashMap<T, i64>& data, const T& key, i64 byteCount)
 {
-    TGuard<TAdaptiveLock> guard(Lock_);
+    auto guard = Guard(Lock_);
     data[key] += byteCount;
 }
 

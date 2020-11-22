@@ -26,7 +26,7 @@ private:
     {
         const TKey Key;
 
-        TAdaptiveLock Lock;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
         TContext Context;
         TFuture<TValue> Future;
         TPromise<TValue> Promise;
@@ -52,7 +52,7 @@ private:
     const TAuthCacheConfigPtr Config_;
     const NProfiling::TRegistry Profiler_;
 
-    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, TEntryPtr> Cache_;
 
     virtual TFuture<TValue> DoGet(const TKey& key, const TContext& context) noexcept = 0;

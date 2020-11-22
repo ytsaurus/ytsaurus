@@ -453,13 +453,13 @@ public:
 
     void Suspend()
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         SuspendedPromise_ = NewPromise<void>();
     }
 
     void ResumeAsAsync(IAsyncOutputStreamPtr underlyingStream)
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         auto suspendedPromise = SuspendedPromise_;
         SuspendedPromise_.Reset();
         UnderlyingStream_ = CreateZeroCopyAdapter(underlyingStream);
@@ -473,7 +473,7 @@ public:
 
     void Abort()
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         auto suspendedPromise = SuspendedPromise_;
         guard.Release();
 
@@ -484,7 +484,7 @@ public:
 
     virtual TFuture<void> Close() override
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         return LastForwardResult_;
     }
 
@@ -494,7 +494,7 @@ public:
         struct TBlockTag { };
         auto blockCopy = TSharedRef::MakeCopy<TBlockTag>(block);
 
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         if (UnderlyingStream_) {
             YT_LOG_TRACE("Got async snapshot block (Size: %v)", blockCopy.Size());
             AsyncSize_ += block.Size();
@@ -522,7 +522,7 @@ public:
 private:
     const NLogging::TLogger Logger;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TPromise<void> SuspendedPromise_;
     i64 SyncSize_ = 0;
     i64 AsyncSize_ = 0;
@@ -1205,7 +1205,7 @@ TEpochContextPtr TDecoratedAutomaton::GetEpochContext()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(EpochContextLock_);
+    auto guard = ReaderGuard(EpochContextLock_);
     return EpochContext_;
 }
 
@@ -1354,7 +1354,7 @@ void TDecoratedAutomaton::ReleaseSystemLock()
 
 void TDecoratedAutomaton::StartEpoch(TEpochContextPtr epochContext)
 {
-    TWriterGuard guard(EpochContextLock_);
+    auto guard = WriterGuard(EpochContextLock_);
     YT_VERIFY(!EpochContext_);
     std::swap(epochContext, EpochContext_);
 }
@@ -1387,7 +1387,7 @@ void TDecoratedAutomaton::StopEpoch()
     Changelog_.Reset();
     NextChangelogFuture_.Reset();
     {
-        TWriterGuard guard(EpochContextLock_);
+        auto guard = WriterGuard(EpochContextLock_);
         TEpochContextPtr epochContext;
         std::swap(epochContext, EpochContext_);
         guard.Release();

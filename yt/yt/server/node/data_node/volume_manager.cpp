@@ -397,7 +397,7 @@ private:
 
     std::atomic<int> LayerImportsInProgress_ = 0;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
 
@@ -1077,11 +1077,11 @@ private:
 
     THashMap<TYPath, TFetchedArtifactKey> CachedLayerDescriptors_;
 
-    TAdaptiveLock TmpfsCacheDataSpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, TmpfsCacheDataSpinLock_);
     THashMap<TArtifactKey, TLayerPtr> CachedTmpfsLayers_;
     TPeriodicExecutorPtr UpdateTmpfsLayersExecutor_;
 
-    TAdaptiveLock TmpfsCacheAlerTAdaptiveLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, TmpfsCacheAlerTAdaptiveLock_);
     TError TmpfsCacheAlert_;
 
     IPortoExecutorPtr TmpfsPortoExecutor_;
@@ -1506,7 +1506,7 @@ private:
     const TPortoVolumeManagerPtr Owner_;
     const TLayerLocationPtr Location_;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::vector<TLayerPtr> Layers_;
 
     int ActiveCount_= 1;
@@ -1521,7 +1521,7 @@ private:
         }
     }
 
-    void ReleaseLayers(TGuard<TAdaptiveLock>&& guard)
+    void ReleaseLayers(TSpinlockGuard<TAdaptiveLock>&& guard)
     {
         std::vector<TLayerPtr> layers;
         std::swap(layers, Layers_);

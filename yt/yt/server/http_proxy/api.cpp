@@ -104,7 +104,7 @@ const IPollerPtr& TApi::GetPoller() const
 bool TApi::IsUserBannedInCache(const TString& user)
 {
     auto now = TInstant::Now();
-    TReaderGuard guard(BanCacheLock_);
+    auto guard = ReaderGuard(BanCacheLock_);
     auto it = BanCache_.find(user);
     if (it != BanCache_.end()) {
         return now < it->second;
@@ -115,7 +115,7 @@ bool TApi::IsUserBannedInCache(const TString& user)
 
 void TApi::PutUserIntoBanCache(const TString& user)
 {
-    TWriterGuard guard(BanCacheLock_);
+    auto guard = WriterGuard(BanCacheLock_);
     BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
 }
 
@@ -228,7 +228,7 @@ void TApi::IncrementProfilingCounters(
                 .WithTag("user", user)
                 .WithTag("command", command)
                 .WithTag("network", networkName)
-                .Counter(name);            
+                .Counter(name);
         }).first->Increment(value);
     };
 

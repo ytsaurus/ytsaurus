@@ -2,7 +2,7 @@
 
 #include "table_mount_cache.h"
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/async_expiring_cache.h>
 
@@ -22,7 +22,7 @@ private:
     void RemoveExpiredEntries();
 
     THashMap<TTabletId, TWeakPtr<TTabletInfo>> Map_;
-    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     TInstant LastExpiredRemovalTime_;
 };
 

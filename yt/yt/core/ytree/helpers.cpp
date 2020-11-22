@@ -155,37 +155,38 @@ public:
 
     virtual std::vector<TString> ListKeys() const override
     {
-        NConcurrency::TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         return Underlying_->ListKeys();
     }
 
     virtual std::vector<TKeyValuePair> ListPairs() const override
     {
-        NConcurrency::TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         return Underlying_->ListPairs();
     }
 
     virtual NYson::TYsonString FindYson(TStringBuf key) const override
     {
-        NConcurrency::TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         return Underlying_->FindYson(key);
     }
 
     virtual void SetYson(const TString& key, const NYson::TYsonString& value) override
     {
-        NConcurrency::TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         Underlying_->SetYson(key, value);
     }
 
     virtual bool Remove(const TString& key) override
     {
-        NConcurrency::TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         return Underlying_->Remove(key);
     }
 
 private:
     IAttributeDictionary* const Underlying_;
-    NConcurrency::TReaderWriterSpinLock Lock_;
+
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, Lock_);
 };
 
 IAttributeDictionaryPtr CreateThreadSafeAttributes(IAttributeDictionary* underlying)

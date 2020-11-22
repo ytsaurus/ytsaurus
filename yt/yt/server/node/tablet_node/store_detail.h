@@ -20,7 +20,7 @@
 
 #include <yt/core/actions/signal.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -257,7 +257,7 @@ protected:
     EStoreCompactionState CompactionState_ = EStoreCompactionState::None;
     TInstant AllowedCompactionTimestamp_;
 
-    NConcurrency::TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, SpinLock_);
     std::atomic<NProfiling::TCpuInstant> LocalChunkCheckDeadline_ = {0};
     NChunkClient::IChunkReaderPtr CachedChunkReader_;
     NTableClient::ILookupReaderPtr CachedLookupReader_;

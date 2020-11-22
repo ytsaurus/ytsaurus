@@ -9,7 +9,7 @@
 
 #include <yt/client/chunk_client/data_statistics.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/heap.h>
 
@@ -312,7 +312,7 @@ private:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
-    TReaderWriterSpinLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
 
     struct TSession
     {
@@ -389,7 +389,7 @@ TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStati
     for (const auto& session : Sessions_) {
         IVersionedReaderPtr reader;
         {
-            TReaderGuard guard(SpinLock_);
+            auto guard = ReaderGuard(SpinLock_);
             reader = session.Reader;
         }
         if (reader) {
@@ -411,7 +411,7 @@ TCodecStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDecompre
     std::vector<IVersionedReaderPtr> readers;
     TCodecStatistics result;
     {
-        TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         result = DecompressionStatistics_;
         readers.reserve(Sessions_.size());
         for (const auto& session : Sessions_) {
@@ -582,7 +582,7 @@ void TSchemafulOverlappingRangeReaderBase<TRowMerger>::OpenSession(int index)
 {
     auto reader = ReaderFactory_(Sessions_[index].Index);
     {
-        TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
         Sessions_[index].Reader = std::move(reader);
     }
     Sessions_[index].ReadyEvent = Sessions_[index].Reader->Open();
@@ -620,7 +620,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::RefillSession(
         auto dataStatistics = session->Reader->GetDataStatistics();
         auto decompressionStatistics = session->Reader->GetDecompressionStatistics();
         {
-            TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
             DataStatistics_ += dataStatistics;
             DecompressionStatistics_ += decompressionStatistics;
             session->Reader.Reset();

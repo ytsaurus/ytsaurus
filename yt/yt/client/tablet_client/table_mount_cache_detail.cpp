@@ -16,7 +16,7 @@ static const TDuration TabletCacheExpireTimeout = TDuration::Seconds(1);
 
 TTabletInfoPtr TTabletCache::Find(TTabletId tabletId)
 {
-    TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
     RemoveExpiredEntries();
     auto it = Map_.find(tabletId);
     return it != Map_.end() ? it->second.Lock() : nullptr;
@@ -24,7 +24,7 @@ TTabletInfoPtr TTabletCache::Find(TTabletId tabletId)
 
 TTabletInfoPtr TTabletCache::Insert(TTabletInfoPtr tabletInfo)
 {
-    TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
     auto it = Map_.find(tabletInfo->TabletId);
     if (it != Map_.end()) {
         if (auto existingTabletInfo = it->second.Lock()) {

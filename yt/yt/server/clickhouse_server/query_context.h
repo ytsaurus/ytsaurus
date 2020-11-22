@@ -13,7 +13,7 @@
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/ytree/public.h>
 
@@ -97,19 +97,19 @@ public:
 private:
     TInstant StartTime_;
 
-    mutable TAdaptiveLock PhaseLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, PhaseLock_);
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
     TInstant LastPhaseTime_;
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);
 
     //! Spinlock controlling lazy client creation.
-    mutable NConcurrency::TReaderWriterSpinLock ClientLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, ClientLock_);
 
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
 
     //! Spinlock controlling select query context map.
-    mutable NConcurrency::TReaderWriterSpinLock StorageToStorageContextLock_;
+    YT_DECLARE_SPINLOCK(NConcurrency::TReaderWriterSpinLock, StorageToStorageContextLock_);
     THashMap<const DB::IStorage*, TStorageContextPtr> StorageToStorageContext_;
 };
 

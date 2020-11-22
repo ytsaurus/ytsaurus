@@ -484,7 +484,7 @@ public:
         }
 
         {
-            TGuard<TAdaptiveLock> guard(SpinLock_);
+            auto guard = Guard(SpinLock_);
             if (SnapshotIds_.erase(snapshotId) == 1) {
                 YT_LOG_WARNING("Erased orphaned snapshot %v from store", snapshotId);
             }
@@ -495,7 +495,7 @@ public:
 
     int GetLatestSnapshotId(int maxSnapshotId)
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
 
         auto it = SnapshotIds_.upper_bound(maxSnapshotId);
         if (it == SnapshotIds_.begin()) {
@@ -557,7 +557,7 @@ private:
 
     NLogging::TLogger Logger = HydraLogger;
 
-    TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::set<int> SnapshotIds_;
 
 
@@ -578,7 +578,7 @@ private:
 
     void RegisterSnapshot(int snapshotId)
     {
-        TGuard<TAdaptiveLock> guard(SpinLock_);
+        auto guard = Guard(SpinLock_);
         YT_VERIFY(SnapshotIds_.insert(snapshotId).second);
         YT_LOG_DEBUG("Registered snapshot %v", snapshotId);
     }

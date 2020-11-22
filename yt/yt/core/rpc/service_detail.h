@@ -11,7 +11,7 @@
 #include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/action_queue.h>
-#include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/logging/log.h>
 
@@ -696,7 +696,7 @@ private:
 
     struct TRequestBucket
     {
-        TAdaptiveLock Lock;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
         THashMap<TRequestId, TServiceContext*> RequestIdToContext;
         THashMap<TRequestId, TPendingPayloadsEntry> RequestIdToPendingPayloads;
     };
@@ -706,7 +706,7 @@ private:
 
     struct TReplyBusBucket
     {
-        TAdaptiveLock Lock;
+        YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock);
         THashMap<NYT::NBus::IBusPtr, THashSet<TServiceContext*>> ReplyBusToContexts;
     };
 

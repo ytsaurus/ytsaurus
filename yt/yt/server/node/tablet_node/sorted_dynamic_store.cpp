@@ -874,13 +874,13 @@ const TSortedDynamicRowKeyComparer& TSortedDynamicStore::GetRowKeyComparer() con
 
 void TSortedDynamicStore::SetRowBlockedHandler(TRowBlockedHandler handler)
 {
-    TWriterGuard guard(RowBlockedLock_);
+    auto guard = WriterGuard(RowBlockedLock_);
     RowBlockedHandler_ = std::move(handler);
 }
 
 void TSortedDynamicStore::ResetRowBlockedHandler()
 {
-    TWriterGuard guard(RowBlockedLock_);
+    auto guard = WriterGuard(RowBlockedLock_);
     RowBlockedHandler_.Reset();
 }
 
@@ -1377,7 +1377,7 @@ TSortedDynamicRow TSortedDynamicStore::AllocateRow()
 
 TSortedDynamicStore::TRowBlockedHandler TSortedDynamicStore::GetRowBlockedHandler()
 {
-    TReaderGuard guard(RowBlockedLock_);
+    auto guard = ReaderGuard(RowBlockedLock_);
     return RowBlockedHandler_;
 }
 

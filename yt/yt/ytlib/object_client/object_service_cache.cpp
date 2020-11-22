@@ -103,7 +103,7 @@ TObjectServiceCacheEntry::TObjectServiceCacheEntry(
 
 void TObjectServiceCacheEntry::IncrementRate()
 {
-    TGuard guard(Lock_);
+    auto guard = Guard(Lock_);
 
     auto now = TInstant::Now();
     if (LastUpdateTime_.load() == TInstant::Zero()) {
@@ -156,7 +156,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
     auto entry = Find(key);
     auto tryRemove = [&] () {
         {
-            TWriterGuard guard(ExpiredEntriesLock_);
+            auto guard = WriterGuard(ExpiredEntriesLock_);
             ExpiredEntries_.emplace(key, entry);
         }
 
@@ -192,7 +192,7 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
 
         TouchEntry(entry);
     } else {
-        TReaderGuard guard(ExpiredEntriesLock_);
+        auto guard = ReaderGuard(ExpiredEntriesLock_);
 
         if (auto it = ExpiredEntries_.find(key); it != ExpiredEntries_.end()) {
             TouchEntry(it->second);
@@ -228,7 +228,7 @@ void TObjectServiceCache::EndLookup(
     auto rate = 0.0;
     auto lastUpdateTime = TInstant::Now();
     {
-        TWriterGuard guard(ExpiredEntriesLock_);
+        auto guard = WriterGuard(ExpiredEntriesLock_);
 
         if (auto it = ExpiredEntries_.find(key); it != ExpiredEntries_.end()) {
             const auto& expiredEntry = it->second;
@@ -262,7 +262,7 @@ TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TStri
     auto key = std::make_tuple(user, method);
 
     {
-        NConcurrency::TReaderGuard guard(Lock_);
+        auto guard = ReaderGuard(Lock_);
         if (auto it = KeyToCounters_.find(key)) {
             return it->second;
         }
@@ -273,7 +273,7 @@ TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TStri
         .WithTag("method", method));
 
     {
-        NConcurrency::TWriterGuard guard(Lock_);
+        auto guard = WriterGuard(Lock_);
         auto [it, inserted] = KeyToCounters_.emplace(key, std::move(counters));
         return it->second;
     }
@@ -311,10 +311,10 @@ void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
         entry->GetSuccess(),
         entry->GetTotalSpace());
 
-    TReaderGuard guard(ExpiredEntriesLock_);
+    auto guard = ReaderGuard(ExpiredEntriesLock_);
 
     if (!ExpiredEntries_.contains(key)) {
-        TWriterGuard guard(TopEntriesLock_);
+        auto guard = WriterGuard(TopEntriesLock_);
         if (TopEntries_.erase(key) > 0) {
             YT_LOG_DEBUG("Removed entry from top (Key: %v)", key);
         }
@@ -349,7 +349,7 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
     auto current = entry->GetByteRate();
 
     if (previous < TopEntryByteRateThreshold_ && current >= TopEntryByteRateThreshold_) {
-        TWriterGuard guard(TopEntriesLock_);
+        auto guard = WriterGuard(TopEntriesLock_);
 
         if (entry->GetByteRate() >= TopEntryByteRateThreshold_) {
             if (TopEntries_.emplace(key, entry).second) {
@@ -362,7 +362,7 @@ void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry)
     }
 
     if (previous >= TopEntryByteRateThreshold_ && current < TopEntryByteRateThreshold_) {
-        TWriterGuard guard(TopEntriesLock_);
+        auto guard = WriterGuard(TopEntriesLock_);
 
         if (entry->GetByteRate() < TopEntryByteRateThreshold_) {
             if (TopEntries_.erase(key) > 0) {
@@ -379,7 +379,7 @@ void TObjectServiceCache::DoBuildOrchid(IYsonConsumer* consumer)
 {
     std::vector<std::pair<TObjectServiceCacheKey, TObjectServiceCacheEntryPtr>> top;
     {
-        TReaderGuard guard(TopEntriesLock_);
+        auto guard = ReaderGuard(TopEntriesLock_);
         top = {TopEntries_.begin(), TopEntries_.end()};
     }
 

@@ -6,6 +6,7 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/misc/algorithm_helpers.h>
 #include <yt/core/misc/atomic_object.h>
@@ -162,7 +163,7 @@ public:
 
     void SetLeaderChannel(const IChannelPtr& leaderChannel)
     {
-        TWriterGuard guard(LeaderChannelLock_);
+        auto guard = WriterGuard(LeaderChannelLock_);
         LeaderChannel_ = leaderChannel;
     }
 
@@ -175,21 +176,21 @@ private:
 
     TDuration ThrottleRpcTimeout_;
 
-    TReaderWriterSpinLock LeaderChannelLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, LeaderChannelLock_);
     IChannelPtr LeaderChannel_;
 
-    TReaderWriterSpinLock HistoricUsageAggregatorLock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, HistoricUsageAggregatorLock_);
     THistoricUsageAggregator HistoricUsageAggregator_;
 
     IChannelPtr GetLeaderChannel()
     {
-        TReaderGuard guard(LeaderChannelLock_);
+        auto guard = ReaderGuard(LeaderChannelLock_);
         return LeaderChannel_;
     }
 
     void UpdateHistoricUsage(i64 count)
     {
-        TWriterGuard guard(HistoricUsageAggregatorLock_);
+        auto guard = WriterGuard(HistoricUsageAggregatorLock_);
         HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
     }
 };
@@ -200,7 +201,7 @@ DEFINE_REFCOUNTED_TYPE(TWrappedThrottler)
 
 struct TThrottlers
 {
-    TReaderWriterSpinLock Lock;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock);
     THashMap<TString, TWeakPtr<TWrappedThrottler>> Throttlers;
 };
 
@@ -275,7 +276,7 @@ public:
     {
         auto* shard = GetThrottlerShard(throttlerId);
 
-        TWriterGuard guard(shard->TotalLimitsLock);
+        auto guard = WriterGuard(shard->TotalLimitsLock);
         shard->ThrottlerIdToTotalLimit[throttlerId] = limit;
     }
 
@@ -295,7 +296,7 @@ public:
             }
 
             auto& shard = ThrottlerShards_[i];
-            TWriterGuard guard(shard.LastUpdateTimeLock);
+            auto guard = WriterGuard(shard.LastUpdateTimeLock);
             for (const auto& throttlerId : throttlerIdsByShard[i]) {
                 shard.ThrottlerIdToLastUpdateTime[throttlerId] = now;
             }
@@ -304,7 +305,7 @@ public:
         {
             auto* shard = GetMemberShard(memberId);
 
-            TWriterGuard guard(shard->UsageRatesLock);
+            auto guard = WriterGuard(shard->UsageRatesLock);
             shard->MemberIdToUsageRate[memberId].swap(throttlerIdToUsageRate);
         }
     }
@@ -325,7 +326,7 @@ public:
             }
 
             auto& throttlerShard = ThrottlerShards_[i];
-            TReaderGuard totalLimitsGuard(throttlerShard.TotalLimitsLock);
+            auto totalLimitsGuard = ReaderGuard(throttlerShard.TotalLimitsLock);
             for (const auto& throttlerId : throttlerIdsByShard[i]) {
                 auto totalLimitIt = throttlerShard.ThrottlerIdToTotalLimit.find(throttlerId);
                 if (totalLimitIt == throttlerShard.ThrottlerIdToTotalLimit.end()) {
@@ -354,12 +355,12 @@ public:
             };
 
             if (config->Mode == EDistributedThrottlerMode::Uniform) {
-                TReaderGuard uniformLimitGuard(throttlerShard.UniformLimitLock);
+                auto guard = ReaderGuard(throttlerShard.UniformLimitLock);
                 fillLimits(throttlerShard.ThrottlerIdToUniformLimit);
             } else {
                 auto* shard = GetMemberShard(memberId);
 
-                TReaderGuard limitsGuard(shard->LimitsLock);
+                auto guard = ReaderGuard(shard->LimitsLock);
                 auto memberIt = shard->MemberIdToLimit.find(memberId);
                 if (memberIt != shard->MemberIdToLimit.end()) {
                     fillLimits(memberIt->second);
@@ -375,7 +376,7 @@ private:
     const TDiscoveryClientPtr DiscoveryClient_;
     const TString GroupId_;
     const TPeriodicExecutorPtr UpdatePeriodicExecutor_;
-    const TThrottlers* Throttlers_;
+    TThrottlers* const Throttlers_;
     const NLogging::TLogger Logger;
     const int ShardCount_;
 
@@ -383,23 +384,23 @@ private:
 
     struct TMemberShard
     {
-        TReaderWriterSpinLock LimitsLock;
+        YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, LimitsLock);
         THashMap<TMemberId, THashMap<TString, double>> MemberIdToLimit;
 
-        TReaderWriterSpinLock UsageRatesLock;
+        YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, UsageRatesLock);
         THashMap<TMemberId, THashMap<TString, double>> MemberIdToUsageRate;
     };
     std::vector<TMemberShard> MemberShards_;
 
     struct TThrottlerShard
     {
-        TReaderWriterSpinLock TotalLimitsLock;
+        YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, TotalLimitsLock);
         THashMap<TString, std::optional<double>> ThrottlerIdToTotalLimit;
 
-        TReaderWriterSpinLock UniformLimitLock;
+        YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, UniformLimitLock);
         THashMap<TString, double> ThrottlerIdToUniformLimit;
 
-        TReaderWriterSpinLock LastUpdateTimeLock;
+        YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, LastUpdateTimeLock);
         THashMap<TString, TInstant> ThrottlerIdToLastUpdateTime;
     };
     std::vector<TThrottlerShard> ThrottlerShards_;
@@ -466,7 +467,7 @@ private:
 
     IReconfigurableThroughputThrottlerPtr FindThrottler(const TString& throttlerId)
     {
-        TReaderGuard guard(Throttlers_->Lock);
+        auto guard = ReaderGuard(Throttlers_->Lock);
 
         auto it = Throttlers_->Throttlers.find(throttlerId);
         if (it == Throttlers_->Throttlers.end()) {
@@ -517,7 +518,7 @@ private:
         for (auto& shard : ThrottlerShards_) {
             THashMap<TString, double> throttlerIdToUniformLimit;
             {
-                TReaderGuard guard(shard.TotalLimitsLock);
+                auto guard = ReaderGuard(shard.TotalLimitsLock);
                 for (const auto& [throttlerId, optionalTotalLimit] : shard.ThrottlerIdToTotalLimit) {
                     if (!optionalTotalLimit) {
                         continue;
@@ -532,7 +533,7 @@ private:
             }
 
             {
-                TWriterGuard guard(shard.UniformLimitLock);
+                auto guard = WriterGuard(shard.UniformLimitLock);
                 shard.ThrottlerIdToUniformLimit.swap(throttlerIdToUniformLimit);
             }
         }
@@ -557,7 +558,7 @@ private:
         for (auto& throttlerShard : ThrottlerShards_) {
             THashMap<TString, std::optional<double>> throttlerIdToTotalLimit;
             {
-                TReaderGuard guard(throttlerShard.TotalLimitsLock);
+                auto guard = ReaderGuard(throttlerShard.TotalLimitsLock);
                 throttlerIdToTotalLimit = throttlerShard.ThrottlerIdToTotalLimit;
             }
 
@@ -565,8 +566,8 @@ private:
             THashMap<TString, THashMap<TString, double>> throttlerIdToUsageRates;
             int memberCount = 0;
 
-            for (const auto& shard : MemberShards_) {
-                TReaderGuard guard(shard.UsageRatesLock);
+            for (auto& shard : MemberShards_) {
+                auto guard = ReaderGuard(shard.UsageRatesLock);
                 memberCount += shard.MemberIdToUsageRate.size();
                 for (const auto& [memberId, throttlers] : shard.MemberIdToUsageRate) {
                     for (const auto& [throttlerId, totalLimit] : throttlerIdToTotalLimit) {
@@ -618,7 +619,7 @@ private:
         {
             for (int i = 0; i < ShardCount_; ++i) {
                 auto& shard = MemberShards_[i];
-                TWriterGuard guard(shard.LimitsLock);
+                auto guard = WriterGuard(shard.LimitsLock);
                 shard.MemberIdToLimit.swap(memberIdToLimit[i]);
             }
         }
@@ -633,7 +634,7 @@ private:
 
             {
                 auto now = TInstant::Now();
-                TReaderGuard guard(throttlerShard.LastUpdateTimeLock);
+                auto guard = ReaderGuard(throttlerShard.LastUpdateTimeLock);
                 for (const auto& [throttlerId, lastUpdateTime] : throttlerShard.ThrottlerIdToLastUpdateTime) {
                     if (lastUpdateTime + config->ThrottlerExpirationTime < now) {
                         deadThrottlersIds.push_back(throttlerId);
@@ -646,21 +647,21 @@ private:
             }
 
             {
-                TWriterGuard guard(throttlerShard.TotalLimitsLock);
+                auto guard = WriterGuard(throttlerShard.TotalLimitsLock);
                 for (const auto& deadThrottlerId : deadThrottlersIds) {
                     throttlerShard.ThrottlerIdToTotalLimit.erase(deadThrottlerId);
                 }
             }
 
             {
-                TWriterGuard guard(throttlerShard.UniformLimitLock);
+                auto guard = WriterGuard(throttlerShard.UniformLimitLock);
                 for (const auto& deadThrottlerId : deadThrottlersIds) {
                     throttlerShard.ThrottlerIdToUniformLimit.erase(deadThrottlerId);
                 }
             }
 
             for (auto& memberShard : MemberShards_) {
-                TWriterGuard guard(memberShard.LimitsLock);
+                auto guard = WriterGuard(memberShard.LimitsLock);
                 for (auto& [memberId, throttlerIdToLimit] : memberShard.MemberIdToLimit) {
                     for (const auto& deadThrottlerId : deadThrottlersIds) {
                         throttlerIdToLimit.erase(deadThrottlerId);
@@ -669,7 +670,7 @@ private:
             }
 
             for (auto& memberShard : MemberShards_) {
-                TWriterGuard guard(memberShard.UsageRatesLock);
+                auto guard = WriterGuard(memberShard.UsageRatesLock);
                 for (auto& [memberId, throttlerIdToUsageRate] : memberShard.MemberIdToUsageRate) {
                     for (const auto& deadThrottlerId : deadThrottlersIds) {
                         throttlerIdToUsageRate.erase(deadThrottlerId);
@@ -678,7 +679,7 @@ private:
             }
 
             {
-                TWriterGuard guard(throttlerShard.LastUpdateTimeLock);
+                auto guard = WriterGuard(throttlerShard.LastUpdateTimeLock);
                 for (const auto& deadThrottlerId : deadThrottlersIds) {
                     throttlerShard.ThrottlerIdToLastUpdateTime.erase(deadThrottlerId);
                 }
@@ -766,7 +767,7 @@ public:
         };
 
         {
-            TReaderGuard guard(Throttlers_.Lock);
+            auto guard = ReaderGuard(Throttlers_.Lock);
             auto throttler = findThrottler(throttlerId);
             if (throttler) {
                 return throttler;
@@ -774,7 +775,7 @@ public:
         }
 
         {
-            TWriterGuard guard(Throttlers_.Lock);
+            auto guard = WriterGuard(Throttlers_.Lock);
             auto throttler = findThrottler(throttlerId);
             if (throttler) {
                 return throttler;
@@ -787,7 +788,7 @@ public:
                 std::move(throttlerConfig),
                 throttleRpcTimeout);
             {
-                TReaderGuard readerGuard(Lock_);
+                auto readerGuard = ReaderGuard(Lock_);
                 wrappedThrottler->SetLeaderChannel(LeaderChannel_);
             }
             Throttlers_.Throttlers[throttlerId] = wrappedThrottler;
@@ -815,7 +816,7 @@ public:
         DistributedThrottlerService_->Reconfigure(config);
 
         {
-            TReaderGuard guard(Throttlers_.Lock);
+            auto guard = ReaderGuard(Throttlers_.Lock);
             for (const auto& [throttlerId, weakThrottler] : Throttlers_.Throttlers) {
                 auto throttler = weakThrottler.Lock();
                 if (!throttler) {
@@ -863,7 +864,7 @@ private:
     TAtomicObject<TDistributedThrottlerConfigPtr> Config_;
 
     TThrottlers Throttlers_;
-    TReaderWriterSpinLock Lock_;
+    YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, Lock_);
     std::optional<TMemberId> LeaderId_;
     IChannelPtr LeaderChannel_;
 
@@ -879,7 +880,7 @@ private:
 
         std::optional<TMemberId> optionalCurrentLeaderId;
         {
-            TReaderGuard guard(Lock_);
+            auto guard = ReaderGuard(Lock_);
             optionalCurrentLeaderId = LeaderId_;
         }
 
@@ -890,7 +891,7 @@ private:
         THashMap<TString, TWrappedThrottlerPtr> throttlers;
         std::vector<TString> deadThrottlers;
         {
-            TReaderGuard guard(Throttlers_.Lock);
+            auto guard = ReaderGuard(Throttlers_.Lock);
 
             for (const auto& [throttlerId, throttler] : Throttlers_.Throttlers) {
                 if (auto throttlerPtr = throttler.Lock()) {
@@ -902,7 +903,7 @@ private:
         }
 
         if (!deadThrottlers.empty()) {
-            TWriterGuard guard(Throttlers_.Lock);
+            auto guard = WriterGuard(Throttlers_.Lock);
             for (const auto& throttlerId : deadThrottlers) {
                 Throttlers_.Throttlers.erase(throttlerId);
             }
@@ -933,7 +934,7 @@ private:
         IChannelPtr currentLeaderChannel;
         TMemberId currentLeaderId;
         {
-            TReaderGuard guard(Lock_);
+            auto guard = ReaderGuard(Lock_);
             if (!LeaderId_ || !LeaderChannel_) {
                 YT_LOG_WARNING("Failed updating throttler limit: no active leader");
                 return;
@@ -1014,7 +1015,7 @@ private:
         std::optional<TMemberId> oldLeaderId;
         IChannelPtr leaderChannel;
         {
-            TWriterGuard guard(Lock_);
+            auto guard = WriterGuard(Lock_);
             if (LeaderId_ == leaderId) {
                 return;
             }
@@ -1032,7 +1033,7 @@ private:
         }
 
         if (Config_.Load()->Mode == EDistributedThrottlerMode::Precise) {
-            TReaderGuard guard(Throttlers_.Lock);
+            auto guard = ReaderGuard(Throttlers_.Lock);
             for (const auto& [throttlerId, weakThrottler] : Throttlers_.Throttlers) {
                 auto throttler = weakThrottler.Lock();
                 if (!throttler) {

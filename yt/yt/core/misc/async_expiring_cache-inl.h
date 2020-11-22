@@ -56,7 +56,7 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
 
     // Fast path.
     {
-        NConcurrency::TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
 
         if (auto it = Map_.find(key); it != Map_.end()) {
             const auto& entry = it->second;
@@ -71,7 +71,7 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
 
     // Slow path.
     {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
 
         if (auto it = Map_.find(key); it != Map_.end()) {
             auto& entry = it->second;
@@ -139,7 +139,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
 
     // Fast path.
     {
-        NConcurrency::TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
 
         for (size_t index = 0; index < keys.size(); ++index) {
             const auto& key = keys[index];
@@ -159,7 +159,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
         std::vector<size_t> finalIndexesToPopulate;
         std::vector<TWeakPtr<TEntry>> entriesToPopulate;
 
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
 
         for (auto index : preliminaryIndexesToPopulate) {
             const auto& key = keys[index];
@@ -218,7 +218,7 @@ std::optional<TErrorOr<TValue>> TAsyncExpiringCache<TKey, TValue>::Find(const TK
 {
     auto now = NProfiling::GetCpuInstant();
 
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     if (auto it = Map_.find(key); it != Map_.end()) {
         const auto& entry = it->second;
@@ -242,7 +242,7 @@ std::vector<std::optional<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::
     std::vector<std::optional<TErrorOr<TValue>>> results(keys.size());
     std::vector<size_t> indexesToPopulate;
 
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    auto guard = ReaderGuard(SpinLock_);
 
     for (size_t index = 0; index < keys.size(); ++index) {
         const auto& key = keys[index];
@@ -266,7 +266,7 @@ std::vector<std::optional<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::
 template <class TKey, class TValue>
 void TAsyncExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     if (auto it = Map_.find(key); it != Map_.end() && it->second->Promise.IsSet()) {
         NConcurrency::TDelayedExecutor::CancelAndClear(it->second->ProbationCookie);
@@ -284,7 +284,7 @@ void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> va
     auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
     auto expirationTime = isValueOK ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
 
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     if (auto it = Map_.find(key); it != Map_.end()) {
         const auto& entry = it->second;
@@ -326,7 +326,7 @@ void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> va
 template <class TKey, class TValue>
 void TAsyncExpiringCache<TKey, TValue>::Clear()
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    auto guard = WriterGuard(SpinLock_);
 
     if (!Config_->BatchUpdate) {
         for (const auto& [key, entry] : Map_) {
@@ -406,7 +406,7 @@ void TAsyncExpiringCache<TKey, TValue>::InvokeGet(
 
     DoGet(key, isPeriodicUpdate)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
-            NConcurrency::TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
 
             SetResult(weakEntry, key, valueOrError, isPeriodicUpdate);
         }));
@@ -423,7 +423,7 @@ bool TAsyncExpiringCache<TKey, TValue>::TryEraseExpired(const TWeakPtr<TEntry>& 
     auto now = NProfiling::GetCpuInstant();
 
     if (now > entry->AccessDeadline) {
-        NConcurrency::TWriterGuard writerGuard(SpinLock_);
+        auto writerGuard = WriterGuard(SpinLock_);
 
         if (auto it = Map_.find(key); it != Map_.end() && now > it->second->AccessDeadline) {
             Map_.erase(it);
@@ -443,7 +443,7 @@ void TAsyncExpiringCache<TKey, TValue>::InvokeGetMany(
 {
     DoGetMany(keys, isPeriodicUpdate)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<TValue>>>& valuesOrError) {
-            NConcurrency::TWriterGuard guard(SpinLock_);
+            auto guard = WriterGuard(SpinLock_);
 
             for (size_t index = 0; index < keys.size(); ++index) {
                 SetResult(
@@ -495,7 +495,7 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
     auto now = NProfiling::GetCpuInstant();
 
     {
-        NConcurrency::TReaderGuard guard(SpinLock_);
+        auto guard = ReaderGuard(SpinLock_);
         for (const auto& [key, entry] : Map_) {
             if (entry->Promise.IsSet()) {
                 if (now > entry->AccessDeadline) {
@@ -509,7 +509,7 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
     }
 
     if (!expiredKeys.empty()) {
-        NConcurrency::TWriterGuard guard(SpinLock_);
+        auto guard = WriterGuard(SpinLock_);
 
         for (const auto& key : expiredKeys) {
             if (auto it = Map_.find(key); it != Map_.end()) {

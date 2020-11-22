@@ -87,7 +87,7 @@ private:
     std::atomic<bool> Canceled_ = {false};
     std::atomic<size_t> Epoch_ = {0};
 
-    mutable TAdaptiveLock SpinLock_;
+    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     TError CancelationError_;
     TFiberCanceler Canceler_;
     TFuture<void> Future_;
