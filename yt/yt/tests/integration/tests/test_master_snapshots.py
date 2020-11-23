@@ -129,7 +129,7 @@ def check_hierarchical_accounts():
         assert account in accounts
         assert account not in topmost_accounts
 
-    assert get("//sys/account_tree/@ref_counter") == len(topmost_accounts) + 1
+    wait(lambda: get("//sys/account_tree/@ref_counter") == len(topmost_accounts) + 1)
 
     assert ls("//sys/account_tree/b1") == ["b11"]
     assert ls("//sys/account_tree/b2") == ["b21"]
