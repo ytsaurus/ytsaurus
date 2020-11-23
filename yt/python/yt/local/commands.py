@@ -3,7 +3,7 @@ from .cluster_configuration import modify_cluster_configuration, NODE_MEMORY_LIM
 from yt.environment import YTInstance
 from yt.environment.init_cluster import initialize_world
 import yt.environment.init_operation_archive as yt_env_init_operation_archive
-from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead_or_zombie
+from yt.environment.helpers import wait_for_removing_file_lock, is_file_locked, is_dead_or_zombie, yatest_common
 from yt.wrapper.common import generate_uuid, GB
 from yt.common import YtError, require, get_value, is_process_alive
 
@@ -367,7 +367,15 @@ def _is_stopped(id, path=None):
         return True
 
     lock_file_path = os.path.join(sandbox_path, "lock_file")
+
+    # Debug info for tests.
+    if yatest_common is not None:
+        if not os.path.exists(lock_file_path):
+            logger.warning("File %s does not exist", lock_file_path)
+
     if is_file_locked(lock_file_path):
+        if yatest_common is not None:
+            logger.warning("Lock is not acquired on %s", lock_file_path)
         return False
 
     return True

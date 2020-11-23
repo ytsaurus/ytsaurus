@@ -64,7 +64,7 @@ def main():
         except IOError:
             logger.error("YT watcher failed. Cannot take a file lock")
             raise
-        logger.info("Lock acquired")
+        logger.info("Lock acquired: %s", options.lock_file_path)
 
     logrotate_enabled = not options.disable_logrotate
     if not which("logrotate"):
