@@ -202,8 +202,10 @@ public:
             &TBindState::Run);
     }
 
+#ifndef __cpp_impl_three_way_comparison
     using TCallbackBase::operator ==;
     using TCallbackBase::operator !=;
+#endif
 
     TCallback& operator=(const TCallback& other)
     {

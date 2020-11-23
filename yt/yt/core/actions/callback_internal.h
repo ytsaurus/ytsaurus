@@ -58,15 +58,19 @@ public:
     //! Returns a magical handle.
     void* GetHandle() const;
 
-protected:
-    //! Swaps the state and the invoke function with other callback (without typechecking!).
-    void Swap(TCallbackBase& other);
-
+#ifndef __cpp_impl_three_way_comparison
     //! Returns |true| iff this callback is equal to the other (which may be null).
     bool operator == (const TCallbackBase& other) const;
 
     //! Returns |true| iff this callback is not equal to the other (which may be null).
     bool operator != (const TCallbackBase& other) const;
+#else
+    bool operator== (const TCallbackBase&) const = default;
+#endif
+
+protected:
+    //! Swaps the state and the invoke function with other callback (without typechecking!).
+    void Swap(TCallbackBase& other);
 
     /*!
      * Yup, out-of-line copy constructor. Yup, explicit.

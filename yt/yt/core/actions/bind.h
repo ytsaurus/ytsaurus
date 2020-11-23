@@ -159,10 +159,10 @@ struct TExtendedCallback<TR(TAs...)>
     TExtendedCallback(const TCallback<TR(TAs...)>& callback)
         : TCallback<TR(TAs...)>(callback)
     { }
-
+#ifndef __cpp_impl_three_way_comparison
     using TCallback<TR(TAs...)>::operator ==;
     using TCallback<TR(TAs...)>::operator !=;
-
+#endif
     // TODO: Make &&
     TExtendedCallback Via(TIntrusivePtr<IInvoker> invoker) const;
 
