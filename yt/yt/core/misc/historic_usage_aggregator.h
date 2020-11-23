@@ -14,7 +14,7 @@ struct THistoricUsageAggregationParameters
     explicit THistoricUsageAggregationParameters(EHistoricUsageAggregationMode mode, double emaAlpha = 0.0);
     explicit THistoricUsageAggregationParameters(const THistoricUsageConfigPtr& config);
 
-    bool operator==(const THistoricUsageAggregationParameters& other);
+    bool operator==(const THistoricUsageAggregationParameters& other) const;
 
     EHistoricUsageAggregationMode Mode = EHistoricUsageAggregationMode::None;
 

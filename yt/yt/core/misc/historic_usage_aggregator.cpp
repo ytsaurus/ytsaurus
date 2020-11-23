@@ -20,7 +20,7 @@ THistoricUsageAggregationParameters::THistoricUsageAggregationParameters(
     , EmaAlpha(config->EmaAlpha)
 { }
 
-bool THistoricUsageAggregationParameters::operator==(const THistoricUsageAggregationParameters& other)
+bool THistoricUsageAggregationParameters::operator==(const THistoricUsageAggregationParameters& other) const
 {
     return Mode == other.Mode && EmaAlpha == other.EmaAlpha;
 }

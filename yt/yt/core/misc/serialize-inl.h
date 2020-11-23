@@ -275,12 +275,12 @@ inline constexpr TEntitySerializationKey::TEntitySerializationKey(int index)
     : Index(index)
 { }
 
-inline constexpr bool TEntitySerializationKey::operator == (TEntitySerializationKey rhs)
+inline constexpr bool TEntitySerializationKey::operator == (TEntitySerializationKey rhs) const
 {
     return Index == rhs.Index;
 }
 
-inline constexpr bool TEntitySerializationKey::operator != (TEntitySerializationKey rhs)
+inline constexpr bool TEntitySerializationKey::operator != (TEntitySerializationKey rhs) const
 {
     return !(*this == rhs);
 }
