@@ -48,6 +48,7 @@ inline void TCallbackBase::Swap(TCallbackBase& other)
     UntypedInvoke = std::move(tempUntypedInvoke);
 }
 
+#ifndef __cpp_impl_three_way_comparison
 inline bool TCallbackBase::operator == (const TCallbackBase& other) const
 {
     return
@@ -59,6 +60,7 @@ inline bool TCallbackBase::operator != (const TCallbackBase& other) const
 {
     return !(*this == other);
 }
+#endif
 
 inline TCallbackBase::TCallbackBase(TIntrusivePtr<TBindStateBase>&& bindState)
     : BindState(std::move(bindState))
