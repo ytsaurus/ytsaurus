@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/core/misc/atomic_object.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +64,7 @@ private:
     const NLogging::TLogger Logger;
 
     NConcurrency::TReaderWriterSpinLock ConfigLock_;
-    TFairShareStrategyOperationControllerConfigPtr Config_;
+    TAtomicObject<TFairShareStrategyOperationControllerConfigPtr> Config_;
 
     struct TStateShard
     {

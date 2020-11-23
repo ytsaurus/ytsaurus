@@ -21,7 +21,7 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
         .AddTag("OperationId: %v", OperationId_))
     , Config_(config)
     , ScheduleJobControllerThrottlingBackoff_(
-        DurationToCpuDuration(Config_->ControllerThrottling->ScheduleJobStartBackoffTime))
+        DurationToCpuDuration(config->ControllerThrottling->ScheduleJobStartBackoffTime))
 {
     YT_VERIFY(Controller_);
 }
@@ -107,9 +107,11 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
         .ToUncancelable()
         .WithTimeout(timeLimit);
 
+    auto config = Config_.Load();
+
     auto startTime = TInstant::Now();
     scheduleJobResultFuture.Subscribe(
-        BIND([this, this_ = MakeStrong(this), startTime, longScheduleJobThreshold = Config_->LongScheduleJobLoggingThreshold] (const TError& /* error */) {
+        BIND([this, this_ = MakeStrong(this), startTime, longScheduleJobThreshold = config->LongScheduleJobLoggingThreshold] (const TError& /* error */) {
             auto now = TInstant::Now();
             if (startTime + longScheduleJobThreshold < now) {
                 YT_LOG_DEBUG("Schedule job takes more than %v ms (Duration: %v ms)",
@@ -213,16 +215,12 @@ bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(TCpuInsta
 
 void TFairShareStrategyOperationController::UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
 {
-    auto guard = WriterGuard(ConfigLock_);
-
-    Config_ = config;
+    Config_.Store(config);
 }
 
 TFairShareStrategyOperationControllerConfigPtr TFairShareStrategyOperationController::GetConfig()
 {
-    auto guard = ReaderGuard(ConfigLock_);
-
-    return Config_;
+    return Config_.Load();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
