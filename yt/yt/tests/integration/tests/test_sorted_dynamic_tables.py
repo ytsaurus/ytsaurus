@@ -407,9 +407,11 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 choice(["s", "t"]): str(randint(1, 10000))}
                 for k in sample(range(1, count), 200)]
             insert_rows("//tmp/t", rows, update=True)
+            print_debug("Insert rows ", rows)
 
             keys = [{"k": k} for k in sample(range(1, 1000), 100)]
             delete_rows("//tmp/t", keys)
+            print_debug("Delete rows ", keys)
 
             for i in xrange(1, 10):
                 keys = [{"k": k} for k in sample(range(1, count), 10)]
