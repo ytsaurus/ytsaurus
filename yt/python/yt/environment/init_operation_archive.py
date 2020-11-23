@@ -67,7 +67,6 @@ class TableInfo(object):
         attributes = make_dynamic_table_attributes(client, self.schema, key_columns, "scan")
         attributes.update(self.attributes)
         attributes["dynamic"] = False
-        attributes["external"] = False
 
         logging.info("Creating table %s with attributes %s", path, attributes)
         client.create("table", path, recursive=True, attributes=attributes)
@@ -254,6 +253,19 @@ INITIAL_TABLE_INFOS = {
             ("update_time", "int64"),
         ],
         get_pivot_keys=get_default_pivots,
+        attributes={
+            "atomicity": "none",
+            "tablet_cell_bundle": SYS_BUNDLE_NAME,
+            "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+        }),
+    "operation_ids": TableInfo([
+            ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
+            ("job_id_hi", "uint64"),
+            ("job_id_lo", "uint64")
+        ], [
+            ("operation_id_hi", "uint64"),
+            ("operation_id_lo", "uint64"),
+        ],
         attributes={
             "atomicity": "none",
             "tablet_cell_bundle": SYS_BUNDLE_NAME,
@@ -825,8 +837,24 @@ TRANSFORMS[38] = [
                 ("brief_statistics", "any"),
                 ("pool_tree", "string"),
             ],
-            attributes={"atomicity": "none"}))
+            attributes={"atomicity": "none"})),
+    Conversion(
+        "operation_ids",
+        table_info=TableInfo([
+                ("job_id_hash", "uint64", "farm_hash(job_id_hi, job_id_lo)"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+            ],
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
 ]
+
 
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
