@@ -22,6 +22,8 @@
 
 #include <util/random/fast.h>
 
+using namespace std::string_view_literals;
+
 
 namespace NYT {
 namespace {
@@ -955,8 +957,8 @@ TEST(TProtobufFormat, TestParseZeroColumns)
         0);
 
     // Empty lenval values.
-    parser->Read(AsStringBuf("\0\0\0\0"));
-    parser->Read(AsStringBuf("\0\0\0\0"));
+    parser->Read("\0\0\0\0"sv);
+    parser->Read("\0\0\0\0"sv);
 
     parser->Finish();
 
@@ -1179,7 +1181,7 @@ TEST(TProtobufFormat, TestWriteZeroColumns)
         .Get()
         .ThrowOnError();
 
-    ASSERT_EQ(result, AsStringBuf("\0\0\0\0\0\0\0\0"));
+    ASSERT_EQ(result, "\0\0\0\0\0\0\0\0"sv);
 }
 
 TEST(TProtobufFormat, TestContext)
