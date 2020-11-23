@@ -66,7 +66,11 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     YT_VERIFY(EpochContext_->ReachableVersion <= targetVersion);
 
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
-    YT_VERIFY(currentVersion <= targetVersion);
+    if (currentVersion > targetVersion) {
+        THROW_ERROR_EXCEPTION("Error recovering to version %v: current automaton version %v is greater",
+            targetVersion,
+            currentVersion);
+    }
 
     auto reachableVersion = EpochContext_->ReachableVersion;
     YT_VERIFY(reachableVersion <= targetVersion);
