@@ -63,7 +63,7 @@ public:
         return Impl<TYsonParserAdapter>::getReturnType(Name::name, arguments);
     }
 
-    virtual ColumnPtr executeImpl(ColumnsWithTypeAndName& arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
+    virtual ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & result_type, size_t input_rows_count) const override
     {
         return FunctionJSONHelpers::Executor<Name, Impl, TYsonParserAdapter>::run(arguments, result_type, input_rows_count);
     }

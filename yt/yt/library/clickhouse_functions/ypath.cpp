@@ -111,7 +111,7 @@ public:
         return true;
     }
 
-    ColumnPtr executeImpl(ColumnsWithTypeAndName& arguments, const DataTypePtr& resultType, size_t inputRowCount) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr& resultType, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = arguments[0].column.get();
         const IColumn* columnYson = columnYsonOrNull;
@@ -352,7 +352,7 @@ public:
         return true;
     }
 
-    ColumnPtr executeImpl(ColumnsWithTypeAndName& arguments, const DataTypePtr & resultType, size_t inputRowCount) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & resultType, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = arguments[0].column.get();
         const IColumn* columnYson = columnYsonOrNull;
@@ -474,7 +474,7 @@ public:
         return true;
     }
 
-    ColumnPtr executeImpl(ColumnsWithTypeAndName& arguments, const DataTypePtr & returnType, size_t inputRowCount) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName& arguments, const DataTypePtr & returnType, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = arguments[0].column.get();
         const IColumn* columnYson = columnYsonOrNull;
