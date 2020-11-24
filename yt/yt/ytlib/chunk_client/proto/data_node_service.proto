@@ -359,21 +359,9 @@ message TReqGetChunkSlices
 {
     repeated TSliceRequest slice_requests = 1;
 
-    reserved 2;
-
-    // COMPAT(gritukan)
-    optional int64 slice_data_weight = 3;
-    // If false, chunks are sliced by row indexes and
-    // lower_key and upper_key contain estimated values.
-    // If true, chunks are sliced by key, each slice contains the whole key
-    // COMPAT(gritukan)
-    optional bool slice_by_keys = 4;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
 
-    reserved 6;
-
-    // COMPAT(gritukan)
-    optional int32 key_column_count = 7;
+    reserved 2, 3, 4, 6, 7;
 }
 
 message TRspGetChunkSlices
