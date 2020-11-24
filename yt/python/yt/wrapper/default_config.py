@@ -81,9 +81,10 @@ default_config = {
         # Suffix appended to url if it is short.
         "default_suffix": ".yt.yandex.net",
 
-        "accept_encoding": "gzip, identity",
-        # "gzip" | "br" | "identity"
-        "content_encoding": "gzip",
+        # Possible values are "gzip", "br" and "identity", by default we use "br" if
+        # brotli is installed and "gzip" otherwise.
+        "accept_encoding": None,
+        "content_encoding": None,
 
         # Retries configuration for http requests.
         "retries": retries_config(count=6, enable=True, total_timeout=None, backoff={

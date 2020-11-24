@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option, set_option
-from .compression import get_compressor
+from .compression import get_compressor, has_compressor
 from .common import require, generate_uuid, get_version, total_seconds, forbidden_inside_job, get_started_by_short
 from .errors import (YtError, YtHttpResponseError, YtProxyUnavailable,
                      YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
@@ -14,8 +14,6 @@ import yt.logger as logger
 import yt.json_wrapper as json
 
 from yt.packages.requests.auth import AuthBase
-from yt.packages.six import iteritems, text_type, binary_type, iterbytes, int2byte, byte2int
-from yt.packages.six.moves import map as imap
 
 import random
 from copy import deepcopy
@@ -209,8 +207,17 @@ def make_request(command_name,
     if header_format == "yson":
         header_format_header = "<format=text>yson"
 
+    accept_encoding = get_config(client)["proxy"]["accept_encoding"]
+    if accept_encoding is None:
+        accept_encoding = "gzip, identity"
+        # Enable after urllib3 and requests update.
+        # if has_compressor("br"):
+        #     accept_encoding = "br, gzip, identity"
+        # else:
+        #     accept_encoding = "gzip, identity"
+
     headers = {"User-Agent": user_agent,
-               "Accept-Encoding": get_config(client)["proxy"]["accept_encoding"],
+               "Accept-Encoding": accept_encoding,
                "X-Started-By": dump_params(get_started_by_short(), header_format)}
 
     data_log = ""
@@ -236,6 +243,9 @@ def make_request(command_name,
 
     if command.input_type in ["binary", "tabular"]:
         content_encoding = get_config(client)["proxy"]["content_encoding"]
+        if content_encoding is None:
+            content_encoding = "br" if has_compressor("br") else "gzip"
+
         headers["Content-Encoding"] = content_encoding
 
         require(content_encoding in ["gzip", "identity", "br"],
