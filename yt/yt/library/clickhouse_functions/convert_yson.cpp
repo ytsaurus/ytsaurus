@@ -84,7 +84,7 @@ public:
         }
     }
 
-    ColumnPtr executeImpl(ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t inputRowCount) const override
+    ColumnPtr executeImpl(const ColumnsWithTypeAndName & arguments, const DataTypePtr &, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = arguments[0].column.get();
         const IColumn* columnYson = columnYsonOrNull;
@@ -97,12 +97,12 @@ public:
         if (auto* nullableColumnFormat = checkAndGetColumn<ColumnNullable>(columnFormat)) {
             columnFormat = &nullableColumnFormat->getNestedColumn();
         }
-        
+
         MutableColumnPtr columnTo;
         if (columnYsonOrNull->isNullable()) {
             columnTo = makeNullable(std::make_shared<DataTypeString>())->createColumn();
         } else {
-            columnTo = DataTypeString().createColumn();   
+            columnTo = DataTypeString().createColumn();
         }
         columnTo->reserve(inputRowCount);
 
