@@ -145,95 +145,83 @@ private:
         TDataNodeServiceProxy proxy(GetNodeChannel(nodeId));
         proxy.SetDefaultTimeout(Config_->NodeRpcTimeout);
 
-        // TODO(gritukan) Get key_column_count and slice_by_keys from table index when nodes will be fresh enough.
-        THashMap<std::tuple<i64, int, bool>, std::vector<int>> chunkIndexesByRequestOptions;
-        for (auto chunkIndex : chunkIndexes) {
-            const auto& chunk = Chunks_[chunkIndex];
-            const auto& chunkSliceRequest = GetOrCrash(ChunkToChunkSliceRequest_, chunk);
-            auto tupleRequest = std::make_tuple(chunkSliceRequest.ChunkSliceSize, chunkSliceRequest.KeyColumnCount, chunkSliceRequest.SliceByKeys);
-            chunkIndexesByRequestOptions[tupleRequest].push_back(chunkIndex);
-        }
-
         std::vector<TFuture<void>> futures;
 
-        for (const auto& [requestOptions, chunkIndexes] : chunkIndexesByRequestOptions) {
-            i64 chunkSliceSize;
-            int keyColumnCount;
-            bool sliceByKeys;
-            std::tie(chunkSliceSize, keyColumnCount, sliceByKeys) = requestOptions;
+        TDataNodeServiceProxy::TReqGetChunkSlicesPtr req;
+        std::vector<int> requestedChunkIndexes;            
 
-            TDataNodeServiceProxy::TReqGetChunkSlicesPtr req;
-            std::vector<int> requestedChunkIndexes;            
+        auto createRequest = [&] {
+            req = proxy.GetChunkSlices();
+            req->SetHeavy(true);
+            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+            // TODO(babenko): make configurable
+            ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
+        };
 
-            auto createRequest = [&] {
-                req = proxy.GetChunkSlices();
-                req->SetHeavy(true);
-                req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-                req->set_slice_data_weight(chunkSliceSize);
-                req->set_slice_by_keys(sliceByKeys);
-                req->set_key_column_count(keyColumnCount);
-                // TODO(babenko): make configurable
-                ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
-            };
+        auto flushBatch = [&] {
+            if (req->slice_requests_size() > 0) {
+                futures.push_back(
+                    req->Invoke().Apply(
+                        BIND(&TChunkSliceFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunkIndexes)))
+                            .AsyncVia(Invoker_)));
+                
+                requestedChunkIndexes.clear();
+                createRequest();
+            }
+        };
 
-            auto flushBatch = [&] {
-                if (req->slice_requests_size() > 0) {
-                    futures.push_back(
-                        req->Invoke().Apply(
-                            BIND(&TChunkSliceFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunkIndexes)))
-                                .AsyncVia(Invoker_)));
-                    
-                    requestedChunkIndexes.clear();
-                    createRequest();
-                }
-            };
+        createRequest();
 
-            createRequest();
+        for (auto chunkIndex : chunkIndexes) {
+            const auto& chunk = Chunks_[chunkIndex];
+            const auto& sliceRequest = ChunkToChunkSliceRequest_[chunk];
 
-            for (auto chunkIndex : chunkIndexes) {
-                const auto& chunk = Chunks_[chunkIndex];
-                auto chunkDataSize = chunk->GetUncompressedDataSize();
+            auto chunkDataSize = chunk->GetUncompressedDataSize();
 
-                if (!chunk->BoundaryKeys()) {
-                    THROW_ERROR_EXCEPTION("Missing boundary keys in chunk %v", chunk->ChunkId());
-                }
-                const auto& minKey = chunk->BoundaryKeys()->MinKey;
-                const auto& maxKey = chunk->BoundaryKeys()->MaxKey;
+            if (!chunk->BoundaryKeys()) {
+                THROW_ERROR_EXCEPTION("Missing boundary keys in chunk %v", chunk->ChunkId());
+            }
+            const auto& minKey = chunk->BoundaryKeys()->MinKey;
+            const auto& maxKey = chunk->BoundaryKeys()->MaxKey;
+            auto chunkSliceSize = sliceRequest.ChunkSliceSize;
+            auto sliceByKeys = sliceRequest.SliceByKeys;
+            auto keyColumnCount = sliceRequest.KeyColumnCount;
+            auto chunkType = TypeFromId(chunk->ChunkId());
 
-                auto type = TypeFromId(chunk->ChunkId());
-
-                if (chunkDataSize < chunkSliceSize ||
-                    IsDynamicTabletStoreType(type) ||
+            if (chunkDataSize < chunkSliceSize ||
+                IsDynamicTabletStoreType(chunkType) ||
                 (sliceByKeys && CompareRows(minKey, maxKey, keyColumnCount) == 0))
-                {
-                    auto slice = CreateInputChunkSlice(chunk);
-                    InferLimitsFromBoundaryKeys(slice, RowBuffer_, keyColumnCount);
+            {
+                auto slice = CreateInputChunkSlice(chunk);
+                InferLimitsFromBoundaryKeys(slice, RowBuffer_, keyColumnCount);
 
-                    YT_VERIFY(chunkIndex < SlicesByChunkIndex_.size());
-                    SlicesByChunkIndex_[chunkIndex].push_back(slice);
-                    SliceCount_++;
-                } else {
-                    requestedChunkIndexes.push_back(chunkIndex);
-                    auto chunkId = EncodeChunkId(chunk, nodeId);
+                YT_VERIFY(chunkIndex < SlicesByChunkIndex_.size());
+                SlicesByChunkIndex_[chunkIndex].push_back(slice);
+                SliceCount_++;
+            } else {
+                requestedChunkIndexes.push_back(chunkIndex);
+                auto chunkId = EncodeChunkId(chunk, nodeId);
 
-                    auto* sliceRequest = req->add_slice_requests();
-                    ToProto(sliceRequest->mutable_chunk_id(), chunkId);
-                    if (chunk->LowerLimit()) {
-                        ToProto(sliceRequest->mutable_lower_limit(), *chunk->LowerLimit());
-                    }
-                    if (chunk->UpperLimit()) {
-                        ToProto(sliceRequest->mutable_upper_limit(), *chunk->UpperLimit());
-                    }
-                    sliceRequest->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+                auto* sliceRequest = req->add_slice_requests();
+                ToProto(sliceRequest->mutable_chunk_id(), chunkId);
+                if (chunk->LowerLimit()) {
+                    ToProto(sliceRequest->mutable_lower_limit(), *chunk->LowerLimit());
                 }
-
-                if (req->slice_requests_size() >= Config_->MaxSlicesPerFetch) {
-                    flushBatch();
+                if (chunk->UpperLimit()) {
+                    ToProto(sliceRequest->mutable_upper_limit(), *chunk->UpperLimit());
                 }
+                sliceRequest->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+                sliceRequest->set_slice_data_weight(chunkSliceSize);
+                sliceRequest->set_slice_by_keys(sliceByKeys);
+                sliceRequest->set_key_column_count(keyColumnCount);
             }
 
-            flushBatch();
+            if (req->slice_requests_size() >= Config_->MaxSlicesPerFetch) {
+                flushBatch();
+            }
         }
+
+        flushBatch();
 
         return AllSucceeded(futures);
     }

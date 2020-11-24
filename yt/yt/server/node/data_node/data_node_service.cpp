@@ -979,20 +979,8 @@ private:
                 auto keySetWriter = New<TKeySetWriter>();
 
                 for (int requestIndex = 0; requestIndex < requestCount; ++requestIndex) {
-                    // COMPAT(gritukan)
-                    auto sliceRequest = request->slice_requests(requestIndex);
-                    if (request->has_slice_data_weight()) {
-                        sliceRequest.set_slice_data_weight(request->slice_data_weight());
-                    }
-                    if (request->has_key_column_count()) {
-                        sliceRequest.set_key_column_count(request->key_column_count());
-                    }
-                    if (request->has_slice_by_keys()) {
-                        sliceRequest.set_slice_by_keys(request->slice_by_keys());
-                    }
-
                     ProcessSlice(
-                        sliceRequest,
+                        request->slice_requests(requestIndex),
                         response->add_slice_responses(),
                         keySetWriter,
                         results[requestIndex]);
