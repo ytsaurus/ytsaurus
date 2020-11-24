@@ -313,7 +313,7 @@ void TTraceContext::IncrementElapsedCpuTime(NProfiling::TCpuDuration delta)
 {
     auto* current = this;
     while (current) {
-        ElapsedCpuTime_ += delta;
+        current->ElapsedCpuTime_ += delta;
         current = current->ParentContext_.Get();
     }
 }
