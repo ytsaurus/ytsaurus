@@ -11,7 +11,7 @@ class ResponseStream(Iterator):
 
         self._get_response = get_response
         self._iter_content = iter_content
-        self._close = close
+        self._close_actions = [close]
         self._process_error = process_error
 
         self._is_closed = False
@@ -81,6 +81,12 @@ class ResponseStream(Iterator):
 
         return b"".join(result)
 
+    def add_close_action(self, action):
+        if self._is_closed:
+            action(from_delete=False)
+        else:
+            self._close_actions.append(action)
+
     def _read_chunk(self):
         if self._pos == 0:
             remaining_buffer = self._buffer
@@ -121,7 +127,8 @@ class ResponseStream(Iterator):
 
     def close(self, from_delete=False):
         if not self._is_closed:
-            self._close(from_delete)
+            for action in self._close_actions:
+                action(from_delete)
             self._is_closed = True
 
 class EmptyResponseStream(Iterator):
