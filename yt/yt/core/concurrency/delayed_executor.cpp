@@ -11,8 +11,15 @@
 #include <util/datetime/base.h>
 
 #if defined(_linux_) && !defined(_bionic_)
+
 #define HAVE_TIMERFD
+
+#include "notification_handle.h"
+
+#include <util/network/pollerimpl.h>
+
 #include <sys/timerfd.h>
+
 #endif
 
 namespace NYT::NConcurrency {
@@ -20,7 +27,7 @@ namespace NYT::NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 #if !defined(HAVE_TIMERFD)
-static const auto SleepQuantum = TDuration::MilliSeconds(10);
+static constexpr auto SleepQuantum = TDuration::MilliSeconds(10);
 #endif
 
 static constexpr auto CoalescingInterval = TDuration::MicroSeconds(100);
@@ -81,11 +88,13 @@ public:
     TImpl()
         : PollerThread_(&PollerThreadMain, static_cast<void*>(this))
 #if defined(HAVE_TIMERFD)
-        , TimerFD_(timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC))
+        , TimerFD_(timerfd_create(CLOCK_MONOTONIC, TFD_CLOEXEC | TFD_NONBLOCK))
 #endif
     {
 #if defined(HAVE_TIMERFD)
         YT_VERIFY(TimerFD_ >= 0);
+        Poller_.Set(&TimerFD_, TimerFD_, CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
+        Poller_.Set(&WakeupHandle_, WakeupHandle_.GetFD(), CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
 #endif
     }
 
@@ -222,7 +231,15 @@ private:
 
 #if defined(HAVE_TIMERFD)
     int TimerFD_;
-    std::atomic<TInstant> ScheduledWakeupTime_ = {TInstant::Max()};
+
+    TNotificationHandle WakeupHandle_;
+    std::atomic<bool> WakeupScheduled_ = false;
+
+    struct TMutexLocking
+    {
+        using TMyMutex = TMutex;
+    };
+    TPollerImpl<TMutexLocking> Poller_;
 #endif
 
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
@@ -354,17 +371,8 @@ private:
 #if defined(HAVE_TIMERFD)
     void ScheduleImmediateWakeup()
     {
-        auto delay = CoalescingInterval;
-        auto desiredWakeupTime = NProfiling::GetInstant() + delay;
-        auto scheduledWakeupTime = ScheduledWakeupTime_.load();
-        while (true) {
-            if (scheduledWakeupTime <= desiredWakeupTime) {
-                break;
-            }
-            if (ScheduledWakeupTime_.compare_exchange_weak(scheduledWakeupTime, desiredWakeupTime)) {
-                ScheduleDelayedWakeup(delay);
-                break;
-            }
+        if (!WakeupScheduled_.exchange(true)) {
+            WakeupHandle_.Raise();
         }
     }
 
@@ -380,26 +388,33 @@ private:
 
     void RunPoll()
     {
-        uint64_t value;
-        YT_VERIFY(HandleEintr(read, TimerFD_, &value, sizeof(value)) == sizeof(value));
+        std::array<decltype(Poller_)::TEvent, 2> events;
+        int eventCount = Poller_.Wait(events.data(), events.size(), std::numeric_limits<int>::max());
+        for (int index = 0; index < eventCount; ++index) {
+            const auto& event = events[index];
+            auto* cookie = Poller_.ExtractEvent(&event);
+            if (cookie == &TimerFD_) {
+                uint64_t value;
+                YT_VERIFY(HandleEintr(read, TimerFD_, &value, sizeof(value)) == sizeof(value));
+            } else if (cookie == &WakeupHandle_) {
+                WakeupHandle_.Clear();
+            } else {
+                YT_ABORT();
+            }
+        }
+        WakeupScheduled_.store(false);
     }
 #endif
 
     void PollerThreadStep()
     {
         ProcessQueues();
-
 #if defined(HAVE_TIMERFD)
-        if (ScheduledEntries_.empty()) {
-            ScheduledWakeupTime_.store(TInstant::Max());
-        } else {
+        if (!ScheduledEntries_.empty()) {
             auto deadline = (*ScheduledEntries_.begin())->Deadline;
             auto delay = std::max(CoalescingInterval, deadline - NProfiling::GetInstant());
             ScheduleDelayedWakeup(delay);
-            ScheduledWakeupTime_.store(deadline);
         }
-
-        ProcessQueues();
 #endif
     }
 
