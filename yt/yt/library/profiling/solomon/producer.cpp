@@ -226,8 +226,8 @@ void TProducerSet::ReadSensors(
         readOptions.Sparse = buffer.Options.Sparse;
         readOptions.Global = buffer.Options.Global;
 
-        buffer.CountersCube.ReadSensors(name, options, *TagRegistry_, consumer);
-        buffer.GaugesCube.ReadSensors(name, options, *TagRegistry_, consumer);
+        buffer.CountersCube.ReadSensors(name, readOptions, *TagRegistry_, consumer);
+        buffer.GaugesCube.ReadSensors(name, readOptions, *TagRegistry_, consumer);
     }
 }
 

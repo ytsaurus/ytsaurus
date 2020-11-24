@@ -253,6 +253,7 @@ void TLogFileReader::DoReadBuffer()
                     }
                     record.Increment = currentIncrement;
                     RecordsBuffer_.push_back(record);
+                    RecordBufferSize_.Update(RecordsBuffer_.size());
                     Buffer_.clear();
                 }
             } else {

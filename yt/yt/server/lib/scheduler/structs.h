@@ -97,7 +97,6 @@ using TSegmentToResourceAmount = TEnumIndexedVector<ESchedulingSegment, double>;
 
 struct TPoolTreeSchedulingSegmentsInfo
 {
-    NProfiling::TTagId TreeIdProfilingTag = NProfiling::InvalidTagId;
     ESegmentedSchedulingMode Mode = ESegmentedSchedulingMode::Disabled;
     TDuration UnsatisfiedSegmentsRebalancingTimeout;
     std::optional<EJobResourceType> KeyResource;

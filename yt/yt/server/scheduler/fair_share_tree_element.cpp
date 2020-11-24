@@ -3799,19 +3799,18 @@ void TOperationElement::RegisterProfiler(std::optional<int> slotIndex, const NPr
             enableProfiling = TreeConfig_->EnableByUserProfiling;
         }
 
-        if (!enableProfiling) {
-            continue;
+        if (enableProfiling) {
+            auto userProfiler = profiler
+                .WithTag("pool", parent->GetId(), -1)
+                .WithRequiredTag("user_name", GetUserName(), -1);
+
+            if (auto customTag = GetCustomProfilingTag()) {
+                userProfiler = userProfiler.WithTag("custom", *customTag, -1);
+            }
+
+            userProfiler.AddProducer("/operations_by_user", ProducerBuffer_);
         }
 
-        auto userProfiler = profiler
-            .WithTag("pool", GetParent()->GetId(), -1)
-            .WithRequiredTag("user_name", GetUserName(), -1);
-
-        if (auto customTag = GetCustomProfilingTag()) {
-            userProfiler = userProfiler.WithTag("custom", *customTag, -1);
-        }
-
-        userProfiler.AddProducer("/operations_by_user", ProducerBuffer_);
         parent = parent->GetParent();
     }
 }

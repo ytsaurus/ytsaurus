@@ -223,17 +223,16 @@ void TApi::IncrementProfilingCounters(
     }
 
     auto incrementNetworkCounter = [&, this] (auto& counterMap, auto name, auto value) {
-        counterMap.FindOrInsert(networkName, [&, this] {
+        counterMap.FindOrInsert(std::make_pair(user, networkName), [&, this] {
             return SparseProfiler_
                 .WithTag("user", user)
-                .WithTag("command", command)
                 .WithTag("network", networkName)
                 .Counter(name);
         }).first->Increment(value);
     };
 
-    incrementNetworkCounter(counters->BytesIn, "/bytes_in", bytesIn);
-    incrementNetworkCounter(counters->BytesOut, "/bytes_out", bytesOut);
+    incrementNetworkCounter(BytesIn_, "/bytes_in", bytesIn);
+    incrementNetworkCounter(BytesOut_, "/bytes_out", bytesOut);
 }
 
 void TApi::HandleRequest(

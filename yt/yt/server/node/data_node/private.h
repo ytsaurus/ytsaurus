@@ -14,6 +14,7 @@ namespace NYT::NDataNode {
 
 extern const NLogging::TLogger DataNodeLogger;
 extern const NProfiling::TRegistry DataNodeProfiler;
+extern const NProfiling::TRegistry LocationProfiler;
 extern const NLogging::TLogger P2PLogger;
 extern const NProfiling::TRegistry P2PProfiler;
 

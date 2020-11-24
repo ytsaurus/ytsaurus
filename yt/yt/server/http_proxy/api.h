@@ -108,13 +108,14 @@ private:
         NProfiling::TEventTimer RequestDuration;
 
         NConcurrency::TSyncMap<TErrorCode, NProfiling::TCounter> ApiErrors;
-        NConcurrency::TSyncMap<TString, NProfiling::TCounter> BytesIn;
-        NConcurrency::TSyncMap<TString, NProfiling::TCounter> BytesOut;
     };
 
     std::atomic<int> GlobalSemaphore_{0};
 
     NConcurrency::TSyncMap<TUserCommandPair, std::unique_ptr<TProfilingCounters>> Counters_;
+
+    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> BytesIn_;
+    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> BytesOut_;
 
     NConcurrency::TSyncMap<NHttp::EStatusCode, NProfiling::TCounter> HttpCodes_;
     NConcurrency::TSyncMap<std::pair<TString, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByUser_;

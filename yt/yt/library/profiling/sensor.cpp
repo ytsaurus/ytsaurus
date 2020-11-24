@@ -167,6 +167,18 @@ TRegistry TRegistry::WithExcludedTag(const TString& name, const TString& value, 
     return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
+TRegistry TRegistry::WithAlternativeTag(const TString& name, const TString& value, int alternativeTo, int parent) const
+{
+    if (!Enabled_) {
+        return {};
+    }
+
+    auto allTags = Tags_;
+
+    allTags.AddAlternativeTag(std::pair(name, value), alternativeTo, parent);
+    return TRegistry(Prefix_, Namespace_, allTags, Impl_, Options_);
+}
+
 TRegistry TRegistry::WithTags(const TTagSet& tags) const
 {
     if (!Enabled_) {

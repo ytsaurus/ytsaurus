@@ -196,33 +196,12 @@ void TSchedulerThreadBase::ThreadMain()
 
 thread_local TFiberReusingAdapter* CurrentThread = nullptr;
 
-DECLARE_REFCOUNTED_STRUCT(TRefCountedGauge)
-
-struct TRefCountedGauge
-    : public TRefCounted
-    , public NProfiling::TAtomicGauge
-{
-    TRefCountedGauge(const NYPath::TYPath& path, const NProfiling::TTagIdList& tagIds)
-        : NProfiling::TAtomicGauge(path, tagIds)
-    { }
-};
-
-DEFINE_REFCOUNTED_TYPE(TRefCountedGauge)
-
-struct TSimpleGauge
-    : public TRefCounted
-{
-    std::atomic<i64> Value{0};
-};
-
 struct TFiberContext
 {
     TExceptionSafeContext ThreadContext;
     TClosure AfterSwitch;
     TFiberPtr ResumerFiber;
     TFiberPtr CurrentFiber;
-
-    TIntrusivePtr<TSimpleGauge> WaitingFibersCounter;
 };
 
 thread_local TFiberContext* FiberContext = nullptr;
@@ -247,11 +226,6 @@ static TFiberPtr NullFiberPtr;
 TFiberPtr& CurrentFiber()
 {
     return FiberContext ? FiberContext->CurrentFiber : NullFiberPtr;
-}
-
-TIntrusivePtr<TSimpleGauge> WaitingFibersCounter()
-{
-    return FiberContext->WaitingFibersCounter;
 }
 
 void SetAfterSwitch(TClosure&& closure)
@@ -685,10 +659,7 @@ void BaseYield(TClosure afterSwitch)
     // Switch to resumer.
     auto switchTarget = GetYieldTarget();
 
-    auto waitingFibersCounter = WaitingFibersCounter();
-    waitingFibersCounter->Value++;
     SwitchFromFiber(std::move(switchTarget));
-    waitingFibersCounter->Value--;
 
     YT_VERIFY(ResumerFiber());
 }
@@ -787,13 +758,6 @@ bool TFiberReusingAdapter::OnLoop(TEventCount::TCookie* cookie)
     Cookie_ = *cookie;
 
     TFiberContext fiberContext;
-
-    auto gauge = New<TSimpleGauge>();
-    fiberContext.WaitingFibersCounter = gauge;
-    ConcurrencyProfiler.WithTags(GetThreadTags(true, ThreadName_))
-        .AddFuncGauge("/waiting_fibers", gauge, [gauge=gauge.Get()] {
-            return gauge->Value.load();
-        });
 
     CurrentThread = this;
     FiberContext = &fiberContext;

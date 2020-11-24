@@ -106,10 +106,10 @@ void TCellBundle::InitializeProfilingCounters()
 
     ProfilingCounters_.Profiler = profiler;
     ProfilingCounters_.TabletCellCount = profiler.WithSparse().Gauge("/tablet_cell_count");
-    ProfilingCounters_.ReplicaSwitch = profiler.Counter("/switch_tablet_replica_mode_count");
-    ProfilingCounters_.InMemoryMoves = profiler.Counter("/in_memory_moves_count");
-    ProfilingCounters_.ExtMemoryMoves = profiler.Counter("/ext_memory_moves_count");
-    ProfilingCounters_.TabletMerges = profiler.Counter("/tablet_merges_count");
+    ProfilingCounters_.ReplicaSwitch = profiler.Counter("/switch_tablet_replica_mode");
+    ProfilingCounters_.InMemoryMoves = profiler.Counter("/in_memory_moves");
+    ProfilingCounters_.ExtMemoryMoves = profiler.Counter("/ext_memory_moves");
+    ProfilingCounters_.TabletMerges = profiler.Counter("/tablet_merges");
     ProfilingCounters_.TabletCellMoves = profiler.Counter("/tablet_cell_moves");
 
     ProfilingCounters_.PeerAssignment = profiler.Counter("/peer_assignment");

@@ -159,6 +159,17 @@ bool TResourceTracker::ProcessThread(TString tid, TResourceTracker::TThreadInfo*
         }
 
         info->ProfilingKey = info->ThreadName;
+
+        // Group threads by thread pool, using YT thread naming convention.
+        if (auto index = info->ProfilingKey.rfind(':'); index != TString::npos) {
+            bool isDigit = std::all_of(info->ProfilingKey.cbegin() + index + 1, info->ProfilingKey.cend(), [] (char c) {
+                return std::isdigit(c);
+            });
+            if (isDigit) {
+                info->ProfilingKey = info->ProfilingKey.substr(0, index);
+            }
+        }
+
         if (!info->IsYtThread) {
             info->ProfilingKey += "@";
         }

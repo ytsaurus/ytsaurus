@@ -140,9 +140,9 @@ public:
         , CurrentlyExecutingActionsByThread_(threadCount)
     {
         if (enableProfiling) {
-            auto profiler = TRegistry{"/fair_share_queue"}.WithTags(tags);
+            auto profiler = TRegistry{"/fair_share_queue"}.WithHot().WithTags(tags);
             BucketCounter_ = profiler.Gauge("/buckets");
-            SizeCounter_ = profiler.Gauge("/size");
+            SizeCounter_ = profiler.Summary("/size");
             WaitTimeCounter_ = profiler.Timer("/time/wait");
             ExecTimeCounter_ = profiler.Timer("/time/exec");
             TotalTimeCounter_ = profiler.Timer("/time/total");
@@ -278,7 +278,7 @@ public:
         action->FinishedAt = tscp.Instant;
 
         int queueSize = QueueSize_.fetch_sub(1, std::memory_order_relaxed) - 1;
-        SizeCounter_.Update(queueSize);
+        SizeCounter_.Record(queueSize);
 
         auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);
         auto timeFromEnqueue = CpuDurationToDuration(action->FinishedAt - action->EnqueuedAt);
@@ -334,7 +334,7 @@ private:
     std::atomic<int> QueueSize_ = {0};
 
     TGauge BucketCounter_;
-    TGauge SizeCounter_;
+    NProfiling::TSummary SizeCounter_;
     TEventTimer WaitTimeCounter_;
     TEventTimer ExecTimeCounter_;
     TEventTimer TotalTimeCounter_;
