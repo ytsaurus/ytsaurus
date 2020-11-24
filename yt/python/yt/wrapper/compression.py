@@ -52,6 +52,9 @@ def get_compressor(codec_name):
                       'installed all necessary packages'.format(codec_name))
     return _CODECS[codec_name]()
 
+def has_compressor(codec_name):
+    return codec_name in _CODECS
+
 def _create_zlib_compressor():
     zlib_obj = zlib.compressobj()
     return _Compressor(zlib_obj.compress, zlib_obj.flush)
