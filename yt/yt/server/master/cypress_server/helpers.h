@@ -8,6 +8,8 @@
 
 #include <yt/server/master/object_server/public.h>
 
+#include <yt/server/master/security_server/cluster_resources.h>
+
 #include <yt/core/yson/string.h>
 
 namespace NYT::NCypressServer {
@@ -113,6 +115,8 @@ void ValidateCompressionCodec(
     const NYson::TYsonString& value,
     const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds,
     const std::optional<THashMap<TString, TString>>& configuredDeprecatedCodecNameToAlias);
+
+NSecurityServer::TClusterResources GetNodeResourceUsage(const TCypressNode* node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

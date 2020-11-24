@@ -2172,6 +2172,7 @@ class TestCypress(YTEnvSetup):
             set("//tmp/m/" + str(i), i)
 
         wait(lambda: get("//tmp/m/@resource_usage/master_memory") > 0)
+        wait(lambda: get("//tmp/m/@recursive_resource_usage/master_memory") > 0)
 
     @authors("ignat")
     def test_prerequisite_transactions(self):
