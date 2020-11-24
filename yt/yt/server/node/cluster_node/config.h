@@ -19,6 +19,8 @@
 #include <yt/ytlib/node_tracker_client/config.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/ytlib/transaction_client/config.h>
+
 #include <yt/ytlib/object_client/config.h>
 
 #include <yt/core/concurrency/config.h>
@@ -261,6 +263,9 @@ public:
     //! Chunk Service batcher and redirector.
     TBatchingChunkServiceConfigPtr BatchingChunkService;
 
+    //! Timestamp provider config. Contains addresses used for timestamp generation.
+    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
+
     //! Known node addresses.
     NNodeTrackerClient::TNetworkAddressList Addresses;
 
@@ -309,6 +314,8 @@ public:
             .DefaultNew();
         RegisterParameter("batching_chunk_service", BatchingChunkService)
             .DefaultNew();
+        RegisterParameter("timestamp_provider", TimestampProvider)
+            .Default();
         RegisterParameter("addresses", Addresses)
             .Default();
         RegisterParameter("tags", Tags)
