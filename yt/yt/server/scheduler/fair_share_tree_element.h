@@ -105,12 +105,16 @@ struct TSchedulableAttributes
     double ResourceFlowRatio = 0.0;
     double TotalResourceFlowRatio = 0.0;
 
-    double LocalSatisfactionRatio = 0.0;
-
     int FifoIndex = -1;
 
     double AdjustedFairShareStarvationTolerance = 1.0;
     TDuration AdjustedFairSharePreemptionTimeout;
+
+    // These values are computed at FairShareUpdate and used for diagnostics purposes.
+    bool Alive = false;
+    double SatisfactionRatio = 0.0;
+    double LocalSatisfactionRatio = 0.0;
+
 
     // TODO(eshcherbin): Rethink whether we want to use |MaxComponent| here or the share of |DominantResource|.
 
@@ -362,15 +366,15 @@ public:
     //! For example: TotalResourceLimits.
     virtual void PreUpdateBottomUp(TUpdateFairShareContext* context);
 
-    virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context);
 
     //! Publishes fair share and updates preemptable job lists of operations.
     virtual void PublishFairShareAndUpdatePreemption() = 0;
 
     virtual void UpdatePreemptionAttributes();
-    virtual void UpdateGlobalDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
+    virtual void UpdateSchedulableAttributesFromDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
 
-    virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
+    virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) = 0;
 
     virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled);
     virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) = 0;
@@ -383,7 +387,7 @@ public:
     virtual bool IsOperation() const;
     virtual TPool* AsPool();
 
-    virtual TString GetLoggingString(const TDynamicAttributes& dynamicAttributes) const;
+    virtual TString GetLoggingString() const;
 
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
 
@@ -514,7 +518,7 @@ protected:
         const TError& alert,
         std::optional<TDuration> timeout);
 
-    TString GetLoggingAttributesString(const TDynamicAttributes& dynamicAttributes) const;
+    TString GetLoggingAttributesString() const;
 
     TJobResources GetLocalAvailableResourceDemand(const TFairShareContext& context) const;
     TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
@@ -581,10 +585,10 @@ public:
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
     virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
-    virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context) override;
     virtual void PublishFairShareAndUpdatePreemption() override;
     virtual void UpdatePreemptionAttributes() override;
-    virtual void UpdateGlobalDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
+    virtual void UpdateSchedulableAttributesFromDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
 
     virtual double GetFairShareStarvationToleranceLimit() const;
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const;
@@ -1014,7 +1018,7 @@ public:
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
-    virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context) override;
     virtual void PublishFairShareAndUpdatePreemption() override;
     virtual void UpdatePreemptionAttributes() override;
 
@@ -1034,7 +1038,7 @@ public:
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
-    virtual TString GetLoggingString(const TDynamicAttributes& dynamicAttributes) const override;
+    virtual TString GetLoggingString() const override;
 
     virtual TString GetId() const override;
 
@@ -1204,9 +1208,9 @@ public:
     TRootElement(const TRootElement& other);
 
     //! Computes various lightweight attributes in the tree. Thread-unsafe.
-    void PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+    void PreUpdate(TUpdateFairShareContext* context);
     //! Computes min share ratio and fair share ratio in the tree. Thread-safe.
-    void Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+    void Update(TUpdateFairShareContext* context);
 
     void UpdateFairShare(TUpdateFairShareContext* context);
     void UpdateRootFairShare();
@@ -1253,7 +1257,7 @@ public:
     void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
 
 private:
-    virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void UpdateCumulativeAttributes(TUpdateFairShareContext* context) override;
     void ValidateAndAdjustSpecifiedGuarantees(TUpdateFairShareContext* context);
     void UpdateBurstPoolIntegralShares(TUpdateFairShareContext* context);
     void UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* context, const TResourceVector& availableShare);

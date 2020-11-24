@@ -392,7 +392,7 @@ public:
         TInstant activationTime;
 
         auto it = OperationIdToActivationTime_.find(operationId);
-        if (!GetDynamicAttributes(RootElementSnapshot_, element).Active) {
+        if (!element->Attributes().Alive) {
             if (it != OperationIdToActivationTime_.end()) {
                 it->second = TInstant::Max();
             }
@@ -852,7 +852,6 @@ private:
         TRawOperationElementMap OperationIdToElement;
         TRawOperationElementMap DisabledOperationIdToElement;
         TRawPoolMap PoolNameToElement;
-        TDynamicAttributesList DynamicAttributes;
         THashMap<TString, int> ElementIndexes;
         TFairShareStrategyTreeConfigPtr Config;
 
@@ -1037,7 +1036,6 @@ private:
         ResourceTree_->PerformPostponedActions();
 
         TUpdateFairShareContext updateContext;
-        TDynamicAttributesList dynamicAttributes;
 
         updateContext.Now = now;
         updateContext.PreviousUpdateTime = LastFairShareUpdateTime_;
@@ -1045,7 +1043,7 @@ private:
         auto rootElement = RootElement_->Clone();
         {
             TEventTimer timer(FairSharePreUpdateTimer_);
-            rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+            rootElement->PreUpdate(&updateContext);
         }
 
         TRootElementSnapshotPtr rootElementSnapshot;
@@ -1053,7 +1051,7 @@ private:
             {
                 {
                     TEventTimer timer(FairShareUpdateTimer_);
-                    rootElement->Update(&dynamicAttributes, &updateContext);
+                    rootElement->Update(&updateContext);
                 }
 
                 rootElementSnapshot = New<TRootElementSnapshot>();
@@ -1061,7 +1059,6 @@ private:
                     &rootElementSnapshot->OperationIdToElement,
                     &rootElementSnapshot->DisabledOperationIdToElement,
                     &rootElementSnapshot->PoolNameToElement);
-                std::swap(rootElementSnapshot->DynamicAttributes, dynamicAttributes);
                 std::swap(rootElementSnapshot->ElementIndexes, updateContext.ElementIndexes);
             })
             .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
@@ -2228,24 +2225,6 @@ private:
         context->BadPackingOperations().clear();
     }
 
-    TDynamicAttributes GetDynamicAttributes(
-        const TRootElementSnapshotPtr& rootElementSnapshot,
-        const TSchedulerElement* element) const
-    {
-        if (!rootElementSnapshot) {
-            return {};
-        }
-
-        auto it = rootElementSnapshot->ElementIndexes.find(element->GetId());
-        if (it == rootElementSnapshot->ElementIndexes.end()) {
-            return {};
-        }
-
-        auto index = it->second;
-        YT_VERIFY(index < rootElementSnapshot->DynamicAttributes.size());
-        return rootElementSnapshot->DynamicAttributes[index];
-    }
-
     void DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshot) const
     {
         PoolCountGauge_.Update(rootElementSnapshot->PoolNameToElement.size());
@@ -2300,7 +2279,7 @@ private:
             // Using structured bindings directly in the for-statement causes an ICE in GCC build.
             for (const auto& [operationId, element] : operationIdToElement) {
                 YT_LOG_DEBUG("FairShareInfo: %v (OperationId: %v)",
-                    element->GetLoggingString(GetDynamicAttributes(rootElementSnapshot, element)),
+                    element->GetLoggingString(),
                     operationId);
             }
         };
@@ -2313,7 +2292,7 @@ private:
     {
         for (const auto& [poolName, element] : rootElementSnapshot->PoolNameToElement) {
             YT_LOG_DEBUG("FairShareInfo: %v (Pool: %v)",
-                element->GetLoggingString(GetDynamicAttributes(rootElementSnapshot, element)),
+                element->GetLoggingString(),
                 poolName);
         }
     }
@@ -2424,7 +2403,6 @@ private:
     void DoBuildElementYson(const TSchedulerElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
     {
         const auto& attributes = element->Attributes();
-        const auto& dynamicAttributes = GetDynamicAttributes(rootElementSnapshot, element);
 
         auto unlimitedDemandFairShareResources = element->GetTotalResourceLimits() * attributes.UnlimitedDemandFairShare;
 
@@ -2450,7 +2428,7 @@ private:
             .Item("usage_ratio").Value(element->GetResourceUsageRatioAtUpdate())
             .Item("demand_ratio").Value(attributes.GetDemandRatio())
             .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
-            .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio);
+            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio);
 
         element->BuildYson(fluent);
     }
@@ -2496,13 +2474,13 @@ private:
     void DoBuildEssentialElementYson(const TSchedulerElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
     {
         const auto& attributes = element->Attributes();
-        const auto& dynamicAttributes = GetDynamicAttributes(rootElementSnapshot, element);
+        //const auto& dynamicAttributes = GetDynamicAttributes(rootElementSnapshot, element);
 
         fluent
             .Item("usage_ratio").Value(element->GetResourceUsageRatioAtUpdate())
             .Item("demand_ratio").Value(attributes.GetDemandRatio())
             .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
-            .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
+            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
             .Item("dominant_resource").Value(attributes.DominantResource)
             .DoIf(element->IsOperation(), [&] (TFluentMap fluent) {
                 fluent
