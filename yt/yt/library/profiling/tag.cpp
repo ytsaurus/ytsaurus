@@ -9,7 +9,8 @@ namespace NYT::NProfiling {
 
 void TProjectionSet::Resize(int size)
 {
-    Parents_.resize(size, NoParentSentinel);
+    Parents_.resize(size, NoTagSentinel);
+    Alternative_.resize(size, NoTagSentinel);
 }
 
 void TTagSet::Append(const TTagSet& other)
@@ -29,10 +30,18 @@ void TTagSet::Append(const TTagSet& other)
     }
 
     for (auto i : other.Parents_) {
-        if (i == NoParentSentinel) {
-            Parents_.push_back(NoParentSentinel);
+        if (i == NoTagSentinel) {
+            Parents_.push_back(NoTagSentinel);
         } else {
             Parents_.push_back(i + offset);
+        }
+    }
+
+    for (auto i : other.Alternative_) {
+        if (i == NoTagSentinel) {
+            Alternative_.push_back(NoTagSentinel);
+        } else {
+            Alternative_.push_back(i + offset);
         }
     }
 }
@@ -46,13 +55,14 @@ TTagSet TTagSet::WithTag(TTag tag, int parent)
 
 void TTagSet::AddTag(TTag tag, int parent)
 {
-    int parentIndex = Tags_.size() - parent;
+    int parentIndex = Tags_.size() + parent;
     if (parentIndex >= 0 && static_cast<size_t>(parentIndex) < Tags_.size()) {
         Parents_.push_back(parentIndex);
     } else {
-        Parents_.push_back(NoParentSentinel);
+        Parents_.push_back(NoTagSentinel);
     }
 
+    Alternative_.push_back(NoTagSentinel);
     Tags_.emplace_back(std::move(tag));
 }
 
@@ -66,6 +76,17 @@ void TTagSet::AddExcludedTag(TTag tag, int parent)
 {
     Excluded_.push_back(Tags_.size());
     AddTag(std::move(tag), parent);
+}
+
+void TTagSet::AddAlternativeTag(TTag tag, int alternativeTo, int parent)
+{
+    int alternativeIndex = Tags_.size() + alternativeTo;
+
+    AddTag(std::move(tag), parent);
+    
+    if (alternativeIndex >= 0 && static_cast<size_t>(alternativeIndex) < Tags_.size()) {
+        Alternative_.back() = alternativeIndex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

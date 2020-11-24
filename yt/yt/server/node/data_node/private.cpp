@@ -6,6 +6,7 @@ namespace NYT::NDataNode {
 
 const NLogging::TLogger DataNodeLogger("DataNode");
 const NProfiling::TRegistry DataNodeProfiler("/data_node");
+const NProfiling::TRegistry LocationProfiler("/location");
 
 const NLogging::TLogger P2PLogger("P2P");
 const NProfiling::TRegistry P2PProfiler("/data_node/p2p");

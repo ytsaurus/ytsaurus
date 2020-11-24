@@ -26,6 +26,11 @@ inline const TTagIndexList& TProjectionSet::Excluded() const
     return Excluded_;
 }
 
+inline const TTagIndexList& TProjectionSet::Alternative() const
+{
+    return Alternative_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TTagSet::TTagSet(const TTagList& tags)
@@ -42,7 +47,7 @@ void TProjectionSet::Range(
     const TTagIdList& tags,
     TFn fn) const
 {
-    RangeSubsets(tags, Parents_, Required_, Excluded_, fn);
+    RangeSubsets(tags, Parents_, Required_, Excluded_, Alternative_, fn);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -53,6 +58,7 @@ void RangeSubsets(
     const TTagIndexList& parents,
     const TTagIndexList& required,
     const TTagIndexList& excluded,
+    const TTagIndexList& alternative,
     TFn fn)
 {
     auto toMask = [] (auto list) {
@@ -82,7 +88,12 @@ void RangeSubsets(
                 continue;
             }
 
-            if (parents[i] != NoParentSentinel && !(mask & (1 << parents[i]))) {
+            if (parents[i] != NoTagSentinel && !(mask & (1 << parents[i]))) {
+                skip = true;
+                break;
+            }
+
+            if (alternative[i] != NoTagSentinel && (mask & (1 << alternative[i]))) {
                 skip = true;
                 break;
             }

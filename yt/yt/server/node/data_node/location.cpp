@@ -50,9 +50,10 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TRe
 {
     for (auto direction : TEnumTraits<EIODirection>::GetDomainValues()) {
         for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
+            // Do not export both location_id and (direction, category).
             auto r = registry
-                .WithTag("direction", FormatEnum(direction))
-                .WithTag("category", FormatEnum(category));
+                .WithAlternativeTag("direction", FormatEnum(direction), -1)
+                .WithAlternativeTag("category", FormatEnum(category), -2);
 
             r.AddFuncGauge("/pending_data_size", MakeStrong(this), [this, direction, category] {
                 return PendingIOSize[direction][category].load();
@@ -79,7 +80,8 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TRe
     BlobBlockReadBytes = registry.Counter("/blob_block_read_bytes");
 
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
-        auto r = registry.WithTag("category", FormatEnum(category));
+        // Do not export both location_id and category.
+        auto r = registry.WithAlternativeTag("category", FormatEnum(category), -1);
 
         BlobBlockReadLatencies[category] = r.Timer("/blob_block_read_latency");
         BlobChunkMetaReadLatencies[category] = r.Timer("/blob_chunk_meta_read_latency");
@@ -135,9 +137,8 @@ TLocation::TLocation(
     , MetaReadInvoker_(CreatePrioritizedInvoker(MetaReadQueue_->GetInvoker()))
     , WriteThreadPool_(New<TThreadPool>(Bootstrap_->GetConfig()->DataNode->WriteThreadCount, Format("DataWrite:%v", Id_)))
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
-{
-    Profiler_ = DataNodeProfiler
-        .WithPrefix("/location")
+{    
+    Profiler_ = LocationProfiler
         .WithTag("location_type", ToString(Type_))
         .WithTag("medium", GetMediumName(), -1)
         .WithTag("location_id", Id_, -1);

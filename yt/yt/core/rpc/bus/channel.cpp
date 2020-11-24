@@ -642,7 +642,7 @@ private:
                 TMethodMetadata metadata;
 
                 auto profiler = RpcClientProfiler
-                    .WithSparse()
+                    .WithHot()
                     .WithTag("yt_service", service)
                     .WithTag("method", method, -1);
 

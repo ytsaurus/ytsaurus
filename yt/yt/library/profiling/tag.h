@@ -23,7 +23,7 @@ using TTagIndex = ui8;
 
 using TTagIndexList = SmallVector<TTagIndex, 8>;
 
-constexpr ui8 NoParentSentinel = 0xff;
+constexpr ui8 NoTagSentinel = 0xff;
 
 constexpr int NoParent = 0;
 
@@ -33,6 +33,7 @@ public:
     const TTagIndexList& Parents() const;
     const TTagIndexList& Required() const;
     const TTagIndexList& Excluded() const;
+    const TTagIndexList& Alternative() const;
 
     template <class TFn>
     void Range(
@@ -45,6 +46,7 @@ protected:
     TTagIndexList Parents_;
     TTagIndexList Required_;
     TTagIndexList Excluded_;
+    TTagIndexList Alternative_;
 };
 
 class TTagSet
@@ -59,6 +61,7 @@ public:
     void AddTag(TTag tag, int parent = NoParent);
     void AddRequiredTag(TTag tag, int parent = NoParent);
     void AddExcludedTag(TTag tag, int parent = NoParent);
+    void AddAlternativeTag(TTag tag, int alternativeTo, int parent = NoParent);
     void Append(const TTagSet& other);
 
     const TTagList& Tags() const;
@@ -75,6 +78,7 @@ void RangeSubsets(
     const TTagIndexList& parents,
     const TTagIndexList& required,
     const TTagIndexList& excluded,
+    const TTagIndexList& alternative,
     TFn fn);
 
 ////////////////////////////////////////////////////////////////////////////////

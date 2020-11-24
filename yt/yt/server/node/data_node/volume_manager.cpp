@@ -186,8 +186,8 @@ public:
         // More details here: PORTO-460.
         , PlacePath_((Config_->LocationIsAbsolute ? "" : "//") + Config_->Path)
     {
-        auto profiler = DataNodeProfiler
-            .WithPrefix("/layer_location")
+        auto profiler = LocationProfiler
+            .WithPrefix("/layer")
             .WithTag("location_id", ToString(Id_));
 
         PerformanceCounters_ = TLayerLocationPerformanceCounters{profiler};

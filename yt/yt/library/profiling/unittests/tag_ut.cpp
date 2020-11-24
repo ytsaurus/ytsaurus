@@ -20,10 +20,11 @@ TEST(TTagSet, Subsets)
     auto listProjections = [&] (
         TTagIndexList parents,
         TTagIndexList required,
-        TTagIndexList excluded)
+        TTagIndexList excluded,
+        TTagIndexList alternative)
     {
         std::vector<TTagIdList> subsets;
-        RangeSubsets(tags, parents, required, excluded, [&subsets] (auto list) {
+        RangeSubsets(tags, parents, required, excluded, alternative, [&subsets] (auto list) {
             subsets.push_back(list);
         });
 
@@ -31,13 +32,14 @@ TEST(TTagSet, Subsets)
         return subsets;
     };
 
-    TTagIndexList noParents = {NoParentSentinel, NoParentSentinel, NoParentSentinel};
+    TTagIndexList noParents = {NoTagSentinel, NoTagSentinel, NoTagSentinel};
+    TTagIndexList noAlternatives = {NoTagSentinel, NoTagSentinel, NoTagSentinel};
 
-    auto full = listProjections(noParents, {}, {});
+    auto full = listProjections(noParents, {}, {}, noAlternatives);
     ASSERT_EQ(static_cast<size_t>(8), full.size());
 
     {
-        auto actual = listProjections({NoParentSentinel, 0, 1}, {}, {});
+        auto actual = listProjections({NoTagSentinel, 0, 1}, {}, {}, noAlternatives);
         std::vector<TTagIdList> expected = {
             { },
             { 1 },
@@ -48,7 +50,7 @@ TEST(TTagSet, Subsets)
     }
 
     {
-        auto actual = listProjections({NoParentSentinel, 0, 0}, {}, {});
+        auto actual = listProjections({NoTagSentinel, 0, 0}, {}, {}, noAlternatives);
         std::vector<TTagIdList> expected = {
             { },
             { 1 },
@@ -60,7 +62,7 @@ TEST(TTagSet, Subsets)
     }
 
     {
-        auto actual = listProjections(noParents, {0}, {});
+        auto actual = listProjections(noParents, {0}, {}, noAlternatives);
         std::vector<TTagIdList> expected = {
             { 1 },
             { 1, 2 },
@@ -71,7 +73,7 @@ TEST(TTagSet, Subsets)
     }
 
     {
-        auto actual = listProjections(noParents, {0, 1}, {});
+        auto actual = listProjections(noParents, {0, 1}, {}, noAlternatives);
         std::vector<TTagIdList> expected = {
             { 1, 2 },
             { 1, 2, 3 },
@@ -80,12 +82,25 @@ TEST(TTagSet, Subsets)
     }
 
     {
-        auto actual = listProjections(noParents, {}, {2});
+        auto actual = listProjections(noParents, {}, {2}, noAlternatives);
         std::vector<TTagIdList> expected = {
             { },
             { 1 },
             { 1, 2 },
             { 2 },
+        };
+        ASSERT_EQ(expected, actual);
+    }
+
+    {
+        auto actual = listProjections(noParents, {}, {}, {NoTagSentinel, NoTagSentinel, 1});
+        std::vector<TTagIdList> expected = {
+            { },
+            { 1 },
+            { 1, 2 },
+            { 1, 3 },
+            { 2 },
+            { 3 }
         };
         ASSERT_EQ(expected, actual);
     }

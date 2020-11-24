@@ -118,8 +118,7 @@ public:
         , TreeHost_(treeHost)
         , FeasibleInvokers_(std::move(feasibleInvokers))
         , TreeId_(std::move(treeId))
-        , TreeIdProfilingTag_(TProfileManager::Get()->RegisterTag("tree", TreeId_))
-        , TreeProfiler_(SchedulerProfiler.WithTag("tree", TreeId_))
+        , TreeProfiler_(SchedulerProfiler.WithRequiredTag("tree", TreeId_))
         , Logger(NLogging::TLogger(SchedulerLogger)
             .AddTag("TreeId: %v", TreeId_))
         , NonPreemptiveSchedulingStage_(
@@ -666,7 +665,6 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TPoolTreeSchedulingSegmentsInfo result;
-        result.TreeIdProfilingTag = TreeIdProfilingTag_;
         result.Mode = Config_->SchedulingSegments->Mode;
         result.UnsatisfiedSegmentsRebalancingTimeout = Config_->SchedulingSegments->UnsatisfiedSegmentsRebalancingTimeout;
 
@@ -802,7 +800,6 @@ private:
     TError LastPoolsNodeUpdateError_;
 
     const TString TreeId_;
-    const TTagId TreeIdProfilingTag_;
     const TRegistry TreeProfiler_;
 
     const NLogging::TLogger Logger;

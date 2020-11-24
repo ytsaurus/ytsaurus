@@ -146,7 +146,8 @@ public:
         , ThreadNamePrefix_(threadNamePrefix)
     {
         if (enableProfiling) {
-            Profiler_ = TRegistry{"/fair_share_queue"};
+            Profiler_ = TRegistry{"/fair_share_queue"}
+                .WithHot();
         }
     }
 

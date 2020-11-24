@@ -134,10 +134,12 @@ public:
     /*!
      *  See README.md for more details.
      *  #parent is negative number representing parent tag index.
+     *  #alternativeTo is negative number representing alternative tag index.
      */
     TRegistry WithTag(const TString& name, const TString& value, int parent = NoParent) const;
     TRegistry WithRequiredTag(const TString& name, const TString& value, int parent = NoParent) const;
     TRegistry WithExcludedTag(const TString& name, const TString& value, int parent = NoParent) const;
+    TRegistry WithAlternativeTag(const TString& name, const TString& value, int alternativeTo, int parent = NoParent) const;
     TRegistry WithTags(const TTagSet& tags) const;
 
     //! WithSparse sets sparse flags on all sensors created using returned registry.
