@@ -392,16 +392,14 @@ private:
 #if defined(HAVE_TIMERFD)
         if (ScheduledEntries_.empty()) {
             ScheduledWakeupTime_.store(TInstant::Max());
-        }
-
-        ProcessQueues();
-
-        if (!ScheduledEntries_.empty()) {
+        } else {
             auto deadline = (*ScheduledEntries_.begin())->Deadline;
             auto delay = std::max(CoalescingInterval, deadline - NProfiling::GetInstant());
             ScheduleDelayedWakeup(delay);
             ScheduledWakeupTime_.store(deadline);
         }
+
+        ProcessQueues();
 #endif
     }
 
