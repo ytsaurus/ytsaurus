@@ -169,3 +169,27 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         assert get(path + "/static_chunk_row_read_data_weight_count") == get(
             path + "/static_chunk_row_lookup_data_weight_count"
         )
+
+    @authors("prime")
+    def test_bundle_solomon_tag(self):
+        default_cell = sync_create_cells(1)[0]
+
+        def get_solomon_tags(cell_id):
+            node_address = get("#%s/@peers/0/address" % cell_id)
+            return get("//sys/cluster_nodes/%s/orchid/monitoring/solomon/dynamic_tags" % node_address)
+
+        wait(lambda: get_solomon_tags(default_cell) == {"tablet_cell_bundle": "default"})
+
+        create_tablet_cell_bundle("b1", attributes={})
+        bundle_cells = sync_create_cells(20, tablet_cell_bundle="b1")
+
+        wait(lambda: get_solomon_tags(default_cell) == {})
+        remove_tablet_cell(default_cell)
+
+        for cell_id in bundle_cells:
+            wait(lambda: get_solomon_tags(cell_id) == {"tablet_cell_bundle": "b1"})
+
+        set("//sys/tablet_cell_bundles/b1/@dynamic_options/solomon_tag", "tag1")
+
+        for cell_id in bundle_cells:
+            wait(lambda: get_solomon_tags(cell_id) == {"tablet_cell_bundle": "tag1"})

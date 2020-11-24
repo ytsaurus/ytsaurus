@@ -5,7 +5,10 @@
 #include <yt/core/json/config.h>
 #include <yt/core/json/json_writer.h>
 
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/consumer.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -89,6 +92,14 @@ void Initialize(
     *manager = New<TMonitoringManager>();
     (*manager)->Register("/yt_alloc", NYTAlloc::CreateStatisticsProducer());
     (*manager)->Register("/ref_counted", CreateRefCountedTrackerStatisticsProducer());
+    (*manager)->Register("/solomon", BIND([] (NYson::IYsonConsumer* consumer) {
+        auto tags = NProfiling::TSolomonRegistry::Get()->GetDynamicTags();
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("dynamic_tags").Value(THashMap<TString, TString>(tags.begin(), tags.end()))
+            .EndMap();
+    }));
     (*manager)->Start();
 
     *orchidRoot = NYTree::GetEphemeralNodeFactory(true)->CreateMap();

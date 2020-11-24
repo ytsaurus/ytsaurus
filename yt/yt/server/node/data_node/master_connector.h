@@ -104,6 +104,8 @@ private:
     const NClusterNode::TBootstrap* Bootstrap_;
     const IInvokerPtr ControlInvoker_;
 
+    TAtomicObject<TError> SolomonTagAlert_;
+
     bool Started_ = false;
 
     //! Guards the current heartbeat session.
@@ -278,6 +280,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    void UpdateNodeSolomonTag();
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterConnector)
