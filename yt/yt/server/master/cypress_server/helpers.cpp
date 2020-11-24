@@ -15,6 +15,7 @@ using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
 using namespace NYPath;
+using namespace NSecurityServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -445,6 +446,13 @@ void ValidateCompressionCodec(
         THROW_ERROR_EXCEPTION("Codec name %Qv is deprecated, use %Qv instead", codecName, alias);
 
     }
+}
+
+TClusterResources GetNodeResourceUsage(const TCypressNode* node)
+{
+    auto resourceUsage = node->GetTotalResourceUsage();
+    resourceUsage.MasterMemory = node->GetMasterMemoryUsage();
+    return resourceUsage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -19,6 +19,7 @@
 #include "resolve_cache.h"
 #include "link_node_type_handler.h"
 #include "document_node_type_handler.h"
+#include "helpers.h"
 
 // COMPAT(babenko)
 #include <yt/server/master/journal_server/journal_node.h>
@@ -787,7 +788,7 @@ private:
 
             RemoteCellResourceUsage_.push_back(std::move(asyncResourceUsage));
         } else {
-            LocalCellResourceUsage_ += node->GetTotalResourceUsage();
+            LocalCellResourceUsage_ += GetNodeResourceUsage(node);
         }
     }
 
