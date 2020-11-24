@@ -15,7 +15,7 @@ from .parallel_writer import make_parallel_write_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_command_format)
-from .file_commands import _get_remote_temp_files_directory
+from .file_commands import _get_remote_temp_files_directory, _enrich_with_attributes
 from .parallel_reader import make_read_parallel_request
 from .ypath import TablePath, ypath_join
 
@@ -75,19 +75,6 @@ def _create_table(path, recursive=None, ignore_existing=False, attributes=None, 
         attributes = update({"compression_codec": "zlib_6"}, attributes)
     return create("table", table, recursive=recursive, ignore_existing=ignore_existing,
                   attributes=attributes, client=client)
-
-def _enrich_with_table_attributes(table_path, client=None):
-    """Fetches schema of a given table and, if table exists and has schema, applies it
-       to `table_path`."""
-    try:
-        attributes = get(table_path + "/@", attributes=["schema", "optimize_for", "erasure_codec", "compression_codec"], client=client)
-    except YtResponseError as err:
-        if err.is_resolve_error():
-            return table_path
-        else:
-            raise
-    else:
-        return TablePath(table_path, attributes=attributes, client=client)
 
 @deprecated(alternative='"create" with "table" type')
 def create_table(path, recursive=None, ignore_existing=False,
@@ -218,7 +205,7 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
 
     if enable_parallel_write:
         force_create = True
-        table = _enrich_with_table_attributes(table, client=client)
+        table = _enrich_with_attributes(table, client=client)
         make_parallel_write_request(
             "write_table",
             input_stream,

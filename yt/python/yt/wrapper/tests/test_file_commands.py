@@ -75,6 +75,17 @@ class TestFileCommands(object):
         with set_config_option("prefix", TEST_DIR + "/"):
             yt.smart_upload_file(filename, destination="subdir/abc", placement_strategy="replace")
             assert yt.read_file("subdir/abc").read() == b"some content"
+        self._test_chunk_attributes()
+
+    def _test_chunk_attributes(self):
+        attributes = {"compression_codec": "brotli_4"}
+        file_with_attributes = TEST_DIR + "/file_dir/file_with_attributes"
+        yt.create("file", file_with_attributes, attributes=attributes)
+        yt.write_file(file_with_attributes, b"some content")
+        assert yt.read_file(file_with_attributes).read() == b"some content"
+        for chunk_id in yt.get(file_with_attributes + "/@chunk_ids"):
+            actual_attributes = yt.get("#{}/@".format(chunk_id), attributes=list(attributes.keys()))
+            assert attributes == actual_attributes
 
     @authors("ostyakov", "ignat")
     def test_parallel_read_file(self, yt_env_with_rpc):

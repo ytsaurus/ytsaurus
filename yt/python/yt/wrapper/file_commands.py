@@ -11,7 +11,7 @@ from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .parallel_reader import make_read_parallel_request
 from .parallel_writer import make_parallel_write_request
 from .retries import Retrier, default_chaos_monkey
-from .ypath import FilePath, ypath_join, ypath_dirname, ypath_split
+from .ypath import FilePath, TablePath, ypath_join, ypath_dirname, ypath_split
 from .local_mode import is_local_mode
 from .transaction_commands import _make_formatted_transactional_request
 from .stream import RawStream
@@ -179,6 +179,27 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
         filename_hint=str(path),
         request_size=True)
 
+
+def _enrich_with_attributes(path, client=None):
+    """Fetches attributes of a given node and
+       returns `path` with these attributes."""
+    try:
+        attributes = get(path + "/@", attributes=["type", "schema", "optimize_for", "erasure_codec", "compression_codec"], client=client)
+    except YtResponseError as err:
+        if err.is_resolve_error():
+            return path
+        else:
+            raise
+    if attributes["type"] == "table":
+        return TablePath(path, attributes=attributes, client=client)
+    elif attributes["type"] == "file":
+        return FilePath(path, attributes=attributes, client=client)
+    else:
+        raise YtError('Bad node type, expected "file" or "table", got "{}"'.format(
+            attributes["type"],
+        ))
+
+
 def write_file(destination, stream,
                file_writer=None, is_stream_compressed=False, force_create=None, compute_md5=False,
                size_hint=None, filename_hint=None, progress_monitor=None, client=None):
@@ -244,6 +265,7 @@ def write_file(destination, stream,
 
     if enable_parallel_write and not is_stream_compressed and not compute_md5:
         force_create = True
+        destination = _enrich_with_attributes(destination, client=client)
         make_parallel_write_request(
             "write_file",
             stream,
