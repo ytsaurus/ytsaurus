@@ -2047,6 +2047,11 @@ class TestAccountTree(AccountsTestSuiteBase):
             make_ace("allow", users, ["write", "remove", "administer"], "descendants_only"),
         ]
 
+    def _get_account_tree_master_memory_usage(self, account):
+        master_memory = get("//sys/accounts/" + account + "/@recursive_resource_usage/master_memory")
+        assert master_memory >= 0
+        return master_memory
+
     def setup(self):
         self._old_schema_acl = get("//sys/schemas/account/@acl")
         set(
@@ -2635,6 +2640,30 @@ class TestAccountTree(AccountsTestSuiteBase):
             and get("//sys/accounts/yt-dev-spof-1/@recursive_resource_usage/node_count") == 0
             and get("//sys/accounts/yt-dev-dt/@recursive_resource_usage/node_count") == 0
         )
+
+    @authors("aleksandra-zh")
+    def test_account_tree_master_memory_chunks(self):
+        create_account("a")
+        create_account("b", "a")
+
+        create("table", "//tmp/t1", attributes={"account": "b"})
+        write_table("//tmp/t1", {"a": "b"})
+
+        wait(lambda: self._get_account_tree_master_memory_usage("b") > 0)
+        wait(lambda: self._get_account_tree_master_memory_usage("a") > 0)
+        wait(lambda: self._get_account_tree_master_memory_usage("b") == self._get_account_tree_master_memory_usage("a"))
+
+    @authors("aleksandra-zh")
+    def test_account_tree_master_memory_nodes(self):
+        create_account("a")
+        create_account("b", "a")
+
+        create("map_node", "//tmp/dir1", attributes={"account": "b"})
+        create("table", "//tmp/dir1/t", attributes={"account": "b", "aksdj": "sdkjf"})
+
+        wait(lambda: self._get_account_tree_master_memory_usage("b") > 0)
+        wait(lambda: self._get_account_tree_master_memory_usage("a") > 0)
+        wait(lambda: self._get_account_tree_master_memory_usage("b") == self._get_account_tree_master_memory_usage("a"))
 
     @authors("kiselyovp")
     def test_nested_usage2(self):
