@@ -44,9 +44,10 @@ public:
     void Reset();
 
 protected:
-    char* Begin_ = nullptr;
-    char* Current_ = nullptr;
-    char* End_ = nullptr;
+    char EmptyBuf_[0];
+    char* Begin_ = EmptyBuf_;
+    char* Current_ = EmptyBuf_;
+    char* End_ = EmptyBuf_;
 
     virtual void DoReset() = 0;
     virtual void DoPreallocate(size_t newLength) = 0;
