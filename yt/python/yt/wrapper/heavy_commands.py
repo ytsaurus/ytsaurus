@@ -226,6 +226,12 @@ def _get_read_response(command_name, params, transaction_id, client=None):
         response = make_request()
     return response
 
+def _abort_transaction_on_close(transaction, from_delete):
+    if from_delete:
+        add_transaction_to_abort(transaction)
+    else:
+        transaction.abort()
+
 class ReadIterator(IteratorRetrier):
     def __init__(self, command_name, transaction, process_response_action, retriable_state, client=None):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
@@ -288,11 +294,8 @@ class ReadIterator(IteratorRetrier):
         if self.last_response is not None:
             self.last_response.close()
 
-        if from_delete:
-            add_transaction_to_abort(self.transaction)
-            self.transaction = None
-        else:
-            self.transaction.abort()
+        _abort_transaction_on_close(self.transaction, from_delete=from_delete)
+        self.transaction = None
 
         self.iterator.close()
 
@@ -348,6 +351,9 @@ def make_read_request(command_name, path, params, process_response_action, retri
                 params,
                 transaction_id=tx.transaction_id,
                 client=client)
+
+            response.add_close_action(lambda from_delete: _abort_transaction_on_close(tx, from_delete))
+
             process_response_action(response)
 
             reporter = _get_read_progress_reporter(size_hint, filename_hint, client, filelike=True)
