@@ -47,6 +47,7 @@ public:
     bool EnableForcedRotationBackingMemoryAccounting;
     int DynamicMemoryPoolWeight;
     bool EnableTabletDynamicMemoryLimit;
+    std::optional<TString> SolomonTag;
 
     TDynamicTabletCellOptions()
     {
@@ -64,6 +65,9 @@ public:
             .Default(1);
         RegisterParameter("enable_tablet_dynamic_memory_limit", EnableTabletDynamicMemoryLimit)
             .Default(true);
+        RegisterParameter("solomon_tag", SolomonTag)
+            .Optional()
+            .DontSerializeDefault();
     }
 };
 

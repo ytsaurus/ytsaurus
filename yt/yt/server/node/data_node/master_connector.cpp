@@ -40,6 +40,8 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 
+#include <yt/ytlib/tablet_client/config.h>
+
 #include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
 
@@ -201,6 +203,12 @@ std::vector<TError> TMasterConnector::GetAlerts()
 
     std::vector<TError> alerts;
     PopulateAlerts_.Fire(&alerts);
+
+    {
+        if (auto solomonTagAlert = SolomonTagAlert_.Load(); !solomonTagAlert.IsOK()) {
+            alerts.push_back(solomonTagAlert);
+        }
+    }
 
     for (const auto& alert : alerts) {
         YT_LOG_WARNING(alert, "Dynamic alert registered");
@@ -1069,10 +1077,51 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             }
             slot->UpdateDynamicConfig(info);
         }
+
+        UpdateNodeSolomonTag();
     }
 
     if (HeartbeatsScheduled_[cellTag] == 0) {
         DoScheduleNodeHeartbeat(cellTag);
+    }
+}
+
+void TMasterConnector::UpdateNodeSolomonTag()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    THashSet<TString> seenTags;
+    for (const auto& slot : Bootstrap_->GetTabletSlotManager()->Slots()) {
+        if (!slot) {
+            continue;
+        }
+
+        std::optional<TString> tag;
+
+        auto dynamicConfig = slot->GetDynamicOptions();
+        if (dynamicConfig) {
+            tag = dynamicConfig->SolomonTag;
+        }
+
+        if (!tag) {
+            tag = slot->GetTabletCellBundleName();
+        }
+
+        seenTags.insert(*tag);
+    }
+
+    if (seenTags.size() == 0) {
+        NProfiling::TSolomonRegistry::Get()->SetDynamicTags({});
+        SolomonTagAlert_.Store(TError());
+    } else if (seenTags.size() == 1) {
+        NProfiling::TSolomonRegistry::Get()->SetDynamicTags({
+            {"tablet_cell_bundle", *seenTags.begin()}
+        });
+        SolomonTagAlert_.Store(TError());
+    } else {
+        NProfiling::TSolomonRegistry::Get()->SetDynamicTags({});
+        SolomonTagAlert_.Store(TError("Conflicting Solomon tags")
+            << TErrorAttribute("tags", seenTags));
     }
 }
 
