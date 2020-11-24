@@ -154,6 +154,7 @@ class TestLowCpuUsageSchedulerAlertAbsence(LowCpuUsageSchedulerAlertBase):
     }
 
     @authors("renadeen")
+    @flaky(max_runs=3)
     def test_low_cpu_alert_absence(self):
         op = run_test_vanilla(
             command='pids=""; for i in 1 2; do while : ; do : ; done & pids="$pids $!"; done; sleep 5; for p in $pids; do kill $p; done'
