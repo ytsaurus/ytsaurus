@@ -751,11 +751,15 @@ public:
         }
 
         auto delta = currentMasterMemoryUsage - node->GetChargedMasterMemoryUsage();
-        YT_LOG_TRACE_IF(IsMutationLoggingEnabled(), "Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
+        YT_LOG_TRACE("Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
             account->GetName(),
             account->GetMasterMemoryUsage(),
             delta);
-        account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + delta);
+        ChargeAccountAncestry(
+            account,
+            [&] (TAccount* account) {
+                account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + delta);
+            });
         if (account->GetMasterMemoryUsage() < 0) {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Master memory usage is negative (MasterMemoryUsage: %v, Account: %v)",
                 account->GetMasterMemoryUsage(),
@@ -2060,7 +2064,7 @@ private:
         const TAccount* lastAccount = nullptr;
         auto lastMediumIndex = GenericMediumIndex;
         i64 lastDiskSpace = 0;
-        auto masterMemoryUsage = delta * chunk->GetMasterMemoryUsage();
+        auto masterMemoryUsageDelta = delta * chunk->GetMasterMemoryUsage();
 
         for (const auto& entry : requisition) {
             auto* account = entry.Account;
@@ -2073,7 +2077,14 @@ private:
 
             auto policy = entry.ReplicationPolicy;
             auto diskSpace = delta * GetDiskSpaceToCharge(chunkDiskSpace, erasureCodec, policy);
-            auto chunkCount = delta * ((account == lastAccount) ? 0 : 1); // charge once per account
+            
+            auto chunkCount = delta;
+            auto masterMemoryUsage = masterMemoryUsageDelta;
+            // Сharge once per account.
+            if (account == lastAccount) {
+                chunkCount = 0; 
+                masterMemoryUsage = 0;
+            }
 
             if (account == lastAccount && mediumIndex == lastMediumIndex) {
                 // TChunkRequisition keeps entries sorted, which means an
