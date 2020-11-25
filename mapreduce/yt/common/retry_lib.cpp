@@ -182,7 +182,6 @@ static bool IsRetriableChunkError(const TSet<int>& codes)
             case NChunkClient::NoSuchChunkTree:
             case NChunkClient::NoSuchChunkView:
             case NChunkClient::NoSuchMedium:
-            case NChunkClient::NoSuchSession:
                 return false;
             default:
                 isChunkError |= IsChunkError(code);
