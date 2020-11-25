@@ -305,7 +305,7 @@ public:
             .GreaterThan(0)
             .Default(5);
         RegisterParameter("enable_probe_block_set", EnableProbeBlockSet)
-            .Default(false);
+            .Default(true);
 
         RegisterPostprocessor([&] {
             // Seems unreasonable to make backoff greater than half of total session timeout.
