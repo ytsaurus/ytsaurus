@@ -29,9 +29,9 @@ class TContext
 {
 public:
     TContext(
-        const TApiPtr& api,
-        const NHttp::IRequestPtr& req,
-        const NHttp::IResponseWriterPtr& rsp);
+        TApiPtr api,
+        NHttp::IRequestPtr request,
+        NHttp::IResponseWriterPtr response);
 
     bool TryParseRequest();
     bool TryParseCommandName();
@@ -74,8 +74,9 @@ private:
 
     NLogging::TLogger Logger;
 
-    TInstant StartTime_ = TInstant::Now();
-    TDuration Duration_;
+    NProfiling::TWallTimer Timer_;
+    TDuration WallTime_;
+    TDuration CpuTime_;
 
     TString Parameters_;
 

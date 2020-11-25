@@ -163,7 +163,8 @@ TApi::TProfilingCounters* TApi::GetProfilingCounters(const TUserCommandPair& key
         auto counters = std::make_unique<TProfilingCounters>();
         counters->ConcurrencySemaphore = profiler.Gauge("/concurrency_semaphore");
         counters->RequestCount = profiler.Counter("/request_count");
-        counters->RequestDuration = profiler.Timer("/request_duration");
+        counters->RequestWallTime = profiler.Timer("/request_duration");
+        counters->CumulativeRequestCpuTime = profiler.TimeCounter("/cumulative_request_cpu_time");
         return counters;
     }).first->get();
 }
@@ -184,17 +185,19 @@ void TApi::IncrementProfilingCounters(
     const TString& command,
     std::optional<EStatusCode> httpStatusCode,
     TErrorCode apiErrorCode,
-    TDuration duration,
+    TDuration wallTime,
+    TDuration cpuTime,
     const NNet::TNetworkAddress& clientAddress,
     i64 bytesIn,
     i64 bytesOut)
 {
     auto networkName = GetNetworkNameForAddress(clientAddress);
 
-    auto counters = GetProfilingCounters({user, command});
+    auto* counters = GetProfilingCounters({user, command});
 
     counters->RequestCount.Increment();
-    counters->RequestDuration.Record(duration);
+    counters->RequestWallTime.Record(wallTime);
+    counters->CumulativeRequestCpuTime.Add(cpuTime);
 
     if (httpStatusCode) {
         HttpCodesByCommand_.FindOrInsert({command, *httpStatusCode}, [&, this] {

@@ -161,6 +161,8 @@ private:
 
             const auto& path = request->GetUrl().Path;
 
+            NProfiling::TWallTimer timer;
+
             YT_LOG_DEBUG("Received HTTP request (ConnectionId: %v, RequestId: %v, Method: %v, Path: %v, L7RequestId: %v, L7RealIP: %v, UserAgent: %v)",
                 request->GetConnectionId(),
                 request->GetRequestId(),
@@ -178,15 +180,19 @@ private:
                     response->Flush100Continue();
                 }
 
-                auto trace = GetOrCreateTraceContext(request);
-                NTracing::TTraceContextGuard guard(trace);
-                NTracing::TTraceContextFinishGuard finishGuard(trace);
-                SetTraceId(response, trace->GetTraceId());
+                auto traceContext = GetOrCreateTraceContext(request);
+                NTracing::TTraceContextGuard guard(traceContext);
+                NTracing::TTraceContextFinishGuard finishGuard(traceContext);
+                SetTraceId(response, traceContext->GetTraceId());
 
                 handler->HandleRequest(request, response);
 
-                YT_LOG_DEBUG("Finished handling HTTP request (RequestId: %v)",
-                    request->GetRequestId());
+                NTracing::FlushCurrentTraceContextTime();
+
+                YT_LOG_DEBUG("Finished handling HTTP request (RequestId: %v, WallTime: %v, CpuTime: %v)",
+                    request->GetRequestId(),
+                    timer.GetElapsedTime(),
+                    traceContext->GetElapsedTime());
             } else {
                 YT_LOG_INFO("Missing HTTP handler for given URL (RequestId: %v, Path: %v)",
                     request->GetRequestId(),

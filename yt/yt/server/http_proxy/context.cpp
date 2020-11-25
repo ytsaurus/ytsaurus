@@ -26,10 +26,13 @@
 
 #include <yt/core/rpc/authenticator.h>
 
+#include <yt/core/tracing/trace_context.h>
+
 #include <yt/client/security_client/public.h>
 
 #include <util/string/ascii.h>
 #include <util/string/strip.h>
+
 #include <util/random/random.h>
 
 namespace NYT::NHttpProxy {
@@ -46,13 +49,14 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 TContext::TContext(
-    const TApiPtr& api,
-    const IRequestPtr& req,
-    const IResponseWriterPtr& rsp)
-    : Api_(api)
-    , Request_(req)
-    , Response_(rsp)
-    , Logger(TLogger(HttpProxyLogger).AddTag("RequestId: %v", req->GetRequestId()))
+    TApiPtr api,
+    IRequestPtr request,
+    IResponseWriterPtr response)
+    : Api_(std::move(api))
+    , Request_(std::move(request))
+    , Response_(std::move(response))
+    , Logger(TLogger(HttpProxyLogger)
+        .AddTag("RequestId: %v", Request_->GetRequestId()))
 {
     DriverRequest_.Id = RandomNumber<ui64>();
 }
@@ -569,16 +573,20 @@ void TContext::LogRequest()
         OutputContentEncoding_);
 }
 
-void TContext::LogStructuredRequest() {
+void TContext::LogStructuredRequest()
+{
     if (!PrepareFinished_) {
         return;
     }
+
     std::optional<TString> correlationId;
     if (auto correlationHeader = Request_->GetHeaders()->Find("X-YT-Correlation-ID")) {
         correlationId = *correlationHeader;
     }
+
     auto path = DriverRequest_.Parameters->AsMap()->FindChild("path");
-    auto traceContext = NTracing::GetCurrentTraceContext();
+    const auto* traceContext = NTracing::GetCurrentTraceContext();
+
     LogStructuredEventFluently(HttpStructuredProxyLogger, ELogLevel::Info)
         .Item("request_id").Value(Request_->GetRequestId())
         .Item("command").Value(Descriptor_->CommandName)
@@ -604,8 +612,10 @@ void TContext::LogStructuredRequest() {
         .Item("remote_address").Value(ToString(Request_->GetRemoteAddress()))
         .Item("l7_request_id").Value(GetBalancerRequestId(Request_))
         .Item("l7_real_ip").Value(GetBalancerRealIP(Request_))
-        .Item("duration").Value(Duration_)
-        .Item("start_time").Value(StartTime_)
+        // COMPAT(babenko): rename to wall_time
+        .Item("duration").Value(WallTime_)
+        .Item("cpu_time").Value(CpuTime_)
+        .Item("start_time").Value(Timer_.GetStartTime())
         .Item("in_bytes").Value(Request_->GetReadByteCount())
         .Item("out_bytes").Value(Response_->GetWriteByteCount());
 }
@@ -800,19 +810,24 @@ TSharedRef DumpError(const TError& error)
 
 void TContext::LogAndProfile()
 {
-    Duration_ = TInstant::Now() - StartTime_;
+    WallTime_ = Timer_.GetElapsedTime();
+    if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
+        NTracing::FlushCurrentTraceContextTime();
+        CpuTime_ = traceContext->GetElapsedTime();
+    }
 
     LogStructuredRequest();
 
     Api_->IncrementProfilingCounters(
-            DriverRequest_.AuthenticatedUser,
-            DriverRequest_.CommandName,
-            Response_->GetStatus(),
-            Error_.GetNonTrivialCode(),
-            Duration_,
-            Request_->GetRemoteAddress(),
-            Request_->GetReadByteCount(),
-            Response_->GetWriteByteCount());
+        DriverRequest_.AuthenticatedUser,
+        DriverRequest_.CommandName,
+        Response_->GetStatus(),
+        Error_.GetNonTrivialCode(),
+        WallTime_,
+        CpuTime_,
+        Request_->GetRemoteAddress(),
+        Request_->GetReadByteCount(),
+        Response_->GetWriteByteCount());
 }
 
 void TContext::Finalize()
