@@ -45,14 +45,16 @@ private:
     const i64 MaxSmallBlockSize_;
     const TRefCountedTypeCookie TagCookie_;
 
+    char EmptyBuf_[0];
+
     // Chunk memory layout:
     //   |AAAA|....|UUUU|
     // Legend:
     //   A aligned allocations
     //   U unaligned allocations
     //   . free zone
-    char* FreeZoneBegin_ = nullptr;
-    char* FreeZoneEnd_ = nullptr;
+    char* FreeZoneBegin_ = EmptyBuf_;
+    char* FreeZoneEnd_ = EmptyBuf_;
     TSharedMutableRef Chunk_;
 
     TSharedMutableRef AllocateUnalignedSlow(i64 size);
