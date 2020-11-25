@@ -198,9 +198,11 @@ public:
 
 private:
     TChunkedOutputStream Stream_;
-    char* BeginPreallocated_ = nullptr;
-    char* EndPreallocated_ = nullptr;
-    char* Current_ = nullptr;
+
+    char EmptyBuf_[0];
+    char* BeginPreallocated_ = EmptyBuf_;
+    char* EndPreallocated_ = EmptyBuf_;
+    char* Current_ = EmptyBuf_;
 
     std::vector<TUnversionedValue> PooledValues_;
 
@@ -212,7 +214,7 @@ private:
 
         YT_VERIFY(Current_ <= EndPreallocated_);
         Stream_.Advance(Current_ - BeginPreallocated_);
-        BeginPreallocated_ = EndPreallocated_ = Current_ = nullptr;
+        BeginPreallocated_ = EndPreallocated_ = Current_ = EmptyBuf_;
     }
 
     void EnsureCapacity(size_t more)

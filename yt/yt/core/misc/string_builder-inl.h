@@ -68,7 +68,7 @@ inline void TStringBuilderBase::AppendString(const char* str)
 
 inline void TStringBuilderBase::Reset()
 {
-    Begin_ = Current_ = End_ = nullptr;
+    Begin_ = Current_ = End_ = EmptyBuf_;
     DoReset();
 }
 
