@@ -1,27 +1,53 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nullable;
+
+import lombok.Data;
 import org.junit.Before;
 import org.junit.Test;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
+import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
+import ru.yandex.misc.reflection.ClassX;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
+import ru.yandex.yt.ytclient.wire.UnversionedRow;
+import ru.yandex.yt.ytclient.wire.UnversionedValue;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
 
 public class YtClientDynamicTableTest extends YtClientTestBase {
     static final TableSchema keyValueTableSchema = TableSchema.builder()
-            .setUniqueKeys(true).setStrict(true)
             .addKey("key", ColumnValueType.INT64)
             .addValue("value", ColumnValueType.STRING)
             .build();
 
     private YPath keyValueTablePath;
     private YtClient yt;
+
+    static UnversionedRow createKeyValueUnversionedRow(long key, String value) {
+        var values = new ArrayList<UnversionedValue>();
+        values.add(new UnversionedValue(0, ColumnValueType.INT64, false, key));
+        if (value == null) {
+            values.add(new UnversionedValue(1, ColumnValueType.NULL, false, null));
+        } else {
+            var bytesValue = value.getBytes(StandardCharsets.UTF_8);
+            values.add(new UnversionedValue(1, ColumnValueType.STRING, false, bytesValue));
+        }
+        return new UnversionedRow(values);
+    }
 
     @Before
     public void setUpTables() {
@@ -52,11 +78,86 @@ public class YtClientDynamicTableTest extends YtClientTestBase {
                 .setSticky(true)
         ).join();
 
-        var txProxyAddress = tx.getRpcProxyAddress();
-        {
-            yt.banProxy(txProxyAddress).join();
+        try (tx) {
+            var txProxyAddress = tx.getRpcProxyAddress();
+            {
+                yt.banProxy(txProxyAddress).join();
+            }
+
+            tx.commit().join();
+        }
+    }
+
+    @Test(timeout = 10000)
+    public void testKeepMissingRowUnversionedRow() {
+        var tx = yt.startTransaction(
+                new ApiServiceTransactionOptions(ETransactionType.TT_TABLET)
+                        .setSticky(true)
+        ).join();
+
+        try (tx) {
+            var modifyRows =
+                    new ModifyRowsRequest(keyValueTablePath.toString(), keyValueTableSchema)
+                            .addInsert(Arrays.asList(3L, "three"))
+                            .addInsert(Arrays.asList(4L, "four"))
+                            .addInsert(Arrays.asList(6L, null));
+
+            tx.modifyRows(modifyRows).join();
+            tx.commit().join();
         }
 
-        tx.commit().join();
+        {
+            var lookupRows = new LookupRowsRequest(
+                    keyValueTablePath.toString(),
+                    keyValueTableSchema.toLookup())
+                    .addFilters(List.of(
+                            List.of(1L),
+                            List.of(2L),
+                            List.of(3L),
+                            List.of(4L),
+                            List.of(5L),
+                            List.of(6L)
+                    ))
+                    .setKeepMissingRows(true);
+
+            var unversionedRowset = yt.lookupRows(lookupRows).join();
+            assertThat(unversionedRowset.getRows(), is(
+                    Arrays.asList(
+                            null,
+                            null,
+                            createKeyValueUnversionedRow(3, "three"),
+                            createKeyValueUnversionedRow(4, "four"),
+                            null,
+                            createKeyValueUnversionedRow(6, null)
+                    )
+            ));
+
+            final var serializer = new YTreeObjectSerializer<>(ClassX.wrap(KeyValue.class));
+            var keyValueList = yt.lookupRows(lookupRows, serializer).join();
+
+            assertThat(keyValueList, is(
+                    Arrays.asList(
+                            null,
+                            null,
+                            new KeyValue(3, "three"),
+                            new KeyValue(4, "four"),
+                            null,
+                            new KeyValue(6, "") // NB. YTreeStringSerializer deserializes `#` as empty string =\
+                    )
+            ));
+        }
+
+    }
+
+    @Data
+    @YTreeObject
+    static class KeyValue {
+        int key;
+        String value;
+
+        public KeyValue(int key, @Nullable String value) {
+            this.key = key;
+            this.value = value;
+        }
     }
 }
