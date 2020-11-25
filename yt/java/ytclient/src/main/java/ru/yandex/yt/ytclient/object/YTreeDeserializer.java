@@ -2,6 +2,9 @@ package ru.yandex.yt.ytclient.object;
 
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
@@ -19,7 +22,7 @@ public class YTreeDeserializer<T> implements WireRowDeserializer<T>, WireValueDe
         this.serializer = Objects.requireNonNull(serializer);
     }
 
-    public void updateSchema(TableSchema schema) {
+    public void updateSchema(@Nonnull TableSchema schema) {
         if (this.schema == null || !this.schema.equals(schema)) {
             int index = 0;
 
@@ -34,15 +37,22 @@ public class YTreeDeserializer<T> implements WireRowDeserializer<T>, WireValueDe
     }
 
     @Override
+    @Nonnull
     public WireValueDeserializer<?> onNewRow(int columnCount) {
         builder = YTree.builder().beginMap();
-
         return this;
     }
 
     @Override
+    @Nonnull
     public T onCompleteRow() {
         return serializer.deserialize(builder.endMap().build().mapNode());
+    }
+
+    @Override
+    @Nullable
+    public T onNullRow() {
+        return null;
     }
 
     @Override

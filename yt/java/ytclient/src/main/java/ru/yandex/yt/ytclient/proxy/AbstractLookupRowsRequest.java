@@ -21,7 +21,10 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
     private final TableSchema schema;
     private final List<String> lookupColumns = new ArrayList<>();
     private YtTimestamp timestamp;
-    private Boolean keepMissingRows = null;
+
+    // NB. Java default of keepMissingRows is different from YT default for historical reasons,
+    // now we have to keep backward compatibility.
+    private boolean keepMissingRows = false;
 
     public AbstractLookupRowsRequest(String path, TableSchema schema) {
         this.path = Objects.requireNonNull(path);
@@ -35,8 +38,8 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
         return path;
     }
 
-    public Optional<Boolean> getKeepMissingRows() {
-        return Optional.ofNullable(keepMissingRows);
+    public boolean getKeepMissingRows() {
+        return keepMissingRows;
     }
 
     @SuppressWarnings("unchecked")
@@ -98,9 +101,7 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
             public void writeTo(RpcClientRequestBuilder<TReqLookupRows.Builder, ?> builder) {
                 builder.body().setPath(getPath());
                 builder.body().addAllColumns(getLookupColumns());
-                if (getKeepMissingRows().isPresent()) {
-                    builder.body().setKeepMissingRows(getKeepMissingRows().get());
-                }
+                builder.body().setKeepMissingRows(getKeepMissingRows());
                 if (getTimestamp().isPresent()) {
                     builder.body().setTimestamp(getTimestamp().get().getValue());
                 }
@@ -127,9 +128,7 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
             public void writeTo(RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, ?> builder) {
                 builder.body().setPath(getPath());
                 builder.body().addAllColumns(getLookupColumns());
-                if (getKeepMissingRows().isPresent()) {
-                    builder.body().setKeepMissingRows(getKeepMissingRows().get());
-                }
+                builder.body().setKeepMissingRows(getKeepMissingRows());
                 if (getTimestamp().isPresent()) {
                     builder.body().setTimestamp(getTimestamp().get().getValue());
                 }
@@ -138,5 +137,4 @@ public abstract class AbstractLookupRowsRequest<R extends AbstractLookupRowsRequ
             }
         };
     }
-
 }

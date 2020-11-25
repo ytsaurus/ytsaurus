@@ -315,7 +315,7 @@ public class WireProtocolReader {
     public <T> T readUnversionedRow(WireRowDeserializer<T> deserializer) {
         final long valueCount0 = readLong();
         if (valueCount0 == -1) {
-            return null; // ---
+            return deserializer.onNullRow();
         }
         final int valueCount = WireProtocol.validateRowValueCount(valueCount0);
         final WireValueDeserializer<?> consumer = deserializer.onNewRow(valueCount);

@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBooleanNodeImpl;
@@ -102,7 +104,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
     }
 
     @Override
-    public void updateSchema(TableSchema schema) {
+    public void updateSchema(@Nonnull TableSchema schema) {
         if (!this.schema.equals(schema)) {
             parseSchema(schema);
         }
@@ -125,7 +127,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
                 if (isFlatten) {
                     final FlattenFieldWrapper wrapper = new FlattenFieldWrapper(parent, field, flattenWrappers.size());
                     flattenWrappers.add(wrapper);
-                    collectFields(((YTreeObjectSerializer<?>) serializer).getFieldMap().values(), wrapper);
+                    collectFields(serializer.getFieldMap().values(), wrapper);
                 } else {
                     if (this.fields.put(field.key, new ObjectFieldWrapper(field, parent)) != null) {
                         throw new IllegalStateException(
@@ -135,7 +137,6 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
             }
         }
     }
-
 
     @Override
     public void setRowCount(int rowCount) {
@@ -147,6 +148,7 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
         return this.columnSchema;
     }
 
+    @Nonnull
     @Override
     public WireValueDeserializer<Void> onNewRow(int columnCount) {
         this.instance = objectSerializer.newInstance();
@@ -181,9 +183,16 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
     }
 
     @Override
+    @Nonnull
     public T onCompleteRow() {
         consumer.accept(instance);
         return instance;
+    }
+
+    @Override
+    public T onNullRow() {
+        consumer.accept(null);
+        return null;
     }
 
     @Override

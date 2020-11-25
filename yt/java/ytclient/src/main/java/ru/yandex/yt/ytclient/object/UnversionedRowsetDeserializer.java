@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
@@ -24,8 +26,16 @@ public class UnversionedRowsetDeserializer extends UnversionedRowDeserializer im
     }
 
     @Override
+    @Nonnull
     public UnversionedRow onCompleteRow() {
         UnversionedRow row = super.onCompleteRow();
+        this.rows.add(row);
+        return row;
+    }
+
+    @Override
+    public UnversionedRow onNullRow() {
+        UnversionedRow row = super.onNullRow();
         this.rows.add(row);
         return row;
     }
