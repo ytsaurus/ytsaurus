@@ -992,12 +992,12 @@ public:
         return result;
     }
 
-    virtual void ScanWaitingForPoolOperations() override
+    virtual void ScanPendingOperations() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         for (const auto& [_, tree] : IdToTree_) {
-            tree->TryRunAllWaitingOperations();
+            tree->TryRunAllPendingOperations();
         }
     }
 

@@ -458,27 +458,27 @@ public:
         }
     }
 
-    virtual void TryRunAllWaitingOperations() override
+    virtual void TryRunAllPendingOperations() override
     {
         std::vector<TOperationId> readyOperationIds;
-        std::vector<std::pair<TOperationElementPtr, TCompositeSchedulerElement*>> stillWaiting;
+        std::vector<std::pair<TOperationElementPtr, TCompositeSchedulerElement*>> stillPending;
         for (const auto& [_, pool] : Pools_) {
-            for (auto waitingOperationId : pool->WaitingOperationIds()) {
-                if (auto element = FindOperationElement(waitingOperationId)) {
+            for (auto pendingOperationId : pool->PendingOperationIds()) {
+                if (auto element = FindOperationElement(pendingOperationId)) {
                     YT_VERIFY(!element->IsOperationRunningInPool());
                     if (auto violatingPool = FindPoolViolatingMaxRunningOperationCount(element->GetMutableParent())) {
-                        stillWaiting.emplace_back(std::move(element), violatingPool);
+                        stillPending.emplace_back(std::move(element), violatingPool);
                     } else {
                         element->MarkOperationRunningInPool();
-                        readyOperationIds.push_back(waitingOperationId);
+                        readyOperationIds.push_back(pendingOperationId);
                     }
                 }
             }
-            pool->WaitingOperationIds().clear();
+            pool->PendingOperationIds().clear();
         }
 
-        for (const auto& [operation, pool] : stillWaiting) {
-            operation->MarkWaitingFor(pool);
+        for (const auto& [operation, pool] : stillPending) {
+            operation->MarkPendingBy(pool);
         }
 
         for (auto operationId : readyOperationIds) {
@@ -1890,10 +1890,10 @@ private:
         ReleaseOperationSlotIndex(state, parent->GetId());
 
         if (element->IsOperationRunningInPool()) {
-            CheckOperationsWaitingForPool(parent.Get());
-        } else if (auto blockedPoolName = element->WaitingForPool()) {
+            CheckOperationsPendingByPool(parent.Get());
+        } else if (auto blockedPoolName = element->PendingByPool()) {
             if (auto blockedPool = FindPool(*blockedPoolName)) {
-                blockedPool->WaitingOperationIds().remove(operationId);
+                blockedPool->PendingOperationIds().remove(operationId);
             }
         }
 
@@ -1914,7 +1914,7 @@ private:
             operationElement->MarkOperationRunningInPool();
             return true;
         }
-        operationElement->MarkWaitingFor(violatedPool);
+        operationElement->MarkPendingBy(violatedPool);
 
         StrategyHost_->SetOperationAlert(
             state->GetHost()->GetId(),
@@ -1939,28 +1939,28 @@ private:
         }
     }
 
-    void CheckOperationsWaitingForPool(TCompositeSchedulerElement* pool)
+    void CheckOperationsPendingByPool(TCompositeSchedulerElement* pool)
     {
         auto* current = pool;
         while (current) {
             int availableOperationCount = current->GetAvailableRunningOperationCount();
-            auto& waitingOperations = current->WaitingOperationIds();
-            auto it = waitingOperations.begin();
-            while (it != waitingOperations.end() && availableOperationCount > 0) {
-                auto waitingOperationId = *it;
-                if (auto element = FindOperationElement(waitingOperationId)) {
+            auto& pendingOperationIds = current->PendingOperationIds();
+            auto it = pendingOperationIds.begin();
+            while (it != pendingOperationIds.end() && availableOperationCount > 0) {
+                auto pendingOperationId = *it;
+                if (auto element = FindOperationElement(pendingOperationId)) {
                     YT_VERIFY(!element->IsOperationRunningInPool());
                     if (auto violatingPool = FindPoolViolatingMaxRunningOperationCount(element->GetMutableParent())) {
                         YT_VERIFY(current != violatingPool);
-                        element->MarkWaitingFor(violatingPool);
+                        element->MarkPendingBy(violatingPool);
                     } else {
                         element->MarkOperationRunningInPool();
-                        ActivatableOperationIds_.push_back(waitingOperationId);
+                        ActivatableOperationIds_.push_back(pendingOperationId);
                         --availableOperationCount;
                     }
                 }
                 auto toRemove = it++;
-                waitingOperations.erase(toRemove);
+                pendingOperationIds.erase(toRemove);
             }
 
             current = current->GetMutableParent();

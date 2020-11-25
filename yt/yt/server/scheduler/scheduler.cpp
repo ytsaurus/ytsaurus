@@ -1737,7 +1737,7 @@ private:
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr StrategyHungOperationsChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
-    TPeriodicExecutorPtr WaitingForPoolOperationScanPeriodExecutor_;
+    TPeriodicExecutorPtr PendingByPoolOperationScanPeriodExecutor_;
     TPeriodicExecutorPtr OperationsDestroyerExecutor_;
     TPeriodicExecutorPtr SchedulingSegmentsManagerExecutor_;
 
@@ -2044,11 +2044,11 @@ private:
             Config_->TransientOperationQueueScanPeriod);
         TransientOperationQueueScanPeriodExecutor_->Start();
 
-        WaitingForPoolOperationScanPeriodExecutor_ = New<TPeriodicExecutor>(
+        PendingByPoolOperationScanPeriodExecutor_ = New<TPeriodicExecutor>(
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::ScanWaitingForPoolOperations, MakeWeak(this)),
-            Config_->WaitingForPoolOperationScanPeriod);
-        WaitingForPoolOperationScanPeriodExecutor_->Start();
+            BIND(&TImpl::ScanPendingOperations, MakeWeak(this)),
+            Config_->PendingByPoolOperationScanPeriod);
+        PendingByPoolOperationScanPeriodExecutor_->Start();
 
         Strategy_->OnMasterConnected();
 
@@ -2106,9 +2106,9 @@ private:
             TransientOperationQueueScanPeriodExecutor_.Reset();
         }
 
-        if (WaitingForPoolOperationScanPeriodExecutor_) {
-            WaitingForPoolOperationScanPeriodExecutor_->Stop();
-            WaitingForPoolOperationScanPeriodExecutor_.Reset();
+        if (PendingByPoolOperationScanPeriodExecutor_) {
+            PendingByPoolOperationScanPeriodExecutor_->Stop();
+            PendingByPoolOperationScanPeriodExecutor_.Reset();
         }
 
         Strategy_->OnMasterDisconnected();
@@ -2426,8 +2426,8 @@ private:
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
-            if (WaitingForPoolOperationScanPeriodExecutor_) {
-                WaitingForPoolOperationScanPeriodExecutor_->SetPeriod(Config_->WaitingForPoolOperationScanPeriod);
+            if (PendingByPoolOperationScanPeriodExecutor_) {
+                PendingByPoolOperationScanPeriodExecutor_->SetPeriod(Config_->PendingByPoolOperationScanPeriod);
             }
             StaticOrchidService_->SetCachePeriod(Config_->StaticOrchidCacheUpdatePeriod);
             CombinedOrchidService_->SetUpdatePeriod(Config_->OrchidKeysUpdatePeriod);
@@ -3887,13 +3887,15 @@ private:
         }
     }
 
-    void ScanWaitingForPoolOperations()
+    void ScanPendingOperations()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Started scanning operations waiting for pool");
+        YT_LOG_DEBUG("Started scanning pending operations");
 
-        Strategy_->ScanWaitingForPoolOperations();
+        Strategy_->ScanPendingOperations();
+        
+        YT_LOG_DEBUG("Finished scanning pending operations");
     }
 
     void ScanTransientOperationQueue()
@@ -3901,7 +3903,6 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG("Started scanning transient operation queue");
-
 
         if (TInstant::Now() > OperationToAgentAssignmentFailureTime_ + Config_->OperationToAgentAssignmentBackoff) {
             int scannedOperationCount = 0;
@@ -3922,7 +3923,7 @@ private:
             }
             queuedOperations = std::move(newQueuedOperations);
 
-            YT_LOG_DEBUG("Waiting operations handled (OperationCount: %v)", scannedOperationCount);
+            YT_LOG_DEBUG("Waiting for agent operations handled (OperationCount: %v)", scannedOperationCount);
         }
 
         HandleOrphanedOperations();

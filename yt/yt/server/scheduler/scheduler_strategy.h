@@ -242,7 +242,7 @@ struct ISchedulerStrategy
 
     virtual std::vector<std::pair<TOperationId, TError>> GetHungOperations() = 0;
 
-    virtual void ScanWaitingForPoolOperations() = 0;
+    virtual void ScanPendingOperations() = 0;
 
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
 

@@ -547,7 +547,7 @@ class TCompositeSchedulerElementFixedState
 public:
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
-    DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, WaitingOperationIds);
+    DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
 
     DEFINE_BYREF_RO_PROPERTY(double, AdjustedFairShareStarvationToleranceLimit);
     DEFINE_BYREF_RO_PROPERTY(TDuration, AdjustedFairSharePreemptionTimeoutLimit);
@@ -1123,7 +1123,7 @@ public:
 
     void UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool activateAncestors = false);
 
-    void MarkWaitingFor(TCompositeSchedulerElement* violatedPool);
+    void MarkPendingBy(TCompositeSchedulerElement* violatedPool);
 
     void InitOrUpdateSchedulingSegment(ESegmentedSchedulingMode mode);
 
@@ -1135,7 +1135,7 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
-    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, WaitingForPool);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<ESchedulingSegment>, SchedulingSegment);
 
