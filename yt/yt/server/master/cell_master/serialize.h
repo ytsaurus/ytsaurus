@@ -107,6 +107,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_12193_BetterAlterTable)                                    (1422))  // ermolovd
     ((YT_12559_AbortStuckExternalizedTransactions)                  (1423))  // shakurov
     ((DedicatedUploadTransactionTypesByDefault)                     (1424))  // shakurov
+    ((FixClusterStatisticsMasterMemoryUsage)                        (1425))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

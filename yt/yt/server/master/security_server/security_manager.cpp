@@ -3107,11 +3107,12 @@ private:
             }
 
             auto masterMemoryUsage = entry.master_memory_usage();
+            auto masterMemoryUsageDelta = masterMemoryUsage - account->LocalStatistics().ResourceUsage.MasterMemory;
 
-            account->ClusterStatistics().ResourceUsage.MasterMemory = masterMemoryUsage;
+            account->ClusterStatistics().ResourceUsage.MasterMemory += masterMemoryUsageDelta;
             account->LocalStatistics().ResourceUsage.MasterMemory = masterMemoryUsage;
 
-            account->ClusterStatistics().CommittedResourceUsage.MasterMemory = masterMemoryUsage;
+            account->ClusterStatistics().CommittedResourceUsage.MasterMemory += masterMemoryUsageDelta;
             account->LocalStatistics().CommittedResourceUsage.MasterMemory = masterMemoryUsage;
         }
     }
