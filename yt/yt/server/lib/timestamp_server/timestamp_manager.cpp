@@ -220,10 +220,7 @@ private:
 
         auto mutation = CreateMutation(HydraManager_, request);
         BIND([=, mutation = std::move(mutation)] {
-            NProfiling::TWallTimer timer;
-            auto result = mutation->Commit();
-            YT_LOG_INFO("XXX %v", timer.GetElapsedTime());
-            return result;
+            return mutation->Commit();
         })
             .AsyncVia(AutomatonInvoker_)
             .Run()

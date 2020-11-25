@@ -1,5 +1,7 @@
 #include "permission_cache.h"
 
+#include "private.h"
+
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/rpc_helpers.h>
@@ -66,7 +68,8 @@ TPermissionCache::TPermissionCache(
     NProfiling::TRegistry profiler)
     : TAsyncExpiringCache(
         config,
-        NLogging::TLogger("Cache: Permission"),
+        NLogging::TLogger(SecurityClientLogger)
+            .AddTag("Cache: Permission"),
         std::move(profiler))
     , Config_(std::move(config))
     , Connection_(std::move(connection))

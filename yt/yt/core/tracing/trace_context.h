@@ -82,7 +82,6 @@ public:
 
     void IncrementElapsedCpuTime(NProfiling::TCpuDuration delta);
     NProfiling::TCpuDuration GetElapsedCpuTime() const;
-    void FlushElapsedTime();
     TDuration GetElapsedTime() const;
 
 private:
