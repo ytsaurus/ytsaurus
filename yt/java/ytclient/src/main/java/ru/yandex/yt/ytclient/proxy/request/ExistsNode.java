@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -35,5 +37,11 @@ public class ExistsNode extends GetLikeReq<ExistsNode> implements HighLevelReque
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
         }
+    }
+
+    @Nonnull
+    @Override
+    protected ExistsNode self() {
+        return this;
     }
 }

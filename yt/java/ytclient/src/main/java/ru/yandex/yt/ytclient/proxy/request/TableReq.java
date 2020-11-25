@@ -1,6 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-public class TableReq<T extends TableReq<T>> extends RequestBase<T> {
+public abstract class TableReq<T extends TableReq<T>> extends RequestBase<T> {
     protected String path;
     protected MutatingOptions mutatingOptions;
     protected TabletRangeOptions tabletRangeOptions;
@@ -11,17 +11,17 @@ public class TableReq<T extends TableReq<T>> extends RequestBase<T> {
 
     public T setMutatingOptions(MutatingOptions mutatingOptions) {
         this.mutatingOptions = mutatingOptions;
-        return (T)this;
+        return self();
     }
 
     public T setPath(String path) {
         this.path = path;
-        return (T)this;
+        return self();
     }
 
     public T setTabletRangeOptions(TabletRangeOptions opt) {
         this.tabletRangeOptions = opt;
-        return (T)this;
+        return self();
     }
 
     public

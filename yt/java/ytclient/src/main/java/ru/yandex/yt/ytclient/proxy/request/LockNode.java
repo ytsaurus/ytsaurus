@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -63,5 +65,11 @@ public class LockNode extends MutateNode<LockNode> {
             builder.mergeFrom(additionalData);
         }
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected LockNode self() {
+        return this;
     }
 }

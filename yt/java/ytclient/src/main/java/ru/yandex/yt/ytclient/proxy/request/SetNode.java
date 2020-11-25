@@ -3,6 +3,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import javax.annotation.Nonnull;
+
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
@@ -61,5 +63,11 @@ public class SetNode extends MutateNode<SetNode> implements HighLevelRequest<TRe
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
         }
+    }
+
+    @Nonnull
+    @Override
+    protected SetNode self() {
+        return this;
     }
 }

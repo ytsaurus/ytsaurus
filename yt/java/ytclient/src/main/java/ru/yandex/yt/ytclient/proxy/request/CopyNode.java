@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -42,5 +44,11 @@ public class CopyNode extends CopyLikeReq<CopyNode> {
         }
 
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected CopyNode self() {
+        return this;
     }
 }

@@ -2,6 +2,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.io.ByteArrayOutputStream;
 
+import javax.annotation.Nonnull;
+
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
@@ -75,5 +77,11 @@ public class ReadFile extends RequestBase<ReadFile> {
             builder.mergeFrom(additionalData);
         }
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected ReadFile self() {
+        return this;
     }
 }

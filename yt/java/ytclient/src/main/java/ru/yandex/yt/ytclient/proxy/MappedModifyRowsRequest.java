@@ -5,6 +5,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
@@ -92,5 +94,11 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest<Mapped
             writer.writeUnversionedRowset(rows, serializer);
         }
         writer.finish();
+    }
+
+    @Nonnull
+    @Override
+    protected MappedModifyRowsRequest<T> self() {
+        return this;
     }
 }

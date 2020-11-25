@@ -45,7 +45,7 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
 
     public T setRecursive(boolean recursive) {
         this.recursive = recursive;
-        return (T)this;
+        return self();
     }
 
     public boolean getForce(boolean force) {
@@ -54,7 +54,7 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
 
     public T setForce(boolean f) {
         this.force = f;
-        return (T)this;
+        return self();
     }
 
     public boolean getPreserveAccount() {
@@ -63,7 +63,7 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
 
     public T setPreserveAccount(boolean f) {
         this.preserveAccount = f;
-        return (T)this;
+        return self();
     }
 
     public boolean getPreserveExpirationTime() {
@@ -72,12 +72,12 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
 
     public T setPreserveExpirationTime(boolean f) {
         this.preserveExpirationTime = f;
-        return (T)this;
+        return self();
     }
 
     public T setPreserveCreationTime(boolean f) {
         this.preserveCreationTime = f;
-        return (T)this;
+        return self();
     }
 
     public boolean getPreserveCreationTime() {
@@ -86,7 +86,7 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
 
     public T setIgnoreExisting(boolean f) {
         this.ignoreExisting = f;
-        return (T)this;
+        return self();
     }
 
     public boolean getIgnoreExisting() {

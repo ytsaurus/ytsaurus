@@ -2,6 +2,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.io.ByteArrayOutputStream;
 
+import javax.annotation.Nonnull;
+
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
@@ -90,5 +92,11 @@ public class WriteFile extends RequestBase<WriteFile> {
             builder.mergeFrom(additionalData);
         }
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected WriteFile self() {
+        return this;
     }
 }

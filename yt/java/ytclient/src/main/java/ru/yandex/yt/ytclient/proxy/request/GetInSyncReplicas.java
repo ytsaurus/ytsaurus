@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -70,5 +72,11 @@ public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas> {
         WireProtocolWriter writer = new WireProtocolWriter(attachments);
         writer.writeUnversionedRowset(rows, new UnversionedRowSerializer(schema));
         writer.finish();
+    }
+
+    @Nonnull
+    @Override
+    protected GetInSyncReplicas self() {
+        return this;
     }
 }

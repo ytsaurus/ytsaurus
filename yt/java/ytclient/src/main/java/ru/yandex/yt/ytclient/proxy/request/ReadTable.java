@@ -2,6 +2,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.io.ByteArrayOutputStream;
 
+import javax.annotation.Nonnull;
+
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
@@ -94,5 +96,11 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
         }
         builder.setDesiredRowsetFormat(desiredRowsetFormat);
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected ReadTable<T> self() {
+        return this;
     }
 }

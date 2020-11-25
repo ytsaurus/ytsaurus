@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 
 public class ReshardTableAutomatic extends TableReq<ReshardTableAutomatic> {
@@ -18,5 +20,11 @@ public class ReshardTableAutomatic extends TableReq<ReshardTableAutomatic> {
         super.writeTo(builder);
         builder.setKeepActions(keepActions);
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected ReshardTableAutomatic self() {
+        return this;
     }
 }

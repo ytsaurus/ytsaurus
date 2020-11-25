@@ -52,6 +52,12 @@ public class PingTransaction extends RequestBase<PingTransaction> implements Hig
         }
     }
 
+    @Nonnull
+    @Override
+    protected PingTransaction self() {
+        return this;
+    }
+
     @Override
     protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
         super.writeArgumentsLogString(sb);

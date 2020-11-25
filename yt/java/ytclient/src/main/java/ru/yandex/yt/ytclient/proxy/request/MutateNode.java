@@ -26,7 +26,7 @@ public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T>
 
     public T setTransactionalOptions(TransactionalOptions to) {
         this.transactionalOptions = to;
-        return (T)this;
+        return self();
     }
 
     public Optional<TransactionalOptions> getTransactionalOptions() {
@@ -35,7 +35,7 @@ public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T>
 
     public T setPrerequisiteOptions(PrerequisiteOptions prerequisiteOptions) {
         this.prerequisiteOptions = prerequisiteOptions;
-        return (T)this;
+        return self();
     }
 
     public Optional<PrerequisiteOptions> getPrerequisiteOptions() {
@@ -44,7 +44,7 @@ public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T>
 
     public T setMutatingOptions(MutatingOptions mutatingOptions) {
         this.mutatingOptions = mutatingOptions;
-        return (T)this;
+        return self();
     }
 
     public Optional<MutatingOptions> getMutatingOptions() {

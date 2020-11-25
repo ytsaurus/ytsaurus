@@ -2,6 +2,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -31,5 +33,11 @@ public class ReshardTable extends TableReq<ReshardTable> {
         }
         tabletCount.ifPresent(x -> builder.setTabletCount(x));
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected ReshardTable self() {
+        return this;
     }
 }

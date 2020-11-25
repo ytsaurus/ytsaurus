@@ -13,7 +13,7 @@ import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.tracing.TTracingExt;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
-public class RequestBase<T extends RequestBase<T>> {
+public abstract class RequestBase<T extends RequestBase<T>> {
     private Duration timeout;
     private @Nullable GUID requestId;
     private @Nullable GUID traceId;
@@ -21,21 +21,22 @@ public class RequestBase<T extends RequestBase<T>> {
 
     Message additionalData;
 
+    abstract protected @Nonnull T self();
+
     @SuppressWarnings("unused")
     Message getAdditionalData() {
         return additionalData;
     }
 
-    @SuppressWarnings({"unchecked cast", "unused"})
+    @SuppressWarnings({"unused"})
     T setAdditionalData(Message additionalData) {
         this.additionalData = additionalData;
-        return (T) this;
+        return self();
     }
 
-    @SuppressWarnings("unchecked cast")
     public T setTimeout(@Nullable Duration timeout) {
         this.timeout = timeout;
-        return (T) this;
+        return self();
     }
 
     /**
@@ -48,10 +49,9 @@ public class RequestBase<T extends RequestBase<T>> {
      *
      * @see ru.yandex.inside.yt.kosher.common.GUID#create()
      */
-    @SuppressWarnings("unchecked cast")
     public T setRequestId(@Nullable GUID requestId) {
         this.requestId = requestId;
-        return (T)this;
+        return self();
     }
 
     public Optional<Duration> getTimeout() {
@@ -77,10 +77,9 @@ public class RequestBase<T extends RequestBase<T>> {
      * Set trace id of the request.
      * Sampling is not enabled.
      */
-    @SuppressWarnings("unchecked cast")
     public T setTraceId(@Nullable GUID traceId) {
         this.traceId = traceId;
-        return (T)this;
+        return self();
     }
 
     /**
@@ -90,14 +89,13 @@ public class RequestBase<T extends RequestBase<T>> {
      * @param sampled whether or not this request will be sent to jaeger.
      *                <b>Warning:</b> enabling sampling creates additional load on server, please be careful.
      */
-    @SuppressWarnings("unchecked cast")
     public T setTraceId(@Nullable GUID traceId, boolean sampled) {
         if (sampled && traceId == null) {
             throw new IllegalArgumentException("traceId cannot be null if sampled == true");
         }
         this.traceId = traceId;
         this.traceSampled = sampled;
-        return (T)this;
+        return self();
     }
 
     public void writeHeaderTo(TRequestHeader.Builder header) {
