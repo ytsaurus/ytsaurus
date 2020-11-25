@@ -64,7 +64,6 @@ import ru.yandex.yt.rpcproxy.TReqLockNode;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
 import ru.yandex.yt.rpcproxy.TReqMoveNode;
-import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 import ru.yandex.yt.rpcproxy.TReqPollJobShell;
 import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
@@ -116,7 +115,6 @@ import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspMountTable;
 import ru.yandex.yt.rpcproxy.TRspMoveNode;
-import ru.yandex.yt.rpcproxy.TRspPingTransaction;
 import ru.yandex.yt.rpcproxy.TRspPollJobShell;
 import ru.yandex.yt.rpcproxy.TRspPutFileToCache;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
@@ -160,6 +158,7 @@ import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
+import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
@@ -275,18 +274,22 @@ public class ApiServiceClient extends TransactionalClient {
         return startTransaction(options.toStartTransaction());
     }
 
+    public CompletableFuture<Void> pingTransaction(PingTransaction req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.pingTransaction()),
+                response -> null);
+    }
+
     public CompletableFuture<Void> pingTransaction(GUID id, boolean sticky) {
         return pingTransaction(id, sticky, null);
     }
 
     public CompletableFuture<Void> pingTransaction(GUID id, boolean sticky, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqPingTransaction.Builder, RpcClientResponse<TRspPingTransaction>> builder =
-                service.pingTransaction();
+        PingTransaction req = new PingTransaction(id);
         if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
+            req.setTimeout(requestTimeout);
         }
-        builder.body().setTransactionId(RpcUtil.toProto(id));
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return pingTransaction(req);
     }
 
     public CompletableFuture<Void> commitTransaction(GUID id, boolean sticky) {
