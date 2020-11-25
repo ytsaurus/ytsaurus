@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TAttributeKeys;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
@@ -42,5 +44,11 @@ public class GetNode extends GetLikeReq<GetNode> implements HighLevelRequest<TRe
         if (additionalData != null) {
             builder.body().mergeFrom(additionalData);
         }
+    }
+
+    @Nonnull
+    @Override
+    protected GetNode self() {
+        return this;
     }
 }

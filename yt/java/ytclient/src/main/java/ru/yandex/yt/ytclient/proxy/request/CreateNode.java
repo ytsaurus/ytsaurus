@@ -3,6 +3,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 import java.util.HashMap;
 import java.util.Map;
 
+import javax.annotation.Nonnull;
+
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
@@ -103,5 +105,11 @@ public class CreateNode extends MutateNode<CreateNode> {
             }
         }
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected CreateNode self() {
+        return this;
     }
 }

@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -126,5 +128,11 @@ public class ModifyRowsRequest extends AbstractModifyRowsRequest<ModifyRowsReque
         WireProtocolWriter writer = new WireProtocolWriter(attachments);
         writer.writeUnversionedRowset(rows, new UnversionedRowSerializer(schema));
         writer.finish();
+    }
+
+    @Nonnull
+    @Override
+    protected ModifyRowsRequest self() {
+        return this;
     }
 }

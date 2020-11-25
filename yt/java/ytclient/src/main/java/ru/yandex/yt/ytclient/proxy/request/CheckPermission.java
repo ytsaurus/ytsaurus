@@ -2,6 +2,8 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.util.Set;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -52,5 +54,11 @@ public class CheckPermission extends MutateNode<CheckPermission> {
                 .setPath(path)
                 .setPermission(permissions)
                 .setColumns(TReqCheckPermission.TColumns.newBuilder().addAllItems(columns));
+    }
+
+    @Nonnull
+    @Override
+    protected CheckPermission self() {
+        return this;
     }
 }

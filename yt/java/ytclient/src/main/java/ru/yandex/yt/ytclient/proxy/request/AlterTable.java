@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nonnull;
+
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
@@ -72,5 +74,11 @@ public class AlterTable extends TableReq<AlterTable> {
         }
 
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected AlterTable self() {
+        return this;
     }
 }

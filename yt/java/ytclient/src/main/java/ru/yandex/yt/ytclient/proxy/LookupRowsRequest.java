@@ -5,6 +5,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
@@ -49,5 +51,11 @@ public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsReque
         WireProtocolWriter writer = new WireProtocolWriter(attachments);
         writer.writeUnversionedRowset(filters, new UnversionedRowSerializer(getSchema()));
         writer.finish();
+    }
+
+    @Nonnull
+    @Override
+    protected LookupRowsRequest self() {
+        return this;
     }
 }

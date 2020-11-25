@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nonnull;
+
 import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
@@ -49,5 +51,11 @@ public class StartOperation extends RequestBase<StartOperation> {
         }
 
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected StartOperation self() {
+        return this;
     }
 }

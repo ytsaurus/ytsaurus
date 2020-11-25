@@ -270,6 +270,12 @@ public class StartTransaction extends RequestBase<StartTransaction> implements H
         }
     }
 
+    @Nonnull
+    @Override
+    protected StartTransaction self() {
+        return this;
+    }
+
     @Override
     protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
         super.writeArgumentsLogString(sb);

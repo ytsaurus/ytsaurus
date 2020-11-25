@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
@@ -135,6 +136,12 @@ public class SelectRowsRequest extends RequestBase<SelectRowsRequest> implements
         if (getExecutionPool().isPresent()) {
             builder.body().setExecutionPool(getExecutionPool().get());
         }
+    }
+
+    @Nonnull
+    @Override
+    protected SelectRowsRequest self() {
+        return this;
     }
 
     @Override

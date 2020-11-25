@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
@@ -60,5 +62,11 @@ public class MappedLookupRowsRequest<T> extends AbstractLookupRowsRequest<Mapped
         WireProtocolWriter writer = new WireProtocolWriter(attachments);
         writer.writeUnversionedRowset(rows, serializer, i -> true);
         writer.finish();
+    }
+
+    @Nonnull
+    @Override
+    protected MappedLookupRowsRequest<T> self() {
+        return this;
     }
 }

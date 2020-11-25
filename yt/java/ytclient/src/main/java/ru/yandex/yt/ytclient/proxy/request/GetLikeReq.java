@@ -5,7 +5,7 @@ import javax.annotation.Nullable;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
-public class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T> {
+public abstract class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T> {
     protected final String path;
     @Nullable protected ColumnFilter attributes;
     @Nullable protected Integer maxSize;
@@ -24,38 +24,32 @@ public class GetLikeReq<T extends GetLikeReq<T>> extends RequestBase<T> {
 
     public T setAttributes(@Nullable ColumnFilter cf) {
         this.attributes = cf;
-        //noinspection unchecked
-        return (T)this;
+        return self();
     }
 
     public T setMaxSize(int maxSize) {
         this.maxSize = maxSize;
-        //noinspection unchecked
-        return (T)this;
+        return self();
     }
 
     public T setTransactionalOptions(@Nullable TransactionalOptions to) {
         this.transactionalOptions = to;
-        //noinspection unchecked
-        return (T)this;
+        return self();
     }
 
     public T setPrerequisiteOptions(@Nullable PrerequisiteOptions prerequisiteOptions) {
         this.prerequisiteOptions = prerequisiteOptions;
-        //noinspection unchecked
-        return (T)this;
+        return self();
     }
 
     public T setMasterReadOptions(@Nullable MasterReadOptions mo) {
         this.masterReadOptions = mo;
-        //noinspection unchecked
-        return (T)this;
+        return self();
     }
 
     public T setSuppressableAccessTrackingOptions(@Nullable SuppressableAccessTrackingOptions s) {
         this.suppressableAccessTrackingOptions = s;
-        //noinspection unchecked
-        return (T)this;
+        return self();
     }
 
     @Override

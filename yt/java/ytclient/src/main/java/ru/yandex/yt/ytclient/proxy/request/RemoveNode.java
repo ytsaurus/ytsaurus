@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
@@ -44,5 +46,11 @@ public class RemoveNode extends MutateNode<RemoveNode> {
         }
 
         return builder;
+    }
+
+    @Nonnull
+    @Override
+    protected RemoveNode self() {
+        return this;
     }
 }
