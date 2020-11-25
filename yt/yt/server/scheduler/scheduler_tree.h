@@ -70,7 +70,7 @@ struct ISchedulerTree
         const TJobResources& minNeededResources) = 0;
 
     virtual void ProcessActivatableOperations() = 0;
-    virtual void TryRunAllWaitingOperations() = 0;
+    virtual void TryRunAllPendingOperations() = 0;
 
     virtual TPoolName CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) const = 0;
 

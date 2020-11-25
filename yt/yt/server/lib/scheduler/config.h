@@ -535,7 +535,7 @@ public:
 
     TDuration TransientOperationQueueScanPeriod;
 
-    TDuration WaitingForPoolOperationScanPeriod;
+    TDuration PendingByPoolOperationScanPeriod;
 
     TDuration OperationToAgentAssignmentBackoff;
 

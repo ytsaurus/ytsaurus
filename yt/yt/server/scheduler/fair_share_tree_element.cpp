@@ -4118,7 +4118,7 @@ void TOperationElement::MarkOperationRunningInPool()
 {
     Parent_->IncreaseRunningOperationCount(1);
     RunningInThisPoolTree_ = true;
-    WaitingForPool_.reset();
+    PendingByPool_.reset();
 
     YT_LOG_INFO("Operation is running in pool (Pool: %v)", Parent_->GetId());
 }
@@ -4133,10 +4133,10 @@ TFairShareStrategyPackingConfigPtr TOperationElement::GetPackingConfig() const
     return TreeConfig_->Packing;
 }
 
-void TOperationElement::MarkWaitingFor(TCompositeSchedulerElement* violatedPool)
+void TOperationElement::MarkPendingBy(TCompositeSchedulerElement* violatedPool)
 {
-    violatedPool->WaitingOperationIds().push_back(OperationId_);
-    WaitingForPool_ = violatedPool->GetId();
+    violatedPool->PendingOperationIds().push_back(OperationId_);
+    PendingByPool_ = violatedPool->GetId();
 
     YT_LOG_DEBUG("Operation is pending since max running operation count is violated (OperationId: %v, Pool: %v, Limit: %v)",
         OperationId_,
