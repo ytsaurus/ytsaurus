@@ -69,7 +69,8 @@ public:
         const TString& command,
         std::optional<NHttp::EStatusCode> httpStatusCode,
         TErrorCode apiErrorCode,
-        TDuration duration,
+        TDuration wallTime,
+        TDuration cpuTime,
         const NNet::TNetworkAddress& clientAddress,
         i64 bytesIn,
         i64 bytesOut);
@@ -105,7 +106,8 @@ private:
 
         NProfiling::TGauge ConcurrencySemaphore;
         NProfiling::TCounter RequestCount;
-        NProfiling::TEventTimer RequestDuration;
+        NProfiling::TEventTimer RequestWallTime;
+        NProfiling::TTimeCounter CumulativeRequestCpuTime;
 
         NConcurrency::TSyncMap<TErrorCode, NProfiling::TCounter> ApiErrors;
     };
