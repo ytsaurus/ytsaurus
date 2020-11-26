@@ -606,21 +606,25 @@ std::vector<TInstance> TDiscoverVersionsHandler::ListComponent(
         instance.Type = type;
         instance.Address = node->GetValue<TString>();
 
-        if (version && startTime) {
-            instance.Version = *version;
-            instance.StartTime = *startTime;
-            instance.Banned = banned ? *banned : false;
-        } else {
-            instance.Error = TError("Cannot find all attribute in response")
-                << TErrorAttribute("version", version)
-                << TErrorAttribute("start_time", startTime);
-        }
-
         if (type == "node") {
             if (nodeState) {
                 instance.State = *nodeState;
             }
             instance.Online = (nodeState == TString("online"));
+        }
+
+        if (version) {
+            instance.Version = *version;
+        }
+        if (startTime) {
+            instance.StartTime = *startTime;
+        }
+        instance.Banned = banned ? *banned : false;
+
+        if (instance.Online && (!version || !startTime)) {
+            instance.Error = TError("Component is missing some of the required attributes in response")
+                << TErrorAttribute("version", version)
+                << TErrorAttribute("start_time", startTime);
         }
 
         instances.push_back(instance);

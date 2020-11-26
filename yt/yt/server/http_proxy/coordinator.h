@@ -156,8 +156,12 @@ DEFINE_REFCOUNTED_TYPE(TPingHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInstance {
-    TString Type, Address, Version, StartTime;
+struct TInstance
+{
+    TString Type;
+    TString Address;
+    TString Version;
+    TString StartTime;
 
     bool Banned = false;
     bool Online = true;
