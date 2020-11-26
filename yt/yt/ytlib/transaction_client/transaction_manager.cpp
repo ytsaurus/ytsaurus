@@ -576,6 +576,9 @@ private:
 
     static void ValidateTabletStartOptions(const TTransactionStartOptions& options)
     {
+        if (options.SuppressStartTimestampGeneration) {
+            THROW_ERROR_EXCEPTION("Cannot suppress start timestamp generation for tablet transaction");
+        }
         if (options.CoordinatorMasterCellTag != InvalidCellTag) {
             THROW_ERROR_EXCEPTION("Cannot specify a master coordinator for tablet transaction");
         }
@@ -666,7 +669,7 @@ private:
 
         switch (Atomicity_) {
             case EAtomicity::Full:
-                if (options.StartTimestamp != NullTimestamp) {
+                if (options.StartTimestamp != NullTimestamp || options.SuppressStartTimestampGeneration) {
                     return OnGotStartTimestamp(options, options.StartTimestamp);
                 } else {
                     YT_LOG_DEBUG("Generating transaction start timestamp");
