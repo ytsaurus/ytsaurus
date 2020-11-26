@@ -1,5 +1,6 @@
 from cpython.version cimport PY_MAJOR_VERSION
 
+from libcpp cimport bool as cpp_bool
 from util.generic.vector cimport TVector
 from util.generic.hash cimport THashMap
 from util.generic.string cimport TString
@@ -12,25 +13,25 @@ cdef extern from "library/cpp/yson/node/node.h" namespace "NYT" nogil:
         TNode(const char*) except +
         TNode(TString) except +
         TNode(double) except +
-        TNode(bint) except +
+        TNode(cpp_bool) except +
         TNode(i64) except +
         TNode(ui64) except +
 
-        bint IsString()
-        bint IsInt64()
-        bint IsUint64()
-        bint IsDouble()
-        bint IsBool()
-        bint IsList()
-        bint IsMap()
-        bint IsEntity()
-        bint IsUndefined()
+        cpp_bool IsString()
+        cpp_bool IsInt64()
+        cpp_bool IsUint64()
+        cpp_bool IsDouble()
+        cpp_bool IsBool()
+        cpp_bool IsList()
+        cpp_bool IsMap()
+        cpp_bool IsEntity()
+        cpp_bool IsUndefined()
 
         TString& AsString()
         i64 AsInt64()
         ui64 AsUint64()
         double AsDouble()
-        bint AsBool()
+        cpp_bool AsBool()
         TVector[TNode]& AsList()
         THashMap[TString, TNode]& AsMap()
 
@@ -105,6 +106,8 @@ cdef TNode _pyobj_to_TNode(obj):
         else:
             # should never happen
             raise Exception()
+    elif isinstance(obj, bool):
+        return TNode(<cpp_bool>obj)
     elif isinstance(obj, (basestring, bytes)):
         return TNode(_to_TString(obj))
     elif isinstance(obj, long):
@@ -112,8 +115,6 @@ cdef TNode _pyobj_to_TNode(obj):
             return TNode(<i64>obj)
         else:
             return TNode(<ui64>obj)
-    elif isinstance(obj, bool):
-        return TNode(<bint>obj)
     elif isinstance(obj, int):
         return TNode(<i64>obj)
     elif isinstance(obj, float):
