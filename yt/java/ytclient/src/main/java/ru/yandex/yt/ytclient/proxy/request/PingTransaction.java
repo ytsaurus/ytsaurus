@@ -13,7 +13,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
  * Request for pinging transaction.
  *
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#ping_tx">
- *     start_tx documentation
+ *     ping_tx documentation
  *     </a>
  */
 @NonNullApi

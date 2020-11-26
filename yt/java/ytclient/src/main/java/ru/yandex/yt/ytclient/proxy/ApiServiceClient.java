@@ -36,13 +36,11 @@ import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqAbandonJob;
 import ru.yandex.yt.rpcproxy.TReqAbortJob;
 import ru.yandex.yt.rpcproxy.TReqAbortOperation;
-import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 import ru.yandex.yt.rpcproxy.TReqAddMember;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
-import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
 import ru.yandex.yt.rpcproxy.TReqCompleteOperation;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TReqCopyNode;
@@ -86,13 +84,11 @@ import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TRspAbandonJob;
 import ru.yandex.yt.rpcproxy.TRspAbortJob;
 import ru.yandex.yt.rpcproxy.TRspAbortOperation;
-import ru.yandex.yt.rpcproxy.TRspAbortTransaction;
 import ru.yandex.yt.rpcproxy.TRspAddMember;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TRspBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TRspCheckPermission;
-import ru.yandex.yt.rpcproxy.TRspCommitTransaction;
 import ru.yandex.yt.rpcproxy.TRspCompleteOperation;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TRspCopyNode;
@@ -140,8 +136,10 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
+import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
+import ru.yandex.yt.ytclient.proxy.request.CommitTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
@@ -274,6 +272,10 @@ public class ApiServiceClient extends TransactionalClient {
         return startTransaction(options.toStartTransaction());
     }
 
+    /**
+     * Ping existing transaction
+     * @see PingTransaction
+     */
     public CompletableFuture<Void> pingTransaction(PingTransaction req) {
         return RpcUtil.apply(
                 sendRequest(req, service.pingTransaction()),
@@ -292,18 +294,36 @@ public class ApiServiceClient extends TransactionalClient {
         return pingTransaction(req);
     }
 
+    /**
+     * Commit existing transaction
+     * @see CommitTransaction
+     */
+    public CompletableFuture<Void> commitTransaction(CommitTransaction req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.commitTransaction()),
+                response -> null);
+    }
+
     public CompletableFuture<Void> commitTransaction(GUID id, boolean sticky) {
         return commitTransaction(id, sticky, null);
     }
 
     public CompletableFuture<Void> commitTransaction(GUID id, boolean sticky, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqCommitTransaction.Builder, RpcClientResponse<TRspCommitTransaction>> builder =
-                service.commitTransaction();
+        CommitTransaction req = new CommitTransaction(id);
         if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
+            req.setTimeout(requestTimeout);
         }
-        builder.body().setTransactionId(RpcUtil.toProto(id));
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return commitTransaction(req);
+    }
+
+    /**
+     * Abort existing transaction
+     * @see AbortTransaction
+     */
+    public CompletableFuture<Void> abortTransaction(AbortTransaction req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.abortTransaction()),
+                response -> null);
     }
 
     public CompletableFuture<Void> abortTransaction(GUID id, boolean sticky) {
@@ -311,13 +331,11 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<Void> abortTransaction(GUID id, boolean sticky, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqAbortTransaction.Builder, RpcClientResponse<TRspAbortTransaction>> builder =
-                service.abortTransaction();
+        AbortTransaction req = new AbortTransaction(id);
         if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
+            req.setTimeout(requestTimeout);
         }
-        builder.body().setTransactionId(RpcUtil.toProto(id));
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return abortTransaction(req);
     }
 
     /* nodes */
