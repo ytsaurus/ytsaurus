@@ -356,6 +356,9 @@ struct TTransactionStartOptions
     //! Only applicable to tablet transactions.
     NTransactionClient::TTimestamp StartTimestamp = NTransactionClient::NullTimestamp;
 
+    //! For master transactions only; disables generating start timestamp.
+    bool SuppressStartTimestampGeneration = false;
+
     //! Only for master transactions.
     //! Indicates the master cell the transaction will be initially started at and controlled by
     //! (chosen automatically by default).

@@ -394,11 +394,13 @@ void TMasterConnector::StartLeaseTransaction()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-    TTransactionStartOptions options;
-    options.PingPeriod = Config_->LeaseTransactionPingPeriod;
-    options.Timeout = Config_->LeaseTransactionTimeout;
-    options.CoordinatorMasterCellTag = connection->GetPrimaryMasterCellTag();
-    options.ReplicateToMasterCellTags = connection->GetSecondaryMasterCellTags();
+    TTransactionStartOptions options{
+        .Timeout = Config_->LeaseTransactionTimeout,
+        .PingPeriod = Config_->LeaseTransactionPingPeriod,
+        .SuppressStartTimestampGeneration = true,
+        .CoordinatorMasterCellTag = connection->GetPrimaryMasterCellTag(),
+        .ReplicateToMasterCellTags = connection->GetSecondaryMasterCellTags()
+    };
 
     auto attributes = CreateEphemeralAttributes();
     attributes->Set("title", Format("Lease for node %v", GetDefaultAddress(RpcAddresses_)));
