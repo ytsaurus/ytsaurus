@@ -27,6 +27,17 @@ SYS_BUNDLE_NAME = "sys"
 SYS_BLOBS_BUNDLE_NAME = "sys_blobs"
 RESOURCE_LIMITS_ATTRIBUTE = "resource_limits"
 NODES_LIMIT_ATTRIBUTE = "node_count"
+JOB_TABLE_PARTITION_COUNT = 10
+
+
+def get_job_table_pivots(shard_count):
+    pivot_keys = [[]]
+    shards_per_partition = shard_count // JOB_TABLE_PARTITION_COUNT + 1
+    for job_id_partition in range(JOB_TABLE_PARTITION_COUNT):
+        for i in range(shards_per_partition):
+            pivot_keys.append([yson.YsonUint64(job_id_partition), yson.YsonUint64(i * 2**64 / shards_per_partition)])
+    return pivot_keys
+
 
 def unmount_table(client, path):
     logging.info("Unmounting table %s", path)
@@ -802,11 +813,13 @@ TRANSFORMS[37] = [
             attributes={"atomicity": "none"}))
 ]
 
+
 TRANSFORMS[38] = [
     Conversion(
         "jobs",
         table_info=TableInfo([
-                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % 10"),
+                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
                 ("job_id_hi", "uint64"),
@@ -837,6 +850,7 @@ TRANSFORMS[38] = [
                 ("brief_statistics", "any"),
                 ("pool_tree", "string"),
             ],
+            get_pivot_keys=get_job_table_pivots,
             attributes={"atomicity": "none"})),
     Conversion(
         "operation_ids",
@@ -848,6 +862,7 @@ TRANSFORMS[38] = [
                 ("operation_id_hi", "uint64"),
                 ("operation_id_lo", "uint64"),
             ],
+            get_pivot_keys=get_default_pivots,
             attributes={
                 "atomicity": "none",
                 "tablet_cell_bundle": SYS_BUNDLE_NAME,
