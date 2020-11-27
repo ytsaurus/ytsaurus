@@ -2534,6 +2534,8 @@ private:
         InitBuiltins();
 
         if (NeedFixTrunkNodeInvalidDeltaStatistics_) {
+            auto fixedTableCount = 0;
+
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             for (auto [nodeId, node] : cypressManager->Nodes()) {
                 if (!IsObjectAlive(node)) {
@@ -2551,8 +2553,13 @@ private:
                 auto* chunkOwner = node->As<NChunkServer::TChunkOwnerBase>();
                 if (HasInvalidDataWeight(chunkOwner->DeltaStatistics())) {
                     chunkOwner->DeltaStatistics().set_data_weight(0);
-                    YT_LOG_ALERT("Fixed invalid delta statistics (TableId: %v)", nodeId);
+                    YT_LOG_DEBUG("Fixed invalid delta statistics (TableId: %v)", nodeId);
+                    ++fixedTableCount;
                 }
+            }
+
+            if (fixedTableCount != 0) {
+                YT_LOG_ALERT("Fixed invalid delta statistics for %v tables", fixedTableCount);
             }
         }
 
