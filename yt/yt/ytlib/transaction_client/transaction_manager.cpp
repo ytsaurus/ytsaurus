@@ -1027,7 +1027,7 @@ private:
     }
 
 
-    TFuture<void> SendPing(const TTransactionPingOptions& options)
+    TFuture<void> SendPing(const TTransactionPingOptions& options = {})
     {
         std::vector<TFuture<void>> asyncResults;
         for (auto cellId : GetRegisteredParticipantIds()) {
@@ -1105,11 +1105,7 @@ private:
             return;
         }
 
-        // COMPAT(shakurov): disable retries here once all clients have retries enabled.
-        TTransactionPingOptions options{
-            .EnableRetries = true
-        };
-        SendPing(options).Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& error) {
             if (!IsPingableState()) {
                 YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
                     Id_,
@@ -1117,16 +1113,9 @@ private:
                 return;
             }
 
-            if (error.FindMatching(NYT::EErrorCode::Timeout)) {
-                RunPeriodicPings();
-                return;
-            }
-
-            YT_LOG_DEBUG("Transaction ping scheduled (TransactionId: %v)",
-                Id_);
-
             auto pingPeriod = std::min(PingPeriod_.value_or(Owner_->Config_->DefaultPingPeriod), GetTimeout() / 2);
-            TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingPeriod);
+            auto pingDeadline = startTime + pingPeriod;
+            TDelayedExecutor::Submit(BIND(&TImpl::RunPeriodicPings, MakeWeak(this)), pingDeadline);
         }));
     }
 
