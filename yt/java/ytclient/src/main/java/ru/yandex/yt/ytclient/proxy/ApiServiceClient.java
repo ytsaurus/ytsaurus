@@ -27,6 +27,9 @@ import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
@@ -67,7 +70,6 @@ import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TRspLookupRows;
-import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspMountTable;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
@@ -569,18 +571,9 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?> request) {
-        RpcClientRequestBuilder<TReqModifyRows.Builder, RpcClientResponse<TRspModifyRows>> builder =
-                service.modifyRows();
-        request.writeHeaderTo(builder.header());
-        builder.body().setTransactionId(RpcUtil.toProto(transactionId));
-        builder.body().setPath(request.getPath());
-        if (request.getRequireSyncReplica().isPresent()) {
-            builder.body().setRequireSyncReplica(request.getRequireSyncReplica().get());
-        }
-        builder.body().addAllRowModificationTypes(request.getRowModificationTypes());
-        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
-        request.serializeRowsetTo(builder.attachments());
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return RpcUtil.apply(
+                sendRequest(new ModifyRowsWrapper(transactionId, request), service.modifyRows()),
+                response -> null);
     }
 
     // TODO: TReqBatchModifyRows
@@ -1127,5 +1120,39 @@ public class ApiServiceClient extends TransactionalClient {
 
     static private YTreeNode parseByteString(ByteString byteString) {
         return YTreeBinarySerializer.deserialize(byteString.newInput());
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class ModifyRowsWrapper implements HighLevelRequest<TReqModifyRows.Builder> {
+    private final GUID transactionId;
+    private final AbstractModifyRowsRequest<?> request;
+
+    ModifyRowsWrapper(GUID transactionId, AbstractModifyRowsRequest<?> request) {
+        this.transactionId = transactionId;
+        this.request = request;
+    }
+
+    @Override
+    public String getArgumentsLogString() {
+        return "TransactionId: " + transactionId + "; ";
+    }
+
+    @Override
+    public void writeHeaderTo(TRequestHeader.Builder header) {
+        request.writeHeaderTo(header);
+    }
+
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqModifyRows.Builder, ?> builder) {
+        builder.body().setTransactionId(RpcUtil.toProto(transactionId));
+        builder.body().setPath(request.getPath());
+        if (request.getRequireSyncReplica().isPresent()) {
+            builder.body().setRequireSyncReplica(request.getRequireSyncReplica().get());
+        }
+        builder.body().addAllRowModificationTypes(request.getRowModificationTypes());
+        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
+        request.serializeRowsetTo(builder.attachments());
     }
 }
