@@ -38,8 +38,6 @@ import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TReqCopyNode;
-import ru.yandex.yt.rpcproxy.TReqCreateNode;
-import ru.yandex.yt.rpcproxy.TReqCreateObject;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGCCollect;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
@@ -54,7 +52,6 @@ import ru.yandex.yt.rpcproxy.TReqReadFile;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
 import ru.yandex.yt.rpcproxy.TReqRemoveMember;
-import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
@@ -71,8 +68,6 @@ import ru.yandex.yt.rpcproxy.TRspBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TRspCheckPermission;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TRspCopyNode;
-import ru.yandex.yt.rpcproxy.TRspCreateNode;
-import ru.yandex.yt.rpcproxy.TRspCreateObject;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGCCollect;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
@@ -88,7 +83,6 @@ import ru.yandex.yt.rpcproxy.TRspReadFile;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
 import ru.yandex.yt.rpcproxy.TRspRemoveMember;
-import ru.yandex.yt.rpcproxy.TRspRemoveNode;
 import ru.yandex.yt.rpcproxy.TRspReshardTable;
 import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
@@ -111,6 +105,7 @@ import ru.yandex.yt.ytclient.proxy.request.CommitTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
 import ru.yandex.yt.ytclient.proxy.request.CopyNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.CreateObject;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
@@ -148,7 +143,6 @@ import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
-import ru.yandex.yt.ytree.TAttributeDictionary;
 
 /**
  * Клиент для высокоуровневой работы с ApiService
@@ -275,7 +269,7 @@ public class ApiServiceClient extends TransactionalClient {
         return commitTransaction(id, sticky, null);
     }
 
-    public CompletableFuture<Void> commitTransaction(GUID id, boolean sticky, @Nullable Duration requestTimeout) {
+    public CompletableFuture<Void> commitTransaction(GUID id, boolean ignored, @Nullable Duration requestTimeout) {
         CommitTransaction req = new CommitTransaction(id);
         if (requestTimeout != null) {
             req.setTimeout(requestTimeout);
@@ -371,52 +365,50 @@ public class ApiServiceClient extends TransactionalClient {
         return getTablePivotKeys(req);
     }
 
+    /**
+     * Create new master object.
+     * @see CreateObject
+     */
+    public CompletableFuture<GUID> createObject(CreateObject req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.createObject()),
+                response -> RpcUtil.fromProto(response.body().getObjectId()));
+    }
+
     public CompletableFuture<GUID> createObject(ObjectType type, Map<String, YTreeNode> attributes) {
         return createObject(type, attributes, null);
     }
 
     public CompletableFuture<GUID> createObject(ObjectType type, Map<String, YTreeNode> attributes, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqCreateObject.Builder, RpcClientResponse<TRspCreateObject>> builder =
-                service.createObject();
-
+        CreateObject req = new CreateObject(type);
+        req.setAttributes(attributes);
         if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
+            req.setTimeout(requestTimeout);
         }
-        builder.body().setType(type.value());
-
-        if (!attributes.isEmpty()) {
-            final TAttributeDictionary.Builder aBuilder = builder.body().getAttributesBuilder();
-            for (Map.Entry<String, YTreeNode> me : attributes.entrySet()) {
-                aBuilder.addAttributesBuilder()
-                        .setKey(me.getKey())
-                        .setValue(ByteString.copyFrom(me.getValue().toBinary()));
-            }
-        }
-
-        return RpcUtil.apply(invoke(builder),
-                response ->
-                        RpcUtil.fromProto(response.body().getObjectId()));
+        return createObject(req);
     }
 
+    /**
+     * Create cypress node
+     * @see CreateNode
+     */
     @Override
     public CompletableFuture<GUID> createNode(CreateNode req) {
-        RpcClientRequestBuilder<TReqCreateNode.Builder, RpcClientResponse<TRspCreateNode>> builder =
-                service.createNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
-        return RpcUtil.apply(invoke(builder),
-                response ->
-                        RpcUtil.fromProto(response.body().getNodeId()));
+        return RpcUtil.apply(
+                sendRequest(req, service.createNode()),
+                response -> RpcUtil.fromProto(response.body().getNodeId()));
     }
 
+
+    /**
+     * Remove cypress node
+     * @see RemoveNode
+     */
     @Override
     public CompletableFuture<Void> removeNode(RemoveNode req) {
-        RpcClientRequestBuilder<TReqRemoveNode.Builder, RpcClientResponse<TRspRemoveNode>> builder =
-                service.removeNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return RpcUtil.apply(
+                sendRequest(req, service.removeNode()),
+                response -> null);
     }
 
     @Override

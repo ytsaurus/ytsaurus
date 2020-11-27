@@ -14,9 +14,17 @@ import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytree.TAttributeDictionary;
 
-public class CreateNode extends MutateNode<CreateNode> {
+/**
+ * Request for creating cypress node.
+ *
+ * @see <a href="https://docs.yandex-team.ru/yt/api/commands#create">
+ *     create documentation
+ *     </a>
+ */
+public class CreateNode extends MutateNode<CreateNode> implements HighLevelRequest<TReqCreateNode.Builder> {
     private final String path;
     private final int type;
 
@@ -76,35 +84,51 @@ public class CreateNode extends MutateNode<CreateNode> {
         return this;
     }
 
-    public TReqCreateNode.Builder writeTo(TReqCreateNode.Builder builder) {
-        builder.setPath(path)
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqCreateNode.Builder, ?> builder) {
+        builder.body()
+                .setPath(path)
                 .setType(type)
                 .setRecursive(recursive)
                 .setForce(force)
                 .setIgnoreExisting(ignoreExisting);
 
         if (transactionalOptions != null) {
-            builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
+            builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
         if (prerequisiteOptions != null) {
-            builder.setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
+            builder.body().setPrerequisiteOptions(prerequisiteOptions.writeTo(TPrerequisiteOptions.newBuilder()));
         }
         if (mutatingOptions != null) {
-            builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
+            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
         }
         if (additionalData != null) {
-            builder.mergeFrom(additionalData);
+            builder.body().mergeFrom(additionalData);
         }
 
         if (!attributes.isEmpty()) {
-            final TAttributeDictionary.Builder aBuilder = builder.getAttributesBuilder();
+            final TAttributeDictionary.Builder aBuilder = builder.body().getAttributesBuilder();
             for (Map.Entry<String, YTreeNode> me : attributes.entrySet()) {
                 aBuilder.addAttributesBuilder()
                         .setKey(me.getKey())
                         .setValue(ByteString.copyFrom(me.getValue().toBinary()));
             }
         }
-        return builder;
+    }
+
+    @Override
+    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+        super.writeArgumentsLogString(sb);
+        sb.append("Path: ").append(path).append("; Type:").append(type).append("; ");
+        if (recursive) {
+            sb.append("Recursive: true; ");
+        }
+        if (ignoreExisting) {
+            sb.append("IgnoreExisting: true; ");
+        }
+        if (force) {
+            sb.append("Force: true; ");
+        }
     }
 
     @Nonnull
