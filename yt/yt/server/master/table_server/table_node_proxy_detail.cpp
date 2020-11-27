@@ -1130,7 +1130,7 @@ void TTableNodeProxy::ValidateFetch(TFetchContext* context)
     for (const auto& range : context->Ranges) {
         const auto& lowerLimit = range.LowerLimit();
         const auto& upperLimit = range.UpperLimit();
-        if ((upperLimit.HasKey() || lowerLimit.HasKey()) && !table->IsSorted()) {
+        if ((upperLimit.HasLegacyKey() || lowerLimit.HasLegacyKey()) && !table->IsSorted()) {
             THROW_ERROR_EXCEPTION("Key selectors are not supported for unsorted tables");
         }
         if (upperLimit.HasTabletIndex() || lowerLimit.HasTabletIndex()) {

@@ -1033,8 +1033,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
         if (chunkSpec.has_lower_limit()) {
             auto limit = FromProto<TReadLimit>(chunkSpec.lower_limit());
-            if (limit.HasKey()) {
-                return limit.GetKey();
+            if (limit.HasLegacyKey()) {
+                return limit.GetLegacyKey();
             }
         } else if (IsChunkTabletStoreType(type)) {
             YT_VERIFY(chunkSpec.has_chunk_meta());
@@ -1099,13 +1099,13 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         if (chunkSpec.has_lower_limit()) {
             lowerLimit = NYT::FromProto<TReadLimit>(chunkSpec.lower_limit());
         } else {
-            lowerLimit.SetKey(MinKey());
+            lowerLimit.SetLegacyKey(MinKey());
         }
 
         if (chunkSpec.has_upper_limit()) {
             upperLimit = NYT::FromProto<TReadLimit>(chunkSpec.upper_limit());
         } else {
-            upperLimit.SetKey(MaxKey());
+            upperLimit.SetLegacyKey(MaxKey());
         }
 
         if (lowerLimit.HasRowIndex() || upperLimit.HasRowIndex()) {
@@ -1156,8 +1156,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             std::move(chunkState),
             std::move(chunkMeta),
             blockReadOptions,
-            lowerLimit.GetKey(),
-            upperLimit.GetKey(),
+            lowerLimit.GetLegacyKey(),
+            upperLimit.GetLegacyKey(),
             TColumnFilter(),
             timestamp,
             false,

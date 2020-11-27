@@ -253,13 +253,13 @@ protected:
             if (teleportChunksSet.contains(inputChunk)) {
                 continue;
             }
-            TLegacyKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasKey()
-                ? inputChunk->LowerLimit()->GetKey()
+            TLegacyKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasLegacyKey()
+                ? inputChunk->LowerLimit()->GetLegacyKey()
                 : inputChunk->BoundaryKeys()
                 ? inputChunk->BoundaryKeys()->MinKey
                 : TLegacyKey();
-            TLegacyKey chunkUpperKey = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasKey()
-                ? inputChunk->UpperLimit()->GetKey()
+            TLegacyKey chunkUpperKey = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasLegacyKey()
+                ? inputChunk->UpperLimit()->GetLegacyKey()
                 : inputChunk->BoundaryKeys()
                 ? GetKeySuccessor(inputChunk->BoundaryKeys()->MaxKey, RowBuffer_)
                 : TLegacyKey();

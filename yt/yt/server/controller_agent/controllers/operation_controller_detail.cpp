@@ -5124,13 +5124,13 @@ void TOperationControllerBase::FetchInputTables()
 
             std::vector<TReadRange> inferredRanges;
             for (const auto& range : ranges) {
-                auto lower = range.LowerLimit().HasKey() ? range.LowerLimit().GetKey() : MinKey();
-                auto upper = range.UpperLimit().HasKey() ? range.UpperLimit().GetKey() : MaxKey();
+                auto lower = range.LowerLimit().HasLegacyKey() ? range.LowerLimit().GetLegacyKey() : MinKey();
+                auto upper = range.UpperLimit().HasLegacyKey() ? range.UpperLimit().GetLegacyKey() : MaxKey();
                 auto result = rangeInferrer(TRowRange(lower.Get(), upper.Get()), RowBuffer);
                 for (const auto& inferred : result) {
                     auto inferredRange = range;
-                    inferredRange.LowerLimit().SetKey(TLegacyOwningKey(inferred.first));
-                    inferredRange.UpperLimit().SetKey(TLegacyOwningKey(inferred.second));
+                    inferredRange.LowerLimit().SetLegacyKey(TLegacyOwningKey(inferred.first));
+                    inferredRange.UpperLimit().SetLegacyKey(TLegacyOwningKey(inferred.second));
                     inferredRanges.push_back(inferredRange);
                 }
             }

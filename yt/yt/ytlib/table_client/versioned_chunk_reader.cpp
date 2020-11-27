@@ -1029,8 +1029,8 @@ public:
         , RowBuilder_(chunkMeta, ValueColumnReaders_, SchemaIdMapping_, timestamp)
     {
         YT_VERIFY(ranges.Size() == 1);
-        LowerLimit_.SetKey(TLegacyOwningKey(ranges[0].first));
-        UpperLimit_.SetKey(TLegacyOwningKey(ranges[0].second));
+        LowerLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].first));
+        UpperLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].second));
 
         int timestampReaderIndex = VersionedChunkMeta_->ColumnMeta()->columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
@@ -1094,14 +1094,14 @@ public:
             }
 
             YT_VERIFY(RowIndex_ + rowLimit <= HardUpperRowIndex_);
-            if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
+            if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && UpperLimit_.HasLegacyKey()) {
                 i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
                 for (; index < rowLimit; ++index) {
                     if (CompareRows(
                         range[index].BeginKeys(),
                         range[index].EndKeys(),
-                        UpperLimit_.GetKey().Begin(),
-                        UpperLimit_.GetKey().End()) >= 0)
+                        UpperLimit_.GetLegacyKey().Begin(),
+                        UpperLimit_.GetLegacyKey().End()) >= 0)
                     {
                         Completed_ = true;
                         range = range.Slice(range.Begin(), range.Begin() + index);

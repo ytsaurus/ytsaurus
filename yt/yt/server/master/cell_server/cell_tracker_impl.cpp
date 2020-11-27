@@ -451,6 +451,7 @@ TError TCellTrackerImpl::IsFailed(
 {
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
+
     if (node) {
         if (node->GetBanned()) {
             return TError(

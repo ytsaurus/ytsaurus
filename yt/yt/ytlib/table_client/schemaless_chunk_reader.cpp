@@ -296,9 +296,9 @@ protected:
             YT_VERIFY(rowIndex <= upperRowIndex);
         }
 
-        auto lowerKey = lowerLimit.HasKey() ? lowerLimit.GetKey() : TLegacyOwningKey();
+        auto lowerKey = lowerLimit.HasLegacyKey() ? lowerLimit.GetLegacyKey() : TLegacyOwningKey();
         auto lastChunkKey = FromProto<TLegacyOwningKey>(blockMeta.blocks().rbegin()->last_key());
-        auto upperKey = upperLimit.HasKey() ? upperLimit.GetKey() : lastChunkKey;
+        auto upperKey = upperLimit.HasLegacyKey() ? upperLimit.GetLegacyKey() : lastChunkKey;
         TLegacyOwningKey firstUnreadKey;
         if (!unreadRows.Empty()) {
             firstUnreadKey = GetKeyPrefix(unreadRows[0], keyColumns.size());
@@ -651,7 +651,7 @@ void THorizontalSchemalessRangeChunkReader::DoInitializeBlockSequence()
 
         CreateBlockSequence(0, BlockMetaExt_->blocks_size());
     } else {
-        bool readSorted = ReadRange_.LowerLimit().HasKey() || ReadRange_.UpperLimit().HasKey() || !KeyColumns_.empty();
+        bool readSorted = ReadRange_.LowerLimit().HasLegacyKey() || ReadRange_.UpperLimit().HasLegacyKey() || !KeyColumns_.empty();
         if (readSorted) {
             InitializeBlockSequenceSorted();
         } else {
@@ -735,9 +735,9 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
         RowIndex_ = lowerLimit.GetRowIndex();
     }
 
-    if (lowerLimit.HasKey()) {
+    if (lowerLimit.HasLegacyKey()) {
         auto blockRowIndex = BlockReader_->GetRowIndex();
-        YT_VERIFY(BlockReader_->SkipToKey(lowerLimit.GetKey().Get()));
+        YT_VERIFY(BlockReader_->SkipToKey(lowerLimit.GetLegacyKey().Get()));
         RowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
     }
 }
@@ -778,7 +778,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
            dataWeight < options.MaxDataWeightPerRead)
     {
         if ((CheckRowLimit_ && RowIndex_ >= ReadRange_.UpperLimit().GetRowIndex()) ||
-            (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), ReadRange_.UpperLimit().GetKey()) >= 0))
+            (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), ReadRange_.UpperLimit().GetLegacyKey()) >= 0))
         {
             BlockEnded_ = true;
             break;
@@ -930,7 +930,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 
     for (const auto& key : Keys_) {
         TReadLimit readLimit;
-        readLimit.SetKey(TLegacyOwningKey(key));
+        readLimit.SetLegacyKey(TLegacyOwningKey(key));
 
         int index = ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), readLimit, KeyColumns_.size());
         if (index == BlockMetaExt_->blocks_size()) {
@@ -1254,7 +1254,7 @@ private:
 
             i64 deltaIndex = 0;
             for (; deltaIndex < rowLimit; ++deltaIndex) {
-                if (keys[deltaIndex] >= LowerLimit_.GetKey()) {
+                if (keys[deltaIndex] >= LowerLimit_.GetLegacyKey()) {
                     break;
                 }
             }
@@ -1273,16 +1273,16 @@ private:
             LowerKeyLimitReached_ = (rowLimit > 0);
 
             // We could have overcome upper limit, we must check it.
-            if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
+            if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasLegacyKey()) {
                 auto keyRange = MakeRange(keys.data() + deltaIndex, keys.data() + keys.size());
-                while (rowLimit > 0 && keyRange[rowLimit - 1] >= UpperLimit_.GetKey()) {
+                while (rowLimit > 0 && keyRange[rowLimit - 1] >= UpperLimit_.GetLegacyKey()) {
                     --rowLimit;
                     Completed_ = true;
                 }
             }
-        } else if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
+        } else if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasLegacyKey()) {
             auto keys = ReadKeys(rowLimit);
-            while (rowLimit > 0 && keys[rowLimit - 1] >= UpperLimit_.GetKey()) {
+            while (rowLimit > 0 && keys[rowLimit - 1] >= UpperLimit_.GetLegacyKey()) {
                 --rowLimit;
                 Completed_ = true;
             }
@@ -1452,11 +1452,11 @@ private:
 
         // Minimum prefix of key columns, that must be included in column filter.
         int minKeyColumnCount = 0;
-        if (UpperLimit_.HasKey()) {
-            minKeyColumnCount = std::max(minKeyColumnCount, UpperLimit_.GetKey().GetCount());
+        if (UpperLimit_.HasLegacyKey()) {
+            minKeyColumnCount = std::max(minKeyColumnCount, UpperLimit_.GetLegacyKey().GetCount());
         }
-        if (LowerLimit_.HasKey()) {
-            minKeyColumnCount = std::max(minKeyColumnCount, LowerLimit_.GetKey().GetCount());
+        if (LowerLimit_.HasLegacyKey()) {
+            minKeyColumnCount = std::max(minKeyColumnCount, LowerLimit_.GetLegacyKey().GetCount());
         }
         bool sortedRead = minKeyColumnCount > 0 || !KeyColumns_.empty();
 
@@ -1480,7 +1480,7 @@ private:
             chunkNameTable = TNameTable::FromSchema(chunkSchema);
         } else {
             chunkNameTable = ChunkMeta_->ChunkNameTable();
-            if (UpperLimit_.HasKey() || LowerLimit_.HasKey()) {
+            if (UpperLimit_.HasLegacyKey() || LowerLimit_.HasLegacyKey()) {
                 ChunkMeta_->InitBlockLastKeys(KeyColumns_.empty()
                     ? chunkSchema.GetKeyColumns()
                     : KeyColumns_);
@@ -1586,7 +1586,7 @@ private:
             FeedBlocksToReaders();
             Initialize(MakeRange(KeyColumnReaders_));
             RowIndex_ = LowerRowIndex_;
-            LowerKeyLimitReached_ = !LowerLimit_.HasKey();
+            LowerKeyLimitReached_ = !LowerLimit_.HasLegacyKey();
 
             YT_LOG_DEBUG("Initialized start row index (LowerKeyLimitReached: %v, RowIndex: %v)",
                 LowerKeyLimitReached_,

@@ -36,8 +36,8 @@ void TChunkView::SetReadRange(TReadRange readRange)
 
     ReadRange_ = std::move(readRange);
 
-    if (readRange.UpperLimit().HasKey()) {
-        const auto& key = readRange.UpperLimit().GetKey();
+    if (readRange.UpperLimit().HasLegacyKey()) {
+        const auto& key = readRange.UpperLimit().GetLegacyKey();
         YT_VERIFY(key != NTableClient::MaxKey());
     }
 }
@@ -78,16 +78,16 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
 
 TReadLimit TChunkView::GetAdjustedLowerReadLimit(TReadLimit readLimit) const
 {
-    if (ReadRange_.LowerLimit().HasKey()) {
-        readLimit.MergeLowerKey(ReadRange_.LowerLimit().GetKey());
+    if (ReadRange_.LowerLimit().HasLegacyKey()) {
+        readLimit.MergeLowerLegacyKey(ReadRange_.LowerLimit().GetLegacyKey());
     }
     return readLimit;
 }
 
 TReadLimit TChunkView::GetAdjustedUpperReadLimit(TReadLimit readLimit) const
 {
-    if (ReadRange_.UpperLimit().HasKey()) {
-        readLimit.MergeUpperKey(ReadRange_.UpperLimit().GetKey());
+    if (ReadRange_.UpperLimit().HasLegacyKey()) {
+        readLimit.MergeUpperLegacyKey(ReadRange_.UpperLimit().GetLegacyKey());
     }
     return readLimit;
 }

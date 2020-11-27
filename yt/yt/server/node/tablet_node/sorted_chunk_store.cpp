@@ -186,12 +186,12 @@ TSortedChunkStore::TSortedChunkStore(
     TLegacyKey lowerBound;
     TLegacyKey upperBound;
 
-    if (readRange.LowerLimit().HasKey()) {
-        lowerBound = readRange.LowerLimit().GetKey();
+    if (readRange.LowerLimit().HasLegacyKey()) {
+        lowerBound = readRange.LowerLimit().GetLegacyKey();
     }
 
-    if (readRange.UpperLimit().HasKey()) {
-        upperBound = readRange.UpperLimit().GetKey();
+    if (readRange.UpperLimit().HasLegacyKey()) {
+        upperBound = readRange.UpperLimit().GetLegacyKey();
     }
 
     ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);

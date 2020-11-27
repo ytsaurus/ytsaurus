@@ -653,15 +653,15 @@ private:
 
             if (sortedStore->HasNontrivialReadRange()) {
                 // Adjust ranges for chunk views.
-                lowerLimit.MergeLowerKey(sortedStore->GetMinKey());
-                lowerLimit.MergeUpperKey(sortedStore->GetUpperBoundKey());
+                lowerLimit.MergeLowerLegacyKey(sortedStore->GetMinKey());
+                lowerLimit.MergeUpperLegacyKey(sortedStore->GetUpperBoundKey());
             } else {
                 // Drop redundant ranges for chunks.
-                if (lowerLimit.HasKey() && lowerLimit.GetKey() <= sortedStore->GetMinKey()) {
-                    lowerLimit.SetKey({});
+                if (lowerLimit.HasLegacyKey() && lowerLimit.GetLegacyKey() <= sortedStore->GetMinKey()) {
+                    lowerLimit.SetLegacyKey({});
                 }
-                if (upperLimit.HasKey() && upperLimit.GetKey() >= sortedStore->GetUpperBoundKey()) {
-                    upperLimit.SetKey({});
+                if (upperLimit.HasLegacyKey() && upperLimit.GetLegacyKey() >= sortedStore->GetUpperBoundKey()) {
+                    upperLimit.SetLegacyKey({});
                 }
             }
         }
@@ -832,11 +832,11 @@ private:
                         response->Attachments().emplace_back();
                     }
 
-                    const auto& rangeLowerBound = range.LowerLimit().HasKey()
-                        ? range.LowerLimit().GetKey()
+                    const auto& rangeLowerBound = range.LowerLimit().HasLegacyKey()
+                        ? range.LowerLimit().GetLegacyKey()
                         : MinKey();
-                    const auto& rangeUpperBound = range.UpperLimit().HasKey()
-                        ? range.UpperLimit().GetKey()
+                    const auto& rangeUpperBound = range.UpperLimit().HasLegacyKey()
+                        ? range.UpperLimit().GetLegacyKey()
                         : MaxKey();
 
                     const auto& lowerBound = ChooseMaxKey(rangeLowerBound, tabletSnapshot->PivotKey);
@@ -849,10 +849,10 @@ private:
                     TReadLimit inducedLowerBound;
                     TReadLimit inducedUpperBound;
                     if (lowerBound != MinKey()) {
-                        inducedLowerBound.SetKey(lowerBound);
+                        inducedLowerBound.SetLegacyKey(lowerBound);
                     }
                     if (upperBound != MaxKey()) {
-                        inducedUpperBound.SetKey(upperBound);
+                        inducedUpperBound.SetLegacyKey(upperBound);
                     }
 
                     auto addStore = [&] (const IStorePtr& store) {

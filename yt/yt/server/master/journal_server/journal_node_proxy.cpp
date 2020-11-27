@@ -267,7 +267,7 @@ private:
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
             // XXX: other types
-            if (upperLimit.HasKey() || lowerLimit.HasKey()) {
+            if (upperLimit.HasLegacyKey() || lowerLimit.HasLegacyKey()) {
                 THROW_ERROR_EXCEPTION("Key selectors are not supported for journals");
             }
             if (upperLimit.HasOffset() || lowerLimit.HasOffset()) {

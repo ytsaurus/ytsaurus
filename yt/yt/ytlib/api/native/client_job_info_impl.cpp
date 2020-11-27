@@ -624,12 +624,12 @@ TYsonString TClient::DoGetJobInputPaths(
             return lhs.GetRowIndex() < rhs.GetRowIndex();
         }
 
-        if (lhs.HasKey() && rhs.HasKey()) {
-            return lhs.GetKey() < rhs.GetKey();
-        } else if (lhs.HasKey()) {
+        if (lhs.HasLegacyKey() && rhs.HasLegacyKey()) {
+            return lhs.GetLegacyKey() < rhs.GetLegacyKey();
+        } else if (lhs.HasLegacyKey()) {
             // rhs is less
             return false;
-        } else if (rhs.HasKey()) {
+        } else if (rhs.HasLegacyKey()) {
             // lhs is less
             return true;
         } else {
@@ -651,11 +651,11 @@ TYsonString TClient::DoGetJobInputPaths(
             return false;
         }
 
-        if (lhsUpperLimit.HasKey() != rhsLowerLimit.HasKey()) {
+        if (lhsUpperLimit.HasLegacyKey() != rhsLowerLimit.HasLegacyKey()) {
             return false;
         }
 
-        if (lhsUpperLimit.HasKey() && lhsUpperLimit.GetKey() < rhsLowerLimit.GetKey()) {
+        if (lhsUpperLimit.HasLegacyKey() && lhsUpperLimit.GetLegacyKey() < rhsLowerLimit.GetLegacyKey()) {
             return false;
         }
 
@@ -703,9 +703,9 @@ TYsonString TClient::DoGetJobInputPaths(
                   fluent
                       .Item("row_index").Value(limit.GetRowIndex());
               })
-              .DoIf(limit.HasKey(), [&] (TFluentMap fluent) {
+              .DoIf(limit.HasLegacyKey(), [&] (TFluentMap fluent) {
                   fluent
-                      .Item("key").Value(limit.GetKey());
+                      .Item("key").Value(limit.GetLegacyKey());
               })
               .EndMap();
     };

@@ -767,11 +767,11 @@ TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView, std::optio
 {
     auto chunkUpperBound = GetUpperBoundKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
     const auto& upperLimit = chunkView->ReadRange().UpperLimit();
-    if (!upperLimit.HasKey()) {
+    if (!upperLimit.HasLegacyKey()) {
         return chunkUpperBound;
     }
 
-    const auto& upperLimitKey = upperLimit.GetKey();
+    const auto& upperLimitKey = upperLimit.GetLegacyKey();
     if (!keyColumnCount || *keyColumnCount == upperLimitKey.GetCount()) {
         return std::min(chunkUpperBound, upperLimitKey);
     } else {
@@ -850,11 +850,11 @@ TLegacyOwningKey GetMinKey(const TChunkView* chunkView, std::optional<int> keyCo
 {
     auto chunkMinKey = GetMinKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
     const auto& lowerLimit = chunkView->ReadRange().LowerLimit();
-    if (!lowerLimit.HasKey()) {
+    if (!lowerLimit.HasLegacyKey()) {
         return chunkMinKey;
     }
 
-    const auto& lowerLimitKey = lowerLimit.GetKey();
+    const auto& lowerLimitKey = lowerLimit.GetLegacyKey();
     if (!keyColumnCount || *keyColumnCount == lowerLimitKey.GetCount()) {
         return std::max(chunkMinKey, lowerLimitKey);
     } else {
@@ -961,15 +961,15 @@ TLegacyOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree)
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews)
 {
     auto lowerLimitOrEmptyKey = [] (const NChunkServer::TChunkView* chunkView) {
-        if (const auto& lowerLimit = chunkView->ReadRange().LowerLimit(); lowerLimit.HasKey()) {
-            return lowerLimit.GetKey();
+        if (const auto& lowerLimit = chunkView->ReadRange().LowerLimit(); lowerLimit.HasLegacyKey()) {
+            return lowerLimit.GetLegacyKey();
         }
         return EmptyKey();
     };
 
     auto upperLimitOrMaxKey = [] (const NChunkServer::TChunkView* chunkView) {
-        if (const auto& upperLimit = chunkView->ReadRange().UpperLimit(); upperLimit.HasKey()) {
-            return upperLimit.GetKey();
+        if (const auto& upperLimit = chunkView->ReadRange().UpperLimit(); upperLimit.HasLegacyKey()) {
+            return upperLimit.GetLegacyKey();
         }
         return MaxKey();
     };

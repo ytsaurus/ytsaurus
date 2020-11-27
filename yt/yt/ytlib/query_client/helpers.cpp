@@ -41,7 +41,7 @@ TLegacyOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
 {
     if (dataSplit.has_lower_limit()) {
         auto readLimit = FromProto<TReadLimit>(dataSplit.lower_limit());
-        return readLimit.GetKey();
+        return readLimit.GetLegacyKey();
     } else {
         return MinKey();
     }
@@ -51,7 +51,7 @@ TLegacyOwningKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
 {
     if (dataSplit.has_upper_limit()) {
         auto readLimit = FromProto<TReadLimit>(dataSplit.upper_limit());
-        return readLimit.GetKey();
+        return readLimit.GetLegacyKey();
     } else {
         return MaxKey();
     }
@@ -95,7 +95,7 @@ void SetLowerBound(TDataSplit* dataSplit, const TLegacyOwningKey & lowerBound)
         return;
     }
     TReadLimit readLimit;
-    readLimit.SetKey(lowerBound);
+    readLimit.SetLegacyKey(lowerBound);
     ToProto(dataSplit->mutable_lower_limit(), readLimit);
 }
 
@@ -106,7 +106,7 @@ void SetUpperBound(TDataSplit* dataSplit, const TLegacyOwningKey & upperBound)
         return;
     }
     TReadLimit readLimit;
-    readLimit.SetKey(upperBound);
+    readLimit.SetLegacyKey(upperBound);
     ToProto(dataSplit->mutable_upper_limit(), readLimit);
 }
 

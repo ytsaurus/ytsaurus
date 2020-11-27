@@ -34,10 +34,10 @@ public:
 
     const NProto::TReadLimit& AsProto() const;
 
-    const NTableClient::TLegacyOwningKey& GetKey() const;
-    bool HasKey() const;
-    TReadLimit& SetKey(const NTableClient::TLegacyOwningKey& key);
-    TReadLimit& SetKey(NTableClient::TLegacyOwningKey&& key);
+    const NTableClient::TLegacyOwningKey& GetLegacyKey() const;
+    bool HasLegacyKey() const;
+    TReadLimit& SetLegacyKey(const NTableClient::TLegacyOwningKey& key);
+    TReadLimit& SetLegacyKey(NTableClient::TLegacyOwningKey&& key);
 
     i64 GetRowIndex() const;
     bool HasRowIndex() const;
@@ -57,8 +57,8 @@ public:
 
     bool IsTrivial() const;
 
-    void MergeLowerKey(const NTableClient::TLegacyOwningKey& key);
-    void MergeUpperKey(const NTableClient::TLegacyOwningKey& key);
+    void MergeLowerLegacyKey(const NTableClient::TLegacyOwningKey& key);
+    void MergeUpperLegacyKey(const NTableClient::TLegacyOwningKey& key);
 
     void MergeLowerRowIndex(i64 rowIndex);
     void MergeUpperRowIndex(i64 rowIndex);

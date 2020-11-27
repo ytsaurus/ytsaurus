@@ -52,11 +52,11 @@ TChunkSlice::TChunkSlice(
     }
 
     if (lowerKey) {
-        LowerLimit_.MergeLowerKey(lowerKey);
+        LowerLimit_.MergeLowerLegacyKey(lowerKey);
     }
 
     if (upperKey) {
-        UpperLimit_.MergeUpperKey(upperKey);
+        UpperLimit_.MergeUpperLegacyKey(upperKey);
     }
 }
 
@@ -124,8 +124,8 @@ void TChunkSlice::SliceEvenly(
 
 void TChunkSlice::SetKeys(const NTableClient::TLegacyOwningKey& lowerKey, const NTableClient::TLegacyOwningKey& upperKey)
 {
-    LowerLimit_.MergeLowerKey(lowerKey);
-    UpperLimit_.MergeUpperKey(upperKey);
+    LowerLimit_.MergeLowerLegacyKey(lowerKey);
+    UpperLimit_.MergeUpperLegacyKey(upperKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -197,7 +197,7 @@ public:
         }
 
         BeginIndex_ = 0;
-        if (LowerLimit_.HasRowIndex() || LowerLimit_.HasKey()) {
+        if (LowerLimit_.HasRowIndex() || LowerLimit_.HasLegacyKey()) {
             BeginIndex_ = std::distance(
                 IndexKeys_.begin(),
                 std::lower_bound(
@@ -206,12 +206,12 @@ public:
                     LowerLimit_,
                     [] (const TIndexKey& indexKey, const NChunkClient::TReadLimit& limit) {
                         return (limit.HasRowIndex() && indexKey.ChunkRowCount < limit.GetRowIndex())
-                            || (limit.HasKey() && indexKey.Key < limit.GetKey());
+                            || (limit.HasLegacyKey() && indexKey.Key < limit.GetLegacyKey());
                     }));
         }
 
         EndIndex_ = IndexKeys_.size();
-        if (UpperLimit_.HasRowIndex() || UpperLimit_.HasKey()) {
+        if (UpperLimit_.HasRowIndex() || UpperLimit_.HasLegacyKey()) {
             EndIndex_ = std::distance(
                 IndexKeys_.begin(),
                 std::upper_bound(
@@ -220,7 +220,7 @@ public:
                     UpperLimit_,
                     [] (const NChunkClient::TReadLimit& limit, const TIndexKey& indexKey) {
                         return (limit.HasRowIndex() && limit.GetRowIndex() < indexKey.ChunkRowCount)
-                            || (limit.HasKey() && limit.GetKey() < indexKey.Key);
+                            || (limit.HasLegacyKey() && limit.GetLegacyKey() < indexKey.Key);
                     }));
         }
         if (EndIndex_ < IndexKeys_.size()) {
@@ -403,8 +403,8 @@ void ToProto(
     NProto::TChunkSlice* protoChunkSlice,
     const TChunkSlice& chunkSlice)
 {
-    if (chunkSlice.LowerLimit().HasKey()) {
-        int index = keysWriter->WriteKey(chunkSlice.LowerLimit().GetKey());
+    if (chunkSlice.LowerLimit().HasLegacyKey()) {
+        int index = keysWriter->WriteKey(chunkSlice.LowerLimit().GetLegacyKey());
         protoChunkSlice->mutable_lower_limit()->set_key_index(index);
     }
 
@@ -412,8 +412,8 @@ void ToProto(
         protoChunkSlice->mutable_lower_limit()->set_row_index(chunkSlice.LowerLimit().GetRowIndex());
     }
 
-    if (chunkSlice.UpperLimit().HasKey()) {
-        int index = keysWriter->WriteKey(chunkSlice.UpperLimit().GetKey());
+    if (chunkSlice.UpperLimit().HasLegacyKey()) {
+        int index = keysWriter->WriteKey(chunkSlice.UpperLimit().GetLegacyKey());
         protoChunkSlice->mutable_upper_limit()->set_key_index(index);
     }
 

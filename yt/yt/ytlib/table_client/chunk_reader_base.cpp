@@ -167,8 +167,8 @@ void TChunkReaderBase::CheckBlockUpperLimits(
         CheckRowLimit_ = upperLimit.GetRowIndex() < blockChunkRowCount;
     }
 
-    if (upperLimit.HasKey()) {
-        CheckBlockUpperKeyLimit(blockLastKey, upperLimit.GetKey(), keyColumnCount);
+    if (upperLimit.HasLegacyKey()) {
+        CheckBlockUpperKeyLimit(blockLastKey, upperLimit.GetLegacyKey(), keyColumnCount);
     }
 }
 
@@ -208,11 +208,11 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
 
 int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TReadLimit& lowerLimit, std::optional<int> keyColumnCount) const
 {
-    if (!lowerLimit.HasKey()) {
+    if (!lowerLimit.HasLegacyKey()) {
         return 0;
     }
 
-    int blockIndex = GetBlockIndexByKey(lowerLimit.GetKey(), blockIndexKeys, keyColumnCount);
+    int blockIndex = GetBlockIndexByKey(lowerLimit.GetLegacyKey(), blockIndexKeys, keyColumnCount);
     if (blockIndex == blockIndexKeys.Size()) {
         YT_LOG_DEBUG("Lower limit oversteps chunk boundaries (LowerLimit: %v, MaxKey: %v)",
             lowerLimit,
@@ -244,7 +244,7 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const T
 int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TReadLimit& upperLimit, std::optional<int> keyColumnCount) const
 {
     YT_VERIFY(!blockIndexKeys.Empty());
-    if (!upperLimit.HasKey()) {
+    if (!upperLimit.HasLegacyKey()) {
         return blockIndexKeys.Size();
     }
 
@@ -254,7 +254,7 @@ int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TLegacyKey>& blockIn
     auto it = std::lower_bound(
         begin,
         end,
-        upperLimit.GetKey(),
+        upperLimit.GetLegacyKey(),
         [=, &pool] (TLegacyKey key, TLegacyKey pivot) {
             auto wideKey = WidenKey(key, keyColumnCount, &pool);
             return CompareRows(pivot, wideKey) > 0;

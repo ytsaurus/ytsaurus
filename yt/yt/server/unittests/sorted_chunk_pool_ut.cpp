@@ -254,14 +254,14 @@ protected:
 
         YT_VERIFY(!InputTables_[chunk->GetTableIndex()].IsVersioned());
 
-        TLegacyKey lastKey = chunk->LowerLimit() ? chunk->LowerLimit()->GetKey() : chunk->BoundaryKeys()->MinKey;
+        TLegacyKey lastKey = chunk->LowerLimit() ? chunk->LowerLimit()->GetLegacyKey() : chunk->BoundaryKeys()->MinKey;
         i64 currentRow = 0;
         std::vector<TInputChunkSlicePtr> slices;
         for (int index = 0; index <= internalPoints.size(); ++index) {
             TLegacyKey upperLimit = index < internalPoints.size()
                 ? GetKeySuccessor(internalPoints[index], RowBuffer_)
                 : (chunk->UpperLimit()
-                ? chunk->UpperLimit()->GetKey()
+                ? chunk->UpperLimit()->GetLegacyKey()
                 : GetKeySuccessor(chunk->BoundaryKeys()->MaxKey, RowBuffer_));
             slices.emplace_back(New<TInputChunkSlice>(chunk, lastKey, upperLimit));
             if (!internalPoints.empty()) {
@@ -446,11 +446,11 @@ protected:
             if (teleportChunksSet.contains(inputChunk)) {
                 continue;
             }
-            TLegacyKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasKey()
-                ? inputChunk->LowerLimit()->GetKey()
+            TLegacyKey chunkLowerKey = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasLegacyKey()
+                ? inputChunk->LowerLimit()->GetLegacyKey()
                 : inputChunk->BoundaryKeys()->MinKey;
-            TLegacyKey chunkUpperKey = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasKey()
-                ? inputChunk->UpperLimit()->GetKey()
+            TLegacyKey chunkUpperKey = inputChunk->UpperLimit() && inputChunk->UpperLimit()->HasLegacyKey()
+                ? inputChunk->UpperLimit()->GetLegacyKey()
                 : GetKeySuccessor(inputChunk->BoundaryKeys()->MaxKey, RowBuffer_);
             i64 chunkLowerRowIndex = inputChunk->LowerLimit() && inputChunk->LowerLimit()->HasRowIndex()
                 ? inputChunk->LowerLimit()->GetRowIndex()

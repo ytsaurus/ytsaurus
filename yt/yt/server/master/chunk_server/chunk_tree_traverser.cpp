@@ -408,21 +408,21 @@ protected:
 
             // Key.
             {
-                if (entry->UpperBound.HasKey()) {
+                if (entry->UpperBound.HasLegacyKey()) {
                     YT_LOG_ALERT_UNLESS(KeyColumnCount_, "Chunk tree traverser entry has key bounds, "
                         "but `key_column_count` parameter is not set");
 
-                    childLowerBound.SetKey(GetMinKeyOrThrow(child, KeyColumnCount_));
-                    if (entry->UpperBound.GetKey() <= childLowerBound.GetKey()) {
+                    childLowerBound.SetLegacyKey(GetMinKeyOrThrow(child, KeyColumnCount_));
+                    if (entry->UpperBound.GetLegacyKey() <= childLowerBound.GetLegacyKey()) {
                         PopStack();
                         return {};
                     }
-                    childUpperBound.SetKey(GetUpperBoundKeyOrThrow(child, KeyColumnCount_));
-                } else if (entry->LowerBound.HasKey()) {
+                    childUpperBound.SetLegacyKey(GetUpperBoundKeyOrThrow(child, KeyColumnCount_));
+                } else if (entry->LowerBound.HasLegacyKey()) {
                     YT_LOG_ALERT_UNLESS(KeyColumnCount_, "Chunk tree traverser entry has key bounds, "
                         "but `key_column_count` parameter is not set");
 
-                    childLowerBound.SetKey(GetMinKeyOrThrow(child, KeyColumnCount_));
+                    childLowerBound.SetLegacyKey(GetMinKeyOrThrow(child, KeyColumnCount_));
                 }
             }
 
@@ -522,22 +522,22 @@ protected:
 
             // Key.
             {
-                if (entry->LowerBound.HasKey() || entry->UpperBound.HasKey()) {
+                if (entry->LowerBound.HasLegacyKey() || entry->UpperBound.HasLegacyKey()) {
                     YT_LOG_ALERT_UNLESS(KeyColumnCount_, "Chunk tree traverser entry has key bounds, "
                         "but `key_column_count` parameter is not set");
                 }
 
-                if (entry->UpperBound.HasKey()) {
+                if (entry->UpperBound.HasLegacyKey()) {
                     // NB: It's OK here without key widening, however there may be some inefficiency,
                     // e.g. with 2 key columns, pivotKey = [0] and upperBound = [0, #Min] we could have returned.
-                    if (entry->UpperBound.GetKey() <= pivotKey) {
+                    if (entry->UpperBound.GetLegacyKey() <= pivotKey) {
                         PopStack();
                         return;
                     }
                 }
 
-                childLowerBound.SetKey(pivotKey);
-                childUpperBound.SetKey(nextPivotKey);
+                childLowerBound.SetLegacyKey(pivotKey);
+                childUpperBound.SetLegacyKey(nextPivotKey);
             }
 
             GetInducedSubtreeRange(
@@ -549,11 +549,11 @@ protected:
 
             // NB: Chunks may cross tablet boundaries.
             if (chunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
-                if (!subtreeStartLimit.HasKey() || subtreeStartLimit.GetKey() < pivotKey) {
-                    subtreeStartLimit.SetKey(pivotKey);
+                if (!subtreeStartLimit.HasLegacyKey() || subtreeStartLimit.GetLegacyKey() < pivotKey) {
+                    subtreeStartLimit.SetLegacyKey(pivotKey);
                 }
-                if (!subtreeEndLimit.HasKey() || subtreeEndLimit.GetKey() > nextPivotKey) {
-                    subtreeEndLimit.SetKey(nextPivotKey);
+                if (!subtreeEndLimit.HasLegacyKey() || subtreeEndLimit.GetLegacyKey() > nextPivotKey) {
+                    subtreeEndLimit.SetLegacyKey(nextPivotKey);
                 }
             }
 
@@ -661,16 +661,16 @@ protected:
 
             // Key.
             {
-                if (entry->UpperBound.HasKey() || entry->LowerBound.HasKey()) {
-                    childLowerBound.SetKey(GetMinKeyOrThrow(child, KeyColumnCount_));
-                    childUpperBound.SetKey(GetUpperBoundKeyOrThrow(child, KeyColumnCount_));
+                if (entry->UpperBound.HasLegacyKey() || entry->LowerBound.HasLegacyKey()) {
+                    childLowerBound.SetLegacyKey(GetMinKeyOrThrow(child, KeyColumnCount_));
+                    childUpperBound.SetLegacyKey(GetUpperBoundKeyOrThrow(child, KeyColumnCount_));
 
-                    if (entry->UpperBound.HasKey() && entry->UpperBound.GetKey() <= childLowerBound.GetKey()) {
+                    if (entry->UpperBound.HasLegacyKey() && entry->UpperBound.GetLegacyKey() <= childLowerBound.GetLegacyKey()) {
                         ++entry->ChildIndex;
                         return;
                     }
 
-                    if (entry->LowerBound.HasKey() && entry->LowerBound.GetKey() > childUpperBound.GetKey()) {
+                    if (entry->LowerBound.HasLegacyKey() && entry->LowerBound.GetLegacyKey() > childUpperBound.GetLegacyKey()) {
                         ++entry->ChildIndex;
                         return;
                     }
@@ -858,7 +858,7 @@ protected:
             }
 
             // Key.
-            if (lowerBound.HasKey()) {
+            if (lowerBound.HasLegacyKey()) {
                 typedef std::vector<TChunkTree*>::const_iterator TChildrenIterator;
                 std::reverse_iterator<TChildrenIterator> rbegin(chunkList->Children().end());
                 std::reverse_iterator<TChildrenIterator> rend(chunkList->Children().begin());
@@ -866,7 +866,7 @@ protected:
                 auto it = UpperBoundWithMissingValues(
                     rbegin,
                     rend,
-                    lowerBound.GetKey(),
+                    lowerBound.GetLegacyKey(),
                     // isLess
                     [keyColumnCount = KeyColumnCount_] (const TLegacyOwningKey& key, const TChunkTree* chunkTree) {
                         return key > GetUpperBoundKeyOrThrow(chunkTree, keyColumnCount);
@@ -931,11 +931,11 @@ protected:
             }
 
             // Key.
-            if (lowerBound.HasKey()) {
+            if (lowerBound.HasLegacyKey()) {
                 auto it = std::upper_bound(
                     chunkList->Children().begin(),
                     chunkList->Children().end(),
-                    lowerBound.GetKey(),
+                    lowerBound.GetLegacyKey(),
                     [] (const TLegacyOwningKey& key, const TChunkTree* chunkTree) {
                         // NB: It's OK here without key widening: even in case of key_column_count=2 and pivot_key=[0],
                         // widening to [0, Null] will have no effect as there are no real keys between [0] and [0, Null].
@@ -1124,15 +1124,15 @@ protected:
 
         // Key.
         // NB: If any key widening was required, it was performed prior to this function call.
-        if (entry.LowerBound.HasKey() &&
-            entry.LowerBound.GetKey() > childLowerBound.GetKey())
+        if (entry.LowerBound.HasLegacyKey() &&
+            entry.LowerBound.GetLegacyKey() > childLowerBound.GetLegacyKey())
         {
-            startLimit->SetKey(entry.LowerBound.GetKey());
+            startLimit->SetLegacyKey(entry.LowerBound.GetLegacyKey());
         }
-        if (entry.UpperBound.HasKey() &&
-            entry.UpperBound.GetKey() < childUpperBound.GetKey())
+        if (entry.UpperBound.HasLegacyKey() &&
+            entry.UpperBound.GetLegacyKey() < childUpperBound.GetLegacyKey())
         {
-            endLimit->SetKey(entry.UpperBound.GetKey());
+            endLimit->SetLegacyKey(entry.UpperBound.GetLegacyKey());
         }
     }
 
