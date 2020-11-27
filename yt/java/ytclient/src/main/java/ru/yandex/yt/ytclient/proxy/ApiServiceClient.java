@@ -37,10 +37,8 @@ import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqAddMember;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
-import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
-import ru.yandex.yt.rpcproxy.TReqGCCollect;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
@@ -62,10 +60,8 @@ import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TRspAddMember;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
-import ru.yandex.yt.rpcproxy.TRspBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TRspCheckPermission;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
-import ru.yandex.yt.rpcproxy.TRspGCCollect;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
@@ -92,6 +88,7 @@ import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
+import ru.yandex.yt.ytclient.proxy.request.BuildSnapshot;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.CommitTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ConcatenateNodes;
@@ -100,6 +97,7 @@ import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateObject;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
+import ru.yandex.yt.ytclient.proxy.request.GcCollect;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
@@ -578,21 +576,30 @@ public class ApiServiceClient extends TransactionalClient {
 
     // TODO: TReqBatchModifyRows
 
+    public CompletableFuture<Long> buildSnapshot(BuildSnapshot req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.buildSnapshot()),
+                response -> response.body().getSnapshotId());
+    }
+
     public CompletableFuture<Long> buildSnapshot(GUID cellId, boolean setReadOnly) {
         return buildSnapshot(cellId, setReadOnly, null);
     }
 
     public CompletableFuture<Long> buildSnapshot(GUID cellId, boolean setReadOnly, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqBuildSnapshot.Builder, RpcClientResponse<TRspBuildSnapshot>> builder =
-                service.buildSnapshot();
+        BuildSnapshot req = new BuildSnapshot(cellId);
+        req.setSetReadOnly(setReadOnly);
 
         if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
+            req.setTimeout(requestTimeout);
         }
-        builder.body().setCellId(RpcUtil.toProto(cellId))
-                .setSetReadOnly(setReadOnly);
+        return buildSnapshot(req);
+    }
 
-        return RpcUtil.apply(invoke(builder), response -> response.body().getSnapshotId());
+    public CompletableFuture<Void> gcCollect(GcCollect req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.gcCollect()),
+                response -> null);
     }
 
     public CompletableFuture<Void> gcCollect(GUID cellId) {
@@ -600,13 +607,11 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<Void> gcCollect(GUID cellId, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqGCCollect.Builder, RpcClientResponse<TRspGCCollect>> builder =
-                service.gcCollect();
-
+        GcCollect req = new GcCollect(cellId);
         if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
+            req.setTimeout(requestTimeout);
         }
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return gcCollect(cellId);
     }
 
     public CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
