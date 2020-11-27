@@ -387,7 +387,7 @@ private:
             tableIterator->isValid();
             tableIterator->next())
         {
-            auto totalBytes = tableIterator->table()->totalBytes();
+            auto totalBytes = tableIterator->table()->totalBytes(ServerContext_->getSettingsRef());
             if (!totalBytes) {
                 continue;
             }
