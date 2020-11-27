@@ -3302,9 +3302,11 @@ void TOperationElement::PrescheduleJob(
     bool aggressiveStarvationEnabled)
 {
     auto& attributes = context->DynamicAttributesFor(this);
+        
+    // Reset operation element activeness (it can be active after scheduling without preepmtion).
+    attributes.Active = false;
 
     auto onOperationDeactivated = [&] (EDeactivationReason reason) {
-        YT_VERIFY(!attributes.Active);
         OnOperationDeactivated(context, reason);
     };
 
