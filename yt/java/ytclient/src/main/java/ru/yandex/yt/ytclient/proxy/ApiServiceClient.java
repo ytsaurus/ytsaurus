@@ -30,38 +30,26 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqAbandonJob;
-import ru.yandex.yt.rpcproxy.TReqAbortJob;
-import ru.yandex.yt.rpcproxy.TReqAbortOperation;
 import ru.yandex.yt.rpcproxy.TReqAddMember;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
-import ru.yandex.yt.rpcproxy.TReqCompleteOperation;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TReqCopyNode;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
 import ru.yandex.yt.rpcproxy.TReqCreateObject;
-import ru.yandex.yt.rpcproxy.TReqDumpJobContext;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGCCollect;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
-import ru.yandex.yt.rpcproxy.TReqGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
-import ru.yandex.yt.rpcproxy.TReqGetJob;
-import ru.yandex.yt.rpcproxy.TReqGetOperation;
 import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
 import ru.yandex.yt.rpcproxy.TReqMoveNode;
-import ru.yandex.yt.rpcproxy.TReqPollJobShell;
-import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
@@ -69,37 +57,26 @@ import ru.yandex.yt.rpcproxy.TReqRemoveMember;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
-import ru.yandex.yt.rpcproxy.TReqResumeOperation;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
-import ru.yandex.yt.rpcproxy.TReqSuspendOperation;
 import ru.yandex.yt.rpcproxy.TReqTrimTable;
 import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
-import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
-import ru.yandex.yt.rpcproxy.TRspAbandonJob;
-import ru.yandex.yt.rpcproxy.TRspAbortJob;
-import ru.yandex.yt.rpcproxy.TRspAbortOperation;
 import ru.yandex.yt.rpcproxy.TRspAddMember;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TRspBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TRspCheckPermission;
-import ru.yandex.yt.rpcproxy.TRspCompleteOperation;
 import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TRspCopyNode;
 import ru.yandex.yt.rpcproxy.TRspCreateNode;
 import ru.yandex.yt.rpcproxy.TRspCreateObject;
-import ru.yandex.yt.rpcproxy.TRspDumpJobContext;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGCCollect;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
-import ru.yandex.yt.rpcproxy.TRspGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
-import ru.yandex.yt.rpcproxy.TRspGetJob;
-import ru.yandex.yt.rpcproxy.TRspGetOperation;
 import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TRspLinkNode;
 import ru.yandex.yt.rpcproxy.TRspLockNode;
@@ -107,8 +84,6 @@ import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspMountTable;
 import ru.yandex.yt.rpcproxy.TRspMoveNode;
-import ru.yandex.yt.rpcproxy.TRspPollJobShell;
-import ru.yandex.yt.rpcproxy.TRspPutFileToCache;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
@@ -116,15 +91,12 @@ import ru.yandex.yt.rpcproxy.TRspRemoveMember;
 import ru.yandex.yt.rpcproxy.TRspRemoveNode;
 import ru.yandex.yt.rpcproxy.TRspReshardTable;
 import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
-import ru.yandex.yt.rpcproxy.TRspResumeOperation;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
 import ru.yandex.yt.rpcproxy.TRspStartOperation;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
-import ru.yandex.yt.rpcproxy.TRspSuspendOperation;
 import ru.yandex.yt.rpcproxy.TRspTrimTable;
 import ru.yandex.yt.rpcproxy.TRspUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TRspUnmountTable;
-import ru.yandex.yt.rpcproxy.TRspUpdateOperationParameters;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
@@ -149,12 +121,10 @@ import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
-import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
-import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.ReadTableDirect;
@@ -1010,69 +980,6 @@ public class ApiServiceClient extends TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
-    public CompletableFuture<String> getFileFromCache(
-            String md5,
-            String cachePath,
-            MasterReadOptions mo) {
-        return getFileFromCache(md5, cachePath, mo, null);
-    }
-
-    public CompletableFuture<String> getFileFromCache(
-            String md5,
-            String cachePath,
-            MasterReadOptions mo,
-            @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqGetFileFromCache.Builder, RpcClientResponse<TRspGetFileFromCache>>
-                builder = service.getFileFromCache();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setMd5(md5)
-                .setCachePath(cachePath)
-                .setMasterReadOptions(mo.writeTo(
-                        TMasterReadOptions.newBuilder()
-                ));
-
-        return RpcUtil.apply(invoke(builder), response -> response.body().getResult().getPath());
-    }
-
-    public CompletableFuture<String> putFileToCache(
-            String path,
-            String md5,
-            String cachePath,
-            PrerequisiteOptions po,
-            MasterReadOptions mro,
-            MutatingOptions mo) {
-        return putFileToCache(path, md5, cachePath, po, mro, mo, null);
-    }
-
-    public CompletableFuture<String> putFileToCache(
-            String path,
-            String md5,
-            String cachePath,
-            PrerequisiteOptions po,
-            MasterReadOptions mro,
-            MutatingOptions mo,
-            @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqPutFileToCache.Builder, RpcClientResponse<TRspPutFileToCache>>
-                builder = service.putFileToCache();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setPath(path)
-                .setMd5(md5)
-                .setCachePath(cachePath)
-                .setMasterReadOptions(mro.writeTo(TMasterReadOptions.newBuilder()))
-                .setMutatingOptions(mo.writeTo(TMutatingOptions.newBuilder()))
-                .setPrerequisiteOptions(po.writeTo(TPrerequisiteOptions.newBuilder()));
-
-        return RpcUtil.apply(invoke(builder), response -> response.body().getResult().getPath());
-    }
-
     /* */
 
     @Override
@@ -1086,291 +993,7 @@ public class ApiServiceClient extends TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> RpcUtil.fromProto(response.body().getOperationId()));
     }
 
-    public CompletableFuture<Void> abortOperation(GUID guid, String alias, String abortMessage) {
-        return abortOperation(guid, alias, abortMessage, null);
-    }
-
-    public CompletableFuture<Void> abortOperation(GUID guid, String alias, String abortMessage, @Nullable Duration requestTimeout) {
-        if (guid == null && alias == null) {
-            throw new IllegalArgumentException("guid or alias must be set");
-        }
-        if (guid != null && alias != null) {
-            throw new IllegalArgumentException("one of guid or alias must be null");
-        }
-
-        RpcClientRequestBuilder<TReqAbortOperation.Builder, RpcClientResponse<TRspAbortOperation>>
-                builder = service.abortOperation();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        if (guid != null) {
-            builder.body().setOperationId(RpcUtil.toProto(guid));
-        }
-        if (alias != null) {
-            builder.body().setOperationAlias(alias);
-        }
-        if (abortMessage != null) {
-            builder.body().setAbortMessage(abortMessage);
-        }
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<Void> suspendOperation(GUID guid, String alias, boolean abortRunningJobs) {
-        return suspendOperation(guid, alias, abortRunningJobs, null);
-    }
-
-    public CompletableFuture<Void> suspendOperation(GUID guid, String alias, boolean abortRunningJobs, @Nullable Duration requestTimeout) {
-        if (guid == null && alias == null) {
-            throw new IllegalArgumentException("guid or alias must be set");
-        }
-        if (guid != null && alias != null) {
-            throw new IllegalArgumentException("one of guid or alias must be null");
-        }
-
-        RpcClientRequestBuilder<TReqSuspendOperation.Builder, RpcClientResponse<TRspSuspendOperation>>
-                builder = service.suspendOperation();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        if (guid != null) {
-            builder.body().setOperationId(RpcUtil.toProto(guid));
-        }
-        if (alias != null) {
-            builder.body().setOperationAlias(alias);
-        }
-        builder.body().setAbortRunningJobs(abortRunningJobs);
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<Void> resumeOperation(GUID guid, String alias) {
-        return resumeOperation(guid, alias, null);
-    }
-
-    public CompletableFuture<Void> resumeOperation(GUID guid, String alias, @Nullable Duration requestTimeout) {
-        if (guid == null && alias == null) {
-            throw new IllegalArgumentException("guid or alias must be set");
-        }
-        if (guid != null && alias != null) {
-            throw new IllegalArgumentException("one of guid or alias must be null");
-        }
-
-        RpcClientRequestBuilder<TReqResumeOperation.Builder, RpcClientResponse<TRspResumeOperation>>
-                builder = service.resumeOperation();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        if (guid != null) {
-            builder.body().setOperationId(RpcUtil.toProto(guid));
-        }
-        if (alias != null) {
-            builder.body().setOperationAlias(alias);
-        }
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<Void> completeOperation(GUID guid, String alias) {
-        return completeOperation(guid, alias, null);
-    }
-
-    public CompletableFuture<Void> completeOperation(GUID guid, String alias, @Nullable Duration requestTimeout) {
-        if (guid == null && alias == null) {
-            throw new IllegalArgumentException("guid or alias must be set");
-        }
-        if (guid != null && alias != null) {
-            throw new IllegalArgumentException("one of guid or alias must be null");
-        }
-
-        RpcClientRequestBuilder<TReqCompleteOperation.Builder, RpcClientResponse<TRspCompleteOperation>>
-                builder = service.completeOperation();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        if (guid != null) {
-            builder.body().setOperationId(RpcUtil.toProto(guid));
-        }
-        if (alias != null) {
-            builder.body().setOperationAlias(alias);
-        }
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<Void> updateOperationParameters(GUID guid, String alias, YTreeNode parameters) {
-        return updateOperationParameters(guid, alias, parameters, null);
-    }
-
-    public CompletableFuture<Void> updateOperationParameters(GUID guid, String alias, YTreeNode parameters, @Nullable Duration requestTimeout) {
-        if (guid == null && alias == null) {
-            throw new IllegalArgumentException("guid or alias must be set");
-        }
-        if (guid != null && alias != null) {
-            throw new IllegalArgumentException("one of guid or alias must be null");
-        }
-
-        RpcClientRequestBuilder<TReqUpdateOperationParameters.Builder, RpcClientResponse<TRspUpdateOperationParameters>>
-                builder = service.updateOperationParameters();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        if (guid != null) {
-            builder.body().setOperationId(RpcUtil.toProto(guid));
-        }
-        if (alias != null) {
-            builder.body().setOperationAlias(alias);
-        }
-
-        ByteString.Output output = ByteString.newOutput();
-
-        YTreeBinarySerializer.serialize(parameters, output);
-        builder.body().setParameters(output.toByteString());
-
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<YTreeNode> getOperation(
-            GUID guid,
-            String alias,
-            List<String> attributes,
-            boolean includeRuntime,
-            MasterReadOptions mo) {
-        return getOperation(guid, alias, attributes, includeRuntime, mo, null);
-    }
-
-    public CompletableFuture<YTreeNode> getOperation(GUID guid,
-                                                     String alias,
-                                                     List<String> attributes,
-                                                     boolean includeRuntime,
-                                                     MasterReadOptions mo,
-                                                     @Nullable Duration requestTimeout) {
-        if (guid == null && alias == null) {
-            throw new IllegalArgumentException("guid or alias must be set");
-        }
-        if (guid != null && alias != null) {
-            throw new IllegalArgumentException("one of guid or alias must be null");
-        }
-
-        RpcClientRequestBuilder<TReqGetOperation.Builder, RpcClientResponse<TRspGetOperation>>
-                builder = service.getOperation();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        if (guid != null) {
-            builder.body().setOperationId(RpcUtil.toProto(guid));
-        }
-        if (alias != null) {
-            builder.body().setOperationAlias(alias);
-        }
-
-        builder.body()
-                .addAllAttributes(attributes)
-                .setIncludeRuntime(includeRuntime)
-                .setMasterReadOptions(mo.writeTo(TMasterReadOptions.newBuilder()));
-
-        return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getMeta()));
-    }
-
-    /* */
-
     /* Jobs */
-
-    public CompletableFuture<YTreeNode> getJob(GUID operatioinId, GUID jobId) {
-        return getJob(operatioinId, jobId, null);
-    }
-
-    public CompletableFuture<YTreeNode> getJob(GUID operatioinId, GUID jobId, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqGetJob.Builder, RpcClientResponse<TRspGetJob>>
-                builder = service.getJob();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setOperationId(RpcUtil.toProto(operatioinId))
-                .setJobId(RpcUtil.toProto(jobId));
-
-        return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getInfo()));
-    }
-
-    public CompletableFuture<Void> dumpJobContext(GUID jobId) {
-        return dumpJobContext(jobId, null);
-    }
-
-    public CompletableFuture<Void> dumpJobContext(GUID jobId, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqDumpJobContext.Builder, RpcClientResponse<TRspDumpJobContext>>
-                builder = service.dumpJobContext();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setJobId(RpcUtil.toProto(jobId));
-
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<Void> abandonJob(GUID jobId) {
-        return abandonJob(jobId, null);
-    }
-
-    public CompletableFuture<Void> abandonJob(GUID jobId, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqAbandonJob.Builder, RpcClientResponse<TRspAbandonJob>>
-                builder = service.abandonJob();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setJobId(RpcUtil.toProto(jobId));
-
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<YTreeNode> pollJobShell(GUID jobId, YTreeNode parameters) {
-        return pollJobShell(jobId, parameters, null);
-    }
-
-    public CompletableFuture<YTreeNode> pollJobShell(GUID jobId, YTreeNode parameters, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqPollJobShell.Builder, RpcClientResponse<TRspPollJobShell>>
-                builder = service.pollJobShell();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setJobId(RpcUtil.toProto(jobId));
-
-        ByteString.Output output = ByteString.newOutput();
-
-        YTreeBinarySerializer.serialize(parameters, output);
-        builder.body().setParameters(output.toByteString());
-
-        return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getResult()));
-    }
-
-    public CompletableFuture<Void> abortJob(GUID jobId, @Nonnull Duration timeout) {
-        return abortJob(jobId, timeout, null);
-    }
-
-    public CompletableFuture<Void> abortJob(GUID jobId, @Nonnull Duration timeout, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqAbortJob.Builder, RpcClientResponse<TRspAbortJob>>
-                builder = service.abortJob();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setJobId(RpcUtil.toProto(jobId))
-                .setInterruptTimeout(ApiServiceUtil.durationToYtMicros(timeout));
-
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    /* */
 
     public CompletableFuture<Void> addMember(String group, String member, MutatingOptions mo) {
         return addMember(group, member, mo, null);
