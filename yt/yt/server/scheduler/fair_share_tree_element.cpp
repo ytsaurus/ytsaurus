@@ -292,21 +292,12 @@ void TSchedulerElement::UpdateSchedulableAttributesFromDynamicAttributes(TDynami
     YT_VERIFY(Mutable_);
 
     auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
-    attributes.Active = true;
 
     UpdateDynamicAttributes(dynamicAttributesList);
 
     Attributes_.SatisfactionRatio = attributes.SatisfactionRatio;
     Attributes_.LocalSatisfactionRatio = ComputeLocalSatisfactionRatio();
     Attributes_.Alive = attributes.Active;
-}
-
-void TSchedulerElement::PrescheduleJob(
-    TFairShareContext* context,
-    EPrescheduleJobOperationCriterion /* operationCriterion */,
-    bool /* aggressiveStarvationEnabled */)
-{
-    UpdateDynamicAttributes(&context->DynamicAttributesList());
 }
 
 void TSchedulerElement::UpdateAttributes()
@@ -1285,7 +1276,6 @@ TDuration TCompositeSchedulerElement::GetFairSharePreemptionTimeoutLimit() const
 
 void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
 {
-    YT_VERIFY(IsActive(*dynamicAttributesList));
     auto& attributes = (*dynamicAttributesList)[GetTreeIndex()];
 
     if (!IsAlive()) {
@@ -1363,7 +1353,7 @@ void TCompositeSchedulerElement::PrescheduleJob(
 
     if (!IsAlive()) {
         ++context->StageState()->DeactivationReasons[EDeactivationReason::IsNotAlive];
-        attributes.Active = false;
+        YT_VERIFY(!attributes.Active);
         return;
     }
 
@@ -1372,11 +1362,9 @@ void TCompositeSchedulerElement::PrescheduleJob(
         !context->CanSchedule()[SchedulingTagFilterIndex_])
     {
         ++context->StageState()->DeactivationReasons[EDeactivationReason::UnmatchedSchedulingTag];
-        attributes.Active = false;
+        YT_VERIFY(!attributes.Active);
         return;
     }
-
-    attributes.Active = true;
 
     auto starving = PersistentAttributes_.Starving;
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
@@ -1401,7 +1389,7 @@ void TCompositeSchedulerElement::PrescheduleJob(
         child->PrescheduleJob(context, operationCriterionForChildren, aggressiveStarvationEnabled);
     }
 
-    TSchedulerElement::PrescheduleJob(context, operationCriterion, aggressiveStarvationEnabled);
+    UpdateDynamicAttributes(&context->DynamicAttributesList());
 
     if (attributes.Active) {
         ++context->StageState()->ActiveTreeSize;
@@ -2906,9 +2894,10 @@ TEnumIndexedVector<EJobResourceType, int> TOperationElement::GetMinNeededResourc
     return OperationElementSharedState_->GetMinNeededResourcesUnsatisfiedCount();
 }
 
-void TOperationElement::OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason)
+void TOperationElement::OnOperationDeactivated(TFairShareContext* context, EDeactivationReason reason)
 {
-    OperationElementSharedState_->OnOperationDeactivated(context, reason);
+    ++context->StageState()->DeactivationReasons[reason];
+    OperationElementSharedState_->OnOperationDeactivated(*context, reason);
 }
 
 TEnumIndexedVector<EDeactivationReason, int> TOperationElement::GetDeactivationReasons() const
@@ -3314,12 +3303,9 @@ void TOperationElement::PrescheduleJob(
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
-    attributes.Active = true;
-
     auto onOperationDeactivated = [&] (EDeactivationReason reason) {
-        ++context->StageState()->DeactivationReasons[reason];
-        OnOperationDeactivated(*context, reason);
-        attributes.Active = false;
+        YT_VERIFY(!attributes.Active);
+        OnOperationDeactivated(context, reason);
     };
 
     if (!IsAlive()) {
@@ -3375,10 +3361,12 @@ void TOperationElement::PrescheduleJob(
         return;
     }
 
-    ++context->StageState()->ActiveTreeSize;
-    ++context->StageState()->ActiveOperationCount;
+    UpdateDynamicAttributes(&context->DynamicAttributesList());
 
-    TSchedulerElement::PrescheduleJob(context, operationCriterion, aggressiveStarvationEnabled);
+    if (attributes.Active) {
+        ++context->StageState()->ActiveTreeSize;
+        ++context->StageState()->ActiveOperationCount;
+    }
 }
 
 bool TOperationElement::HasAggressivelyStarvingElements(TFairShareContext* /*context*/, bool /*aggressiveStarvationEnabled*/) const
@@ -3406,19 +3394,41 @@ TString TOperationElement::GetLoggingString() const
         GetMinNeededResourcesUnsatisfiedCount());
 }
 
-void TOperationElement::UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool activateAncestors)
+void TOperationElement::UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool checkAncestorsActiveness)
 {
     auto* parent = GetMutableParent();
     while (parent) {
-        if (activateAncestors) {
-            context->DynamicAttributesFor(parent).Active = true;
+        bool activeBefore = context->DynamicAttributesFor(parent).Active;
+        if (checkAncestorsActiveness) {
+            YT_VERIFY(activeBefore);
         }
+        
         parent->UpdateDynamicAttributes(&context->DynamicAttributesList());
-        if (!parent->IsActive(context->DynamicAttributesList())) {
+        
+        bool activeAfter = context->DynamicAttributesFor(parent).Active;
+        if (activeBefore && !activeAfter) {
             ++context->StageState()->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
         }
+
         parent = parent->GetMutableParent();
     }
+}
+
+void TOperationElement::DeactivateOperation(TFairShareContext* context, EDeactivationReason reason)
+{
+    auto& attributes = context->DynamicAttributesList()[GetTreeIndex()];
+    YT_VERIFY(attributes.Active);
+    attributes.Active = false;
+    UpdateAncestorsDynamicAttributes(context);
+    OnOperationDeactivated(context, reason);
+}
+
+void TOperationElement::ActivateOperation(TFairShareContext* context)
+{
+    auto& attributes = context->DynamicAttributesList()[GetTreeIndex()];
+    YT_VERIFY(!attributes.Active);
+    attributes.Active = true;
+    UpdateAncestorsDynamicAttributes(context, /* checkAncestorsActiveness */ false);
 }
 
 void TOperationElement::RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot)
@@ -3465,10 +3475,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
             "(DeactivationReason: %v, NodeResourceUsage: %v)",
             FormatEnum(reason),
             FormatResourceUsage(context->SchedulingContext()->ResourceUsage(), context->SchedulingContext()->ResourceLimits()));
-        ++context->StageState()->DeactivationReasons[reason];
-        OnOperationDeactivated(*context, reason);
-        context->DynamicAttributesFor(this).Active = false;
-        UpdateAncestorsDynamicAttributes(context);
+        DeactivateOperation(context, reason);
     };
 
     auto recordHeartbeatWithTimer = [&] (const auto& heartbeatSnapshot) {

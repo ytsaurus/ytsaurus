@@ -376,7 +376,7 @@ public:
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) = 0;
 
-    virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled);
+    virtual void PrescheduleJob(TFairShareContext* context, EPrescheduleJobOperationCriterion operationCriterion, bool aggressiveStarvationEnabled) = 0;
     virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) = 0;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const = 0;
@@ -1100,8 +1100,11 @@ public:
         const TJobResources& availableResources,
         const TJobResources& minNeededResources);
     TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
+    
+    void ActivateOperation(TFairShareContext* context);
+    void DeactivateOperation(TFairShareContext* context, EDeactivationReason reason);
 
-    void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
+    void OnOperationDeactivated(TFairShareContext* context, EDeactivationReason reason);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasonsFromLastNonStarvingTime() const;
 
@@ -1121,7 +1124,7 @@ public:
     void MarkOperationRunningInPool();
     bool IsOperationRunningInPool();
 
-    void UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool activateAncestors = false);
+    void UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool checkAncestorsActiveness = true);
 
     void MarkPendingBy(TCompositeSchedulerElement* violatedPool);
 
