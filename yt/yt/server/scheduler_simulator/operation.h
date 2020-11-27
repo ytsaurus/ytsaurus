@@ -41,7 +41,7 @@ public:
 
     virtual NScheduler::TOperationRuntimeParametersPtr GetRuntimeParameters() const override;
 
-    virtual bool GetActivated() const override;
+    virtual bool IsRunningInStrategy() const override;
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) override;
 

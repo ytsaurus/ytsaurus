@@ -114,7 +114,7 @@ std::optional<NScheduler::TJobResources> TOperation::GetInitialAggregatedMinNeed
     return std::nullopt;
 }
 
-bool TOperation::GetActivated() const
+bool TOperation::IsRunningInStrategy() const
 {
     // NB(renadeen): return value doesn't matter in simulator.
     return true;

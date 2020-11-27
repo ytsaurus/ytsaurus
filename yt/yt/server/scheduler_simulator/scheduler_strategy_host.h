@@ -69,7 +69,7 @@ public:
         const TString& user,
         NYTree::EPermission permission) const override;
 
-    virtual void ActivateOperation(NScheduler::TOperationId operationId) override;
+    virtual void MarkOperationAsRunningInStrategy(NScheduler::TOperationId operationId) override;
 
     virtual void AbortOperation(NScheduler::TOperationId operationId, const TError& error) override;
     virtual void FlushOperationNode(NScheduler::TOperationId operationId) override;

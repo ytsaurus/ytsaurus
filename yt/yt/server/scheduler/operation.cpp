@@ -338,14 +338,14 @@ TOperationRuntimeParametersPtr TOperation::GetRuntimeParameters() const
     return RuntimeParameters_;
 }
 
-bool TOperation::GetActivated() const
+bool TOperation::IsRunningInStrategy() const
 {
-    return Activated_;
+    return RunningInStrategy_;
 }
 
-void TOperation::SetActivated(bool value)
+void TOperation::SetRunningInStrategy()
 {
-    Activated_ = value;
+    RunningInStrategy_= true;
 };
 
 void TOperation::SetRuntimeParameters(TOperationRuntimeParametersPtr parameters)

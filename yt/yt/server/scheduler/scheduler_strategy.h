@@ -52,7 +52,7 @@ struct ISchedulerStrategyHost
 
     virtual TInstant GetConnectionTime() const = 0;
 
-    virtual void ActivateOperation(TOperationId operationId) = 0;
+    virtual void MarkOperationAsRunningInStrategy(TOperationId operationId) = 0;
     virtual void AbortOperation(TOperationId operationId, const TError& error) = 0;
     virtual void FlushOperationNode(TOperationId operationId) = 0;
 

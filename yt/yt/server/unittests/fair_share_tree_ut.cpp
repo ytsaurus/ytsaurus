@@ -93,7 +93,7 @@ struct TSchedulerStrategyHostMock
         return TInstant();
     }
 
-    virtual void ActivateOperation(TOperationId operationId) override
+    virtual void MarkOperationAsRunningInStrategy(TOperationId operationId) override
     { }
 
     virtual void AbortOperation(TOperationId /* operationId */, const TError& /* error */) override
@@ -344,7 +344,7 @@ public:
         YT_ABORT();
     }
 
-    virtual bool GetActivated() const override
+    virtual bool IsRunningInStrategy() const override
     {
         YT_ABORT();
     }

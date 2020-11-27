@@ -265,7 +265,7 @@ public:
 
         bool isRunningInPool = OnOperationAddedToPool(state, operationElement);
         if (isRunningInPool) {
-            TreeHost_->OnOperationReadyInTree(operationId, this);
+            TreeHost_->OnOperationRunningInTree(operationId, this);
         }
 
         YT_LOG_INFO("Operation element registered in tree (OperationId: %v, Pool: %v, MarkedAsRunning: %v)",
@@ -342,7 +342,7 @@ public:
         YT_VERIFY(OnOperationAddedToPool(state, element));
 
         if (!operationWasRunning) {
-            TreeHost_->OnOperationReadyInTree(operationId, this);
+            TreeHost_->OnOperationRunningInTree(operationId, this);
         }
     }
 
@@ -454,7 +454,7 @@ public:
         while (!ActivatableOperationIds_.empty()) {
             auto operationId = ActivatableOperationIds_.back();
             ActivatableOperationIds_.pop_back();
-            TreeHost_->OnOperationReadyInTree(operationId, this);
+            TreeHost_->OnOperationRunningInTree(operationId, this);
         }
     }
 
@@ -482,7 +482,7 @@ public:
         }
 
         for (auto operationId : readyOperationIds) {
-            TreeHost_->OnOperationReadyInTree(operationId, this);
+            TreeHost_->OnOperationRunningInTree(operationId, this);
         }
     }
 
