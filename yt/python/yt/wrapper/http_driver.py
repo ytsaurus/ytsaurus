@@ -209,12 +209,11 @@ def make_request(command_name,
 
     accept_encoding = get_config(client)["proxy"]["accept_encoding"]
     if accept_encoding is None:
-        accept_encoding = "gzip, identity"
         # Enable after urllib3 and requests update.
-        # if has_compressor("br"):
-        #     accept_encoding = "br, gzip, identity"
-        # else:
-        #     accept_encoding = "gzip, identity"
+        if has_compressor("br"):
+            accept_encoding = "br, gzip, identity"
+        else:
+            accept_encoding = "gzip, identity"
 
     headers = {"User-Agent": user_agent,
                "Accept-Encoding": accept_encoding,
