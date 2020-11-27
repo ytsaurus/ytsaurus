@@ -81,6 +81,8 @@ struct TProtobufScalarElement
 
 struct TProtobufAttributeDictionaryElement
 {
+    // The actual message type containing attribute_dictionary extension.
+    const TProtobufMessageType* Type;
 };
 
 struct TProtobufRepeatedElement
