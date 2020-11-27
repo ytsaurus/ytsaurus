@@ -233,16 +233,8 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> null);
     }
 
-    public CompletableFuture<Void> pingTransaction(GUID id, boolean sticky) {
-        return pingTransaction(id, sticky, null);
-    }
-
-    public CompletableFuture<Void> pingTransaction(GUID id, boolean sticky, @Nullable Duration requestTimeout) {
-        PingTransaction req = new PingTransaction(id);
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
-        return pingTransaction(req);
+    public CompletableFuture<Void> pingTransaction(GUID id) {
+        return pingTransaction(new PingTransaction(id));
     }
 
     /**
@@ -255,16 +247,8 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> null);
     }
 
-    public CompletableFuture<Void> commitTransaction(GUID id, boolean sticky) {
-        return commitTransaction(id, sticky, null);
-    }
-
-    public CompletableFuture<Void> commitTransaction(GUID id, boolean ignored, @Nullable Duration requestTimeout) {
-        CommitTransaction req = new CommitTransaction(id);
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
-        return commitTransaction(req);
+    public CompletableFuture<Void> commitTransaction(GUID id) {
+        return commitTransaction(new CommitTransaction(id));
     }
 
     /**
@@ -277,16 +261,8 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> null);
     }
 
-    public CompletableFuture<Void> abortTransaction(GUID id, boolean sticky) {
-        return abortTransaction(id, sticky, null);
-    }
-
-    public CompletableFuture<Void> abortTransaction(GUID id, boolean sticky, @Nullable Duration requestTimeout) {
-        AbortTransaction req = new AbortTransaction(id);
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
-        return abortTransaction(req);
+    public CompletableFuture<Void> abortTransaction(GUID id) {
+        return abortTransaction(new AbortTransaction(id));
     }
 
     /* nodes */

@@ -162,7 +162,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
     }
 
     public CompletableFuture<Void> ping() {
-        return client.pingTransaction(id, sticky);
+        return client.pingTransaction(id);
     }
 
     private void throwWrongState(State expectedOldState, State newState) {
@@ -188,7 +188,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
     public CompletableFuture<Void> commit() {
         updateState(State.ACTIVE, State.COMMITTING);
 
-        return client.commitTransaction(id, sticky).whenComplete((result, error) -> {
+        return client.commitTransaction(id).whenComplete((result, error) -> {
             if (error == null) {
                 updateState(State.COMMITTING, State.COMMITTED);
             } else {
@@ -207,7 +207,7 @@ public class ApiServiceTransaction extends TransactionalClient implements AutoCl
         State oldState = state.getAndSet(State.CLOSED);
         if (oldState == State.ACTIVE) {
             // dont wait for answer
-            return client.abortTransaction(id, sticky)
+            return client.abortTransaction(id)
                     .whenComplete((result, error) -> transactionCompleteFuture.complete(null));
         } else if (complainWrongState) {
             throwWrongState(State.ACTIVE, State.CLOSED);
