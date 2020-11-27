@@ -190,16 +190,16 @@ private:
     void CheckClient()
     {
         auto status = Client_->GetStatus();
-        switch (status) {
-            case TAsyncUpdaterBase::EStatus::Ok:
+        switch (status.GetState()) {
+            case TClientStatus::Ok:
                 break;
-            case TAsyncUpdaterBase::EStatus::ExpiringCache:
+            case TClientStatus::Warning:
                 YT_LOG_WARNING("TVM client cache expiring");
                 ClientErrorCountCounter_.Increment();
                 break;
             default:
                 ClientErrorCountCounter_.Increment();
-                THROW_ERROR_EXCEPTION(TString(TAsyncUpdaterBase::StatusToString(status)));
+                THROW_ERROR_EXCEPTION(status.GetLastError());
         }
     }
 
