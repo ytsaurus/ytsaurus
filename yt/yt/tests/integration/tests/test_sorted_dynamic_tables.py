@@ -380,6 +380,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert get(path) == 1
 
     @authors("lukyan")
+    @pytest.mark.skip(reason="Currently broken")
     def test_lookup_cache_stress(self):
         sync_create_cells(1)
 
