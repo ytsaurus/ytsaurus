@@ -24,7 +24,7 @@ YT_PYTHON_PACKAGE_LIST = [
     "dill",
     "requests",
     "distro",
-    "urllib3",
+    ("urllib3", "urllib3/src"),
 ]
 
 CONTRIB_PYTHON_PACKAGE_LIST = [
@@ -71,14 +71,21 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None, prepare_
                 rm_rf(os.path.join(packages_dir, fname))
 
     for package_name in YT_PYTHON_PACKAGE_LIST:
+        if isinstance(package_name, tuple):
+            package_name, package_relative_path = package_name
+        else:
+            package_relative_path = package_name
+
         logger.info("Preparing package %s", package_name)
         files_to_copy = glob.glob(
-            "{python_root}/contrib/python-{package_name}/{package_name}*.py".format(
+            "{python_root}/contrib/python-{package_relative_path}/{package_name}*.py".format(
                 python_root=python_root,
+                package_relative_path=package_relative_path,
                 package_name=package_name))
         files_to_copy += glob.glob(
-            "{python_root}/contrib/python-{package_name}/{package_name}".format(
+            "{python_root}/contrib/python-{package_relative_path}/{package_name}".format(
                 python_root=python_root,
+                package_relative_path=package_relative_path,
                 package_name=package_name))
         for path in files_to_copy:
             cp_r(path, packages_dir)
@@ -88,6 +95,7 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None, prepare_
             package_name, package_relative_path = package_name
         else:
             package_relative_path = package_name
+
         logger.info("Preparing package %s", package_name)
         # By some reason tqdm has both tqdm dir and tqdm.py file, second must be ignored.
         files_to_copy = []
