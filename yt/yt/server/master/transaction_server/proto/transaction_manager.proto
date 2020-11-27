@@ -10,7 +10,9 @@ message TReqStartTransaction
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 1;
     optional string title = 6;
 
-    reserved 2;
+    // COMPAT(shakurov): remove this once 20.3 is rolled out everywhere.
+    optional NYT.NProto.TGuid hint_id = 2;
+
     optional NYT.NProto.TGuid parent_id = 3;
     repeated NYT.NProto.TGuid prerequisite_transaction_ids = 8;
 
