@@ -1,8 +1,14 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 
+@NonNullApi
+@NonNullFields
 public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T> {
 
     protected final String source;
@@ -91,6 +97,30 @@ public abstract class CopyLikeReq<T extends CopyLikeReq<T>> extends MutateNode<T
 
     public boolean getIgnoreExisting() {
         return ignoreExisting;
+    }
+
+    @Override
+    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+        sb.append("Source: ").append(source).append("; Destination: ").append(destination).append("; ");
+        if (recursive) {
+            sb.append("Recursive: true; ");
+        }
+        if (ignoreExisting) {
+            sb.append("IgnoreExisting: true; ");
+        }
+        if (force) {
+            sb.append("Force: true; ");
+        }
+        if (preserveAccount) {
+            sb.append("PreserveAccount: true; ");
+        }
+        if (preserveCreationTime) {
+            sb.append("PreserveCreationTime: true; ");
+        }
+        if (preserveExpirationTime) {
+            sb.append("PreserveExpirationTime: true; ");
+        }
+        super.writeArgumentsLogString(sb);
     }
 
     public YTreeBuilder toTree(YTreeBuilder builder) {

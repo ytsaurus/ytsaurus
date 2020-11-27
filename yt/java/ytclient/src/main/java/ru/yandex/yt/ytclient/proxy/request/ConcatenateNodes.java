@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import java.util.Arrays;
 import java.util.List;
 
 import javax.annotation.Nonnull;
@@ -8,26 +9,29 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class ConcatenateNodes extends MutateNode<ConcatenateNodes> {
-    private final String [] from;
-    private final String to;
+public class ConcatenateNodes extends MutateNode<ConcatenateNodes> implements HighLevelRequest<TReqConcatenateNodes.Builder> {
+    private final String [] srcPaths;
+    private final String dstPath;
 
     public ConcatenateNodes(String [] from, String to) {
-        this.from = from;
-        this.to = to;
+        this.srcPaths = from;
+        this.dstPath = to;
     }
 
     public ConcatenateNodes(List<YPath> source, YPath dest) {
         this((String[])source.stream().map(YPath::toString).toArray(), dest.toString());
     }
 
-    public TReqConcatenateNodes.Builder writeTo(TReqConcatenateNodes.Builder builder) {
-        for (int i = 0; i < from.length; ++i) {
-            builder.addSrcPaths(from[i]);
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqConcatenateNodes.Builder, ?> requestBuilder) {
+        TReqConcatenateNodes.Builder builder = requestBuilder.body();
+        for (String s : srcPaths) {
+            builder.addSrcPaths(s);
         }
 
-        builder.setDstPath(to);
+        builder.setDstPath(dstPath);
 
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
@@ -38,8 +42,12 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes> {
         if (additionalData != null) {
             builder.mergeFrom(additionalData);
         }
+    }
 
-        return builder;
+    @Override
+    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+        sb.append("SourcePaths: ").append(Arrays.toString(srcPaths)).append("; DstPath: ").append(dstPath).append("; ");
+        super.writeArgumentsLogString(sb);
     }
 
     @Nonnull

@@ -36,18 +36,13 @@ import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
-import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
-import ru.yandex.yt.rpcproxy.TReqCopyNode;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 import ru.yandex.yt.rpcproxy.TReqGCCollect;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
-import ru.yandex.yt.rpcproxy.TReqLinkNode;
-import ru.yandex.yt.rpcproxy.TReqLockNode;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
-import ru.yandex.yt.rpcproxy.TReqMoveNode;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
@@ -66,19 +61,14 @@ import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TRspBuildSnapshot;
 import ru.yandex.yt.rpcproxy.TRspCheckPermission;
-import ru.yandex.yt.rpcproxy.TRspConcatenateNodes;
-import ru.yandex.yt.rpcproxy.TRspCopyNode;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
 import ru.yandex.yt.rpcproxy.TRspGCCollect;
 import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
-import ru.yandex.yt.rpcproxy.TRspLinkNode;
-import ru.yandex.yt.rpcproxy.TRspLockNode;
 import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspModifyRows;
 import ru.yandex.yt.rpcproxy.TRspMountTable;
-import ru.yandex.yt.rpcproxy.TRspMoveNode;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
@@ -411,56 +401,61 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> null);
     }
 
+    /**
+     * Lock cypress node
+     * @see LockNode
+     */
     @Override
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
-        RpcClientRequestBuilder<TReqLockNode.Builder, RpcClientResponse<TRspLockNode>> builder = service.lockNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-        return RpcUtil.apply(invoke(builder), response -> new LockNodeResult(
-                RpcUtil.fromProto(response.body().getNodeId()),
-                RpcUtil.fromProto(response.body().getLockId())));
+        return RpcUtil.apply(
+                sendRequest(req, service.lockNode()),
+                response -> new LockNodeResult(
+                        RpcUtil.fromProto(response.body().getNodeId()),
+                        RpcUtil.fromProto(response.body().getLockId())));
     }
 
+    /**
+     * Copy cypress node
+     * @see CopyNode
+     */
     @Override
     public CompletableFuture<GUID> copyNode(CopyNode req) {
-        RpcClientRequestBuilder<TReqCopyNode.Builder, RpcClientResponse<TRspCopyNode>> builder = service.copyNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
-        return RpcUtil.apply(invoke(builder),
-                response ->
-                        RpcUtil.fromProto(response.body().getNodeId()));
+        return RpcUtil.apply(
+                sendRequest(req, service.copyNode()),
+                response -> RpcUtil.fromProto(response.body().getNodeId()));
     }
 
+    /**
+     * Move cypress node
+     * @see MoveNode
+     */
     @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
-        RpcClientRequestBuilder<TReqMoveNode.Builder, RpcClientResponse<TRspMoveNode>> builder = service.moveNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
-        return RpcUtil.apply(invoke(builder),
-                response ->
-                        RpcUtil.fromProto(response.body().getNodeId()));
+        return RpcUtil.apply(
+                sendRequest(req, service.moveNode()),
+                response -> RpcUtil.fromProto(response.body().getNodeId()));
     }
 
+    /**
+     * Link cypress node
+     * @see LinkNode
+     */
     @Override
     public CompletableFuture<GUID> linkNode(LinkNode req) {
-        RpcClientRequestBuilder<TReqLinkNode.Builder, RpcClientResponse<TRspLinkNode>> builder = service.linkNode();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
-        return RpcUtil.apply(invoke(builder),
-                response ->
-                        RpcUtil.fromProto(response.body().getNodeId()));
+        return RpcUtil.apply(
+                sendRequest(req, service.linkNode()),
+                response -> RpcUtil.fromProto(response.body().getNodeId()));
     }
 
+    /**
+     * Concatenate nodes
+     * @see ConcatenateNodes
+     */
     @Override
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
-        RpcClientRequestBuilder<TReqConcatenateNodes.Builder, RpcClientResponse<TRspConcatenateNodes>> builder =
-                service.concatenateNodes();
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return RpcUtil.apply(
+                sendRequest(req, service.concatenateNodes()),
+                response -> null);
     }
 
     // TODO: TReqAttachTransaction

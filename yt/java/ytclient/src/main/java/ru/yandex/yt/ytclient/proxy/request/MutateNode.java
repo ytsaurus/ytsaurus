@@ -2,12 +2,15 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.util.Optional;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 
 public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T> {
-    protected TransactionalOptions transactionalOptions;
-    protected PrerequisiteOptions prerequisiteOptions;
-    protected MutatingOptions mutatingOptions;
+    protected @Nullable TransactionalOptions transactionalOptions;
+    protected @Nullable PrerequisiteOptions prerequisiteOptions;
+    protected @Nullable MutatingOptions mutatingOptions;
 
     protected MutateNode() {
     }
@@ -49,6 +52,14 @@ public abstract class MutateNode<T extends MutateNode<T>> extends RequestBase<T>
 
     public Optional<MutatingOptions> getMutatingOptions() {
         return Optional.ofNullable(mutatingOptions);
+    }
+
+    @Override
+    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+        if (transactionalOptions != null) {
+            sb.append("TransactionId: ").append(transactionalOptions.getTransactionId()).append("; ");
+        }
+        super.writeArgumentsLogString(sb);
     }
 
     YTreeBuilder toTree(YTreeBuilder builder) {
