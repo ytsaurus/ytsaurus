@@ -12,17 +12,16 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
 @NonNullFields
-public class RemoveNode extends MutateNode<RemoveNode> implements HighLevelRequest<TReqRemoveNode.Builder> {
-    private final String path;
+public class RemoveNode extends MutatePath<RemoveNode> implements HighLevelRequest<TReqRemoveNode.Builder> {
     private boolean recursive = true;
     private boolean force = false;
 
     public RemoveNode(String path) {
-        this.path = path;
+        super(path);
     }
 
     public RemoveNode(YPath path) {
-        this.path = path.toString();
+        super(path.toString());
     }
 
     public RemoveNode setRecursive(boolean f) {

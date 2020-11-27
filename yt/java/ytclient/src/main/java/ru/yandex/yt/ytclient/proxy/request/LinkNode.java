@@ -7,8 +7,9 @@ import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class LinkNode extends CopyLikeReq<LinkNode> {
+public class LinkNode extends CopyLikeReq<LinkNode> implements HighLevelRequest<TReqLinkNode.Builder> {
     public LinkNode(String src, String dst) {
         super(src, dst);
     }
@@ -17,7 +18,10 @@ public class LinkNode extends CopyLikeReq<LinkNode> {
         this(src.toString(), dst.toString());
     }
 
-    public TReqLinkNode.Builder writeTo(TReqLinkNode.Builder builder) {
+
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqLinkNode.Builder, ?> requestBuilder) {
+        TReqLinkNode.Builder builder = requestBuilder.body();
         builder.setSrcPath(source)
                 .setDstPath(destination)
                 .setRecursive(recursive)
@@ -36,8 +40,6 @@ public class LinkNode extends CopyLikeReq<LinkNode> {
         if (additionalData != null) {
             builder.mergeFrom(additionalData);
         }
-
-        return builder;
     }
 
     @Nonnull

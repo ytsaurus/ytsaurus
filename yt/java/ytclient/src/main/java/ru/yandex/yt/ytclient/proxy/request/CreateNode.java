@@ -24,22 +24,21 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
  *     create documentation
  *     </a>
  */
-public class CreateNode extends MutateNode<CreateNode> implements HighLevelRequest<TReqCreateNode.Builder> {
-    private final String path;
+public class CreateNode extends MutatePath<CreateNode> implements HighLevelRequest<TReqCreateNode.Builder> {
     private final int type;
 
     private boolean recursive = false;
     private boolean force = false;
     private boolean ignoreExisting = false;
-    private Map<String, YTreeNode> attributes = new HashMap<>();
+    private final Map<String, YTreeNode> attributes = new HashMap<>();
 
     public CreateNode(String path, ObjectType type) {
-        this.path = path;
+        super(path);
         this.type = type.value();
     }
 
     public CreateNode(YPath path, ObjectType type) {
-        this.path = path.toString();
+        super(path.toString());
         this.type = type.value();
     }
 
@@ -119,7 +118,7 @@ public class CreateNode extends MutateNode<CreateNode> implements HighLevelReque
     @Override
     protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
         super.writeArgumentsLogString(sb);
-        sb.append("Path: ").append(path).append("; Type:").append(type).append("; ");
+        sb.append("; Type:").append(type).append("; ");
         if (recursive) {
             sb.append("Recursive: true; ");
         }
