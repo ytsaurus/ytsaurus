@@ -2470,7 +2470,6 @@ private:
     void DoBuildEssentialElementYson(const TSchedulerElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
     {
         const auto& attributes = element->Attributes();
-        //const auto& dynamicAttributes = GetDynamicAttributes(rootElementSnapshot, element);
 
         fluent
             .Item("usage_ratio").Value(element->GetResourceUsageRatioAtUpdate())
