@@ -358,7 +358,7 @@ public:
 
     virtual void DisableNonAliveElements() = 0;
 
-    virtual void MarkUnmutable();
+    virtual void MarkImmutable();
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
 
@@ -580,7 +580,7 @@ public:
 
     virtual void DisableNonAliveElements() override;
 
-    virtual void MarkUnmutable() override;
+    virtual void MarkImmutable() override;
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 

@@ -1098,7 +1098,7 @@ private:
         }
         RootElement_->PersistentAttributes() = rootElement->PersistentAttributes();
 
-        rootElement->MarkUnmutable();
+        rootElement->MarkImmutable();
 
         rootElementSnapshot->RootElement = rootElement;
         rootElementSnapshot->Config = Config_;

@@ -234,7 +234,7 @@ TSchedulerElementFixedState::TSchedulerElementFixedState(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSchedulerElement::MarkUnmutable()
+void TSchedulerElement::MarkImmutable()
 {
     Mutable_ = false;
 }
@@ -1122,14 +1122,14 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     cloneChildren(other.DisabledChildren_, &DisabledChildToIndex_, &DisabledChildren_);
 }
 
-void TCompositeSchedulerElement::MarkUnmutable()
+void TCompositeSchedulerElement::MarkImmutable()
 {
-    TSchedulerElement::MarkUnmutable();
+    TSchedulerElement::MarkImmutable();
     for (const auto& child : EnabledChildren_) {
-        child->MarkUnmutable();
+        child->MarkImmutable();
     }
     for (const auto& child : DisabledChildren_) {
-        child->MarkUnmutable();
+        child->MarkImmutable();
     }
 }
 
