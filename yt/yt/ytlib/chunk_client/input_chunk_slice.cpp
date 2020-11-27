@@ -28,8 +28,8 @@ TLegacyInputSliceLimit::TLegacyInputSliceLimit(const TReadLimit& other)
     if (other.HasRowIndex()) {
         RowIndex = other.GetRowIndex();
     }
-    if (other.HasKey()) {
-        Key = other.GetKey();
+    if (other.HasLegacyKey()) {
+        Key = other.GetLegacyKey();
     }
 }
 

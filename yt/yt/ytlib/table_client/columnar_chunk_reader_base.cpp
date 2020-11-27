@@ -205,8 +205,8 @@ void TColumnarRangeChunkReaderBase::InitLowerRowIndex()
         LowerRowIndex_ = std::max(LowerRowIndex_, LowerLimit_.GetRowIndex());
     }
 
-    if (LowerLimit_.HasKey()) {
-        LowerRowIndex_ = std::max(LowerRowIndex_, GetLowerRowIndex(LowerLimit_.GetKey()));
+    if (LowerLimit_.HasLegacyKey()) {
+        LowerRowIndex_ = std::max(LowerRowIndex_, GetLowerRowIndex(LowerLimit_.GetLegacyKey()));
     }
 }
 
@@ -217,11 +217,11 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
         SafeUpperRowIndex_ = HardUpperRowIndex_ = std::min(HardUpperRowIndex_, UpperLimit_.GetRowIndex());
     }
 
-    if (UpperLimit_.HasKey()) {
+    if (UpperLimit_.HasLegacyKey()) {
         auto it = std::lower_bound(
             ChunkMeta_->BlockLastKeys().begin(),
             ChunkMeta_->BlockLastKeys().end(),
-            UpperLimit_.GetKey());
+            UpperLimit_.GetLegacyKey());
 
         if (it == ChunkMeta_->BlockLastKeys().end()) {
             SafeUpperRowIndex_ = HardUpperRowIndex_ = std::min(HardUpperRowIndex_, ChunkMeta_->Misc().row_count());
@@ -255,7 +255,7 @@ void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnRea
         column.ColumnReader->SkipToRowIndex(LowerRowIndex_);
     }
 
-    if (!LowerLimit_.HasKey()) {
+    if (!LowerLimit_.HasLegacyKey()) {
         return;
     }
 
@@ -263,15 +263,15 @@ void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnRea
 
     i64 lowerRowIndex = keyReaders[0]->GetCurrentRowIndex();
     i64 upperRowIndex = keyReaders[0]->GetBlockUpperRowIndex();
-    int count = std::min(LowerLimit_.GetKey().GetCount(), static_cast<int>(keyReaders.Size()));
+    int count = std::min(LowerLimit_.GetLegacyKey().GetCount(), static_cast<int>(keyReaders.Size()));
     for (int i = 0; i < count; ++i) {
         std::tie(lowerRowIndex, upperRowIndex) = keyReaders[i]->GetEqualRange(
-            LowerLimit_.GetKey().Begin()[i],
+            LowerLimit_.GetLegacyKey().Begin()[i],
             lowerRowIndex,
             upperRowIndex);
     }
 
-    LowerRowIndex_ = count == LowerLimit_.GetKey().GetCount()
+    LowerRowIndex_ = count == LowerLimit_.GetLegacyKey().GetCount()
         ? lowerRowIndex
         : upperRowIndex;
     YT_VERIFY(LowerRowIndex_ < ChunkMeta_->Misc().row_count());

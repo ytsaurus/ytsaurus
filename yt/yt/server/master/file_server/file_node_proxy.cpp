@@ -118,7 +118,7 @@ private:
         for (const auto& range : context->Ranges) {
             const auto& lowerLimit = range.LowerLimit();
             const auto& upperLimit = range.UpperLimit();
-            if (upperLimit.HasKey() || lowerLimit.HasKey()) {
+            if (upperLimit.HasLegacyKey() || lowerLimit.HasLegacyKey()) {
                 THROW_ERROR_EXCEPTION("Key selectors are not supported for files");
             }
             if (lowerLimit.HasRowIndex() || upperLimit.HasRowIndex()) {

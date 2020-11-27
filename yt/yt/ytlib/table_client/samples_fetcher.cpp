@@ -143,11 +143,11 @@ TFuture<void> TSamplesFetcher::DoFetchFromNode(TNodeId nodeId, const std::vector
             auto* sampleRequest = req->add_sample_requests();
             ToProto(sampleRequest->mutable_chunk_id(), chunkId);
             sampleRequest->set_sample_count(sampleCount - currentSampleCount);
-            if (chunk->LowerLimit() && chunk->LowerLimit()->HasKey()) {
-                ToProto(sampleRequest->mutable_lower_key(), chunk->LowerLimit()->GetKey());
+            if (chunk->LowerLimit() && chunk->LowerLimit()->HasLegacyKey()) {
+                ToProto(sampleRequest->mutable_lower_key(), chunk->LowerLimit()->GetLegacyKey());
             }
-            if (chunk->UpperLimit() && chunk->UpperLimit()->HasKey()) {
-                ToProto(sampleRequest->mutable_upper_key(), chunk->UpperLimit()->GetKey());
+            if (chunk->UpperLimit() && chunk->UpperLimit()->HasLegacyKey()) {
+                ToProto(sampleRequest->mutable_upper_key(), chunk->UpperLimit()->GetLegacyKey());
             }
             currentSampleCount = sampleCount;
         }

@@ -100,8 +100,8 @@ TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, boo
             FromProto(&readLimit, chunkSpec.lower_limit());
             YT_VERIFY(!readLimit.HasRowIndex());
 
-            if (readLimit.HasKey() && (!result.HasKey() || result.GetKey() > readLimit.GetKey())) {
-                result.SetKey(readLimit.GetKey());
+            if (readLimit.HasLegacyKey() && (!result.HasLegacyKey() || result.GetLegacyKey() > readLimit.GetLegacyKey())) {
+                result.SetLegacyKey(readLimit.GetLegacyKey());
             }
         }
     } else {
@@ -114,8 +114,8 @@ TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, boo
             result.SetRowIndex(chunkSpec.table_row_index());
         }
 
-        if (readLimit.HasKey()) {
-            result.SetKey(readLimit.GetKey());
+        if (readLimit.HasLegacyKey()) {
+            result.SetLegacyKey(readLimit.GetLegacyKey());
         };
     }
 
@@ -132,8 +132,8 @@ TReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, boo
             FromProto(&readLimit, chunkSpec.upper_limit());
             YT_VERIFY(!readLimit.HasRowIndex());
 
-            if (readLimit.HasKey() && (!result.HasKey() || result.GetKey() < readLimit.GetKey())) {
-                result.SetKey(readLimit.GetKey());
+            if (readLimit.HasLegacyKey() && (!result.HasLegacyKey() || result.GetLegacyKey() < readLimit.GetLegacyKey())) {
+                result.SetLegacyKey(readLimit.GetLegacyKey());
             }
         }
     } else {
@@ -146,8 +146,8 @@ TReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, boo
             result.SetRowIndex(chunkSpec.table_row_index() + chunkSpec.row_count_override());
         }
 
-        if (readLimit.HasKey()) {
-            result.SetKey(readLimit.GetKey());
+        if (readLimit.HasLegacyKey()) {
+            result.SetLegacyKey(readLimit.GetLegacyKey());
         };
     }
 

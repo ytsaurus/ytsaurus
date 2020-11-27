@@ -250,21 +250,21 @@ protected:
         }
 
         auto fulfillLowerKeyLimit = [&] (TUnversionedRow row) {
-            return !readRange.LowerLimit().HasKey() ||
+            return !readRange.LowerLimit().HasLegacyKey() ||
                 CompareRows(
                     row.Begin(),
                     row.Begin() + keyColumnCount,
-                    readRange.LowerLimit().GetKey().Begin(),
-                    readRange.LowerLimit().GetKey().End()) >= 0;
+                    readRange.LowerLimit().GetLegacyKey().Begin(),
+                    readRange.LowerLimit().GetLegacyKey().End()) >= 0;
         };
 
         auto fulfillUpperKeyLimit = [&] (TUnversionedRow row) {
-            return !readRange.UpperLimit().HasKey() ||
+            return !readRange.UpperLimit().HasLegacyKey() ||
                CompareRows(
                    row.Begin(),
                    row.Begin() + keyColumnCount,
-                   readRange.UpperLimit().GetKey().Begin(),
-                   readRange.UpperLimit().GetKey().End()) < 0;
+                   readRange.UpperLimit().GetLegacyKey().Begin(),
+                   readRange.UpperLimit().GetLegacyKey().End()) < 0;
         };
 
         for (int rowIndex = lowerRowIndex; rowIndex < upperRowIndex; ++rowIndex) {
@@ -379,9 +379,9 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
         ::testing::Values(TColumnFilter(), TColumnFilter({0, 5})),
         ::testing::Values(
             TReadRange(),
-            TReadRange(TReadLimit().SetKey(YsonToKey("<type=null>#")), TReadLimit().SetKey(YsonToKey("<type=null>#"))),
-            TReadRange(TReadLimit().SetKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit()),
-            TReadRange(TReadLimit().SetKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetKey(YsonToKey("350000.1; 1; 1; \"Z\""))))));
+            TReadRange(TReadLimit().SetLegacyKey(YsonToKey("<type=null>#")), TReadLimit().SetLegacyKey(YsonToKey("<type=null>#"))),
+            TReadRange(TReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit()),
+            TReadRange(TReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetLegacyKey(YsonToKey("350000.1; 1; 1; \"Z\""))))));
 
 // ToDo(psushin):
 //  1. Test sampling.

@@ -80,11 +80,11 @@ private:
                     .BeginAttributes()
                         .Item("id").Value(chunkView->GetId())
                         .Item("type").Value("chunk_view")
-                        .DoIf(readRange.LowerLimit().HasKey(), [&] (TFluentMap fluent) {
-                            fluent.Item("lower_limit").Value(readRange.LowerLimit().GetKey());
+                        .DoIf(readRange.LowerLimit().HasLegacyKey(), [&] (TFluentMap fluent) {
+                            fluent.Item("lower_limit").Value(readRange.LowerLimit().GetLegacyKey());
                         })
-                        .DoIf(readRange.UpperLimit().HasKey(), [&] (TFluentMap fluent) {
-                            fluent.Item("upper_limit").Value(readRange.UpperLimit().GetKey());
+                        .DoIf(readRange.UpperLimit().HasLegacyKey(), [&] (TFluentMap fluent) {
+                            fluent.Item("upper_limit").Value(readRange.UpperLimit().GetLegacyKey());
                         })
                     .EndAttributes()
                     .BeginList()

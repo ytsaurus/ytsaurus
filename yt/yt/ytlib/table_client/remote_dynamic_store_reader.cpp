@@ -280,11 +280,11 @@ private:
 
             auto lowerLimit = FromProto<NChunkClient::TReadLimit>(ChunkSpec_.lower_limit());
             auto upperLimit = FromProto<NChunkClient::TReadLimit>(ChunkSpec_.upper_limit());
-            if (lowerLimit.HasKey()) {
-                ToProto(req->mutable_lower_bound(), lowerLimit.GetKey());
+            if (lowerLimit.HasLegacyKey()) {
+                ToProto(req->mutable_lower_bound(), lowerLimit.GetLegacyKey());
             }
-            if (upperLimit.HasKey()) {
-                ToProto(req->mutable_upper_bound(), upperLimit.GetKey());
+            if (upperLimit.HasLegacyKey()) {
+                ToProto(req->mutable_upper_bound(), upperLimit.GetLegacyKey());
             }
 
             req->set_timestamp(Timestamp_);
@@ -713,11 +713,11 @@ private:
             auto lastKeySuccessor = GetKeySuccessor(LastKey_);
             if (ChunkSpec_.has_lower_limit()) {
                 FromProto(&lowerLimit, ChunkSpec_.lower_limit());
-                if (lowerLimit.HasKey()) {
-                    YT_VERIFY(lowerLimit.GetKey() <= lastKeySuccessor);
+                if (lowerLimit.HasLegacyKey()) {
+                    YT_VERIFY(lowerLimit.GetLegacyKey() <= lastKeySuccessor);
                 }
             }
-            lowerLimit.SetKey(lastKeySuccessor);
+            lowerLimit.SetLegacyKey(lastKeySuccessor);
             ToProto(ChunkSpec_.mutable_lower_limit(), lowerLimit);
         }
     }

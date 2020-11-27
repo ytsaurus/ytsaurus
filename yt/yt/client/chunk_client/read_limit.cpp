@@ -39,12 +39,12 @@ TReadLimit::TReadLimit(const std::unique_ptr<NProto::TReadLimit>& protoLimit)
 
 TReadLimit::TReadLimit(const TLegacyOwningKey& key)
 {
-    SetKey(key);
+    SetLegacyKey(key);
 }
 
 TReadLimit::TReadLimit(TLegacyOwningKey&& key)
 {
-    SetKey(std::move(key));
+    SetLegacyKey(std::move(key));
 }
 
 TReadLimit& TReadLimit::operator= (const NProto::TReadLimit& protoLimit)
@@ -62,9 +62,9 @@ TReadLimit& TReadLimit::operator= (NProto::TReadLimit&& protoLimit)
 TReadLimit TReadLimit::GetSuccessor() const
 {
     TReadLimit result;
-    if (HasKey()) {
-        auto key = GetKey();
-        result.SetKey(GetKeyPrefixSuccessor(key, key.GetCount()));
+    if (HasLegacyKey()) {
+        auto key = GetLegacyKey();
+        result.SetLegacyKey(GetKeyPrefixSuccessor(key, key.GetCount()));
     }
     if (HasRowIndex()) {
         result.SetRowIndex(GetRowIndex() + 1);
@@ -84,25 +84,25 @@ const NProto::TReadLimit& TReadLimit::AsProto() const
     return ReadLimit_;
 }
 
-const TLegacyOwningKey& TReadLimit::GetKey() const
+const TLegacyOwningKey& TReadLimit::GetLegacyKey() const
 {
-    YT_ASSERT(HasKey());
+    YT_ASSERT(HasLegacyKey());
     return Key_;
 }
 
-bool TReadLimit::HasKey() const
+bool TReadLimit::HasLegacyKey() const
 {
     return ReadLimit_.has_legacy_key();
 }
 
-TReadLimit& TReadLimit::SetKey(const TLegacyOwningKey& key)
+TReadLimit& TReadLimit::SetLegacyKey(const TLegacyOwningKey& key)
 {
     Key_ = key;
     ToProto(ReadLimit_.mutable_legacy_key(), Key_);
     return *this;
 }
 
-TReadLimit& TReadLimit::SetKey(TLegacyOwningKey&& key)
+TReadLimit& TReadLimit::SetLegacyKey(TLegacyOwningKey&& key)
 {
     swap(Key_, key);
     ToProto(ReadLimit_.mutable_legacy_key(), Key_);
@@ -189,17 +189,17 @@ void TReadLimit::Persist(const TStreamPersistenceContext& context)
     Persist(context, Key_);
 }
 
-void TReadLimit::MergeLowerKey(const TLegacyOwningKey& key)
+void TReadLimit::MergeLowerLegacyKey(const TLegacyOwningKey& key)
 {
-    if (!HasKey() || GetKey() < key) {
-        SetKey(key);
+    if (!HasLegacyKey() || GetLegacyKey() < key) {
+        SetLegacyKey(key);
     }
 }
 
-void TReadLimit::MergeUpperKey(const TLegacyOwningKey& key)
+void TReadLimit::MergeUpperLegacyKey(const TLegacyOwningKey& key)
 {
-    if (!HasKey() || GetKey() > key) {
-        SetKey(key);
+    if (!HasLegacyKey() || GetLegacyKey() > key) {
+        SetLegacyKey(key);
     }
 }
 
@@ -264,8 +264,8 @@ TString ToString(const TReadLimit& limit)
         builder.AppendString(value);
     };
 
-    if (limit.HasKey()) {
-        append("Key", ToString(limit.GetKey()));
+    if (limit.HasLegacyKey()) {
+        append("Key", ToString(limit.GetLegacyKey()));
     }
 
     if (limit.HasRowIndex()) {
@@ -319,8 +319,8 @@ void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .DoIf(readLimit.HasKey(), [&] (TFluentMap fluent) {
-                fluent.Item("key").Value(readLimit.GetKey());
+            .DoIf(readLimit.HasLegacyKey(), [&] (TFluentMap fluent) {
+                fluent.Item("key").Value(readLimit.GetLegacyKey());
             })
             .DoIf(readLimit.HasRowIndex(), [&] (TFluentMap fluent) {
                 fluent.Item("row_index").Value(readLimit.GetRowIndex());
@@ -366,7 +366,7 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
 
     auto optionalKey = FindReadLimitComponent<TLegacyOwningKey>(attributes, "key");
     if (optionalKey) {
-        readLimit.SetKey(*optionalKey);
+        readLimit.SetLegacyKey(*optionalKey);
     }
 
     auto optionalRowIndex = FindReadLimitComponent<i64>(attributes, "row_index");

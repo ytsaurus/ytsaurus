@@ -3532,11 +3532,11 @@ private:
         for (const auto& mergeResult : mergeResults) {
             auto* firstChunkView = mergeResult.FirstChunkView;
             auto* lastChunkView = mergeResult.LastChunkView;
-            const auto& lowerLimit = firstChunkView->ReadRange().LowerLimit().HasKey()
-                ? firstChunkView->ReadRange().LowerLimit().GetKey()
+            const auto& lowerLimit = firstChunkView->ReadRange().LowerLimit().HasLegacyKey()
+                ? firstChunkView->ReadRange().LowerLimit().GetLegacyKey()
                 : EmptyKey();
-            const auto& upperLimit = lastChunkView->ReadRange().UpperLimit().HasKey()
-                ? lastChunkView->ReadRange().UpperLimit().GetKey()
+            const auto& upperLimit = lastChunkView->ReadRange().UpperLimit().HasLegacyKey()
+                ? lastChunkView->ReadRange().UpperLimit().GetLegacyKey()
                 : MaxKey();
 
             if (firstChunkView == lastChunkView &&
@@ -3551,10 +3551,10 @@ private:
                 const auto& adjustedUpper = std::min(upperLimit, upperPivot);
                 YT_VERIFY(adjustedLower < adjustedUpper);
                 if (adjustedLower != EmptyKey()) {
-                    readRange.LowerLimit().SetKey(adjustedLower);
+                    readRange.LowerLimit().SetLegacyKey(adjustedLower);
                 }
                 if (adjustedUpper != MaxKey()) {
-                    readRange.UpperLimit().SetKey(adjustedUpper);
+                    readRange.UpperLimit().SetLegacyKey(adjustedUpper);
                 }
                 result.push_back(chunkManager->CloneChunkView(firstChunkView, readRange));
             }
@@ -3697,8 +3697,8 @@ private:
 
                         // Check if chunk view fits into the old tablet completely.
                         // This might not be the case if the chunk view comes from bulk insert and has no read range.
-                        if (readRange.LowerLimit().GetKey() < lowerPivot ||
-                            upperPivot < readRange.UpperLimit().GetKey())
+                        if (readRange.LowerLimit().GetLegacyKey() < lowerPivot ||
+                            upperPivot < readRange.UpperLimit().GetLegacyKey())
                         {
                             if (!chunkView->GetTransactionId()) {
                                 YT_LOG_ALERT("Chunk view without transaction id is not fully inside its tablet "
@@ -3707,18 +3707,18 @@ private:
                                     "PivotKey: %v, NextPivotKey: %v)",
                                     chunkView->GetId(),
                                     chunkView->GetUnderlyingChunk()->GetId(),
-                                    readRange.LowerLimit().GetKey(),
-                                    readRange.UpperLimit().GetKey(),
+                                    readRange.LowerLimit().GetLegacyKey(),
+                                    readRange.UpperLimit().GetLegacyKey(),
                                     lowerPivot,
                                     upperPivot);
                             }
 
                             NChunkClient::TReadRange newReadRange;
-                            if (readRange.LowerLimit().GetKey() < lowerPivot) {
-                                newReadRange.LowerLimit().SetKey(lowerPivot);
+                            if (readRange.LowerLimit().GetLegacyKey() < lowerPivot) {
+                                newReadRange.LowerLimit().SetLegacyKey(lowerPivot);
                             }
-                            if (upperPivot < readRange.UpperLimit().GetKey()) {
-                                newReadRange.UpperLimit().SetKey(upperPivot);
+                            if (upperPivot < readRange.UpperLimit().GetLegacyKey()) {
+                                newReadRange.UpperLimit().SetLegacyKey(upperPivot);
                             }
                             auto* newChunkView = chunkManager->CreateChunkView(chunkView, newReadRange);
 
@@ -3776,8 +3776,8 @@ private:
                         // Read range given by tablet's pivot keys will be enforced later.
                         newTabletChildrenToBeMerged[relativeIndex].push_back(chunkOrView->AsChunkView());
                     } else {
-                        if (lowerPivot <= readRange.LowerLimit().GetKey() &&
-                            readRange.UpperLimit().GetKey() <= upperPivot)
+                        if (lowerPivot <= readRange.LowerLimit().GetLegacyKey() &&
+                            readRange.UpperLimit().GetLegacyKey() <= upperPivot)
                         {
                             // Chunk fits into the tablet.
                             chunkManager->AttachToChunkList(
@@ -3789,11 +3789,11 @@ private:
                         } else {
                             // Chunk does not fit into the tablet, create chunk view.
                             NChunkClient::TReadRange newReadRange;
-                            if (readRange.LowerLimit().GetKey() < lowerPivot) {
-                                newReadRange.LowerLimit().SetKey(lowerPivot);
+                            if (readRange.LowerLimit().GetLegacyKey() < lowerPivot) {
+                                newReadRange.LowerLimit().SetLegacyKey(lowerPivot);
                             }
-                            if (upperPivot < readRange.UpperLimit().GetKey()) {
-                                newReadRange.UpperLimit().SetKey(upperPivot);
+                            if (upperPivot < readRange.UpperLimit().GetLegacyKey()) {
+                                newReadRange.UpperLimit().SetLegacyKey(upperPivot);
                             }
                             auto* newChunkView = chunkManager->CreateChunkView(chunkOrView, newReadRange);
                             chunkManager->AttachToChunkList(
@@ -6157,10 +6157,10 @@ private:
         std::vector<TTablet*>& tablets,
         const NChunkClient::TReadRange readRange)
     {
-        YT_VERIFY(readRange.LowerLimit().HasKey());
-        YT_VERIFY(readRange.UpperLimit().HasKey());
-        const auto& minKey = readRange.LowerLimit().GetKey();
-        const auto& maxKey = readRange.UpperLimit().GetKey();
+        YT_VERIFY(readRange.LowerLimit().HasLegacyKey());
+        YT_VERIFY(readRange.UpperLimit().HasLegacyKey());
+        const auto& minKey = readRange.LowerLimit().GetLegacyKey();
+        const auto& maxKey = readRange.UpperLimit().GetLegacyKey();
 
         auto beginIt = std::upper_bound(
             tablets.begin(),

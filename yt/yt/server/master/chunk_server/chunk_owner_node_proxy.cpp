@@ -1009,7 +1009,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     std::optional<int> keyColumnCount;
     for (const auto& range : fetchContext.Ranges) {
-        if (range.LowerLimit().HasKey() || range.UpperLimit().HasKey()) {
+        if (range.LowerLimit().HasLegacyKey() || range.UpperLimit().HasLegacyKey()) {
             keyColumnCount = node->As<NTableServer::TTableNode>()->GetTableSchema().GetKeyColumnCount();
             break;
         }

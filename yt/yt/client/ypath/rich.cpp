@@ -303,7 +303,7 @@ void ParseRowLimit(
 
     if (hasKeyLimit) {
         auto key = rowBuilder.FinishRow();
-        limit->SetKey(key);
+        limit->SetLegacyKey(key);
     }
 
     tokenizer.CurrentToken().ExpectTypes(separators);

@@ -338,8 +338,8 @@ private:
             auto flushRange = [&] (TLegacyKey key) {
                 YT_VERIFY(beginKey);
                 auto& range = ranges.emplace_back();
-                range.LowerLimit().SetKey(TLegacyOwningKey(*beginKey));
-                range.UpperLimit().SetKey(TLegacyOwningKey(key));
+                range.LowerLimit().SetLegacyKey(TLegacyOwningKey(*beginKey));
+                range.UpperLimit().SetLegacyKey(TLegacyOwningKey(key));
                 beginKey = std::nullopt;
             };
 

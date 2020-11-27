@@ -149,8 +149,8 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
 {
     if (TypeFromId(ChunkId_) == EObjectType::SortedDynamicTabletStore) {
         BoundaryKeys_ = std::make_unique<TOwningBoundaryKeys>();
-        BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->HasKey() ? LowerLimit_->GetKey() : MinKey();
-        BoundaryKeys_->MaxKey = UpperLimit_ && UpperLimit_->HasKey() ? UpperLimit_->GetKey() : MaxKey();
+        BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->HasLegacyKey() ? LowerLimit_->GetLegacyKey() : MinKey();
+        BoundaryKeys_->MaxKey = UpperLimit_ && UpperLimit_->HasLegacyKey() ? UpperLimit_->GetLegacyKey() : MaxKey();
     }
 }
 
