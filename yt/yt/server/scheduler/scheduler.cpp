@@ -958,7 +958,7 @@ public:
         }
 
         // NB(eshcherbin): We don't want to allow operation pool changes during materialization or revival
-        // because we rely on them being unchanged in |FinishMaterializeOperation|.
+        // because we rely on them being unchanged in |FinishOperationMaterialization|.
         auto state = operation->GetState();
         if (state == EOperationState::Materializing || state == EOperationState::RevivingJobs) {
             THROW_ERROR_EXCEPTION("Operation runtime parameters update is forbidden while "
@@ -1125,18 +1125,22 @@ public:
         return resourceLimits;
     }
 
-    virtual void ActivateOperation(TOperationId operationId) override
+    virtual void MarkOperationAsRunningInStrategy(TOperationId operationId) override
     {
         auto operation = GetOperation(operationId);
+
+        if (operation->IsRunningInStrategy()) {
+            // Operation is already marked as schedulable by strategy.
+            return;
+        }
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
         DoSetOperationAlert(operationId, EOperationAlertType::OperationPending, TError());
 
-        operation->SetActivated(true);
-        if (operation->GetPrepared()) {
-            MaterializeOperation(operation);
-        }
+        operation->SetRunningInStrategy();
+
+        TryStartOperationMaterialization(operation);
     }
 
     virtual void AbortOperation(TOperationId operationId, const TError& error) override
@@ -1155,11 +1159,10 @@ public:
         Y_UNUSED(MasterConnector_->FlushOperationNode(operation));
     }
 
-    void MaterializeOperation(const TOperationPtr& operation)
+    void TryStartOperationMaterialization(const TOperationPtr& operation)
     {
-
-        if (operation->GetState() != EOperationState::Pending) {
-            // Operation can be in finishing state already.
+        if (operation->GetState() != EOperationState::Pending || !operation->IsRunningInStrategy()) {
+            // Operation can be in finishing or initializing state or can be pending by strategy.
             return;
         }
 
@@ -1182,7 +1185,7 @@ public:
 
         if (operation->IsScheduledInSingleTree()) {
             // NB(eshcherbin): We need to make sure that all necessary information is in fair share tree snapshots
-            // before choosing the best single tree for this operation during |FinishMaterializeOperation| later.
+            // before choosing the best single tree for this operation during |FinishOperationMaterialization| later.
             futures.push_back(Strategy_->GetFullFairShareUpdateFinished());
         }
 
@@ -1192,7 +1195,12 @@ public:
                 if (!error.IsOK()) {
                     return;
                 }
-                if (operation->GetState() != expectedState) {
+                if (operation->GetState() != expectedState) { // EOperationState::RevivingJobs or EOperationState::Materializing
+                    YT_LOG_INFO(
+                        "Operation state changed during materialization, skip materialization postprocessing "
+                        "(ActualState: %v, ExpectedState: %v)",
+                        operation->GetState(),
+                        expectedState);
                     return;
                 }
 
@@ -1205,13 +1213,13 @@ public:
                     maybeMaterializeResult = asyncMaterializeResult.Get().Value();
                 }
 
-                FinishMaterializeOperation(operation, maybeMaterializeResult);
+                FinishOperationMaterialization(operation, maybeMaterializeResult);
             })
             .Via(operation->GetCancelableControlInvoker()));
     }
 
 
-    void FinishMaterializeOperation(
+    void FinishOperationMaterialization(
         const TOperationPtr& operation,
         std::optional<TOperationControllerMaterializeResult> maybeMaterializeResult)
     {
@@ -2022,13 +2030,15 @@ private:
                     responseKeeper->EndRequest(operation->GetMutationId(), responseMessage);
                 }
 
+                // NB: it is valid to reset state, since operation revival descriptor 
+                // has necessary information about state.
+                operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
+
                 if (operation->Alias()) {
                     RegisterOperationAlias(operation);
                 }
-
                 RegisterOperation(operation, /* jobsReady */ false);
 
-                operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
                 AddOperationToTransientQueue(operation);
             }
         }
@@ -2762,10 +2772,6 @@ private:
             ValidateOperationState(operation, EOperationState::Preparing);
 
             operation->SetStateAndEnqueueEvent(EOperationState::Pending);
-            operation->SetPrepared(true);
-            if (operation->GetActivated()) {
-                MaterializeOperation(operation);
-            }
         } catch (const std::exception& ex) {
             auto wrappedError = TError(EErrorCode::OperationFailedToPrepare, "Operation has failed to prepare")
                 << ex;
@@ -2779,6 +2785,8 @@ private:
         LogEventFluently(ELogEventType::OperationPrepared)
             .Item("operation_id").Value(operationId)
             .Item("unrecognized_spec").Value(operation->ControllerAttributes().InitializeAttributes->UnrecognizedSpec);
+
+        TryStartOperationMaterialization(operation);
     }
 
     void DoReviveOperation(const TOperationPtr& operation)
@@ -2846,11 +2854,7 @@ private:
 
             operation->RevivalDescriptor().reset();
             operation->SetStateAndEnqueueEvent(EOperationState::Pending);
-            operation->SetPrepared(true);
 
-            if (operation->GetActivated()) {
-                MaterializeOperation(operation);
-            }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Operation has failed to revive (OperationId: %v)",
                 operationId);
@@ -2858,6 +2862,8 @@ private:
                 << ex;
             OnOperationFailed(operation, wrappedError);
         }
+
+        TryStartOperationMaterialization(operation);
     }
 
     TFuture<void> ResetOperationRevival(const TOperationPtr& operation)
@@ -2960,6 +2966,7 @@ private:
 
     void RegisterOperation(const TOperationPtr& operation, bool jobsReady)
     {
+        YT_VERIFY(operation->GetState() == EOperationState::Starting || operation->GetState() == EOperationState::Orphaned);
         YT_VERIFY(IdToOperation_.emplace(operation->GetId(), operation).second);
 
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
@@ -3894,7 +3901,7 @@ private:
         YT_LOG_DEBUG("Started scanning pending operations");
 
         Strategy_->ScanPendingOperations();
-        
+
         YT_LOG_DEBUG("Finished scanning pending operations");
     }
 

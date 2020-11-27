@@ -138,7 +138,7 @@ struct IOperationStrategyHost
 
     virtual TOperationRuntimeParametersPtr GetRuntimeParameters() const = 0;
 
-    virtual bool GetActivated() const = 0;
+    virtual bool IsRunningInStrategy() const = 0;
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
 
@@ -197,11 +197,9 @@ public:
     // When operation passes admission control and scheduler decides
     // that it's ready to start jobs, it is marked as active.
 public:
-    virtual bool GetActivated() const override;
+    virtual bool IsRunningInStrategy() const override;
 
-    void SetActivated(bool value);
-
-    DEFINE_BYVAL_RW_PROPERTY(bool, Prepared);
+    void SetRunningInStrategy();
 
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
@@ -381,7 +379,8 @@ private:
     const NYson::TYsonString SpecString_;
     const TString CodicilData_;
     const IInvokerPtr ControlInvoker_;
-    bool Activated_ = false;
+
+    bool RunningInStrategy_ = false;
 
     EOperationState State_;
 

@@ -172,7 +172,7 @@ void TSchedulerStrategyHost::ValidatePoolPermission(
     NYTree::EPermission permission) const
 { }
 
-void TSchedulerStrategyHost::ActivateOperation(TOperationId operationId)
+void TSchedulerStrategyHost::MarkOperationAsRunningInStrategy(TOperationId operationId)
 {
     // Nothing to do.
 }

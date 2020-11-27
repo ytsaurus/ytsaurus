@@ -12,7 +12,7 @@ struct ISchedulerTreeHost
     : public virtual TRefCounted
 {
     // May have context switches.
-    virtual void OnOperationReadyInTree(TOperationId operationId, ISchedulerTree* tree) const = 0;
+    virtual void OnOperationRunningInTree(TOperationId operationId, ISchedulerTree* tree) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

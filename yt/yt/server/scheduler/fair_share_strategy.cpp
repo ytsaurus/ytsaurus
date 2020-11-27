@@ -1236,14 +1236,14 @@ private:
                 });
     }
 
-    virtual void OnOperationReadyInTree(TOperationId operationId, ISchedulerTree* tree) const override
+    virtual void OnOperationRunningInTree(TOperationId operationId, ISchedulerTree* tree) const override
     {
         YT_VERIFY(tree->HasRunningOperation(operationId));
 
         auto state = GetOperationState(operationId);
-        if (!state->GetHost()->GetActivated()) {
-            Host->ActivateOperation(operationId);
-        } else if (state->GetEnabled()) {
+        Host->MarkOperationAsRunningInStrategy(operationId);
+
+        if (state->GetEnabled()) {
             tree->EnableOperation(state);
         }
     }
