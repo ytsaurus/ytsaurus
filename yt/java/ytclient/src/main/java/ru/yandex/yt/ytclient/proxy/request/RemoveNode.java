@@ -3,11 +3,16 @@ package ru.yandex.yt.ytclient.proxy.request;
 import javax.annotation.Nonnull;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class RemoveNode extends MutateNode<RemoveNode> {
+@NonNullApi
+@NonNullFields
+public class RemoveNode extends MutateNode<RemoveNode> implements HighLevelRequest<TReqRemoveNode.Builder> {
     private final String path;
     private boolean recursive = true;
     private boolean force = false;
@@ -30,22 +35,33 @@ public class RemoveNode extends MutateNode<RemoveNode> {
         return this;
     }
 
-    public TReqRemoveNode.Builder writeTo(TReqRemoveNode.Builder builder) {
-        builder.setPath(path)
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqRemoveNode.Builder, ?> builder) {
+        builder.body()
+                .setPath(path)
                 .setRecursive(recursive)
                 .setForce(force);
 
         if (transactionalOptions != null) {
-            builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
+            builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
         if (mutatingOptions != null) {
-            builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
+            builder.body().setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
         }
         if (additionalData != null) {
-            builder.mergeFrom(additionalData);
+            builder.body().mergeFrom(additionalData);
         }
+    }
 
-        return builder;
+    @Override
+    protected void writeArgumentsLogString(StringBuilder sb) {
+        super.writeArgumentsLogString(sb);
+        if (force) {
+            sb.append("Force: true; ");
+        }
+        if (recursive) {
+            sb.append("Recursive: true; ");
+        }
     }
 
     @Nonnull
