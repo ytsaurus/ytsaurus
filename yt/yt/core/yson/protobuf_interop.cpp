@@ -480,7 +480,9 @@ public:
     TProtobufElement GetElement() const
     {
         if (IsAttributeDictionary()) {
-            return std::make_unique<TProtobufAttributeDictionaryElement>();
+            return std::make_unique<TProtobufAttributeDictionaryElement>(TProtobufAttributeDictionaryElement{
+                this
+            });
         } else {
             return std::make_unique<TProtobufMessageElement>(TProtobufMessageElement{
                 this
