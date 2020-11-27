@@ -54,7 +54,6 @@ import ru.yandex.yt.rpcproxy.TReqGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetJob;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
-import ru.yandex.yt.rpcproxy.TReqGetTableMountInfo;
 import ru.yandex.yt.rpcproxy.TReqGetTablePivotKeys;
 import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
@@ -102,7 +101,6 @@ import ru.yandex.yt.rpcproxy.TRspGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetJob;
 import ru.yandex.yt.rpcproxy.TRspGetOperation;
-import ru.yandex.yt.rpcproxy.TRspGetTableMountInfo;
 import ru.yandex.yt.rpcproxy.TRspGetTablePivotKeys;
 import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TRspLinkNode;
@@ -339,6 +337,11 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     /* nodes */
+
+    /**
+     * Get cypress node
+     * @see GetNode
+     */
     @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
         return RpcUtil.apply(
@@ -346,6 +349,10 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> parseByteString(response.body().getValue()));
     }
 
+    /**
+     * List cypress node
+     * @see ListNode
+     */
     @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         return RpcUtil.apply(
@@ -353,6 +360,10 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> parseByteString(response.body().getValue()));
     }
 
+    /**
+     * Set cypress node
+     * @see SetNode
+     */
     @Override
     public CompletableFuture<Void> setNode(SetNode req) {
         return RpcUtil.apply(
@@ -360,27 +371,15 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> null);
     }
 
+    /**
+     * Check if cypress node exists
+     * @see ExistsNode
+     */
     @Override
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         return RpcUtil.apply(
                 sendRequest(req, service.existsNode()),
                 response -> response.body().getExists());
-    }
-
-    public CompletableFuture<TRspGetTableMountInfo> getMountInfo(String path) {
-        return getMountInfo(path, null);
-    }
-
-    public CompletableFuture<TRspGetTableMountInfo> getMountInfo(String path, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqGetTableMountInfo.Builder, RpcClientResponse<TRspGetTableMountInfo>> builder =
-                service.getTableMountInfo();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body().setPath(path);
-
-        return RpcUtil.apply(invoke(builder), RpcClientResponse::body);
     }
 
     public CompletableFuture<List<YTreeNode>> getTablePivotKeys(String path, @Nullable Duration requestTimeout) {
@@ -396,7 +395,6 @@ public class ApiServiceClient extends TransactionalClient {
                         new ByteArrayInputStream(response.body().getValue().toByteArray())
                 ).asList());
     }
-
 
     public CompletableFuture<GUID> createObject(ObjectType type, Map<String, YTreeNode> attributes) {
         return createObject(type, attributes, null);
