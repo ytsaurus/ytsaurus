@@ -283,7 +283,7 @@ private:
             const TYPath& path,
             TBundleHealthCachePtr bundleHealthCache,
             TClusterStateCachePtr clusterStateCache,
-            IConnectionPtr connection,
+            IClientPtr client,
             IInvokerPtr checkerInvoker,
             TDuration lag,
             TDuration tabletCellBundleNameTtl,
@@ -294,14 +294,12 @@ private:
             , Path_(path)
             , BundleHealthCache_(std::move(bundleHealthCache))
             , ClusterStateCache_(std::move(clusterStateCache))
-            , Connection_(std::move(connection))
+            , Client_(std::move(client))
             , CheckerInvoker_(std::move(checkerInvoker))
             , Lag_(lag)
             , TabletCellBundleNameTtl_(tabletCellBundleNameTtl)
             , RetryOnFailureInterval_(retryOnFailureInterval)
-        {
-            CreateClient();
-        }
+        { }
 
         TObjectId GetId()
         {
@@ -404,9 +402,8 @@ private:
             Mode_ = other.Mode_;
             TabletCellBundleNameTtl_ = other.TabletCellBundleNameTtl_;
             RetryOnFailureInterval_ = other.RetryOnFailureInterval_;
-            if (Connection_ != other.Connection_) {
-                Connection_ = other.Connection_;
-                CreateClient();
+            if (Client_ != other.Client_) {
+                Client_ = other.Client_;
             }
             Lag_ = other.Lag_;
         }
@@ -419,7 +416,6 @@ private:
 
         TBundleHealthCachePtr BundleHealthCache_;
         TClusterStateCachePtr ClusterStateCache_;
-        NApi::IConnectionPtr Connection_;
         NApi::IClientPtr Client_;
         const IInvokerPtr CheckerInvoker_;
         TDuration Lag_;
@@ -482,13 +478,6 @@ private:
             }
 
             return AsyncTabletCellBundleName_;
-        }
-
-        void CreateClient()
-        {
-            Client_ = Connection_
-                ? Connection_->CreateClient(NApi::TClientOptions::FromUser(RootUserName))
-                : IClientPtr();
         }
     };
 
@@ -680,6 +669,15 @@ private:
     YT_DECLARE_SPINLOCK(TAdaptiveLock, Lock_);
     THashMap<TObjectId, TTablePtr> Tables_;
 
+    struct TClusterConnectionInfo
+    {
+        IConnectionPtr Connection;
+        NApi::IClientPtr Client;
+    };
+
+    TAdaptiveLock ClusterToConnectionLock_;
+    THashMap<TString, TClusterConnectionInfo> ClusterToConnection_;
+
     TPeriodicExecutorPtr UpdaterExecutor_;
 
     TThreadPoolPtr CheckerThreadPool_;
@@ -716,9 +714,59 @@ private:
         Enabled_ = true;
     }
 
+    IClientPtr CreateClient(TStringBuf clusterName, IConnectionPtr connection, const TGuard<TAdaptiveLock>& /*guard*/)
+    {
+        YT_VERIFY(connection);
+
+        auto client = connection->CreateClient(NApi::TClientOptions::FromUser(RootUserName));
+        ClusterToConnection_[clusterName] = {
+            .Connection = std::move(connection),
+            .Client = client};
+
+        YT_LOG_DEBUG("Created new client for cluster %v in replicated table tracker",
+            clusterName);
+
+        return client;
+    }
+
+    void UpdateClusterClients()
+    {
+        auto guard = Guard(ClusterToConnectionLock_);
+
+        for (auto it = ClusterToConnection_.begin(); it != ClusterToConnection_.end(); ) {
+            auto jt = it++;
+            const auto& [clusterName, connectionInfo] = *jt;
+            auto connection = ClusterDirectory_->FindConnection(clusterName);
+            if (!connection) {
+                YT_LOG_WARNING("Removed unknown cluster %v from replicated table tracker",
+                    clusterName);
+                ClusterToConnection_.erase(jt);
+            } else if (connection != connectionInfo.Connection) {
+                CreateClient(clusterName, std::move(connection), guard);
+            }
+        }
+    }
+
+    IClientPtr GetOrCreateClusterClient(const TString& clusterName)
+    {
+        auto guard = Guard(ClusterToConnectionLock_);
+
+        // TODO(akozhikhov): Try hash table with hazard ptrs.
+        auto connectionInfo = ClusterToConnection_.find(clusterName);
+        if (connectionInfo != ClusterToConnection_.end()) {
+            return connectionInfo->second.Client;
+        } else if (auto connection = ClusterDirectory_->FindConnection(clusterName)) {
+            return CreateClient(clusterName, std::move(connection), guard);
+        }
+
+        return nullptr;
+    }
+
     void UpdateTables()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        UpdateClusterClients();
 
         THashMap<TObjectId, TTablePtr> capturedTables;
 
@@ -918,8 +966,8 @@ private:
                     YT_ABORT();
             }
 
-            auto connection = ClusterDirectory_->FindConnection(replica->GetClusterName());
-            if (!connection) {
+            auto client = GetOrCreateClusterClient(replica->GetClusterName());
+            if (!client) {
                 YT_LOG_WARNING("Unknown replica cluster (Name: %v, ReplicaId: %v, TableId: %v)",
                     replica->GetClusterName(),
                     replica->GetId(),
@@ -933,7 +981,7 @@ private:
                 replica->GetReplicaPath(),
                 BundleHealthCache_.Load(),
                 ClusterStateCache_.Load(),
-                connection,
+                std::move(client),
                 CheckerThreadPool_->GetInvoker(),
                 replica->ComputeReplicationLagTime(lastestTimestamp),
                 config->TabletCellBundleNameTtl,
