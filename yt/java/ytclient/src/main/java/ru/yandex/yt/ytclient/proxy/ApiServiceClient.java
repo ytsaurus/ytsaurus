@@ -54,7 +54,6 @@ import ru.yandex.yt.rpcproxy.TReqGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqGetJob;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
-import ru.yandex.yt.rpcproxy.TReqGetTablePivotKeys;
 import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
@@ -101,7 +100,6 @@ import ru.yandex.yt.rpcproxy.TRspGetFileFromCache;
 import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TRspGetJob;
 import ru.yandex.yt.rpcproxy.TRspGetOperation;
-import ru.yandex.yt.rpcproxy.TRspGetTablePivotKeys;
 import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TRspLinkNode;
 import ru.yandex.yt.rpcproxy.TRspLockNode;
@@ -145,6 +143,7 @@ import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
+import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
@@ -382,18 +381,24 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> response.body().getExists());
     }
 
-    public CompletableFuture<List<YTreeNode>> getTablePivotKeys(String path, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqGetTablePivotKeys.Builder, RpcClientResponse<TRspGetTablePivotKeys>> builder =
-                service.getTablePivotKeys();
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body().setPath(path);
-
-        return RpcUtil.apply(invoke(builder),
+    /**
+     * Get table pivot keys.
+     * @see GetTablePivotKeys
+     */
+    public CompletableFuture<List<YTreeNode>> getTablePivotKeys(GetTablePivotKeys req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.getTablePivotKeys()),
                 response -> YTreeBinarySerializer.deserialize(
                         new ByteArrayInputStream(response.body().getValue().toByteArray())
                 ).asList());
+    }
+
+    public CompletableFuture<List<YTreeNode>> getTablePivotKeys(String path, @Nullable Duration requestTimeout) {
+        GetTablePivotKeys req = new GetTablePivotKeys(path);
+        if (requestTimeout != null) {
+            req.setTimeout(requestTimeout);
+        }
+        return getTablePivotKeys(req);
     }
 
     public CompletableFuture<GUID> createObject(ObjectType type, Map<String, YTreeNode> attributes) {
