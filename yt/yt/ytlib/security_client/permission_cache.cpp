@@ -92,9 +92,15 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
 
     return batchReq->Invoke()
         .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(0);
-            ParseCheckPermissionResponse(key, rspOrError)
-                .ThrowOnError();
+            if (key.Object) {
+                auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(0);
+                ParseCheckPermissionResponse(key, rspOrError)
+                    .ThrowOnError();
+            } else {
+                auto rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCheckPermissionByAcl>(0);
+                ParseCheckPermissionByAclResponse(key, rspOrError)
+                    .ThrowOnError();
+            }
         }));
 }
 
