@@ -1068,7 +1068,7 @@ private:
     {
         return asyncMessage.Apply(BIND([] (const TSharedRefArray& message) -> TFuture<void> {
             TResponseHeader header;
-            YT_VERIFY(ParseResponseHeader(message, &header));
+            YT_VERIFY(TryParseResponseHeader(message, &header));
             return header.has_error()
                 ? MakeFuture<void>(FromProto<TError>(header.error()))
                 : VoidFuture;

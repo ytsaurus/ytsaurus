@@ -19,14 +19,15 @@ TErrorOr<TIntrusivePtr<TTypedResponse>> TObjectServiceProxy::TRspExecuteBatch::G
     if (!innerResponseMessage) {
         return TIntrusivePtr<TTypedResponse>();
     }
-    auto innerResponse = New<TTypedResponse>();
+
     try {
+        auto innerResponse = New<TTypedResponse>();
         innerResponse->Deserialize(innerResponseMessage);
         innerResponse->Tag() = InnerRequestDescriptors_[index].Tag;
+        return innerResponse;
     } catch (const std::exception& ex) {
         return ex;
     }
-    return innerResponse;
 }
 
 template <class TTypedResponse>

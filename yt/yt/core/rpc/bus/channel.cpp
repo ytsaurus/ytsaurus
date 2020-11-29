@@ -826,7 +826,7 @@ private:
         void OnResponseMessage(TSharedRefArray message)
         {
             NProto::TResponseHeader header;
-            if (!ParseResponseHeader(message, &header)) {
+            if (!TryParseResponseHeader(message, &header)) {
                 YT_LOG_ERROR("Error parsing response header");
                 return;
             }

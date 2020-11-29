@@ -335,7 +335,7 @@ protected:
 
     explicit TClientResponse(TClientContextPtr clientContext);
 
-    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) = 0;
+    virtual bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) = 0;
 
     // IClientResponseHandler implementation.
     virtual void HandleError(const TError& error) override;
@@ -382,7 +382,7 @@ private:
 
 
     virtual void SetPromise(const TError& error) override;
-    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) override;
+    virtual bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

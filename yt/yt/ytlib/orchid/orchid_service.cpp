@@ -58,14 +58,18 @@ private:
                 }
 
                 const auto& responseMessage = responseMessageOrError.Value();
+
                 TResponseHeader responseHeader;
-                YT_VERIFY(ParseResponseHeader(responseMessage, &responseHeader));
+                if (!TryParseResponseHeader(responseMessage, &responseHeader)) {
+                    context->Reply(TError(NRpc::EErrorCode::ProtocolError, "Error parsing response header"));
+                    return;
+                }
 
                 auto error = FromProto<TError>(responseHeader.error());
-
                 context->SetResponseInfo("InnerError: %v", error);
 
                 response->Attachments() = responseMessage.ToVector();
+
                 context->Reply();
             }));
     }

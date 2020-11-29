@@ -581,15 +581,16 @@ void TObjectServiceProxy::TRspExecuteBatch::SetPromise(const TError& error)
     Promise_.Reset();
 }
 
-void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
+bool TObjectServiceProxy::TRspExecuteBatch::TryDeserializeBody(
     TRef data,
     std::optional<NCompression::ECodec> codecId)
 {
     NProto::TRspExecute body;
-    if (codecId) {
-        DeserializeProtoWithCompression(&body, data, *codecId);
-    } else {
-        DeserializeProtoWithEnvelope(&body, data);
+    auto deserializeResult = codecId
+        ? TryDeserializeProtoWithCompression(&body, data, *codecId)
+        : TryDeserializeProtoWithEnvelope(&body, data);
+    if (!deserializeResult) {
+        return false;
     }
 
     if (body.subresponses_size() != 0) { // new format
@@ -639,6 +640,8 @@ void TObjectServiceProxy::TRspExecuteBatch::DeserializeBody(
 
         ResponseCount_ = body.part_counts_size();
     }
+
+    return true;
 }
 
 void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(

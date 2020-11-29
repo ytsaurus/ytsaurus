@@ -52,7 +52,7 @@ struct TSubrequestResponse
 
     TSharedRefArray Message;
     NHydra::TRevision Revision;
-    double ByteRate = 0.0; 
+    double ByteRate = 0.0;
 };
 
 class TCachingObjectService
@@ -293,7 +293,12 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                         auto responseMessage = TSharedRefArray(rsp->Attachments(), TSharedRefArray::TCopyParts{});
 
                         TResponseHeader responseHeader;
-                        YT_VERIFY(ParseResponseHeader(responseMessage, &responseHeader));
+                        if (!TryParseResponseHeader(responseMessage, &responseHeader)) {
+                            YT_LOG_WARNING("Error parsing cache population response header (Key: %v)", cookie.GetKey());
+                            cookie.Cancel(TError(NRpc::EErrorCode::ProtocolError, "Error parsing response header"));
+                            return;
+                        }
+
                         auto responseError = FromProto<TError>(responseHeader.error());
                         auto revision = rsp->revisions_size() > 0 ? rsp->revisions(0) : NHydra::NullRevision;
 
@@ -331,7 +336,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             }
 
             const auto& masterResponseMessages = masterResponseMessagesOrError.Value();
-            
+
             auto& responseAttachments = response->Attachments();
             for (int subrequestIndex = 0; subrequestIndex < request->part_counts_size(); ++subrequestIndex) {
                 const auto& subrequestResponse = masterResponseMessages[subrequestIndex];

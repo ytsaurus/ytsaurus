@@ -78,7 +78,7 @@ void TServiceContextBase::Reply(const TSharedRefArray& responseMessage)
     // NB: One must parse responseMessage and only use its content since,
     // e.g., responseMessage may contain invalid request id.
     TResponseHeader header;
-    YT_VERIFY(ParseResponseHeader(responseMessage, &header));
+    YT_VERIFY(TryParseResponseHeader(responseMessage, &header));
 
     if (header.has_error()) {
         Error_ = FromProto<TError>(header.error());

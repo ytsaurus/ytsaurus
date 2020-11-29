@@ -87,7 +87,7 @@ TSharedRefArray SetRequestHeader(
     const TSharedRefArray& message,
     const NProto::TRequestHeader& header);
 
-bool ParseResponseHeader(
+bool TryParseResponseHeader(
     const TSharedRefArray& message,
     NProto::TResponseHeader* header);
 

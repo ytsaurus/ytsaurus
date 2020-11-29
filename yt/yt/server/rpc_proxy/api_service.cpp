@@ -2873,8 +2873,9 @@ private:
         int attachmentIndex = 0;
         for (int partCount: request->part_counts()) {
             NApi::NRpcProxy::NProto::TReqModifyRows subrequest;
-            // TODO(kiselyovp) if this fails, YT_VERIFY happens
-            DeserializeProto(&subrequest, request->Attachments()[attachmentIndex]);
+            if (!TryDeserializeProto(&subrequest, request->Attachments()[attachmentIndex])) {
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ProtocolError, "Error deserializing subrequest");
+            }
             ++attachmentIndex;
             std::vector<TSharedRef> attachments(
                 request->Attachments().begin() + attachmentIndex,

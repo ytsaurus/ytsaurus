@@ -372,7 +372,7 @@ TSharedRefArray SetRequestHeader(
     return builder.Finish();
 }
 
-bool ParseResponseHeader(
+bool TryParseResponseHeader(
     const TSharedRefArray& message,
     NProto::TResponseHeader* header)
 {
