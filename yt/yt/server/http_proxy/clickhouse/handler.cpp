@@ -662,7 +662,13 @@ private:
             OperationAcl_ = ConvertToYsonString(operationNode
                 ->GetChildOrThrow("runtime_parameters")
                 ->AsMap()
-                ->GetChildOrThrow("acl"));
+                ->GetChildOrThrow("acl"),
+                EYsonFormat::Text);
+
+            YT_LOG_DEBUG("Operation ACL resolved (OperationAlias: %v, OperationId: %v, OperaionAcl: %v)",
+                OperationAlias_,
+                OperationId_,
+                OperationAcl_);
 
             return true;
         } catch (const std::exception& ex) {
@@ -767,7 +773,7 @@ void TClickHouseHandler::HandleRequest(
         RedirectToDataProxy(request, response, Coordinator_);
         return;
     }
-    
+
     YT_PROFILE_TIMING("/clickhouse_proxy/total_query_time") {
         QueryCount_.Increment();
         ProcessDebugHeaders(request, response, Coordinator_);
