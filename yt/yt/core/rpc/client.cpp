@@ -569,9 +569,14 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
 
     ResponseMessage_ = std::move(responseMessage);
 
-    YT_ASSERT(ResponseMessage_.Size() >= 2);
+    if (ResponseMessage_.Size() < 2) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ProtocolError, "Too few response message parts: %v < 2",
+            ResponseMessage_.Size());
+    }
 
-    YT_VERIFY(ParseResponseHeader(ResponseMessage_, &Header_));
+    if (!TryParseResponseHeader(ResponseMessage_, &Header_)) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ProtocolError, "Error deserializing response header");
+    }
 
     // COMPAT(kiselyovp): legacy RPC codecs
     std::optional<NCompression::ECodec> bodyCodecId;
@@ -583,7 +588,9 @@ void TClientResponse::Deserialize(TSharedRefArray responseMessage)
         attachmentCodecId = NCompression::ECodec::None;
     }
 
-    DeserializeBody(ResponseMessage_[1], bodyCodecId);
+    if (!TryDeserializeBody(ResponseMessage_[1], bodyCodecId)) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ProtocolError, "Error deserializing response body");
+    }
 
     auto memoryZone = CheckedEnumCast<EMemoryZone>(Header_.memory_zone());
 
@@ -622,8 +629,12 @@ void TClientResponse::DoHandleResponse(TSharedRefArray message)
 {
     NProfiling::TWallTimer timer;
 
-    Deserialize(std::move(message));
-    Finish(TError());
+    try {
+        Deserialize(std::move(message));
+        Finish({});
+    } catch (const std::exception& ex) {
+        Finish(ex);
+    }
 
     if (!ClientContext_->GetHeavy() && timer.GetElapsedTime() > LightInvokerDurationWarningThreshold) {
         YT_LOG_DEBUG("Handling light response took too long (RequestId: %v, Duration: %v)",

@@ -371,7 +371,7 @@ public:
         void SetEmpty();
 
         virtual void SetPromise(const TError& error) override;
-        virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) override;
+        virtual bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) override;
 
         // A response may be either received or unreceived.
         // An unreceived response may also be uncertain or not.

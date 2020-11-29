@@ -823,7 +823,7 @@ private:
                 RequestId_);
 
             NRpc::NProto::TResponseHeader responseHeader;
-            YT_VERIFY(ParseResponseHeader(ResponseMessage_, &responseHeader));
+            YT_VERIFY(TryParseResponseHeader(ResponseMessage_, &responseHeader));
 
             SmallVector<grpc_op, 2> ops;
 

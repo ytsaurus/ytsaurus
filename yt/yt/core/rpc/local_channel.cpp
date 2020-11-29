@@ -179,7 +179,7 @@ private:
         virtual TFuture<void> Send(TSharedRefArray message, const NBus::TSendOptions& /*options*/) override
         {
             NProto::TResponseHeader header;
-            YT_VERIFY(ParseResponseHeader(message, &header));
+            YT_VERIFY(TryParseResponseHeader(message, &header));
             if (AcquireLock()) {
                 TError error;
                 if (header.has_error()) {

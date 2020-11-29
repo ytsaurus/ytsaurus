@@ -127,16 +127,14 @@ void TTypedClientResponse<TResponseMessage>::SetPromise(const TError& error)
 }
 
 template <class TResponseMessage>
-void TTypedClientResponse<TResponseMessage>::DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId)
+bool TTypedClientResponse<TResponseMessage>::TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId)
 {
     NYTAlloc::TMemoryTagGuard guard(ClientContext_->GetResponseMemoryTag());
 
-    if (codecId) {
-        DeserializeProtoWithCompression(this, data, *codecId);
-    } else {
+    return codecId
+        ? TryDeserializeProtoWithCompression(this, data, *codecId)
         // COMPAT(kiselyovp): legacy RPC codecs
-        DeserializeProtoWithEnvelope(this, data);
-    }
+        : TryDeserializeProtoWithEnvelope(this, data);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

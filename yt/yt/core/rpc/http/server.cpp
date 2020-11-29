@@ -108,7 +108,7 @@ public:
 
         YT_VERIFY(message.Size() >= 1);
         NRpc::NProto::TResponseHeader responseHeader;
-        YT_VERIFY(ParseResponseHeader(message, &responseHeader));
+        YT_VERIFY(TryParseResponseHeader(message, &responseHeader));
 
         if (responseHeader.has_error() && responseHeader.error().code() != 0) {
             FillYTErrorHeaders(Rsp_, FromProto<TError>(responseHeader.error()));

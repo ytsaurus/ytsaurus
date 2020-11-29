@@ -24,14 +24,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::any, Tag);
 
 public:
-    explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
-
-    TYPathRequest(
-        TString service,
-        TString method,
-        NYPath::TYPath path,
-        bool mutating);
-
     virtual NRpc::TRequestId GetRequestId() const override;
     virtual NRpc::TRealmId GetRealmId() const override;
     virtual const TString& GetMethod() const override;
@@ -79,6 +71,14 @@ public:
     virtual TSharedRefArray Serialize() override;
 
 protected:
+    explicit TYPathRequest(const NRpc::NProto::TRequestHeader& header);
+
+    TYPathRequest(
+        TString service,
+        TString method,
+        NYPath::TYPath path,
+        bool mutating);
+
     NRpc::NProto::TRequestHeader Header_;
     std::vector<TSharedRef> Attachments_;
 
@@ -136,7 +136,7 @@ public:
     void Deserialize(const TSharedRefArray& message);
 
 protected:
-    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt);
+    virtual bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {});
 };
 
 DEFINE_REFCOUNTED_TYPE(TYPathResponse)
@@ -149,13 +149,11 @@ class TTypedYPathResponse
     , public TResponseMessage
 {
 protected:
-    virtual void DeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = std::nullopt) override
+    virtual bool TryDeserializeBody(TRef data, std::optional<NCompression::ECodec> codecId = {}) override
     {
-        if (codecId) {
-            DeserializeProtoWithCompression(this, data, *codecId);
-        } else {
-            DeserializeProtoWithEnvelope(this, data);
-        }
+        return codecId
+            ? TryDeserializeProtoWithCompression(this, data, *codecId)
+            : TryDeserializeProtoWithEnvelope(this, data);
     }
 };
 

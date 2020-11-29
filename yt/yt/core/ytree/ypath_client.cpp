@@ -216,25 +216,34 @@ void TYPathResponse::Deserialize(const TSharedRefArray& message)
     YT_ASSERT(message);
 
     NRpc::NProto::TResponseHeader header;
-    if (!ParseResponseHeader(message, &header)) {
-        THROW_ERROR_EXCEPTION("Error parsing response header");
+    if (!TryParseResponseHeader(message, &header)) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ProtocolError, "Error parsing response header");
     }
 
+    // Check for error in header.
     if (header.has_error()) {
-        auto error = NYT::FromProto<TError>(header.error());
-        error.ThrowOnError();
+        FromProto<TError>(header.error())
+            .ThrowOnError();
     }
 
     // Deserialize body.
-    YT_ASSERT(message.Size() >= 2);
-    DeserializeBody(message[1]);
+    if (message.Size() < 2) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ProtocolError, "Too few response message parts: %v < 2",
+            message.Size());
+    }
+
+    if (!TryDeserializeBody(message[1])) {
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ProtocolError, "Error deserializing response body");
+    }
 
     // Load attachments.
     Attachments_ = std::vector<TSharedRef>(message.Begin() + 2, message.End());
 }
 
-void TYPathResponse::DeserializeBody(TRef /*data*/, std::optional<NCompression::ECodec> /*codecId*/)
-{ }
+bool TYPathResponse::TryDeserializeBody(TRef /*data*/, std::optional<NCompression::ECodec> /*codecId*/)
+{
+    return true;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
