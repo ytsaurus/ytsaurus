@@ -238,6 +238,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("waiting_job_timeout", WaitingJobTimeout)
         .Default();
 
+    RegisterParameter("min_child_heap_size", MinChildHeapSize)
+        .Default(16);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")

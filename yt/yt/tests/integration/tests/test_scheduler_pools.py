@@ -769,12 +769,12 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     #     create_pool_tree("other_tree", wait_for_orchid=False, config={"mode": "trash_value"})
 
     def test_create_doesnt_set_unwanted_attributes(self):
-        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
         assert not exists("//sys/pool_trees/my_tree/nirvana/@pool_tree")
 
     def test_create_pool_with_attributes(self):
-        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
         create_pool(
             "nirvana",
             pool_tree="my_tree",
@@ -784,11 +784,11 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert get("//sys/pool_trees/my_tree/nirvana/@mode") == "fifo"
 
     def test_create_pool_tree_with_config_attributes(self):
-        create_pool_tree("my_tree", wait_for_orchid=False, config={"default_parent_pool": "research"})
+        create_pool_tree("my_tree", wait_for_orchid=False, config={"default_parent_pool": "research"}, allow_patching=False)
         assert get("//sys/pool_trees/my_tree/@config/default_parent_pool") == "research"
 
     def test_fail_on_create_pool_with_attributes(self):
-        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
 
         with pytest.raises(YtError):
             create_pool(
@@ -805,7 +805,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert not exists("//sys/pool_trees/my_tree")
 
     def test_get_set_remove_empty_pooltree_config(self):
-        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
         assert exists("//sys/pool_trees/my_tree/@config")
         assert get("//sys/pool_trees/my_tree/@config") == {}
 
@@ -814,7 +814,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert get("//sys/pool_trees/my_tree/@config") == {}
 
     def test_set_pooltree_config_overwriting(self):
-        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool_tree("my_tree", wait_for_orchid=False, allow_patching=False)
 
         set("//sys/pool_trees/my_tree/@config", {"nodes_filter": "filter"})
         assert get("//sys/pool_trees/my_tree/@config") == {"nodes_filter": "filter"}

@@ -269,6 +269,10 @@ public:
 
     std::optional<TDuration> WaitingJobTimeout;
 
+    // If pool has at least #MinChildHeapSize children,
+    // then it uses heap for maintaining best active child.
+    int MinChildHeapSize;
+
     TFairShareStrategyTreeConfig();
 };
 

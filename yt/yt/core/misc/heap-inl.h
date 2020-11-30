@@ -12,7 +12,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TIterator, class TComparer>
-void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer)
+void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer, std::function<void(size_t)> onAssign)
 {
     size_t size = std::distance(begin, end);
     size_t offset = std::distance(begin, current);
@@ -40,13 +40,31 @@ void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer compa
         }
 
         begin[offset] = std::move(minValue);
+        if (onAssign) {
+            onAssign(offset);
+        }
         offset = min;
     }
     begin[offset] = std::move(value);
+    if (onAssign) {
+        onAssign(offset);
+    }
 }
 
 template <class TIterator, class TComparer>
-void SiftUp(TIterator begin, TIterator /*end*/, TIterator current, TComparer comparer)
+void SiftDown(TIterator begin, TIterator end, TIterator current, TComparer comparer)
+{
+    SiftDown(std::move(begin), std::move(end), std::move(current), comparer, nullptr);
+}
+
+template <class TIterator>
+void SiftDown(TIterator begin, TIterator end, TIterator current)
+{
+    SiftDown(std::move(begin), std::move(end), std::move(current), std::less<>(), nullptr);
+}
+
+template <class TIterator, class TComparer>
+void SiftUp(TIterator begin, TIterator /*end*/, TIterator current, TComparer comparer, std::function<void(size_t)> onAssign)
 {
     auto value = std::move(*current);
     while (current != begin) {
@@ -58,9 +76,27 @@ void SiftUp(TIterator begin, TIterator /*end*/, TIterator current, TComparer com
         }
 
         *current = std::move(parentValue);
+        if (onAssign) {
+            onAssign(dist);
+        }
         current = parent;
     }
     *current = std::move(value);
+    if (onAssign) {
+        onAssign(std::distance(begin, current));
+    }
+}
+
+template <class TIterator, class TComparer>
+void SiftUp(TIterator begin, TIterator end, TIterator current, TComparer comparer)
+{
+    SiftUp(std::move(begin), std::move(end), std::move(current), comparer, nullptr);
+}
+
+template <class TIterator>
+void SiftUp(TIterator begin, TIterator end, TIterator current)
+{
+    SiftUp(std::move(begin), std::move(end), std::move(current), std::less<>(), nullptr);
 }
 
 template <class TIterator, class TComparer>
@@ -122,6 +158,87 @@ template <class TIterator>
 void ExtractHeap(TIterator begin, TIterator end)
 {
     ExtractHeap(std::move(begin), std::move(end), std::less<>());
+}
+
+template <class TIterator, class TComparer>
+void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer comparer, std::function<void(size_t)> onAssign)
+{
+    // It intentionally duplicates SiftUp and SiftDown code by optimization reasons.
+    bool hasSiftedUp = false;
+    {
+        auto value = std::move(*current);
+        while (current != begin) {
+            size_t dist = std::distance(begin, current);
+            auto parent = begin + (dist - 1) / 2;
+            auto&& parentValue = *parent;
+            if (comparer(parentValue, value)) {
+                break;
+            }
+
+            hasSiftedUp = true;
+
+            *current = std::move(parentValue);
+            if (onAssign) {
+                onAssign(dist);
+            }
+            current = parent;
+        }
+        *current = std::move(value);
+    }
+
+    if (hasSiftedUp) {
+        if (onAssign) {
+            onAssign(std::distance(begin, current));
+        }
+    } else {
+        size_t size = std::distance(begin, end);
+        size_t offset = std::distance(begin, current);
+
+        auto value = std::move(begin[offset]);
+        while (true) {
+            size_t left = 2 * offset + 1;
+
+            if (left >= size) {
+                break;
+            }
+
+            size_t right = left + 1;
+            size_t min;
+
+            if (right >= size) {
+                min = left;
+            } else {
+                min = comparer(begin[left], begin[right]) ? left : right;
+            }
+
+            auto&& minValue = begin[min];
+            if (comparer(value, minValue)) {
+                break;
+            }
+
+            begin[offset] = std::move(minValue);
+            if (onAssign) {
+                onAssign(offset);
+            }
+            offset = min;
+        }
+        begin[offset] = std::move(value);
+        if (onAssign) {
+            onAssign(offset);
+        }
+    }
+}
+
+template <class TIterator, class TComparer>
+void AdjustHeapItem(TIterator begin, TIterator end, TIterator current, TComparer comparer)
+{
+    AdjustHeapItem(std::move(begin), std::move(end), std::move(current), comparer, nullptr);
+}
+
+template <class TIterator>
+void AdjustHeapItem(TIterator begin, TIterator end, TIterator current)
+{
+    AdjustHeapItem(std::move(begin), std::move(end), std::move(current), std::less<>(), nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

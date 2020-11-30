@@ -1540,13 +1540,19 @@ def remove_account(name, **kwargs):
         wait(lambda: not exists(account_path, driver=driver))
 
 
-def create_pool_tree(name, config=None, wait_for_orchid=True, **kwargs):
+def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=True, **kwargs):
     kwargs["type"] = "scheduler_pool_tree"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
-    if config:
-        kwargs["attributes"]["config"] = config
     kwargs["attributes"]["name"] = name
+    if config is None:
+        config = {}
+    if allow_patching:
+        if "min_child_heap_size" not in config:
+            config["min_child_heap_size"] = 3
+
+    kwargs["attributes"]["config"] = update(kwargs["attributes"].get("config", {}), config)
+
     execute_command("create", kwargs, parse_yson=True)
     if wait_for_orchid:
         wait(lambda: exists(scheduler_orchid_pool_tree_path(name)))
