@@ -2129,20 +2129,38 @@ void TCompositeSchedulerElement::InitializeChildHeap(TFairShareContext* context)
         return;
     }
 
-    std::optional<TChildHeap::TComparator> priorityComparator;
-    if (Mode_ == ESchedulingMode::Fifo) {
-        priorityComparator = std::bind(
-            &TCompositeSchedulerElement::HasHigherPriorityInFifoMode,
-            this,
-            std::placeholders::_1,
-            std::placeholders::_2);
+    TChildHeap::TComparator elementComparator;
+    
+    switch (Mode_) {
+        case ESchedulingMode::Fifo:
+            elementComparator = [this, context] (TSchedulerElement* lhs, TSchedulerElement* rhs) {
+                auto& lhsAttributes = context->DynamicAttributesFor(lhs);
+                auto& rhsAttributes = context->DynamicAttributesFor(rhs);
+                if (lhsAttributes.Active != rhsAttributes.Active) {
+                    return rhsAttributes.Active < lhsAttributes.Active;
+                }
+                return HasHigherPriorityInFifoMode(lhs, rhs);
+            };
+            break;
+        case ESchedulingMode::FairShare:
+            elementComparator = [this, context] (TSchedulerElement* lhs, TSchedulerElement* rhs) {
+                auto& lhsAttributes = context->DynamicAttributesFor(lhs);
+                auto& rhsAttributes = context->DynamicAttributesFor(rhs);
+                if (lhsAttributes.Active != rhsAttributes.Active) {
+                    return rhsAttributes.Active < lhsAttributes.Active;
+                }
+                return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
+            };
+            break;
+        default:
+            YT_ABORT();
     }
 
     auto& attributes = context->DynamicAttributesFor(this);
     attributes.ChildHeap = std::make_unique<TChildHeap>(
         SchedulableChildren_,
         &context->DynamicAttributesList(),
-        priorityComparator);
+        elementComparator);
 }
 
 void TCompositeSchedulerElement::UpdateChild(TFairShareContext* context, TSchedulerElement* child)
@@ -4701,22 +4719,9 @@ double TRootElement::GetSpecifiedResourceFlowRatio() const
 TChildHeap::TChildHeap(
     const std::vector<TSchedulerElementPtr>& children,
     TDynamicAttributesList* dynamicAttributesList,
-    std::optional<TComparator> priorityComparator)
+    TComparator comparator)
     : DynamicAttributesList_(*dynamicAttributesList)
-    , PriorityComparator_(priorityComparator)
-    // NB: we intentionally use lambda function instead of private method and std::bind by performance reasons.
-    , Comparator_([this] (TSchedulerElement* lhs, TSchedulerElement* rhs) {
-        const auto& lhsAttributes = DynamicAttributesList_[lhs->GetTreeIndex()];
-        const auto& rhsAttributes = DynamicAttributesList_[rhs->GetTreeIndex()];
-        if (lhsAttributes.Active != rhsAttributes.Active) {
-            return rhsAttributes.Active < lhsAttributes.Active;
-        }
-        // NB: this priority comparator is used to distinguish FIFO and FairShare pool mode.
-        if (PriorityComparator_) {
-            return (*PriorityComparator_)(lhs, rhs);
-        }
-        return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
-    })
+    , Comparator_(comparator)
 {
     ChildHeap_.reserve(children.size());
     for (const auto& child : children) {

@@ -1294,7 +1294,7 @@ public:
     TChildHeap(
         const std::vector<TSchedulerElementPtr>& children,
         TDynamicAttributesList* dynamicAttributesList,
-        std::optional<TComparator> priorityComparator);
+        TComparator comparator);
     TSchedulerElement* GetTop();
     void Update(TSchedulerElement* child);
 
@@ -1303,7 +1303,6 @@ public:
 
 private:
     TDynamicAttributesList& DynamicAttributesList_;
-    const std::optional<TComparator> PriorityComparator_;
     const TComparator Comparator_;
 
     std::vector<TSchedulerElement*> ChildHeap_;
