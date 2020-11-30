@@ -223,6 +223,7 @@
     XX(MemberOfClosure, member_of_closure) \
     XX(Members, members) \
     XX(MetaSize, meta_size) \
+    XX(MinChildHeapSize, min_child_heap_size) \
     XX(MinKey, min_key) \
     XX(MinSharePreemptionTimeoutLimit, min_share_preemption_timeout_limit) \
     XX(MinSharePreemptionTimeout, min_share_preemption_timeout) \

@@ -284,7 +284,7 @@ public:
     {
         YT_ABORT();
     }
-    
+
     virtual EOperationState GetState() const override
     {
         YT_ABORT();
@@ -368,6 +368,7 @@ private:
     TOperationControllerStrategyHostMockPtr Controller_;
 };
 
+DECLARE_REFCOUNTED_TYPE(TOperationStrategyHostMock)
 DEFINE_REFCOUNTED_TYPE(TOperationStrategyHostMock)
 
 class TFairShareTreeHostMock
@@ -394,6 +395,7 @@ public:
     TFairShareTreeTest()
     {
         TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
+        TreeConfig_->MinChildHeapSize = 3;
     }
 
 protected:
@@ -2200,6 +2202,96 @@ TEST_F(TFairShareTreeTest, UnlimitedDemandFairShareOfIntegralPools)
 
         EXPECT_EQ(unit * 10, rootElement->Attributes().UnlimitedDemandFairShare);
     }
+}
+
+TEST_F(TFairShareTreeTest, ChildHeap)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    auto execNode = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(0), nodeResources);
+
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+
+    // Root element.
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    // 1/10 of all resources.
+    TJobResourcesWithQuota operationJobResources;
+    operationJobResources.SetCpu(10);
+    operationJobResources.SetMemory(10);
+    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
+
+    // Create 5 operations.
+    std::vector<TOperationStrategyHostMockPtr> operations(5);
+    std::vector<TOperationElementPtr> operationElements(5);
+    for (int opIndex = 0; opIndex < 5; ++opIndex) {
+
+        auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+        operationOptions->Weight = 1.0;
+        // Operation with 2 jobs.
+
+        operations[opIndex] = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
+        operationElements[opIndex] = CreateTestOperationElement(host.Get(), operations[opIndex].Get(), operationOptions);
+        operationElements[opIndex]->AttachParent(rootElement.Get(), true);
+        operationElements[opIndex]->Enable();
+    }
+
+    // Expect 2 ScheduleJob calls for each operation.
+    for (auto operation : operations) {
+        auto& operationControllerStrategyHost = operation->GetOperationControllerStrategyHost();
+        EXPECT_CALL(
+            operationControllerStrategyHost,
+            ScheduleJob(testing::_, testing::_, testing::_, testing::_))
+            .Times(2)
+            .WillRepeatedly(testing::Invoke([&](auto context, auto jobLimits, auto treeId, auto treeConfig) {
+                auto result = New<TControllerScheduleJobResult>();
+                result->StartDescriptor.emplace(TGuid::Create(), EJobType::Vanilla, operationJobResources, /* interraptible */ false);
+                return MakeFuture<TControllerScheduleJobResultPtr>(
+                    TErrorOr<TControllerScheduleJobResultPtr>(result));
+            }));
+    }
+
+    auto schedulingContext = CreateSchedulingContext(
+        /* nodeShardId */ 0,
+        SchedulerConfig_,
+        execNode,
+        /* runningJobs */ {},
+        host->GetMediumDirectory());
+    TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true, SchedulerLogger);
+
+    context.StartStage(&SchedulingStageMock_);
+    {
+        TUpdateFairShareContext updateContext;
+        rootElement->PreUpdate(&updateContext);
+        rootElement->Update(&updateContext);
+    }
+    context.Initialize(rootElement->GetTreeSize(), /* registeredSchedulingTagFilters */ {});
+    rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
+    context.SetPrescheduleCalled(true);
+
+    for (auto operationElement : operationElements) {
+        const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
+        ASSERT_TRUE(dynamicAttributes.Active);
+    }
+
+    for (int iter = 0; iter < 2; ++iter) {
+        for (auto operationElement : operationElements) {
+            auto scheduleJobResult = operationElement->ScheduleJob(&context, /* ignorePacking */ true);
+            ASSERT_TRUE(scheduleJobResult.Scheduled);
+            const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
+            ASSERT_TRUE(dynamicAttributes.ChildHeap);
+
+            int heapIndex = 0;
+            for (auto* element : dynamicAttributes.ChildHeap->GetHeap()) {
+                ASSERT_TRUE(context.DynamicAttributesFor(element).HeapIndex == heapIndex);
+                ++heapIndex;
+            }
+
+        }
+    }
+    context.FinishStage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

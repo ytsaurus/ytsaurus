@@ -10,6 +10,7 @@
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
 
+#include <yt/core/misc/heap.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/historic_usage_aggregator.h>
 
@@ -1391,6 +1392,8 @@ void TCompositeSchedulerElement::PrescheduleJob(
 
     UpdateDynamicAttributes(&context->DynamicAttributesList());
 
+    InitializeChildHeap(context);
+
     if (attributes.Active) {
         ++context->StageState()->ActiveTreeSize;
     }
@@ -1977,6 +1980,14 @@ double TCompositeSchedulerElement::GetMinChildWeight(const TChildList& children)
 
 TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const
 {
+    const auto& childHeap = dynamicAttributesList[GetTreeIndex()].ChildHeap;
+    if (childHeap) {
+        auto* element = childHeap->GetTop();
+        return dynamicAttributesList[element->GetTreeIndex()].Active
+            ? element
+            : nullptr;
+    }
+
     switch (Mode_) {
         case ESchedulingMode::Fifo:
             return GetBestActiveChildFifo(dynamicAttributesList);
@@ -2110,6 +2121,36 @@ void TCompositeSchedulerElement::BuildResourceMetering(const std::optional<TMete
 TJobResources TCompositeSchedulerElement::GetIntegralPoolCapacity() const
 {
     return TotalResourceLimits_ * Attributes_.ResourceFlowRatio * TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod.SecondsFloat();
+}
+
+void TCompositeSchedulerElement::InitializeChildHeap(TFairShareContext* context)
+{
+    if (SchedulableChildren_.size() < TreeConfig_->MinChildHeapSize) {
+        return;
+    }
+
+    std::optional<TChildHeap::TComparator> priorityComparator;
+    if (Mode_ == ESchedulingMode::Fifo) {
+        priorityComparator = std::bind(
+            &TCompositeSchedulerElement::HasHigherPriorityInFifoMode,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2);
+    }
+
+    auto& attributes = context->DynamicAttributesFor(this);
+    attributes.ChildHeap = std::make_unique<TChildHeap>(
+        SchedulableChildren_,
+        &context->DynamicAttributesList(),
+        priorityComparator);
+}
+
+void TCompositeSchedulerElement::UpdateChild(TFairShareContext* context, TSchedulerElement* child)
+{
+    auto& attributes = context->DynamicAttributesFor(this);
+    if (attributes.ChildHeap) {
+        attributes.ChildHeap->Update(child);
+    }
 }
 
 TResourceVector TCompositeSchedulerElement::GetHierarchicalAvailableLimitsShare() const
@@ -3302,7 +3343,7 @@ void TOperationElement::PrescheduleJob(
     bool aggressiveStarvationEnabled)
 {
     auto& attributes = context->DynamicAttributesFor(this);
-        
+
     // Reset operation element activeness (it can be active after scheduling without preepmtion).
     attributes.Active = false;
 
@@ -3404,12 +3445,16 @@ void TOperationElement::UpdateAncestorsDynamicAttributes(TFairShareContext* cont
         if (checkAncestorsActiveness) {
             YT_VERIFY(activeBefore);
         }
-        
+
         parent->UpdateDynamicAttributes(&context->DynamicAttributesList());
-        
+
         bool activeAfter = context->DynamicAttributesFor(parent).Active;
         if (activeBefore && !activeAfter) {
             ++context->StageState()->DeactivationReasons[EDeactivationReason::NoBestLeafDescendant];
+        }
+
+        if (parent->GetMutableParent()) {
+            parent->GetMutableParent()->UpdateChild(context, parent);
         }
 
         parent = parent->GetMutableParent();
@@ -3421,6 +3466,7 @@ void TOperationElement::DeactivateOperation(TFairShareContext* context, EDeactiv
     auto& attributes = context->DynamicAttributesList()[GetTreeIndex()];
     YT_VERIFY(attributes.Active);
     attributes.Active = false;
+    GetMutableParent()->UpdateChild(context, this);
     UpdateAncestorsDynamicAttributes(context);
     OnOperationDeactivated(context, reason);
 }
@@ -3430,6 +3476,7 @@ void TOperationElement::ActivateOperation(TFairShareContext* context)
     auto& attributes = context->DynamicAttributesList()[GetTreeIndex()];
     YT_VERIFY(!attributes.Active);
     attributes.Active = true;
+    GetMutableParent()->UpdateChild(context, this);
     UpdateAncestorsDynamicAttributes(context, /* checkAncestorsActiveness */ false);
 }
 
@@ -3592,6 +3639,8 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         Spec_->PreemptionMode);
 
     UpdateDynamicAttributes(&context->DynamicAttributesList());
+
+    GetMutableParent()->UpdateChild(context, this);
     UpdateAncestorsDynamicAttributes(context);
 
     if (heartbeatSnapshot) {
@@ -4285,7 +4334,7 @@ void TRootElement::Update(TUpdateFairShareContext* context)
     PublishFairShareAndUpdatePreemption();
 
     // We use dynamic attributes to calculate SatisfactioRatio by the algorithm used at actual scheduling phase.
-    TDynamicAttributesList dynamicAttributesList{static_cast<size_t>(TreeSize_), TDynamicAttributes()};
+    TDynamicAttributesList dynamicAttributesList{static_cast<size_t>(TreeSize_)};
     UpdateSchedulableAttributesFromDynamicAttributes(&dynamicAttributesList);
 }
 
@@ -4645,6 +4694,67 @@ double TRootElement::GetSpecifiedBurstRatio() const
 double TRootElement::GetSpecifiedResourceFlowRatio() const
 {
     return 0.0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChildHeap::TChildHeap(
+    const std::vector<TSchedulerElementPtr>& children,
+    TDynamicAttributesList* dynamicAttributesList,
+    std::optional<TComparator> priorityComparator)
+    : DynamicAttributesList_(*dynamicAttributesList)
+    , PriorityComparator_(priorityComparator)
+    // NB: we intentionally use lambda function instead of private method and std::bind by performance reasons.
+    , Comparator_([this] (TSchedulerElement* lhs, TSchedulerElement* rhs) {
+        const auto& lhsAttributes = DynamicAttributesList_[lhs->GetTreeIndex()];
+        const auto& rhsAttributes = DynamicAttributesList_[rhs->GetTreeIndex()];
+        if (lhsAttributes.Active != rhsAttributes.Active) {
+            return rhsAttributes.Active < lhsAttributes.Active;
+        }
+        // NB: this priority comparator is used to distinguish FIFO and FairShare pool mode.
+        if (PriorityComparator_) {
+            return (*PriorityComparator_)(lhs, rhs);
+        }
+        return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
+    })
+{
+    ChildHeap_.reserve(children.size());
+    for (const auto& child : children) {
+        ChildHeap_.push_back(child.Get());
+    }
+    MakeHeap(ChildHeap_.begin(), ChildHeap_.end(), Comparator_);
+
+    for (size_t index = 0; index < ChildHeap_.size(); ++index) {
+        DynamicAttributesList_[ChildHeap_[index]->GetTreeIndex()].HeapIndex = index;
+    }
+}
+
+TSchedulerElement* TChildHeap::GetTop()
+{
+    YT_VERIFY(!ChildHeap_.empty());
+    return ChildHeap_.front();
+}
+
+void TChildHeap::Update(TSchedulerElement* child)
+{
+    int heapIndex = DynamicAttributesList_[child->GetTreeIndex()].HeapIndex;
+    YT_VERIFY(heapIndex != InvalidHeapIndex);
+    AdjustHeapItem(
+        ChildHeap_.begin(),
+        ChildHeap_.end(),
+        ChildHeap_.begin() + heapIndex,
+        Comparator_,
+        std::bind(&TChildHeap::OnAssign, this, std::placeholders::_1));
+}
+
+const std::vector<TSchedulerElement*>& TChildHeap::GetHeap() const
+{
+    return ChildHeap_;
+}
+
+void TChildHeap::OnAssign(size_t offset)
+{
+    DynamicAttributesList_[ChildHeap_[offset]->GetTreeIndex()].HeapIndex = offset;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

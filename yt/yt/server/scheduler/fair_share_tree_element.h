@@ -171,12 +171,19 @@ struct TPersistentAttributes
     }
 };
 
+class TChildHeap;
+
+static const int InvalidHeapIndex = -1;
+
 struct TDynamicAttributes
 {
     double SatisfactionRatio = 0.0;
     bool Active = false;
     TSchedulerElement* BestLeafDescendant = nullptr;
     TJobResources ResourceUsageDiscount;
+
+    std::unique_ptr<TChildHeap> ChildHeap;
+    int HeapIndex = InvalidHeapIndex;
 };
 
 using TDynamicAttributesList = std::vector<TDynamicAttributes>;
@@ -334,6 +341,7 @@ protected:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 struct TFairShareScheduleJobResult
 {
     TFairShareScheduleJobResult(bool finished, bool scheduled)
@@ -657,6 +665,9 @@ public:
     TResourceVector GetHierarchicalAvailableLimitsShare() const;
 
     TJobResources GetIntegralPoolCapacity() const;
+
+    void InitializeChildHeap(TFairShareContext* context);
+    void UpdateChild(TFairShareContext* context, TSchedulerElement* child);
 
 protected:
     NProfiling::TBufferedProducerPtr ProducerBuffer_;
@@ -1100,7 +1111,7 @@ public:
         const TJobResources& availableResources,
         const TJobResources& minNeededResources);
     TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
-    
+
     void ActivateOperation(TFairShareContext* context);
     void DeactivateOperation(TFairShareContext* context, EDeactivationReason reason);
 
@@ -1272,6 +1283,33 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TRootElement)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChildHeap
+{
+public:
+    using TComparator = std::function<bool(TSchedulerElement*, TSchedulerElement*)>;
+
+    TChildHeap(
+        const std::vector<TSchedulerElementPtr>& children,
+        TDynamicAttributesList* dynamicAttributesList,
+        std::optional<TComparator> priorityComparator);
+    TSchedulerElement* GetTop();
+    void Update(TSchedulerElement* child);
+
+    // For testing purposes.
+    const std::vector<TSchedulerElement*>& GetHeap() const;
+
+private:
+    TDynamicAttributesList& DynamicAttributesList_;
+    const std::optional<TComparator> PriorityComparator_;
+    const TComparator Comparator_;
+
+    std::vector<TSchedulerElement*> ChildHeap_;
+
+    void OnAssign(size_t offset);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
