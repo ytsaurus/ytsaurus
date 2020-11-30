@@ -24,17 +24,6 @@ TEST(TInternedPoolAttributesTest, AllPoolFieldsAreInternedAttributes)
     }
 }
 
-TEST(TInternedPoolTreeAttributesTest, AllPoolTreeFieldsAreInternedAttributes)
-{
-    auto config = New<TFairShareStrategyTreeConfig>();
-    for (const auto& poolField : config->GetRegisteredKeys()) {
-        auto attributeKey = TInternedAttributeKey::Lookup(poolField);
-        if (attributeKey == InvalidInternedAttribute) {
-            EXPECT_TRUE(false) << Format("Pool tree config attribute %Qv is not interned in master!", poolField);
-        }
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
