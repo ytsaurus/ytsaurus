@@ -742,6 +742,13 @@ private:
 
         mailbox->SetConnected(false);
         mailbox->SetPostInProgress(false);
+        auto syncError = TError(
+            NRpc::EErrorCode::Unavailable,
+            "Failed to synchronize with cell %v since it has disconnected",
+            mailbox->GetCellId());
+        for (const auto& [messageId, syncPromise] : mailbox->SyncRequests()) {
+            syncPromise.Set(syncError);
+        }
         mailbox->SyncRequests().clear();
         mailbox->SetFirstInFlightOutcomingMessageId(mailbox->GetFirstOutcomingMessageId());
         mailbox->SetInFlightOutcomingMessageCount(0);
