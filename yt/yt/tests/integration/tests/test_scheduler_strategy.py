@@ -1634,6 +1634,9 @@ class TestSchedulerHangingOperations(YTEnvSetup):
         "controller_agent": {
             "available_exec_nodes_check_period": 1000,
             "banned_exec_nodes_check_period": 100000000,
+            "map_reduce_operation_options": {
+                "min_uncompressed_block_size": 1,
+            },
         }
     }
 
@@ -1810,6 +1813,53 @@ class TestSchedulerHangingOperations(YTEnvSetup):
             > 0.0
         )
 
+        op.track()
+
+    @authors("eshcherbin")
+    def test_no_fail_if_min_needed_resources_are_laggy(self):
+        set("//sys/scheduler/config/min_needed_resources_update_period", 1000)
+        set("//sys/scheduler/config/operation_hangup_safe_timeout", 100000000)
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/operation_hangup_safe_timeout") == 100000000)
+
+        data = [{"foo": str(i - (i % 2)), "bar": i} for i in xrange(8)]
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", data)
+
+        op = map_reduce(
+            mapper_command=with_breakpoint("BREAKPOINT; cat"),
+            reducer_command="sleep 10; cat",
+            in_="//tmp/in",
+            out="//tmp/out",
+            sort_by=["foo"],
+            spec={
+                "partition_count": 4,
+                "pivot_keys": [["0"], ["2"], ["4"], ["6"]],
+                "data_size_per_reduce_job": 2,
+                "resource_limits": {
+                    "cpu": 1
+                },
+            },
+            track=False
+        )
+
+        wait_breakpoint()
+
+        time.sleep(2.0)
+
+        set("//sys/scheduler/config/min_needed_resources_update_period", 100000000)
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/min_needed_resources_update_period") == 100000000)
+
+        time.sleep(5.0)
+
+        release_breakpoint()
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/usage_share/cpu", default=0.0) == 0.0)
+        set("//sys/scheduler/config/min_needed_resources_update_period", 100)
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/min_needed_resources_update_period") == 100)
+
+        # The limiting ancestor check should not be triggered.
+        # See: YT-13869.
         op.track()
 
 
