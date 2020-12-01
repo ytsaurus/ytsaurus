@@ -68,6 +68,13 @@ message EWrapperOneofFlag
     }
 }
 
+extend google.protobuf.FileOptions
+{
+    repeated EWrapperOneofFlag.Enum file_default_oneof_flags = 56788;
+    repeated EWrapperFieldFlag.Enum file_default_field_flags = 56789;
+    repeated EWrapperMessageFlag.Enum file_default_message_flags = 56790;
+}
+
 extend google.protobuf.FieldOptions
 {
     repeated EWrapperFieldFlag.Enum flags = 56788;

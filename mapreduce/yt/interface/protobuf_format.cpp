@@ -336,14 +336,24 @@ TProtobufFieldOptions GetDefaultFieldOptions(
     const Descriptor* descriptor,
     TProtobufFieldOptions defaultFieldOptions = {})
 {
-    ParseProtobufFieldOptions(descriptor->options().GetRepeatedExtension(default_field_flags), &defaultFieldOptions);
+    ParseProtobufFieldOptions(
+        descriptor->file()->options().GetRepeatedExtension(file_default_field_flags),
+        &defaultFieldOptions);
+    ParseProtobufFieldOptions(
+        descriptor->options().GetRepeatedExtension(default_field_flags),
+        &defaultFieldOptions);
     return defaultFieldOptions;
 }
 
 TProtobufOneofOptions GetDefaultOneofOptions(const Descriptor* descriptor)
 {
     TProtobufOneofOptions defaultOneofOptions;
-    ParseProtobufOneofOptions(descriptor->options().GetRepeatedExtension(default_oneof_flags), &defaultOneofOptions);
+    ParseProtobufOneofOptions(
+        descriptor->file()->options().GetRepeatedExtension(file_default_oneof_flags),
+        &defaultOneofOptions);
+    ParseProtobufOneofOptions(
+        descriptor->options().GetRepeatedExtension(default_oneof_flags),
+        &defaultOneofOptions);
     switch (defaultOneofOptions.Mode) {
         case EProtobufOneofMode::Variant: {
             auto defaultFieldOptions = GetDefaultFieldOptions(descriptor);
@@ -475,7 +485,12 @@ TProtobufOneofOptions GetOneofOptions(
 TProtobufMessageOptions GetMessageOptions(const Descriptor* descriptor)
 {
     TProtobufMessageOptions options;
-    ParseProtobufMessageOptions(descriptor->options().GetRepeatedExtension(message_flags), &options);
+    ParseProtobufMessageOptions(
+        descriptor->file()->options().GetRepeatedExtension(file_default_message_flags),
+        &options);
+    ParseProtobufMessageOptions(
+        descriptor->options().GetRepeatedExtension(message_flags),
+        &options);
     return options;
 }
 
