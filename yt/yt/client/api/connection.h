@@ -25,8 +25,6 @@ struct TAdminOptions
 
 struct TClientOptions
 {
-    TClientOptions() = default;
-
     static TClientOptions FromUser(const TString& user, const std::optional<TString>& userTag = {});
     static TClientOptions FromAuthenticationIdentity(const NRpc::TAuthenticationIdentity& identity);
     static TClientOptions FromToken(const TString& token);
