@@ -8,6 +8,8 @@
 
 #include <yt/core/profiling/metrics_accumulator.h>
 
+#include <util/generic/cast.h>
+
 #include <cmath>
 
 namespace NYT::NScheduler {
@@ -120,6 +122,34 @@ inline TJobResources operator*(const TJobResources& lhs, const TResourceVector& 
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return result;
+}
+
+inline void FormatValue(TStringBuilderBase* builder, const TResourceVector& resourceVector, TStringBuf format)
+{
+    auto getResourceSuffix = [] (EJobResourceType resourceType) {
+        const auto& resourceNames = TEnumTraits<EJobResourceType>::GetDomainNames();
+        switch (resourceType) {
+            case EJobResourceType::UserSlots:
+                // S is for Slots.
+                return 'S';
+
+            default:
+                return resourceNames[ToUnderlying(resourceType)][0];
+        }
+    };
+
+    builder->AppendChar('[');
+    bool isFirst = true;
+    for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
+        if (!isFirst) {
+            builder->AppendChar(' ');
+        }
+        isFirst = false;
+
+        FormatValue(builder, resourceVector[resourceType], format);
+        builder->AppendChar(getResourceSuffix(resourceType));
+    }
+    builder->AppendChar(']');
 }
 
 inline void Serialize(const TResourceVector& resourceVector, NYson::IYsonConsumer* consumer)

@@ -91,7 +91,7 @@ TString ToString(const TDetailedFairShare& detailedFairShare)
 void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /* format */)
 {
     builder->AppendFormat(
-        "{MinShareGuarantee: %v, IntegralGuarantee: %v, WeightProportional: %v}",
+        "{MinShareGuarantee: %.6g, IntegralGuarantee: %.6g, WeightProportional: %.6g}",
         detailedFairShare.MinShareGuarantee,
         detailedFairShare.IntegralGuarantee,
         detailedFairShare.WeightProportional);
@@ -354,14 +354,14 @@ TString TSchedulerElement::GetLoggingAttributesString() const
     return Format(
         "Status: %v, "
         "DominantResource: %v, "
-        "DemandShare: %.6v, "
-        "UsageShare: %.6v, "
-        "LimitsShare: %.6v, "
-        "MinShare: %.6v, "
-        "FairShare: %.6v, "
+        "DemandShare: %.6g, "
+        "UsageShare: %.6g, "
+        "LimitsShare: %.6g, "
+        "MinShare: %.6g, "
+        "FairShare: %.6g, "
         "Satisfaction: %.4lg, "
         "LocalSatisfaction: %.4lg, "
-        "UnlimitedDemandFairShare: %.6v, "
+        "UnlimitedDemandFairShare: %.6g, "
         "Starving: %v, "
         "Weight: %v, "
         "Volume: %v",
@@ -2738,7 +2738,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         operationElement->AreDetailedLogsEnabled();
 
     YT_LOG_DEBUG_IF(enableLogging,
-        "Update preemptable lists inputs (FairShare: %.6v, TotalResourceLimits: %v, "
+        "Update preemptable lists inputs (FairShare: %.6g, TotalResourceLimits: %v, "
         "PreemptionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
         fairShare,
         FormatResources(totalResourceLimits),
@@ -3303,13 +3303,13 @@ TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TUpdateF
 
     YT_ELEMENT_LOG_DETAILED(this,
         "Updated Operation fair share. ("
-        "Suggestion: %.6v, "
-        "UsedFairShare: %.6v, "
-        "FSBSSegmentArguments: {%.6v, %.6v}, "
-        "FSBSSegmentValues: {%.6v, %.6v}, "
-        "FitFactor: %.6v, "
-        "FSBFFSegmentArguments: {%.6v, %.6v}, "
-        "FSBFFSegmentValues: {%.6v, %.6v})",
+        "Suggestion: %.6g, "
+        "UsedFairShare: %.6g, "
+        "FSBSSegmentArguments: {%.6g, %.6g}, "
+        "FSBSSegmentValues: {%.6g, %.6g}, "
+        "FitFactor: %.6g, "
+        "FSBFFSegmentArguments: {%.6g, %.6g}, "
+        "FSBFFSegmentValues: {%.6g, %.6g})",
         suggestion,
         usedFairShare,
         fsbsSegment.LeftBound(), fsbsSegment.RightBound(),
