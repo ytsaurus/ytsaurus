@@ -73,7 +73,11 @@ public:
         TDuration cpuTime,
         const NNet::TNetworkAddress& clientAddress,
         i64 bytesIn,
-        i64 bytesOut);
+        i64 bytesOut,
+        const std::optional<NFormats::TFormat>& inputFormat,
+        const std::optional<NFormats::TFormat>& outputFormat,
+        std::optional<TContentEncoding> inputCompression,
+        std::optional<TContentEncoding> outputCompression);
 
     void IncrementHttpCode(NHttp::EStatusCode httpStatusCode);
 
@@ -118,6 +122,12 @@ private:
 
     NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> BytesIn_;
     NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> BytesOut_;
+
+    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> InputFormatBytes_;
+    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> OutputFormatBytes_;
+
+    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> InputCompressionBytes_;
+    NConcurrency::TSyncMap<std::pair<TString, TString>, NProfiling::TCounter> OutputCompressionBytes_;
 
     NConcurrency::TSyncMap<NHttp::EStatusCode, NProfiling::TCounter> HttpCodes_;
     NConcurrency::TSyncMap<std::pair<TString, NHttp::EStatusCode>, NProfiling::TCounter> HttpCodesByUser_;

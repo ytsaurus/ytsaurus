@@ -827,7 +827,11 @@ void TContext::LogAndProfile()
         CpuTime_,
         Request_->GetRemoteAddress(),
         Request_->GetReadByteCount(),
-        Response_->GetWriteByteCount());
+        Response_->GetWriteByteCount(),
+        InputFormat_,
+        OutputFormat_,
+        InputContentEncoding_,
+        OutputContentEncoding_);
 }
 
 void TContext::Finalize()
