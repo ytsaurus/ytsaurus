@@ -295,8 +295,9 @@ public:
 
         YT_VERIFY(OperationIdToElement_.erase(operationId) == 1);
 
-        // Operation can be missing in this map.
+        // Operation can be missing in these maps.
         OperationIdToActivationTime_.erase(operationId);
+        OperationIdToFirstFoundLimitingAncestorTime_.erase(operationId);
     }
 
     virtual void EnableOperation(const TFairShareStrategyOperationStatePtr& state) override
@@ -389,20 +390,21 @@ public:
 
         auto now = TInstant::Now();
         TInstant activationTime;
-
-        auto it = OperationIdToActivationTime_.find(operationId);
-        if (!element->Attributes().Alive) {
-            if (it != OperationIdToActivationTime_.end()) {
-                it->second = TInstant::Max();
-            }
-            return TError();
-        } else {
-            if (it == OperationIdToActivationTime_.end()) {
-                activationTime = now;
-                OperationIdToActivationTime_.emplace(operationId, now);
+        {
+            auto it = OperationIdToActivationTime_.find(operationId);
+            if (!element->Attributes().Alive) {
+                if (it != OperationIdToActivationTime_.end()) {
+                    it->second = TInstant::Max();
+                }
+                return TError();
             } else {
-                it->second = std::min(it->second, now);
-                activationTime = it->second;
+                if (it == OperationIdToActivationTime_.end()) {
+                    activationTime = now;
+                    OperationIdToActivationTime_.emplace(operationId, now);
+                } else {
+                    it->second = std::min(it->second, now);
+                    activationTime = it->second;
+                }
             }
         }
 
@@ -414,16 +416,31 @@ public:
             Config_->EnableLimitingAncestorCheck &&
             element->IsLimitingAncestorCheckEnabled();
         if (shouldCheckLimitingAncestor) {
+            auto it = OperationIdToFirstFoundLimitingAncestorTime_.find(operationId);
+
             // NB(eshcherbin): Here we rely on the fact that |element->ResourceLimits_| is infinite
             // if the element is not in the fair share tree snapshot yet.
-            auto* limitingAncestor = FindAncestorWithInsufficientResourceLimits(element, minNeededResources);
+            if (auto* limitingAncestor = FindAncestorWithInsufficientResourceLimits(element, minNeededResources)) {
+                TInstant firstFoundLimitingAncestorTime;
+                if (it == OperationIdToFirstFoundLimitingAncestorTime_.end()) {
+                    firstFoundLimitingAncestorTime = now;
+                    OperationIdToFirstFoundLimitingAncestorTime_.emplace(operationId, now);
+                } else {
+                    it->second = std::min(it->second, now);
+                    firstFoundLimitingAncestorTime = it->second;
+                }
 
-            if (activationTime + limitingAncestorSafeTimeout < now && limitingAncestor) {
-                return TError("Operation has an ancestor whose resource limits are too small to satisfy operation's minimum job resource demand")
-                    << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
-                    << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
-                    << TErrorAttribute("resource_limits", limitingAncestor->ResourceLimits())
-                    << TErrorAttribute("min_needed_resources", minNeededResources);
+                if (activationTime + limitingAncestorSafeTimeout < now &&
+                    firstFoundLimitingAncestorTime + limitingAncestorSafeTimeout < now)
+                {
+                    return TError("Operation has an ancestor whose resource limits are too small to satisfy operation's minimum job resource demand")
+                        << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
+                        << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
+                        << TErrorAttribute("resource_limits", limitingAncestor->ResourceLimits())
+                        << TErrorAttribute("min_needed_resources", minNeededResources);
+                }
+            } else if (it != OperationIdToFirstFoundLimitingAncestorTime_.end()) {
+                it->second = TInstant::Max();
             }
         }
 
@@ -825,6 +842,7 @@ private:
     TOperationElementMap OperationIdToElement_;
 
     THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
+    THashMap<TOperationId, TInstant> OperationIdToFirstFoundLimitingAncestorTime_;
 
     std::vector<TOperationId> ActivatableOperationIds_;
 
