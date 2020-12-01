@@ -2143,7 +2143,7 @@ void TCompositeSchedulerElement::InitializeChildHeap(TFairShareContext* context)
             };
             break;
         case ESchedulingMode::FairShare:
-            elementComparator = [this, context] (TSchedulerElement* lhs, TSchedulerElement* rhs) {
+            elementComparator = [context] (TSchedulerElement* lhs, TSchedulerElement* rhs) {
                 auto& lhsAttributes = context->DynamicAttributesFor(lhs);
                 auto& rhsAttributes = context->DynamicAttributesFor(rhs);
                 if (lhsAttributes.Active != rhsAttributes.Active) {
