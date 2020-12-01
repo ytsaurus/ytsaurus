@@ -943,8 +943,8 @@ public:
             YT_LOG_DEBUG(
                 "Considering candidate single tree for operation ("
                 "OperationId: %v, Tree: %v, TotalResourceLimits: %v, "
-                "NewDemandShare: %.6v, CurrentDemandShare: %.6v, ModelDemandShare: %.6v, "
-                "UnlimitedDemandFairShare: %.6v, ReserveShare: %.6v, CurrentReserveRatio: %v)",
+                "NewDemandShare: %.6g, CurrentDemandShare: %.6g, ModelDemandShare: %.6g, "
+                "UnlimitedDemandFairShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v)",
                 operationId,
                 treeId,
                 FormatResources(totalResourceLimits),
