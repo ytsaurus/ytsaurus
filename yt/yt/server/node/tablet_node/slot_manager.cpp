@@ -420,7 +420,6 @@ public:
             THROW_ERROR_EXCEPTION("No tablet slots in node config");
         }
 
-        // WTF???
         // We create fake tablet slot here populating descriptors with the least amount
         // of data such that configuration succeeds.
         {
