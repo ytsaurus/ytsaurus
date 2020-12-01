@@ -189,7 +189,11 @@ void TApi::IncrementProfilingCounters(
     TDuration cpuTime,
     const NNet::TNetworkAddress& clientAddress,
     i64 bytesIn,
-    i64 bytesOut)
+    i64 bytesOut,
+    const std::optional<NFormats::TFormat>& inputFormat,
+    const std::optional<NFormats::TFormat>& outputFormat,
+    std::optional<TContentEncoding> inputCompression,
+    std::optional<TContentEncoding> outputCompression)
 {
     auto networkName = GetNetworkNameForAddress(clientAddress);
 
@@ -225,17 +229,31 @@ void TApi::IncrementProfilingCounters(
         }).first->Increment();
     }
 
-    auto incrementNetworkCounter = [&, this] (auto& counterMap, auto name, auto value) {
+    auto incrementUserCounter = [&, this] (auto& counterMap, auto counterName, auto tagName, auto tagValue, auto value) {
         counterMap.FindOrInsert(std::make_pair(user, networkName), [&, this] {
             return SparseProfiler_
                 .WithTag("user", user)
-                .WithTag("network", networkName)
-                .Counter(name);
+                .WithTag(tagName, tagValue)
+                .Counter(counterName);
         }).first->Increment(value);
     };
 
-    incrementNetworkCounter(BytesIn_, "/bytes_in", bytesIn);
-    incrementNetworkCounter(BytesOut_, "/bytes_out", bytesOut);
+    incrementUserCounter(BytesIn_, "/bytes_in", "network", networkName, bytesIn);
+    incrementUserCounter(BytesOut_, "/bytes_out", "network", networkName, bytesOut);
+
+    if (inputFormat) {
+        incrementUserCounter(InputFormatBytes_, "/bytes_in_by_format", "format", FormatEnum(inputFormat->GetType()), bytesIn);
+    }
+    if (outputFormat) {
+        incrementUserCounter(OutputFormatBytes_, "/bytes_out_by_format", "format", FormatEnum(outputFormat->GetType()), bytesOut);
+    }
+
+    if (inputCompression) {
+        incrementUserCounter(InputCompressionBytes_, "/bytes_in_by_compression", "compression", *inputCompression, bytesIn);
+    }
+    if (outputCompression) {
+        incrementUserCounter(OutputCompressionBytes_, "/bytes_out_by_compression", "compression", *outputCompression, bytesOut);
+    }
 }
 
 void TApi::HandleRequest(
