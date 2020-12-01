@@ -130,6 +130,8 @@ public:
     {
         YT_VERIFY(Config_->Path);
 
+        Enabled_.store(Config_->Enable);
+
         auto nameTable = New<TNameTable>();
         auto options = New<NTableClient::TTableWriterOptions>();
         options->EnableValidationOptions();
@@ -159,6 +161,7 @@ public:
     void UpdateConfig(const TEventLogManagerConfigPtr& config)
     {
         Config_ = config;
+        Enabled_.store(Config_->Enable);
         PendingRowsFlushExecutor_->SetPeriod(Config_->PendingRowsFlushPeriod);
     }
 
@@ -178,16 +181,22 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TUnversionedOwningRow> PendingEventLogRows_;
     TPeriodicExecutorPtr PendingRowsFlushExecutor_;
 
+    std::atomic<bool> Enabled_{false};
+
     void AddRow(TUnversionedOwningRow row)
     {
-        PendingEventLogRows_.Enqueue(std::move(row));
+        if (Enabled_) {
+            PendingEventLogRows_.Enqueue(std::move(row));
+        }
     }
 
     void OnPendingEventLogRowsFlush()
     {
         auto owningRows = PendingEventLogRows_.DequeueAll();
-        std::vector<TUnversionedRow> rows(owningRows.begin(), owningRows.end());
-        EventLogWriter_->Write(rows);
+        if (!owningRows.empty()) {
+            std::vector<TUnversionedRow> rows(owningRows.begin(), owningRows.end());
+            EventLogWriter_->Write(rows);
+        }
     }
 
     void DoClose()

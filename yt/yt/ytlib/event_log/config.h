@@ -12,6 +12,7 @@ class TEventLogManagerConfig
     : public NTableClient::TBufferedTableWriterConfig
 {
 public:
+    bool Enable;
     NYPath::TYPath Path;
     TDuration PendingRowsFlushPeriod;
 
