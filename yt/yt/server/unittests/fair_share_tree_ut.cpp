@@ -608,6 +608,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
 
     auto fifoPoolConfig = New<TPoolConfig>();
     fifoPoolConfig->Mode = ESchedulingMode::Fifo;
+    fifoPoolConfig->FifoSortParameters = {EFifoSortParameter::Weight};
 
     auto poolA = CreateTestPool(host.Get(), "PoolA");
     auto poolB = CreateTestPool(host.Get(), "PoolB");
@@ -619,9 +620,6 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     poolC->AttachParent(rootElement.Get());
     poolD->AttachParent(rootElement.Get());
 
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions->Weight = 1.0;
-
     std::array<TIntrusivePtr<TOperationStrategyHostMock>, OperationCount> operations;
     std::array<TOperationElementPtr, OperationCount> operationElements;
 
@@ -630,9 +628,11 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     }
 
     for (int i = 0; i < OperationCount; ++i) {
-        if (i == OperationCount - 1) {
-            // Sleep to ensure FIFO order of operations 2 and 3.
-            Sleep(TDuration::MilliSeconds(10));
+        TOperationFairShareTreeRuntimeParametersPtr operationOptions;
+        if (i == 2) {
+            // We need this to ensure FIFO order of operations 2 and 3.
+            operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+            operationOptions->Weight = 10.0;
         }
 
         operationElements[i] = CreateTestOperationElement(host.Get(), operations[i].Get(), operationOptions);
