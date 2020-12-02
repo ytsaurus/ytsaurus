@@ -218,7 +218,7 @@ public:
         // Both DB::makeNullable are silently returning original argument if they see
         // something that is already nullable.
         if (UnderlyingConverter_->GetDataType()->canBeInsideNullable()) {
-            NullColumn_ = DB::ColumnVector<ui8>::create();
+            NullColumn_ = DB::ColumnVector<DB::UInt8>::create();
         }
     }
 
@@ -267,7 +267,7 @@ public:
 
         if (NullColumn_) {
             // Pass ownership to ColumnNullable and make sure it won't be COWed.
-            DB::ColumnVector<ui8>::Ptr nullColumn = std::move(NullColumn_);
+            DB::ColumnVector<DB::UInt8>::Ptr nullColumn = std::move(NullColumn_);
             YT_VERIFY(nullColumn->use_count() == 1);
             return DB::ColumnNullable::create(underlyingColumn, nullColumn);
         } else {
@@ -287,7 +287,7 @@ public:
 private:
     IConverterPtr UnderlyingConverter_;
     int NestingLevel_;
-    DB::ColumnVector<ui8>::MutablePtr NullColumn_;
+    DB::ColumnVector<DB::UInt8>::MutablePtr NullColumn_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -621,8 +621,8 @@ private:
 
             #define CASE_NUMERIC(caseValueType, TCppType) CASE(caseValueType, TCppType, DB::ColumnVector<TCppType>, std::make_shared<DB::DataTypeNumber<TCppType>>())
 
-            CASE_NUMERIC(ESimpleLogicalValueType::Boolean, ui8)
-            CASE_NUMERIC(ESimpleLogicalValueType::Uint8, ui8)
+            CASE_NUMERIC(ESimpleLogicalValueType::Boolean, DB::UInt8)
+            CASE_NUMERIC(ESimpleLogicalValueType::Uint8, DB::UInt8)
             CASE_NUMERIC(ESimpleLogicalValueType::Uint16, ui16)
             CASE_NUMERIC(ESimpleLogicalValueType::Uint32, ui32)
             CASE_NUMERIC(ESimpleLogicalValueType::Uint64, ui64)

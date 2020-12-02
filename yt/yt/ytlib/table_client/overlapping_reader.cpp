@@ -405,7 +405,7 @@ TDataStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDataStati
     return dataStatistics;
 }
 
-template<class TRowMerger>
+template <class TRowMerger>
 TCodecStatistics TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetDecompressionStatistics() const
 {
     std::vector<IVersionedReaderPtr> readers;

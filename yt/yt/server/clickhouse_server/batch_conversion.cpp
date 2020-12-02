@@ -332,7 +332,7 @@ DB::ColumnPtr ConvertStringLikeYTColumnToCHColumn(const IUnversionedColumnarRowB
 
     auto& chChars = chColumn->getChars();
     ui64 currentCHCharsPosition = 0;
-    ui8* currentCHChar;
+    DB::UInt8* currentCHChar;
     size_t remainingCHCharsCapacity;
 
     auto initCHCharsCursor = [&] {

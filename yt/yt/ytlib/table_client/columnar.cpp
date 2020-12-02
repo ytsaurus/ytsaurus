@@ -203,13 +203,13 @@ void BuildBitmapFromRleImpl(
     }
 }
 
-template <class F>
+template <typename F, typename TByte>
 void BuildBytemapFromRleImpl(
     TRange<ui64> rleIndexes,
     i64 startIndex,
     i64 endIndex,
     F valueFetcher,
-    TMutableRange<ui8> dst)
+    TMutableRange<TByte> dst)
 {
     YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
     YT_VERIFY(dst.Size() == endIndex - startIndex);
@@ -242,7 +242,7 @@ void BuildBytemapFromRleImpl(
                 currentIndex += 8;
             }
         } else {
-            dst[currentOutputIndex++] = static_cast<ui8>(currentBoolValue);
+            dst[currentOutputIndex++] = static_cast<TByte>(currentBoolValue);
             ++currentIndex;
         }
     }
@@ -250,12 +250,13 @@ void BuildBytemapFromRleImpl(
 
 #ifdef __clang__
 
+template <typename TByte>
 __attribute__((target("bmi2")))
 void DecodeBytemapFromBitmapImplBmi2(
     TRef bitmap,
     i64 startIndex,
     i64 endIndex,
-    TMutableRange<ui8> dst)
+    TMutableRange<TByte> dst)
 {
     auto index = startIndex;
     while (index < endIndex) {
@@ -278,11 +279,12 @@ void DecodeBytemapFromBitmapImplBmi2(
 
 #endif
 
+template <typename TByte>
 void DecodeBytemapFromBitmapImplNoBmi2(
     TRef bitmap,
     i64 startIndex,
     i64 endIndex,
-    TMutableRange<ui8> dst)
+    TMutableRange<TByte> dst)
 {
     for (auto index = startIndex; index < endIndex; ++index) {
         dst[index - startIndex] = GetBit(bitmap, index);
@@ -302,7 +304,7 @@ void BuildValidityBitmapFromDictionaryIndexesWithZeroNull(
     const auto* endHeadInput = endInput - dictionaryIndexes.Size() % 8;
     const auto* currentInput = beginInput;
     auto* currentOutput = reinterpret_cast<ui8*>(dst.Begin());
-    
+
     // Head
     while (currentInput < endHeadInput) {
         ui8 result = 0;
@@ -319,7 +321,7 @@ void BuildValidityBitmapFromDictionaryIndexesWithZeroNull(
         *currentOutput++ = result;
         currentInput += 8;
     }
-    
+
     if (currentInput == endInput) {
         return;
     }
@@ -355,9 +357,10 @@ void BuildValidityBitmapFromRleDictionaryIndexesWithZeroNull(
         dst);
 }
 
+template <typename TByte>
 void BuildNullBytemapFromDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
-    TMutableRange<ui8> dst)
+    TMutableRange<TByte> dst)
 {
     YT_VERIFY(dst.Size() == dictionaryIndexes.Size());
 
@@ -366,16 +369,17 @@ void BuildNullBytemapFromDictionaryIndexesWithZeroNull(
     const auto* currentInput = beginInput;
     auto* currentOutput = dst.Begin();
     while (currentInput < endInput) {
-        *currentOutput++ = static_cast<ui8>(*currentInput++ == 0);
+        *currentOutput++ = static_cast<TByte>(*currentInput++ == 0);
     }
 }
 
+template <typename TByte>
 void BuildNullBytemapFromRleDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
     TRange<ui64> rleIndexes,
     i64 startIndex,
     i64 endIndex,
-    TMutableRange<ui8> dst)
+    TMutableRange<TByte> dst)
 {
     YT_VERIFY(rleIndexes.size() == dictionaryIndexes.size());
 
@@ -606,11 +610,12 @@ void CopyBitmapRangeToBitmapNegated(
         dst);
 }
 
+template <typename TByte>
 void DecodeBytemapFromBitmap(
     TRef bitmap,
     i64 startIndex,
     i64 endIndex,
-    TMutableRange<ui8> dst)
+    TMutableRange<TByte> dst)
 {
     YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
     YT_VERIFY(endIndex - startIndex == dst.Size());
@@ -621,7 +626,7 @@ void DecodeBytemapFromBitmap(
         return;
     }
 #endif
-    
+
     DecodeBytemapFromBitmapImplNoBmi2(bitmap, startIndex, endIndex, dst);
 }
 
@@ -640,12 +645,13 @@ void BuildValidityBitmapFromRleNullBitmap(
         dst);
 }
 
+template <typename TByte>
 void BuildNullBytemapFromRleNullBitmap(
     TRef bitmap,
     TRange<ui64> rleIndexes,
     i64 startIndex,
     i64 endIndex,
-    TMutableRange<ui8> dst)
+    TMutableRange<TByte> dst)
 {
     BuildBytemapFromRleImpl(
         rleIndexes,
@@ -772,5 +778,59 @@ i64 TranslateRleEndIndex(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template void BuildNullBytemapFromDictionaryIndexesWithZeroNull<ui8>(
+    TRange<ui32> dictionaryIndexes,
+    TMutableRange<ui8> dst);
+
+template void BuildNullBytemapFromRleDictionaryIndexesWithZeroNull<ui8>(
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst);
+
+template void BuildNullBytemapFromRleNullBitmap<ui8>(
+    TRef bitmap,
+    TRange<ui64> rleIndexes,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst);
+
+template void DecodeBytemapFromBitmap<ui8>(
+    TRef bitmap,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst);
+
+#if defined(__cpp_char8_t)
+/*
+ * Explicitly instantiate templates with char8_t.
+ * These are used by CHYT for ClickHouse interop.
+ */
+template void BuildNullBytemapFromDictionaryIndexesWithZeroNull<char8_t>(
+    TRange<ui32> dictionaryIndexes,
+    TMutableRange<char8_t> dst);
+
+template void BuildNullBytemapFromRleDictionaryIndexesWithZeroNull<char8_t>(
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<char8_t> dst);
+
+template void BuildNullBytemapFromRleNullBitmap<char8_t>(
+    TRef bitmap,
+    TRange<ui64> rleIndexes,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<char8_t> dst);
+
+template void DecodeBytemapFromBitmap<char8_t>(
+    TRef bitmap,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<char8_t> dst);
+#endif
 
 } // namespace NYT::NTableClient

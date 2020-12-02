@@ -103,7 +103,7 @@ DB::Block FilterRowsByPrewhereInfo(
         }
         filter = &materializedFilter;
     } else {
-        const auto* boolPrewhereColumn = DB::checkAndGetColumn<DB::ColumnVector<ui8>>(prewhereColumn.get());
+        const auto* boolPrewhereColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(prewhereColumn.get());
         YT_VERIFY(boolPrewhereColumn);
         filter = &boolPrewhereColumn->getData();
     }
@@ -323,7 +323,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     auto blockInputStreamTraceContext = NTracing::CreateChildTraceContext(
         traceContext,
         "ClickHouseYt.BlockInputStream");
-    
+
     NTracing::TTraceContextGuard guard(blockInputStreamTraceContext);
     // Readers capture context implicitly, so create NullTraceContextGuard if tracing is disabled.
     NTracing::TNullTraceContextGuard nullGuard;
