@@ -115,19 +115,13 @@ private:
         return Result;
     }
 
-    static TRetryChecker GetPingRetryChecker()
-    {
-        static const auto Result = BIND(&IsRetriableError);
-        return Result;
-    }
-
     static TRetryChecker GetCheckDownedParticipantsRetryChecker()
     {
         static const auto Result = BIND(&IsRetriableError);
         return Result;
     }
 
-    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, TRetryChecker retryChecker)
+    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, TRetryChecker retryChecker = {})
     {
         if (retryChecker) {
             channel = CreateRetryingChannel(Config_, std::move(channel), std::move(retryChecker));
@@ -1044,9 +1038,7 @@ private:
                 continue;
             }
 
-            auto proxy = Owner_->MakeSupervisorProxy(
-                std::move(channel),
-                options.EnableRetries ? Owner_->GetPingRetryChecker() : TRetryChecker());
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel));
             auto req = proxy.PingTransaction();
             req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
