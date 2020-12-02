@@ -37,7 +37,6 @@ public:
     i64 ReadBufferRowCount;
     i64 ReadBufferSize;
     i64 WriteBufferSize;
-    bool EnablePingRetries;
 
     TSlruCacheConfigPtr ClientCache;
 
@@ -69,9 +68,6 @@ public:
             .Default((i64) 1 * 1024 * 1024);
         RegisterParameter("write_buffer_size", WriteBufferSize)
             .Default((i64) 1 * 1024 * 1024);
-
-        RegisterParameter("enable_ping_retries", EnablePingRetries)
-            .Default(false);
 
         RegisterParameter("client_cache", ClientCache)
             .DefaultNew(1024 * 1024);

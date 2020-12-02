@@ -415,9 +415,7 @@ struct TTransactionCommitOptions
 };
 
 struct TTransactionPingOptions
-{
-    bool EnableRetries = true;
-};
+{ };
 
 struct TTransactionCommitResult
 {

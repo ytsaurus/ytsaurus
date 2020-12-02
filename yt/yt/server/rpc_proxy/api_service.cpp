@@ -720,13 +720,10 @@ private:
             transactionId,
             attachOptions);
 
-        // TODO(sandello): Options!
-        TTransactionPingOptions pingOptions;
-        pingOptions.EnableRetries = false;
         CompleteCallWith(
             NNative::IClientPtr(),
             context,
-            transaction->Ping(pingOptions));
+            transaction->Ping());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, CommitTransaction)
