@@ -229,7 +229,7 @@ private:
 
                 CurrentRowIndex_ = BeginRowIndex_;
 
-                YT_LOG_DEBUG("Switched to another journal chunk (ChunkId: %v, RowIndexes: %v-%v)",
+                YT_LOG_DEBUG("Switched to another journal chunk (ChunkId: %v, PhysicalRowIndexes: %v-%v)",
                     chunkId,
                     BeginRowIndex_,
                     EndRowIndex_ - 1);

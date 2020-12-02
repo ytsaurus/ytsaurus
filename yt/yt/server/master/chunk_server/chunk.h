@@ -237,7 +237,7 @@ public:
     bool IsSealed() const;
 
     //! Returns the number of rows in a sealed chunk.
-    i64 GetSealedRowCount() const;
+    i64 GetPhysicalSealedRowCount() const;
 
     //! Marks the chunk as sealed, i.e. sets its ultimate row count, data size etc.
     void Seal(const NChunkClient::NProto::TChunkSealInfo& info);
