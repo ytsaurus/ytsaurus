@@ -33,8 +33,6 @@ import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.rpcproxy.TReqAddMember;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
@@ -47,7 +45,6 @@ import ru.yandex.yt.rpcproxy.TReqMountTable;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
-import ru.yandex.yt.rpcproxy.TReqRemoveMember;
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
@@ -57,7 +54,6 @@ import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
-import ru.yandex.yt.rpcproxy.TRspAddMember;
 import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TRspCheckPermission;
@@ -70,7 +66,6 @@ import ru.yandex.yt.rpcproxy.TRspMountTable;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspRemountTable;
-import ru.yandex.yt.rpcproxy.TRspRemoveMember;
 import ru.yandex.yt.rpcproxy.TRspReshardTable;
 import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
@@ -107,7 +102,6 @@ import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
-import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
@@ -933,45 +927,6 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     /* Jobs */
-
-    public CompletableFuture<Void> addMember(String group, String member, MutatingOptions mo) {
-        return addMember(group, member, mo, null);
-    }
-
-    public CompletableFuture<Void> addMember(String group, String member, MutatingOptions mo, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqAddMember.Builder, RpcClientResponse<TRspAddMember>>
-                builder = service.addMember();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setGroup(group)
-                .setMember(member)
-                .setMutatingOptions(mo.writeTo(TMutatingOptions.newBuilder()));
-
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<Void> removeMember(String group, String member, MutatingOptions mo) {
-        return removeMember(group, member, mo, null);
-    }
-
-    public CompletableFuture<Void> removeMember(String group, String member, MutatingOptions mo, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqRemoveMember.Builder, RpcClientResponse<TRspRemoveMember>>
-                builder = service.removeMember();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setGroup(group)
-                .setMember(member)
-                .setMutatingOptions(mo.writeTo(TMutatingOptions.newBuilder()));
-
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
     @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
         RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>>
