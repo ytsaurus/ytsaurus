@@ -82,6 +82,12 @@ lazy val `file-system` = (project in file("file-system"))
     test in assembly := {}
   )
 
+lazy val `file-system-fat` = (project in file("file-system-fat"))
+  .settings(
+    addArtifact(artifact in (Compile, assembly), assembly in `file-system`).settings: _*
+  )
+
+
 lazy val `client` = (project in file("client"))
   .enablePlugins(SparkPackagePlugin, DebianPackagePlugin, PythonPlugin)
   .settings(
