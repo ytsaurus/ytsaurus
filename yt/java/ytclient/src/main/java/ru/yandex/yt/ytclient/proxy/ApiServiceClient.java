@@ -582,20 +582,6 @@ public class ApiServiceClient extends TransactionalClient {
                 response -> response.body().getSnapshotId());
     }
 
-    public CompletableFuture<Long> buildSnapshot(GUID cellId, boolean setReadOnly) {
-        return buildSnapshot(cellId, setReadOnly, null);
-    }
-
-    public CompletableFuture<Long> buildSnapshot(GUID cellId, boolean setReadOnly, @Nullable Duration requestTimeout) {
-        BuildSnapshot req = new BuildSnapshot(cellId);
-        req.setSetReadOnly(setReadOnly);
-
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
-        return buildSnapshot(req);
-    }
-
     public CompletableFuture<Void> gcCollect(GcCollect req) {
         return RpcUtil.apply(
                 sendRequest(req, service.gcCollect()),
@@ -603,15 +589,7 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<Void> gcCollect(GUID cellId) {
-        return gcCollect(cellId, null);
-    }
-
-    public CompletableFuture<Void> gcCollect(GUID cellId, @Nullable Duration requestTimeout) {
-        GcCollect req = new GcCollect(cellId);
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
-        return gcCollect(cellId);
+        return gcCollect(new GcCollect(cellId));
     }
 
     public CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
