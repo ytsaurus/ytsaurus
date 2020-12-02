@@ -9,7 +9,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns the minimum number of bytes needed to store a bitmap with #bitCount bits. 
+//! Returns the minimum number of bytes needed to store a bitmap with #bitCount bits.
 i64 GetBitmapByteSize(i64 bitCount);
 
 //! Builds validity bitmap from #dictionaryIndexes by replacing each zero with
@@ -29,17 +29,19 @@ void BuildValidityBitmapFromRleDictionaryIndexesWithZeroNull(
 //! Builds validity bitmap from #dictionaryIndexes by replacing each zero with
 //! 1-byte and each non-zero with 0-byte.
 //! The size of #dst must match the size of #dictionaryIndexes.
+template <typename TByte>
 void BuildNullBytemapFromDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
-    TMutableRange<ui8> dst);
+    TMutableRange<TByte> dst);
 
 //! Same as #BuildNullBytmapFromDictionaryIndexesWithZeroNull but for RLE.
+template <typename TByte>
 void BuildNullBytemapFromRleDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
     TRange<ui64> rleIndexes,
     i64 startIndex,
     i64 endIndex,
-    TMutableRange<ui8> dst);
+    TMutableRange<TByte> dst);
 
 //! Copies dictionary indexes from #dictionaryIndexes to #dst subtracting one.
 //! Zeroes are replaced by unspecified values.
@@ -108,11 +110,12 @@ void CopyBitmapRangeToBitmapNegated(
 //! (0 indicates |false|, 1 indicates |true|).
 //! #bitmap must be 8-byte aligned and its trailing qword must be readable.
 //! The size of #dst must be |endIndex - startIndex|.
+template <typename TByte>
 void DecodeBytemapFromBitmap(
     TRef bitmap,
     i64 startIndex,
     i64 endIndex,
-    TMutableRange<ui8> dst);
+    TMutableRange<TByte> dst);
 
 //! Decodes RLE #bitmap and inverts the bits.
 //! The byte size of #dst be enough to store |endIndex - startIndex| bits.
@@ -125,12 +128,13 @@ void BuildValidityBitmapFromRleNullBitmap(
 
 //! Decodes RLE #bitmap into #dst bytemap.
 //! The size of #dst be |endIndex - startIndex|.
+template <typename TByte>
 void BuildNullBytemapFromRleNullBitmap(
     TRef bitmap,
     TRange<ui64> rleIndexes,
     i64 startIndex,
     i64 endIndex,
-    TMutableRange<ui8> dst);
+    TMutableRange<TByte> dst);
 
 //! Decodes the starting offset of the #index-th string.
 //! #index must be in range [0, N], where N is the size of #offsets.
@@ -175,22 +179,22 @@ i64 CountTotalStringLengthInRleDictionaryIndexesWithZeroNull(
     i64 startIndex,
     i64 endIndex);
 
-//! Given #rleIndexes, translates #index in actual rowspace to 
+//! Given #rleIndexes, translates #index in actual rowspace to
 //! to the index in RLE rowspace.
 i64 TranslateRleIndex(
     TRange<ui64> rleIndexes,
-    i64 index); 
+    i64 index);
 
 //! A synonym for TranslateRleIndex.
 i64 TranslateRleStartIndex(
     TRange<ui64> rleIndexes,
-    i64 index); 
+    i64 index);
 
 //! Regards #index as the end (non-inclusive) index.
 //! Equivalent to |TranslateRleIndex(index - 1) + 1| (unless index = 0).
 i64 TranslateRleEndIndex(
     TRange<ui64> rleIndexes,
-    i64 index); 
+    i64 index);
 
 //! A unversal decoder for dictionary-encoded and RLE integer vectors.
 //! Values are first retrieved via #fetcher, then
