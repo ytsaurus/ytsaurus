@@ -37,9 +37,7 @@ import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
-import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
-import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
@@ -58,9 +56,6 @@ import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TRspCheckPermission;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
-import ru.yandex.yt.rpcproxy.TRspGenerateTimestamps;
-import ru.yandex.yt.rpcproxy.TRspGetInSyncReplicas;
-import ru.yandex.yt.rpcproxy.TRspGetTabletInfos;
 import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspMountTable;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
@@ -93,9 +88,11 @@ import ru.yandex.yt.ytclient.proxy.request.CreateObject;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.FreezeTable;
 import ru.yandex.yt.ytclient.proxy.request.GcCollect;
+import ru.yandex.yt.ytclient.proxy.request.GenerateTimestamps;
 import ru.yandex.yt.ytclient.proxy.request.GetInSyncReplicas;
 import ru.yandex.yt.ytclient.proxy.request.GetNode;
 import ru.yandex.yt.ytclient.proxy.request.GetTablePivotKeys;
+import ru.yandex.yt.ytclient.proxy.request.GetTabletInfos;
 import ru.yandex.yt.ytclient.proxy.request.HighLevelRequest;
 import ru.yandex.yt.ytclient.proxy.request.LinkNode;
 import ru.yandex.yt.ytclient.proxy.request.ListNode;
@@ -587,20 +584,10 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<List<GUID>> getInSyncReplicas(GetInSyncReplicas request, YtTimestamp timestamp) {
-        RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, RpcClientResponse<TRspGetInSyncReplicas>> builder =
-                service.getInSyncReplicas();
-
-        request.writeHeaderTo(builder.header());
-        builder.body().setPath(request.getPath());
-        builder.body().setTimestamp(timestamp.getValue());
-        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
-
-        request.serializeRowsetTo(builder.attachments());
-
-        return RpcUtil.apply(invoke(builder),
-                response ->
-                        response.body().getReplicaIdsList().stream().map(RpcUtil::fromProto)
-                                .collect(Collectors.toList()));
+        return RpcUtil.apply(
+                sendRequest(new GetInSyncReplicasWrapper(timestamp, request), service.getInSyncReplicas()),
+                response -> response.body().getReplicaIdsList()
+                        .stream().map(RpcUtil::fromProto).collect(Collectors.toList()));
     }
 
     @Deprecated
@@ -613,28 +600,33 @@ public class ApiServiceClient extends TransactionalClient {
         return getInSyncReplicas(new GetInSyncReplicas(path, schema, keys), timestamp);
     }
 
+    public CompletableFuture<List<TabletInfo>> getTabletInfos(GetTabletInfos req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.getTabletInfos()),
+                response ->
+                        response.body().getTabletsList()
+                                .stream()
+                                .map(x -> new TabletInfo(x.getTotalRowCount(), x.getTrimmedRowCount()))
+                                .collect(Collectors.toList()));
+    }
+
     public CompletableFuture<List<TabletInfo>> getTabletInfos(String path, List<Integer> tabletIndices) {
         return getTabletInfos(path, tabletIndices, null);
     }
 
     public CompletableFuture<List<TabletInfo>> getTabletInfos(String path, List<Integer> tabletIndices, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqGetTabletInfos.Builder, RpcClientResponse<TRspGetTabletInfos>> builder =
-                service.getTabletInfos();
-
+        GetTabletInfos req = new GetTabletInfos(path);
+        req.setTabletIndexes(tabletIndices);
         if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
+            req.setTimeout(requestTimeout);
         }
+        return getTabletInfos(req);
+    }
 
-        builder.body().setPath(path);
-        builder.body().addAllTabletIndexes(tabletIndices);
-
-        return RpcUtil.apply(invoke(builder),
-                response ->
-                        response.body()
-                                .getTabletsList()
-                                .stream()
-                                .map(x -> new TabletInfo(x.getTotalRowCount(), x.getTrimmedRowCount()))
-                                .collect(Collectors.toList()));
+    public CompletableFuture<YtTimestamp> generateTimestamps(GenerateTimestamps req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.generateTimestamps()),
+                response -> YtTimestamp.valueOf(response.body().getTimestamp()));
     }
 
     public CompletableFuture<YtTimestamp> generateTimestamps(int count) {
@@ -642,19 +634,15 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<YtTimestamp> generateTimestamps(int count, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqGenerateTimestamps.Builder, RpcClientResponse<TRspGenerateTimestamps>> builder =
-                service.generateTimestamps();
-
+        GenerateTimestamps req = new GenerateTimestamps(count);
         if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
+            req.setTimeout(requestTimeout);
         }
-        builder.body().setCount(count);
-        return RpcUtil.apply(invoke(builder),
-                response -> YtTimestamp.valueOf(response.body().getTimestamp()));
+        return generateTimestamps(req);
     }
 
     public CompletableFuture<YtTimestamp> generateTimestamps() {
-        return generateTimestamps(null);
+        return generateTimestamps(1, null);
     }
 
     public CompletableFuture<YtTimestamp> generateTimestamps(@Nullable Duration requestTimeout) {
@@ -1091,6 +1079,38 @@ class ModifyRowsWrapper implements HighLevelRequest<TReqModifyRows.Builder> {
         }
         builder.body().addAllRowModificationTypes(request.getRowModificationTypes());
         builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
+        request.serializeRowsetTo(builder.attachments());
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class GetInSyncReplicasWrapper implements HighLevelRequest<TReqGetInSyncReplicas.Builder> {
+    private final YtTimestamp timestamp;
+    private final GetInSyncReplicas request;
+
+    GetInSyncReplicasWrapper(YtTimestamp timestamp, GetInSyncReplicas request) {
+        this.timestamp = timestamp;
+        this.request = request;
+    }
+
+    @Override
+    public String getArgumentsLogString() {
+        return "Path: " + request.getPath() +
+                "; Timestamp: " + timestamp + "; ";
+    }
+
+    @Override
+    public void writeHeaderTo(TRequestHeader.Builder header) {
+        request.writeHeaderTo(header);
+    }
+
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, ?> builder) {
+        builder.body().setPath(request.getPath());
+        builder.body().setTimestamp(timestamp.getValue());
+        builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
+
         request.serializeRowsetTo(builder.attachments());
     }
 }
