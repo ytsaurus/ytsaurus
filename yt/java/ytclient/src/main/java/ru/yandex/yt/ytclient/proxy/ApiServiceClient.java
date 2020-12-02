@@ -139,25 +139,20 @@ public class ApiServiceClient extends TransactionalClient {
     private ApiServiceClient(
             @Nullable RpcClient client,
             @Nonnull RpcOptions options,
-            @Nonnull ApiService service,
             @Nonnull Executor heavyExecutor)
     {
-        this.service = Objects.requireNonNull(service);
+        this.service = RpcServiceClient.create(ApiService.class, options);
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
         this.rpcClient = client;
         this.rpcOptions = options;
     }
 
-    private ApiServiceClient(@Nullable RpcClient client, RpcOptions options, ApiService service) {
-        this(client, options, service, ForkJoinPool.commonPool());
-    }
-
-    public ApiServiceClient(RpcClient client, RpcOptions options) {
-        this(client, options, RpcServiceClient.create(ApiService.class, options));
+    public ApiServiceClient(@Nullable RpcClient client, RpcOptions options) {
+        this(client, options, ForkJoinPool.commonPool());
     }
 
     public ApiServiceClient(RpcOptions options) {
-        this(null, options, RpcServiceClient.create(ApiService.class, options));
+        this(null, options);
     }
 
     public ApiServiceClient(RpcClient client) {
