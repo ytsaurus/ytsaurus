@@ -561,7 +561,7 @@ private:
     std::vector<TChunkMetaResult> ChunkMetaResults_;
 
     std::optional<NJournalClient::NProto::TOverlayedJournalChunkHeader> Header_;
-    
+
     std::vector<TError> InnerErrors_;
 
     const TPromise<TChunkQuorumInfo> Promise_ = NewPromise<TChunkQuorumInfo>();
@@ -668,7 +668,7 @@ private:
         if (Header_) {
             return;
         }
-        
+
         const auto& rsp = rspOrError.Value();
 
         if (rsp->Attachments().size() < 1) {
@@ -724,11 +724,6 @@ private:
         const auto& quorumResult = GetQuorumResult();
         const auto& miscExt = quorumResult.MiscExt;
 
-        YT_LOG_DEBUG("Quorum info for journal chunk computed successfully (ChunkRowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
-            miscExt.row_count(),
-            miscExt.uncompressed_data_size(),
-            miscExt.compressed_data_size());
-
         TChunkQuorumInfo result;
         if (Overlayed_) {
             if (Header_) {
@@ -742,6 +737,14 @@ private:
         }
         result.UncompressedDataSize = miscExt.uncompressed_data_size();
         result.CompressedDataSize = miscExt.compressed_data_size();
+
+        YT_LOG_DEBUG("Quorum info for journal chunk computed successfully (PhysicalRowCount: %v, LogicalRowCount: %v, "
+            "FirstOverlayedRowIndex: %v, UncompressedDataSize: %v, CompressedDataSize: %v)",
+            miscExt.row_count(),
+            result.RowCount,
+            result.FirstOverlayedRowIndex,
+            result.UncompressedDataSize,
+            result.CompressedDataSize);
 
         Promise_.Set(result);
     }

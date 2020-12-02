@@ -216,7 +216,7 @@ private:
                     ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
                     jobSpecExt->set_codec_id(ToProto<int>(chunk->GetErasureCodec()));
                     jobSpecExt->set_medium_index(chunkIdWithIndexes.MediumIndex);
-                    jobSpecExt->set_row_count(chunk->GetSealedRowCount());
+                    jobSpecExt->set_row_count(chunk->GetPhysicalSealedRowCount());
 
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
                     const auto& replicas = chunk->StoredReplicas();

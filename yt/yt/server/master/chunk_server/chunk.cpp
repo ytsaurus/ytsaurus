@@ -432,10 +432,10 @@ bool TChunk::IsSealed() const
     return MiscExt_.sealed();
 }
 
-i64 TChunk::GetSealedRowCount() const
+i64 TChunk::GetPhysicalSealedRowCount() const
 {
     YT_VERIFY(MiscExt_.sealed());
-    return MiscExt_.row_count();
+    return MiscExt_.row_count() + (GetOverlayed() ? 1 : 0);
 }
 
 void TChunk::Seal(const TChunkSealInfo& info)
