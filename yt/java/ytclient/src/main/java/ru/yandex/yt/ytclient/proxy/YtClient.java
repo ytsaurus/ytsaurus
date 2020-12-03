@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -63,7 +64,7 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
  *      When all internal threads of YtClient are blocked by such callbacks
  *      YtClient becomes unable to send requests and receive responses.
  */
-public class YtClient extends DestinationsSelector implements AutoCloseable {
+public class YtClient extends CompoundClient implements Closeable {
     private static final Object KEY = new Object();
 
     private final BusConnector busConnector;
@@ -161,7 +162,6 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         return poolProvider.getAliveDestinations();
     }
 
-    @Override
     public RpcClientPool getClientPool() {
         return poolProvider.getClientPool();
     }
