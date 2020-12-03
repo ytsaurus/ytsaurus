@@ -237,7 +237,8 @@ private:
 
     virtual void ConstructReplicationRequests() override;
 
-    TFuture<TSharedRefArray> BeginRequestInResponseKeeper(bool forceRetry);
+    TFuture<TSharedRefArray> BeginRequestInResponseKeeper();
+    TFuture<TSharedRefArray> FindRequestInResponseKeeper();
     void EndRequestInResponseKeeper(const TError& error);
 };
 

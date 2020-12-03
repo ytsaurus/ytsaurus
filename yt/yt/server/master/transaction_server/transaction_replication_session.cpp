@@ -482,7 +482,7 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
             return Mutation_->Commit();
         }
 
-        auto keptResult = BeginRequestInResponseKeeper(false);
+        auto keptResult = BeginRequestInResponseKeeper();
         if (keptResult) {
             // Highly unlikely, considering that just a few moments ago some of request transactions were remote.
             return keptResult
@@ -490,6 +490,8 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
                     return TMutationResponse{EMutationResponseOrigin::ResponseKeeper, data};
                 }));
         }
+        keptResult = FindRequestInResponseKeeper();
+        YT_VERIFY(keptResult);
 
         auto asyncResults = DoInvokeReplicationRequests();
         YT_VERIFY(!asyncResults.empty());
@@ -523,20 +525,22 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
         // implicitly signifies a sync with corresponding cell. Absence of errors,
         // on the other hand, is crucial.
         return AllSucceeded(std::move(asyncResults)).AsVoid()
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
-                auto result = BeginRequestInResponseKeeper(true);
-                YT_VERIFY(result);
-
+            .Apply(BIND([this, this_ = MakeStrong(this), keptResult = std::move(keptResult)] (const TError& error) {
                 if (!error.IsOK()) {
                     YT_LOG_DEBUG(error, "Request is no longer awaiting boomerang mutation to be applied (Request: %v, MutationId: %v)",
                         InitiatorRequest_,
                         Mutation_->GetMutationId());
 
-                    // NB: this will set #result to error.
                     EndRequestInResponseKeeper(error);
+
+                    return MakeFuture<TSharedRefArray>(
+                        error.Wrap("Failed to replicate necessary remote transactions")
+                            << TErrorAttribute("mutation_id", Mutation_->GetMutationId())
+                            << TErrorAttribute("request_id", InitiatorRequest_.RequestId));
                 }
 
-                return result;
+                YT_VERIFY(keptResult);
+                return keptResult;
             })
             .AsyncVia(GetCurrentInvoker()))
             .Apply(BIND([] (const TSharedRefArray& data) {
@@ -547,13 +551,22 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
     .Run();
 }
 
-TFuture<TSharedRefArray> TTransactionReplicationSessionWithBoomerangs::BeginRequestInResponseKeeper(bool forceRetry)
+TFuture<TSharedRefArray> TTransactionReplicationSessionWithBoomerangs::BeginRequestInResponseKeeper()
 {
     auto mutationId = Mutation_->GetMutationId();
     YT_VERIFY(mutationId);
 
     const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-    return responseKeeper->TryBeginRequest(mutationId, Mutation_->IsRetry() || forceRetry);
+    return responseKeeper->TryBeginRequest(mutationId, Mutation_->IsRetry());
+}
+
+TFuture<TSharedRefArray> TTransactionReplicationSessionWithBoomerangs::FindRequestInResponseKeeper()
+{
+    auto mutationId = Mutation_->GetMutationId();
+    YT_VERIFY(mutationId);
+
+    const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+    return responseKeeper->FindRequest(mutationId, true /*isRetry*/);
 }
 
 void TTransactionReplicationSessionWithBoomerangs::EndRequestInResponseKeeper(const TError& error)
