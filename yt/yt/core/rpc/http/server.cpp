@@ -114,7 +114,7 @@ public:
             FillYTErrorHeaders(Rsp_, FromProto<TError>(responseHeader.error()));
             Rsp_->SetStatus(EStatusCode::BadRequest);
             auto replySent = Rsp_->Close();
-            replySent.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& result){
+            replySent.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& result){
                 ReplySent_.Set(result);
             }));
             return replySent;
@@ -129,7 +129,7 @@ public:
         FillYTErrorHeaders(Rsp_, TError{});
         Rsp_->SetStatus(EStatusCode::OK);
         auto bodySent = Rsp_->WriteBody(PopEnvelope(message[1]));
-        bodySent.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& result){
+        bodySent.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& result){
             ReplySent_.Set(result);
         }));
         return bodySent;
@@ -219,12 +219,12 @@ public:
     }
 
 private:
-    IServicePtr Underlying_;
+    const IServicePtr Underlying_;
     const TString BaseUrl_;
     const NLogging::TLogger Logger;
 
 
-    TErrorOr<void> TranslateRequest(const IRequestPtr& req, NRpc::NProto::TRequestHeader* rpcHeader)
+    TError TranslateRequest(const IRequestPtr& req, NRpc::NProto::TRequestHeader* rpcHeader)
     {
         if (req->GetMethod() != EMethod::Post) {
             return TError("Invalid method; POST expected");

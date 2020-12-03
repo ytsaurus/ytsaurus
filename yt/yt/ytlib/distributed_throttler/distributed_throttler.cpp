@@ -460,8 +460,8 @@ private:
             throttlerId,
             count);
 
-        Throttle(throttlerId, count).Subscribe(BIND([=] (const TErrorOr<void>& resultOrError) {
-            context->Reply(resultOrError);
+        Throttle(throttlerId, count).Subscribe(BIND([=] (const TError& error) {
+            context->Reply(error);
         }));
     }
 

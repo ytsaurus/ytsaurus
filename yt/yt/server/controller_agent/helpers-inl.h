@@ -76,7 +76,7 @@ TFuture<std::optional<T>> WithSoftTimeout(
         .Apply(BIND([
                 future = std::move(future),
                 onFinishedAfterTimeout = std::move(onFinishedAfterTimeout)
-            ] (const TErrorOr<void>& combinedResultOrError) -> std::optional<T> {
+            ] (const TError& combinedResultOrError) -> std::optional<T> {
                 if (auto maybeResultOrError = future.TryGet()) {
                     if constexpr(std::is_same_v<T, void>) {
                         maybeResultOrError->ThrowOnError();

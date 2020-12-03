@@ -490,7 +490,7 @@ private:
             erasedPartSet.set(partIndex);
 
             auto& copyFuture = (*copyFutures)[partIndex];
-            auto cookie = copyFuture.Subscribe(BIND([&, partIndex, Logger=Logger] (const TErrorOr<void>& error) {
+            auto cookie = copyFuture.Subscribe(BIND([&, partIndex, Logger = Logger] (const TError& error) {
                 if (error.IsOK()) {
                     erasedPartSet.reset(partIndex);
                     if (erasureCodec->CanRepair(erasedPartSet)) {

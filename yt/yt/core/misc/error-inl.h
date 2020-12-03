@@ -111,14 +111,14 @@ template <class T>
 TErrorOr<T>::TErrorOr(const TError& other)
     : TError(other)
 {
-    YT_ASSERT(!IsOK());
+    YT_VERIFY(!IsOK());
 }
 
 template <class T>
 TErrorOr<T>::TErrorOr(TError&& other) noexcept
     : TError(std::move(other))
 {
-    YT_ASSERT(!IsOK());
+    YT_VERIFY(!IsOK());
 }
 
 template <class T>

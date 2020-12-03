@@ -47,7 +47,7 @@ struct TGuid;
 template <class T>
 class TErrorOr;
 
-typedef TErrorOr<void> TError;
+using TError = TErrorOr<void>;
 
 template <class T>
 struct TErrorTraits;

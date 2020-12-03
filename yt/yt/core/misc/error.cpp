@@ -329,7 +329,7 @@ TError TError::Wrap() const
     return *this;
 }
 
-void TErrorOr<void>::Save(TStreamSaveContext& context) const
+void TError::Save(TStreamSaveContext& context) const
 {
     using NYT::Save;
 
@@ -401,7 +401,7 @@ void TErrorOr<void>::Save(TStreamSaveContext& context) const
     Save(context, InnerErrors_);
 }
 
-void TErrorOr<void>::Load(TStreamLoadContext& context)
+void TError::Load(TStreamLoadContext& context)
 {
     using NYT::Load;
 
@@ -561,7 +561,7 @@ void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
 
 } // namespace
 
-bool operator == (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
+bool operator == (const TError& lhs, const TError& rhs)
 {
     return
         lhs.GetCode() == rhs.GetCode() &&
@@ -577,7 +577,7 @@ bool operator == (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
         lhs.InnerErrors() == rhs.InnerErrors();
 }
 
-bool operator != (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs)
+bool operator != (const TError& lhs, const TError& rhs)
 {
     return !(lhs == rhs);
 }
