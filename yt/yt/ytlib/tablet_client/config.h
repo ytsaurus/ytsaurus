@@ -48,6 +48,7 @@ public:
     int DynamicMemoryPoolWeight;
     bool EnableTabletDynamicMemoryLimit;
     std::optional<TString> SolomonTag;
+    std::optional<double> MaxBackingStoreMemoryRatio;
 
     TDynamicTabletCellOptions()
     {
@@ -68,6 +69,19 @@ public:
         RegisterParameter("solomon_tag", SolomonTag)
             .Optional()
             .DontSerializeDefault();
+        RegisterParameter("max_backing_store_memory_ratio", MaxBackingStoreMemoryRatio)
+            .Default();
+
+        RegisterPostprocessor([&] {
+            if (!EnableForcedRotationBackingMemoryAccounting &&
+                MaxBackingStoreMemoryRatio &&
+                *MaxBackingStoreMemoryRatio + ForcedRotationMemoryRatio >= 1.0)
+            {
+                THROW_ERROR_EXCEPTION("\"max_backing_store_memory_ratio\" + "
+                    "\"forced_rotation_memory_ratio\" should be less than 1"
+                    " if \"enable_forced_rotation_backing_memory_accounting\" is false");
+            }
+        });
     }
 };
 

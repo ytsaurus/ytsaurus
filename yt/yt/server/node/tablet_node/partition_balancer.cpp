@@ -74,6 +74,9 @@ public:
         , ThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
             Logger))
+    { }
+
+    void Start()
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
@@ -755,7 +758,8 @@ void StartPartitionBalancer(
     NClusterNode::TBootstrap* bootstrap)
 {
     if (config->EnablePartitionBalancer) {
-        New<TPartitionBalancer>(config->PartitionBalancer, bootstrap);
+        New<TPartitionBalancer>(config->PartitionBalancer, bootstrap)
+            ->Start();
     }
 }
 

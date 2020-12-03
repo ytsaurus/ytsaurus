@@ -61,6 +61,8 @@ public:
         TTablet* tablet,
         const NApi::ITransactionPtr& transaction);
 
+    void ReleaseBackingStore(const IChunkStorePtr& store);
+
     NYTree::IYPathServicePtr GetOrchidService();
 
     NTabletClient::ETabletCellLifeStage GetTabletCellLifeStage() const;

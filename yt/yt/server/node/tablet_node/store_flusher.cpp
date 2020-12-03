@@ -78,6 +78,9 @@ public:
         , Semaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreFlusher->MaxConcurrentFlushes,
             Profiler.Gauge("/running_store_flushes")))
+    { }
+
+    void Start()
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeBeginSlotScan(BIND(&TStoreFlusher::OnBeginSlotScan, MakeStrong(this)));
@@ -527,7 +530,8 @@ void StartStoreFlusher(
     NClusterNode::TBootstrap* bootstrap)
 {
     if (config->EnableStoreFlusher) {
-        New<TStoreFlusher>(config, bootstrap);
+        New<TStoreFlusher>(config, bootstrap)
+            ->Start();
     }
 }
 
