@@ -2169,6 +2169,8 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
             };
     }
     job->ResourceUsage() = status->resource_usage();
+    
+    YT_VERIFY(Dominates(job->ResourceUsage(), TJobResources()));
 
     auto* operationState = FindOperationState(job->GetOperationId());
     if (operationState) {
