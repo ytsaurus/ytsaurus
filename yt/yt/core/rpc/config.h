@@ -12,21 +12,34 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServerConfig
+// Common options shared between all services in one server.
+class TServiceCommonConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    THashMap<TString, NYTree::INodePtr> Services;
+    std::optional<bool> EnablePerUserProfiling;
 
-    bool EnablePerUserProfiling;
+    TServiceCommonConfig()
+    {
+        RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TServiceCommonConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TServerConfig
+    : public TServiceCommonConfig
+{
+public:
+    THashMap<TString, NYTree::INodePtr> Services;
 
     TServerConfig()
     {
         RegisterParameter("services", Services)
             .Default();
-
-        RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
-            .Default(false);
     }
 };
 
@@ -35,7 +48,7 @@ DEFINE_REFCOUNTED_TYPE(TServerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TServiceConfig
-    : public NYTree::TYsonSerializable
+    : public TServiceCommonConfig
 {
 public:
     THashMap<TString, TMethodConfigPtr> Methods;
@@ -46,8 +59,6 @@ public:
     static const TDuration DefaultPendingPayloadsTimeout;
     TDuration PendingPayloadsTimeout;
 
-    std::optional<bool> EnablePerUserProfiling;
-
     TServiceConfig()
     {
         RegisterParameter("methods", Methods)
@@ -57,8 +68,6 @@ public:
             .Default(DefaultAuthenticationQueueSizeLimit);
         RegisterParameter("pending_payloads_timeout", PendingPayloadsTimeout)
             .Default(DefaultPendingPayloadsTimeout);
-        RegisterParameter("enable_per_user_profiling", EnablePerUserProfiling)
-            .Default();
     }
 };
 

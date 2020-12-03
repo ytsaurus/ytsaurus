@@ -1655,18 +1655,25 @@ void TServiceBase::ValidateRequestFeatures(const IServiceContextPtr& context)
     }
 }
 
-void TServiceBase::Configure(TServerConfigPtr serverConfig, TServiceConfigPtr config)
+void TServiceBase::Configure(TServiceCommonConfigPtr configDefaults, TServiceConfigPtr config)
 {
     try {
         YT_LOG_DEBUG("Configuring RPC service %v",
             ServiceId_.ServiceName);
 
         if (!config) {
-            EnablePerUserProfiling_ = serverConfig->EnablePerUserProfiling;
+            if (configDefaults->EnablePerUserProfiling) {
+                EnablePerUserProfiling_ = *configDefaults->EnablePerUserProfiling;
+            }
             return;
         }
 
-        EnablePerUserProfiling_ = config->EnablePerUserProfiling.value_or(serverConfig->EnablePerUserProfiling);
+        if (config->EnablePerUserProfiling) {
+            EnablePerUserProfiling_ = *config->EnablePerUserProfiling;
+        } else if (configDefaults->EnablePerUserProfiling) {
+            EnablePerUserProfiling_ = *configDefaults->EnablePerUserProfiling;
+        }
+
         AuthenticationQueueSizeLimit_ = config->AuthenticationQueueSizeLimit;
         PendingPayloadsTimeout_ = config->PendingPayloadsTimeout;
 
@@ -1704,7 +1711,7 @@ void TServiceBase::Configure(TServerConfigPtr serverConfig, TServiceConfigPtr co
     }
 }
 
-void TServiceBase::Configure(TServerConfigPtr serverConfig, INodePtr configNode)
+void TServiceBase::Configure(TServiceCommonConfigPtr configDefaults, INodePtr configNode)
 {
     TServiceConfigPtr config;
     if (configNode) {
@@ -1716,7 +1723,7 @@ void TServiceBase::Configure(TServerConfigPtr serverConfig, INodePtr configNode)
                 << ex;
         }
     }
-    Configure(serverConfig, std::move(config));
+    Configure(std::move(configDefaults), std::move(config));
 }
 
 TFuture<void> TServiceBase::Stop()

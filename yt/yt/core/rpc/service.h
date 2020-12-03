@@ -254,8 +254,8 @@ TString ToString(const TServiceId& serviceId);
 struct IService
     : public virtual TRefCounted
 {
-    //! Applies a new configuration.
-    virtual void Configure(TServerConfigPtr serverConfig, NYTree::INodePtr config) = 0;
+    //! Applies a new configuration with a given defaults.
+    virtual void Configure(TServiceCommonConfigPtr configDefaults, NYTree::INodePtr config) = 0;
 
     //! Stops the service forbidding new requests to be served
     //! and returns the future that is set when all currently
