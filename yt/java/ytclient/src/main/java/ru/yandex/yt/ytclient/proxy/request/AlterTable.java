@@ -7,11 +7,11 @@ import com.google.protobuf.ByteString;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-public class AlterTable extends TableReq<AlterTable> {
-    private TableSchema schema;
+public class AlterTable extends TableReq<AlterTable> implements HighLevelRequest<TReqAlterTable.Builder> {
     private YTreeNode schemaNode;
     private Boolean dynamic;
     private GUID upstreamReplicaId;
@@ -22,7 +22,7 @@ public class AlterTable extends TableReq<AlterTable> {
     }
 
     public AlterTable setSchema(TableSchema schema) {
-        this.schema = schema;
+        this.schemaNode = schema.toYTree();
         return this;
     }
 
@@ -52,12 +52,13 @@ public class AlterTable extends TableReq<AlterTable> {
         return this;
     }
 
-    public TReqAlterTable.Builder writeTo(TReqAlterTable.Builder builder) {
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqAlterTable.Builder, ?> requestBuilder) {
+        TReqAlterTable.Builder builder = requestBuilder.body();
+
         super.writeTo(builder);
 
-        if (schema != null) {
-            builder.setSchema(ByteString.copyFrom(schema.toYTree().toBinary()));
-        } else if (schemaNode != null) {
+        if (schemaNode != null) {
             builder.setSchema(ByteString.copyFrom(schemaNode.toBinary()));
         }
 
@@ -72,8 +73,18 @@ public class AlterTable extends TableReq<AlterTable> {
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.toProto());
         }
+    }
 
-        return builder;
+    @Override
+    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+        super.writeArgumentsLogString(sb);
+        if (schemaNode != null) {
+            sb.append("Schema: ").append(schemaNode.toString()).append("; ");
+        }
+        if (dynamic != null) {
+            sb.append("Dynamic: ").append(dynamic).append("; ");
+
+        }
     }
 
     @Nonnull
