@@ -124,14 +124,6 @@ public:
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
         , TabletCellBundleName_(createInfo.tablet_cell_bundle())
-        , ProfilingTagIds_{
-            NProfiling::TProfileManager::Get()->RegisterTag(
-                "cell_id",
-                CellDescriptor_.CellId),
-            NProfiling::TProfileManager::Get()->RegisterTag(
-                "tablet_cell_bundle",
-                TabletCellBundleName_ ? TabletCellBundleName_ : UnknownProfilingTag)
-        }
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(GetLogger())
     {
@@ -424,9 +416,13 @@ public:
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
         SnapshotStoreThunk_->SetUnderlying(snapshotStore);
 
-        auto changelogProfiler = TabletNodeProfiler
-            .WithPrefix("/remote_changelog")
-            .WithTag("cell_id", ToString(CellDescriptor_.CellId));
+        auto addTags = [this] (auto profiler) {
+            return profiler
+                .WithRequiredTag("tablet_cell_bundle", TabletCellBundleName_ ? TabletCellBundleName_ : UnknownProfilingTag)
+                .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
+        };
+
+        auto changelogProfiler = addTags(TabletNodeProfiler.WithPrefix("/remote_changelog"));
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
@@ -466,7 +462,7 @@ public:
                 Config_->HydraManager->ResponseKeeper,
                 GetAutomatonInvoker(),
                 Logger,
-                TabletNodeProfiler.WithTag("cell_id", ToString(CellDescriptor_.CellId)));
+                addTags(TabletNodeProfiler));
 
             TDistributedHydraManagerOptions hydraManagerOptions;
             hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
@@ -610,13 +606,6 @@ public:
         return OrchidService_;
     }
 
-    const NProfiling::TTagIdList& GetProfilingTagIds()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return ProfilingTagIds_;
-    }
-
     const TRuntimeTabletCellDataPtr& GetRuntimeData() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -663,8 +652,6 @@ private:
     TCellDescriptor CellDescriptor_;
 
     const TString TabletCellBundleName_;
-
-    const NProfiling::TTagIdList ProfilingTagIds_;
 
     TTabletCellOptionsPtr Options_;
 
@@ -1044,11 +1031,6 @@ TFuture<void> TTabletSlot::Finalize()
 const IYPathServicePtr& TTabletSlot::GetOrchidService()
 {
     return Impl_->GetOrchidService();
-}
-
-const NProfiling::TTagIdList& TTabletSlot::GetProfilingTagIds()
-{
-    return Impl_->GetProfilingTagIds();
 }
 
 const TRuntimeTabletCellDataPtr& TTabletSlot::GetRuntimeData() const

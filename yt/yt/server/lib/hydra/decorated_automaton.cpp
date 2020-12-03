@@ -629,7 +629,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , StateHashChecker_(std::move(stateHashChecker))
     , Logger(logger)
     , BatchCommitTimer_(profiler.Timer("/batch_commit_time"))
-    , SnapshotLoadTime_(profiler.Gauge("/snapshot_load_time"))
+    , SnapshotLoadTime_(profiler.TimeGauge("/snapshot_load_time"))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(Automaton_);
@@ -735,7 +735,7 @@ void TDecoratedAutomaton::LoadSnapshot(
 
     TWallTimer timer;
     auto finally = Finally([&] {
-        SnapshotLoadTime_.Update(timer.GetElapsedTime().SecondsFloat());
+        SnapshotLoadTime_.Update(timer.GetElapsedTime());
     });
 
     Automaton_->Clear();

@@ -121,6 +121,7 @@ public:
 
     TTableProfilerPtr CreateTabletProfiler(
         EDynamicTableProfilingMode profilingMode,
+        const TString& bundle,
         const TString& tablePath,
         const TString& tableTag,
         const TString& account,
@@ -131,17 +132,17 @@ public:
         TProfilerKey key;
         switch (profilingMode) {
             case EDynamicTableProfilingMode::Disabled:
-                key = {profilingMode, "", account, medium};
+                key = {profilingMode, bundle, "", account, medium};
                 break;
                 
             case EDynamicTableProfilingMode::Path:
-                key = {profilingMode, tablePath, account, medium};
+                key = {profilingMode, bundle, tablePath, account, medium};
                 AllTables_.insert(tablePath);
                 ConsumedTableTags_.Update(AllTables_.size());
                 break;
 
             case EDynamicTableProfilingMode::Tag:
-                key = {profilingMode, tableTag, account, medium};
+                key = {profilingMode, bundle, tableTag, account, medium};
                 break;
 
             default:
@@ -154,17 +155,20 @@ public:
             return p;
         }
 
-        auto tableProfiler = TabletNodeProfiler.WithHot().WithSparse();
+        auto tableProfiler = TabletNodeProfiler
+            .WithHot()
+            .WithSparse()
+            .WithRequiredTag("tablet_cell_bundle", bundle);
         switch (profilingMode) {
             case EDynamicTableProfilingMode::Disabled:
                 break;
                 
             case EDynamicTableProfilingMode::Path:
-                tableProfiler = tableProfiler.WithTag("table_path", tablePath);
+                tableProfiler = tableProfiler.WithTag("table_path", tablePath, -1);
                 break;
 
             case EDynamicTableProfilingMode::Tag:
-                tableProfiler = tableProfiler.WithTag("table_tag", tableTag);
+                tableProfiler = tableProfiler.WithTag("table_tag", tableTag, -1);
                 break;
 
             default:
@@ -186,7 +190,7 @@ private:
     THashSet<TString> AllTables_;
     TGauge ConsumedTableTags_;
 
-    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, TString, TString, TString>;
+    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, TString, TString, TString, TString>;
 
     THashMap<TProfilerKey, TWeakPtr<TTableProfiler>> Tables_;
 };
@@ -195,6 +199,7 @@ private:
 
 TTableProfilerPtr CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
+    const TString& tabletCellBundle,
     const TString& tablePath,
     const TString& tableTag,
     const TString& account,
@@ -202,6 +207,7 @@ TTableProfilerPtr CreateTableProfiler(
 {
     return Singleton<TTabletProfilerManager>()->CreateTabletProfiler(
         profilingMode,
+        tabletCellBundle,
         tablePath,
         tableTag,
         account,
@@ -289,6 +295,11 @@ TSelectReadCounters* TTableProfiler::GetSelectReadCounters(const std::optional<T
 TRemoteDynamicStoreReadCounters* TTableProfiler::GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag)
 {
     return DynamicStoreReadCounters_.Get(Disabled_, userTag, Profiler_);
+}
+
+TQueryServiceCounters* TTableProfiler::GetQueryServiceCounters(const std::optional<TString>& userTag)
+{
+    return QueryServiceCounters_.Get(Disabled_, userTag, Profiler_);
 }
 
 TReplicaCounters TTableProfiler::GetReplicaCounters(

@@ -21,6 +21,18 @@ double TSimpleGauge::GetValue()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSimpleTimeGauge::Update(TDuration value)
+{
+    Value_.store(value.GetValue(), std::memory_order_relaxed);
+}
+
+TDuration TSimpleTimeGauge::GetValue()
+{
+    return TDuration::FromValue(Value_.load(std::memory_order_relaxed));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSimpleCounter::Increment(i64 delta)
 {
     YT_VERIFY(delta >= 0);

@@ -91,6 +91,25 @@ IGaugeImplPtr TSolomonRegistry::RegisterGauge(
     });
 }
 
+ITimeGaugeImplPtr TSolomonRegistry::RegisterTimeGauge(
+    const TString& name,
+    const TTagSet& tags,
+    TSensorOptions options)
+{
+    auto gauge = New<TSimpleTimeGauge>();
+
+    DoRegister([this, name, tags, options, gauge] () {
+        auto reader = [ptr = gauge.Get()] {
+            return ptr->GetValue().SecondsFloat();
+        };
+
+        auto set = FindSet(name, options);
+        set->AddGauge(New<TGaugeState>(gauge, reader, Tags_.Encode(tags), tags));
+    });
+
+    return gauge;
+}
+
 ISummaryImplPtr TSolomonRegistry::RegisterSummary(
     const TString& name,
     const TTagSet& tags,

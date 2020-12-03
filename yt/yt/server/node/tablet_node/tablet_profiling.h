@@ -207,7 +207,7 @@ struct TReplicaCounters
 
     explicit TReplicaCounters(const NProfiling::TRegistry& profiler)
         : LagRowCount(profiler.Summary("/replica/lag_row_count"))
-        , LagTime(profiler.Timer("/replica/lag_time"))
+        , LagTime(profiler.TimeGauge("/replica/lag_time"))
         , ReplicationTransactionStartTime(profiler.Timer("/replica/replication_transaction_start_time"))
         , ReplicationTransactionCommitTime(profiler.Timer("/replica/replication_transaction_commit_time"))
         , ReplicationRowsReadTime(profiler.Timer("/replica/replication_rows_read_time"))
@@ -220,7 +220,7 @@ struct TReplicaCounters
     { }
 
     NProfiling::TSummary LagRowCount;
-    NProfiling::TEventTimer LagTime;
+    NProfiling::TTimeGauge LagTime;
     NProfiling::TEventTimer ReplicationTransactionStartTime;
     NProfiling::TEventTimer ReplicationTransactionCommitTime;
     NProfiling::TEventTimer ReplicationRowsReadTime;
@@ -235,8 +235,24 @@ struct TReplicaCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryServiceCounters
+{
+    TQueryServiceCounters() = default;
+
+    explicit TQueryServiceCounters(const NProfiling::TRegistry& profiler)
+        : ExecuteTime(profiler.TimeCounter("/execute/cumulative_cpu_time"))
+        , MultireadTime(profiler.TimeCounter("/multiread/cumulative_cpu_time"))
+    { }
+
+    NProfiling::TTimeCounter ExecuteTime;
+    NProfiling::TTimeCounter MultireadTime;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableProfilerPtr CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
+    const TString& tabletCellBundle,
     const TString& tablePath,
     const TString& tableTag,
     const TString& account,
@@ -272,6 +288,7 @@ public:
     TSelectCpuCounters* GetSelectCpuCounters(const std::optional<TString>& userTag);
     TSelectReadCounters* GetSelectReadCounters(const std::optional<TString>& userTag);
     TRemoteDynamicStoreReadCounters* GetRemoteDynamicStoreReadCounters(const std::optional<TString>& userTag);
+    TQueryServiceCounters* GetQueryServiceCounters(const std::optional<TString>& userTag);
 
     TReplicaCounters GetReplicaCounters(
         bool enableProfiling,
@@ -305,6 +322,7 @@ private:
     TUserTaggedCounter<TSelectCpuCounters> SelectCpuCounters_;
     TUserTaggedCounter<TSelectReadCounters> SelectReadCounters_;
     TUserTaggedCounter<TRemoteDynamicStoreReadCounters> DynamicStoreReadCounters_;
+    TUserTaggedCounter<TQueryServiceCounters> QueryServiceCounters_;
 
     NConcurrency::TSyncMap<std::tuple<bool, TString, NYPath::TYPath, TTableReplicaId>, TReplicaCounters> ReplicaCounters_;
 

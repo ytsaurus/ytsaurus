@@ -93,13 +93,8 @@ private:
 
     void OnScanSlot(TTabletSlotPtr slot)
     {
-        const auto& tagIdList = slot->GetProfilingTagIds();
         TEventTimerGuard guard(ScanTime_);
-        OnScanSlotImpl(slot, tagIdList);
-    }
 
-    void OnScanSlotImpl(TTabletSlotPtr slot, const NProfiling::TTagIdList& tagIdList)
-    {
         if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
         }

@@ -237,10 +237,10 @@ public:
         , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
         , Logger(logger)
         , UseDirectIO_(Config_->UseDirectIO)
-        , PreadTimeGauge_(profiler.Timer("/pread_time"))
-        , PwriteTimeGauge_(profiler.Timer("/pwrite_time"))
-        , FdatasyncTimeGauge_(profiler.Timer("/fdatasync_time"))
-        , FsyncTimeGauge_(profiler.Timer("/fsync_time"))
+        , PreadTimer_(profiler.Timer("/pread_time"))
+        , PwriteTimer_(profiler.Timer("/pwrite_time"))
+        , FdatasyncTimer_(profiler.Timer("/fdatasync_time"))
+        , FsyncTimer_(profiler.Timer("/fsync_time"))
     {
         profiler.AddFuncGauge("/sick", MakeStrong(this), [this] {
             return Sick_.load();
@@ -387,10 +387,10 @@ private:
 
     NProfiling::TGauge SickGauge_;
     NProfiling::TGauge SickEventsGauge_;
-    NProfiling::TEventTimer PreadTimeGauge_;
-    NProfiling::TEventTimer PwriteTimeGauge_;
-    NProfiling::TEventTimer FdatasyncTimeGauge_;
-    NProfiling::TEventTimer FsyncTimeGauge_;
+    NProfiling::TEventTimer PreadTimer_;
+    NProfiling::TEventTimer PwriteTimer_;
+    NProfiling::TEventTimer FdatasyncTimer_;
+    NProfiling::TEventTimer FsyncTimer_;
 
     bool IsDirectAligned(const std::shared_ptr<TFileHandle>& handle)
     {
@@ -404,14 +404,14 @@ private:
 
     bool DoFlushData(const std::shared_ptr<TFileHandle>& handle)
     {
-        TEventTimer timer(FdatasyncTimeGauge_);
+        TEventTimer timer(FdatasyncTimer_);
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         return handle->FlushData();
     }
 
     bool DoFlush(const std::shared_ptr<TFileHandle>& handle)
     {
-        TEventTimer timer(FsyncTimeGauge_);
+        TEventTimer timer(FsyncTimer_);
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         return handle->Flush();
     }
@@ -455,7 +455,7 @@ private:
 
                 i32 reallyRead;
                 {
-                    TEventTimer timer(PreadTimeGauge_);
+                    TEventTimer timer(PreadTimer_);
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
                     reallyRead = handle->Pread(buf, toRead, from);
                 }
@@ -520,7 +520,7 @@ private:
 
                 i32 reallyWritten;
                 {
-                    TEventTimer timer(PwriteTimeGauge_);
+                    TEventTimer timer(PwriteTimer_);
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
                     reallyWritten = handle->Pwrite(buf, toWrite, offset);
                 }

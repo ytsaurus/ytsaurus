@@ -11,8 +11,7 @@ namespace NYT::NQueryAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const NLogging::TLogger QueryAgentLogger;
-extern const NProfiling::TProfiler QueryAgentProfiler;
-extern const NProfiling::TRegistry QueryAgentProfilerRegistry;
+extern const NProfiling::TRegistry QueryAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 

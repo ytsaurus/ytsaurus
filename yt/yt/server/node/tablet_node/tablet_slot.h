@@ -89,8 +89,6 @@ public:
 
     const NYTree::IYPathServicePtr& GetOrchidService();
 
-    const NProfiling::TTagIdList& GetProfilingTagIds();
-
     const TRuntimeTabletCellDataPtr& GetRuntimeData() const;
 
     double GetUsedCpu(double cpuPerTabletSlot) const;

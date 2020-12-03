@@ -74,7 +74,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
             return tablet_profiling.get_counter("replica/lag_row_count")
 
         def get_lag_time():
-            return tablet_profiling.get_counter("replica/lag_time") / 1e6  # conversion from us to s
+            return tablet_profiling.get_counter("replica/lag_time")
 
         sync_enable_table_replica(replica_id)
         sleep(2)
@@ -118,7 +118,9 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
         sleep(10)
 
         assert get_lag_row_count() == 0
-        assert get_lag_time() == 0
+        # Sparse sensor with value 0 won't generate any samples.
+        # Enable this assert, once testing API is reimplemented without core/profiling compatibility layer.
+        # assert get_lag_time() == 0
 
     @authors("babenko", "gridem")
     @flaky(max_runs=5)

@@ -80,7 +80,6 @@ using NChunkClient::NProto::TMiscExt;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = QueryAgentLogger;
-static const auto& Profiler = QueryAgentProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -291,7 +290,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
     {
-        TServiceProfilerGuard profilerGuard(&Profiler, "/execute");
+        TServiceProfilerGuard profilerGuard;
 
         YT_LOG_DEBUG("Deserializing subfragment");
 
@@ -363,7 +362,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)
     {
-        TServiceProfilerGuard profilerGuard(&Profiler, "/multiread");
+        TServiceProfilerGuard profilerGuard;
 
         auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
         auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
@@ -408,10 +407,8 @@ private:
             auto attachment = request->Attachments()[index];
 
             if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId, mountRevision)) {
-                // TODO(prime@):
-                // if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
-                //     profilerGuard.SetProfilerTags(AddCurrentUserTag(tabletSnapshot->ProfilerTags));
-                // }
+                auto counters = tabletSnapshot->TableProfiler->GetQueryServiceCounters(GetCurrentProfilingUser());
+                profilerGuard.SetTimer(counters->MultireadTime);
             }
 
             auto callback = BIND([=, identity = NRpc::GetCurrentAuthenticationIdentity()] {

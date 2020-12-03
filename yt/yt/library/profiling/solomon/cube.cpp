@@ -158,11 +158,7 @@ void TCube<T>::ReadSensors(
             consumer->OnLabel("host", *options.Host);
         }
 
-        if (!options.Global) {
-            for (const auto& tag : options.InstanceTags) {
-                consumer->OnLabel(tag.first, tag.second);
-            }
-        }
+        SmallVector<bool, 8> replacedInstanceTags(options.InstanceTags.size());
 
         if (allowAggregate && options.MarkAggregates && !options.Global) {
             consumer->OnLabel("yt_aggr", "1");
@@ -170,8 +166,27 @@ void TCube<T>::ReadSensors(
 
         for (auto tagId : tagIds) {
             const auto& tag = tagsRegistry.Decode(tagId);
+
+            for (size_t i = 0; i < options.InstanceTags.size(); i++) {
+                if (options.InstanceTags[i].first == tag.first) {
+                    replacedInstanceTags[i] = true;
+                }
+            }
+
             consumer->OnLabel(tag.first, tag.second);
         }
+
+        if (!options.Global) {
+            for (size_t i = 0; i < options.InstanceTags.size(); i++) {
+                if (replacedInstanceTags[i]) {
+                    continue;
+                }
+
+                const auto& tag = options.InstanceTags[i];
+                consumer->OnLabel(tag.first, tag.second);
+            }
+        }
+
         consumer->OnLabelsEnd();
     };
 
