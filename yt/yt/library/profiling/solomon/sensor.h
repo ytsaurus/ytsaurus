@@ -25,6 +25,20 @@ static_assert(sizeof(TSimpleGauge) == 24);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSimpleTimeGauge
+    : public ITimeGaugeImpl
+{
+public:
+    virtual void Update(TDuration value) override;
+
+    TDuration GetValue();
+
+private:
+    std::atomic<TDuration::TValue> Value_ = 0.0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSimpleCounter
     : public ICounterImpl
 {

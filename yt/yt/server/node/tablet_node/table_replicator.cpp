@@ -223,7 +223,7 @@ private:
                     : TimestampToInstant(timestampProvider->GetLatestTimestamp()).second - TimestampToInstant(replicaRuntimeData->CurrentReplicationTimestamp).first;
 
                 counters.LagRowCount.Record(rowCount);
-                counters.LagTime.Record(time);
+                counters.LagTime.Update(time);
             });
 
             if (totalRowCount <= lastReplicationRowIndex) {

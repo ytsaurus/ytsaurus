@@ -301,7 +301,7 @@ private:
     const NLogging::TLogger Logger;
 
     NProfiling::TEventTimer BatchCommitTimer_;
-    NProfiling::TGauge SnapshotLoadTime_;
+    NProfiling::TTimeGauge SnapshotLoadTime_;
 
     ui64 GetLastLoggedRandomSeed() const;
     i64 GetLastLoggedSequenceNumber() const;

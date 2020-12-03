@@ -46,6 +46,17 @@ void TGauge::Update(double value) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTimeGauge::Update(TDuration value) const
+{
+    if (!Gauge_) {
+        return;
+    }
+
+    Gauge_->Update(value);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSummary::Record(double value) const
 {
     if (!Summary_) {
@@ -253,6 +264,17 @@ TGauge TRegistry::Gauge(const TString& name) const
 
     TGauge gauge;
     gauge.Gauge_ = Impl_->RegisterGauge(Namespace_ + Prefix_ + name, Tags_, Options_);;
+    return gauge;
+}
+
+TTimeGauge TRegistry::TimeGauge(const TString& name) const
+{
+    if (!Impl_) {
+        return TTimeGauge();
+    }
+
+    TTimeGauge gauge;
+    gauge.Gauge_ = Impl_->RegisterTimeGauge(Namespace_ + Prefix_ + name, Tags_, Options_);;
     return gauge;
 }
 

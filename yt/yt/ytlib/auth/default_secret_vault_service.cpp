@@ -56,7 +56,7 @@ public:
         , SubrequestsPerCallGauge_(profiler.Gauge("/subrequests_per_call"))
         , CallCountCounter_(profiler.Counter("/call_count"))
         , SubrequestCountCounter_(profiler.Counter("/subrequest_count"))
-        , CallTimeGauge_(profiler.Timer("/call_time"))
+        , CallTimer_(profiler.Timer("/call_time"))
         , SuccessfulCallCountCounter_(profiler.Counter("/successful_call_count"))
         , FailedCallCountCounter_(profiler.Counter("/failed_call_count"))
         , SuccessfulSubrequestCountCounter_(profiler.Counter("/successful_subrequest_count"))
@@ -82,7 +82,7 @@ private:
     NProfiling::TGauge SubrequestsPerCallGauge_;
     NProfiling::TCounter CallCountCounter_;
     NProfiling::TCounter SubrequestCountCounter_;
-    NProfiling::TEventTimer CallTimeGauge_;
+    NProfiling::TEventTimer CallTimer_;
     NProfiling::TCounter SuccessfulCallCountCounter_;
     NProfiling::TCounter FailedCallCountCounter_;
     NProfiling::TCounter SuccessfulSubrequestCountCounter_;
@@ -134,7 +134,7 @@ private:
         const NProfiling::TWallTimer& timer,
         const TErrorOr<NHttp::IResponsePtr>& rspOrError)
     {
-        CallTimeGauge_.Record(timer.GetElapsedTime());
+        CallTimer_.Record(timer.GetElapsedTime());
 
         auto onError = [&] (TError error) {
             error.Attributes().Set("call_id", callId);

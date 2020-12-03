@@ -1,10 +1,14 @@
 #pragma once
 
+#include <yt/core/tracing/public.h>
+
 #include <yt/core/profiling/public.h>
 
 #include <yt/core/ypath/public.h>
 
 #include <yt/core/rpc/public.h>
+
+#include <yt/library/profiling/sensor.h>
 
 namespace NYT {
 
@@ -22,48 +26,21 @@ std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& ide
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Trait to store profiler counters in TLS cache.
-template <typename TCountersKey, typename TCounters>
-struct TProfilerTrait
-{
-    using TKey = TCountersKey;
-    using TValue = TCounters;
-
-    static TKey ToKey(const TKey& key);
-    static TValue ToValue(const TKey& key);
-};
-
-template <typename TCounters>
-using TTagListProfilerTrait = TProfilerTrait<NProfiling::TTagIdList, TCounters>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TServiceProfilerGuard
 {
 public:
-    TServiceProfilerGuard(
-        const NProfiling::TProfiler* profiler,
-        const NYPath::TYPath& path);
-
+    TServiceProfilerGuard();
     ~TServiceProfilerGuard();
 
-    void SetProfilerTags(NProfiling::TTagIdList tags);
-    const NProfiling::TTagIdList& GetProfilerTags() const;
-    void Disable();
+    TServiceProfilerGuard(const TServiceProfilerGuard& ) = delete;
+
+    void SetTimer(NProfiling::TTimeCounter counter);
 
 protected:
-    const NProfiling::TProfiler* Profiler_;
-    const NYPath::TYPath Path_;
-    NProfiling::TCpuInstant StartInstant_;
-    NProfiling::TTagIdList TagIds_;
-    bool Enabled_ = true;
+    NTracing::TTraceContextPtr TraceContext_;
+    NProfiling::TTimeCounter Counter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
-#define PROFILING_HELPERS_INL_H_
-#include "profiling_helpers-inl.h"
-#undef PROFILING_HELPERS_H_
-

@@ -1,4 +1,5 @@
 #include "profiling_helpers.h"
+#include "yt/core/tracing/trace_context.h"
 
 #include <yt/core/misc/tls_cache.h>
 
@@ -62,58 +63,23 @@ std::optional<TString> GetProfilingUser(const NRpc::TAuthenticationIdentity& ide
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TServiceProfilerCounters
-{
-    using TKey = std::pair<TYPath, TTagIdList>;
-
-    explicit TServiceProfilerCounters(const TKey& key)
-        : RequestCount(key.first + "/request_count", key.second)
-        , RequestExecutionTime(key.first + "/request_time", key.second)
-        , CumulativeTime(key.first + "/cumulative_time", key.second)
-    { }
-
-    TShardedMonotonicCounter RequestCount;
-    TShardedAggregateGauge RequestExecutionTime;
-    TShardedMonotonicCounter CumulativeTime;
-};
-
-using TServiceProfilerTrait = TProfilerTrait<TServiceProfilerCounters::TKey, TServiceProfilerCounters>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TServiceProfilerGuard::TServiceProfilerGuard(
-    const TProfiler* profiler,
-    const TYPath& path)
-    : Profiler_(profiler)
-    , Path_(path)
-    , StartInstant_(GetCpuInstant())
+TServiceProfilerGuard::TServiceProfilerGuard()
+    : TraceContext_(NTracing::GetCurrentTraceContext())
 { }
 
 TServiceProfilerGuard::~TServiceProfilerGuard()
 {
-    if (!Enabled_ || GetProfilerTags().empty()) {
+    if (!TraceContext_) {
         return;
     }
 
-    auto value = CpuDurationToValue(GetCpuInstant() - StartInstant_);
-    auto& counters = GetLocallyGloballyCachedValue<TServiceProfilerTrait>(TServiceProfilerCounters::TKey{Path_, TagIds_});
-    Profiler_->Increment(counters.RequestCount, 1);
-    Profiler_->Update(counters.RequestExecutionTime, value);
+    NTracing::FlushCurrentTraceContextTime();
+    Counter_.Add(CpuDurationToDuration(TraceContext_->GetElapsedCpuTime()));
 }
 
-void TServiceProfilerGuard::SetProfilerTags(TTagIdList tags)
+void TServiceProfilerGuard::SetTimer(NProfiling::TTimeCounter counter)
 {
-    TagIds_ = std::move(tags);
-}
-
-const TTagIdList& TServiceProfilerGuard::GetProfilerTags() const
-{
-    return TagIds_;
-}
-
-void TServiceProfilerGuard::Disable()
-{
-    Enabled_ = false;
+    Counter_ = counter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

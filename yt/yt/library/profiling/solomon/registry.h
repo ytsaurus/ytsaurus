@@ -39,6 +39,11 @@ public:
         const TTagSet& tags,
         TSensorOptions options) override;
 
+    virtual ITimeGaugeImplPtr RegisterTimeGauge(
+        const TString& name,
+        const TTagSet& tags,
+        TSensorOptions options) override;
+
     virtual ISummaryImplPtr RegisterSummary(
         const TString& name,
         const TTagSet& tags,

@@ -1319,6 +1319,7 @@ void TTablet::FillProfilerTags()
 {
     TableProfiler_ = CreateTableProfiler(
         Config_->ProfilingMode,
+        Context_->GetTabletCellBundleName(),
         TablePath_,
         Config_->ProfilingTag,
         WriterOptions_->Account,

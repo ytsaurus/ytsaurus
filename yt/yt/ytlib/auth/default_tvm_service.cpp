@@ -71,7 +71,7 @@ public:
         : Config_(std::move(config))
         , HttpClient_(CreateClient(Config_->HttpClient, std::move(poller)))
         , GetServiceTicketCountCounter_(profiler.Counter("/get_service_ticket_count"))
-        , GetServiceTicketTimeGauge_(profiler.Timer("/get_service_ticket_time"))
+        , GetServiceTicketTimer_(profiler.Timer("/get_service_ticket_time"))
         , SuccessfulGetServiceTicketCountCounter_(profiler.Counter("/successful_get_service_ticket_count"))
         , FailedGetServiceTicketCountCounter_(profiler.Counter("/failed_get_service_ticket_count"))
         , ParseUserTicketCountCounter_(profiler.Counter("/parse_user_ticket_count"))
@@ -147,7 +147,7 @@ private:
     std::unique_ptr<TTvmClient> Client_;
 
     NProfiling::TCounter GetServiceTicketCountCounter_;
-    NProfiling::TEventTimer GetServiceTicketTimeGauge_;
+    NProfiling::TEventTimer GetServiceTicketTimer_;
     NProfiling::TCounter SuccessfulGetServiceTicketCountCounter_;
     NProfiling::TCounter FailedGetServiceTicketCountCounter_;
 
@@ -261,7 +261,7 @@ private:
         const NProfiling::TWallTimer& timer,
         const TErrorOr<IResponsePtr>& rspOrError)
     {
-        GetServiceTicketTimeGauge_.Record(timer.GetElapsedTime());
+        GetServiceTicketTimer_.Record(timer.GetElapsedTime());
 
         auto onError = [&] (TError error) {
             error.Attributes().Set("call_id", callId);

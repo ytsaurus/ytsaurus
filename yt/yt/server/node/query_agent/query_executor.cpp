@@ -323,10 +323,8 @@ public:
             }
         }
 
-        // TODO(prime@)
-        // if (profilerGuard.GetProfilerTags().empty() && !TabletSnapshots_.GetProfilerTags().empty()) {
-        //     profilerGuard.SetProfilerTags(AddUserTag(TabletSnapshots_.GetProfilerTags(), Identity_));
-        // }
+        auto counters = TabletSnapshots_.GetTableProfiler()->GetQueryServiceCounters(GetCurrentProfilingUser());
+        profilerGuard.SetTimer(counters->ExecuteTime);
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
             .AsyncVia(Invoker_)
@@ -1037,7 +1035,7 @@ public:
         , Bootstrap_(bootstrap)
         , Evaluator_(New<TEvaluator>(
             Config_,
-            QueryAgentProfilerRegistry,
+            QueryAgentProfiler,
             CreateMemoryTrackerForCategory(
                 Bootstrap_->GetMemoryUsageTracker(),
                 NNodeTrackerClient::EMemoryCategory::Query)))

@@ -56,6 +56,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTimeGauge
+{
+public:
+    void Update(TDuration value) const;
+
+private:
+    friend class TRegistry;
+
+    ITimeGaugeImplPtr Gauge_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSummary
 {
 public:
@@ -176,6 +189,9 @@ public:
 
     //! Gauge is used to measure instant value.
     TGauge Gauge(const TString& name) const;
+
+    //! TimeGauge is used to measure instant duration.
+    TTimeGauge TimeGauge(const TString& name) const;
 
     //! Summary is used to measure distribution of values.
     TSummary Summary(const TString& name) const;
