@@ -448,6 +448,16 @@ public:
         CommitTabletMutation(request);
     }
 
+    void ReleaseBackingStore(const IChunkStorePtr& store)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (store->HasBackingStore()) {
+            store->SetBackingStore(nullptr);
+            YT_LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
+        }
+    }
+
     TFuture<void> CommitTabletStoresUpdateTransaction(
         TTablet* tablet,
         const ITransactionPtr& transaction)
@@ -1348,7 +1358,7 @@ private:
 
                 for (const auto& [storeId, store] : tablet->StoreIdMap()) {
                     if (store->IsChunk()) {
-                        store->AsChunk()->SetBackingStore(nullptr);
+                        ReleaseBackingStore(store->AsChunk());
                     }
                 }
 
@@ -3110,22 +3120,18 @@ private:
         TDelayedExecutor::Submit(
             // NB: Submit the callback via the regular automaton invoker, not the epoch one since
             // we need the store to be released even if the epoch ends.
-            BIND(&TTabletManager::TImpl::ReleaseBackingStore, MakeWeak(this), MakeWeak(store))
+            BIND(&TTabletManager::TImpl::ReleaseBackingStoreWeak, MakeWeak(this), MakeWeak(store))
                 .Via(Slot_->GetAutomatonInvoker()),
             tablet->GetConfig()->BackingStoreRetentionTime);
     }
 
-    void ReleaseBackingStore(const TWeakPtr<IChunkStore>& storeWeak)
+    void ReleaseBackingStoreWeak(const TWeakPtr<IChunkStore>& storeWeak)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto store = storeWeak.Lock();
-        if (!store) {
-            return;
+        if (auto store = storeWeak.Lock()) {
+            ReleaseBackingStore(store);
         }
-
-        store->SetBackingStore(nullptr);
-        YT_LOG_DEBUG("Backing store released (StoreId: %v)", store->GetId());
     }
 
     void BuildTabletOrchidYson(TTablet* tablet, IYsonConsumer* consumer)
@@ -3892,6 +3898,11 @@ TFuture<void> TTabletManager::CommitTabletStoresUpdateTransaction(
     const ITransactionPtr& transaction)
 {
     return Impl_->CommitTabletStoresUpdateTransaction(tablet, transaction);
+}
+
+void TTabletManager::ReleaseBackingStore(const IChunkStorePtr& store)
+{
+    Impl_->ReleaseBackingStore(store);
 }
 
 IYPathServicePtr TTabletManager::GetOrchidService()

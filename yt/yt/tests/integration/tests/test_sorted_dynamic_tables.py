@@ -1317,6 +1317,39 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=max>#]}}]>//tmp/t") == []
         assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=null>#; <type=null>#]}}]>//tmp/t") == []
 
+    @authors("ifsmirnov")
+    def test_backing_stores(self):
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            backing_store_retention_time=10000,
+            max_dynamic_store_row_count=5,
+            dynamic_store_auto_flush_period=YsonEntity())
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i} for i in range(5)])
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 1)
+
+        address = get_tablet_leader_address(tablet_id)
+        def _has_backing_store():
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            for store in orchid["partitions"][0]["stores"].values():
+                if "backing_store" in store:
+                    return True
+            return False
+
+        assert _has_backing_store()
+        wait(lambda: not _has_backing_store())
+
+        set("//tmp/t/@backing_store_retention_time", 1000000000)
+        remount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i} for i in range(5)])
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 2)
+
+        assert _has_backing_store()
+        set("//sys/tablet_cell_bundles/default/@dynamic_options/max_backing_store_memory_ratio", 0.00000001)
+        wait(lambda: not _has_backing_store())
+
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2

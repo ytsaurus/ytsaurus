@@ -106,6 +106,8 @@ DEFINE_REFCOUNTED_TYPE(IDynamicStore)
 struct IChunkStore
     : public virtual IStore
 {
+    virtual TInstant GetCreationTime() const = 0;
+
     virtual void SetBackingStore(IDynamicStorePtr store) = 0;
     virtual bool HasBackingStore() const = 0;
     virtual IDynamicStorePtr GetBackingStore() = 0;

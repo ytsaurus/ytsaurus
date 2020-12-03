@@ -186,8 +186,6 @@ public:
 
     virtual void Initialize(const NTabletNode::NProto::TAddStoreDescriptor* descriptor);
 
-    TInstant GetCreationTime() const;
-
     // IStore implementation.
     virtual TTimestamp GetMinTimestamp() const override;
     virtual TTimestamp GetMaxTimestamp() const override;
@@ -202,6 +200,8 @@ public:
     virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     // IChunkStore implementation.
+    virtual TInstant GetCreationTime() const override;
+
     virtual void SetBackingStore(IDynamicStorePtr store) override;
     virtual bool HasBackingStore() const override;
     virtual IDynamicStorePtr GetBackingStore() override;

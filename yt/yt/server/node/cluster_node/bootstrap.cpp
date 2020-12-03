@@ -47,6 +47,7 @@
 #include <yt/server/node/query_agent/query_executor.h>
 #include <yt/server/node/query_agent/query_service.h>
 
+#include <yt/server/node/tablet_node/backing_store_cleaner.h>
 #include <yt/server/node/tablet_node/in_memory_manager.h>
 #include <yt/server/node/tablet_node/in_memory_service.h>
 #include <yt/server/node/tablet_node/partition_balancer.h>
@@ -799,6 +800,7 @@ void TBootstrap::DoRun()
     StartStoreCompactor(storeCompactor);
     StartStoreTrimmer(Config_->TabletNode, this);
     StartPartitionBalancer(Config_->TabletNode, this);
+    StartBackingStoreCleaner(Config_->TabletNode, this);
 
     RpcServer_->Start();
     HttpServer_->Start();
