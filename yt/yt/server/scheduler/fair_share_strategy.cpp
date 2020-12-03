@@ -853,6 +853,10 @@ public:
             // NB: operation can be missing in tree since ban.
             if (tree && tree->HasOperation(operationId)) {
                 tree->RegisterJobsFromRevivedOperation(operationId, jobs);
+            } else {
+                YT_LOG_INFO("Jobs are not registered in tree since operation is missing (OperationId: %v, TreeId: %v)",
+                    operationId,
+                    treeId);
             }
         }
     }

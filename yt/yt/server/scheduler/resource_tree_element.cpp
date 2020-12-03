@@ -85,6 +85,8 @@ bool TResourceTreeElement::CommitLocalResourceUsage(
 
     ResourceUsage_ += resourceUsageDelta;
     ResourceUsagePrecommit_ -= precommittedResources;
+    
+    YT_VERIFY(Dominates(ResourceUsage_, TJobResources()));
 
     return true;
 }
@@ -100,6 +102,8 @@ bool TResourceTreeElement::IncreaseLocalResourceUsage(const TJobResources& delta
     ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceUsage_ += delta;
+
+    YT_VERIFY(Dominates(ResourceUsage_, TJobResources()));
 
     return true;
 }
