@@ -419,8 +419,8 @@ class TServiceBase
     : public virtual IService
 {
 public:
-    void Configure(TServerConfigPtr serverConfig, TServiceConfigPtr config);
-    virtual void Configure(TServerConfigPtr serverConfig, NYTree::INodePtr configNode) override;
+    void Configure(TServiceCommonConfigPtr configDefaults, TServiceConfigPtr config);
+    virtual void Configure(TServiceCommonConfigPtr configDefaults, NYTree::INodePtr configNode) override;
     virtual TFuture<void> Stop() override;
 
     virtual const TServiceId& GetServiceId() const override;

@@ -78,6 +78,7 @@ DECLARE_REFCOUNTED_CLASS(TServerAddressPool)
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TServerConfig)
+DECLARE_REFCOUNTED_CLASS(TServiceCommonConfig)
 DECLARE_REFCOUNTED_CLASS(TServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TMethodConfig)
 DECLARE_REFCOUNTED_CLASS(TRetryingChannelConfig)
