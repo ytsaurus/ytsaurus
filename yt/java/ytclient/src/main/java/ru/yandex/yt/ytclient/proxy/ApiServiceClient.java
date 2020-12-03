@@ -33,7 +33,6 @@ import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
@@ -52,7 +51,6 @@ import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 import ru.yandex.yt.rpcproxy.TReqUnmountTable;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
-import ru.yandex.yt.rpcproxy.TRspAlterTable;
 import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
 import ru.yandex.yt.rpcproxy.TRspCheckPermission;
 import ru.yandex.yt.rpcproxy.TRspFreezeTable;
@@ -856,12 +854,9 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<Void> alterTable(AlterTable req) {
-        RpcClientRequestBuilder<TReqAlterTable.Builder, RpcClientResponse<TRspAlterTable>> builder =
-                service.alterTable();
-
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return RpcUtil.apply(
+                sendRequest(req, service.alterTable()),
+                response -> null);
     }
 
     public CompletableFuture<Void> alterTableReplica(
