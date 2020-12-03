@@ -6,6 +6,7 @@
 #include "query_context.h"
 #include "subquery_spec.h"
 #include "query_registry.h"
+#include "storage_base.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -23,11 +24,11 @@ using namespace NTracing;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStorageSubquery
-    : public DB::IStorage
+    : public TYtStorageBase
 {
 public:
     TStorageSubquery(TQueryContext* queryContext, TSubquerySpec subquerySpec)
-        : DB::IStorage({"subquery_db", "subquery"})
+        : TYtStorageBase({"subquery_db", "subquery"})
         , QueryContext_(queryContext)
         , SubquerySpec_(std::move(subquerySpec))
     {
@@ -57,7 +58,7 @@ public:
 
     DB::Pipe read(
         const DB::Names& columnNames,
-        const DB::StorageMetadataPtr& /* metadata_snapshot */,
+        const DB::StorageMetadataPtr& metadataSnapshot,
         DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
         DB::QueryProcessingStage::Enum /* processedStage */,
@@ -67,6 +68,9 @@ public:
         TTraceContextGuard guard(QueryContext_->TraceContext);
 
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
+        
+        auto [realColumnNames, virtualColumnNames] = DecoupleColumns(columnNames, metadataSnapshot);
+        
         StorageContext_ = QueryContext_->GetOrRegisterStorageContext(this, context);
 
         if (StorageContext_->Settings->ThrowTestingExceptionInSubquery) {
@@ -157,7 +161,8 @@ public:
                 pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreatePrewhereBlockInputStream(
                     StorageContext_,
                     SubquerySpec_,
-                    columnNames,
+                    realColumnNames,
+                    virtualColumnNames,
                     traceContext,
                     threadDataSliceDescriptors,
                     prewhereInfo)));
@@ -165,7 +170,8 @@ public:
                 pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreateBlockInputStream(
                     StorageContext_,
                     SubquerySpec_,
-                    columnNames,
+                    realColumnNames,
+                    virtualColumnNames,
                     traceContext,
                     threadDataSliceDescriptors,
                     prewhereInfo)));

@@ -1,24 +1,27 @@
 #include "storage_distributor.h"
 
-#include "config.h"
 #include "block_output_stream.h"
+#include "config.h"
+#include "format.h"
 #include "helpers.h"
-#include "query_context.h"
-#include "subquery.h"
-#include "schema.h"
-#include "query_registry.h"
-#include "query_analyzer.h"
-#include "table.h"
 #include "host.h"
 #include "logging_transform.h"
+#include "query_analyzer.h"
 #include "query_context.h"
-#include "format.h"
+#include "query_context.h"
+#include "query_registry.h"
+#include "schema.h"
+#include "storage_base.h"
+#include "subquery.h"
+#include "table.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
+
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -197,13 +200,15 @@ class TDistributionPreparer
 {
 public:
     TDistributionPreparer(
-        const DB::Names& columnNames,
+        const std::vector<TString>& realColumnNames,
+        const std::vector<TString>& virtualColumnNames,
         DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
         TQueryContext* queryContext,
         TStorageContext* storageContext,
         DB::QueryProcessingStage::Enum processedStage)
-        : ColumnNames_(columnNames)
+        : RealColumnNames_(realColumnNames)
+        , VirtualColumnNames_(virtualColumnNames)
         , QueryInfo_(queryInfo)
         , Context_(context)
         , QueryContext_(queryContext)
@@ -235,10 +240,10 @@ public:
 
         QueryContext_->MoveToPhase(EQueryPhase::Preparation);
 
-        PrepareSubqueries(cliqueNodes.size(), QueryInfo_, ColumnNames_, Context_);
+        PrepareSubqueries(cliqueNodes.size(), QueryInfo_, Context_);
 
-        YT_LOG_INFO("Starting distribution (ColumnNames: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
-            ColumnNames_,
+        YT_LOG_INFO("Starting distribution (RealColumnNames_: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
+            RealColumnNames_,
             cliqueNodes.size(),
             static_cast<ui64>(Context_.getSettings().max_threads),
             Subqueries_.size());
@@ -339,11 +344,15 @@ public:
     void PrepareSubqueries(
         int subqueryCount,
         const DB::SelectQueryInfo& queryInfo,
-        const std::vector<std::string>& columnNames,
         const DB::Context& context)
     {
         NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", ToString(subqueryCount));
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.column_names", Format("%v", MakeFormattableView(columnNames, TDefaultFormatter())));
+        NTracing::GetCurrentTraceContext()->AddTag(
+            "chyt.real_column_names",
+            Format("%v", MakeFormattableView(RealColumnNames_, TDefaultFormatter())));
+        NTracing::GetCurrentTraceContext()->AddTag(
+            "chyt.virtual_column_names",
+            Format("%v", MakeFormattableView(VirtualColumnNames_, TDefaultFormatter())));
 
         QueryAnalyzer_.emplace(context, StorageContext_, queryInfo, Logger);
         auto queryAnalysisResult = QueryAnalyzer_->Analyze();
@@ -353,7 +362,8 @@ public:
         auto input = FetchInput(
             StorageContext_,
             queryAnalysisResult,
-            columnNames);
+            RealColumnNames_,
+            VirtualColumnNames_);
 
         YT_VERIFY(!SpecTemplate_.DataSourceDirectory);
         SpecTemplate_.DataSourceDirectory = std::move(input.DataSourceDirectory);
@@ -441,7 +451,8 @@ public:
     }
 
 private:
-    const DB::Names& ColumnNames_;
+    std::vector<TString> RealColumnNames_;
+    std::vector<TString> VirtualColumnNames_;
     const DB::SelectQueryInfo& QueryInfo_;
     const DB::Context& Context_;
     TQueryContext* const QueryContext_;
@@ -461,7 +472,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStorageDistributor
-    : public DB::IStorage
+    : public TYtStorageBase
     , public IStorageDistributor
 {
 public:
@@ -471,7 +482,7 @@ public:
         const DB::Context& context,
         std::vector<TTablePtr> tables,
         TTableSchemaPtr schema)
-        : DB::IStorage({"YT", "distributor"})
+        : TYtStorageBase({"YT", "distributor"})
         , QueryContext_(GetQueryContext(context))
         , Tables_(std::move(tables))
         , Schema_(std::move(schema))
@@ -553,7 +564,7 @@ public:
 
     virtual DB::Pipe read(
         const DB::Names& columnNames,
-        const DB::StorageMetadataPtr& /*metadata_snapshot*/,
+        const DB::StorageMetadataPtr& metadataSnapshot,
         DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
         DB::QueryProcessingStage::Enum processedStage,
@@ -565,10 +576,19 @@ public:
         auto* queryContext = GetQueryContext(context);
         auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
 
-        ValidateReadPermissions(ToVectorString(columnNames), Tables_, queryContext);
+        auto [realColumnNames, virtualColumnNames] = DecoupleColumns(columnNames, metadataSnapshot);
 
-        return TDistributionPreparer(columnNames, queryInfo, context, queryContext, storageContext, processedStage)
-            .Prepare();
+        ValidateReadPermissions(realColumnNames, Tables_, queryContext);
+
+        return TDistributionPreparer(
+            realColumnNames,
+            virtualColumnNames,
+            queryInfo,
+            context,
+            queryContext,
+            storageContext,
+            processedStage)
+                .Prepare();
     }
 
     virtual bool supportsSampling() const override

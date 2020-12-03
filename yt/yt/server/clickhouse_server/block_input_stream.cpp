@@ -13,6 +13,8 @@
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
+#include <yt/ytlib/table_client/virtual_value_directory.h>
+
 #include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/name_table.h>
 
@@ -38,16 +40,37 @@ using namespace NYTree;
 
 namespace {
 
-NTableClient::TTableSchemaPtr FilterColumnsInSchema(
-    const NTableClient::TTableSchema& schema,
-    DB::Names columnNames)
+TTableSchemaPtr InsertVirtualColumns(
+    const TTableSchemaPtr& schema,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
+    const std::vector<TString>& virtualColumnNames)
 {
-    std::vector<TString> columnNamesInString;
-    for (const auto& columnName : columnNames) {
-        schema.GetColumnOrThrow(columnName);
-        columnNamesInString.emplace_back(columnName);
+    std::vector<TColumnSchema> columns = schema->Columns();
+
+    if (!dataSourceDirectory->DataSources().empty()) {
+        const auto& virtualValueDirectory = dataSourceDirectory->DataSources()[0].GetVirtualValueDirectory();
+
+        // All virtual value directory should share same schema.
+        for (const auto& dataSource : dataSourceDirectory->DataSources()) {
+            if (virtualValueDirectory) {
+                YT_VERIFY(dataSource.GetVirtualValueDirectory());
+                YT_VERIFY(*dataSource.GetVirtualValueDirectory()->Schema == *virtualValueDirectory->Schema);
+            } else {
+                YT_VERIFY(!dataSource.GetVirtualValueDirectory());
+            }
+        }
+
+        if (virtualValueDirectory) {
+            const auto virtualColumns = virtualValueDirectory->Schema->Filter(virtualColumnNames)->Columns();
+            columns.insert(columns.end(), virtualColumns.begin(), virtualColumns.end());
+        }
     }
-    return schema.Filter(columnNamesInString);
+
+    return New<TTableSchema>(
+        std::move(columns),
+        schema->GetStrict(),
+        schema->GetUniqueKeys(),
+        schema->GetSchemaModification());
 }
 
 TClientBlockReadOptions CreateBlockReadOptions(const TString& user)
@@ -124,14 +147,14 @@ DB::Block FilterRowsByPrewhereInfo(
 
 TBlockInputStream::TBlockInputStream(
     ISchemalessMultiChunkReaderPtr reader,
-    TTableSchemaPtr readSchema,
+    TTableSchemaPtr readSchemaWithVirtualColumns,
     TTraceContextPtr traceContext,
     THost* host,
     TQuerySettingsPtr settings,
     TLogger logger,
     DB::PrewhereInfoPtr prewhereInfo)
     : Reader_(std::move(reader))
-    , ReadSchema_(std::move(readSchema))
+    , ReadSchemaWithVirtualColumns_(std::move(readSchemaWithVirtualColumns))
     , TraceContext_(std::move(traceContext))
     , Host_(host)
     , Settings_(std::move(settings))
@@ -251,16 +274,16 @@ DB::Block TBlockInputStream::readImpl()
 
 void TBlockInputStream::Prepare()
 {
-    InputHeaderBlock_ = ToHeaderBlock(*ReadSchema_, Settings_->Composite);
-    OutputHeaderBlock_ = ToHeaderBlock(*ReadSchema_, Settings_->Composite);
+    InputHeaderBlock_ = ToHeaderBlock(*ReadSchemaWithVirtualColumns_, Settings_->Composite);
+    OutputHeaderBlock_ = ToHeaderBlock(*ReadSchemaWithVirtualColumns_, Settings_->Composite);
 
     if (PrewhereInfo_) {
         // Create header with executed prewhere actions.
         ExecutePrewhereActions(OutputHeaderBlock_, PrewhereInfo_);
     }
 
-    for (int index = 0; index < static_cast<int>(ReadSchema_->Columns().size()); ++index) {
-        const auto& columnSchema = ReadSchema_->Columns()[index];
+    for (int index = 0; index < static_cast<int>(ReadSchemaWithVirtualColumns_->Columns().size()); ++index) {
+        const auto& columnSchema = ReadSchemaWithVirtualColumns_->Columns()[index];
         auto id = Reader_->GetNameTable()->GetIdOrRegisterName(columnSchema.Name());
         if (static_cast<int>(IdToColumnIndex_.size()) <= id) {
             IdToColumnIndex_.resize(id + 1, -1);
@@ -274,7 +297,7 @@ DB::Block TBlockInputStream::ConvertRowBatchToBlock(const IUnversionedRowBatchPt
     NProfiling::TWallTimer timer;
     auto result = NClickHouseServer::ConvertRowBatchToBlock(
         batch,
-        *ReadSchema_,
+        *ReadSchemaWithVirtualColumns_,
         IdToColumnIndex_,
         RowBuffer_,
         InputHeaderBlock_,
@@ -311,14 +334,17 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
-    const DB::Names& columnNames,
+    const std::vector<TString>& realColumns,
+    const std::vector<TString>& virtualColumns,
     const NTracing::TTraceContextPtr& traceContext,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo)
 {
     auto* queryContext = storageContext->QueryContext;
-    auto schema = FilterColumnsInSchema(*subquerySpec.ReadSchema, columnNames);
     auto blockReadOptions = CreateBlockReadOptions(queryContext->User);
+
+    auto readSchema = subquerySpec.ReadSchema->Filter(realColumns);
+    auto readSchemaWithVirtualColumns = InsertVirtualColumns(readSchema, subquerySpec.DataSourceDirectory, virtualColumns);
 
     auto blockInputStreamTraceContext = NTracing::CreateChildTraceContext(
         traceContext,
@@ -344,6 +370,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     tableReaderConfig->SamplingMode = subquerySpec.TableReaderConfig->SamplingMode;
     tableReaderConfig->SamplingRate = subquerySpec.TableReaderConfig->SamplingRate;
     tableReaderConfig->SamplingSeed = subquerySpec.TableReaderConfig->SamplingSeed;
+    TLogger Logger(queryContext->Logger);
 
     if (!subquerySpec.DataSourceDirectory->DataSources().empty() &&
         subquerySpec.DataSourceDirectory->DataSources()[0].GetType() == EDataSourceType::VersionedTable)
@@ -354,6 +381,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
                 chunkSpecs.emplace_back(std::move(chunkSpec));
             }
         }
+        // TODO(dakovalkov): I think we lost VirtualRowIndex here.
         TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
 
         reader = CreateSchemalessMergingMultiChunkReader(
@@ -366,9 +394,9 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
             subquerySpec.DataSourceDirectory,
             dataSliceDescriptor,
-            TNameTable::FromSchema(*schema),
+            TNameTable::FromSchema(*readSchemaWithVirtualColumns),
             blockReadOptions,
-            TColumnFilter(schema->Columns().size()),
+            TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
             /* trafficMeter */ nullptr,
             GetUnlimitedThrottler(),
             GetUnlimitedThrottler(),
@@ -384,9 +412,9 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
             subquerySpec.DataSourceDirectory,
             dataSliceDescriptors,
-            TNameTable::FromSchema(*schema),
+            TNameTable::FromSchema(*readSchemaWithVirtualColumns),
             blockReadOptions,
-            TColumnFilter(schema->Columns().size()),
+            TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
             /* keyColumns =*/{},
             /* partitionTag =*/std::nullopt,
             /* trafficMeter =*/nullptr,
@@ -396,8 +424,8 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     }
 
     return CreateBlockInputStream(
-        reader,
-        schema,
+        std::move(reader),
+        std::move(readSchemaWithVirtualColumns),
         blockInputStreamTraceContext,
         queryContext->Host,
         storageContext->Settings,

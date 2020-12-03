@@ -38,10 +38,11 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
-#include <yt/ytlib/table_client/schema.h>
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
+#include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_read_spec.h>
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/ytlib/table_client/virtual_value_directory.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
@@ -51,15 +52,17 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/logging/log.h>
 #include <yt/core/misc/protobuf_helpers.h>
+#include <yt/core/ypath/helpers.h>
 #include <yt/core/ytree/convert.h>
-#include <yt/core/concurrency/action_queue.h>
 
 #include <Storages/MergeTree/KeyCondition.h>
 #include <DataTypes/IDataType.h>
@@ -107,14 +110,16 @@ public:
     TInputFetcher(
         TStorageContext* storageContext,
         const TQueryAnalysisResult& queryAnalysisResult,
-        const std::vector<std::string>& columnNames)
+        const std::vector<TString>& realColumnNames,
+        const std::vector<TString>& virtualColumnNames)
         : StorageContext_(storageContext)
         , QueryContext_(StorageContext_->QueryContext)
         , Client_(QueryContext_->Client())
         , Invoker_(CreateSerializedInvoker(QueryContext_->Host->GetClickHouseFetcherInvoker()))
         , TableSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
-        , ColumnNames_(columnNames.begin(), columnNames.end())
+        , RealColumnNames_(realColumnNames)
+        , VirtualColumnNames_(virtualColumnNames)
         , Config_(QueryContext_->Host->GetConfig()->Subquery)
         , RowBuffer_(QueryContext_->RowBuffer)
         , Logger(StorageContext_->Logger)
@@ -150,7 +155,8 @@ private:
     std::vector<TTableSchemaPtr> TableSchemas_;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions_;
 
-    std::vector<TString> ColumnNames_;
+    std::vector<TString> RealColumnNames_;
+    std::vector<TString> VirtualColumnNames_;
 
     std::vector<DB::DataTypes> KeyColumnDataTypes_;
 
@@ -191,7 +197,7 @@ private:
             for (auto& resultStripe : ResultStripes_) {
                 for (auto& inputDataSlice : resultStripe->DataSlices) {
                     for (auto& inputChunkSlice : inputDataSlice->ChunkSlices) {
-                        columnarStatisticsFetcher->AddChunk(inputChunkSlice->GetInputChunk(), ColumnNames_);
+                        columnarStatisticsFetcher->AddChunk(inputChunkSlice->GetInputChunk(), RealColumnNames_);
                     }
                 }
             }
@@ -254,14 +260,14 @@ private:
 
         YT_LOG_INFO("Input tables fetched, preparing data slices");
 
-        auto joinedTableReadSpec = JoinTableReadSpecs(TableReadSpecs_);
-        YT_VERIFY(joinedTableReadSpec.DataSourceDirectory->DataSources().size() == InputTables_.size());
+        auto [dataSourceDirectory, dataSliceDescriptors] = JoinTableReadSpecs(TableReadSpecs_);
+        YT_VERIFY(dataSourceDirectory->DataSources().size() == InputTables_.size());
 
         // Transform (single-chunk) data slice descriptors into data slices.
         // NB: by this moment versioned chunk data slice descriptors store separate chunk specs,
         // so they are not "correct" from the dynamic table point of view.
         InputDataSlices_.resize(InputTables_.size());
-        for (auto& dataSliceDescriptor : joinedTableReadSpec.DataSliceDescriptors) {
+        for (auto& dataSliceDescriptor : dataSliceDescriptors) {
             RegisterDataSlice(dataSliceDescriptor);
         }
 
@@ -277,21 +283,85 @@ private:
         for (auto& stripe : ResultStripes_) {
             stripe = New<TChunkStripe>();
         }
+
+        // InputTables_ contains tables for both operands.
+        // For $table_index column we need to calculate the index regarding the corresponding operand.
+        std::vector<int> operandTableIndexes(2);
+
         for (size_t tableIndex = 0; tableIndex < InputTables_.size(); ++tableIndex) {
             auto operandIndex = InputTables_[tableIndex]->OperandIndex;
+
+            if (!VirtualColumnNames_.empty()) {
+                YT_VERIFY(!dataSourceDirectory->DataSources()[tableIndex].GetVirtualValueDirectory());
+                dataSourceDirectory->DataSources()[tableIndex].SetVirtualValueDirectory(
+                    CreateVirtualValueDirectory(tableIndex, operandTableIndexes[operandIndex]));
+            }
+
             for (auto& dataSlice : InputDataSlices_[tableIndex]) {
                 dataSlice->InputStreamIndex = operandIndex;
+                
+                if (!VirtualColumnNames_.empty()) {
+                    dataSlice->VirtualRowIndex = 0;
+                }
+
                 InferLimitsFromBoundaryKeys(
                     dataSlice,
                     RowBuffer_,
-                    joinedTableReadSpec.DataSourceDirectory->DataSources()[tableIndex].GetVirtualValueDirectory());
+                    dataSourceDirectory->DataSources()[tableIndex].GetVirtualValueDirectory());
+
                 ResultStripes_[operandIndex]->DataSlices.emplace_back(std::move(dataSlice));
+            }
+
+            ++operandTableIndexes[operandIndex];
+        }
+
+        DataSourceDirectory_ = std::move(dataSourceDirectory);
+
+        YT_LOG_INFO("Data slices ready");
+    }
+
+    // Store values for columns $table_index, $table_path, etc.
+    TVirtualValueDirectoryPtr CreateVirtualValueDirectory(int tableIndex, int operandTableIndex)
+    {
+        if (InputTables_[tableIndex]->Dynamic) {
+            THROW_ERROR_EXCEPTION("Virtual columns are not supported for dynamic tables (CHYT-506)");
+        }
+
+        auto directory = New<TVirtualValueDirectory>();
+        directory->NameTable = TNameTable::FromKeyColumns(VirtualColumnNames_);
+
+        TUnversionedOwningRowBuilder rowBuilder(VirtualColumnNames_.size());
+
+        for (const auto& column : VirtualColumnNames_) {
+            auto id = directory->NameTable->GetIdOrThrow(column);
+
+            if (column == "$table_index") {
+                rowBuilder.AddValue(MakeUnversionedInt64Value(operandTableIndex, id));
+            } else if (column == "$table_path") {
+                rowBuilder.AddValue(MakeUnversionedStringValue(InputTables_[tableIndex]->Path.GetPath(), id));
+            } else if (column == "$table_key") {
+                auto [_, baseName] = DirNameAndBaseName(InputTables_[tableIndex]->Path.GetPath());
+                rowBuilder.AddValue(MakeUnversionedStringValue(baseName, id));
+            } else {
+                THROW_ERROR_EXCEPTION("Unknown virtual column %Qv", column);
             }
         }
 
-        DataSourceDirectory_ = std::move(joinedTableReadSpec.DataSourceDirectory);
+        auto row = rowBuilder.FinishRow();
+        
+        std::vector<TColumnSchema> columnSchemas;
+        columnSchemas.reserve(VirtualColumnNames_.size());
+        for (const auto& column : VirtualColumnNames_) {
+            auto id = directory->NameTable->GetIdOrThrow(column);
+            columnSchemas.emplace_back(column, MakeLogicalType(GetLogicalType(row[id].Type), /* requried */ true));
+        }
+        directory->Schema = New<TTableSchema>(std::move(columnSchemas));
 
-        YT_LOG_INFO("Data slices ready");
+        TUnversionedRowsBuilder rowsBuilder;
+        rowsBuilder.AddRow(row.Get());
+        directory->Rows = rowsBuilder.Build();
+
+        return directory;
     }
 
     //! Make proper versioned data slices from single-chunk unversioned data slices.
@@ -574,9 +644,15 @@ DEFINE_REFCOUNTED_TYPE(TInputFetcher);
 TQueryInput FetchInput(
     TStorageContext* storageContext,
     const TQueryAnalysisResult& queryAnalysisResult,
-    const std::vector<std::string>& columnNames)
+    const std::vector<TString>& realColumnNames,
+    const std::vector<TString>& virtualColumnNames)
 {
-    auto inputFetcher = New<TInputFetcher>(storageContext, queryAnalysisResult, columnNames);
+    auto inputFetcher = New<TInputFetcher>(
+        storageContext,
+        queryAnalysisResult,
+        realColumnNames,
+        virtualColumnNames);
+
     WaitFor(inputFetcher->Fetch())
         .ThrowOnError();
 
