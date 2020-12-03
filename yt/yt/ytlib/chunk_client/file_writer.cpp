@@ -99,7 +99,7 @@ TFuture<void> TFileWriter::Open()
     // Unfortunately in Linux we can't create'n'flock a file atomically.
     return IOEngine_->Open(FileName_ + NFS::TempFileSuffix, mode)
         .Apply(BIND(&TFileWriter::LockDataFile, MakeStrong(this)))
-        .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& error) {
+        .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
             Opening_ = false;
             if (!error.IsOK()) {
                 THROW_ERROR error;

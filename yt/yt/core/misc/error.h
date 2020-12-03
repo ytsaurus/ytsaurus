@@ -162,8 +162,8 @@ private:
 
 };
 
-bool operator == (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs);
-bool operator != (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs);
+bool operator == (const TError& lhs, const TError& rhs);
+bool operator != (const TError& lhs, const TError& rhs);
 
 void ToProto(NProto::TError* protoError, const TError& error);
 void FromProto(TError* error, const NProto::TError& protoError);

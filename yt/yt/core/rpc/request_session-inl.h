@@ -93,9 +93,9 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
         }
     }
 
-    MakeRequest(address).Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<void>& errorOrValue) {
-        if (!errorOrValue.IsOK()) {
-            AddError(errorOrValue);
+    MakeRequest(address).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        if (!error.IsOK()) {
+            AddError(error);
             TryMakeNextRequest(false);
             AddressPool_->BanAddress(address);
         } else {

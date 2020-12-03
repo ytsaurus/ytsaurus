@@ -199,7 +199,7 @@ private:
         TCheckClusterLivenessOptions options;
         options.CheckCypressRoot = true;
         return key.Client->CheckClusterLiveness(options)
-            .Apply(BIND([clusterName = key.ClusterName] (const TErrorOr<void>& result) {
+            .Apply(BIND([clusterName = key.ClusterName] (const TError& result) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking cluster %Qlv liveness",
                     clusterName);
             }));
@@ -568,7 +568,7 @@ private:
                         maxSyncReplicas,
                         minSyncReplicas,
                         id = Id_
-                    ] (const std::vector<TErrorOr<void>>& results) mutable {
+                    ] (const std::vector<TError>& results) mutable {
                         std::vector<TReplicaPtr> badSyncReplicas;
                         std::vector<TReplicaPtr> goodSyncReplicas;
                         std::vector<TReplicaPtr> goodAsyncReplicas;
@@ -813,7 +813,7 @@ private:
                 future.Subscribe(BIND([id = id, switchCounter] (const TErrorOr<int>& result) {
                     YT_LOG_DEBUG_UNLESS(result.IsOK(), result, "Error checking table (TableId: %v)",
                         id);
-                    
+
                     if (result.IsOK()) {
                         switchCounter.Increment(result.Value());
                     }
