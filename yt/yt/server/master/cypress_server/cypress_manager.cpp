@@ -2214,8 +2214,12 @@ private:
                 }
 
                 auto it = cellTagToLockNodeIds.find(cellTag);
-
-                YT_VERIFY(it != cellTagToLockNodeIds.end());
+                if (it == cellTagToLockNodeIds.end()) {
+                    // NB: this can't happen when loading a snapshot or
+                    // validating it on an actual master, but it's (allegedly)
+                    // possible when validation runs on a different machine.
+                    continue;
+                }
 
                 for (auto lockedNodeId : it->second) {
                     auto* node = FindNode(TVersionedNodeId{lockedNodeId});
