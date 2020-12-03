@@ -50,6 +50,7 @@ std::vector<TDataSliceDescriptor> GetFilteredDataSliceDescriptors(std::shared_pt
 std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
     std::vector<TDataSliceDescriptor>&& dataSliceDescriptors,
     PrewhereInfoPtr prewhereInfo,
+    const std::vector<TString>& virtualColumnNames,
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
     const NTracing::TTraceContextPtr& traceContext)
@@ -57,16 +58,29 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
     auto prewhereColumns = ExtractColumnsFromPrewhereInfo(prewhereInfo);
     auto* queryContext = storageContext->QueryContext;
 
+    std::vector<TString> realPrewhereColumns;
+    std::vector<TString> virtualPrewhereColumns;
+
+    for (const auto& column : prewhereColumns) {
+        if (std::find(virtualColumnNames.begin(), virtualColumnNames.end(), column) != virtualColumnNames.end()) {
+            virtualPrewhereColumns.emplace_back(column);
+        } else {
+            realPrewhereColumns.emplace_back(column);
+        }
+    }
+
     auto Logger = queryContext->Logger;
     YT_LOG_DEBUG(
-        "Started executing PREWHERE data slice filtering (PrewhereColumnName: %v, PrewhereColumns: %v)",
+        "Started executing PREWHERE data slice filtering (PrewhereColumnName: %v, RealPrewhereColumns: %v, VirtualPrewhereColumns: %v)",
         prewhereInfo->prewhere_column_name,
-        prewhereColumns);
+        realPrewhereColumns,
+        virtualPrewhereColumns);
 
     auto blockInputStream = CreateBlockInputStream(
         storageContext,
         subquerySpec,
-        prewhereColumns,
+        realPrewhereColumns,
+        virtualPrewhereColumns,
         traceContext,
         dataSliceDescriptors,
         prewhereInfo);
@@ -91,22 +105,25 @@ public:
     TPrewhereBlockInputStream(
         TStorageContext* storageContext,
         const TSubquerySpec& subquerySpec,
-        const DB::Names& columnNames,
+        const std::vector<TString>& realColumns,
+        const std::vector<TString>& virtualColumns,
         NTracing::TTraceContextPtr traceContext,
         DB::PrewhereInfoPtr prewhereInfo,
         std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors)
         : StorageContext_(storageContext)
         , QueryContext_(storageContext->QueryContext)
         , SubquerySpec_(subquerySpec)
-        , ColumnNames_(columnNames)
+        , RealColumnNames_(realColumns)
+        , VirtualColumnNames_(virtualColumns)
         , TraceContext_(traceContext)
         , PrewhereInfo_(std::move(prewhereInfo))
         , Header_(CreateBlockInputStream(
             StorageContext_,
             SubquerySpec_,
-            ColumnNames_,
+            realColumns,
+            virtualColumns,
             TraceContext_,
-            {},
+            /* dataSliceDescriptors */ {},
             PrewhereInfo_)->getHeader())
         , DataSliceDescriptors_(std::move(dataSliceDescriptors))
         , Logger(QueryContext_->Logger)
@@ -132,6 +149,7 @@ public:
         DataSliceDescriptors_ = NDetail::FilterDataSliceDescriptorsByPrewhereInfo(
             std::move(DataSliceDescriptors_),
             PrewhereInfo_,
+            VirtualColumnNames_,
             StorageContext_,
             SubquerySpec_,
             TraceContext_);
@@ -146,7 +164,8 @@ public:
         BlockInputStream_ = CreateBlockInputStream(
             StorageContext_,
             SubquerySpec_,
-            ColumnNames_,
+            RealColumnNames_,
+            VirtualColumnNames_,
             TraceContext_,
             DataSliceDescriptors_,
             PrewhereInfo_);
@@ -162,7 +181,8 @@ private:
     TStorageContext* StorageContext_;
     TQueryContext* QueryContext_;
     const TSubquerySpec SubquerySpec_;
-    const DB::Names ColumnNames_;
+    const std::vector<TString> RealColumnNames_;
+    const std::vector<TString> VirtualColumnNames_;
     NTracing::TTraceContextPtr TraceContext_;
     DB::PrewhereInfoPtr PrewhereInfo_;
     DB::Block Header_;
@@ -183,7 +203,8 @@ private:
 DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
-    const DB::Names& columnNames,
+    const std::vector<TString>& realColumns,
+    const std::vector<TString>& virtualColumns,
     const NTracing::TTraceContextPtr& traceContext,
     std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo)
@@ -191,7 +212,8 @@ DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
     return std::make_shared<TPrewhereBlockInputStream>(
         storageContext,
         subquerySpec,
-        columnNames,
+        realColumns,
+        virtualColumns,
         traceContext,
         prewhereInfo,
         dataSliceDescriptors);

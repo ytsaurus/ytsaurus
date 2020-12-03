@@ -17,7 +17,8 @@ namespace NYT::NClickHouseServer {
 DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
-    const DB::Names& columnNames,
+    const std::vector<TString>& realColumns,
+    const std::vector<TString>& virtualColumns,
     const NTracing::TTraceContextPtr& traceContext,
     std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo);

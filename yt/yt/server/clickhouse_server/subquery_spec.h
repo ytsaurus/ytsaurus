@@ -25,6 +25,7 @@ public:
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> DataSliceDescriptors;
     TQueryId InitialQueryId;
     TString InitialQuery;
+    // Does not include virtual columns.
     NTableClient::TTableSchemaPtr ReadSchema;
     int SubqueryIndex;
     int TableIndex;

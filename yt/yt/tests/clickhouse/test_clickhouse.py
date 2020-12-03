@@ -1734,6 +1734,143 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {"key": 2, "min(value)": 1, "max(value)": 5},
             ]
 
+    @authors("dakovalkov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_virtual_columns(self, optimize_for):
+        for i in range(4):
+            table_path = "//tmp/t{}".format(i)
+            create(
+                "table",
+                table_path,
+                attributes={
+                    "schema": [
+                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    ],
+                    "optimize_for": optimize_for,
+                },
+            )
+            write_table(
+                table_path, [{"key": i}]
+            )
+
+        with Clique(1) as clique:
+            # Virtual columns are not visible via 'select *' and 'describe'.
+            assert clique.make_query("select * from `//tmp/t0`") == [{"key": 0}]
+            query = "select * from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3')"
+            assert sorted(clique.make_query(query)) == [{"key": index} for index in range(4)]
+            assert len(clique.make_query("describe `//tmp/t0`")) == 1
+            assert len(clique.make_query("describe concatYtTables('//tmp/t0', '//tmp/t1')")) == 1
+
+            def get_table_virtual_values(index):
+                return {
+                    "$table_index": index,
+                    "$table_path": "//tmp/t{}".format(index),
+                    "$table_key": "t{}".format(index),
+                }
+
+            def get_table_content(index):
+                result = get_table_virtual_values(index)
+                result["key"] = index
+                return result
+
+            query = "select *, $table_index, $table_path, $table_key from `//tmp/t0`"
+            assert clique.make_query(query) == [get_table_content(0)]
+            query = '''
+                select *, $table_index, $table_path, $table_key
+                from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3')
+            '''
+            assert sorted(clique.make_query(query)) == [get_table_content(index) for index in range(4)]
+
+            # Select only virtual values.
+            query = '''
+                select $table_index, $table_path, $table_key
+                from concatYtTables('//tmp/t0', '//tmp/t1', '//tmp/t2', '//tmp/t3')
+            '''
+            assert sorted(clique.make_query(query)) == [get_table_virtual_values(index) for index in range(4)]
+
+            # Join on virtual column.
+            # TODO(dakovalkov): this does not work.
+            # query = '''
+            #     select * from concatYtTables("//tmp/t0", "//tmp/t1") as a
+            #     global join "//tmp/t2" as b
+            #     using $table_index
+            # '''
+            # assert sorted(clique.make_query(query)) == [
+            #     {"key": 0, "b.key": 2},
+            # ]
+
+            query = '''
+                select * from concatYtTables("//tmp/t0", "//tmp/t1") as a
+                global join (select *, $table_index from concatYtTables("//tmp/t2", "//tmp/t3")) as b
+                using $table_index
+            '''
+            assert sorted(clique.make_query(query)) == [
+                {"key": 0, "b.key": 2},
+                {"key": 1, "b.key": 3},
+            ]
+
+            # TODO(dakovalkov): This should not work since virtual columns are not key columns,
+            # but the error is strange.
+            # query = '''
+            #     select * from concatYtTables("//tmp/t0", "//tmp/t1") as a
+            #     join concatYtTables("//tmp/t2", "//tmp/t3") as b
+            #     using $table_index
+            # '''
+            # assert sorted(clique.make_query(query)) == [
+            #     {"key": 0, "b.key": 2},
+            #     {"key": 1, "b.key": 3},
+            # ]
+
+    @authors("dakovalkov")
+    @pytest.mark.skipif(True, reason="Virtual columns are not supported in dynamic tables (CHYT-506)")
+    def test_virtual_columns_in_dynamic_tables(self):
+        for i in range(2):
+            table_path = "//tmp/dt{}".format(i)
+            create(
+                "table",
+                table_path,
+                attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "key", "type": "int64", "sort_order": "ascending"},
+                        {"name": "value", "type": "int64"},
+                    ],
+                    "enable_dynamic_store_read": True,
+                },
+            )
+            sync_mount_table(table_path)
+            insert_rows(table_path, [{"key": i, "value": i + 10}])
+
+        with Clique(1, config_patch={"yt": {"enable_dynamic_tables": True}}) as clique:
+            def get_table_virtual_values(index):
+                return {
+                    "$table_index": index,
+                    "$table_path": "//tmp/dt{}".format(index),
+                    "$table_key": "dt{}".format(index),
+                }
+
+            def get_table_content(index):
+                result = get_table_virtual_values(index)
+                result["key"] = index
+                result["value"] = index + 10
+                return result
+
+            assert clique.make_query("select * from `//tmp/dt0`") == [{"key": 0, "value": 10}]
+            
+            query = "select *, $table_index, $table_path, $table_key from `//tmp/dt0`"
+            assert clique.make_query(query) == [get_table_content(0)]
+
+            query = '''
+                select *, $table_index, $table_path, $table_key
+                from concatYtTables("//tmp/dt0", "//tmp/dt1")
+            '''
+            assert sorted(clique.make_query(query)) == [get_table_content(index) for index in range(2)]
+
+            query = '''
+                select $table_index, $table_path, $table_key
+                from concatYtTables("//tmp/dt0", "//tmp/dt1")
+            '''
+            assert sorted(clique.make_query(query)) == [get_table_virtual_values(index) for index in range(2)]
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):

@@ -29,7 +29,7 @@ public:
 public:
     TBlockInputStream(
         NTableClient::ISchemalessMultiChunkReaderPtr reader,
-        NTableClient::TTableSchemaPtr readSchema,
+        NTableClient::TTableSchemaPtr readSchemaWithVirtualColumns,
         NTracing::TTraceContextPtr traceContext,
         THost* host,
         TQuerySettingsPtr settings,
@@ -43,7 +43,7 @@ public:
     virtual void readSuffixImpl() override;
 
 private:
-    const NTableClient::TTableSchemaPtr ReadSchema_;
+    const NTableClient::TTableSchemaPtr ReadSchemaWithVirtualColumns_;
     NTracing::TTraceContextPtr TraceContext_;
     THost* const Host_;
     const TQuerySettingsPtr Settings_;
@@ -81,7 +81,8 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
-    const DB::Names& columnNames,
+    const std::vector<TString>& realColumns,
+    const std::vector<TString>& virtualColumns,
     const NTracing::TTraceContextPtr& traceContext,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo);
