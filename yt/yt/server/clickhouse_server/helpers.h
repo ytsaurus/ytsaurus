@@ -29,6 +29,28 @@ void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString use
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// These functions help to convert YT key bounds to CH key bounds.
+
+// CH doesn't have EValueType::Min, so we replace it with the minimum possible value.
+//! Retruns the minimum possible value for given dataType.
+//! If the minimum value is unrepresentable, std::nullopt is returned.
+//! Throws an error if dataType is unexpected for YT-tables.
+std::optional<DB::Field> TryGetMinimumTypeValue(const DB::DataTypePtr& dataType);
+
+// Same as above, but replaces EValueType::Max.
+//! Retruns the maximum possible value for given dataType.
+//! If the maximum value is unrepresentable, std::nullopt is returned (e.g. for string).
+//! Throws an error if dataType is unexpected for YT-tables.
+std::optional<DB::Field> TryGetMaximumTypeValue(const DB::DataTypePtr& dataType);
+
+//! It helps to convert an exclusive right bound to inclusive in simple cases (e.g. [x, y) to [x, y - 1]).
+//! It's guaranteed that there are no values greater than returned one and less than provided one.
+//! Returns std::nullopt if the decremented value is unrepresentable or unsupported yet (e.g. field=0 and dataType=UInt64).
+//! Throws an error if dataType is unexpected for YT-tables.
+std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB::DataTypePtr& dataType);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DB::Field ConvertToField(const NTableClient::TUnversionedValue& value);
 
 // TODO(dakovalkov): Working with elements as DB::Field is inefficient. It copies complex values (strings/arrays, etc.).

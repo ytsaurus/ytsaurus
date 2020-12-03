@@ -66,6 +66,7 @@
 
 #include <Storages/MergeTree/KeyCondition.h>
 #include <DataTypes/IDataType.h>
+#include <DataTypes/DataTypeNullable.h>
 
 #include <cmath>
 
@@ -548,78 +549,132 @@ private:
             return BoolMask(true, true);
         }
 
+        const auto& keyColumnDataTypes = KeyColumnDataTypes_[operandIndex];
+
         auto keyColumnCount = TableSchemas_[operandIndex]->GetKeyColumnCount();
         DB::FieldRef minKey[keyColumnCount];
         DB::FieldRef maxKey[keyColumnCount];
 
-        // TODO(max42): Refactor!
-        {
-            int index = 0;
-            for ( ; index < std::min<int>(lowerKey.GetCount(), keyColumnCount); ++index) {
-                if (lowerKey[index].Type != EValueType::Max && lowerKey[index].Type != EValueType::Min && lowerKey[index].Type != EValueType::Null) {
-                    minKey[index] = ConvertToField(lowerKey[index]);
-                } else {
-                    // Fill the rest with nulls.
-                    break;
-                }
-            }
-            for (; index < keyColumnCount; ++index) {
-                minKey[index] = ConvertToField(MakeUnversionedNullValue());
-            }
-        }
+        // Tries to convert TLegacyKey to ClickHouse FieldRef[].
+        // Returns how many columns were succeffully converted and can be used in checkInRange.
+        auto convertToClickHouseKey = [&] (DB::FieldRef* chKey, const TLegacyKey& ytKey, bool isUpperKey) {
+            bool sentinelFound = false;
+            bool firstSentinelIsMax = false;
+            int lastNonSentinelIndex = -1;
 
-        bool isMax = upperKey.GetCount() >= 1 && upperKey[0].Type == EValueType::Max;
-        {
-            if (!isMax) {
-                int index = 0;
-                for (; index < std::min<int>(upperKey.GetCount(), keyColumnCount); ++index) {
-                    if (upperKey[index].Type == EValueType::Max) {
-                        // We can not do anything better than this CH has no meaning of "infinite" value.
-                        // Pretend like this is a half-open ray.
-                        isMax = true;
-                        break;
-                    } else if (upperKey[index].Type == EValueType::Min || upperKey[index].Type == EValueType::Null) {
-                        // Fill the rest with nulls.
-                        break;
+            for (int index = 0; index < keyColumnCount; ++index) {
+                bool inferFailed = false;
+                auto tryInferKeyColumnValue = [&] (auto inferFunc) {
+                    // XXX(dakovalkov): ClickHouse does not support nullable columns as key columns yet,
+                    // so remove nullable for now.
+                    if (auto value = inferFunc(DB::removeNullable(keyColumnDataTypes[index]))) {
+                        chKey[index] = *value;
                     } else {
-                        maxKey[index] = ConvertToField(upperKey[index]);
+                        inferFailed = true;
                     }
+                };
+
+                if (sentinelFound ||
+                    index >= ytKey.GetCount() ||
+                    ytKey[index].Type == EValueType::Min ||
+                    ytKey[index].Type == EValueType::Null)
+                {
+                    tryInferKeyColumnValue(TryGetMinimumTypeValue);
+                    sentinelFound = true;
+                } else if (ytKey[index].Type == EValueType::Max) {
+                    tryInferKeyColumnValue(TryGetMaximumTypeValue);
+                    sentinelFound = true;
+                    firstSentinelIsMax = true;
+                } else {
+                    chKey[index] = ConvertToField(ytKey[index]);
+                    lastNonSentinelIndex = index;
                 }
-                if (!isMax) {
-                    for (; index < keyColumnCount; ++index) {
-                        maxKey[index] = ConvertToField(MakeUnversionedNullValue());
+
+                if (inferFailed) {
+                    return index;
+                }
+            }
+
+            // Trying to convert the exclusive upper bound to inclusive.
+            if (isUpperKey) {
+                bool isExclusive = !firstSentinelIsMax &&
+                    (sentinelFound || ytKey.GetCount() == keyColumnCount) &&
+                    lastNonSentinelIndex >= 0;
+
+                if (isExclusive) {
+                    std::vector<std::optional<DB::Field>> inclusiveSuffix;
+                    inclusiveSuffix.reserve(keyColumnCount);
+                    
+                    // XXX(dakovalkov): Remove nullable again because CH does not support it.
+                    auto getType = [&] (int index) {
+                        return DB::removeNullable(keyColumnDataTypes[index]);
+                    };
+
+                    // We try to decrement last non-sentinel value and convert all min-values after it to max-values.
+                    // A, B, X, MIN, MIN -> A, B, (X - 1), MAX, MAX
+
+                    bool failed = false;
+                    failed |= !inclusiveSuffix.emplace_back(
+                        TryDecrementFieldValue(
+                            chKey[lastNonSentinelIndex],
+                            getType(lastNonSentinelIndex)));
+
+                    for (int index = lastNonSentinelIndex + 1; !failed && index < keyColumnCount; ++index) {
+                        failed |= !inclusiveSuffix.emplace_back(TryGetMaximumTypeValue(getType(index)));
+                    }
+                    
+                    if (!failed) {
+                        for (int index = lastNonSentinelIndex; index < keyColumnCount; ++index) {
+                            chKey[index] = *inclusiveSuffix[index - lastNonSentinelIndex];
+                        }
                     }
                 }
             }
-        }
+            return keyColumnCount;
+        };
 
-        auto toFormattable = [&] (DB::FieldRef* fields) {
+        int lowerKeyUsedColumnCount = convertToClickHouseKey(minKey, lowerKey, false);
+        int upperKeyUsedColumnCount = convertToClickHouseKey(maxKey, upperKey, true);
+        
+        int usedKeyColumnCount = std::min(lowerKeyUsedColumnCount, upperKeyUsedColumnCount);
+
+        auto toFormattable = [&] (DB::FieldRef* fields, int keyColumUsed) {
             return MakeFormattableView(
-                MakeRange(fields, fields + keyColumnCount),
+                MakeRange(fields, fields + keyColumUsed),
                 [&] (auto* builder, DB::FieldRef field) { builder->AppendString(TString(field.dump())); });
         };
 
-        // We do not have any Max-equivalent in ClickHouse, but luckily again we have mayBeTrueAfter method which allows
-        // us checking key condition on half-open ray.
-        BoolMask result;
-        if (!isMax) {
+        YT_LOG_TRACE("Chunk keys were successfully converted to CH keys (LowerKey: %v, UpperKey %v, MinKey: %v, MaxKey: %v)",
+            lowerKey,
+            upperKey,
+            toFormattable(minKey, lowerKeyUsedColumnCount),
+            toFormattable(maxKey, upperKeyUsedColumnCount));
+
+        BoolMask result(true, true);
+
+        if (result.can_be_true && usedKeyColumnCount > 0) {
             YT_LOG_TRACE(
                 "Checking if predicate can be true in range (Scale: %v, KeyColumnCount: %v, MinKey: %v, MaxKey: %v)",
                 scale,
-                keyColumnCount,
-                toFormattable(minKey),
-                toFormattable(maxKey));
+                usedKeyColumnCount,
+                toFormattable(minKey, lowerKeyUsedColumnCount),
+                toFormattable(maxKey, upperKeyUsedColumnCount));
             result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueInRange(
                 keyColumnCount,
                 minKey,
                 maxKey,
                 KeyColumnDataTypes_[operandIndex]), false);
-        } else {
+        }
+
+        // If KeyCondition can be true in range [minKey, maxKey], we can try to check it on half-open ray [minKey, +Inf).
+        // It can be better because 'mayBeTrueInRange' requires that minKey and maxKey have the same length,
+        // so we can make the range a little bit wider by cutting some subkeys from minKey on previous check.
+        if (result.can_be_true && lowerKeyUsedColumnCount > upperKeyUsedColumnCount) {
             YT_LOG_TRACE(
                 "Checking if predicate can be true in half-open ray (Scale: %v, KeyColumnCount: %v, MinKey: %v)",
                 scale,
-                keyColumnCount,
-                toFormattable(minKey));
+                lowerKeyUsedColumnCount,
+                toFormattable(minKey, lowerKeyUsedColumnCount));
             result = BoolMask(KeyConditions_[operandIndex]->mayBeTrueAfter(
                 keyColumnCount,
                 minKey,
