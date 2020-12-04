@@ -1134,8 +1134,17 @@ private:
             statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
         }
 
-        TmpfsManager_->DumpTmpfsStatistics(&statistics, "/user_job");
-        MemoryTracker_->DumpMemoryUsageStatistics(&statistics, "/user_job");
+        try {
+            TmpfsManager_->DumpTmpfsStatistics(&statistics, "/user_job");
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to dump user job tmpfs statistics");
+        }
+
+        try {
+            MemoryTracker_->DumpMemoryUsageStatistics(&statistics, "/user_job");
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to dump user job memory usage statistics");
+        }
 
         YT_VERIFY(UserJobSpec_.memory_limit() > 0);
         statistics.AddSample("/user_job/memory_limit", UserJobSpec_.memory_limit());
@@ -1371,7 +1380,14 @@ private:
 
     void CheckMemoryUsage()
     {
-        auto memoryUsage = MemoryTracker_->GetMemoryUsage();
+        i64 memoryUsage;
+        try {
+            memoryUsage = MemoryTracker_->GetMemoryUsage();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get user job memory usage");
+            return;
+        }
+
         auto memoryLimit = UserJobSpec_.memory_limit();
         YT_LOG_DEBUG("Checking memory usage (MemoryUsage: %v, MemoryLimit: %v)",
             memoryUsage,
