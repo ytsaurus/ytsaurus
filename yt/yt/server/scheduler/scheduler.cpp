@@ -1676,6 +1676,35 @@ public:
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
     }
 
+    virtual TString FormatHeartbeatResourceUsage(
+        const TJobResources& usage,
+        const TJobResources& limits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
+    {
+        THashMap<int, std::vector<i64>> mediumIndexToFreeResources;
+        for (const auto& locationResources : diskResources.disk_location_resources()) {
+            int mediumIndex = locationResources.medium_index();
+            mediumIndexToFreeResources[mediumIndex].push_back(locationResources.limit() - locationResources.usage());
+        }
+
+        auto mediumDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
+
+        return Format("{%v, FreeDiskResources: %v}",
+            NScheduler::FormatResourceUsage(usage, limits),
+            MakeFormattableView(mediumIndexToFreeResources, [&mediumDirectory] (TStringBuilderBase* builder, const std::pair<int, std::vector<i64>>& pair) {
+                int mediumIndex = pair.first;
+                const auto& freeDiskSpace = pair.second;
+                auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+                TStringBuf mediumName = mediumDescriptor
+                    ? mediumDescriptor->Name
+                    : AsStringBuf("unknown");
+                builder->AppendFormat("%v: %v", mediumName, freeDiskSpace);
+            }));
+    }
+
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) override
     {
         MasterConnector_->InvokeStoringStrategyState(std::move(strategyState));
