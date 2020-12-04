@@ -207,7 +207,7 @@ void TBootstrap::Initialize()
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
-       
+
         .ThrowOnError();
 }
 void TBootstrap::Run()
@@ -1337,6 +1337,11 @@ void TBootstrap::OnMasterDisconnected()
 void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newConfig)
 {
     DynamicConfig_ = newConfig;
+
+    // Reconfigure YTAlloc (unless configured from env).
+    if (!NYTAlloc::IsConfiguredFromEnv() && newConfig->YTAlloc) {
+        NYTAlloc::Configure(newConfig->YTAlloc);
+    }
 
     // Update tablet slot count.
     {

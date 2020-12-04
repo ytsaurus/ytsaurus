@@ -25,6 +25,8 @@
 
 #include <yt/core/concurrency/config.h>
 
+#include <yt/core/ytalloc/config.h>
+
 namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,6 +411,9 @@ public:
     //! Dynamic config annotation.
     TString ConfigAnnotation;
 
+    //! YTAlloc configuration.
+    NYTAlloc::TYTAllocConfigPtr YTAlloc;
+
     //! Node resource limits.
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -418,6 +423,9 @@ public:
     TClusterNodeDynamicConfig()
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
+            .Optional();
+
+        RegisterParameter("yt_alloc", YTAlloc)
             .Optional();
 
         RegisterParameter("resource_limits", ResourceLimits)

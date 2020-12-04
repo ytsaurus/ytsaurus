@@ -198,7 +198,12 @@ void EnableYTProfiling()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Configure(const TYTAllocConfigPtr& config)
+
+namespace {
+
+std::atomic<bool> ConfiguredFromEnv_;
+
+void DoConfigure(const TYTAllocConfigPtr& config, bool fromEnv)
 {
     if (config->SmallArenasToProfile) {
         for (size_t rank = 1; rank < SmallRankCount; ++rank) {
@@ -229,46 +234,55 @@ void Configure(const TYTAllocConfigPtr& config)
     if (config->EnableAllocationProfiling) {
         SetAllocationProfilingEnabled(*config->EnableAllocationProfiling);
     }
-    
+
     if (config->AllocationProfilingSamplingRate) {
         SetAllocationProfilingSamplingRate(*config->AllocationProfilingSamplingRate);
     }
-    
+
     if (config->ProfilingBacktraceDepth) {
         SetProfilingBacktraceDepth(*config->ProfilingBacktraceDepth);
     }
-    
+
     if (config->MinProfilingBytesUsedToReport) {
         SetMinProfilingBytesUsedToReport(*config->MinProfilingBytesUsedToReport);
     }
-    
+
     if (config->StockpileInterval) {
         SetStockpileInterval(*config->StockpileInterval);
     }
-    
+
     if (config->StockpileThreadCount) {
         SetStockpileThreadCount(*config->StockpileThreadCount);
     }
-    
+
     if (config->StockpileSize) {
         SetStockpileSize(*config->StockpileSize);
     }
-    
+
     if (config->EnableEagerMemoryRelease) {
         SetEnableEagerMemoryRelease(*config->EnableEagerMemoryRelease);
     }
-    
+
     if (config->LargeUnreclaimableCoeff) {
         SetLargeUnreclaimableCoeff(*config->LargeUnreclaimableCoeff);
     }
-    
+
     if (config->MinLargeUnreclaimableBytes) {
         SetMinLargeUnreclaimableBytes(*config->MinLargeUnreclaimableBytes);
     }
-    
+
     if (config->MaxLargeUnreclaimableBytes) {
         SetMaxLargeUnreclaimableBytes(*config->MaxLargeUnreclaimableBytes);
     }
+
+    ConfiguredFromEnv_.store(fromEnv);
+}
+
+} // namespace
+
+void Configure(const TYTAllocConfigPtr& config)
+{
+    DoConfigure(config, false);
 }
 
 bool ConfigureFromEnv()
@@ -296,13 +310,18 @@ bool ConfigureFromEnv()
         ConfigEnvVarName);
 
     try {
-        Configure(config);
+        DoConfigure(config, true);
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Error applying configuration parsed from environment variable");
         return false;
     }
 
     return true;
+}
+
+bool IsConfiguredFromEnv()
+{
+    return ConfiguredFromEnv_.load();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
