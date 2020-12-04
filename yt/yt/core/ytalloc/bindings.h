@@ -24,6 +24,10 @@ void Configure(const TYTAllocConfigPtr& config);
 // |false| otherwise (the variable did not exist or could not be parsed).
 bool ConfigureFromEnv();
 
+//! Returns |true| if the current configuration is set by a successful
+//! call to #ConfigureFromEnv.
+bool IsConfiguredFromEnv();
+
 // Builds a string containing some brief allocation statistics.
 TString FormatAllocationCounters();
 
