@@ -1,16 +1,19 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import java.util.Optional;
-
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-public class ReshardTable extends TableReq<ReshardTable> {
-    private Optional<Integer> tabletCount = Optional.empty();
-    private TableSchema schema;
+public class ReshardTable
+        extends TableReq<ReshardTable>
+        implements HighLevelRequest<TReqReshardTable.Builder>
+{
+    private @Nullable Integer tabletCount;
+    private @Nullable TableSchema schema;
 
     public ReshardTable(String path) {
         super(path);
@@ -22,17 +25,31 @@ public class ReshardTable extends TableReq<ReshardTable> {
     }
 
     public ReshardTable setTabletCount(int tabletCount) {
-        this.tabletCount = Optional.of(tabletCount);
+        this.tabletCount = tabletCount;
         return this;
     }
 
-    public TReqReshardTable.Builder writeTo(TReqReshardTable.Builder builder) {
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqReshardTable.Builder, ?> requestBuilder) {
+        TReqReshardTable.Builder builder = requestBuilder.body();
         super.writeTo(builder);
         if (schema != null) {
             builder.setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(schema));
         }
-        tabletCount.ifPresent(x -> builder.setTabletCount(x));
-        return builder;
+        if (tabletCount != null) {
+            builder.setTabletCount(tabletCount);
+        }
+    }
+
+    @Override
+    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+        super.writeArgumentsLogString(sb);
+        if (schema != null) {
+            sb.append("Schema: ").append(schema.toString()).append("; ");
+        }
+        if (tabletCount != null) {
+            sb.append("TabletCount: ").append(tabletCount).append("; ");
+        }
     }
 
     @Nonnull
