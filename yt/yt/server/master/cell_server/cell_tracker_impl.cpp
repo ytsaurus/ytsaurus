@@ -452,6 +452,13 @@ TError TCellTrackerImpl::IsFailed(
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
 
+    if (!peer.Node && peer.LastSeenTime + timeout < TInstant::Now()) {
+        return TError(
+            NCellServer::EErrorCode::CellDidNotAppearWithinTimeout,
+            "Node %v did not report appearance of cell within timeout",
+            peer.Descriptor.GetDefaultAddress());
+    }
+
     if (node) {
         if (node->GetBanned()) {
             return TError(
@@ -483,18 +490,7 @@ TError TCellTrackerImpl::IsFailed(
         }
     }
 
-    if (peer.LastSeenTime + timeout > TInstant::Now()) {
-        return TError();
-    }
-
-    if (peer.Node) {
-        return TError();
-    }
-
-    return TError(
-        NCellServer::EErrorCode::CellDidNotAppearWithinTimeout,
-        "Node %v did not report appearance of cell within timeout",
-        peer.Descriptor.GetDefaultAddress());
+    return TError();
 }
 
 bool TCellTrackerImpl::IsDecommissioned(
