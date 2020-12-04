@@ -81,7 +81,7 @@ protected:
         bool exportSnapshot = parseResult.Has("export-snapshot");
 
         ConfigureUids();
-        ConfigureSignals();
+        ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();

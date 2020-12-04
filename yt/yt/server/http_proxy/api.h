@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "yt/server/http_proxy/private.h"
+#include "private.h"
 
 #include <yt/client/driver/driver.h>
 

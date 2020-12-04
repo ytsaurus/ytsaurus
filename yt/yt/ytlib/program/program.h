@@ -74,8 +74,7 @@ TGuid CheckGuidArgMapper(const TString& arg);
 //! Drop privileges and save them if running with suid-bit.
 void ConfigureUids();
 
-//! Blocks SIGPIPE and masks SIGHUP.
-void ConfigureSignals();
+void ConfigureIgnoreSigpipe();
 
 //! Intercepts standard crash signals (see signal_registry.h for full list) with a nice handler.
 void ConfigureCrashHandler();

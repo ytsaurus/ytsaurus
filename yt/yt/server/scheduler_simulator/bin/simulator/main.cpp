@@ -227,7 +227,7 @@ protected:
 
         // TODO(antonkikh): Which of these are actually needed?
         ConfigureUids();
-        ConfigureSignals();
+        ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();

@@ -51,7 +51,7 @@ protected:
         TThread::SetCurrentThreadName("NodeMain");
 
         ConfigureUids();
-        ConfigureSignals();
+        ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
