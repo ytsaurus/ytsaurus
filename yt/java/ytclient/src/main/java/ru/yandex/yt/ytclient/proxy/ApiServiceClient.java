@@ -88,6 +88,7 @@ import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
+import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -556,7 +557,13 @@ public class ApiServiceClient extends TransactionalClient {
                 response ->
                         response.body().getTabletsList()
                                 .stream()
-                                .map(x -> new TabletInfo(x.getTotalRowCount(), x.getTrimmedRowCount()))
+                                .map(x -> {
+                                    List<TabletInfoReplica> replicas = x.getReplicasList().stream()
+                                            .map(o -> new TabletInfoReplica(o.getLastReplicationTimestamp()))
+                                            .collect(Collectors.toList());
+                                    return new TabletInfo(x.getTotalRowCount(), x.getTrimmedRowCount(),
+                                            x.getLastWriteTimestamp(), replicas);
+                                })
                                 .collect(Collectors.toList()));
     }
 
