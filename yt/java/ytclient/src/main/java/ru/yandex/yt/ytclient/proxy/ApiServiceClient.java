@@ -3,7 +3,6 @@ package ru.yandex.yt.ytclient.proxy;
 import java.io.ByteArrayInputStream;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -79,7 +78,6 @@ import ru.yandex.yt.ytclient.proxy.request.ListNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNode;
 import ru.yandex.yt.ytclient.proxy.request.LockNodeResult;
 import ru.yandex.yt.ytclient.proxy.request.MoveNode;
-import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.PingTransaction;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
@@ -288,14 +286,6 @@ public class ApiServiceClient extends TransactionalClient {
                 ).asList());
     }
 
-    public CompletableFuture<List<YTreeNode>> getTablePivotKeys(String path, @Nullable Duration requestTimeout) {
-        GetTablePivotKeys req = new GetTablePivotKeys(path);
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
-        return getTablePivotKeys(req);
-    }
-
     /**
      * Create new master object.
      * @see CreateObject
@@ -304,19 +294,6 @@ public class ApiServiceClient extends TransactionalClient {
         return RpcUtil.apply(
                 sendRequest(req, service.createObject()),
                 response -> RpcUtil.fromProto(response.body().getObjectId()));
-    }
-
-    public CompletableFuture<GUID> createObject(ObjectType type, Map<String, YTreeNode> attributes) {
-        return createObject(type, attributes, null);
-    }
-
-    public CompletableFuture<GUID> createObject(ObjectType type, Map<String, YTreeNode> attributes, @Nullable Duration requestTimeout) {
-        CreateObject req = new CreateObject(type);
-        req.setAttributes(attributes);
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
-        return createObject(req);
     }
 
     /**
@@ -329,7 +306,6 @@ public class ApiServiceClient extends TransactionalClient {
                 sendRequest(req, service.createNode()),
                 response -> RpcUtil.fromProto(response.body().getNodeId()));
     }
-
 
     /**
      * Remove cypress node
@@ -585,15 +561,8 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<List<TabletInfo>> getTabletInfos(String path, List<Integer> tabletIndices) {
-        return getTabletInfos(path, tabletIndices, null);
-    }
-
-    public CompletableFuture<List<TabletInfo>> getTabletInfos(String path, List<Integer> tabletIndices, @Nullable Duration requestTimeout) {
         GetTabletInfos req = new GetTabletInfos(path);
         req.setTabletIndexes(tabletIndices);
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
         return getTabletInfos(req);
     }
 
@@ -604,23 +573,12 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<YtTimestamp> generateTimestamps(int count) {
-        return generateTimestamps(count, null);
-    }
-
-    public CompletableFuture<YtTimestamp> generateTimestamps(int count, @Nullable Duration requestTimeout) {
         GenerateTimestamps req = new GenerateTimestamps(count);
-        if (requestTimeout != null) {
-            req.setTimeout(requestTimeout);
-        }
         return generateTimestamps(req);
     }
 
     public CompletableFuture<YtTimestamp> generateTimestamps() {
-        return generateTimestamps(1, null);
-    }
-
-    public CompletableFuture<YtTimestamp> generateTimestamps(@Nullable Duration requestTimeout) {
-        return generateTimestamps(1, requestTimeout);
+        return generateTimestamps(1);
     }
 
     /* tables */
