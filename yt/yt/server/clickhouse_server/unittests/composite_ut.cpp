@@ -196,8 +196,8 @@ TEST_F(TTestComposites, TestSimpleTypes)
     testAsType(ysonsInt32, ESimpleLogicalValueType::Int32, std::make_shared<DB::DataTypeNumber<i32>>(), i32(), i32());
     testAsType(ysonsInt64, ESimpleLogicalValueType::Int64, std::make_shared<DB::DataTypeNumber<i64>>(), i64(), i64());
     testAsType(ysonsInt64, ESimpleLogicalValueType::Interval, std::make_shared<DB::DataTypeNumber<i64>>(), i64(), i64());
-    testAsType(ysonsUint8, ESimpleLogicalValueType::Uint8, std::make_shared<DB::DataTypeNumber<ui8>>(), ui8(), ui8());
-    testAsType(ysonsBool, ESimpleLogicalValueType::Boolean, std::make_shared<DB::DataTypeNumber<ui8>>(), bool(), ui8());
+    testAsType(ysonsUint8, ESimpleLogicalValueType::Uint8, std::make_shared<DB::DataTypeNumber<DB::UInt8>>(), DB::UInt8(), DB::UInt8());
+    testAsType(ysonsBool, ESimpleLogicalValueType::Boolean, std::make_shared<DB::DataTypeNumber<DB::UInt8>>(), bool(), DB::UInt8());
     testAsType(ysonsUint16, ESimpleLogicalValueType::Uint16, std::make_shared<DB::DataTypeNumber<ui16>>(), ui16(), ui16());
     testAsType(ysonsUint32, ESimpleLogicalValueType::Uint32, std::make_shared<DB::DataTypeNumber<ui32>>(), ui32(), ui32());
     testAsType(ysonsUint64, ESimpleLogicalValueType::Uint64, std::make_shared<DB::DataTypeNumber<ui64>>(), ui64(), ui64());

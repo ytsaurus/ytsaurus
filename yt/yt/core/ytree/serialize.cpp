@@ -61,6 +61,9 @@ SERIALIZE(long long)
     }
 
 SERIALIZE(unsigned char)
+#ifdef __cpp_char8_t
+SERIALIZE(char8_t)
+#endif
 SERIALIZE(unsigned short)
 SERIALIZE(unsigned)
 SERIALIZE(unsigned long)
@@ -164,6 +167,9 @@ DESERIALIZE(int)
 DESERIALIZE(long)
 DESERIALIZE(long long)
 DESERIALIZE(unsigned char)
+#ifdef __cpp_char8_t
+DESERIALIZE(char8_t)
+#endif
 DESERIALIZE(unsigned short)
 DESERIALIZE(unsigned)
 DESERIALIZE(unsigned long)

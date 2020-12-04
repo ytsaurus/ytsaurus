@@ -55,6 +55,9 @@ void Serialize(const TIntrusivePtr<T>& value, NYson::IYsonConsumer* consumer);
 // integers
 void Serialize(signed char value, NYson::IYsonConsumer* consumer);
 void Serialize(unsigned char value, NYson::IYsonConsumer* consumer);
+#ifdef __cpp_char8_t
+void Serialize(char8_t value, NYson::IYsonConsumer* consumer);
+#endif
 void Serialize(short value, NYson::IYsonConsumer* consumer);
 void Serialize(unsigned short value, NYson::IYsonConsumer* consumer);
 void Serialize(int value, NYson::IYsonConsumer* consumer);
@@ -152,6 +155,9 @@ void Deserialize(std::unique_ptr<T>& value, INodePtr node);
 // integers
 void Deserialize(signed char& value, INodePtr node);
 void Deserialize(unsigned char& value, INodePtr node);
+#ifdef __cpp_char8_t
+void Deserialize(char8_t& value, INodePtr node);
+#endif
 void Deserialize(short& value, INodePtr node);
 void Deserialize(unsigned short& value, INodePtr node);
 void Deserialize(int& value, INodePtr node);
