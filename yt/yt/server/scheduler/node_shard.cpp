@@ -427,7 +427,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, JobCount: %v, Confirmation: {C: %v, U: %v}",
         nodeId,
         descriptor.GetDefaultAddress(),
-        Host_->FormatResourceUsage(
+        Host_->FormatHeartbeatResourceUsage(
             TJobResources(resourceUsage),
             TJobResources(resourceLimits),
             request->disk_resources()
@@ -607,25 +607,23 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
 
         context->SetResponseInfo(
-            "NodeId: %v, NodeAddress: %v, SchedulingSegment: %v, RunningJobStatistics: %v, "
-            "StartedJobs: %v, PreemptedJobs: %v, "
-            "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
-            "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
-            "AggressivelyPreemptiveScheduleJobAttempts: %v, PreemptiveScheduleJobAttempts: %v, "
+            "NodeId: %v, NodeAddress: %v, SchedulingSegment: %v, "
+            "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
+            "PreemptableInfo: {Count: %v, Resources: %v}, "
+            "ScheduleJobAttempts: {NP: %v, P: %v, AP: %v, C: %v}, "
             "HasAggressivelyStarvingElements: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
             node->GetSchedulingSegment(),
-            node->GetRunningJobStatistics(),
             schedulingContext->StartedJobs().size(),
-            schedulingContext->PreemptedJobs().size(),
             statistics.ScheduledDuringPreemption,
+            schedulingContext->PreemptedJobs().size(),
             statistics.PreemptableJobCount,
             FormatResources(statistics.ResourceUsageDiscount),
-            statistics.ControllerScheduleJobCount,
             statistics.NonPreemptiveScheduleJobAttempts,
             statistics.AggressivelyPreemptiveScheduleJobAttempts,
             statistics.PreemptiveScheduleJobAttempts,
+            statistics.ControllerScheduleJobCount,
             statistics.HasAggressivelyStarvingElements);
     } else {
         ProcessScheduledAndPreemptedJobs(
