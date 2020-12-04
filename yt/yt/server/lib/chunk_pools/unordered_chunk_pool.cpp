@@ -634,6 +634,7 @@ private:
                     ? JobSizeAdjuster_->GetDataWeightPerJob()
                     : JobSizeConstraints_->GetDataWeightPerJob();
                 dataWeightPerJob = std::min(dataWeightPerJob, JobSizeConstraints_->GetMaxDataWeightPerJob());
+                dataWeightPerJob = std::max<i64>(dataWeightPerJob, 1);
                 newFreeJobCount = DivCeil(dataWeightLeft, dataWeightPerJob);
             }
 

@@ -1816,6 +1816,28 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             spec={"schema_inference_mode": "from_output"},
         )
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("mode", ["sorted", "ordered", "unordered"])
+    def test_empty_input_with_explicit_job_count(self, mode):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={
+                "schema": [
+                    {"name": "key", "type": "string", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+
+        merge(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            mode=mode,
+            spec={
+                "job_count": 2,
+            })
 
 ##################################################################
 
