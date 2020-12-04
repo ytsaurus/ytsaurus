@@ -2155,19 +2155,17 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             assert tablet_infos.keys() == ["tablets"] and len(tablet_infos["tablets"]) == 1
             tablet_info.update(tablet_infos["tablets"][0])
 
-            return tablet_info["total_row_count"] == 3
+            return tablet_info["total_row_count"] == 3 and \
+                tablet_info["barrier_timestamp"] >= tablet_info["last_write_timestamp"]
 
         wait(lambda: _check())
-
         assert tablet_info["trimmed_row_count"] == 0
-        barrier_timestamp = tablet_info["barrier_timestamp"]
-        assert barrier_timestamp >= tablet_info["last_write_timestamp"]
 
         sync_replica = None
         async_replica = None
         assert len(tablet_info["replica_infos"]) == 2
         for replica in tablet_info["replica_infos"]:
-            assert replica["last_replication_timestamp"] <= barrier_timestamp
+            assert replica["last_replication_timestamp"] <= tablet_info["barrier_timestamp"]
             if replica["mode"] == "sync":
                 sync_replica = replica
             elif replica["mode"] == "async":
