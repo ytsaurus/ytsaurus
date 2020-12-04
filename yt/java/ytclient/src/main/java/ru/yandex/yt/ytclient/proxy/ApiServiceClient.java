@@ -36,8 +36,6 @@ import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
-import ru.yandex.yt.rpcproxy.TReqReshardTable;
-import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.rpcproxy.TReqTrimTable;
@@ -48,8 +46,6 @@ import ru.yandex.yt.rpcproxy.TRspCheckPermission;
 import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
-import ru.yandex.yt.rpcproxy.TRspReshardTable;
-import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
 import ru.yandex.yt.rpcproxy.TRspStartOperation;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
@@ -629,28 +625,9 @@ public class ApiServiceClient extends TransactionalClient {
 
     /* tables */
     public CompletableFuture<Void> reshardTable(ReshardTable req) {
-        RpcClientRequestBuilder<TReqReshardTable.Builder, RpcClientResponse<TRspReshardTable>> builder =
-                service.reshardTable();
-
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
-        req.writeTo(builder.body());
-
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<List<GUID>> reshardTableAutomatic(ReshardTable req) {
-        RpcClientRequestBuilder<TReqReshardTableAutomatic.Builder, RpcClientResponse<TRspReshardTableAutomatic>>
-                builder = service.reshardTableAutomatic();
-
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
-        req.writeTo(builder.body());
-
-        return RpcUtil.apply(invoke(builder), response ->
-                response.body().getTabletActionsList().stream().map(RpcUtil::fromProto).collect(Collectors.toList())
+        return RpcUtil.apply(
+                sendRequest(req, service.reshardTable()),
+                response -> null
         );
     }
 
