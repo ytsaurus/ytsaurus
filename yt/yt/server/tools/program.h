@@ -56,7 +56,7 @@ protected:
         TThread::SetCurrentThreadName("Tool");
 
         ConfigureUids();
-        ConfigureSignals();
+        ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         try {
             if (!ToolName_.empty()) {

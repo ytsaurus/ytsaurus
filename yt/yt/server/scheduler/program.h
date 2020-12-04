@@ -40,7 +40,7 @@ protected:
         TThread::SetCurrentThreadName("Main");
 
         ConfigureUids();
-        ConfigureSignals();
+        ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();

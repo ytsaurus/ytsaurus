@@ -58,7 +58,7 @@ protected:
         TThread::SetCurrentThreadName("JobProxyMain");
 
         ConfigureUids();
-        ConfigureSignals();
+        ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         CloseAllDescriptors();
         NYTAlloc::EnableYTLogging();

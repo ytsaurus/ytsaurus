@@ -198,13 +198,9 @@ void ConfigureUids()
 #endif
 }
 
-void ConfigureSignals()
+void ConfigureIgnoreSigpipe()
 {
 #ifdef _unix_
-    sigset_t sigset;
-    SigEmptySet(&sigset);
-    SigAddSet(&sigset, SIGHUP);
-    SigProcMask(SIG_BLOCK, &sigset, nullptr);
     signal(SIGPIPE, SIG_IGN);
 #endif
 }

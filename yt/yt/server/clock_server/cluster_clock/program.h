@@ -56,7 +56,7 @@ protected:
         bool validateSnapshot = parseResult.Has("validate-snapshot");
 
         ConfigureUids();
-        ConfigureSignals();
+        ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();

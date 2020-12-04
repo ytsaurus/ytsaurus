@@ -39,7 +39,7 @@ protected:
         TThread::SetCurrentThreadName("ProxyMain");
 
         ConfigureUids();
-        ConfigureSignals();
+        ConfigureIgnoreSigpipe();
         ConfigureCrashHandler();
         EnablePhdrCache();
         ConfigureExitZeroOnSigterm();

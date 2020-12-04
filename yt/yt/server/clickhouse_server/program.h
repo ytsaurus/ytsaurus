@@ -84,7 +84,7 @@ private:
         TThread::SetCurrentThreadName("Main");
 
         ConfigureUids();
-        ConfigureSignals();
+        ConfigureIgnoreSigpipe();
         // NB: ConfigureCrashHandler() is not called intentionally; crash handlers is set up in bootstrap.
         ConfigureExitZeroOnSigterm();
         EnableRefCountedTrackerProfiling();
