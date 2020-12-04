@@ -250,6 +250,11 @@ public:
             }
         }
         if (!errors.empty()) {
+            constexpr int MaxInnerErrorCount = 10;
+            if (errors.size() > MaxInnerErrorCount) {
+                errors.resize(MaxInnerErrorCount);
+            }
+
             THROW_ERROR_EXCEPTION("Error validating permissions for user %Qv", user) << errors;
         }
     }
