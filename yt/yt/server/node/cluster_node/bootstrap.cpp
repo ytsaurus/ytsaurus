@@ -124,6 +124,7 @@
 #include <yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/spinlock.h>
 
 #include <yt/core/net/address.h>
 
@@ -1337,6 +1338,10 @@ void TBootstrap::OnMasterDisconnected()
 void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newConfig)
 {
     DynamicConfig_ = newConfig;
+
+    // Reconfigure spinlock profiling.
+    NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(
+        newConfig->SpinlockHiccupThreshold.value_or(Config_->SpinlockHiccupThreshold)));
 
     // Reconfigure YTAlloc (unless configured from env).
     if (!NYTAlloc::IsConfiguredFromEnv() && newConfig->YTAlloc) {
