@@ -44,7 +44,7 @@ public:
         RegisterParameter("spinlock_hiccup_threshold", SpinlockHiccupThreshold)
             .Default(TDuration::MicroSeconds(100));
         RegisterParameter("yt_alloc", YTAlloc)
-            .Default();
+            .DefaultNew();
         RegisterParameter("fiber_stack_pool_sizes", FiberStackPoolSizes)
             .Default({});
         RegisterParameter("address_resolver", AddressResolver)

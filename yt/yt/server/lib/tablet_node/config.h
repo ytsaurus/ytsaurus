@@ -727,10 +727,10 @@ public:
 
         RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
             .InRange(0.0, 1.0)
-            .Default(0.8);
+            .Optional();
 
         RegisterParameter("enable_forced_rotation_backing_memory_accounting", EnableForcedRotationBackingMemoryAccounting)
-            .Default(true);
+            .Optional();
 
         RegisterParameter("tablet_manager", TabletManager)
             .DefaultNew();
