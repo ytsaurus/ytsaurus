@@ -1,10 +1,13 @@
 from __future__ import print_function
 
 from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
-from yt.packages.six.moves import map as imap, xrange
+from yt.packages.six.moves import xrange
 
-from yt.test_helpers import wait, get_tests_sandbox as get_tests_sandbox_impl, get_tmpfs_path
+from yt.test_helpers import wait
 from yt.test_helpers.job_events import JobEvents
+
+from yt.testlib import (yatest_common, get_tests_location, get_tests_sandbox, TEST_DIR, 
+                        authors, check, set_config_option, set_config_options)
 
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
@@ -12,11 +15,6 @@ import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.wrapper.errors import YtRetriableError
 import yt.wrapper as yt
-
-try:
-    import yatest.common as yatest_common
-except ImportError:
-    yatest_common = None
 
 import collections
 import glob
@@ -30,24 +28,6 @@ import tempfile
 import threading
 from contextlib import contextmanager
 from copy import deepcopy
-
-TEST_DIR = "//home/wrapper_tests"
-
-TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
-PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
-TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
-
-def get_tests_location():
-    if yatest_common is not None:
-        return yatest_common.source_path("yt/python/yt/wrapper/tests")
-    else:
-        return TESTS_LOCATION
-
-def get_tests_sandbox():
-    return get_tests_sandbox_impl(TESTS_SANDBOX)
-
-def get_test_files_dir_path():
-    return os.path.join(get_tests_location(), "files")
 
 def get_test_file_path(name, use_files=True):
     if yatest_common is not None:
@@ -83,12 +63,6 @@ def get_binary_path(name):
     else:
         return os.path.join(get_tests_location(), "../bin", name)
 
-def get_port_locks_path():
-    path = get_tmpfs_path()
-    if path is None:
-        path = get_tests_sandbox()
-    return os.path.join(path, "ports")
-
 def get_python():
     if yatest_common is None:
         return sys.executable
@@ -97,51 +71,6 @@ def get_python():
             return arcadia_interop.search_binary_path("yt-python3")
         else:
             return arcadia_interop.search_binary_path("yt-python")
-
-@contextmanager
-def set_config_option(name, value, final_action=None):
-    old_value = yt.config._get(name)
-    try:
-        yt.config._set(name, value)
-        yield
-    finally:
-        if final_action is not None:
-            final_action()
-        yt.config._set(name, old_value)
-
-@contextmanager
-def set_config_options(options_dict):
-    old_values = {}
-    for key in options_dict:
-        old_values[key] = yt.config._get(key)
-    try:
-        for key, value in iteritems(options_dict):
-            yt.config._set(key, value)
-        yield
-    finally:
-        for key, value in iteritems(old_values):
-            yt.config._set(key, value)
-
-# Check equality of records
-def check(rowsA, rowsB, ordered=True):
-    def prepare(rows):
-        def fix_unicode(obj):
-            if isinstance(obj, text_type):
-                return str(obj)
-            return obj
-        def process_row(row):
-            if isinstance(row, dict):
-                return dict([(fix_unicode(key), fix_unicode(value)) for key, value in iteritems(row)])
-            return row
-
-        rows = list(imap(process_row, rows))
-        if not ordered:
-            rows = tuple(sorted(imap(lambda obj: tuple(sorted(iteritems(obj))), rows)))
-
-        return rows
-
-    lhs, rhs = prepare(rowsA), prepare(rowsB)
-    assert lhs == rhs
 
 def _filter_simple_types(obj):
     if isinstance(obj, integer_types) or \
