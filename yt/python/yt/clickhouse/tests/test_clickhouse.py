@@ -2,8 +2,7 @@
 
 from __future__ import print_function
 
-from .conftest import authors
-from .helpers import check, set_config_option
+from yt.testlib import authors, check, set_config_option
 
 import yt.wrapper as yt
 import yt.clickhouse as chyt
@@ -51,25 +50,25 @@ DEFAULTS = {
     "skip_version_compatibility_validation": True,
 }
 
+
 class ClickhouseTestBase(object):
     def _setup(self):
-        if yt.config["backend"] in ("native", "rpc"):
-            pytest.skip()
         if os.environ.get("YTRECIPE") is not None:
             pytest.skip()
 
-        if yt.exists("//sys/clickhouse/defaults"):
-            return
-
-        yt.create("document", "//sys/clickhouse/defaults", recursive=True, attributes={"value": DEFAULTS})
-        yt.create("map_node", "//home/clickhouse-kolkhoz", recursive=True)
-        yt.link("//home/clickhouse-kolkhoz", "//sys/clickhouse/kolkhoz", recursive=True)
-        yt.create("document", "//sys/clickhouse/log_tailer_config", attributes={"value": get_clickhouse_server_config()})
-        cell_id = yt.create("tablet_cell", attributes={"size": 1})
+        yt.create("document", "//sys/clickhouse/defaults", recursive=True, attributes={"value": DEFAULTS}, force=True)
+        yt.create("map_node", "//home/clickhouse-kolkhoz", recursive=True, force=True)
+        yt.link("//home/clickhouse-kolkhoz", "//sys/clickhouse/kolkhoz", recursive=True, ignore_existing=True)
+        yt.create("document", "//sys/clickhouse/log_tailer_config", attributes={"value": get_clickhouse_server_config()}, force=True)
+        if yt.get("//sys/tablet_cells/@count") == 0:
+            cell_id = yt.create("tablet_cell", attributes={"size": 1})
+        else:
+            cell_id = yt.list("//sys/tablet_cells")[0]
         wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(cell_id)) == "good")
-        yt.create("user", attributes={"name": "yt-clickhouse-cache"})
-        yt.create("user", attributes={"name": "yt-clickhouse"})
-        yt.add_member("yt-clickhouse", "superusers")
+        yt.create("user", attributes={"name": "yt-clickhouse-cache"}, force=True)
+        yt.create("user", attributes={"name": "yt-clickhouse"}, force=True)
+        if "superusers" not in yt.get("//sys/users/yt-clickhouse/@member_of_closure"):
+            yt.add_member("yt-clickhouse", "superusers")
 
 
 @pytest.mark.usefixtures("yt_env")

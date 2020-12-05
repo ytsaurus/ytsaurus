@@ -1,4 +1,3 @@
-
 SET(YT_TEST_SRCDIR yt/python/yt/wrapper/tests)
 
 SET(YT_TEST_SRCS
@@ -40,11 +39,8 @@ SET(YT_TEST_SRCS
 
 PEERDIR(
     yt/python/yt/wrapper
-    yt/python/yt/clickhouse
+    yt/python/yt/testlib
     yt/python/yt/yson
-    yt/python/yt/local
-    yt/python/yt/environment
-    yt/python/yt/environment/arcadia_interop
     ${YT_ROOT}/yt/python/yt_driver_bindings
     ${YT_ROOT}/yt/python/yt_driver_rpc_bindings
     ${YT_ROOT}/yt/python/yt_yson_bindings
@@ -65,19 +61,6 @@ DEPENDS(
     ${YT_ROOT}/yt/experiments/ytserver_dummy
     yt/python/yt/wrapper/tests/files/cpp_bin
 )
-
-IF(NOT GCC AND NOT OS_DARWIN)
-    DEPENDS(
-        ${YT_ROOT}/yt/server/clickhouse_server/bin
-        ${YT_ROOT}/yt/server/clickhouse_trampoline
-        ${YT_ROOT}/yt/server/log_tailer/bin
-    )
-
-    SET(YT_TEST_SRCS
-        ${YT_TEST_SRCS}
-        test_clickhouse.py
-    )
-ENDIF()
 
 DATA(
     # Directory with cpp_bin_core_crash binary, create it locally and upload with:

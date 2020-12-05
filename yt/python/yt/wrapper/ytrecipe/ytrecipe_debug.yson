@@ -18,11 +18,6 @@
         "infra/nanny/logrotate/logrotate";
         "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher";
 
-        "yt/yt/server/clickhouse_trampoline/clickhouse-trampoline";
-        "yt/yt/server/clickhouse_server/bin/ytserver-clickhouse";
-        "yt/yt/server/log_tailer/bin/ytserver-log-tailer";
-        "yt/yt/experiments/ytserver_dummy/ytserver-dummy";
-
         "yt/python/yt/wrapper/bin/yt_make/yt";
         "yt/python/yt/wrapper/tests/yt_python/yt-python";
         "yt/python/yt/wrapper/tests/yt_python3/yt-python3";
