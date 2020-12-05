@@ -411,6 +411,9 @@ public:
     //! Dynamic config annotation.
     TString ConfigAnnotation;
 
+    //! See TSingletonsConfig.
+    std::optional<TDuration> SpinlockHiccupThreshold;
+
     //! YTAlloc configuration.
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
 
@@ -424,13 +427,12 @@ public:
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
             .Optional();
-
+        RegisterParameter("spinlock_hiccup_threshold", SpinlockHiccupThreshold)
+            .Optional();
         RegisterParameter("yt_alloc", YTAlloc)
             .Optional();
-
         RegisterParameter("resource_limits", ResourceLimits)
             .Default();
-
         RegisterParameter("tablet_node", TabletNode)
             .DefaultNew();
 
