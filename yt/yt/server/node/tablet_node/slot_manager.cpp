@@ -8,6 +8,7 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/server/node/data_node/config.h>
 #include <yt/server/node/data_node/master_connector.h>
@@ -17,7 +18,10 @@
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/tablet_client/config.h>
-#include <yt/ytlib/tablet_client/public.h>
+
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -25,8 +29,6 @@
 #include <yt/core/concurrency/spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/delayed_executor.h>
-
-#include <yt/core/misc/fs.h>
 
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/virtual.h>
@@ -69,11 +71,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Slots_.resize(Config_->ResourceLimits->Slots);
+        SetTotalTabletSlotCount(Config_->ResourceLimits->Slots);
         SlotScanExecutor_->Start();
+
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        dynamicConfigManager->SubscribeConfigUpdated(BIND(&TImpl::OnDynamicConfigUpdated, MakeWeak(this)));
     }
 
-    void SetTabletSlotCount(int slotCount)
+    void SetTotalTabletSlotCount(int slotCount)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -100,6 +105,16 @@ public:
         }
 
         Slots_.resize(slotCount);
+
+        if (slotCount > 0) {
+            // Requesting latest timestamp enables periodic background time synchronization.
+            // For tablet nodes, it is crucial because of non-atomic transactions that require
+            // in-sync time for clients.
+            Bootstrap_
+                ->GetMasterConnection()
+                ->GetTimestampProvider()
+                ->GetLatestTimestamp();
+        }
     }
 
     int GetTotalTabletSlotCount() const
@@ -640,6 +655,15 @@ private:
 
         return snapshot;
     }
+
+    void OnDynamicConfigUpdated(const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Update tablet slot count.
+        auto tabletSlotCount = newConfig->TabletNode->Slots.value_or(Config_->ResourceLimits->Slots);
+        SetTotalTabletSlotCount(tabletSlotCount);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -665,9 +689,9 @@ bool TSlotManager::IsOutOfMemory(const std::optional<TString>& poolTag) const
     return Impl_->IsOutOfMemory(poolTag);
 }
 
-void TSlotManager::SetTabletSlotCount(int slotCount)
+void TSlotManager::SetTotalTabletSlotCount(int slotCount)
 {
-    return Impl_->SetTabletSlotCount(slotCount);
+    return Impl_->SetTotalTabletSlotCount(slotCount);
 }
 
 int TSlotManager::GetTotalTabletSlotCount() const

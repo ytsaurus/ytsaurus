@@ -58,7 +58,7 @@ public:
     ~TBootstrap();
 
     const TClusterNodeConfigPtr& GetConfig() const;
-    TClusterNodeDynamicConfigPtr GetDynamicConfig() const;
+    const TClusterNodeDynamicConfigPtr& GetDynamicConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetJobInvoker() const;
     IInvokerPtr GetQueryPoolInvoker(
@@ -134,8 +134,6 @@ public:
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
 
-    NTransactionClient::TTimestamp GetLatestTimestamp() const;
-
     void Initialize();
     void Run();
     void ValidateSnapshot(const TString& fileName);
@@ -159,7 +157,7 @@ private:
     NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
     NConcurrency::IFairShareThreadPoolPtr StorageLookupThreadPool_;
     NConcurrency::TActionQueuePtr MasterCacheQueue_;
-    
+
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
     NApi::NNative::IConnectionPtr MasterConnection_;

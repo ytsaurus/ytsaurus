@@ -951,7 +951,10 @@ private:
 
     TTimestamp GetLatestTimestamp() const
     {
-        return Bootstrap_->GetLatestTimestamp();
+        return Bootstrap_
+            ->GetMasterConnection()
+            ->GetTimestampProvider()
+            ->GetLatestTimestamp();
     }
 
     TDuration ComputeTransactionSerializationLag() const

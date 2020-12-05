@@ -18,6 +18,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/transaction_client/helpers.h>
+#include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -123,7 +124,11 @@ private:
 
         auto minRowCount = config->RowCountToKeep;
 
-        auto now = TimestampToInstant(Bootstrap_->GetLatestTimestamp()).first;
+        auto latestTimestamp = Bootstrap_
+            ->GetMasterConnection()
+            ->GetTimestampProvider()
+            ->GetLatestTimestamp();
+        auto now = TimestampToInstant(latestTimestamp).first;
         auto deathTimestamp = InstantToTimestamp(now - dataTtl).first;
 
         i64 trimmedRowCount = 0;
