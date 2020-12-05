@@ -50,7 +50,7 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     NConcurrency::SetSpinlockHiccupThresholdTicks(NProfiling::DurationToCpuDuration(config->SpinlockHiccupThreshold));
     NConcurrency::SetSpinlockHiccupHandler(&SpinlockHiccupHandler);
 
-    if (!NYTAlloc::ConfigureFromEnv() && config->YTAlloc) {
+    if (!NYTAlloc::ConfigureFromEnv()) {
         NYTAlloc::Configure(config->YTAlloc);
     }
 
