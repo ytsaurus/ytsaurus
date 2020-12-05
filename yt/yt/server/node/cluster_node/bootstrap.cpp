@@ -1329,8 +1329,8 @@ void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newC
         newConfig->SpinlockHiccupThreshold.value_or(Config_->SpinlockHiccupThreshold)));
 
     // Reconfigure YTAlloc (unless configured from env).
-    if (!NYTAlloc::IsConfiguredFromEnv() && newConfig->YTAlloc) {
-        NYTAlloc::Configure(newConfig->YTAlloc);
+    if (!NYTAlloc::IsConfiguredFromEnv()) {
+        NYTAlloc::Configure(newConfig->YTAlloc ? newConfig->YTAlloc : Config_->YTAlloc);
     }
 }
 
