@@ -923,13 +923,13 @@ private:
             Tree_->DoPreemptJobsGracefully(schedulingContext, RootElementSnapshot_);
         }
 
-        virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) override
+        virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& jobResources) override
         {
             // NB: Should be filtered out on large clusters.
-            YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Delta: %v)", operationId, jobId, FormatResources(delta));
+            YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Resources: %v)", operationId, jobId, jobResources);
             auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
             if (operationElement) {
-                operationElement->IncreaseJobResourceUsage(jobId, delta);
+                operationElement->SetJobResourceUsage(jobId, jobResources);
             }
         }
 
@@ -1621,7 +1621,7 @@ private:
         const ISchedulingContextPtr& schedulingContext) const
     {
         schedulingContext->ResourceUsage() -= job->ResourceUsage();
-        operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
+        operationElement->SetJobResourceUsage(job->GetId(), TJobResources());
         job->ResourceUsage() = {};
 
         schedulingContext->PreemptJob(job, Config_->JobInterruptTimeout);

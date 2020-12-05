@@ -800,7 +800,7 @@ public:
                         jobsToAbort->push_back(job.JobId);
                     } else {
                         const auto& snapshot = snapshotIt->second;
-                        snapshot->ProcessUpdatedJob(job.OperationId, job.JobId, job.Delta);
+                        snapshot->ProcessUpdatedJob(job.OperationId, job.JobId, job.JobResources);
                     }
                     break;
                 }

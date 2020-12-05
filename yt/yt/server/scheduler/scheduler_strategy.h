@@ -96,7 +96,8 @@ struct TJobUpdate
     TOperationId OperationId;
     TJobId JobId;
     TString TreeId;
-    TJobResources Delta;
+    // It used to update job resources in case of EJobUpdateStatus::Running status.
+    TJobResources JobResources;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
