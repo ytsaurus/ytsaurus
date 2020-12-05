@@ -8,7 +8,7 @@ from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
-from yt.wrapper.common import update, update_inplace
+from yt.wrapper.common import update, update_inplace, MB
 from yt.common import which, makedirp, format_error
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
@@ -37,6 +37,8 @@ import warnings
 warnings.filterwarnings(action="ignore", module="cryptography.hazmat.primitives.*")
 
 yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
+
+ASAN_USER_JOB_MEMORY_LIMIT = 1280 * MB
 
 def rmtree(path):
     if os.path.exists(path):

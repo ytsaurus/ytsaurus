@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (get_tests_location,
-                      sync_create_cell, get_test_file_path, yatest_common, 
+                      sync_create_cell, get_test_file_path, yatest_common,
                       create_job_events, wait)
 
 from yt.environment import YTInstance, arcadia_interop
@@ -13,7 +13,8 @@ from yt.common import which, makedirp, format_error
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
-from yt.testlib import (YtTestEnvironment, TEST_DIR, get_tests_sandbox, authors, test_method_teardown, set_testsuite_details)
+from yt.testlib import (YtTestEnvironment, TEST_DIR, get_tests_sandbox, authors, test_method_teardown,
+                        set_testsuite_details, ASAN_USER_JOB_MEMORY_LIMIT)
 
 from yt.packages.six import iteritems, itervalues
 
@@ -32,8 +33,6 @@ import shutil
 import logging
 import socket
 import warnings
-
-ASAN_USER_JOB_MEMORY_LIMIT = 1280 * MB
 
 set_testsuite_details(os.path.abspath(__file__), "yt/python/yt/wrapper/tests")
 
