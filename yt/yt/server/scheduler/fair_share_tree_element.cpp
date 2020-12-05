@@ -2130,7 +2130,7 @@ void TCompositeSchedulerElement::InitializeChildHeap(TFairShareContext* context)
     }
 
     TChildHeap::TComparator elementComparator;
-    
+
     switch (Mode_) {
         case ESchedulingMode::Fifo:
             elementComparator = [this, context] (TSchedulerElement* lhs, TSchedulerElement* rhs) {
@@ -2643,9 +2643,9 @@ bool TOperationElementSharedState::CheckPacking(
         packingConfig);
 }
 
-TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
+TJobResources TOperationElementSharedState::SetJobResourceUsage(
     TJobId jobId,
-    const TJobResources& resourcesDelta)
+    const TJobResources& resources)
 {
     auto guard = WriterGuard(JobPropertiesMapLock_);
 
@@ -2653,8 +2653,7 @@ TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
         return {};
     }
 
-    IncreaseJobResourceUsage(GetJobProperties(jobId), resourcesDelta);
-    return resourcesDelta;
+    return SetJobResourceUsage(GetJobProperties(jobId), resources);
 }
 
 void TOperationElementSharedState::UpdatePreemptableJobsList(
@@ -2852,7 +2851,8 @@ bool TOperationElementSharedState::AddJob(TJobId jobId, const TJobResources& res
 
     ++RunningJobCount_;
 
-    IncreaseJobResourceUsage(&it.first->second, resourceUsage);
+    SetJobResourceUsage(&it.first->second, resourceUsage);
+
     return true;
 }
 
@@ -3042,7 +3042,7 @@ std::optional<TJobResources> TOperationElementSharedState::RemoveJob(TJobId jobI
     --RunningJobCount_;
 
     auto resourceUsage = properties->ResourceUsage;
-    IncreaseJobResourceUsage(properties, -resourceUsage);
+    SetJobResourceUsage(properties, TJobResources());
 
     JobPropertiesMap_.erase(it);
 
@@ -3098,18 +3098,20 @@ void TOperationElement::FinishScheduleJob(const ISchedulingContextPtr& schedulin
     Controller_->DecreaseConcurrentScheduleJobCalls(schedulingContext->GetNodeShardId());
 }
 
-void TOperationElementSharedState::IncreaseJobResourceUsage(
+TJobResources TOperationElementSharedState::SetJobResourceUsage(
     TJobProperties* properties,
-    const TJobResources& resourcesDelta)
+    const TJobResources& resources)
 {
-    properties->ResourceUsage += resourcesDelta;
+    auto delta = resources - properties->ResourceUsage;
+    properties->ResourceUsage = resources;
     if (!properties->Preemptable) {
         if (properties->AggressivelyPreemptable) {
-            AggressivelyPreemptableResourceUsage_ += resourcesDelta;
+            AggressivelyPreemptableResourceUsage_ += delta;
         } else {
-            NonpreemptableResourceUsage_ += resourcesDelta;
+            NonpreemptableResourceUsage_ += delta;
         }
     }
+    return delta;
 }
 
 TOperationElementSharedState::TJobProperties* TOperationElementSharedState::GetJobProperties(TJobId jobId)
@@ -3797,9 +3799,9 @@ void TOperationElement::ApplyJobMetricsDelta(const TJobMetrics& delta)
     TreeHost_->GetResourceTree()->ApplyHierarchicalJobMetricsDelta(ResourceTreeElement_, delta);
 }
 
-void TOperationElement::IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta)
+void TOperationElement::SetJobResourceUsage(TJobId jobId, const TJobResources& resources)
 {
-    auto delta = OperationElementSharedState_->IncreaseJobResourceUsage(jobId, resourcesDelta);
+    auto delta = OperationElementSharedState_->SetJobResourceUsage(jobId, resources);
     IncreaseHierarchicalResourceUsage(delta);
 
     UpdatePreemptableJobsList();

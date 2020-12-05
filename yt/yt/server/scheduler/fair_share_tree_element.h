@@ -873,9 +873,10 @@ public:
         int updatePreemptableJobsListLoggingPeriod,
         const NLogging::TLogger& logger);
 
-    TJobResources IncreaseJobResourceUsage(
+    // Returns resources change.
+    TJobResources SetJobResourceUsage(
         TJobId jobId,
-        const TJobResources& resourcesDelta);
+        const TJobResources& resources);
 
     void UpdatePreemptableJobsList(
         const TResourceVector& fairShare,
@@ -993,7 +994,7 @@ private:
 
     TPackingStatistics HeartbeatStatistics_;
 
-    void IncreaseJobResourceUsage(TJobProperties* properties, const TJobResources& resourcesDelta);
+    TJobResources SetJobResourceUsage(TJobProperties* properties, const TJobResources& resources);
 
     TJobProperties* GetJobProperties(TJobId jobId);
     const TJobProperties* GetJobProperties(TJobId jobId) const;
@@ -1071,7 +1072,7 @@ public:
 
     void ApplyJobMetricsDelta(const TJobMetrics& delta);
 
-    void IncreaseJobResourceUsage(TJobId jobId, const TJobResources& resourcesDelta);
+    void SetJobResourceUsage(TJobId jobId, const TJobResources& resources);
 
     bool IsJobKnown(TJobId jobId) const;
 

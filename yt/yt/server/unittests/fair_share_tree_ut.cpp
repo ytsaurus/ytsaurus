@@ -1594,11 +1594,11 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
         EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));
     }
 
-    TJobResources delta;
-    delta.SetCpu(10);
-    delta.SetMemory(10);
+    TJobResources newResources;
+    newResources.SetCpu(20);
+    newResources.SetMemory(20);
     // FairShare is now less than usage and we would start preempting jobs of this operation.
-    operationElement->IncreaseJobResourceUsage(jobIds[0], delta);
+    operationElement->SetJobResourceUsage(jobIds[0], newResources);
 
     for (int i = 0; i < 1; ++i) {
         EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));

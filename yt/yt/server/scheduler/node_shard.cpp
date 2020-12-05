@@ -2153,7 +2153,7 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
     }
     job->SetRunningJobUpdateDeadline(now + DurationToCpuDuration(Config_->RunningJobsUpdatePeriod));
 
-    auto delta = status->resource_usage() - job->ResourceUsage();
+    job->ResourceUsage() = status->resource_usage();
 
     auto it = JobsToSubmitToStrategy_.find(job->GetId());
     if (it == JobsToSubmitToStrategy_.end() || it->second.Status != EJobUpdateStatus::Finished) {
@@ -2163,10 +2163,9 @@ void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status, bool shoul
                 job->GetOperationId(),
                 job->GetId(),
                 job->GetTreeId(),
-                delta
+                job->ResourceUsage()
             };
     }
-    job->ResourceUsage() = status->resource_usage();
     
     YT_VERIFY(Dominates(job->ResourceUsage(), TJobResources()));
 
