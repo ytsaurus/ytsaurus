@@ -14,7 +14,7 @@ class TQueryAgentConfig
     : public NQueryClient::TExecutorConfig
 {
 public:
-    int ThreadPoolSize;
+    int QueryThreadPoolSize;
     int LookupThreadPoolSize;
     int MaxSubsplitsPerTablet;
     int MaxSubqueries;
@@ -27,7 +27,8 @@ public:
 
     TQueryAgentConfig()
     {
-        RegisterParameter("thread_pool_size", ThreadPoolSize)
+        RegisterParameter("query_thread_pool_size", QueryThreadPoolSize)
+            .Alias("thread_pool_size")
             .GreaterThan(0)
             .Default(4);
         RegisterParameter("lookup_thread_pool_size", LookupThreadPoolSize)
@@ -59,6 +60,29 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueryAgentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryAgentDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<int> QueryThreadPoolSize;
+    std::optional<int> LookupThreadPoolSize;
+
+    TQueryAgentDynamicConfig()
+    {
+        RegisterParameter("query_thread_pool_size", QueryThreadPoolSize)
+            .Alias("thread_pool_size")
+            .GreaterThan(0)
+            .Optional();
+        RegisterParameter("lookup_thread_pool_size", LookupThreadPoolSize)
+            .GreaterThan(0)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryAgentDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

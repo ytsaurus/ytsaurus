@@ -44,9 +44,6 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <yt/core/misc/public.h>
-#include <yt/core/misc/lazy_ptr.h>
-
 namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,7 +145,7 @@ private:
 
     NConcurrency::TActionQueuePtr ControlActionQueue_;
     NConcurrency::TActionQueuePtr JobActionQueue_;
-    TLazyIntrusivePtr<NConcurrency::ITwoLevelFairShareThreadPool> QueryThreadPool_;
+    NConcurrency::ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
     NConcurrency::TThreadPoolPtr TabletLookupThreadPool_;
     NConcurrency::TThreadPoolPtr TableReplicatorThreadPool_;
     NConcurrency::TActionQueuePtr TransactionTrackerQueue_;

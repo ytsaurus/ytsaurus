@@ -3,6 +3,7 @@
 #include "invoker_queue.h"
 #include "profiling_helpers.h"
 #include "scheduler_thread.h"
+#include "thread_pool_detail.h"
 
 #include <yt/core/misc/heap.h>
 #include <yt/core/misc/ring_queue.h>
@@ -138,11 +139,9 @@ class TTwoLevelFairShareQueue
 public:
     TTwoLevelFairShareQueue(
         std::shared_ptr<TEventCount> callbackEventCount,
-        int threadCount,
         const TString& threadNamePrefix,
         bool enableProfiling)
         : CallbackEventCount_(std::move(callbackEventCount))
-        , CurrentlyExecutingActionsByThread_(threadCount)
         , ThreadNamePrefix_(threadNamePrefix)
     {
         if (enableProfiling) {
@@ -154,6 +153,11 @@ public:
     ~TTwoLevelFairShareQueue()
     {
         Shutdown();
+    }
+
+    void Configure(int threadCount)
+    {
+        ThreadCount_.store(threadCount);
     }
 
     IInvokerPtr GetInvoker(const TString& poolName, double weight, const TFairShareThreadPoolTag& tag)
@@ -267,9 +271,9 @@ public:
 
     TClosure BeginExecute(TEnqueuedAction* action, int index)
     {
-        auto& execution = CurrentlyExecutingActionsByThread_[index];
+        auto& threadState = ThreadStates_[index];
 
-        YT_ASSERT(!execution.Bucket);
+        YT_ASSERT(!threadState.Bucket);
         YT_ASSERT(action && action->Finished);
 
         auto tscp = NProfiling::TTscp::Get();
@@ -285,8 +289,8 @@ public:
 
             ++bucket->CurrentExecutions;
 
-            execution.Bucket = bucket;
-            execution.AccountedAt = tscp.Instant;
+            threadState.Bucket = bucket;
+            threadState.AccountedAt = tscp.Instant;
 
             action->StartedAt = tscp.Instant;
             bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
@@ -306,9 +310,8 @@ public:
 
     void EndExecute(TEnqueuedAction* action, int index)
     {
-        auto& execution = CurrentlyExecutingActionsByThread_[index];
-
-        if (!execution.Bucket) {
+        auto& threadState = ThreadStates_[index];
+        if (!threadState.Bucket) {
             return;
         }
 
@@ -327,7 +330,7 @@ public:
 
         {
             auto guard = Guard(SpinLock_);
-            const auto& pool = IdToPool_[execution.Bucket->PoolId];
+            const auto& pool = IdToPool_[threadState.Bucket->PoolId];
             pool->SizeCounter.Record(--pool->Size);
             pool->ExecTimeCounter.Record(timeFromStart);
             pool->TotalTimeCounter.Record(timeFromEnqueue);
@@ -355,17 +358,17 @@ public:
         TBucketPtr bucket;
         {
             auto guard = Guard(SpinLock_);
-            bucket = std::move(execution.Bucket);
+            bucket = std::move(threadState.Bucket);
 
-            UpdateExcessTime(bucket.Get(), tscp.Instant - execution.AccountedAt);
-            execution.AccountedAt = tscp.Instant;
+            UpdateExcessTime(bucket.Get(), tscp.Instant - threadState.AccountedAt);
+            threadState.AccountedAt = tscp.Instant;
 
             YT_VERIFY(bucket->CurrentExecutions-- > 0);
         }
     }
 
 private:
-    struct TExecution
+    struct TThreadState
     {
         TCpuInstant AccountedAt = 0;
         TBucketPtr Bucket;
@@ -417,15 +420,18 @@ private:
         THashMap<TFairShareThreadPoolTag, TBucket*> TagToBucket;
     };
 
+    const std::shared_ptr<TEventCount> CallbackEventCount_;
+    const TString ThreadNamePrefix_;
+
+    TRegistry Profiler_;
+
     YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
     std::vector<std::unique_ptr<TExecutionPool>> IdToPool_;
     THashMap<TString, int> NameToPoolId_;
 
-    std::shared_ptr<TEventCount> CallbackEventCount_;
-    std::vector<TExecution> CurrentlyExecutingActionsByThread_;
+    std::atomic<int> ThreadCount_ = 0;
+    std::array<TThreadState, TThreadPoolBase::MaxThreadCount> ThreadStates_;
 
-    TRegistry Profiler_;
-    const TString ThreadNamePrefix_;
 
     size_t GetLowestEmptyPoolId()
     {
@@ -440,16 +446,20 @@ private:
 
     void AccountCurrentlyExecutingBuckets()
     {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
         auto currentInstant = GetCpuInstant();
-        for (auto& execution : CurrentlyExecutingActionsByThread_) {
-            if (!execution.Bucket) {
+        auto threadCount = ThreadCount_.load();
+        for (int index = 0; index < threadCount; ++index) {
+            auto& threadState = ThreadStates_[index];
+            if (!threadState.Bucket) {
                 continue;
             }
 
-            auto duration = currentInstant - execution.AccountedAt;
-            execution.AccountedAt = currentInstant;
+            auto duration = currentInstant - threadState.AccountedAt;
+            threadState.AccountedAt = currentInstant;
 
-            UpdateExcessTime(execution.Bucket.Get(), duration);
+            UpdateExcessTime(threadState.Bucket.Get(), duration);
         }
     }
 
@@ -593,53 +603,25 @@ DEFINE_REFCOUNTED_TYPE(TFairShareThread)
 
 class TTwoLevelFairShareThreadPool
     : public ITwoLevelFairShareThreadPool
+    , public TThreadPoolBase
 {
 public:
     TTwoLevelFairShareThreadPool(
         int threadCount,
         const TString& threadNamePrefix,
-        bool enableLogging = false,
-        bool enableProfiling = false)
-        : Queue_(New<TTwoLevelFairShareQueue>(
-            CallbackEventCount_,
+        bool enableLogging,
+        bool enableProfiling)
+        : TThreadPoolBase(
             threadCount,
             threadNamePrefix,
-            enableProfiling))
+            enableLogging,
+            enableProfiling)
+        , Queue_(New<TTwoLevelFairShareQueue>(
+            CallbackEventCount_,
+            ThreadNamePrefix_,
+            EnableProfiling_))
     {
-        YT_VERIFY(threadCount > 0);
-
-        for (int index = 0; index < threadCount; ++index) {
-            auto thread = New<TFairShareThread>(
-                Queue_,
-                CallbackEventCount_,
-                Format("%v:%v", threadNamePrefix, index),
-                GetThreadTags(enableProfiling, threadNamePrefix),
-                enableLogging,
-                enableProfiling,
-                index);
-
-            Threads_.push_back(thread);
-        }
-
-        for (const auto& thread : Threads_) {
-            thread->Start();
-        }
-    }
-
-    IInvokerPtr GetInvoker(
-        const TString& poolName,
-        double weight,
-        const TFairShareThreadPoolTag& tag) override
-    {
-        return Queue_->GetInvoker(poolName, weight, tag);
-    }
-
-    virtual void Shutdown() override
-    {
-        bool expected = false;
-        if (ShutdownFlag_.compare_exchange_strong(expected, true)) {
-            DoShutdown();
-        }
+        Configure(threadCount);
     }
 
     ~TTwoLevelFairShareThreadPool()
@@ -647,33 +629,61 @@ public:
         Shutdown();
     }
 
-private:
-    void DoShutdown()
+    virtual void Configure(int threadCount) override
     {
-        Queue_->Shutdown();
-
-        decltype(Threads_) threads;
-        {
-            std::swap(threads, Threads_);
-        }
-
-        FinalizerInvoker_->Invoke(BIND([threads = std::move(threads), queue = Queue_] () {
-            for (const auto& thread : threads) {
-                thread->Shutdown();
-            }
-            queue->Drain();
-        }));
-
-        FinalizerInvoker_.Reset();
+        TThreadPoolBase::Configure(threadCount);
     }
 
+    virtual IInvokerPtr GetInvoker(
+        const TString& poolName,
+        double weight,
+        const TFairShareThreadPoolTag& tag) override
+    {
+        EnsureStarted();
+        return Queue_->GetInvoker(poolName, weight, tag);
+    }
+
+    virtual void Shutdown() override
+    {
+        TThreadPoolBase::Shutdown();
+    }
+
+private:
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TTwoLevelFairShareQueuePtr Queue_;
 
-    std::vector<TSchedulerThreadPtr> Threads_;
-    std::atomic<bool> ShutdownFlag_ = {false};
-    IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
+    virtual void DoShutdown() override
+    {
+        Queue_->Shutdown();
+        TThreadPoolBase::DoShutdown();
+    }
+
+    virtual TClosure MakeFinalizerCallback() override
+    {
+        return BIND([queue = Queue_, callback = TThreadPoolBase::MakeFinalizerCallback()] {
+            callback();
+            queue->Drain();
+        });
+    }
+
+    virtual void DoConfigure(int threadCount) override
+    {
+        Queue_->Configure(threadCount);
+        TThreadPoolBase::DoConfigure(threadCount);
+    }
+
+    virtual TSchedulerThreadPtr SpawnThread(int index) override
+    {
+        return New<TFairShareThread>(
+            Queue_,
+            CallbackEventCount_,
+            MakeThreadName(index),
+            GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
+            EnableLogging_,
+            EnableProfiling_,
+            index);
+    }
 };
 
 } // namespace

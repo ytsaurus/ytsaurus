@@ -9,6 +9,7 @@ namespace NYT::NQueryAgent {
 DECLARE_REFCOUNTED_STRUCT(IQuerySubexecutor)
 
 DECLARE_REFCOUNTED_CLASS(TQueryAgentConfig)
+DECLARE_REFCOUNTED_CLASS(TQueryAgentDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

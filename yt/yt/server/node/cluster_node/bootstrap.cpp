@@ -190,9 +190,6 @@ static const NLogging::TLogger Logger("Bootstrap");
 TBootstrap::TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
-    , QueryThreadPool_(BIND([this] () {
-        return CreateTwoLevelFairShareThreadPool(Config_->QueryAgent->ThreadPoolSize, "Query");
-    }))
 { }
 
 TBootstrap::~TBootstrap() = default;
@@ -303,6 +300,9 @@ void TBootstrap::DoInitialize()
     MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     MasterCacheQueue_ = New<TActionQueue>("MasterCache");
+    QueryThreadPool_ = CreateTwoLevelFairShareThreadPool(
+        Config_->QueryAgent->QueryThreadPoolSize,
+        "Query");
     TabletLookupThreadPool_ = New<TThreadPool>(
         Config_->QueryAgent->LookupThreadPoolSize,
         "TabletLookup",
@@ -1332,6 +1332,20 @@ void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newC
     if (!NYTAlloc::IsConfiguredFromEnv()) {
         NYTAlloc::Configure(newConfig->YTAlloc ? newConfig->YTAlloc : Config_->YTAlloc);
     }
+
+    // Reconfigure thread pools.
+    QueryThreadPool_->Configure(
+        newConfig->QueryAgent->QueryThreadPoolSize.value_or(Config_->QueryAgent->QueryThreadPoolSize));
+    TabletLookupThreadPool_->Configure(
+        newConfig->QueryAgent->LookupThreadPoolSize.value_or(Config_->QueryAgent->LookupThreadPoolSize));
+    TableReplicatorThreadPool_->Configure(
+        newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize));
+    StorageHeavyThreadPool_->Configure(
+        newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));
+    StorageLightThreadPool_->Configure(
+        newConfig->DataNode->StorageLightThreadCount.value_or(Config_->DataNode->StorageLightThreadCount));
+    StorageLookupThreadPool_->Configure(
+        newConfig->DataNode->StorageLookupThreadCount.value_or(Config_->DataNode->StorageLookupThreadCount));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

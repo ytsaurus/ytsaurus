@@ -485,6 +485,24 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletManagerDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<int> ReplicatorThreadPoolSize;
+
+    TTabletManagerDynamicConfig()
+    {
+        RegisterParameter("replicator_thread_pool_size", ReplicatorThreadPoolSize)
+            .GreaterThan(0)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStoreFlusherConfig
     : public NYTree::TYsonSerializable
 {
@@ -700,10 +718,12 @@ public:
     // TODO(babenko): either drop or make always false.
     std::optional<bool> EnableForcedRotationBackingMemoryAccounting;
 
+    TTabletManagerDynamicConfigPtr TabletManager;
+
     TTabletNodeDynamicConfig()
     {
         RegisterParameter("slots", Slots)
-            .Default();
+            .Optional();
 
         RegisterParameter("forced_rotation_memory_ratio", ForcedRotationMemoryRatio)
             .InRange(0.0, 1.0)
@@ -711,6 +731,9 @@ public:
 
         RegisterParameter("enable_forced_rotation_backing_memory_accounting", EnableForcedRotationBackingMemoryAccounting)
             .Default(true);
+
+        RegisterParameter("tablet_manager", TabletManager)
+            .DefaultNew();
     }
 };
 
