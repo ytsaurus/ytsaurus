@@ -145,7 +145,7 @@ void TChunkListPool::OnChunkListsCreated(
 
     auto error = GetCumulativeError(batchRspOrError);
     if (!error.IsOK()) {
-        YT_LOG_ERROR(batchRspOrError, "Error allocating chunk lists for pool (CellTag: %v)",
+        YT_LOG_ERROR(error, "Error allocating chunk lists for pool (CellTag: %v)",
             cellTag);
         return;
     }
