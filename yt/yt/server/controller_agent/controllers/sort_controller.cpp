@@ -1609,7 +1609,7 @@ protected:
                     }
                 }
             }
-            JobOutputs_.clear();
+            JobOutputs_[partitionIndex].clear();
         }
 
         void RegisterPartition(TPartitionPtr partition)
