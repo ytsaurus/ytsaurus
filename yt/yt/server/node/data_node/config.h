@@ -522,7 +522,6 @@ DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes a configuration of a data node.
 class TDataNodeConfig
     : public NYTree::TYsonSerializable
 {
@@ -756,14 +755,14 @@ public:
     //! The number of threads in StorageLight thread pool (used for reading chunk blocks).
     int StorageLightThreadCount;
 
+    //! Number of threads in DataNodeLookup thread pool (used for row lookups).
+    int StorageLookupThreadCount;
+
     //! Number of replication errors sent in heartbeat.
     int MaxReplicationErrorsInHeartbeat;
 
     //! Number of tablet errors sent in heartbeat.
     int MaxTabletErrorsInHeartbeat;
-
-    //! Number of threads in DataNodeLookup thread pool (used for row lookups).
-    int StorageLookupThreadCount;
 
     //! Fraction of GetBlockSet/GetBlockRange RPC timeout, after which reading routine tries
     //! to return all blocks read up to moment (in case at least one block is read; otherwise
@@ -1022,6 +1021,32 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataNodeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDataNodeDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<int> StorageHeavyThreadCount;
+    std::optional<int> StorageLightThreadCount;
+    std::optional<int> StorageLookupThreadCount;
+
+    TDataNodeDynamicConfig()
+    {
+        RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
+            .GreaterThan(0)
+            .Optional();
+        RegisterParameter("storage_light_thread_count", StorageLightThreadCount)
+            .GreaterThan(0)
+            .Optional();
+        RegisterParameter("storage_lookup_thread_count", StorageLookupThreadCount)
+            .GreaterThan(0)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDataNodeDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

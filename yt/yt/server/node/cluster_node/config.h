@@ -12,6 +12,8 @@
 
 #include <yt/server/node/data_node/config.h>
 
+#include <yt/server/node/query_agent/config.h>
+
 #include <yt/ytlib/hive/config.h>
 
 #include <yt/ytlib/api/native/config.h>
@@ -420,8 +422,14 @@ public:
     //! Node resource limits.
     TResourceLimitsConfigPtr ResourceLimits;
 
+    //! Data node configuration part.
+    NDataNode::TDataNodeDynamicConfigPtr DataNode;
+
     //! Tablet node configuration part.
     NTabletNode::TTabletNodeDynamicConfigPtr TabletNode;
+
+    //! Query agent configuration part.
+    NQueryAgent::TQueryAgentDynamicConfigPtr QueryAgent;
 
     TClusterNodeDynamicConfig()
     {
@@ -433,7 +441,11 @@ public:
             .Optional();
         RegisterParameter("resource_limits", ResourceLimits)
             .Default();
+        RegisterParameter("data_node", DataNode)
+            .DefaultNew();
         RegisterParameter("tablet_node", TabletNode)
+            .DefaultNew();
+        RegisterParameter("query_agent", QueryAgent)
             .DefaultNew();
 
         RegisterPostprocessor([&] {

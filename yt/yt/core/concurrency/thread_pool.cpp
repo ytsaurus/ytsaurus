@@ -2,6 +2,7 @@
 #include "single_queue_scheduler_thread.h"
 #include "private.h"
 #include "profiling_helpers.h"
+#include "thread_pool_detail.h"
 
 #include <yt/core/actions/invoker_detail.h>
 
@@ -17,6 +18,7 @@ using namespace NYTree;
 
 class TThreadPool::TImpl
     : public TRefCounted
+    , public TThreadPoolBase
 {
 public:
     TImpl(
@@ -25,14 +27,16 @@ public:
         bool enableLogging,
         bool enableProfiling,
         EInvokerQueueType queueType)
-        : ThreadNamePrefix_(threadNamePrefix)
-        , EnableLogging_(enableLogging)
-        , EnableProfiling_(enableProfiling)
+        : TThreadPoolBase(
+            threadCount,
+            threadNamePrefix,
+            enableLogging,
+            enableProfiling)
         , Queue_(New<TInvokerQueue>(
             CallbackEventCount_,
-            GetThreadTags(enableProfiling, threadNamePrefix),
-            enableLogging,
-            enableProfiling,
+            GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
+            EnableLogging_,
+            EnableProfiling_,
             queueType))
         , Invoker_(Queue_)
     {
@@ -44,61 +48,6 @@ public:
         Shutdown();
     }
 
-    void Configure(int threadCount)
-    {
-        YT_VERIFY(threadCount > 0);
-
-        decltype(Threads_) threadsToStart;
-        decltype(Threads_) threadsToShutdown;
-        {
-            auto guard = Guard(SpinLock_);
-
-            while (static_cast<int>(Threads_.size()) < threadCount) {
-                auto thread = SpawnThread(static_cast<int>(Threads_.size()));
-                threadsToStart.push_back(thread);
-                Threads_.push_back(thread);
-            }
-
-            while (static_cast<int>(Threads_.size()) > threadCount) {
-                threadsToShutdown.push_back(Threads_.back());
-                Threads_.pop_back();
-            }
-        }
-
-        for (const auto& thread : threadsToStart) {
-            thread->Start();
-        }
-        for (const auto& thread : threadsToShutdown) {
-            thread->Shutdown();
-        }
-    }
-
-    void Shutdown()
-    {
-        bool expected = false;
-        if (!ShutdownFlag_.compare_exchange_strong(expected, true)) {
-            return;
-        }
-
-        StartFlag_ = true;
-
-        Queue_->Shutdown();
-
-        decltype(Threads_) threads;
-        {
-            auto guard = Guard(SpinLock_);
-            std::swap(threads, Threads_);
-        }
-
-        FinalizerInvoker_->Invoke(BIND([threads = std::move(threads), queue = Queue_] () {
-            for (auto& thread : threads) {
-                thread->Shutdown();
-            }
-            queue->Drain();
-        }));
-        FinalizerInvoker_.Reset();
-    }
-
     const IInvokerPtr& GetInvoker()
     {
         EnsureStarted();
@@ -106,46 +55,31 @@ public:
     }
 
 private:
-    const TString ThreadNamePrefix_;
-    const bool EnableLogging_;
-    const bool EnableProfiling_;
-
-    std::atomic<bool> StartFlag_ = {false};
-    std::atomic<bool> ShutdownFlag_ = {false};
-
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
 
-    IInvokerPtr FinalizerInvoker_ = GetFinalizerInvoker();
 
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, SpinLock_);
-    std::vector<TSchedulerThreadPtr> Threads_;
-
-    void EnsureStarted()
+    virtual void DoShutdown() override
     {
-        bool expected = false;
-        if (!StartFlag_.compare_exchange_strong(expected, true)) {
-            return;
-        }
-
-        decltype(Threads_) threads;
-        {
-            auto guard = Guard(SpinLock_);
-            threads = Threads_;
-        }
-
-        for (const auto& thread : threads) {
-            thread->Start();
-        }
+        Queue_->Shutdown();
+        TThreadPoolBase::DoShutdown();
     }
 
-    TSchedulerThreadPtr SpawnThread(int index)
+    virtual TClosure MakeFinalizerCallback() override
+    {
+        return BIND([queue = Queue_, callback = TThreadPoolBase::MakeFinalizerCallback()] {
+            callback();
+            queue->Drain();
+        });
+    }
+
+    virtual TSchedulerThreadPtr SpawnThread(int index) override
     {
         return New<TSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
-            Format("%v:%v", ThreadNamePrefix_, index),
+            MakeThreadName(index),
             GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
             EnableLogging_,
             EnableProfiling_);

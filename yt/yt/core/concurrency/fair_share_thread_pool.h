@@ -19,6 +19,8 @@ struct IFairShareThreadPool
     virtual void Configure(int threadCount) = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IFairShareThreadPool)
+
 IFairShareThreadPoolPtr CreateFairShareThreadPool(
     int threadCount,
     const TString& threadNamePrefix,

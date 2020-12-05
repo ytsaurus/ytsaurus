@@ -34,14 +34,13 @@
 #include <exception>
 
 namespace NYT::NConcurrency {
+namespace {
 
 using ::testing::ContainsRegex;
 
-namespace {
-
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto SleepQuantum = TDuration::MilliSeconds(100);
+const auto SleepQuantum = TDuration::MilliSeconds(100);
 
 const NLogging::TLogger Logger("SchedulerTest");
 
@@ -1154,6 +1153,7 @@ TEST_F(TSuspendableInvokerTest, VerifySerializedActionsOrder)
     EXPECT_EQ(reorderingCount, 0);
 }
 
+////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareSchedulerTest
     : public TSchedulerTest
@@ -1173,7 +1173,7 @@ TDuration DoSleep(TDuration duration)
     return timer.GetElapsedTime();
 }
 
-TEST_P(TFairShareSchedulerTest, Test)
+TEST_P(TFairShareSchedulerTest, Fairness)
 {
     size_t numThreads = std::get<0>(GetParam());
     size_t numWorkers = std::get<1>(GetParam());
@@ -1299,7 +1299,7 @@ TEST_P(TFairShareSchedulerTest, Test)
         .ThrowOnError();
 }
 
-TEST_P(TFairShareSchedulerTest, Test2)
+TEST_P(TFairShareSchedulerTest, TwoLevelFairness)
 {
     size_t numThreads = std::get<0>(GetParam());
     size_t numWorkers = std::get<1>(GetParam());
