@@ -710,19 +710,11 @@ void TBootstrap::DoRun()
     // Force start node directory synchronizer.
     MasterConnection_->GetNodeDirectorySynchronizer()->Start();
 
-    if (Config_->TabletNode->ResourceLimits->Slots > 0) {
-        // Requesting latest timestamp enables periodic background time synchronization.
-        // For tablet nodes, it is crucial because of non-atomic transactions that require
-        // in-sync time for clients.
-        GetLatestTimestamp();
-    }
-
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
     Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
     Config_->MonitoringServer->ServerName = "monitoring";
-    HttpServer_ = NHttp::CreateServer(
-        Config_->MonitoringServer);
+    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
     auto skynetHttpConfig = New<NHttp::TServerConfig>();
     skynetHttpConfig->Port = Config_->SkynetHttpPort;
@@ -849,7 +841,7 @@ const TClusterNodeConfigPtr& TBootstrap::GetConfig() const
     return Config_;
 }
 
-TClusterNodeDynamicConfigPtr TBootstrap::GetDynamicConfig() const
+const TClusterNodeDynamicConfigPtr& TBootstrap::GetDynamicConfig() const
 {
     return DynamicConfig_;
 }
@@ -1291,13 +1283,6 @@ TJobProxyConfigPtr TBootstrap::BuildJobProxyConfig() const
     return proxyConfig;
 }
 
-TTimestamp TBootstrap::GetLatestTimestamp() const
-{
-    return MasterConnection_
-        ->GetTimestampProvider()
-        ->GetLatestTimestamp();
-}
-
 void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
 {
     // NB: Don't expect IsXXXExceeded helpers to be atomic.
@@ -1346,20 +1331,6 @@ void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newC
     // Reconfigure YTAlloc (unless configured from env).
     if (!NYTAlloc::IsConfiguredFromEnv() && newConfig->YTAlloc) {
         NYTAlloc::Configure(newConfig->YTAlloc);
-    }
-
-    // Update tablet slot count.
-    {
-        auto tabletSlotCount = newConfig->TabletNode->Slots.value_or(Config_->TabletNode->ResourceLimits->Slots);
-        if (TabletSlotManager_->GetTotalTabletSlotCount() == 0 && tabletSlotCount > 0) {
-            // Node became tablet node.
-            // Requesting latest timestamp enables periodic background time synchronization.
-            // For tablet nodes, it is crucial because of non-atomic transactions that require
-            // in-sync time for clients.
-            GetLatestTimestamp();
-        }
-
-        TabletSlotManager_->SetTabletSlotCount(tabletSlotCount);
     }
 }
 

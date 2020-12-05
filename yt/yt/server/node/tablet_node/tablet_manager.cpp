@@ -3314,7 +3314,10 @@ private:
     void ValidateClientTimestamp(TTransactionId transactionId)
     {
         auto clientTimestamp = TimestampFromTransactionId(transactionId);
-        auto serverTimestamp = Bootstrap_->GetLatestTimestamp();
+        auto serverTimestamp = Bootstrap_
+            ->GetMasterConnection()
+            ->GetTimestampProvider()
+            ->GetLatestTimestamp();
         auto clientInstant = TimestampToInstant(clientTimestamp).first;
         auto serverInstant = TimestampToInstant(serverTimestamp).first;
         if (clientInstant > serverInstant + Config_->ClientTimestampThreshold ||
