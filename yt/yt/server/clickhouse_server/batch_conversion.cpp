@@ -56,8 +56,9 @@ DB::ColumnPtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& column, F func)
 template <class T, class F>
 DB::ColumnPtr ConvertCHVectorColumnToAnyImpl(const DB::IColumn& column, F func)
 {
-    const auto& typedColumn = dynamic_cast<const DB::ColumnVector<T>&>(column);
-    const auto& typedValues = typedColumn.getData();
+    const auto* typedColumnPtr = dynamic_cast<const DB::ColumnVector<T>*>(&column);
+    YT_VERIFY(typedColumnPtr);
+    const auto& typedValues = typedColumnPtr->getData();
 
     return ConvertCHColumnToAnyByIndexImpl(
         column,
@@ -70,12 +71,13 @@ DB::ColumnPtr ConvertCHVectorColumnToAnyImpl(const DB::IColumn& column, F func)
 template <class F>
 DB::ColumnPtr ConvertCHStringColumnToAnyImpl(const DB::IColumn& column, F func)
 {
-    const auto& typedColumn = dynamic_cast<const DB::ColumnString&>(column);
+    const auto* typedColumnPtr = dynamic_cast<const DB::ColumnString*>(&column);
+    YT_VERIFY(typedColumnPtr);
 
     return ConvertCHColumnToAnyByIndexImpl(
         column,
         [&] (size_t index, auto* writer) {
-            auto value = typedColumn.getDataAt(index);
+            auto value = typedColumnPtr->getDataAt(index);
             func(TStringBuf(value.data, value.size), writer);
         });
 }
@@ -104,7 +106,7 @@ DB::ColumnPtr ConvertCHColumnToAny(const DB::IColumn& column, ESimpleLogicalValu
                 return ConvertCHVectorColumnToAnyImpl<cppType>( \
                     column, \
                     [] (cppType value, auto* writer) { writer->OnUint64Scalar(value); });
-        XX(Uint8,     ui8 )
+        XX(Uint8,     DB::UInt8 )
         XX(Uint16,    ui16)
         XX(Uint32,    ui32)
         XX(Uint64,    ui64)
@@ -123,9 +125,9 @@ DB::ColumnPtr ConvertCHColumnToAny(const DB::IColumn& column, ESimpleLogicalValu
         #undef XX
 
         case ESimpleLogicalValueType::Boolean:
-            return ConvertCHVectorColumnToAnyImpl<ui8>(
+            return ConvertCHVectorColumnToAnyImpl<DB::UInt8>(
                 column,
-                [] (ui8 value, auto* writer) { writer->OnBooleanScalar(value != 0); });
+                [] (DB::UInt8 value, auto* writer) { writer->OnBooleanScalar(value != 0); });
 
         case ESimpleLogicalValueType::String:
             return ConvertCHStringColumnToAnyImpl(

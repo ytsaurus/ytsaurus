@@ -110,11 +110,11 @@ DB::Block FilterRowsByPrewhereInfo(
     DB::IColumn::Filter materializedFilter;
     const auto& prewhereColumn = blockToFilter.getByName(prewhereInfo->prewhere_column_name).column;
     if (const auto* nullablePrewhereColumn = DB::checkAndGetColumn<DB::ColumnNullable>(prewhereColumn.get())) {
-        const auto* prewhereNullsColumn = DB::checkAndGetColumn<DB::ColumnVector<ui8>>(nullablePrewhereColumn->getNullMapColumn());
+        const auto* prewhereNullsColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(nullablePrewhereColumn->getNullMapColumn());
         YT_VERIFY(prewhereNullsColumn);
         const auto& prewhereNulls = prewhereNullsColumn->getData();
 
-        const auto* prewhereValuesColumn = DB::checkAndGetColumn<DB::ColumnVector<ui8>>(nullablePrewhereColumn->getNestedColumn());
+        const auto* prewhereValuesColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(nullablePrewhereColumn->getNestedColumn());
         YT_VERIFY(prewhereValuesColumn);
         const auto& prewhereValues = prewhereValuesColumn->getData();
 
