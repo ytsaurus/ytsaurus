@@ -822,7 +822,6 @@ private:
         auto nodeAddresses = FromProto<TNodeAddressMap>(request->node_addresses());
         const auto& addresses = GetAddressesOrThrow(nodeAddresses, EAddressType::InternalRpc);
         const auto& address = GetDefaultAddress(addresses);
-        auto& statistics = *request->mutable_statistics();
         auto leaseTransactionId = FromProto<TTransactionId>(request->lease_transaction_id());
         auto tags = FromProto<std::vector<TString>>(request->tags());
 
@@ -881,7 +880,6 @@ private:
         }
 
         node->SetNodeTags(tags);
-        node->SetStatistics(std::move(statistics), Bootstrap_->GetChunkManager());
 
         if (request->has_cypress_annotations()) {
             node->SetAnnotations(TYsonString(request->cypress_annotations(), EYsonType::Node));
@@ -914,12 +912,11 @@ private:
                 node->GetId());
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v)",
             node->GetId(),
             address,
             tags,
-            leaseTransactionId,
-            statistics);
+            leaseTransactionId);
 
         node->SetLocalState(ENodeState::Registered);
 

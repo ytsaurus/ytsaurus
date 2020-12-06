@@ -109,6 +109,7 @@ DEFINE_ENUM(EMasterReign,
     ((DedicatedUploadTransactionTypesByDefault)                     (1424))  // shakurov
     ((FixClusterStatisticsMasterMemoryUsage)                        (1425))  // aleksandra-zh
     ((OldTxReplicationHiveProtocolCompatibility)                    (1426))  // shakurov
+    ((IgnoreStatisticsDuringNodeRegistration)                       (1427))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
