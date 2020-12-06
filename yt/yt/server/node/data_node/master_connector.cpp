@@ -777,12 +777,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (IncrementalHeartbeatThrottler_.find(cellTag) == IncrementalHeartbeatThrottler_.end()) {
-        auto incrementalHeartbeatThrottlerConfig = New<TThroughputThrottlerConfig>(
-            Config_->IncrementalHeartbeatThrottlerLimit,
-            Config_->IncrementalHeartbeatThrottlerPeriod);
         YT_VERIFY(IncrementalHeartbeatThrottler_.emplace(
             cellTag,
-            CreateReconfigurableThroughputThrottler(std::move(incrementalHeartbeatThrottlerConfig))).second);
+            CreateReconfigurableThroughputThrottler(Config_->IncrementalHeartbeatThrottler)).second);
     }
 
     WaitFor(IncrementalHeartbeatThrottler_[cellTag]->Throttle(1))
