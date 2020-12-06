@@ -435,7 +435,16 @@ bool TChunk::IsSealed() const
 i64 TChunk::GetPhysicalSealedRowCount() const
 {
     YT_VERIFY(MiscExt_.sealed());
-    return MiscExt_.row_count() + (GetOverlayed() ? 1 : 0);
+    auto rowCount = MiscExt_.row_count();
+    if (rowCount == 0) {
+        // NB: Return zero even if the chunk is overlayed as it may be lacking its header record.
+        return 0;
+    }
+    if (GetOverlayed()) {
+        // NB: Plus one accounts for the header record.
+        ++rowCount;
+    }
+    return rowCount;
 }
 
 void TChunk::Seal(const TChunkSealInfo& info)
