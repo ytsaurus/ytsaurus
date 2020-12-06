@@ -25,19 +25,17 @@ public:
         int threadCount,
         const TString& threadNamePrefix,
         bool enableLogging,
-        bool enableProfiling,
-        EInvokerQueueType queueType)
+        bool enableProfiling)
         : TThreadPoolBase(
             threadCount,
             threadNamePrefix,
             enableLogging,
             enableProfiling)
-        , Queue_(New<TInvokerQueue>(
+        , Queue_(New<TMpmcInvokerQueue>(
             CallbackEventCount_,
             GetThreadTags(EnableProfiling_, ThreadNamePrefix_),
             EnableLogging_,
-            EnableProfiling_,
-            queueType))
+            EnableProfiling_))
         , Invoker_(Queue_)
     {
         Configure(threadCount);
@@ -56,7 +54,7 @@ public:
 
 private:
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
-    const TInvokerQueuePtr Queue_;
+    const TMpmcInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
 
 
@@ -76,7 +74,7 @@ private:
 
     virtual TSchedulerThreadPtr SpawnThread(int index) override
     {
-        return New<TSingleQueueSchedulerThread>(
+        return New<TMpmcSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
             MakeThreadName(index),
@@ -90,14 +88,12 @@ TThreadPool::TThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
     bool enableLogging,
-    bool enableProfiling,
-    EInvokerQueueType queueType)
+    bool enableProfiling)
     : Impl_(New<TImpl>(
         threadCount,
         threadNamePrefix,
         enableLogging,
-        enableProfiling,
-        queueType))
+        enableProfiling))
 { }
 
 TThreadPool::~TThreadPool() = default;

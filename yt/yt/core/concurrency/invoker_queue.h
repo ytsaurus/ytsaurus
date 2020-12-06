@@ -1,12 +1,14 @@
 #pragma once
 
-#include "public.h"
-
 #include "private.h"
 
 #include <yt/core/misc/shutdownable.h>
 
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/core/concurrency/moody_camel_concurrent_queue.h>
+
+#include <util/thread/lfqueue.h>
 
 #include <atomic>
 
@@ -14,8 +16,42 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IActionQueue;
+struct TEnqueuedAction
+{
+    bool Finished = true;
+    NProfiling::TCpuInstant EnqueuedAt = 0;
+    NProfiling::TCpuInstant StartedAt = 0;
+    NProfiling::TCpuInstant FinishedAt = 0;
+    TClosure Callback;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TMpmcQueueImpl
+{
+public:
+    void Enqueue(TEnqueuedAction action);
+    bool TryDequeue(TEnqueuedAction* action);
+
+private:
+    moodycamel::ConcurrentQueue<TEnqueuedAction> Queue_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMpscQueueImpl
+{
+public:
+    void Enqueue(TEnqueuedAction action);
+    bool TryDequeue(TEnqueuedAction* action);
+
+private:
+    TLockFreeQueue<TEnqueuedAction> Queue_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TQueueImpl>
 class TInvokerQueue
     : public IInvoker
     , public IShutdownable
@@ -25,10 +61,7 @@ public:
         std::shared_ptr<TEventCount> callbackEventCount,
         const NProfiling::TTagSet& tagSet,
         bool enableLogging,
-        bool enableProfiling,
-        EInvokerQueueType type = EInvokerQueueType::SingleLockFreeQueue);
-
-    ~TInvokerQueue();
+        bool enableProfiling);
 
     void SetThreadId(TThreadId threadId);
 
@@ -47,31 +80,26 @@ public:
     void EndExecute(TEnqueuedAction* action);
 
     int GetSize() const;
-
     bool IsEmpty() const;
-
     bool IsRunning() const;
 
 private:
-    const std::shared_ptr<TEventCount> CallbackEventCount;
-    bool EnableLogging;
+    const std::shared_ptr<TEventCount> CallbackEventCount_;
+    bool EnableLogging_;
 
-    NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
+    TQueueImpl QueueImpl_;
 
-    std::atomic<bool> Running = {true};
+    NConcurrency::TThreadId ThreadId_ = NConcurrency::InvalidThreadId;
+    std::atomic<bool> Running_ = true;
+    std::atomic<int> Size_ = 0;
 
-    std::unique_ptr<IActionQueue> Queue;
-
-    NProfiling::TCounter EnqueuedCounter;
-    NProfiling::TCounter DequeuedCounter;
-    std::atomic<int> SizeGauge{0};
-    NProfiling::TEventTimer WaitTimer;
-    NProfiling::TEventTimer ExecTimer;
-    NProfiling::TTimeCounter CumulativeTimeCounter;
-    NProfiling::TEventTimer TotalTimer;
+    NProfiling::TCounter EnqueuedCounter_;
+    NProfiling::TCounter DequeuedCounter_;
+    NProfiling::TEventTimer WaitTimer_;
+    NProfiling::TEventTimer ExecTimer_;
+    NProfiling::TTimeCounter CumulativeTimeCounter_;
+    NProfiling::TEventTimer TotalTimer_;
 };
-
-DEFINE_REFCOUNTED_TYPE(TInvokerQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 

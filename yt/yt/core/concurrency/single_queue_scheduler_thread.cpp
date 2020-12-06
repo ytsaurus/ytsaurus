@@ -1,11 +1,13 @@
 #include "single_queue_scheduler_thread.h"
+#include "invoker_queue.h"
 
 namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
-    TInvokerQueuePtr queue,
+template <class TQueueImpl>
+TSingleQueueSchedulerThread<TQueueImpl>::TSingleQueueSchedulerThread(
+    TInvokerQueuePtr<TQueueImpl> queue,
     std::shared_ptr<TEventCount> callbackEventCount,
     const TString& threadName,
     const NProfiling::TTagSet& tagIds,
@@ -17,23 +19,31 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
         tagIds,
         enableLogging,
         enableProfiling)
-    , Queue(std::move(queue))
+    , Queue_(std::move(queue))
 { }
 
-TClosure TSingleQueueSchedulerThread::BeginExecute()
+template <class TQueueImpl>
+TClosure TSingleQueueSchedulerThread<TQueueImpl>::BeginExecute()
 {
-    return Queue->BeginExecute(&CurrentAction);
+    return Queue_->BeginExecute(&CurrentAction_);
 }
 
-void TSingleQueueSchedulerThread::EndExecute()
+template <class TQueueImpl>
+void TSingleQueueSchedulerThread<TQueueImpl>::EndExecute()
 {
-    Queue->EndExecute(&CurrentAction);
+    Queue_->EndExecute(&CurrentAction_);
 }
 
-void TSingleQueueSchedulerThread::OnStart()
+template <class TQueueImpl>
+void TSingleQueueSchedulerThread<TQueueImpl>::OnStart()
 {
-    Queue->SetThreadId(GetId());
+    Queue_->SetThreadId(GetId());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TSingleQueueSchedulerThread<TMpmcQueueImpl>;
+template class TSingleQueueSchedulerThread<TMpscQueueImpl>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

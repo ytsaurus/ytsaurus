@@ -8,12 +8,13 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TQueueImpl>
 class TSingleQueueSchedulerThread
     : public TSchedulerThread
 {
 public:
     TSingleQueueSchedulerThread(
-        TInvokerQueuePtr queue,
+        TInvokerQueuePtr<TQueueImpl> queue,
         std::shared_ptr<TEventCount> callbackEventCount,
         const TString& threadName,
         const NProfiling::TTagSet& tags,
@@ -21,17 +22,15 @@ public:
         bool enableProfiling);
 
 protected:
-    const TInvokerQueuePtr Queue;
+    const TInvokerQueuePtr<TQueueImpl> Queue_;
 
-    TEnqueuedAction CurrentAction;
+    TEnqueuedAction CurrentAction_;
 
     virtual TClosure BeginExecute() override;
     virtual void EndExecute() override;
 
     virtual void OnStart() override;
 };
-
-DEFINE_REFCOUNTED_TYPE(TSingleQueueSchedulerThread)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -309,8 +309,7 @@ void TBootstrap::DoInitialize()
         Config_->QueryAgent->LookupThreadPoolSize,
         "TabletLookup",
         true,
-        true,
-        EInvokerQueueType::SingleLockFreeQueue);
+        true);
     TableReplicatorThreadPool_ = New<TThreadPool>(
         Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");
