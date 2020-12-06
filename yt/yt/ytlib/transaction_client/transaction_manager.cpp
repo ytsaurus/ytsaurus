@@ -194,7 +194,12 @@ public:
                 auto connection = connectionOrError.Value();
 
                 auto syncFuture = connection->GetMasterCellDirectorySynchronizer()->RecentSync();
-                if (!syncFuture.IsSet()) { // True most of the time.
+
+                if (syncFuture.IsSet()) {
+                    if (!syncFuture.Get().IsOK()) {
+                        return syncFuture;
+                    }
+                } else {
                     return syncFuture.Apply(
                         BIND(&TImpl::DoStart, MakeStrong(this), type, options));
                 }
