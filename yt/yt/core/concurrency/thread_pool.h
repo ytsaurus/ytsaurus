@@ -20,8 +20,7 @@ public:
         int threadCount,
         const TString& threadNamePrefix,
         bool enableLogging = true,
-        bool enableProfiling = true,
-        EInvokerQueueType queueType = EInvokerQueueType::SingleLockFreeQueue);
+        bool enableProfiling = true);
 
     virtual ~TThreadPool();
 

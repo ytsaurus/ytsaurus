@@ -21,9 +21,6 @@ TFairShareQueueSchedulerThread::TFairShareQueueSchedulerThread(
     , Queue_(std::move(queue))
 { }
 
-TFairShareQueueSchedulerThread::~TFairShareQueueSchedulerThread()
-{ }
-
 IInvokerPtr TFairShareQueueSchedulerThread::GetInvoker(int index)
 {
     return Queue_->GetInvoker(index);

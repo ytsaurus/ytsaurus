@@ -47,7 +47,7 @@ public:
     TImpl()
         : WasStarted_(false)
         , WasShutdown_(false)
-        , EventQueue_(New<TInvokerQueue>(
+        , EventQueue_(New<TMpscInvokerQueue>(
             EventCount_,
             TTagSet{},
             true,
@@ -461,7 +461,7 @@ private:
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     std::atomic<bool> WasStarted_;
     std::atomic<bool> WasShutdown_;
-    TInvokerQueuePtr EventQueue_;
+    TMpscInvokerQueuePtr EventQueue_;
     TIntrusivePtr<TThread> Thread_;
     TEnqueuedAction CurrentAction_;
 

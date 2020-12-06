@@ -29,13 +29,13 @@ public:
         const TString& threadName,
         bool enableLogging,
         bool enableProfiling)
-        : Queue_(New<TInvokerQueue>(
+        : Queue_(New<TMpscInvokerQueue>(
             CallbackEventCount_,
             GetThreadTags(enableProfiling, threadName),
             enableLogging,
             enableProfiling))
         , Invoker_(Queue_)
-        , Thread_(New<TSingleQueueSchedulerThread>(
+        , Thread_(New<TMpscSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
             threadName,
@@ -56,7 +56,6 @@ public:
             return;
         }
 
-
         StartFlag_ = true;
 
         Queue_->Shutdown();
@@ -76,9 +75,9 @@ public:
 
 private:
     const std::shared_ptr<TEventCount> CallbackEventCount_ = std::make_shared<TEventCount>();
-    const TInvokerQueuePtr Queue_;
+    const TMpscInvokerQueuePtr Queue_;
     const IInvokerPtr Invoker_;
-    const TSingleQueueSchedulerThreadPtr Thread_;
+    const TMpscSingleQueueSchedulerThreadPtr Thread_;
 
     std::atomic<bool> StartFlag_ = false;
     std::atomic<bool> StopFlag_ = false;

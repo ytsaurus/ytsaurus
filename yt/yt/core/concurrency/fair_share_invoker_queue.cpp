@@ -1,5 +1,5 @@
-#include "invoker_queue.h"
 #include "fair_share_invoker_queue.h"
+#include "invoker_queue.h"
 
 namespace NYT::NConcurrency {
 
@@ -17,7 +17,7 @@ TFairShareInvokerQueue::TFairShareInvokerQueue(
     : Buckets_(bucketsTags.size())
 {
     for (size_t index = 0; index < bucketsTags.size(); ++index) {
-        Buckets_[index].Queue = New<TInvokerQueue>(
+        Buckets_[index].Queue = New<TMpscInvokerQueue>(
             callbackEventCount,
             bucketsTags[index],
             enableLogging,

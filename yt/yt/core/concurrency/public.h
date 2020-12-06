@@ -52,11 +52,6 @@ DEFINE_ENUM(EExecutionStackKind,
     (Large) //   8 Mb
 );
 
-DEFINE_ENUM(EInvokerQueueType,
-    (SingleLockFreeQueue)
-    (MultiLockQueue)
-);
-
 class TExecutionStack;
 
 template <class TSignature>
@@ -79,7 +74,9 @@ constexpr size_t InvalidFiberId = 0;
 
 using TFairShareThreadPoolTag = TString;
 
-DECLARE_REFCOUNTED_STRUCT(ITwoLevelFairShareThreadPool);
+DECLARE_REFCOUNTED_STRUCT(ITwoLevelFairShareThreadPool)
+
+class TEventCount;
 
 ////////////////////////////////////////////////////////////////////////////////
 

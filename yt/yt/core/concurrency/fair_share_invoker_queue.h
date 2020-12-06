@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "private.h"
 
 #include <yt/core/misc/shutdownable.h>
@@ -40,7 +39,7 @@ public:
 private:
     struct TBucket
     {
-        TInvokerQueuePtr Queue;
+        TMpscInvokerQueuePtr Queue;
         IInvokerPtr Invoker;
         NProfiling::TCpuDuration ExcessTime = 0;
     };

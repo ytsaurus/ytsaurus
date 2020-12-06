@@ -343,7 +343,7 @@ public:
     friend struct TLocalQueueReclaimer;
 
     TImpl()
-        : EventQueue_(New<TInvokerQueue>(
+        : EventQueue_(New<TMpscInvokerQueue>(
             EventCount_,
             NProfiling::TTagSet{},
             false,
@@ -1190,7 +1190,7 @@ private:
 
 private:
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
-    const TInvokerQueuePtr EventQueue_;
+    const TMpscInvokerQueuePtr EventQueue_;
 
     const TIntrusivePtr<TThread> LoggingThread_;
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);

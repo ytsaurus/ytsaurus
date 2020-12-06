@@ -2,13 +2,9 @@
 
 #include "scheduler_thread.h"
 #include "fair_share_invoker_queue.h"
+#include "invoker_queue.h"
 
 namespace NYT::NConcurrency {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TFairShareQueueSchedulerThread;
-typedef TIntrusivePtr<TFairShareQueueSchedulerThread> TFairShareQueueSchedulerThreadPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +18,6 @@ public:
         const TString& threadName,
         bool enableLogging,
         bool enableProfiling);
-    ~TFairShareQueueSchedulerThread();
 
     IInvokerPtr GetInvoker(int index);
 

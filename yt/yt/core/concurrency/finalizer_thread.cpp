@@ -63,12 +63,12 @@ private:
 public:
     TFinalizerThread()
         : ThreadName_("Finalizer")
-        , Queue_(New<TInvokerQueue>(
+        , Queue_(New<TMpscInvokerQueue>(
             CallbackEventCount_,
             NProfiling::TTagSet{},
             false,
             false))
-        , Thread_(New<TSingleQueueSchedulerThread>(
+        , Thread_(New<TMpscSingleQueueSchedulerThread>(
             Queue_,
             CallbackEventCount_,
             ThreadName_,
@@ -147,8 +147,8 @@ private:
     const std::shared_ptr<TEventCount> ShutdownEventCount_ = std::make_shared<TEventCount>();
 
     const TString ThreadName_;
-    const TInvokerQueuePtr Queue_;
-    const TSingleQueueSchedulerThreadPtr Thread_;
+    const TMpscInvokerQueuePtr Queue_;
+    const TMpscSingleQueueSchedulerThreadPtr Thread_;
 
     int OwningPid_ = 0;
     std::atomic<int> Refs_ = 1;

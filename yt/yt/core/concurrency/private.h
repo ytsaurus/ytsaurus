@@ -10,21 +10,40 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEventCount;
+struct TEnqueuedAction;
 
-DECLARE_REFCOUNTED_CLASS(TSingleQueueSchedulerThread)
-DECLARE_REFCOUNTED_CLASS(TInvokerQueue)
+class TMpmcQueueImpl;
+class TMpscQueueImpl;
+
+template <class TQueueImpl>
+class TInvokerQueue;
+
+template <class TQueueImpl>
+using TInvokerQueuePtr = TIntrusivePtr<TInvokerQueue<TQueueImpl>>;
+
+using TMpmcInvokerQueue = TInvokerQueue<TMpmcQueueImpl>;
+using TMpmcInvokerQueuePtr = TIntrusivePtr<TMpmcInvokerQueue>;
+
+using TMpscInvokerQueue = TInvokerQueue<TMpscQueueImpl>;
+using TMpscInvokerQueuePtr = TIntrusivePtr<TMpscInvokerQueue>;
+
+template <class TQueueImpl>
+class TSingleQueueSchedulerThread;
+
+template <class TQueueImpl>
+using TSingleQueueSchedulerThreadPtr = TIntrusivePtr<TSingleQueueSchedulerThread<TQueueImpl>>;
+
+using TMpmcSingleQueueSchedulerThread = TSingleQueueSchedulerThread<TMpmcQueueImpl>;
+using TMpmcSingleQueueSchedulerThreadPtr = TIntrusivePtr<TMpmcSingleQueueSchedulerThread>;
+
+using TMpscSingleQueueSchedulerThread = TSingleQueueSchedulerThread<TMpscQueueImpl>;
+using TMpscSingleQueueSchedulerThreadPtr = TIntrusivePtr<TMpscSingleQueueSchedulerThread>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TFairShareInvokerQueue)
-DECLARE_REFCOUNTED_STRUCT(IFairShareCallbackQueue);
-
-struct TEnqueuedAction
-{
-    bool Finished = true;
-    NProfiling::TCpuInstant EnqueuedAt = 0;
-    NProfiling::TCpuInstant StartedAt = 0;
-    NProfiling::TCpuInstant FinishedAt = 0;
-    TClosure Callback;
-};
+DECLARE_REFCOUNTED_CLASS(TFairShareQueueSchedulerThread)
+DECLARE_REFCOUNTED_STRUCT(IFairShareCallbackQueue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
