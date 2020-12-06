@@ -2134,13 +2134,14 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         set("//tmp/t/@enable_compaction_and_partitioning", False)
 
-        reshard_table("//tmp/t", [[], [6]])
+        reshard_table("//tmp/t", [[], [4]])
         sync_mount_table("//tmp/t")
 
         all_rows = []
-        for i in range(4):
-            rows = [{"key1": i * 3 + j, "value1": str(i * 3 + j)} for j in range(3)]
+        for i in range(3):
+            rows = [{"key1": i * 2 + j, "value1": str(i * 2 + j)} for j in range(2)]
             insert_rows("//tmp/t", rows)
+            sync_flush_table("//tmp/t")
             for row in rows:
                 row.update({"key2": yson.YsonEntity(), "value2": yson.YsonEntity()})
             all_rows += rows
