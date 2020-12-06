@@ -40,12 +40,10 @@ TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
         // When Hermes looks at such horrors it goes crazy.
         // Here are some hacks to help Hermes keep its saninty.
         if (commit == "-1") {
-            commit = TString(40, '0');
+            commit = TString(10, '0');
+        } else {
+             commit = commit.substr(0, 10);
         }
-
-        // TODO(max42): YT-12891.
-        // Uncomment this when Arc is able to work with commits by their hash prefixes.
-        // commit = commit.substr(0, 10);
     } else {
         commit = "r" + ToString(svnRevision);
     }
