@@ -21,12 +21,7 @@ class TDispatcher::TImpl
 {
 public:
     TImpl()
-        : CompressionFairShareThreadPool_(BIND([] {
-            return CreateFairShareThreadPool(
-                TDispatcherConfig::DefaultCompressionPoolSize,
-                "Compression");
-        }))
-        , CompressionPoolInvoker_(BIND([this] {
+        : CompressionPoolInvoker_(BIND([this] {
             return CreatePrioritizedInvoker(CompressionPool_->GetInvoker());
         }))
     {
@@ -41,43 +36,45 @@ public:
     {
         HeavyPool_->Configure(config->HeavyPoolSize);
         CompressionPool_->Configure(config->CompressionPoolSize);
-        // NB: TFairShareThreadPool::Configure() has dummy implementation.
-        CompressionFairShareThreadPool_->Configure(config->CompressionPoolSize);
-        auto guard = WriterGuard(SpinLock_);
+        FairShareCompressionPool_->Configure(config->CompressionPoolSize);
 
-        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-            const auto& bandConfig = config->MultiplexingBands[band];
-            if (!bandConfig) {
-                continue;
-            }
-            for (auto& [networkName, tosLevel] : bandConfig->NetworkToTosLevel) {
-                auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
-                if (it == NetworkNames_.end()) {
-                    NetworkNames_.push_back(networkName);
+        {
+            auto guard = WriterGuard(SpinLock_);
+
+            for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+                const auto& bandConfig = config->MultiplexingBands[band];
+                if (!bandConfig) {
+                    continue;
+                }
+                for (auto& [networkName, tosLevel] : bandConfig->NetworkToTosLevel) {
+                    auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
+                    if (it == NetworkNames_.end()) {
+                        NetworkNames_.push_back(networkName);
+                    }
                 }
             }
-        }
 
-        for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
-            const auto& bandConfig = config->MultiplexingBands[band];
-            auto& bandDescriptor = BandToDescriptor_[band];
-            bandDescriptor.DefaultTosLevel = bandConfig ? bandConfig->TosLevel : DefaultTosLevel;
-            bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
+            for (auto band : TEnumTraits<EMultiplexingBand>::GetDomainValues()) {
+                const auto& bandConfig = config->MultiplexingBands[band];
+                auto& bandDescriptor = BandToDescriptor_[band];
+                bandDescriptor.DefaultTosLevel = bandConfig ? bandConfig->TosLevel : DefaultTosLevel;
+                bandDescriptor.NetworkIdToTosLevel.resize(NetworkNames_.size(), bandDescriptor.DefaultTosLevel);
 
-            // Possible overwrite values for default network, filled in ctor.
-            for (int networkId = 0; networkId < NetworkNames_.size(); ++networkId) {
-                bandDescriptor.NetworkIdToTosLevel[networkId] = bandDescriptor.DefaultTosLevel;
-            }
+                // Possible overwrite values for default network, filled in ctor.
+                for (int networkId = 0; networkId < NetworkNames_.size(); ++networkId) {
+                    bandDescriptor.NetworkIdToTosLevel[networkId] = bandDescriptor.DefaultTosLevel;
+                }
 
-            if (!bandConfig) {
-                continue;
-            }
+                if (!bandConfig) {
+                    continue;
+                }
 
-            for (auto& [networkName, tosLevel] : bandConfig->NetworkToTosLevel) {
-                auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
-                YT_VERIFY(it != NetworkNames_.end());
-                auto id = std::distance(NetworkNames_.begin(), it);
-                bandDescriptor.NetworkIdToTosLevel[id] = tosLevel;
+                for (auto& [networkName, tosLevel] : bandConfig->NetworkToTosLevel) {
+                    auto it = std::find(NetworkNames_.begin(), NetworkNames_.end(), networkName);
+                    YT_VERIFY(it != NetworkNames_.end());
+                    auto id = std::distance(NetworkNames_.begin(), it);
+                    bandDescriptor.NetworkIdToTosLevel[id] = tosLevel;
+                }
             }
         }
     }
@@ -118,9 +115,9 @@ public:
         return CompressionPoolInvoker_.Value();
     }
 
-    const IFairShareThreadPoolPtr& GetCompressionFairShareThreadPool()
+    const IFairShareThreadPoolPtr& GetFairShareCompressionThreadPool()
     {
-        return CompressionFairShareThreadPool_.Value();
+        return FairShareCompressionPool_;
     }
 
     const IInvokerPtr& GetCompressionPoolInvoker()
@@ -132,10 +129,8 @@ public:
     {
         LightQueue_->Shutdown();
         HeavyPool_->Shutdown();
-        if (CompressionFairShareThreadPool_.HasValue()) {
-            CompressionFairShareThreadPool_->Shutdown();
-        }
         CompressionPool_->Shutdown();
+        FairShareCompressionPool_->Shutdown();
     }
 
 private:
@@ -148,7 +143,8 @@ private:
     const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
     const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(TDispatcherConfig::DefaultHeavyPoolSize, "RpcHeavy");
     const TThreadPoolPtr CompressionPool_ = New<TThreadPool>(TDispatcherConfig::DefaultCompressionPoolSize, "Compression");
-    TLazyIntrusivePtr<IFairShareThreadPool> CompressionFairShareThreadPool_;
+    const IFairShareThreadPoolPtr FairShareCompressionPool_ = CreateFairShareThreadPool(TDispatcherConfig::DefaultCompressionPoolSize, "Compression");
+
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;
 
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, SpinLock_);
@@ -230,9 +226,9 @@ const IInvokerPtr& TDispatcher::GetCompressionPoolInvoker()
     return Impl_->GetCompressionPoolInvoker();
 }
 
-const IFairShareThreadPoolPtr& TDispatcher::GetCompressionFairShareThreadPool()
+const IFairShareThreadPoolPtr& TDispatcher::GetFairShareCompressionThreadPool()
 {
-    return Impl_->GetCompressionFairShareThreadPool();
+    return Impl_->GetFairShareCompressionThreadPool();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,6 +25,8 @@
 
 #include <yt/ytlib/object_client/config.h>
 
+#include <yt/core/rpc/config.h>
+
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/ytalloc/config.h>
@@ -419,6 +421,9 @@ public:
     //! YTAlloc configuration.
     NYTAlloc::TYTAllocConfigPtr YTAlloc;
 
+    //! RPC dispatcher configuration.
+    NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
+
     //! Node resource limits.
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -439,6 +444,8 @@ public:
             .Optional();
         RegisterParameter("yt_alloc", YTAlloc)
             .Optional();
+        RegisterParameter("rpc_dispatcher", RpcDispatcher)
+            .DefaultNew();
         RegisterParameter("resource_limits", ResourceLimits)
             .Default();
         RegisterParameter("data_node", DataNode)

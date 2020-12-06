@@ -346,20 +346,27 @@ public:
 
     TEnumIndexedVector<EMultiplexingBand, TMultiplexingBandConfigPtr> MultiplexingBands;
 
-    TDispatcherConfig()
-    {
-        RegisterParameter("heavy_pool_size", HeavyPoolSize)
-            .Default(DefaultHeavyPoolSize)
-            .GreaterThan(0);
-        RegisterParameter("compression_pool_size", CompressionPoolSize)
-            .Default(DefaultCompressionPoolSize)
-            .GreaterThan(0);
-        RegisterParameter("multiplexing_bands", MultiplexingBands)
-            .Default();
-    }
+    TDispatcherConfig();
+    TDispatcherConfigPtr ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDispatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDispatcherDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::optional<int> HeavyPoolSize;
+    std::optional<int> CompressionPoolSize;
+
+    std::optional<TEnumIndexedVector<EMultiplexingBand, TMultiplexingBandConfigPtr>> MultiplexingBands;
+
+    TDispatcherDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDispatcherDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -144,6 +144,7 @@
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/channel.h>
 #include <yt/core/rpc/server.h>
+#include <yt/core/rpc/dispatcher.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/virtual.h>
@@ -1332,6 +1333,9 @@ void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newC
     if (!NYTAlloc::IsConfiguredFromEnv()) {
         NYTAlloc::Configure(newConfig->YTAlloc ? newConfig->YTAlloc : Config_->YTAlloc);
     }
+
+    // Reconfigure RPC dispatcher.
+    NRpc::TDispatcher::Get()->Configure(Config_->RpcDispatcher->ApplyDynamic(newConfig->RpcDispatcher));
 
     // Reconfigure thread pools.
     QueryThreadPool_->Configure(

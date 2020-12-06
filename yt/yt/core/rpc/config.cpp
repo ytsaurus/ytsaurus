@@ -23,4 +23,41 @@ const TThroughputThrottlerConfigPtr TMethodConfig::DefaultLoggingSuppressionFail
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDispatcherConfig::TDispatcherConfig()
+{
+    RegisterParameter("heavy_pool_size", HeavyPoolSize)
+        .Default(DefaultHeavyPoolSize)
+        .GreaterThan(0);
+    RegisterParameter("compression_pool_size", CompressionPoolSize)
+        .Default(DefaultCompressionPoolSize)
+        .GreaterThan(0);
+    RegisterParameter("multiplexing_bands", MultiplexingBands)
+        .Default();
+}
+
+TDispatcherConfigPtr TDispatcherConfig::ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const
+{
+    auto mergedConfig = New<TDispatcherConfig>();
+    mergedConfig->HeavyPoolSize = dynamicConfig->HeavyPoolSize.value_or(HeavyPoolSize);
+    mergedConfig->CompressionPoolSize = dynamicConfig->CompressionPoolSize.value_or(CompressionPoolSize);
+    mergedConfig->MultiplexingBands = dynamicConfig->MultiplexingBands.value_or(MultiplexingBands);
+    return mergedConfig;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDispatcherDynamicConfig::TDispatcherDynamicConfig()
+{
+    RegisterParameter("heavy_pool_size", HeavyPoolSize)
+        .Optional()
+        .GreaterThan(0);
+    RegisterParameter("compression_pool_size", CompressionPoolSize)
+        .Optional()
+        .GreaterThan(0);
+    RegisterParameter("multiplexing_bands", MultiplexingBands)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NRpc
