@@ -348,9 +348,10 @@ private:
 
         TFuture<void> SetMode(TBootstrap* const bootstrap, ETableReplicaMode mode)
         {
-            YT_LOG_DEBUG("Switching table replica mode (Path: %v, ReplicaId: %v, Mode: %v)",
+            YT_LOG_DEBUG("Switching table replica mode (Path: %v, ReplicaId: %v, ClusterName: %v, Mode: %v)",
                 Path_,
                 Id_,
+                ClusterName_,
                 mode);
 
             auto automatonInvoker = bootstrap
@@ -371,14 +372,16 @@ private:
                 .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTableReplicaYPathProxy::TRspAlterPtr>& rspOrError) {
                     if (rspOrError.IsOK()) {
                         Mode_ = mode;
-                        YT_LOG_DEBUG("Table replica mode switched (Path: %v, ReplicaId: %v, Mode: %v)",
+                        YT_LOG_DEBUG("Table replica mode switched (Path: %v, ReplicaId: %v, ClusterName: %v, Mode: %v)",
                             Path_,
                             Id_,
+                            ClusterName_,
                             mode);
                     } else {
-                        YT_LOG_DEBUG(rspOrError, "Error switching table replica mode (Path: %v, ReplicaId: %v, Mode: %v)",
+                        YT_LOG_DEBUG(rspOrError, "Error switching table replica mode (Path: %v, ReplicaId: %v, ClusterName: %v, Mode: %v)",
                             Path_,
                             Id_,
+                            ClusterName_,
                             mode);
                     }
                 })
@@ -968,7 +971,7 @@ private:
 
             auto client = GetOrCreateClusterClient(replica->GetClusterName());
             if (!client) {
-                YT_LOG_WARNING("Unknown replica cluster (Name: %v, ReplicaId: %v, TableId: %v)",
+                YT_LOG_WARNING("Unknown replica cluster (ClusterName: %v, ReplicaId: %v, TableId: %v)",
                     replica->GetClusterName(),
                     replica->GetId(),
                     table->GetId());
