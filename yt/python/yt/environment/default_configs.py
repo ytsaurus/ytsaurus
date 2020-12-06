@@ -373,8 +373,10 @@ b"""
         };
 
         incremental_heartbeat_period = 200;
-        incremental_heartbeat_throttler_limit = 100;
-        incremental_heartbeat_throttler_period = 1000;
+        incremental_heartbeat_throttler = {
+            limit = 100;
+            period = 1000;
+        };
         register_retry_period = 100;
 
         block_cache = {
