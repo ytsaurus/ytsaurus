@@ -322,7 +322,8 @@ std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partition
     YT_VERIFY(partitionCount > 0);
     YT_VERIFY(maxPartitionFactor > 0);
 
-    maxPartitionFactor = Clamp(maxPartitionFactor, 2, partitionCount);
+    maxPartitionFactor = std::max(maxPartitionFactor, 2);
+    maxPartitionFactor = std::min(maxPartitionFactor, partitionCount);
 
     int partitionTreeDepth = 0;
     i64 maxPartitionFactorPower = 1;
