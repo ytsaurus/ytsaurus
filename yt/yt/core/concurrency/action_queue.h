@@ -84,4 +84,12 @@ IInvokerPtr CreateMemoryTaggingInvoker(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates an invoker that creates a codicil guard with a given string before each
+//! callback invocation.
+IInvokerPtr CreateCodicilGuardedInvoker(
+    IInvokerPtr underlyingInvoker,
+    TString codicil);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NConcurrency
