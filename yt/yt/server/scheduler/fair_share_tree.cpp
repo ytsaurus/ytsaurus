@@ -1510,7 +1510,7 @@ private:
 
             auto* parent = operationElement->GetParent();
             while (parent) {
-                if (!Dominates(parent->ResourceLimits(), parent->GetInstantResourceUsage())) {
+                if (!Dominates(parent->GetSpecifiedResourceLimits(), parent->GetInstantResourceUsage())) {
                     return parent;
                 }
                 parent = parent->GetParent();
