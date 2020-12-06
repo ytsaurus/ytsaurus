@@ -35,7 +35,7 @@ public:
         RegisterParameter("latest_timestamp_update_period", LatestTimestampUpdatePeriod)
             // COMPAT(babenko)
             .Alias("update_period")
-            .Default(TDuration::Seconds(3));
+            .Default(TDuration::MilliSeconds(500));
 
         RegisterParameter("batch_period", BatchPeriod)
             .Default(TDuration::MilliSeconds(10));
