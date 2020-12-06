@@ -92,7 +92,7 @@ i64 GetBasicPriority(EWorkloadCategory category)
 IInvokerPtr GetCompressionInvoker(const TWorkloadDescriptor& workloadDescriptor)
 {
     if (workloadDescriptor.CompressionFairShareTag) {
-        return NRpc::TDispatcher::Get()->GetCompressionFairShareThreadPool()
+        return NRpc::TDispatcher::Get()->GetFairShareCompressionThreadPool()
             ->GetInvoker(*workloadDescriptor.CompressionFairShareTag);
     } else {
         return CreateFixedPriorityInvoker(

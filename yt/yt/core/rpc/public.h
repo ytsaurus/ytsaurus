@@ -88,6 +88,7 @@ DECLARE_REFCOUNTED_CLASS(TThrottlingChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TResponseKeeperConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiplexingBandConfig)
 DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
+DECLARE_REFCOUNTED_CLASS(TDispatcherDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
