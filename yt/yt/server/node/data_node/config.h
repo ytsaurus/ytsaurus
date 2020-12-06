@@ -739,12 +739,6 @@ public:
     //! Useful for tests.
     bool SyncDirectoriesOnConnect;
 
-    //! Maximum number of blocks to store in the RecentlyReadBlockQueue in ChunkBlockManager.
-    int RecentlyReadBlockQueueSize;
-
-    //! Sample rate of blocks that will be added to the RecentlyReadBlockQueue in ChunkBlockManager.
-    double RecentlyReadBlockQueueSampleRate;
-
     //! The number of threads in StorageHeavy thread pool (used for extracting chunk meta, handling
     //! chunk slices, columnar statistic etc).
     int StorageHeavyThreadCount;
@@ -938,14 +932,6 @@ public:
 
         RegisterParameter("sync_directories_on_connect", SyncDirectoriesOnConnect)
             .Default(false);
-
-        RegisterParameter("recently_read_block_queue_size", RecentlyReadBlockQueueSize)
-            .GreaterThanOrEqual(0)
-            .Default(0);
-        RegisterParameter("recently_read_block_queue_sample_rate", RecentlyReadBlockQueueSampleRate)
-            .GreaterThanOrEqual(0.0)
-            .LessThanOrEqual(1.0)
-            .Default(0.0);
 
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
             .GreaterThan(0)
