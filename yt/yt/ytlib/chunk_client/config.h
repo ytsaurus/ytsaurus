@@ -76,6 +76,23 @@ DEFINE_REFCOUNTED_TYPE(TRemoteWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDispatcherDynamicConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    std::optional<int> ChunkReaderPoolSize;
+
+    TDispatcherDynamicConfig()
+    {
+        RegisterParameter("chunk_reader_pool_size", ChunkReaderPoolSize)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDispatcherDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDispatcherConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -87,6 +104,13 @@ public:
     {
         RegisterParameter("chunk_reader_pool_size", ChunkReaderPoolSize)
             .Default(DefaultChunkReaderPoolSize);
+    }
+
+    TDispatcherConfigPtr ApplyDynamic(const TDispatcherDynamicConfigPtr& dynamicConfig) const
+    {
+        auto mergedConfig = New<TDispatcherConfig>();
+        mergedConfig->ChunkReaderPoolSize = dynamicConfig->ChunkReaderPoolSize.value_or(ChunkReaderPoolSize);
+        return mergedConfig;
     }
 };
 
