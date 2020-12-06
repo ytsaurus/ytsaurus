@@ -81,6 +81,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
@@ -1334,8 +1335,11 @@ void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newC
         NYTAlloc::Configure(newConfig->YTAlloc ? newConfig->YTAlloc : Config_->YTAlloc);
     }
 
-    // Reconfigure RPC dispatcher.
+    // Reconfigure RPC.
     NRpc::TDispatcher::Get()->Configure(Config_->RpcDispatcher->ApplyDynamic(newConfig->RpcDispatcher));
+
+    // Reconfigure Chunk Client.
+    NChunkClient::TDispatcher::Get()->Configure(Config_->ChunkClientDispatcher->ApplyDynamic(newConfig->ChunkClientDispatcher));
 
     // Reconfigure thread pools.
     QueryThreadPool_->Configure(

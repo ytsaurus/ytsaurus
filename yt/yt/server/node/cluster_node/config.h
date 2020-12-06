@@ -25,6 +25,8 @@
 
 #include <yt/ytlib/object_client/config.h>
 
+#include <yt/ytlib/chunk_client/config.h>
+
 #include <yt/core/rpc/config.h>
 
 #include <yt/core/concurrency/config.h>
@@ -424,6 +426,9 @@ public:
     //! RPC dispatcher configuration.
     NRpc::TDispatcherDynamicConfigPtr RpcDispatcher;
 
+    //! Chunk client dispatcher configuration.
+    NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;
+
     //! Node resource limits.
     TResourceLimitsConfigPtr ResourceLimits;
 
@@ -445,6 +450,8 @@ public:
         RegisterParameter("yt_alloc", YTAlloc)
             .Optional();
         RegisterParameter("rpc_dispatcher", RpcDispatcher)
+            .DefaultNew();
+        RegisterParameter("chunk_client_dispatcher", ChunkClientDispatcher)
             .DefaultNew();
         RegisterParameter("resource_limits", ResourceLimits)
             .Default();
