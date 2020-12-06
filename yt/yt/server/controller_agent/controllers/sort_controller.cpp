@@ -2599,7 +2599,8 @@ protected:
             MaxPartitionFactor = DivCeil(GetMaxPartitionJobBufferSize(), Options->MinUncompressedBlockSize);
         }
 
-        MaxPartitionFactor = Clamp(MaxPartitionFactor, 2, Options->MaxPartitionFactor);
+        MaxPartitionFactor = std::max(MaxPartitionFactor, 2);
+        MaxPartitionFactor = std::min(MaxPartitionFactor, Options->MaxPartitionFactor);
 
         YT_LOG_DEBUG("Suggesting partition count and max partition factor (PartitionCount: %v, MaxPartitionFactor: %v)",
             PartitionCount,
