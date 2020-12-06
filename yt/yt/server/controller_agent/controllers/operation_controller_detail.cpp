@@ -49,6 +49,8 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
+#include <yt/ytlib/security_client/helpers.h>
+
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 #include <yt/ytlib/query_client/query.h>
@@ -237,7 +239,11 @@ TOperationControllerBase::TOperationControllerBase(
     , Acl(operation->GetAcl())
     , CancelableContext(New<TCancelableContext>())
     , DiagnosableInvokerPool(CreateFairShareInvokerPool(
-        CreateMemoryTaggingInvoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()), operation->GetMemoryTag()),
+        CreateCodicilGuardedInvoker(
+            CreateMemoryTaggingInvoker(
+                CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()),
+                operation->GetMemoryTag()),
+            Format("OperationId: %v\nAuthenticatedUser: %v", OperationId, AuthenticatedUser)),
         TEnumTraits<EOperationControllerQueue>::DomainSize))
     , InvokerPool(DiagnosableInvokerPool)
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
@@ -2809,6 +2815,36 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSummary> jobSummary)
 {
     auto jobId = jobSummary->Id;
+
+    if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CrashControllerAgent) {
+        bool canCrashControllerAgent = false;
+        {
+            TObjectServiceProxy proxy(Host->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTag));
+            auto connectionConfig = Host->GetClient()->GetNativeConnection()->GetConfig();
+            TMasterReadOptions readOptions{
+                .ReadFrom = EMasterChannelKind::Cache
+            };
+
+            auto userClosure = GetSubjectClosure(
+                AuthenticatedUser,
+                proxy,
+                connectionConfig,
+                readOptions);
+
+            canCrashControllerAgent = userClosure.contains(RootUserName) || userClosure.contains(SuperusersGroupName);
+        }
+
+        if (canCrashControllerAgent) {
+            YT_LOG_ERROR("Crashing controller agent");
+            YT_ABORT();
+        } else {
+            auto error = TError("User %Qv is not a superuser but tried to crash controller agent using testing options in spec. "
+                "This incident will be reported.",
+                AuthenticatedUser);
+            YT_LOG_ALERT(error);
+            THROW_ERROR_EXCEPTION(error);
+        }
+    }
 
     if (State != EControllerState::Running) {
         YT_LOG_DEBUG("Stale job running, ignored (JobId: %v)", jobId);

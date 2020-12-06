@@ -119,7 +119,7 @@ public: \
     virtual returnType method signature final \
     { \
         VERIFY_INVOKER_POOL_AFFINITY(InvokerPool); \
-        TSafeAssertionsGuard guard( \
+        TSafeAssertionsGuard safeAssertionsGuard( \
             Host->GetCoreDumper(), \
             Host->GetCoreSemaphore(), \
             CoreNotes_); \

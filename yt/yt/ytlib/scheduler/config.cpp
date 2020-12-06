@@ -212,6 +212,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("test_job_speculation_timeout", TestJobSpeculationTimeout)
         .Default(false);
+    RegisterParameter("crash_controller_agent", CrashControllerAgent)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

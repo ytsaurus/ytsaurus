@@ -8,6 +8,7 @@
 
 #include <yt/core/ypath/token.h>
 
+#include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/ring_queue.h>
 
 #include <util/thread/lfqueue.h>
@@ -627,6 +628,41 @@ private:
 IInvokerPtr CreateMemoryTaggingInvoker(IInvokerPtr underlyingInvoker, TMemoryTag tag)
 {
     return New<TMemoryTaggingInvoker>(std::move(underlyingInvoker), tag);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCodicilGuardedInvoker
+    : public TInvokerWrapper
+{
+public:
+    TCodicilGuardedInvoker(IInvokerPtr invoker, TString codicil)
+        : TInvokerWrapper(std::move(invoker))
+        , Codicil_(std::move(codicil))
+    { }
+
+    virtual void Invoke(TClosure callback) override
+    {
+        UnderlyingInvoker_->Invoke(BIND(
+            &TCodicilGuardedInvoker::RunCallback,
+            MakeStrong(this),
+            Passed(std::move(callback))));
+    }
+
+private:
+    const TString Codicil_;
+
+    void RunCallback(TClosure callback)
+    {
+        TCurrentInvokerGuard currentInvokerGuard(this);
+        TCodicilGuard codicilGuard(Codicil_);
+        callback.Run();
+    }
+};
+
+IInvokerPtr CreateCodicilGuardedInvoker(IInvokerPtr underlyingInvoker, TString codicil)
+{
+    return New<TCodicilGuardedInvoker>(std::move(underlyingInvoker), std::move(codicil));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

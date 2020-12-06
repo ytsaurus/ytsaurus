@@ -522,6 +522,10 @@ public:
 
     bool TestJobSpeculationTimeout;
 
+    //! Crashes controller agent without safe core.
+    //! Think twice before using!
+    bool CrashControllerAgent;
+
     TTestingOperationOptions();
 };
 
