@@ -76,14 +76,33 @@ std::optional<DB::Field> TryGetMinimumTypeValue(const DB::DataTypePtr& dataType)
     switch (dataType->getTypeId()) {
         case DB::TypeIndex::Nullable:
             return DB::Field();
+
+        case DB::TypeIndex::Int8:
+            return DB::Field(std::numeric_limits<DB::Int8>::min());
+        case DB::TypeIndex::Int16:
+            return DB::Field(std::numeric_limits<DB::Int16>::min());
+        case DB::TypeIndex::Int32:
+            return DB::Field(std::numeric_limits<DB::Int32>::min());
         case DB::TypeIndex::Int64:
             return DB::Field(std::numeric_limits<DB::Int64>::min());
+
+        case DB::TypeIndex::UInt8:
+            return DB::Field(std::numeric_limits<DB::UInt8>::min());
+        case DB::TypeIndex::UInt16:
+            return DB::Field(std::numeric_limits<DB::UInt16>::min());
+        case DB::TypeIndex::UInt32:
+            return DB::Field(std::numeric_limits<DB::UInt32>::min());
         case DB::TypeIndex::UInt64:
             return DB::Field(std::numeric_limits<DB::UInt64>::min());
+
+        case DB::TypeIndex::Float32:
+            return DB::Field(-std::numeric_limits<DB::Float32>::infinity());
         case DB::TypeIndex::Float64:
             return DB::Field(-std::numeric_limits<DB::Float64>::infinity());
+        
         case DB::TypeIndex::String:
             return DB::Field("");
+
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
     }
@@ -94,14 +113,34 @@ std::optional<DB::Field> TryGetMaximumTypeValue(const DB::DataTypePtr& dataType)
     switch (dataType->getTypeId()) {
         case DB::TypeIndex::Nullable:
             return TryGetMaximumTypeValue(DB::removeNullable(dataType));
+
+        case DB::TypeIndex::Int8:
+            return DB::Field(std::numeric_limits<DB::Int8>::max());
+        case DB::TypeIndex::Int16:
+            return DB::Field(std::numeric_limits<DB::Int16>::max());
+        case DB::TypeIndex::Int32:
+            return DB::Field(std::numeric_limits<DB::Int32>::max());
         case DB::TypeIndex::Int64:
             return DB::Field(std::numeric_limits<DB::Int64>::max());
+
+        case DB::TypeIndex::UInt8:
+            return DB::Field(std::numeric_limits<DB::UInt8>::max());
+        case DB::TypeIndex::UInt16:
+            return DB::Field(std::numeric_limits<DB::UInt16>::max());
+        case DB::TypeIndex::UInt32:
+            return DB::Field(std::numeric_limits<DB::UInt32>::max());
         case DB::TypeIndex::UInt64:
             return DB::Field(std::numeric_limits<DB::UInt64>::max());
+
+        case DB::TypeIndex::Float32:
+            return DB::Field(std::numeric_limits<DB::Float32>::infinity());
         case DB::TypeIndex::Float64:
             return DB::Field(std::numeric_limits<DB::Float64>::infinity());
+
         case DB::TypeIndex::String:
+            // The "maximum" string does not exist.
             return std::nullopt;
+
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
     }
@@ -118,16 +157,31 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
             // we theoreticly can represent it as Null, because Null is smaller than any value.
             // But we do not care since this function declared to help only in 'simple cases'.
             return TryDecrementFieldValue(field, DB::removeNullable(dataType));
+
+        case DB::TypeIndex::Int8:
+            return DB::Field(field.get<Int8>() - 1);
+        case DB::TypeIndex::Int16:
+            return DB::Field(field.get<Int16>() - 1);
+        case DB::TypeIndex::Int32:
+            return DB::Field(field.get<Int32>() - 1);
         case DB::TypeIndex::Int64:
             return DB::Field(field.get<Int64>() - 1);
+
+        case DB::TypeIndex::UInt8:
+            return DB::Field(field.get<UInt8>() - 1);
+        case DB::TypeIndex::UInt16:
+            return DB::Field(field.get<UInt16>() - 1);
+        case DB::TypeIndex::UInt32:
+            return DB::Field(field.get<UInt32>() - 1);
         case DB::TypeIndex::UInt64:
             return DB::Field(field.get<UInt64>() - 1);
+       
+        case DB::TypeIndex::Float32:
         case DB::TypeIndex::Float64:
-            // Not supported yet.
-            return std::nullopt;
         case DB::TypeIndex::String:
             // Not supported yet.
             return std::nullopt;
+
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %v", dataType->getName());
     }
@@ -135,6 +189,7 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(dakovalkov): value.Type is a physical type, it's better to pass the desired CH-type.
 DB::Field ConvertToField(const NTableClient::TUnversionedValue& value)
 {
     switch (value.Type) {

@@ -2091,6 +2091,66 @@ class TestJobInput(ClickHouseTestBase):
                 'select * from concatYtTables("//tmp/t1", "//tmp/t3") where a > 18', exact=2
             )
 
+    @authors("dakovalkov")
+    @pytest.mark.parametrize("required", [False, True])
+    def test_key_types(self, required):
+        int_types = ["uint64", "uint32", "uint16", "uint8", "int64", "int32", "int16", "int8"]
+        int_values = [i * 2 for i in range(3)]
+
+        # TODO(dakovalkov): For some reason KeyCondition can not construct from Nullable(int8) now.
+        # Delete this test till ClickHouse fix this.
+        if not required:
+            int_types.pop()
+
+        float_types = ["float", "double"]
+        float_values = [i * 2.0 for i in range(3)]
+
+        string_types = ["string", "any"]
+        string_values = ["{abc=2}", "{zzz=3}"]
+
+        # Column of type "any" can not be required.
+        if required:
+            string_types.pop()
+
+        def create_type_table(type, values):
+            path = "//tmp/t_{}".format(type)
+            create(
+                "table",
+                path,
+                attributes={
+                    "schema": [
+                        {
+                            "name": "key",
+                            "type": type,
+                            "sort_order": "ascending",
+                            "required": required,
+                        },
+                    ],
+                }
+            )
+            for value in values:
+                write_table("<append=%true>" + path, [{"key": value}])
+
+        for type in int_types:
+            create_type_table(type, int_values)
+
+        for type in float_types:
+            create_type_table(type, float_values)
+
+        for type in string_types:
+            create_type_table(type, string_values)
+
+        with Clique(1) as clique:
+            query1 = 'select * from "//tmp/t_{}" where key = 2'
+            query2 = 'select * from "//tmp/t_{}" where 1 < key and key < 3'
+            for type in (int_types + float_types):
+                clique.make_query_and_validate_row_count(query1.format(type), exact=1)
+                clique.make_query_and_validate_row_count(query2.format(type), exact=1)
+
+            query = 'select * from "//tmp/t_{}" where key = \'{{abc=2}}\''
+            for type in string_types:
+                clique.make_query_and_validate_row_count(query.format(type), exact=1)
+
     @authors("max42")
     @pytest.mark.xfail(run="False", reason="Chunk slicing is temporarily not supported")
     def test_chunk_slicing(self):
