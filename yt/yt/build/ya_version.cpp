@@ -40,9 +40,9 @@ TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
         // When Hermes looks at such horrors it goes crazy.
         // Here are some hacks to help Hermes keep its saninty.
         if (commit == "-1") {
-            commit = TString(10, '0');
+            commit = TString(16, '0');
         } else {
-             commit = commit.substr(0, 10);
+             commit = commit.substr(0, 16);
         }
     } else {
         commit = "r" + ToString(svnRevision);
