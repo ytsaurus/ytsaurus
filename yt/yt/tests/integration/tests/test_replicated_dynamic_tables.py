@@ -706,6 +706,76 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         _do()
 
+    @authors("lukyan")
+    def test_transaction_locks(self):
+        self._create_cells()
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "int64", "lock": "a"},
+            {"name": "b", "type": "int64", "lock": "b"},
+            {"name": "c", "type": "int64", "lock": "c"}]
+
+        self._create_replicated_table("//tmp/t", schema=schema)
+
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica_id1, schema=schema)
+        sync_enable_table_replica(replica_id1)
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": 1, "a": 1}], update=True, tx=tx1)
+        lock_rows("//tmp/t", [{"key": 1}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
+        insert_rows("//tmp/t", [{"key": 1, "b": 2}], update=True, tx=tx2)
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key", "a", "b"]) == [{"key": 1, "a": 1, "b": 2}]
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+        tx3 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": 2, "a": 1}], update=True, tx=tx1)
+        lock_rows("//tmp/t", [{"key": 2}], locks=["a", "c"], tx=tx1, lock_type="shared_weak")
+
+        insert_rows("//tmp/t", [{"key": 2, "b": 2}], update=True, tx=tx2)
+        lock_rows("//tmp/t", [{"key": 2}], locks=["c"], tx=tx2, lock_type="shared_weak")
+
+        lock_rows("//tmp/t", [{"key": 2}], locks=["a"], tx=tx3, lock_type="shared_weak")
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx3)
+
+        assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_weak")
+        insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
+
+        commit_transaction(tx2)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx1)
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        lock_rows("//tmp/t", [{"key": 3}], locks=["a"], tx=tx1, lock_type="shared_strong")
+        insert_rows("//tmp/t", [{"key": 3, "a": 1}], update=True, tx=tx2)
+
+        commit_transaction(tx1)
+
+        with pytest.raises(YtError):
+            commit_transaction(tx2)
+
     @authors("aozeritsky")
     @pytest.mark.parametrize("commit_ordering", ["weak", "strong"])
     def test_sync_replication_ordered(self, commit_ordering):
