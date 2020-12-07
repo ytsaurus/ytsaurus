@@ -68,7 +68,7 @@ public:
         };
 
         int nodeCount = 0;
-        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
+        for (auto [nodeId, node] : nodeTracker->Nodes()) {
             if (isGood(node)) {
                 ++nodeCount;
             }
@@ -77,7 +77,7 @@ public:
         std::vector<TNodeHolder> nodes;
         nodes.reserve(nodeCount);
 
-        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
+        for (auto [nodeId, node] : nodeTracker->Nodes()) {
             if (!isGood(node)) {
                 continue;
             }
@@ -127,7 +127,7 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    
+
     std::optional<TInstant> BalanceRequestTime_;
 
     void OnBundleNodesChanged(const TCellBundle* /*bundle*/)
@@ -175,7 +175,7 @@ void TCellTrackerImpl::ScanCells()
 
     TReqReassignPeers request;
 
-    for (const auto [cellId, cell] : cellManger->Cells()) {
+    for (auto [cellId, cell] : cellManger->Cells()) {
         if (!IsObjectAlive(cell)) {
             continue;
         }
@@ -434,7 +434,7 @@ bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeer
         }
 
         // Decommission finished, extra peers can be dropped.
-        // If a new leader became decommissioned, we still make him a single peer 
+        // If a new leader became decommissioned, we still make him a single peer
         // and multipeer decommission will run again.
         auto* updatePeerCountRequest = request->add_peer_count_updates();
         ToProto(updatePeerCountRequest->mutable_cell_id(), cell->GetId());

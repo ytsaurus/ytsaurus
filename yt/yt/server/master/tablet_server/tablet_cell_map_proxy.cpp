@@ -54,7 +54,7 @@ private:
             case EInternedAttributeKey::CountByHealth: {
                 const auto& cellManager = Bootstrap_->GetTamedCellManager();
                 TEnumIndexedVector<ETabletCellHealth, int> counts;
-                for (const auto [cellId, cell] : cellManager->Cells()) {
+                for (auto [cellId, cell] : cellManager->Cells()) {
                     if (!IsObjectAlive(cell)) {
                         continue;
                     }

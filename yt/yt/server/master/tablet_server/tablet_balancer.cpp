@@ -195,7 +195,7 @@ private:
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         THashSet<TTabletCellBundleId> bundlesForCellBalancingOnNextIteration;
-        for (const auto [bundleId, bundleBase] : cellManager->CellBundles()) {
+        for (auto [bundleId, bundleBase] : cellManager->CellBundles()) {
             if (bundleBase->GetType() != EObjectType::TabletCellBundle) {
                 continue;
             }
