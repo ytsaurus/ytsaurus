@@ -46,10 +46,6 @@ def prepare_yatest_environment(need_suid):
 
     global SANDBOX_ROOTDIR
     global SANDBOX_STORAGE_ROOTDIR
-    if arcadia_interop.yatest_common.get_param("teamcity"):
-        SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
-        SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
-        return
 
     ytrecipe = os.environ.get("YTRECIPE") is not None
 
@@ -322,11 +318,6 @@ class YTEnvSetup(object):
                 pytest.skip("Porto is not available inside distbuild")
 
             need_suid = True
-            cls.cleanup_root_files = True
-
-        # TODO(prime@): teamcity build uses binaries from outside.
-        # Those binaries have suid bit set. That messes up tests, what should not use root.
-        if arcadia_interop.yatest_common.get_param("teamcity"):
             cls.cleanup_root_files = True
 
         # Initialize `cls` fields before actual setup to make teardown correct.
