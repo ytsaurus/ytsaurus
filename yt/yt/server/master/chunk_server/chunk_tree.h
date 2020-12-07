@@ -29,6 +29,7 @@ public:
     const TDynamicStore* AsDynamicStore() const;
 
     bool IsSealed() const;
+    bool GetOverlayed() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

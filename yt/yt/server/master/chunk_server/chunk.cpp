@@ -27,6 +27,9 @@ using namespace NObjectClient;
 using namespace NSecurityServer;
 using namespace NCellMaster;
 
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TChunk::TCachedReplicas TChunk::EmptyCachedReplicas;
@@ -41,7 +44,7 @@ TChunk::TChunk(TChunkId id)
         : MigrationChunkRequisitionIndex)
     , LocalRequisitionIndex_(AggregatedRequisitionIndex_)
 {
-    ChunkMeta_.set_type(static_cast<int>(EChunkType::Unknown));
+    ChunkMeta_.set_type(ToProto<int>(EChunkType::Unknown));
     ChunkMeta_.set_version(-1);
     ChunkMeta_.mutable_extensions();
 }
@@ -376,7 +379,7 @@ void TChunk::SetOverlayed(bool value)
 
 bool TChunk::IsConfirmed() const
 {
-    return EChunkType(ChunkMeta_.type()) != EChunkType::Unknown;
+    return FromProto<EChunkType>(ChunkMeta_.type()) != EChunkType::Unknown;
 }
 
 bool TChunk::IsAvailable() const

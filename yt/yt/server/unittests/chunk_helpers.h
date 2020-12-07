@@ -39,6 +39,7 @@ public:
         EChunkType chunkType = EChunkType::Table);
 
     TChunk* CreateUnconfirmedChunk(EChunkType chunkType = EChunkType::Table);
+    TChunk* CreateJournalChunk(bool sealed, bool overlayed);
 
     TChunkList* CreateChunkList(EChunkListKind kind = EChunkListKind::Static);
 

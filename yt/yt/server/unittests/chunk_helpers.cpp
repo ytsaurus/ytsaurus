@@ -15,9 +15,14 @@
 
 namespace NYT::NChunkServer::NTesting {
 
+using namespace NObjectClient;
+
+using NYT::ToProto;
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TGuid GenerateId(NCypressClient::EObjectType type)
+TGuid GenerateId(EObjectType type)
 {
     static i64 counter = 0;
     return MakeId(type, 0, counter++, 0);
@@ -32,7 +37,7 @@ TChunk* TChunkGeneratorBase::CreateChunk(
     NTableClient::TLegacyOwningKey maxKey,
     EChunkType chunkType)
 {
-    auto chunk = std::make_unique<TChunk>(GenerateId(NCypressClient::EObjectType::Chunk));
+    auto chunk = std::make_unique<TChunk>(GenerateId(EObjectType::Chunk));
     chunk->RefObject();
 
     NChunkClient::NProto::TChunkMeta chunkMeta;
@@ -61,8 +66,36 @@ TChunk* TChunkGeneratorBase::CreateChunk(
 
 TChunk* TChunkGeneratorBase::CreateUnconfirmedChunk(EChunkType chunkType)
 {
-    auto chunk = std::make_unique<TChunk>(GenerateId(NCypressClient::EObjectType::Chunk));
+    auto chunk = std::make_unique<TChunk>(GenerateId(EObjectType::Chunk));
     chunk->RefObject();
+
+    auto ptr = chunk.get();
+    CreatedObjects_.push_back(std::move(chunk));
+    return ptr;
+}
+
+TChunk* TChunkGeneratorBase::CreateJournalChunk(bool sealed, bool overlayed)
+{
+    auto chunk = std::make_unique<TChunk>(GenerateId(EObjectType::JournalChunk));
+    chunk->SetOverlayed(overlayed);
+    chunk->RefObject();
+
+    NChunkClient::NProto::TChunkMeta chunkMeta;
+    chunkMeta.set_type(ToProto<int>(EChunkType::Journal));
+
+    NChunkClient::NProto::TMiscExt miscExt;
+    SetProtoExtension(chunkMeta.mutable_extensions(), miscExt);
+
+    NChunkClient::NProto::TChunkInfo chunkInfo;
+    chunk->Confirm(&chunkInfo, &chunkMeta);
+
+    if (sealed) {
+        NChunkClient::NProto::TChunkSealInfo sealInfo;
+        sealInfo.set_row_count(100);
+        sealInfo.set_uncompressed_data_size(100);
+        sealInfo.set_compressed_data_size(100);
+        chunk->Seal(sealInfo);
+    }
 
     auto ptr = chunk.get();
     CreatedObjects_.push_back(std::move(chunk));
@@ -71,7 +104,7 @@ TChunk* TChunkGeneratorBase::CreateUnconfirmedChunk(EChunkType chunkType)
 
 TChunkList* TChunkGeneratorBase::CreateChunkList(EChunkListKind kind)
 {
-    auto chunkList = std::make_unique<TChunkList>(GenerateId(NCypressClient::EObjectType::ChunkList));
+    auto chunkList = std::make_unique<TChunkList>(GenerateId(EObjectType::ChunkList));
     chunkList->SetKind(kind);
     chunkList->RefObject();
 
@@ -87,7 +120,7 @@ TChunkView* TChunkGeneratorBase::CreateChunkView(
 {
     NChunkClient::TReadRange readRange{
         NChunkClient::TReadLimit(lowerLimit), NChunkClient::TReadLimit(upperLimit)};
-    auto chunkView = std::make_unique<TChunkView>(GenerateId(NCypressClient::EObjectType::ChunkView));
+    auto chunkView = std::make_unique<TChunkView>(GenerateId(EObjectType::ChunkView));
 
     chunkView->SetUnderlyingChunk(underlyingChunk);
     chunkView->SetReadRange(readRange);

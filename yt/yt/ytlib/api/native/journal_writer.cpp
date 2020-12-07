@@ -1528,6 +1528,12 @@ private:
 
         void ScheduleChunkSessionSwitch(const TChunkSessionPtr& session)
         {
+            if (!Config_->PreallocateChunks && session->State != EChunkSessionState::Current) {
+                YT_LOG_DEBUG("Non-current chunk session cannot be switched (SessionId: %v)",
+                    session->Id);
+                return;
+            }
+
             if (session->SwitchScheduled) {
                 YT_LOG_DEBUG("Chunk session is already switched (SessionId: %v)",
                     session->Id);
