@@ -90,7 +90,7 @@ private:
             WaitFor(HydraManager_->SyncWithLeader())
                 .ThrowOnError();
 
-            for (const auto [cellId, cell] : CellManager_->Cells()) {
+            for (auto [cellId, cell] : CellManager_->Cells()) {
                 if (!IsObjectAlive(cell)) {
                     continue;
                 }
@@ -104,7 +104,7 @@ private:
                 }
             }
 
-            for (const auto [cellId, version] : idToVersion) {
+            for (auto [cellId, version] : idToVersion) {
                 if (IsCellType(TypeFromId(cellId))) {
                     CellDirectory_->UnregisterCell(cellId);
                 }

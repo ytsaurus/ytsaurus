@@ -2476,7 +2476,7 @@ private:
             .WithSparse()
             .WithTag("tablet_cell_bundle", std::get<TString>(key))
             .WithTag("table_type", table->IsPhysicallySorted() ? "sorted" : "ordered");
-        
+
         if (reason) {
             profiler = profiler.WithTag("operation_type", FormatEnum(*reason));
         }
@@ -3124,7 +3124,7 @@ private:
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         THashSet<TCellBundle*> healthyBundles;
-        for (const auto [bundleId, bundle] : cellManager->CellBundles()) {
+        for (auto [bundleId, bundle] : cellManager->CellBundles()) {
             if (!IsObjectAlive(bundle) || bundle->GetType() != EObjectType::TabletCellBundle) {
                 continue;
             }
@@ -5090,7 +5090,7 @@ private:
     {
         TWallTimer timer;
         auto counters = GetCounters({}, table);
-        auto reportTime = Finally([&] { 
+        auto reportTime = Finally([&] {
             counters->CopyChunkListTime.Add(timer.GetElapsedTime());
         });
 

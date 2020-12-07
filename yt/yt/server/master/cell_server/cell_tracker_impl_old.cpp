@@ -114,12 +114,12 @@ private:
         }
 
         const auto& tabletManager = Bootstrap_->GetTamedCellManager();
-        for (const auto [bundleId, bundle] : tabletManager->CellBundles()) {
+        for (auto [bundleId, bundle] : tabletManager->CellBundles()) {
             Queues_.emplace(bundle, TQueueType());
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
+        for (auto [nodeId, node] : nodeTracker->Nodes()) {
             AddNode(node);
         }
 

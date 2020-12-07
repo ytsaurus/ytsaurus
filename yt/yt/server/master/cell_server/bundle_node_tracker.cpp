@@ -49,12 +49,12 @@ public:
     void OnAfterSnapshotLoaded()
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (const auto [bundleId, bundle] : cellManager->CellBundles()) {
+        for (auto [bundleId, bundle] : cellManager->CellBundles()) {
             YT_VERIFY(NodeMap_.emplace(bundle, TNodeSet()).second);
         }
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
+        for (auto [nodeId, node] : nodeTracker->Nodes()) {
             OnNodeChanged(node);
         }
     }
@@ -77,7 +77,7 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    
+
     THashMap<const TCellBundle*, TNodeSet> NodeMap_;
     static const TNodeSet EmptyNodeSet;
 
@@ -102,7 +102,7 @@ private:
     void RevisitCellBundleNodes(TNodeSet* nodeSet, TCellBundle* bundle)
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto [nodeId, node] : nodeTracker->Nodes()) {
+        for (auto [nodeId, node] : nodeTracker->Nodes()) {
             AddOrRemoveNode(nodeSet, bundle, node);
         }
     }
@@ -126,7 +126,7 @@ private:
             node->GetDefaultAddress());
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        for (const auto [bundleId, bundle] : cellManager->CellBundles()) {
+        for (auto [bundleId, bundle] : cellManager->CellBundles()) {
             // TODO(savrus) Use hostility checker from cell tracker.
             AddOrRemoveNode(&NodeMap_[bundle], bundle, node);
         }

@@ -123,7 +123,7 @@ private:
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
 
         if (Config_->EnableTabletCellDecommission) {
-            for (const auto [cellId, cell] : cellManager->Cells()) {
+            for (auto [cellId, cell] : cellManager->Cells()) {
                 if (IsObjectAlive(cell) &&
                     cell->IsDecommissionStarted() &&
                     !retiringCells.contains(cell))
@@ -138,7 +138,7 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster() && Config_->EnableTabletCellRemoval) {
-            for (const auto [cellId, cell] : cellManager->Cells()) {
+            for (auto [cellId, cell] : cellManager->Cells()) {
                 if (IsObjectAlive(cell) && !retiringCells.contains(cell)) {
                     RemoveCellIfDecommissioned(cell);
                 }
@@ -151,7 +151,7 @@ private:
         const auto& tabletManager = Bootstrap_->GetTabletManager();
 
         THashSet<const TCellBase*> retiringCells;
-        for (const auto [actionId, action] : tabletManager->TabletActions()) {
+        for (auto [actionId, action] : tabletManager->TabletActions()) {
             if (IsObjectAlive(action) &&
                 action->GetState() != ETabletActionState::Completed &&
                 action->GetState() != ETabletActionState::Failed)
@@ -249,7 +249,7 @@ private:
         std::vector<TTabletActionId> orphans;
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        for (const auto [actionId, action] : tabletManager->TabletActions()) {
+        for (auto [actionId, action] : tabletManager->TabletActions()) {
             if (IsObjectAlive(action) &&
                 action->GetState() == ETabletActionState::Orphaned &&
                 action->GetTabletCellBundle()->Health() == ETabletCellHealth::Good)

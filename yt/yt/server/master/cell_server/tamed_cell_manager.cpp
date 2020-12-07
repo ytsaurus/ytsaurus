@@ -837,12 +837,12 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         NameToCellBundleMap_.clear();
-        for (const auto [bundleId, bundle] : CellBundleMap_) {
+        for (auto [bundleId, bundle] : CellBundleMap_) {
             YT_VERIFY(NameToCellBundleMap_.emplace(bundle->GetName(), bundle).second);
         }
 
         AddressToCell_.clear();
-        for (const auto [cellId, cell] : CellMap_) {
+        for (auto [cellId, cell] : CellMap_) {
             if (!IsObjectAlive(cell)) {
                 continue;
             }
@@ -894,7 +894,7 @@ private:
         NProto::TReqSetCellStatus request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
 
-        for (const auto [cellId, cell] : CellMap_) {
+        for (auto [cellId, cell] : CellMap_) {
             if (!IsObjectAlive(cell))
                 continue;
 
@@ -966,7 +966,7 @@ private:
             NHydra::GetCurrentMutationContext()->GetTimestamp() -
             GetDynamicConfig()->PeerRevocationReasonExpirationTime;
 
-        for (const auto [cellId, cell] : CellMap_) {
+        for (auto [cellId, cell] : CellMap_) {
             if (!IsObjectAlive(cell)) {
                 continue;
             }
@@ -993,14 +993,14 @@ private:
 
     void UpdateBundlesHealth()
     {
-        for (const auto [bundleId, bundle] : CellBundleMap_) {
+        for (auto [bundleId, bundle] : CellBundleMap_) {
             if (!IsObjectAlive(bundle)) {
                 continue;
             }
 
             auto oldHealth = bundle->Health();
             bundle->Health() = ECellHealth::Good;
-            for (const auto& cell : bundle->Cells()) {
+            for (auto cell : bundle->Cells()) {
                 bundle->Health() = TCellBase::CombineHealths(cell->GossipStatus().Local().Health, bundle->Health());
             }
 
@@ -1548,7 +1548,7 @@ private:
 
     bool CheckHasHealthyCells(TCellBundle* bundle)
     {
-        for (const auto [cellId, cell] : CellMap_) {
+        for (auto [cellId, cell] : CellMap_) {
             if (!IsCellActive(cell)) {
                 continue;
             }
