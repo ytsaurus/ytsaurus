@@ -18,7 +18,6 @@
         "infra/nanny/logrotate/logrotate";
         "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher";
 
-        "yt/python/yt/wrapper/bin/yt_make/yt";
         "yt/python/yt/wrapper/tests/yt_python/yt-python";
         "yt/python/yt/wrapper/tests/yt_python3/yt-python3";
         "yt/python/yt/wrapper/tests/yt_ipython/yt-ipython";
