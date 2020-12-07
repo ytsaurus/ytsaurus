@@ -44,6 +44,8 @@ public:
             ExecAgentLogger)
         , Bootstrap_(bootstrap)
     {
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(GetJobSpec)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
@@ -65,13 +67,12 @@ private:
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 
-    // XXX job thread?
-    DECLARE_THREAD_AFFINITY_SLOT(JobThrottlerThread);
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
 
     TGuid RegisterThrottlingRequest(TFuture<void> future)
     {
-        VERIFY_THREAD_AFFINITY(JobThrottlerThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
         auto id = TGuid::Create();
         YT_VERIFY(OutstandingThrottlingRequests_.emplace(id, future).second);
         // Remove future from outstanding requests after it was set + timeout.
@@ -85,7 +86,7 @@ private:
 
     void EvictThrottlingRequest(TGuid id)
     {
-        VERIFY_THREAD_AFFINITY(JobThrottlerThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
         YT_LOG_DEBUG("Outstanding throttling request evicted (ThrottlingRequestId: %v)",
             id);
         YT_VERIFY(OutstandingThrottlingRequests_.erase(id) == 1);
@@ -93,14 +94,14 @@ private:
 
     TFuture<void> FindThrottlingRequest(TGuid id)
     {
-        VERIFY_THREAD_AFFINITY(JobThrottlerThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
         auto it = OutstandingThrottlingRequests_.find(id);
         return it == OutstandingThrottlingRequests_.end() ? TFuture<void>() : it->second;
     }
 
     TFuture<void> GetThrottlingRequestOrThrow(TGuid id)
     {
-        VERIFY_THREAD_AFFINITY(JobThrottlerThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
         auto future = FindThrottlingRequest(id);
         if (!future) {
             THROW_ERROR_EXCEPTION("Unknown throttling request %v", id);
