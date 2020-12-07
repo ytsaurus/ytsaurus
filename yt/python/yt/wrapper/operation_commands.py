@@ -179,6 +179,7 @@ def iterate_operations(user=None, state=None, type=None, filter=None, pool=None,
                                               with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time,
                                               cursor_time=cursor_time, cursor_direction=cursor_direction,
                                               limit=limit_per_request, include_archive=include_archive,
+                                              include_counters=False,
                                               attributes=attributes,
                                               format=format, client=client)
         operations_response = operations_response["operations"]
