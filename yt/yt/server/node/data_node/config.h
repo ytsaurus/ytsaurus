@@ -645,59 +645,8 @@ public:
     //! Reader configuration used to seal chunks.
     NJournalClient::TChunkReaderConfigPtr SealReader;
 
-    //! Controls the total incoming bandwidth.
-    NConcurrency::TThroughputThrottlerConfigPtr TotalInThrottler;
-
-    //! Controls the total outcoming bandwidth.
-    NConcurrency::TThroughputThrottlerConfigPtr TotalOutThrottler;
-
-    //! Controls incoming bandwidth used by replication jobs.
-    NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
-
-    //! Controls outcoming bandwidth used by replication jobs.
-    NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
-
-    //! Controls incoming bandwidth used by repair jobs.
-    NConcurrency::TThroughputThrottlerConfigPtr RepairInThrottler;
-
-    //! Controls outcoming bandwidth used by repair jobs.
-    NConcurrency::TThroughputThrottlerConfigPtr RepairOutThrottler;
-
-    //! Controls incoming bandwidth used by Artifact Cache downloads.
-    NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheInThrottler;
-
-    //! Controls outcoming bandwidth used by Artifact Cache downloads.
-    NConcurrency::TThroughputThrottlerConfigPtr ArtifactCacheOutThrottler;
-
-    //! Controls outcoming location bandwidth used by skynet sharing.
-    NConcurrency::TThroughputThrottlerConfigPtr SkynetOutThrottler;
-
-    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningInThrottler;
-
-    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletCompactionAndPartitioningOutThrottler;
-
-    //! Controls incoming location bandwidth used by tablet journals.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletLoggingInThrottler;
-
-    //! Controls outcoming location bandwidth used by tablet preload.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletPreloadOutThrottler;
-
-    //! Controls outcoming location bandwidth used by tablet recovery.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletRecoveryOutThrottler;
-
-    //! Controls incoming location bandwidth used by tablet snapshots.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletSnapshotInThrottler;
-
-    //! Controls incoming location bandwidth used by tablet store flush.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletStoreFlushInThrottler;
-
-    //! Controls outcoming location bandwidth used by tablet replication.
-    NConcurrency::TThroughputThrottlerConfigPtr TabletReplicationOutThrottler;
-
-    //! Controls outcoming RPS of GetBlockSet and GetBlockRange requests.
-    NConcurrency::TThroughputThrottlerConfigPtr ReadRpsOutThrottler;
+    //! Configuration for various Data Node throttlers.
+    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
     //! Keeps chunk peering information.
     TPeerBlockTableConfigPtr PeerBlockTable;
@@ -854,43 +803,46 @@ public:
         RegisterParameter("seal_reader", SealReader)
             .DefaultNew();
 
-        RegisterParameter("total_in_throttler", TotalInThrottler)
-            .DefaultNew();
-        RegisterParameter("total_out_throttler", TotalOutThrottler)
-            .DefaultNew();
-        RegisterParameter("replication_in_throttler", ReplicationInThrottler)
-            .DefaultNew();
-        RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
-            .DefaultNew();
-        RegisterParameter("repair_in_throttler", RepairInThrottler)
-            .DefaultNew();
-        RegisterParameter("repair_out_throttler", RepairOutThrottler)
-            .DefaultNew();
-        RegisterParameter("artifact_cache_in_throttler", ArtifactCacheInThrottler)
-            .DefaultNew();
-        RegisterParameter("artifact_cache_out_throttler", ArtifactCacheOutThrottler)
-            .DefaultNew();
-        RegisterParameter("skynet_out_throttler", SkynetOutThrottler)
-            .DefaultNew();
-        RegisterParameter("tablet_comaction_and_partitoning_in_throttler", TabletCompactionAndPartitioningInThrottler)
-            .DefaultNew();
-        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", TabletCompactionAndPartitioningOutThrottler)
-            .DefaultNew();
-        RegisterParameter("tablet_logging_in_throttler", TabletLoggingInThrottler)
-            .DefaultNew();
-        RegisterParameter("tablet_preload_out_throttler", TabletPreloadOutThrottler)
-            .DefaultNew();
-        RegisterParameter("tablet_snapshot_in_throttler", TabletSnapshotInThrottler)
-            .DefaultNew();
-        RegisterParameter("tablet_store_flush_in_throttler", TabletStoreFlushInThrottler)
-            .DefaultNew();
-        RegisterParameter("tablet_recovery_out_throttler", TabletRecoveryOutThrottler)
-            .DefaultNew();
-        RegisterParameter("tablet_replication_out_throttler", TabletReplicationOutThrottler)
-            .DefaultNew();
+        RegisterParameter("throttlers", Throttlers)
+            .Optional();
 
-        RegisterParameter("read_rps_out_throttler", ReadRpsOutThrottler)
-            .DefaultNew();
+        // COMPAT(babenko): use /data_node/throttlers instead.
+       RegisterParameter("total_in_throttler", Throttlers[EDataNodeThrottlerKind::TotalIn])
+            .Optional();
+        RegisterParameter("total_out_throttler", Throttlers[EDataNodeThrottlerKind::TotalOut])
+            .Optional();
+        RegisterParameter("replication_in_throttler", Throttlers[EDataNodeThrottlerKind::ReplicationIn])
+            .Optional();
+        RegisterParameter("replication_out_throttler", Throttlers[EDataNodeThrottlerKind::ReplicationOut])
+            .Optional();
+        RegisterParameter("repair_in_throttler", Throttlers[EDataNodeThrottlerKind::RepairIn])
+            .Optional();
+        RegisterParameter("repair_out_throttler", Throttlers[EDataNodeThrottlerKind::RepairOut])
+            .Optional();
+        RegisterParameter("artifact_cache_in_throttler", Throttlers[EDataNodeThrottlerKind::ArtifactCacheIn])
+            .Optional();
+        RegisterParameter("artifact_cache_out_throttler", Throttlers[EDataNodeThrottlerKind::ArtifactCacheOut])
+            .Optional();
+        RegisterParameter("skynet_out_throttler", Throttlers[EDataNodeThrottlerKind::SkynetOut])
+            .Optional();
+        RegisterParameter("tablet_comaction_and_partitoning_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn])
+            .Optional();
+        RegisterParameter("tablet_comaction_and_partitoning_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut])
+            .Optional();
+        RegisterParameter("tablet_logging_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletLoggingIn])
+            .Optional();
+        RegisterParameter("tablet_preload_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletPreloadOut])
+            .Optional();
+        RegisterParameter("tablet_snapshot_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletSnapshotIn])
+            .Optional();
+        RegisterParameter("tablet_store_flush_in_throttler", Throttlers[EDataNodeThrottlerKind::TabletStoreFlushIn])
+            .Optional();
+        RegisterParameter("tablet_recovery_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletRecoveryOut])
+            .Optional();
+        RegisterParameter("tablet_replication_out_throttler", Throttlers[EDataNodeThrottlerKind::TabletReplicationOut])
+            .Optional();
+        RegisterParameter("read_rps_out_throttler", Throttlers[EDataNodeThrottlerKind::ReadRpsOut])
+            .Optional();
 
         RegisterParameter("peer_block_table", PeerBlockTable)
             .DefaultNew();
@@ -956,7 +908,7 @@ public:
         RegisterParameter("background_artifact_validation_delay", BackgroundArtifactValidationDelay)
             .Default(TDuration::Minutes(5));
 
-        RegisterPreprocessor([&] () {
+        RegisterPreprocessor([&] {
             ChunkMetaCache->Capacity = 1_GB;
             BlocksExtCache->Capacity = 1_GB;
             BlockMetaCache->Capacity = 1_GB;
@@ -983,6 +935,11 @@ public:
             RepairReader->PopulateCache = false;
             RepairReader->RetryTimeout = TDuration::Minutes(15);
             SealReader->PopulateCache = false;
+
+            // Instantiate default throttler configs.
+            for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+                Throttlers[kind] = New<NConcurrency::TThroughputThrottlerConfig>();
+            }
         });
     }
 
@@ -1012,6 +969,8 @@ public:
     std::optional<int> StorageLightThreadCount;
     std::optional<int> StorageLookupThreadCount;
 
+    TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+
     TDataNodeDynamicConfig()
     {
         RegisterParameter("storage_heavy_thread_count", StorageHeavyThreadCount)
@@ -1022,6 +981,9 @@ public:
             .Optional();
         RegisterParameter("storage_lookup_thread_count", StorageLookupThreadCount)
             .GreaterThan(0)
+            .Optional();
+
+        RegisterParameter("throttlers", Throttlers)
             .Optional();
     }
 };

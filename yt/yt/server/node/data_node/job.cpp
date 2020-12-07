@@ -628,7 +628,7 @@ private:
             Bootstrap_->GetMasterClient(),
             GetNullBlockCache(),
             /* trafficMeter */ nullptr,
-            Bootstrap_->GetReplicationOutThrottler());
+            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationOut));
 
         {
             YT_LOG_DEBUG("Started opening writer");
@@ -785,7 +785,7 @@ private:
             partReplicas,
             Bootstrap_->GetBlockCache(),
             /* trafficMeter */ nullptr,
-            Bootstrap_->GetRepairInThrottler());
+            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::RepairIn));
 
         return reader;
     }
@@ -813,7 +813,7 @@ private:
             Bootstrap_->GetMasterClient(),
             GetNullBlockCache(),
             /* trafficMeter */ nullptr,
-            Bootstrap_->GetRepairOutThrottler());
+            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::RepairOut));
         return writer;
     }
 
@@ -1002,7 +1002,7 @@ private:
                 sourceReplicas,
                 Bootstrap_->GetBlockCache(),
                 /* trafficMeter */ nullptr,
-                Bootstrap_->GetReplicationInThrottler());
+                Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReplicationIn));
 
             // TODO(savrus) profile chunk reader statistics.
             TClientBlockReadOptions blockReadOptions;

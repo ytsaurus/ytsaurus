@@ -570,6 +570,7 @@ public:
     TDuration HeavyRpcTimeout;
     size_t BatchSize;
     TWorkloadDescriptor WorkloadDescriptor;
+    // COMPAT(babenko): use /tablet_node/throttlers/static_store_preload_in instead.
     NConcurrency::TThroughputThrottlerConfigPtr PreloadThrottler;
 
     TInMemoryManagerConfig()
@@ -590,7 +591,7 @@ public:
         RegisterParameter("workload_descriptor", WorkloadDescriptor)
             .Default(TWorkloadDescriptor(EWorkloadCategory::UserBatch));
         RegisterParameter("preload_throttler", PreloadThrottler)
-            .Default(New<NConcurrency::TThroughputThrottlerConfig>(100_MB));
+            .Optional();
     }
 };
 
@@ -720,6 +721,8 @@ public:
 
     TTabletManagerDynamicConfigPtr TabletManager;
 
+    TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
+
     TTabletNodeDynamicConfig()
     {
         RegisterParameter("slots", Slots)
@@ -734,6 +737,9 @@ public:
 
         RegisterParameter("tablet_manager", TabletManager)
             .DefaultNew();
+
+        RegisterParameter("throttlers", Throttlers)
+            .Optional();
     }
 };
 
@@ -781,23 +787,8 @@ public:
     //! Cache for versioned chunk metas.
     TSlruCacheConfigPtr VersionedChunkMetaCache;
 
-    //! Controls outcoming bandwidth used by store flushes.
-    NConcurrency::TThroughputThrottlerConfigPtr StoreFlushOutThrottler;
-
-    //! Controls incoming bandwidth used by store compactions.
-    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionAndPartitioningInThrottler;
-
-    //! Controls outcoming bandwidth used by store compactions.
-    NConcurrency::TThroughputThrottlerConfigPtr StoreCompactionAndPartitioningOutThrottler;
-
-    //! Controls incoming bandwidth used by table replication.
-    NConcurrency::TThroughputThrottlerConfigPtr ReplicationInThrottler;
-
-    //! Controls outcoming bandwidth used by table replication.
-    NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
-
-    //! Controls outcoming bandwidth used by dynamic store remote reads.
-    NConcurrency::TThroughputThrottlerConfigPtr DynamicStoreReadOutThrottler;
+    //! Configuration for various Tablet Node throttlers.
+    TEnumIndexedVector<ETabletNodeThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
 
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
@@ -856,21 +847,22 @@ public:
         RegisterParameter("versioned_chunk_meta_cache", VersionedChunkMetaCache)
             .DefaultNew(10_GB);
 
-        RegisterParameter("store_flush_out_throttler", StoreFlushOutThrottler)
-            .DefaultNew();
+        RegisterParameter("throttlers", Throttlers)
+            .Optional();
 
-        RegisterParameter("store_compaction_and_partitioning_in_throttler", StoreCompactionAndPartitioningInThrottler)
-            .DefaultNew();
-        RegisterParameter("store_compaction_and_partitioning_out_throttler", StoreCompactionAndPartitioningOutThrottler)
-            .DefaultNew();
-
-        RegisterParameter("replication_in_throttler", ReplicationInThrottler)
-            .DefaultNew();
-        RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
-            .DefaultNew();
-
-        RegisterParameter("dynamic_store_read_out_throttler", DynamicStoreReadOutThrottler)
-            .Default(New<NConcurrency::TThroughputThrottlerConfig>(100_MB));
+        // COMPAT(babenko): use /tablet_node/throttlers instead.
+        RegisterParameter("store_flush_out_throttler", Throttlers[ETabletNodeThrottlerKind::StoreFlushOut])
+            .Optional();
+        RegisterParameter("store_compaction_and_partitioning_in_throttler", Throttlers[ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn])
+            .Optional();
+        RegisterParameter("store_compaction_and_partitioning_out_throttler", Throttlers[ETabletNodeThrottlerKind::StoreCompactionAndPartitioningOut])
+            .Optional();
+        RegisterParameter("replication_in_throttler", Throttlers[ETabletNodeThrottlerKind::ReplicationIn])
+            .Optional();
+        RegisterParameter("replication_out_throttler", Throttlers[ETabletNodeThrottlerKind::ReplicationOut])
+            .Optional();
+        RegisterParameter("dynamic_store_read_out_throttler", Throttlers[ETabletNodeThrottlerKind::DynamicStoreReadOut])
+            .Optional();
 
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));
@@ -887,6 +879,21 @@ public:
 
         RegisterPreprocessor([&] {
             HydraManager->MaxCommitBatchDelay = TDuration::MilliSeconds(5);
+
+            // Instantiate default throttler configs.
+            Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = New<NConcurrency::TThroughputThrottlerConfig>(100_MB);
+            Throttlers[ETabletNodeThrottlerKind::DynamicStoreReadOut] = New<NConcurrency::TThroughputThrottlerConfig>(100_MB);
+            for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
+                if (!Throttlers[kind]) {
+                    Throttlers[kind] = New<NConcurrency::TThroughputThrottlerConfig>();
+                }
+            }
+        });
+
+        RegisterPostprocessor([&] {
+            if (InMemoryManager->PreloadThrottler) {
+                Throttlers[ETabletNodeThrottlerKind::StaticStorePreloadIn] = InMemoryManager->PreloadThrottler;
+            }
         });
     }
 };

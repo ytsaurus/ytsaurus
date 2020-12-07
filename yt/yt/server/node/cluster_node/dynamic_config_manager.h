@@ -25,7 +25,7 @@ class TDynamicConfigManager
     : public TRefCounted
 {
 public:
-    //! Raises when dynamic config changes.
+    //! Raised in Control thread when dynamic config changes.
     DEFINE_SIGNAL(void(const TClusterNodeDynamicConfigPtr&), ConfigUpdated);
 
 public:
@@ -34,8 +34,6 @@ public:
         TBootstrap* bootstrap);
 
     void Start();
-
-    TFuture<void> Stop();
 
     void PopulateAlerts(std::vector<TError>* errors);
 
@@ -54,13 +52,12 @@ private:
     void DoBuildOrchid(NYson::IYsonConsumer* consumer);
 
     const TDynamicConfigManagerConfigPtr Config_;
-
-    TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     const IInvokerPtr ControlInvoker_;
     const NConcurrency::TPeriodicExecutorPtr Executor_;
 
-    NYTree::INodePtr CurrentConfig_;
+    NYTree::INodePtr DynamicConfig_;
     std::vector<TString> CurrentNodeTagList_;
 
     TError LastError_;

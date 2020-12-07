@@ -225,7 +225,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
         }
     }
 
-    const auto& netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
+    const auto& netThrottler = Bootstrap_->GetDataNodeInThrottler(Options_.WorkloadDescriptor);
     const auto& diskThrottler = Location_->GetInThrottler(Options_.WorkloadDescriptor);
     return AllSucceeded(std::vector{
         netThrottler->Throttle(totalSize),
@@ -264,7 +264,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     }
     SetRpcAttachedBlocks(req, blocks);
 
-    auto throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
+    const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(Options_.WorkloadDescriptor);
     return throttler->Throttle(requestSize).Apply(BIND([=] () {
         return req->Invoke();
     }));
@@ -515,7 +515,7 @@ TChunkInfo TBlobSession::CloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
     }
 
     ReleaseSpace();
-    
+
     if (Error_.IsOK()) {
         auto descriptor = TChunkDescriptor(
             GetChunkId(),
@@ -532,7 +532,7 @@ TChunkInfo TBlobSession::CloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
     }
 
     Finished_.Fire(Error_);
-    
+
     Error_.ThrowOnError();
 
     return Writer_->GetChunkInfo();

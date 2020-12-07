@@ -891,8 +891,8 @@ private:
                 seedReplicas,
                 Bootstrap_->GetBlockCache(),
                 trafficMeter,
-                Bootstrap_->GetArtifactCacheInThrottler(),
-                Bootstrap_->GetReadRpsOutThrottler());
+                Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
+                Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
 
             auto fileName = location->GetChunkPath(chunkId);
             auto chunkWriter = New<TFileWriter>(
@@ -1042,8 +1042,8 @@ private:
             blockReadOptions,
             chunkSpecs,
             trafficMeter,
-            Bootstrap_->GetArtifactCacheInThrottler(),
-            Bootstrap_->GetReadRpsOutThrottler());
+            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
+            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
 
         return [=] (IOutputStream* output) {
             TBlock block;
@@ -1163,8 +1163,8 @@ private:
             /* keyColumns */ {},
             /* partitionTag */ std::nullopt,
             trafficMeter,
-            Bootstrap_->GetArtifactCacheInThrottler(),
-            Bootstrap_->GetReadRpsOutThrottler());
+            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ArtifactCacheIn),
+            Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut));
 
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 

@@ -455,7 +455,7 @@ private:
         bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
         response->set_disk_throttling(diskThrottling);
 
-        const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
@@ -517,7 +517,7 @@ private:
             location->GetPerformanceCounters().ThrottleRead();
         }
 
-        const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
@@ -642,7 +642,7 @@ private:
             location->GetPerformanceCounters().ThrottleRead();
         }
 
-        const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
         i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
@@ -759,7 +759,7 @@ private:
             location->GetPerformanceCounters().ThrottleRead();
         }
 
-        i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
+        i64 netThrottlerQueueSize = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor)->GetQueueTotalCount();
         i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
         i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
@@ -825,7 +825,7 @@ private:
                     netQueueSize);
 
                 if (rejectIfThrottling) {
-                    i64 netThrottlerQueueSize = Bootstrap_->GetOutThrottler(workloadDescriptor)->GetQueueTotalCount();
+                    i64 netThrottlerQueueSize = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor)->GetQueueTotalCount();
                     i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
                     i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
                     bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
@@ -857,7 +857,7 @@ private:
                 response->set_fetched_rows(true);
                 ToProto(response->mutable_chunk_reader_statistics(), lookupSession->GetChunkReaderStatistics());
 
-                auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+                const auto& throttler = Bootstrap_->GetDataNodeOutThrottler(workloadDescriptor);
                 context->SetComplete();
                 return throttler->Throttle(GetByteSize(response->Attachments()));
             })));

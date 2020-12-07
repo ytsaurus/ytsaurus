@@ -212,6 +212,23 @@ constexpr int DynamicStoreIdPoolSize = 2;
 // Limit on `MaxParallelPartitionLookups` parameter.
 constexpr int MaxParallelPartitionLookupsLimit = 5;
 
+DEFINE_ENUM(ETabletNodeThrottlerKind,
+    //! Controls outcoming bandwidth used by store flushes.
+    (StoreFlushOut)
+    //! Controls incoming bandwidth used by store compactions.
+    (StoreCompactionAndPartitioningIn)
+    //! Controls outcoming bandwidth used by store compactions.
+    (StoreCompactionAndPartitioningOut)
+    //! Controls incoming bandwidth used by table replication.
+    (ReplicationIn)
+    //! Controls outcoming bandwidth used by table replication.
+    (ReplicationOut)
+    //! Controls incoming bandwidth used by in-memory tables prload.
+    (StaticStorePreloadIn)
+    //! Controls outcoming bandwidth used by dynamic store remote reads.
+    (DynamicStoreReadOut)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode

@@ -39,7 +39,7 @@ class TTabletCellDecommissioner::TImpl
 public:
     explicit TImpl(NCellMaster::TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
-        , Profiler("/tablet_server/tablet_cell_decommissioner")
+        , Profiler(TabletServerProfiler.WithPrefix("/tablet_cell_decommissioner"))
         , Config_(New<TTabletCellDecommissionerConfig>())
         , DecommissionExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletDecommissioner),
@@ -49,14 +49,14 @@ public:
             BIND(&TImpl::CheckOrphans, MakeWeak(this))))
         , DecommissionThrottler_(CreateNamedReconfigurableThroughputThrottler(
             Config_->DecommissionThrottler,
-            "TabletCellDecommission",
+            "Decommission",
             TabletServerLogger,
-            Profiler))
+            Profiler.WithPrefix("/throttler")))
         , KickOrphansThrottler_(CreateNamedReconfigurableThroughputThrottler(
             Config_->KickOrphansThrottler,
             "KickOrphans",
             TabletServerLogger,
-            Profiler))
+            Profiler.WithPrefix("/throttler")))
         , CheckDecommissionTimer_(Profiler.Timer("/check_decommission"))
         , CheckOrphansTimer_(Profiler.Timer("/check_orphans"))
     { }
