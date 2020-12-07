@@ -264,13 +264,13 @@ private:
         IThroughputThrottlerPtr throttler;
         switch (throttlerType) {
             case EJobThrottlerType::InBandwidth:
-                throttler = Bootstrap_->GetInThrottler(descriptor);
+                throttler = Bootstrap_->GetDataNodeInThrottler(descriptor);
                 break;
             case EJobThrottlerType::OutBandwidth:
-                throttler = Bootstrap_->GetOutThrottler(descriptor);
+                throttler = Bootstrap_->GetDataNodeOutThrottler(descriptor);
                 break;
             case EJobThrottlerType::OutRps:
-                throttler = Bootstrap_->GetReadRpsOutThrottler();
+                throttler = Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut);
                 break;
             default:
                 YT_ABORT();

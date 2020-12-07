@@ -166,7 +166,7 @@ public:
 
         rsp->SetStatus(EStatusCode::OK);
 
-        auto throttler = Bootstrap_->GetSkynetOutThrottler();
+        const auto& throttler = Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::SkynetOut);
         while (true) {
             auto blob = WaitFor(blobReader->Read())
                 .ValueOrThrow();

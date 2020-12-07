@@ -104,6 +104,45 @@ DEFINE_ENUM(EDirectIOPolicy,
     (ForSyncOnCloseChunks)
 );
 
+DEFINE_ENUM(EDataNodeThrottlerKind,
+    //! Controls the total incoming bandwidth.
+    (TotalIn)
+    //! Controls the total outcoming bandwidth.
+    (TotalOut)
+    //! Controls incoming bandwidth used by replication jobs.
+    (ReplicationIn)
+    //! Controls outcoming bandwidth used by replication jobs.
+    (ReplicationOut)
+    //! Controls incoming bandwidth used by repair jobs.
+    (RepairIn)
+    //! Controls outcoming bandwidth used by repair jobs.
+    (RepairOut)
+    //! Controls incoming bandwidth used by Artifact Cache downloads.
+    (ArtifactCacheIn)
+    //! Controls outcoming bandwidth used by Artifact Cache downloads.
+    (ArtifactCacheOut)
+    //! Controls outcoming location bandwidth used by Skynet sharing.
+    (SkynetOut)
+    //! Controls incoming location bandwidth used by tablet compaction and partitioning.
+    (TabletCompactionAndPartitioningIn)
+    //! Controls outcoming location bandwidth used by tablet compaction and partitioning.
+    (TabletCompactionAndPartitioningOut)
+    //! Controls incoming location bandwidth used by tablet journals.
+    (TabletLoggingIn)
+    //! Controls outcoming location bandwidth used by tablet preload.
+    (TabletPreloadOut)
+    //! Controls outcoming location bandwidth used by tablet recovery.
+    (TabletRecoveryOut)
+    //! Controls incoming location bandwidth used by tablet snapshots.
+    (TabletSnapshotIn)
+    //! Controls incoming location bandwidth used by tablet store flush.
+    (TabletStoreFlushIn)
+    //! Controls outcoming location bandwidth used by tablet replication.
+    (TabletReplicationOut)
+    //! Controls outcoming RPS of GetBlockSet and GetBlockRange requests.
+    (ReadRpsOut)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDataNode

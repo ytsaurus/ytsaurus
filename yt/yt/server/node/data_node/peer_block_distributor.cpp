@@ -141,7 +141,7 @@ bool TPeerBlockDistributor::ShouldDistributeBlocks()
     UpdateTransmittedBytes();
     i64 outTraffic = TransmittedBytes_ - oldTransmittedBytes;
 
-    i64 outThrottlerQueueSize = Bootstrap_->GetOutThrottler(TWorkloadDescriptor())->GetQueueTotalCount();
+    i64 outThrottlerQueueSize = Bootstrap_->GetDataNodeOutThrottler(TWorkloadDescriptor())->GetQueueTotalCount();
     i64 defaultNetworkPendingOutBytes = 0;
     if (auto defaultNetwork = Bootstrap_->GetDefaultNetworkName()) {
         defaultNetworkPendingOutBytes = TTcpDispatcher::Get()->GetCounters(*defaultNetwork)->PendingOutBytes;

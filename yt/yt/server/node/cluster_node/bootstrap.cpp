@@ -192,6 +192,7 @@ static const NLogging::TLogger Logger("Bootstrap");
 TBootstrap::TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
+    , DynamicConfig_(New<TClusterNodeDynamicConfig>())
 { }
 
 TBootstrap::~TBootstrap() = default;
@@ -380,14 +381,6 @@ void TBootstrap::DoInitialize()
     TabletSlotManager_ = New<NTabletNode::TSlotManager>(Config_->TabletNode, this);
     MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager_));
 
-    DynamicConfigManager_ = New<TDynamicConfigManager>(Config_->DynamicConfigManager, this);
-    DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
-    DynamicConfigManager_->Start();
-    if (!DynamicConfig_) {
-        YT_LOG_WARNING("Dynamic config was not loaded, using default one");
-        DynamicConfig_ = New<TClusterNodeDynamicConfig>();
-    }
-
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
@@ -396,111 +389,79 @@ void TBootstrap::DoInitialize()
 
     ChunkCache_ = New<TChunkCache>(Config_->DataNode, this);
 
-    auto createThrottler = [&] (const TThroughputThrottlerConfigPtr& config, const TString& name) {
-        return CreateNamedReconfigurableThroughputThrottler(
-            config,
-            name,
+    for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+        RawDataNodeThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
+            Config_->DataNode->Throttlers[kind],
+            ToString(kind),
             DataNodeLogger,
-            DataNodeProfiler.WithPrefix("/net_throttler"));
+            DataNodeProfiler.WithPrefix("/throttlers"));
+    }
+    auto totalInThrottler = IThroughputThrottlerPtr(RawDataNodeThrottlers_[EDataNodeThrottlerKind::TotalIn]);
+    auto totalOutThrottler = IThroughputThrottlerPtr(RawDataNodeThrottlers_[EDataNodeThrottlerKind::TotalOut]);
+    static const THashSet<EDataNodeThrottlerKind> InCombinedDataNodeThrottlerKinds = {
+        EDataNodeThrottlerKind::ReplicationIn,
+        EDataNodeThrottlerKind::RepairIn,
+        EDataNodeThrottlerKind::ArtifactCacheIn,
+        EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
+        EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn,
+        EDataNodeThrottlerKind::TabletLoggingIn,
+        EDataNodeThrottlerKind::TabletSnapshotIn,
+        EDataNodeThrottlerKind::TabletStoreFlushIn,
     };
+    static const THashSet<EDataNodeThrottlerKind> OutCombinedDataNodeThrottlerKinds = {
+        EDataNodeThrottlerKind::ReplicationOut,
+        EDataNodeThrottlerKind::RepairOut,
+        EDataNodeThrottlerKind::ArtifactCacheOut,
+        EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
+        EDataNodeThrottlerKind::SkynetOut,
+        EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut,
+        EDataNodeThrottlerKind::TabletPreloadOut,
+        EDataNodeThrottlerKind::TabletRecoveryOut,
+        EDataNodeThrottlerKind::TabletReplicationOut,
+    };
+    for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
+        auto throttler = IThroughputThrottlerPtr(RawDataNodeThrottlers_[kind]);
+        if (InCombinedDataNodeThrottlerKinds.contains(kind)) {
+            throttler = CreateCombinedThrottler({totalInThrottler, throttler});
+        }
+        if (OutCombinedDataNodeThrottlerKinds.contains(kind)) {
+            throttler = CreateCombinedThrottler({totalOutThrottler, throttler});
+        }
+        DataNodeThrottlers_[kind] = throttler;
+    }
 
-    TotalInThrottler_ = createThrottler(Config_->DataNode->TotalInThrottler, "TotalIn");
-    TotalOutThrottler_ = createThrottler(Config_->DataNode->TotalOutThrottler, "TotalOut");
+    for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
+        RawTabletNodeThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
+            Config_->TabletNode->Throttlers[kind],
+            ToString(kind),
+            TabletNodeLogger,
+            TabletNodeProfiler.WithPrefix("/throttlers"));
+    }
+    static const THashSet<ETabletNodeThrottlerKind> InCombinedTabletNodeThrottlerKinds = {
+        ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn,
+        ETabletNodeThrottlerKind::ReplicationIn,
+        ETabletNodeThrottlerKind::StaticStorePreloadIn
+    };
+    static const THashSet<ETabletNodeThrottlerKind> OutCombinedTabletNodeThrottlerKinds = {
+        ETabletNodeThrottlerKind::StoreCompactionAndPartitioningOut,
+        ETabletNodeThrottlerKind::StoreFlushOut,
+        ETabletNodeThrottlerKind::ReplicationOut,
+        ETabletNodeThrottlerKind::DynamicStoreReadOut
+    };
+    for (auto kind : TEnumTraits<ETabletNodeThrottlerKind>::GetDomainValues()) {
+        auto throttler = IThroughputThrottlerPtr(RawTabletNodeThrottlers_[kind]);
+        if (InCombinedTabletNodeThrottlerKinds.contains(kind)) {
+            throttler = CreateCombinedThrottler({totalInThrottler, throttler});
+        }
+        if (OutCombinedTabletNodeThrottlerKinds.contains(kind)) {
+            throttler = CreateCombinedThrottler({totalOutThrottler, throttler});
+        }
+        TabletNodeThrottlers_[kind] = throttler;
+    }
 
-    ReplicationInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->DataNode->ReplicationInThrottler, "ReplicationIn")
-    });
-    ReplicationOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->DataNode->ReplicationOutThrottler, "ReplicationOut")
-    });
-
-    RepairInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->DataNode->RepairInThrottler, "RepairIn")
-    });
-    RepairOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->DataNode->RepairOutThrottler, "RepairOut")
-    });
-
-    ArtifactCacheInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->DataNode->ArtifactCacheInThrottler, "ArtifactCacheIn")
-    });
-    ArtifactCacheOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->DataNode->ArtifactCacheOutThrottler, "ArtifactCacheOut")
-    });
-    SkynetOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->DataNode->SkynetOutThrottler, "SkynetOut")
-    });
-
-    DataNodeTabletCompactionAndPartitioningInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->DataNode->TabletCompactionAndPartitioningInThrottler, "DataNodeTabletCompactionAndPartitioningIn")
-    });
-    DataNodeTabletCompactionAndPartitioningOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->DataNode->TabletCompactionAndPartitioningOutThrottler, "TabletCompactionAndPartitioningOut")
-    });
-    DataNodeTabletLoggingInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->DataNode->TabletLoggingInThrottler, "DataNodeTabletLoggingIn")
-    });
-    DataNodeTabletPreloadOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->DataNode->TabletPreloadOutThrottler, "DataNodeTabletPreloadOut")
-    });
-    DataNodeTabletSnapshotInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->DataNode->TabletSnapshotInThrottler, "DataNodeTabletSnapshotIn")
-    });
-    DataNodeTabletStoreFlushInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->DataNode->TabletStoreFlushInThrottler, "DataNodeTabletStoreFlushIn")
-    });
-    DataNodeTabletRecoveryOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->DataNode->TabletRecoveryOutThrottler, "DataNodeTabletRecoveryOut")
-    });
-    DataNodeTabletReplicationOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->DataNode->TabletReplicationOutThrottler, "DataNodeTabletReplicationOut")
-    });
-
-    TabletNodeCompactionAndPartitioningInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->TabletNode->StoreCompactionAndPartitioningInThrottler, "TabletNodeCompactionAndPartitioningIn")
-    });
-    TabletNodeCompactionAndPartitioningOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->TabletNode->StoreCompactionAndPartitioningOutThrottler, "TabletNodeCompactionAndPartitioningOut")
-    });
-    TabletNodeStoreFlushOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->TabletNode->StoreFlushOutThrottler, "TabletNodeStoreFlushOut")
-    });
-    TabletNodePreloadInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->TabletNode->InMemoryManager->PreloadThrottler, "TabletNodePreloadIn")
-    });
-    TabletNodeTabletReplicationInThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalInThrottler_,
-        createThrottler(Config_->TabletNode->ReplicationInThrottler, "TabletNodeReplicationIn")
-    });
-    TabletNodeTabletReplicationOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->TabletNode->ReplicationOutThrottler, "TabletNodeReplicationOut")
-    });
-    TabletNodeDynamicStoreReadOutThrottler_ = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
-        TotalOutThrottler_,
-        createThrottler(Config_->TabletNode->DynamicStoreReadOutThrottler, "TabletNodeDynamicStoreReadOut")
-    });
-
-    ReadRpsOutThrottler_ = createThrottler(Config_->DataNode->ReadRpsOutThrottler, "ReadRpsOut");
+    DynamicConfigManager_ = New<TDynamicConfigManager>(Config_->DynamicConfigManager, this);
+    DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
+    DynamicConfigManager_->Start();
 
     RpcServer_->RegisterService(CreateDataNodeService(Config_->DataNode, this));
 
@@ -1095,143 +1056,78 @@ const NQueryClient::TColumnEvaluatorCachePtr& TBootstrap::GetColumnEvaluatorCach
     return ColumnEvaluatorCache_;
 }
 
-const IThroughputThrottlerPtr& TBootstrap::GetReplicationInThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetDataNodeThrottler(EDataNodeThrottlerKind kind) const
 {
-    return ReplicationInThrottler_;
+    return DataNodeThrottlers_[kind];
 }
 
-const IThroughputThrottlerPtr& TBootstrap::GetReplicationOutThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetTabletNodeThrottler(ETabletNodeThrottlerKind kind) const
 {
-    return ReplicationOutThrottler_;
+    return TabletNodeThrottlers_[kind];
 }
 
-const IThroughputThrottlerPtr& TBootstrap::GetRepairInThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetDataNodeInThrottler(const TWorkloadDescriptor& descriptor) const
 {
-    return RepairInThrottler_;
+    static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
+        {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairIn},
+        {EWorkloadCategory::SystemReplication,           EDataNodeThrottlerKind::ReplicationIn},
+        {EWorkloadCategory::SystemArtifactCacheDownload, EDataNodeThrottlerKind::ArtifactCacheIn},
+        {EWorkloadCategory::SystemTabletCompaction,      EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn},
+        {EWorkloadCategory::SystemTabletPartitioning,    EDataNodeThrottlerKind::TabletCompactionAndPartitioningIn},
+        {EWorkloadCategory::SystemTabletLogging,         EDataNodeThrottlerKind::TabletLoggingIn},
+        {EWorkloadCategory::SystemTabletSnapshot,        EDataNodeThrottlerKind::TabletSnapshotIn},
+        {EWorkloadCategory::SystemTabletStoreFlush,      EDataNodeThrottlerKind::TabletStoreFlushIn}
+    };
+    auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
+    return it == WorkloadCategoryToThrottlerKind.end()
+        ? DataNodeThrottlers_[EDataNodeThrottlerKind::TotalIn]
+        : DataNodeThrottlers_[it->second];
 }
 
-const IThroughputThrottlerPtr& TBootstrap::GetRepairOutThrottler() const
+const IThroughputThrottlerPtr& TBootstrap::GetDataNodeOutThrottler(const TWorkloadDescriptor& descriptor) const
 {
-    return RepairOutThrottler_;
-}
-
-const IThroughputThrottlerPtr& TBootstrap::GetArtifactCacheInThrottler() const
-{
-    return ArtifactCacheInThrottler_;
-}
-
-const IThroughputThrottlerPtr& TBootstrap::GetArtifactCacheOutThrottler() const
-{
-    return ArtifactCacheOutThrottler_;
-}
-
-const IThroughputThrottlerPtr& TBootstrap::GetSkynetOutThrottler() const
-{
-    return SkynetOutThrottler_;
-}
-
-const IThroughputThrottlerPtr& TBootstrap::GetInThrottler(const TWorkloadDescriptor& descriptor) const
-{
-    switch (descriptor.Category) {
-        case EWorkloadCategory::SystemRepair:
-            return RepairInThrottler_;
-
-        case EWorkloadCategory::SystemReplication:
-            return ReplicationInThrottler_;
-
-        case EWorkloadCategory::SystemArtifactCacheDownload:
-            return ArtifactCacheInThrottler_;
-
-        case EWorkloadCategory::SystemTabletCompaction:
-        case EWorkloadCategory::SystemTabletPartitioning:
-            return DataNodeTabletCompactionAndPartitioningInThrottler_;
-
-        case EWorkloadCategory::SystemTabletLogging:
-            return DataNodeTabletLoggingInThrottler_;
-
-        case EWorkloadCategory::SystemTabletSnapshot:
-            return DataNodeTabletSnapshotInThrottler_;
-
-        case EWorkloadCategory::SystemTabletStoreFlush:
-            return DataNodeTabletStoreFlushInThrottler_;
-
-        default:
-            return TotalInThrottler_;
-    }
-}
-
-const IThroughputThrottlerPtr& TBootstrap::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
-{
-    switch (descriptor.Category) {
-        case EWorkloadCategory::SystemRepair:
-            return RepairOutThrottler_;
-
-        case EWorkloadCategory::SystemReplication:
-            return ReplicationOutThrottler_;
-
-        case EWorkloadCategory::SystemArtifactCacheDownload:
-            return ArtifactCacheOutThrottler_;
-
-        case EWorkloadCategory::SystemTabletCompaction:
-        case EWorkloadCategory::SystemTabletPartitioning:
-            return DataNodeTabletCompactionAndPartitioningOutThrottler_;
-
-        case EWorkloadCategory::SystemTabletPreload:
-            return DataNodeTabletPreloadOutThrottler_;
-
-        case EWorkloadCategory::SystemTabletRecovery:
-            return DataNodeTabletRecoveryOutThrottler_;
-
-        case EWorkloadCategory::SystemTabletReplication:
-            return DataNodeTabletReplicationOutThrottler_;
-
-        default:
-            return TotalOutThrottler_;
-    }
+    static const THashMap<EWorkloadCategory, EDataNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
+        {EWorkloadCategory::SystemRepair,                EDataNodeThrottlerKind::RepairOut},
+        {EWorkloadCategory::SystemReplication,           EDataNodeThrottlerKind::ReplicationOut},
+        {EWorkloadCategory::SystemArtifactCacheDownload, EDataNodeThrottlerKind::ArtifactCacheOut},
+        {EWorkloadCategory::SystemTabletCompaction,      EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut},
+        {EWorkloadCategory::SystemTabletPartitioning,    EDataNodeThrottlerKind::TabletCompactionAndPartitioningOut},
+        {EWorkloadCategory::SystemTabletPreload,         EDataNodeThrottlerKind::TabletPreloadOut},
+        {EWorkloadCategory::SystemTabletRecovery,        EDataNodeThrottlerKind::TabletRecoveryOut},
+        {EWorkloadCategory::SystemTabletReplication,     EDataNodeThrottlerKind::TabletReplicationOut}
+    };
+    auto it = WorkloadCategoryToThrottlerKind.find(descriptor.Category);
+    return it == WorkloadCategoryToThrottlerKind.end()
+        ? DataNodeThrottlers_[EDataNodeThrottlerKind::TotalOut]
+        : DataNodeThrottlers_[it->second];
 }
 
 const IThroughputThrottlerPtr& TBootstrap::GetTabletNodeInThrottler(EWorkloadCategory category) const
 {
-    switch (category) {
-        case EWorkloadCategory::SystemTabletCompaction:
-        case EWorkloadCategory::SystemTabletPartitioning:
-            return TabletNodeCompactionAndPartitioningInThrottler_;
-
-        case EWorkloadCategory::SystemTabletPreload:
-            return TabletNodePreloadInThrottler_;
-
-        case EWorkloadCategory::SystemTabletReplication:
-            return TabletNodeTabletReplicationInThrottler_;
-
-        default:
-            return TotalInThrottler_;
-    }
+    static const THashMap<EWorkloadCategory, ETabletNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
+        {EWorkloadCategory::SystemTabletCompaction,      ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn},
+        {EWorkloadCategory::SystemTabletPartitioning,    ETabletNodeThrottlerKind::StoreCompactionAndPartitioningIn},
+        {EWorkloadCategory::SystemTabletPreload,         ETabletNodeThrottlerKind::StaticStorePreloadIn},
+    };
+    auto it = WorkloadCategoryToThrottlerKind.find(category);
+    return it ==  WorkloadCategoryToThrottlerKind.end()
+        ? DataNodeThrottlers_[EDataNodeThrottlerKind::TotalIn]
+        : TabletNodeThrottlers_[it->second];
 }
 
 const IThroughputThrottlerPtr& TBootstrap::GetTabletNodeOutThrottler(EWorkloadCategory category) const
 {
-    switch (category) {
-        case EWorkloadCategory::SystemTabletCompaction:
-        case EWorkloadCategory::SystemTabletPartitioning:
-            return TabletNodeCompactionAndPartitioningOutThrottler_;
-
-        case EWorkloadCategory::SystemTabletStoreFlush:
-            return TabletNodeStoreFlushOutThrottler_;
-
-        case EWorkloadCategory::SystemTabletReplication:
-            return TabletNodeTabletReplicationOutThrottler_;
-
-        case EWorkloadCategory::UserDynamicStoreRead:
-            return TabletNodeDynamicStoreReadOutThrottler_;
-
-        default:
-            return TotalOutThrottler_;
-    }
-}
-
-const IThroughputThrottlerPtr& TBootstrap::GetReadRpsOutThrottler() const
-{
-    return ReadRpsOutThrottler_;
+    static const THashMap<EWorkloadCategory, ETabletNodeThrottlerKind> WorkloadCategoryToThrottlerKind = {
+        {EWorkloadCategory::SystemTabletCompaction,      ETabletNodeThrottlerKind::StoreCompactionAndPartitioningOut},
+        {EWorkloadCategory::SystemTabletPartitioning,    ETabletNodeThrottlerKind::StoreCompactionAndPartitioningOut},
+        {EWorkloadCategory::SystemTabletStoreFlush,      ETabletNodeThrottlerKind::StoreFlushOut},
+        {EWorkloadCategory::SystemTabletReplication,     ETabletNodeThrottlerKind::ReplicationOut},
+        {EWorkloadCategory::UserDynamicStoreRead,        ETabletNodeThrottlerKind::DynamicStoreReadOut}
+    };
+    auto it = WorkloadCategoryToThrottlerKind.find(category);
+    return it ==  WorkloadCategoryToThrottlerKind.end()
+        ? DataNodeThrottlers_[EDataNodeThrottlerKind::TotalOut]
+        : TabletNodeThrottlers_[it->second];
 }
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
@@ -1353,6 +1249,22 @@ void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newC
         newConfig->DataNode->StorageLightThreadCount.value_or(Config_->DataNode->StorageLightThreadCount));
     StorageLookupThreadPool_->Configure(
         newConfig->DataNode->StorageLookupThreadCount.value_or(Config_->DataNode->StorageLookupThreadCount));
+
+    // Reconfigure Data Node throttlers.
+    for (auto kind : TEnumTraits<NDataNode::EDataNodeThrottlerKind>::GetDomainValues()) {
+        auto throttlerConfig = newConfig->DataNode->Throttlers[kind]
+            ? newConfig->DataNode->Throttlers[kind]
+            : Config_->DataNode->Throttlers[kind];
+        RawDataNodeThrottlers_[kind]->Reconfigure(throttlerConfig);
+    }
+
+    // Reconfigure Tablet Node throttlers.
+    for (auto kind : TEnumTraits<NTabletNode::ETabletNodeThrottlerKind>::GetDomainValues()) {
+        auto throttlerConfig = newConfig->TabletNode->Throttlers[kind]
+            ? newConfig->TabletNode->Throttlers[kind]
+            : Config_->TabletNode->Throttlers[kind];
+        RawTabletNodeThrottlers_[kind]->Reconfigure(throttlerConfig);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

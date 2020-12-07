@@ -36,6 +36,7 @@ TDynamicConfigManager::TDynamicConfigManager(
         ControlInvoker_,
         BIND(&TDynamicConfigManager::DoFetchConfig, MakeWeak(this)),
         Config_->UpdatePeriod))
+    , DynamicConfig_(GetEphemeralNodeFactory()->CreateMap())
 { }
 
 void TDynamicConfigManager::Start()
@@ -52,23 +53,6 @@ void TDynamicConfigManager::Start()
     Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(
         BIND(&TDynamicConfigManager::PopulateAlerts, MakeWeak(this)));
     Executor_->Start();
-
-    // Fetch config for the first time before further node initialization.
-    WaitFor(Executor_->GetExecutedEvent())
-        .ThrowOnError();
-    
-    if (!CurrentConfig_) {
-        YT_LOG_WARNING("Dynamic node config was not loaded during dynamic config manager initialization, ",
-            "using default config");
-        ConfigUpdated_.Fire(New<TClusterNodeDynamicConfig>());
-    }
-}
-
-TFuture<void> TDynamicConfigManager::Stop()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    return Executor_->Stop();
 }
 
 void TDynamicConfigManager::PopulateAlerts(std::vector<TError>* errors)
@@ -105,37 +89,28 @@ void TDynamicConfigManager::DoFetchConfig()
     YT_LOG_INFO("Fetching dynamic node config");
     try {
         TryFetchConfig();
+        LastError_ = {};
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(TError(ex));
         LastError_ = ex;
-        return;
     }
-
-    LastError_ = TError();
 }
 
 void TDynamicConfigManager::TryFetchConfig()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-    NApi::TGetNodeOptions options;
-    options.ReadFrom = EMasterChannelKind::Cache;
-
     const auto& client = Bootstrap_->GetMasterClient();
 
-    auto configExistsOrError = WaitFor(client->NodeExists("//sys/cluster_nodes/@config"));
-    THROW_ERROR_EXCEPTION_IF_FAILED(configExistsOrError,
-        NClusterNode::EErrorCode::FailedToFetchDynamicConfig,
-        "Failed to check dynamic config Cypress node existence");
-
-    // Silently ignore dynamic config absence.
-    // TODO(gritukan): Set alert here after YT-12933.
-    if (!configExistsOrError.Value()) {
-        YT_LOG_INFO("Dynamic config node does not exist, will not try to fetch dynamic config");
+    NApi::TGetNodeOptions getOptions;
+    getOptions.ReadFrom = EMasterChannelKind::Cache;
+    auto configOrError = WaitFor(client->GetNode("//sys/cluster_nodes/@config", getOptions));
+    if (configOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        // TODO(gritukan): Set alert here after YT-12933.
+        YT_LOG_INFO("Dynamic config node does not exist");
         return;
     }
 
-    auto configOrError = WaitFor(client->GetNode("//sys/cluster_nodes/@config", options));
     THROW_ERROR_EXCEPTION_IF_FAILED(configOrError,
         NClusterNode::EErrorCode::FailedToFetchDynamicConfig,
         "Failed to fetch dynamic config from Cypress")
@@ -176,7 +151,7 @@ void TDynamicConfigManager::TryFetchConfig()
         newConfigNode = GetEphemeralNodeFactory()->CreateMap();
     }
 
-    if (AreNodesEqual(newConfigNode, CurrentConfig_)) {
+    if (AreNodesEqual(newConfigNode, DynamicConfig_)) {
         return;
     }
 
@@ -202,7 +177,7 @@ void TDynamicConfigManager::TryFetchConfig()
         LastUnrecognizedOptionError_ = TError();
     }
 
-    CurrentConfig_ = newConfigNode;
+    DynamicConfig_ = newConfigNode;
     ConfigUpdated_.Fire(newConfig);
     LastConfigUpdateTime_ = TInstant::Now();
     ConfigLoaded_.store(true);
@@ -214,7 +189,7 @@ void TDynamicConfigManager::DoBuildOrchid(IYsonConsumer* consumer)
 
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("config").Value(CurrentConfig_)
+            .Item("config").Value(DynamicConfig_)
             .Item("last_config_update_time").Value(LastConfigUpdateTime_)
         .EndMap();
 }
