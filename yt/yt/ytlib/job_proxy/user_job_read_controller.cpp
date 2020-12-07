@@ -14,10 +14,9 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_stream.h>
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/numeric_helpers.h>
-
 #include <yt/core/ytree/convert.h>
+
+#include <algorithm>
 
 namespace NYT::NJobProxy {
 
@@ -83,7 +82,7 @@ public:
             return 0.0;
         }
 
-        return Clamp(current / static_cast<double>(total), 0.0, 1.0);
+        return std::clamp(current / static_cast<double>(total), 0.0, 1.0);
     }
 
     virtual TFuture<std::vector<TBlob>> GetInputContext() const override

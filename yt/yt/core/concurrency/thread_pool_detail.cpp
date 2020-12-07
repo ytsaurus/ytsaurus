@@ -1,6 +1,6 @@
 #include "thread_pool_detail.h"
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <algorithm>
 
 namespace NYT::NConcurrency {
 
@@ -18,7 +18,7 @@ TThreadPoolBase::TThreadPoolBase(
 
 void TThreadPoolBase::Configure(int threadCount)
 {
-    DoConfigure(Clamp(threadCount, 1, MaxThreadCount));
+    DoConfigure(std::clamp(threadCount, 1, MaxThreadCount));
 }
 
 void TThreadPoolBase::Shutdown()

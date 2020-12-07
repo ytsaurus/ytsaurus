@@ -5,9 +5,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T Clamp(const T& value, const T& minValue, const T& maxValue);
-
-template <class T>
 T DivCeil(const T& numerator, const T& denominator);
 
 //! A version of division that is a bit less noisy around the situation
