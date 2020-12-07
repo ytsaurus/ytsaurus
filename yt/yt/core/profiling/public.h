@@ -7,7 +7,7 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProfiler;
+class TLegacyProfiler;
 class TProfileManager;
 
 class TResourceTracker;

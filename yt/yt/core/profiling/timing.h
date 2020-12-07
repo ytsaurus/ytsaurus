@@ -110,7 +110,7 @@ class TCounterIncrementingTimingGuard
 {
 public:
     TCounterIncrementingTimingGuard(
-        const TProfiler& profiler,
+        const TLegacyProfiler& profiler,
         TShardedMonotonicCounter* counter);
     ~TCounterIncrementingTimingGuard();
 
@@ -118,7 +118,7 @@ public:
     TCounterIncrementingTimingGuard& operator=(const TCounterIncrementingTimingGuard&) = delete;
 
 private:
-    const TProfiler& Profiler_;
+    const TLegacyProfiler& Profiler_;
     TShardedMonotonicCounter* const Counter_;
     TTimer Timer_;
 };
