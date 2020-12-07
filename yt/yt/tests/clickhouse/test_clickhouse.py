@@ -85,7 +85,10 @@ class Clique(object):
         self.log_root = os.path.join(self.path_to_run, "logs", "clickhouse-{}".format(Clique.clique_index))
         self.stderr_root = os.path.join(self.path_to_run, "stderrs", "clickhouse-{}".format(Clique.clique_index))
         for root in (self.log_root, self.stderr_root):
-            os.mkdir(root)
+            try:
+                os.makedirs(root)
+            except FileExistsError:
+                pass
             os.chmod(root, 0777)
 
         for writer_key, writer in config["logging"]["writers"].iteritems():
