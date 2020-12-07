@@ -47,6 +47,7 @@
 #include <yt/core/misc/numeric_helpers.h>
 
 #include <cmath>
+#include <algorithm>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -2572,7 +2573,7 @@ protected:
             }
         }
         // Cast to int32 is safe since MaxPartitionCount is int32.
-        return static_cast<int>(Clamp<i64>(result, 1, Options->MaxPartitionCount));
+        return static_cast<int>(std::clamp<i64>(result, 1, Options->MaxPartitionCount));
     }
 
     void SuggestPartitionCountAndMaxPartitionFactor(std::optional<int> forcedPartitionCount)
@@ -2591,7 +2592,7 @@ protected:
             PartitionCount = DivCeil(dataWeightAfterPartition, partitionSize);
         }
 
-        PartitionCount = Clamp(PartitionCount, 1, Options->MaxPartitionCount);
+        PartitionCount = std::clamp(PartitionCount, 1, Options->MaxPartitionCount);
 
         if (Spec->MaxPartitionFactor) {
             MaxPartitionFactor = *Spec->MaxPartitionFactor;

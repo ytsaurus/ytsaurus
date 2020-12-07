@@ -24,9 +24,9 @@
 
 #include <yt/client/transaction_client/public.h>
 
-#include <yt/core/misc/numeric_helpers.h>
-
 #include <yt/core/ytree/helpers.h>
+
+#include <algorithm>
 
 namespace NYT::NControllerAgent {
 

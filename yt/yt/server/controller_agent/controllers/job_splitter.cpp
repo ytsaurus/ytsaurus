@@ -9,9 +9,9 @@
 
 #include <yt/server/lib/scheduler/config.h>
 
-#include <yt/core/misc/numeric_helpers.h>
-
 #include <util/generic/cast.h>
+
+#include <algorithm>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -184,7 +184,7 @@ public:
             Config_->ExecToPrepareTimeRatio * prepareDuration,
             medianCompletionDuration - prepareDuration});
 
-        int jobCount = Clamp<int>(
+        int jobCount = std::clamp<int>(
             std::min(static_cast<i64>(expectedExecDuration / minJobTime), unreadRowCount),
             1,
             Config_->MaxJobsPerSplit);

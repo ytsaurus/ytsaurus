@@ -10,6 +10,8 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
+#include <algorithm>
+
 namespace NYT::NControllerAgent {
 
 using namespace NScheduler;
@@ -89,7 +91,7 @@ public:
             ? GetSamplingDataWeightPerJob()
             : GetDataWeightPerJob();
 
-        i64 sliceDataSize = Clamp<i64>(
+        i64 sliceDataSize = std::clamp<i64>(
             Options_->SliceDataWeightMultiplier * dataWeightPerJob,
             1,
             Options_->MaxSliceDataWeight);
@@ -111,7 +113,7 @@ public:
             ? std::max<i64>(1, DivCeil<i64>(ForeignInputDataWeight_, jobCount))
             : 1;
 
-        auto foreignSliceDataWeight = Clamp<i64>(
+        auto foreignSliceDataWeight = std::clamp<i64>(
             Options_->SliceDataWeightMultiplier * foreignDataWeightPerJob,
             Options_->MinSliceDataWeight,
             Options_->MaxSliceDataWeight);
@@ -177,7 +179,7 @@ protected:
     i64 InputChunkCount_ = -1;
     i64 JobCount_ = -1;
     i64 InputRowCount_ = -1;
-    int MergeInputTableCount_ = -1; 
+    int MergeInputTableCount_ = -1;
     int MergePrimaryInputTableCount_ = -1;
     TLogger Logger;
 

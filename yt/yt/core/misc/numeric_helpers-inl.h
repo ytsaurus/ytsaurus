@@ -14,14 +14,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-T Clamp(const T& value, const T& minValue, const T& maxValue)
-{
-    auto result = std::min(value, maxValue);
-    result = std::max(result, minValue);
-    return result;
-}
-
-template <class T>
 T DivCeil(const T& numerator, const T& denominator)
 {
     YT_VERIFY(denominator != 0);
