@@ -154,7 +154,8 @@ class YTInstance(object):
                  enable_structured_master_logging=False, enable_structured_scheduler_logging=False,
                  enable_rpc_driver_proxy_discovery=None,
                  use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
-                 ytserver_all_path=None, watcher_binary=None):
+                 ytserver_all_path=None, watcher_binary=None,
+                 stderrs_path=None):
         _configure_logger()
 
         if use_porto_for_servers and not porto_avaliable():
@@ -231,7 +232,7 @@ class YTInstance(object):
         makedirp(self.configs_path)
         makedirp(self.runtime_data_path)
 
-        self.stderrs_path = os.path.join(self.path, "stderrs")
+        self.stderrs_path = stderrs_path or os.path.join(self.path, "stderrs")
         self.backtraces_path = os.path.join(self.path, "backtraces")
         makedirp(self.stderrs_path)
         makedirp(self.backtraces_path)
