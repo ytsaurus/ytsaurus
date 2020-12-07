@@ -743,8 +743,14 @@ private:
                                 TUnversionedRow(modification.Row),
                                 true);
                         }
+
+                        auto modificationType = modification.Type;
+                        if (tableInfo->IsReplicated() && modificationType == ERowModificationType::ReadLockWrite) {
+                            modificationType = ERowModificationType::Write;
+                        }
+
                         auto session = Transaction_->GetOrCreateTabletSession(tabletInfo, tableInfo, TableSession_);
-                        auto command = GetCommand(modification.Type);
+                        auto command = GetCommand(modificationType);
                         session->SubmitRow(command, capturedRow, modification.Locks);
                         break;
                     }
