@@ -2,7 +2,7 @@ from .conftest import authors
 from .helpers import (get_tests_sandbox, TEST_DIR, wait_record_in_job_archive,
                       yatest_common, get_operation_path)
 
-from yt.common import to_native_str, YT_NULL_TRANSACTION_ID
+from yt.common import to_native_str, YT_NULL_TRANSACTION_ID, YtError
 import yt.subprocess_wrapper as subprocess
 from yt.wrapper.errors import YtOperationFailedError
 from yt.wrapper.ypath import YPath
@@ -10,7 +10,7 @@ import yt.environment.arcadia_interop as arcadia_interop
 
 import yt.wrapper as yt
 
-from yt.wrapper.job_tool import FULL_INPUT_MODE, INPUT_CONTEXT_MODE
+import yt.wrapper.job_tool as yt_job_tool
 
 import os
 import stat
@@ -37,37 +37,25 @@ class TestJobTool(object):
         os.chmod(self._tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
 
     def _prepare_job_environment(self, yt_env_job_archive, operation_id, job_id,
-                                 get_context_mode=INPUT_CONTEXT_MODE):
+                                 get_context_mode=yt_job_tool.INPUT_CONTEXT_MODE):
         if yatest_common is None:
             args = [sys.executable]
         else:
             args = []
 
         job_path = os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + job_id)
-        args += [
-            arcadia_interop.search_binary_path("yt"),
-            "job-tool",
-            "prepare-job-environment",
-            operation_id,
-            job_id,
-            "--job-path",
-            job_path,
-            "--proxy",
-            yt_env_job_archive.config["proxy"]["url"],
-        ]
-        if get_context_mode == FULL_INPUT_MODE:
-            args += ["--full-input"]
-            wait_record_in_job_archive(operation_id, job_id)
-        else:
-            args += ["--context"]
         try:
-            return subprocess.check_output(args, stderr=sys.stderr).strip()
-        except subprocess.CalledProcessError:
-            shutil.rmtree(job_path)
+            return yt_job_tool.prepare_job_environment(
+                operation_id,
+                job_id,
+                job_path,
+                get_context_mode=get_context_mode)
+        except YtError:
+            shutil.rmtree(job_path, ignore_errors=True)
             raise
 
     def _check(self, operation_id, yt_env_job_archive, check_running=False,
-               get_context_mode=INPUT_CONTEXT_MODE, expect_ok_return_code=False):
+               get_context_mode=yt_job_tool.INPUT_CONTEXT_MODE, expect_ok_return_code=False):
         if not check_running:
             job_id = yt.list(get_operation_path(operation_id) + "/jobs")[0]
         else:
@@ -114,10 +102,11 @@ class TestJobTool(object):
         assert config["job_id"] == job_id
 
         if not check_running:
-            proc = subprocess.Popen([arcadia_interop.search_binary_path("yt"), "job-tool",
-                                     "run-job", job_path,
-                                     "--env", '{PATH="/bin:/usr/bin:' + os.environ["PATH"] + '"}'],
-                                    stderr=subprocess.PIPE)
+            run_script = os.path.join(job_path, "run.sh")
+            proc = subprocess.Popen(
+                [run_script],
+                env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]},
+                stderr=subprocess.PIPE)
             proc.wait()
 
             if expect_ok_return_code:
@@ -175,7 +164,7 @@ class TestJobTool(object):
         yt.write_file(file_, b"stringdata")
 
         op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_])
-        self._check(op.id, yt_env_job_archive, get_context_mode=FULL_INPUT_MODE,
+        self._check(op.id, yt_env_job_archive, get_context_mode=yt_job_tool.FULL_INPUT_MODE,
                     expect_ok_return_code=True)
 
     @authors("ignat")
@@ -196,7 +185,7 @@ class TestJobTool(object):
             join_by=["key"],
             format="yson",
             yt_files=[file_])
-        self._check(op.id, yt_env_job_archive, get_context_mode=FULL_INPUT_MODE,
+        self._check(op.id, yt_env_job_archive, get_context_mode=yt_job_tool.FULL_INPUT_MODE,
                     expect_ok_return_code=True)
 
     @authors("ignat")
@@ -209,7 +198,7 @@ class TestJobTool(object):
 
         op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_])
         job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
-        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=FULL_INPUT_MODE)
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=yt_job_tool.FULL_INPUT_MODE)
         p = subprocess.Popen([os.path.join(path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
@@ -227,7 +216,7 @@ class TestJobTool(object):
         op = yt.run_map(command, table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_],
                         spec={"mapper": {"environment": {"YT_JOB_TOOL_TEST_VARIABLE": "present"}}})
         job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
-        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=FULL_INPUT_MODE)
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=yt_job_tool.FULL_INPUT_MODE)
         p = subprocess.Popen([os.path.join(path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
@@ -243,7 +232,7 @@ class TestJobTool(object):
             command = "cat < {} >&2; cat ".format(file_name_in_job)
             op = yt.run_map(command, table, TEST_DIR + "/output", format=self.TEXT_YSON, yt_files=[file_cypress_path])
             job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
-            path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=FULL_INPUT_MODE)
+            path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=yt_job_tool.FULL_INPUT_MODE)
             env = os.environ.copy()
             env["PATH"] = "/bin:/usr/bin:" + env.get("PATH")
             p = subprocess.Popen([os.path.join(path, "run.sh")], stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
@@ -289,7 +278,7 @@ class TestJobTool(object):
         spec = {"mapper": {"environment": {"BASH_ENV": bash_env.name}}}
         op = yt.run_map(self.get_ok_command(), table, TEST_DIR + "/output", format=self.TEXT_YSON, spec=spec)
         job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
-        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=FULL_INPUT_MODE)
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=yt_job_tool.FULL_INPUT_MODE)
         p = subprocess.Popen([os.path.join(path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"FROM_BASH_ENV\nOK_COMMAND\n".encode("ascii")
@@ -308,7 +297,7 @@ class TestJobTool(object):
                         format=self.TEXT_YSON,
                         yt_files=["<file_name=\"table_as_file.json\";format=json>" + table_as_file])
         job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
-        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=FULL_INPUT_MODE)
+        path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=yt_job_tool.FULL_INPUT_MODE)
         p = subprocess.Popen([os.path.join(path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
@@ -336,7 +325,7 @@ class TestJobTool(object):
             with yt.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
                 job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
                 path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id,
-                                                     get_context_mode=FULL_INPUT_MODE)
+                                                     get_context_mode=yt_job_tool.FULL_INPUT_MODE)
                 p = subprocess.Popen([os.path.join(path, "run.sh")],
                                      env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]},
                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE)

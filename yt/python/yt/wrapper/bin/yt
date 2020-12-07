@@ -1416,16 +1416,10 @@ def add_transform_parser(add_parser):
                         help="check if table already has proper codecs before transforming")
     add_structured_argument(parser, "--spec")
 
-def job_tool(**kwargs):
-    commands = {
-        "prepare-job-environment": yt_job_tool.prepare_job_environment,
-        "run-job": yt_job_tool.run_job
-    }
-    command = kwargs.pop("command")
-    commands[command](**kwargs)
-
 def add_job_tool_parser(add_parser):
-    parser = add_parser("job-tool", function=job_tool, pythonic_help=yt_job_tool.DESCRIPTION)
+    parser = add_parser("job-tool",
+                        function=yt_job_tool.process_job_tool_arguments,
+                        pythonic_help=yt_job_tool.DESCRIPTION)
     yt_job_tool.create_job_tool_parser(parser)
 
 def sky_share(**kwargs):

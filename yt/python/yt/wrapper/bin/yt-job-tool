@@ -28,12 +28,7 @@ def main():
     for key in vars(options):
         args.pop(key)
 
-    commands = {
-        "prepare-job-environment": job_tool.prepare_job_environment,
-        "run-job": job_tool.run_job
-    }
-    command = args.pop("command")
-    commands[command](**args)
+    job_tool.process_job_tool_arguments(args)
 
 if __name__ == "__main__":
     run_main(main)
