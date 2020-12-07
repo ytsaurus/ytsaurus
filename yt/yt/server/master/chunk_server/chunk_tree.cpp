@@ -81,6 +81,16 @@ bool TChunkTree::IsSealed() const
     }
 }
 
+bool TChunkTree::GetOverlayed() const
+{
+    auto type = GetType();
+    if (IsPhysicalChunkType(type)) {
+        return AsChunk()->GetOverlayed();
+    } else {
+        return false;
+    }
+}
+
 void TChunkTree::Save(NCellMaster::TSaveContext& context) const
 {
     TStagedObject::Save(context);

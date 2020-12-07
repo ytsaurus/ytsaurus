@@ -110,6 +110,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixClusterStatisticsMasterMemoryUsage)                        (1425))  // aleksandra-zh
     ((OldTxReplicationHiveProtocolCompatibility)                    (1426))  // shakurov
     ((IgnoreStatisticsDuringNodeRegistration)                       (1427))  // gritukan
+    ((FixChunkTreeAttachValidation)                                 (1428))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

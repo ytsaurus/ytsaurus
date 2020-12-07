@@ -9,7 +9,6 @@
 #include <random>
 
 namespace NYT::NChunkServer {
-
 namespace {
 
 using namespace NTesting;
@@ -55,6 +54,69 @@ void CheckCumulativeStatistics(TChunkList* chunkList)
 class TChunkListCumulativeStatisticsTest
     : public TChunkGeneratorBase
 { };
+
+TEST_F(TChunkListCumulativeStatisticsTest, CannotAttachSealedAfterUnsealed1)
+{
+    auto* root = CreateChunkList();
+    AttachToChunkList(root, {CreateJournalChunk(false, false)});
+    EXPECT_THROW(
+        AttachToChunkList(root, {CreateJournalChunk(true, false)}),
+        TErrorException);
+}
+
+TEST_F(TChunkListCumulativeStatisticsTest, CannotAttachSealedAfterUnsealed2)
+{
+    auto* root = CreateChunkList();
+    EXPECT_THROW(
+        AttachToChunkList(root, {CreateJournalChunk(false, false), CreateJournalChunk(true, false)}),
+        TErrorException);
+}
+
+TEST_F(TChunkListCumulativeStatisticsTest, CanAttachUnsealedAfterSealed)
+{
+    auto* root = CreateChunkList();
+    AttachToChunkList(root, {CreateJournalChunk(true, false)});
+    AttachToChunkList(root, {CreateJournalChunk(false, false)});
+}
+
+TEST_F(TChunkListCumulativeStatisticsTest, CannotHaveMultipleNonoverlayedUnsealed1)
+{
+    auto* root = CreateChunkList();
+    AttachToChunkList(root, {CreateJournalChunk(false, false)});
+    EXPECT_THROW(
+        AttachToChunkList(root, {CreateJournalChunk(false, false)}),
+        TErrorException);
+}
+
+TEST_F(TChunkListCumulativeStatisticsTest, CannotHaveMultipleNonoverlayedUnsealed2)
+{
+    auto* root = CreateChunkList();
+    EXPECT_THROW(
+        AttachToChunkList(root, {CreateJournalChunk(false, false), CreateJournalChunk(false, false)}),
+        TErrorException);
+}
+
+TEST_F(TChunkListCumulativeStatisticsTest, CannotHaveNonoverlayedAfterOverlayed)
+{
+    auto* root = CreateChunkList();
+    AttachToChunkList(root, {CreateJournalChunk(false, true)});
+    EXPECT_THROW(
+        AttachToChunkList(root, {CreateJournalChunk(false, false)}),
+        TErrorException);
+}
+
+TEST_F(TChunkListCumulativeStatisticsTest, CanHaveMultipleOverlayedUnsealed1)
+{
+    auto* root = CreateChunkList();
+    AttachToChunkList(root, {CreateJournalChunk(false, true)});
+    AttachToChunkList(root, {CreateJournalChunk(false, true)});
+}
+
+TEST_F(TChunkListCumulativeStatisticsTest, CanHaveMultipleOverlayedUnsealed2)
+{
+    auto* root = CreateChunkList();
+    AttachToChunkList(root, {CreateJournalChunk(false, true), CreateJournalChunk(false, true)});
+}
 
 TEST_F(TChunkListCumulativeStatisticsTest, Static)
 {
