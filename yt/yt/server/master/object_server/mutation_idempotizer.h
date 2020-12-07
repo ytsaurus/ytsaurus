@@ -45,6 +45,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     NCellMaster::TBootstrap* const Bootstrap_;
+    bool Enabled_ = true;
 
     THashSet<NRpc::TMutationId> FinishedMutations_;
     // This is essentially a multimap, but with deterministic order of both keys and values.

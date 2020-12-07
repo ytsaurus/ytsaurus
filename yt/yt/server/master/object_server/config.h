@@ -18,12 +18,15 @@ class TMutationIdempotizerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    bool Enabled;
     TDuration ExpirationTime;
     TDuration ExpirationCheckPeriod;
     int MaxExpiredMutationIdRemovalsPerCommit;
 
     TMutationIdempotizerConfig()
     {
+        RegisterParameter("enabled", Enabled)
+            .Default(true);
         RegisterParameter("expiration_time", ExpirationTime)
             .Default(TDuration::Minutes(5));
         RegisterParameter("expiration_check_period", ExpirationCheckPeriod)
