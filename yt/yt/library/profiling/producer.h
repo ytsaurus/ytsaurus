@@ -78,6 +78,7 @@ public:
     virtual void Collect(ISensorWriter* writer) override;
 
     void Update(TSensorBuffer buffer);
+    void Update(std::function<void(ISensorWriter*)> cb);
     void SetEnabled(bool enabled);
 
 private:

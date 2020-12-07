@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/profiling/profiler.h>
+#include <yt/yt/library/profiling/producer.h>
 
 namespace NYT::NJobAgent {
 
@@ -35,7 +35,7 @@ std::vector<TGpuDeviceDescriptor> ListGpuDevices();
 
 TString GetGpuDeviceName(int deviceNumber);
 
-void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, const NProfiling::TTagIdList& tagIds);
+void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const TGpuInfo& gpuInfo);
 
 struct TGpuDriverVersion
 {

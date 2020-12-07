@@ -167,16 +167,6 @@ void ProfileResources(
     NProfiling::ISensorWriter* writer,
     const TJobResources& resources,
     const TString& prefix);
-void ProfileResources(
-    const NProfiling::TProfiler& profiler,
-    const TJobResources& resources,
-    const TString& prefix = {},
-    const NProfiling::TTagIdList& tagIds = {});
-void ProfileResources(
-    NProfiling::TMetricsAccumulator& accumulator,
-    const TJobResources& resources,
-    const TString& prefix = {},
-    const NProfiling::TTagIdList& tagIds = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

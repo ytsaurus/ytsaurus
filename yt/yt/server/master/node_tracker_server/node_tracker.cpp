@@ -1748,9 +1748,11 @@ private:
     void OnProfiling()
     {
         if (!IsLeader()) {
-            BufferedProducer_->Update({});
+            BufferedProducer_->SetEnabled(false);
             return;
         }
+
+        BufferedProducer_->SetEnabled(true);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsPrimaryMaster()) {

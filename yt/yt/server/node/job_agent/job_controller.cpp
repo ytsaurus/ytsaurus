@@ -1,6 +1,8 @@
 #include "job_controller.h"
+#include "library/cpp/ytalloc/core/misc/enum.h"
 #include "private.h"
 #include "gpu_manager.h"
+#include "yt/server/lib/job_agent/gpu_helpers.h"
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
@@ -149,15 +151,14 @@ private:
     std::optional<TInstant> UserMemoryOverdraftInstant_;
     std::optional<TInstant> CpuOverdraftInstant_;
 
-    TProfiler Profiler_;
-    TProfiler ResourceLimitsProfiler_;
-    TProfiler ResourceUsageProfiler_;
-    TProfiler GpuUtilizationProfiler_;
-    TEnumIndexedVector<EJobOrigin, TTagId> JobOriginToTag_;
-    THashMap<int, TTagId> GpuDeviceNumberToProfilingTag_;
-    THashMap<TString, TTagId> GpuNameToProfilingTag_;
+    TRegistry Profiler_;
+    TBufferedProducerPtr ActiveJobCountBuffer_ = New<TBufferedProducer>();
+    TBufferedProducerPtr ResourceLimitsBuffer_ = New<TBufferedProducer>();
+    TBufferedProducerPtr ResourceUsageBuffer_ = New<TBufferedProducer>();
+    TBufferedProducerPtr GpuUtilizationBuffer_ = New<TBufferedProducer>();
 
-    THashMap<std::pair<EJobState, EJobOrigin>, TShardedMonotonicCounter> JobFinalStateCounters_;
+    TEnumIndexedVector<EJobOrigin, TGauge> ActiveJobCount_;
+    THashMap<std::pair<EJobState, EJobOrigin>, TCounter> JobFinalStateCounters_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
@@ -241,7 +242,7 @@ private:
 
     void CheckReservedMappedMemory();
 
-    TShardedMonotonicCounter* GetJobFinalStateCounter(EJobState state, EJobOrigin origin);
+    TCounter* GetJobFinalStateCounter(EJobState state, EJobOrigin origin);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,10 +254,12 @@ TJobController::TImpl::TImpl(
     , Bootstrap_(bootstrap)
     , StatisticsThrottler_(CreateReconfigurableThroughputThrottler(Config_->StatisticsThrottler))
     , Profiler_("/job_controller")
-    , ResourceLimitsProfiler_(Profiler_.AppendPath("/resource_limits"))
-    , ResourceUsageProfiler_(Profiler_.AppendPath("/resource_usage"))
-    , GpuUtilizationProfiler_(Profiler_.AppendPath("/gpu_utilization"))
 {
+    Profiler_.AddProducer("/resource_limits", ResourceLimitsBuffer_);
+    Profiler_.AddProducer("/resource_usage", ResourceUsageBuffer_);
+    Profiler_.AddProducer("/gpu_utilization", GpuUtilizationBuffer_);
+    Profiler_.AddProducer("", ActiveJobCountBuffer_);
+
     YT_VERIFY(Config_);
     YT_VERIFY(Bootstrap_);
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
@@ -943,7 +946,7 @@ void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
     }
 
     auto* jobFinalStateCounter = GetJobFinalStateCounter(job->GetState(), origin);
-    Profiler_.Increment(*jobFinalStateCounter);
+    jobFinalStateCounter->Increment();
 
     JobFinished_.Fire(job);
 }
@@ -1428,54 +1431,50 @@ void TJobController::TImpl::OnProfiling()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    auto jobs = GetJobsByOrigin();
-    static const TEnumMemberTagCache<EJobOrigin> JobOriginTagCache("origin");
-    for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
-        Profiler_.Enqueue(
-            "/active_job_count",
-            jobs[origin].size(),
-            EMetricType::Gauge,
-            {JobOriginTagCache.GetTag(origin)});
-    }
-    ProfileResources(ResourceUsageProfiler_, GetResourceUsage());
-    ProfileResources(ResourceLimitsProfiler_, GetResourceLimits());
+    ActiveJobCountBuffer_->Update([this] (ISensorWriter* writer) {
+        auto jobs = GetJobsByOrigin();
 
-    for (const auto& [index, gpuInfo] : Bootstrap_->GetGpuManager()->GetGpuInfoMap()) {
-        TTagId deviceNumberTag;
-        {
-            auto it = GpuDeviceNumberToProfilingTag_.find(index);
-            if (it == GpuDeviceNumberToProfilingTag_.end()) {
-                it = GpuDeviceNumberToProfilingTag_.emplace(index, TProfileManager::Get()->RegisterTag("device_number", ToString(index))).first;
-            }
-            deviceNumberTag = it->second;
+        for (auto origin : TEnumTraits<EJobOrigin>::GetDomainValues()) {
+            writer->PushTag(TTag{"origin", FormatEnum(origin)});
+            writer->AddGauge("/active_job_count", jobs[origin].size());
+            writer->PopTag();
         }
-        TTagId nameTag;
-        {
-            auto it = GpuNameToProfilingTag_.find(gpuInfo.Name);
-            if (it == GpuNameToProfilingTag_.end()) {
-                it = GpuNameToProfilingTag_.emplace(gpuInfo.Name, TProfileManager::Get()->RegisterTag("gpu_name", gpuInfo.Name)).first;
-            }
-            nameTag = it->second;
+    });
+
+    ResourceUsageBuffer_->Update([this] (ISensorWriter* writer) {
+        ProfileResources(writer, GetResourceUsage());
+    });
+
+    ResourceLimitsBuffer_->Update([this] (ISensorWriter* writer) {
+        ProfileResources(writer, GetResourceLimits());
+    });
+
+    GpuUtilizationBuffer_->Update([this] (ISensorWriter* writer) {
+        for (const auto& [index, gpuInfo] : Bootstrap_->GetGpuManager()->GetGpuInfoMap()) {
+            writer->PushTag(TTag{"gpu_name", gpuInfo.Name});
+            writer->PushTag(TTag{"device_number", ToString(index)});
+
+            ProfileGpuInfo(writer, gpuInfo);
+
+            writer->PopTag();
+            writer->PopTag();
         }
-        ProfileGpuInfo(GpuUtilizationProfiler_, gpuInfo, {deviceNumberTag, nameTag});
-    }
+    });
 }
 
-TShardedMonotonicCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOrigin origin)
+TCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOrigin origin)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto key = std::make_pair(state, origin);
     auto it = JobFinalStateCounters_.find(key);
     if (it == JobFinalStateCounters_.end()) {
-        TShardedMonotonicCounter counter{
-            "/job_final_state",
-            {
-                TProfileManager::Get()->RegisterTag("state", state),
-                TProfileManager::Get()->RegisterTag("origin", origin)
-            }
-        };
-        it = JobFinalStateCounters_.emplace(key, std::move(counter)).first;
+        auto counter = Profiler_
+            .WithTag("state", FormatEnum(state))
+            .WithTag("origin", FormatEnum(origin))
+            .Counter("/job_final_state");
+
+        it = JobFinalStateCounters_.emplace(key, counter).first;
     }
 
     return &it->second;
