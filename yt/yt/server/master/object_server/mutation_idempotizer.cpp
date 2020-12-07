@@ -89,12 +89,20 @@ bool TMutationIdempotizer::IsMutationApplied(TMutationId id) const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    if (!Enabled_) {
+        return false;
+    }
+
     return FinishedMutations_.contains(id);
 }
 
 void TMutationIdempotizer::SetMutationApplied(TMutationId id)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    if (!Enabled_) {
+        return;
+    }
 
     auto* mutationContext = GetCurrentMutationContext();
     YT_VERIFY(mutationContext);
@@ -158,8 +166,11 @@ const TMutationIdempotizerConfigPtr& TMutationIdempotizer::GetDynamicConfig()
 
 void TMutationIdempotizer::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
+    Enabled_ = GetDynamicConfig()->Enabled;
     if (CheckExecutor_) {
-        CheckExecutor_->SetPeriod(GetDynamicConfig()->ExpirationCheckPeriod);
+        CheckExecutor_->SetPeriod(Enabled_
+            ? std::make_optional(GetDynamicConfig()->ExpirationCheckPeriod)
+            : std::nullopt);
     }
 }
 
