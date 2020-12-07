@@ -284,28 +284,6 @@ void ProfileResources(
     #undef XX
 }
 
-void ProfileResources(
-    const TProfiler& profiler,
-    const TJobResources& resources,
-    const TString& prefix,
-    const TTagIdList& tagIds)
-{
-    #define XX(name, Name) profiler.Enqueue(prefix + "/" #name, static_cast<i64>(resources.Get##Name()), EMetricType::Gauge, tagIds);
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-}
-
-void ProfileResources(
-    NProfiling::TMetricsAccumulator& accumulator,
-    const TJobResources& resources,
-    const TString& prefix,
-    const NProfiling::TTagIdList& tagIds)
-{
-    #define XX(name, Name) accumulator.Add(prefix + "/" #name, static_cast<i64>(resources.Get##Name()), EMetricType::Gauge, tagIds);
-    ITERATE_JOB_RESOURCES(XX)
-    #undef XX
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 EJobResourceType GetDominantResource(

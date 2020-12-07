@@ -306,16 +306,16 @@ TString GetGpuDeviceName(int deviceNumber)
     return DevNvidiaPath + ToString(deviceNumber);
 }
 
-void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, const NProfiling::TTagIdList& tagIds)
+void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const TGpuInfo& gpuInfo)
 {
-    profiler.Enqueue("/utilization_gpu_rate_x1000", gpuInfo.UtilizationGpuRate, NProfiling::EMetricType::Gauge, tagIds);
-    profiler.Enqueue("/utilization_memory_rate_x1000", gpuInfo.UtilizationMemoryRate, NProfiling::EMetricType::Gauge, tagIds);
-    profiler.Enqueue("/memory_used", gpuInfo.MemoryUsed, NProfiling::EMetricType::Gauge, tagIds);
-    profiler.Enqueue("/memory_limit", gpuInfo.MemoryTotal, NProfiling::EMetricType::Gauge, tagIds);
-    profiler.Enqueue("/power_used", gpuInfo.PowerDraw, NProfiling::EMetricType::Gauge, tagIds);
-    profiler.Enqueue("/power_limit", gpuInfo.PowerLimit, NProfiling::EMetricType::Gauge, tagIds);
-    profiler.Enqueue("/clocks_sm_used", gpuInfo.ClocksSm, NProfiling::EMetricType::Gauge, tagIds);
-    profiler.Enqueue("/clocks_sm_limit", gpuInfo.ClocksMaxSm, NProfiling::EMetricType::Gauge, tagIds);
+    writer->AddGauge("/utilization_gpu_rate_x1000", gpuInfo.UtilizationGpuRate);
+    writer->AddGauge("/utilization_memory_rate_x1000", gpuInfo.UtilizationMemoryRate);
+    writer->AddGauge("/memory_used", gpuInfo.MemoryUsed);
+    writer->AddGauge("/memory_limit", gpuInfo.MemoryTotal);
+    writer->AddGauge("/power_used", gpuInfo.PowerDraw);
+    writer->AddGauge("/power_limit", gpuInfo.PowerLimit);
+    writer->AddGauge("/clocks_sm_used", gpuInfo.ClocksSm);
+    writer->AddGauge("/clocks_sm_limit", gpuInfo.ClocksMaxSm);
 }
 
 TGpuDriverVersion TGpuDriverVersion::FromString(TStringBuf driverVersionString)

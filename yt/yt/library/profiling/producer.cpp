@@ -93,6 +93,13 @@ void TBufferedProducer::Update(TSensorBuffer buffer)
     Buffer_ = ptr;
 }
 
+void TBufferedProducer::Update(std::function<void(ISensorWriter*)> cb)
+{
+    TSensorBuffer buffer;
+    cb(&buffer);
+    Update(std::move(buffer));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NProfiling

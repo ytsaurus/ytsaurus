@@ -326,7 +326,6 @@ private:
     YT_DECLARE_SPINLOCK(TReaderWriterSpinLock, CellToIdToBatcherLock_);
     THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
 
-    const NProfiling::TProfiler Profiler;
     TTimeCounter SyncPostingTimeCounter_;
     TTimeCounter AsyncPostingTimeCounter_;
 
