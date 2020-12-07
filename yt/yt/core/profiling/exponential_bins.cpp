@@ -21,7 +21,7 @@ auto BinUpperLimits = [] {
 }();
 
 TExponentialBins::TExponentialBins(
-    const TProfiler& profiler,
+    const TLegacyProfiler& profiler,
     const NYPath::TYPath& path,
     const TTagIdList& tagIds,
     std::function<TTagId(int)> binIndexToTagId,

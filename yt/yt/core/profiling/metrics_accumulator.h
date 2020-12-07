@@ -17,7 +17,7 @@ public:
         NProfiling::EMetricType metricType,
         const NProfiling::TTagIdList& tagIds = {});
 
-    void Publish(const NProfiling::TProfiler* profiler);
+    void Publish(const NProfiling::TLegacyProfiler* profiler);
 
 private:
     using TKey = std::pair<TString, NProfiling::TTagIdList>;

@@ -62,7 +62,7 @@ private:
     ETimerMode Mode_;
     TTagIdList TagIds_;
 
-    friend class TProfiler;
+    friend class TLegacyProfiler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +95,7 @@ private:
 
     bool CheckAndPromoteUpdateDeadline(TTscp tscp, bool forceEnqueue);
 
-    friend class TProfiler;
+    friend class TLegacyProfiler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -162,7 +162,7 @@ protected:
     void UpdateShards(TValue value, TTscp tscp);
     void Reset();
 
-    friend class TProfiler;
+    friend class TLegacyProfiler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -278,7 +278,7 @@ private:
 
     std::unique_ptr<TDynamicData> DynamicData_;
 
-    friend class TProfiler;
+    friend class TLegacyProfiler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -313,7 +313,7 @@ public:
 private:
     std::atomic<TValue> Current_ = 0;
 
-    friend class TProfiler;
+    friend class TLegacyProfiler;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -323,17 +323,17 @@ private:
  *  A profiler maintains a path prefix that is added automatically all enqueued samples.
  *  It allows new samples to be enqueued and time measurements to be performed.
  */
-class TProfiler
+class TLegacyProfiler
 {
 public:
     //! Constructs a disabled profiler.
-    TProfiler() = default;
+    TLegacyProfiler() = default;
 
     //! Constructs a new profiler for a given prefix.
     /*!
      *  By default the profiler is enabled.
      */
-    TProfiler(
+    TLegacyProfiler(
         const NYPath::TYPath& pathPrefix,
         const TTagIdList& tagIds = {},
         bool selfProfiling = false,
@@ -354,10 +354,10 @@ public:
 
 
     //! Constructs a new profiler by adding a suffix to the path.
-    TProfiler AppendPath(const NYPath::TYPath& pathSuffix) const;
+    TLegacyProfiler AppendPath(const NYPath::TYPath& pathSuffix) const;
 
     //! Constructs a new profiler by adding more tags.
-    TProfiler AddTags(const TTagIdList& tagIds) const;
+    TLegacyProfiler AddTags(const TTagIdList& tagIds) const;
 
 
     //! Enqueues a new sample with tags.
@@ -441,7 +441,7 @@ class TTimingGuard
 {
 public:
     TTimingGuard(
-        const TProfiler* profiler,
+        const TLegacyProfiler* profiler,
         const NYPath::TYPath& path,
         const TTagIdList& tagIds = {})
         : Profiler_(profiler)
@@ -475,7 +475,7 @@ public:
     }
 
 private:
-    const TProfiler* Profiler_;
+    const TLegacyProfiler* Profiler_;
     TTimer Timer_;
 
 };
@@ -506,7 +506,7 @@ class TAggregatedTimingGuard
     : private TNonCopyable
 {
 public:
-    TAggregatedTimingGuard(const TProfiler* profiler, TShardedAggregateGauge* counter)
+    TAggregatedTimingGuard(const TLegacyProfiler* profiler, TShardedAggregateGauge* counter)
         : Profiler_(profiler)
         , Counter_(counter)
         , Start_(GetCpuInstant())
@@ -539,7 +539,7 @@ public:
     }
 
 private:
-    const TProfiler* Profiler_;
+    const TLegacyProfiler* Profiler_;
     TShardedAggregateGauge* Counter_;
     TCpuInstant Start_;
 

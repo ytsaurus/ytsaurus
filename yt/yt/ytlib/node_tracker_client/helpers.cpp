@@ -142,7 +142,7 @@ TString FormatResources(const TNodeResources& resources)
         resources.seal_slots());
 }
 
-void ProfileResources(TProfiler& profiler, const TNodeResources& resources)
+void ProfileResources(TLegacyProfiler& profiler, const TNodeResources& resources)
 {
     #define XX(name, Name) profiler.Enqueue("/" #name, resources.name(), EMetricType::Gauge);
     ITERATE_NODE_RESOURCES(XX)

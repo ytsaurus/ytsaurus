@@ -31,7 +31,7 @@ class TExponentialBins
 public:
     //! Argument specifies which tag should be exported for each particular bin.
     TExponentialBins(
-        const NProfiling::TProfiler& profiler,
+        const NProfiling::TLegacyProfiler& profiler,
         const NYPath::TYPath& path = {},
         const TTagIdList& tagIds = {},
         std::function<TTagId(int)> binIndexToTagId = TExponentialBins::BinIndexToHumanReadableDuration,
@@ -70,7 +70,7 @@ public:
     static int GetBinIndex(ui64 value);
 
 private:
-    const NProfiling::TProfiler& Profiler_;
+    const NProfiling::TLegacyProfiler& Profiler_;
     NYPath::TYPath CounterPath_;
     TTagIdList CounterTagIds_;
     TDuration CounterInterval_;

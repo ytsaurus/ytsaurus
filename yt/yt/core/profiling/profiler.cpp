@@ -384,7 +384,7 @@ void TAtomicGauge::Reset()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProfiler::TProfiler(
+TLegacyProfiler::TLegacyProfiler(
     const TYPath& pathPrefix,
     const TTagIdList& tagIds,
     bool selfProfiling,
@@ -396,15 +396,15 @@ TProfiler::TProfiler(
     , SelfProfiling_(selfProfiling)
 { }
 
-TProfiler TProfiler::AppendPath(const TYPath& pathSuffix) const
+TLegacyProfiler TLegacyProfiler::AppendPath(const TYPath& pathSuffix) const
 {
     if (!Enabled_) {
         return {};
     }
-    return TProfiler(PathPrefix_ + pathSuffix, TagIds_, false, ForceEnqueue_);
+    return TLegacyProfiler(PathPrefix_ + pathSuffix, TagIds_, false, ForceEnqueue_);
 }
 
-TProfiler TProfiler::AddTags(const TTagIdList& tagIds) const
+TLegacyProfiler TLegacyProfiler::AddTags(const TTagIdList& tagIds) const
 {
     if (!Enabled_) {
         return {};
@@ -413,10 +413,10 @@ TProfiler TProfiler::AddTags(const TTagIdList& tagIds) const
     for (auto tagId : tagIds) {
         allTagIds.push_back(tagId);
     }
-    return TProfiler(PathPrefix_, allTagIds, false, ForceEnqueue_);
+    return TLegacyProfiler(PathPrefix_, allTagIds, false, ForceEnqueue_);
 }
 
-void TProfiler::Enqueue(
+void TLegacyProfiler::Enqueue(
     const NYPath::TYPath& path,
     TValue value,
     EMetricType metricType,
@@ -435,7 +435,7 @@ void TProfiler::Enqueue(
     TProfileManager::Get()->Enqueue(sample, SelfProfiling_);
 }
 
-TTimer TProfiler::TimingStart(
+TTimer TLegacyProfiler::TimingStart(
     const TYPath& path,
     const TTagIdList& tagIds,
     ETimerMode mode) const
@@ -443,27 +443,27 @@ TTimer TProfiler::TimingStart(
     return TTimer(path, GetCpuInstant(), mode, tagIds);
 }
 
-TDuration TProfiler::TimingStop(
+TDuration TLegacyProfiler::TimingStop(
     TTimer& timer,
     TStringBuf key) const
 {
     return DoTimingStop(timer, key, std::nullopt);
 }
 
-TDuration TProfiler::TimingStop(
+TDuration TLegacyProfiler::TimingStop(
     TTimer& timer,
     const TTagIdList& totalTagIds) const
 {
     return DoTimingStop(timer, std::nullopt, totalTagIds);
 }
 
-TDuration TProfiler::TimingStop(
+TDuration TLegacyProfiler::TimingStop(
     TTimer& timer) const
 {
     return DoTimingStop(timer, std::nullopt, std::nullopt);
 }
 
-TDuration TProfiler::DoTimingStop(
+TDuration TLegacyProfiler::DoTimingStop(
     TTimer& timer,
     const std::optional<TStringBuf>& key,
     const std::optional<TTagIdList>& totalTagIds) const
@@ -485,21 +485,21 @@ TDuration TProfiler::DoTimingStop(
     return CpuDurationToDuration(cpuDuration);
 }
 
-TDuration TProfiler::TimingCheckpoint(
+TDuration TLegacyProfiler::TimingCheckpoint(
     TTimer& timer,
     TStringBuf key) const
 {
     return DoTimingCheckpoint(timer, key, std::nullopt);
 }
 
-TDuration TProfiler::TimingCheckpoint(
+TDuration TLegacyProfiler::TimingCheckpoint(
     TTimer& timer,
     const TTagIdList& tagIds) const
 {
     return DoTimingCheckpoint(timer, std::nullopt, tagIds);
 }
 
-TDuration TProfiler::DoTimingCheckpoint(
+TDuration TLegacyProfiler::DoTimingCheckpoint(
     TTimer& timer,
     const std::optional<TStringBuf>& key,
     const std::optional<TTagIdList>& checkpointTagIds) const
@@ -539,52 +539,52 @@ TDuration TProfiler::DoTimingCheckpoint(
     }
 }
 
-void TProfiler::Update(TShardedAggregateGauge& gauge, TValue value, TTscp tscp) const
+void TLegacyProfiler::Update(TShardedAggregateGauge& gauge, TValue value, TTscp tscp) const
 {
     gauge.Update(value, tscp);
     OnCounterUpdated(gauge, tscp);
 }
 
-void TProfiler::Update(TAtomicShardedAggregateGauge& gauge, TValue value, TTscp tscp) const
+void TLegacyProfiler::Update(TAtomicShardedAggregateGauge& gauge, TValue value, TTscp tscp) const
 {
     gauge.Update(value, tscp);
     OnCounterUpdated(gauge, EMetricType::Gauge, tscp);
 }
 
-TValue TProfiler::Increment(TAtomicShardedAggregateGauge& gauge, TValue delta, TTscp tscp) const
+TValue TLegacyProfiler::Increment(TAtomicShardedAggregateGauge& gauge, TValue delta, TTscp tscp) const
 {
     auto result = gauge.Increment(delta, tscp);
     OnCounterUpdated(gauge, EMetricType::Gauge, tscp);
     return result;
 }
 
-void TProfiler::Update(TAtomicGauge& gauge, TValue value, TTscp tscp) const
+void TLegacyProfiler::Update(TAtomicGauge& gauge, TValue value, TTscp tscp) const
 {
     gauge.Update(value);
     OnCounterUpdated(gauge, EMetricType::Gauge, tscp);
 }
 
-TValue TProfiler::Increment(TAtomicGauge& gauge, TValue delta, TTscp tscp) const
+TValue TLegacyProfiler::Increment(TAtomicGauge& gauge, TValue delta, TTscp tscp) const
 {
     auto result = gauge.Increment(delta);
     OnCounterUpdated(gauge, EMetricType::Gauge, tscp);
     return result;
 }
 
-void TProfiler::Reset(TShardedMonotonicCounter& counter, TTscp tscp) const
+void TLegacyProfiler::Reset(TShardedMonotonicCounter& counter, TTscp tscp) const
 {
     counter.Reset();
     OnCounterUpdated(counter, EMetricType::Counter, tscp);
 }
 
-void TProfiler::Increment(TShardedMonotonicCounter& counter, TValue delta, TTscp tscp) const
+void TLegacyProfiler::Increment(TShardedMonotonicCounter& counter, TValue delta, TTscp tscp) const
 {
     counter.Increment(delta, tscp);
     OnCounterUpdated(counter, EMetricType::Counter, tscp);
 }
 
 template <class T>
-bool TProfiler::OnCounterUpdatedPrologue(T& counter, TTscp tscp) const
+bool TLegacyProfiler::OnCounterUpdatedPrologue(T& counter, TTscp tscp) const
 {
     if (!Enabled_) {
         return false;
@@ -597,7 +597,7 @@ bool TProfiler::OnCounterUpdatedPrologue(T& counter, TTscp tscp) const
     return true;
 }
 
-void TProfiler::OnCounterUpdated(TShardedAggregateGauge& counter, TTscp tscp) const
+void TLegacyProfiler::OnCounterUpdated(TShardedAggregateGauge& counter, TTscp tscp) const
 {
     if (!OnCounterUpdatedPrologue(counter, tscp)) {
         return;
@@ -636,7 +636,7 @@ void TProfiler::OnCounterUpdated(TShardedAggregateGauge& counter, TTscp tscp) co
 }
 
 template <class T>
-void TProfiler::OnCounterUpdated(T& counter, EMetricType metricType, TTscp tscp) const
+void TLegacyProfiler::OnCounterUpdated(T& counter, EMetricType metricType, TTscp tscp) const
 {
     if (!OnCounterUpdatedPrologue(counter, tscp)) {
         return;

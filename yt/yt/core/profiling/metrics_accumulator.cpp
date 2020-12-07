@@ -21,7 +21,7 @@ void TMetricsAccumulator::Add(
     }
 }
 
-void TMetricsAccumulator::Publish(const TProfiler* profiler)
+void TMetricsAccumulator::Publish(const TLegacyProfiler* profiler)
 {
     for (const auto& metricPair : Metrics_) {
         const auto& path = metricPair.first.first;
