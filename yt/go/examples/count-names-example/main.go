@@ -54,7 +54,10 @@ func (*CountNames) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapre
 }
 
 func Example() error {
-	yc, err := ythttp.NewClientCli("freud")
+	yc, err := ythttp.NewClient(&yt.Config{
+		Proxy:             "freud",
+		ReadTokenFromFile: true,
+	})
 	if err != nil {
 		return err
 	}

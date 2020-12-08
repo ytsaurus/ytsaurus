@@ -31,7 +31,7 @@ type SetCypressNodeJob struct {
 }
 
 func (s *SetCypressNodeJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
-	yc, err := ythttp.NewClientCli(s.Proxy)
+	yc, err := ythttp.NewClient(&yt.Config{Proxy: s.Proxy})
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ type RequestForbiddenJob struct {
 }
 
 func (s *RequestForbiddenJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
-	_, err := ythttp.NewClientCli(s.Proxy)
+	_, err := ythttp.NewClient(&yt.Config{Proxy: s.Proxy})
 	if err == nil {
 		return fmt.Errorf("client allowed requests")
 	}

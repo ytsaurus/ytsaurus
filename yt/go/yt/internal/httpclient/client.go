@@ -16,7 +16,6 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
-	"a.yandex-team.ru/library/go/core/log/nop"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal"
@@ -413,14 +412,15 @@ func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net
 func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	var client httpClient
 
-	if c.Logger != nil {
-		client.log = c.Logger
-	} else {
-		client.log = &nop.Logger{}
+	client.log = c.GetLogger()
+
+	proxy, err := c.GetProxy()
+	if err != nil {
+		return nil, err
 	}
 
 	client.config = c
-	client.clusterURL = yt.NormalizeProxyURL(c.Proxy)
+	client.clusterURL = yt.NormalizeProxyURL(proxy)
 	client.netDialer = &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
@@ -466,8 +466,8 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		Wrap(client.requestLogger.Write).
 		Wrap(errorWrapper.Write)
 
-	if c.Token != "" {
-		client.credentials = &yt.TokenCredentials{Token: c.Token}
+	if token := c.GetToken(); token != "" {
+		client.credentials = &yt.TokenCredentials{Token: token}
 	}
 
 	return &client, nil
