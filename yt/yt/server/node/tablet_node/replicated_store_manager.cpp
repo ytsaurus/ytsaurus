@@ -83,6 +83,15 @@ bool TReplicatedStoreManager::ExecuteWrites(
                 break;
             }
 
+            case EWireProtocolCommand::ReadLockWriteRow: {
+                reader->ReadLockBitmap();
+                auto row = reader->ReadUnversionedRow(false);
+                LogStoreManager_->WriteRow(
+                    BuildLogRow(row, ERowModificationType::Write),
+                    context);
+                break;
+            }
+
             case EWireProtocolCommand::DeleteRow: {
                 auto key = reader->ReadUnversionedRow(false);
                 LogStoreManager_->WriteRow(

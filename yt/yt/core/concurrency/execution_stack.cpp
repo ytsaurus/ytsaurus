@@ -68,7 +68,7 @@ TExecutionStack::TExecutionStack(size_t size)
 
     Base_ = reinterpret_cast<char*>(::mmap(
         0,
-        guardSize + Size_,
+        guardSize * 2 + Size_,
         PROT_READ | PROT_WRITE,
         flags,
         -1,
@@ -79,7 +79,11 @@ TExecutionStack::TExecutionStack(size_t size)
     }
 
     if (::mprotect(Base_, guardSize, PROT_NONE) == -1) {
-        YT_LOG_FATAL(TError::FromSystem(), "Failed to protect execution stack (GuardSize: %v)", guardSize);
+        YT_LOG_FATAL(TError::FromSystem(), "Failed to protect execution stack from below (GuardSize: %v)", guardSize);
+    }
+
+    if (::mprotect(Base_ + guardSize + Size_, guardSize, PROT_NONE) == -1) {
+        YT_LOG_FATAL(TError::FromSystem(), "Failed to protect execution stack from above (GuardSize: %v)", guardSize);
     }
 
     Stack_ = Base_ + guardSize;

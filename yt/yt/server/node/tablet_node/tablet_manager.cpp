@@ -700,6 +700,8 @@ private:
 
         Load(context, CellLifeStage_);
 
+        Automaton_->RememberReign(static_cast<TReign>(context.GetVersion()));
+
         // COMPAT(ifsmirnov)
         // NB. Comparison is correct here. Frozen tablets used to have dynamic stores
         // before mentioned reign. We want to remove them when compatibility snapshot is
