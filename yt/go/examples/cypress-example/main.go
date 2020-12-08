@@ -20,7 +20,10 @@ var (
 func Example() error {
 	flag.Parse()
 
-	yc, err := ythttp.NewClientCli(*flagProxy)
+	yc, err := ythttp.NewClient(&yt.Config{
+		Proxy:             *flagProxy,
+		ReadTokenFromFile: true,
+	})
 	if err != nil {
 		return err
 	}

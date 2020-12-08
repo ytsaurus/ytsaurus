@@ -7,6 +7,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log/nop"
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/blobcache"
 )
@@ -27,7 +28,10 @@ var migrateCmd = &cobra.Command{
 }
 
 func doMigrate() error {
-	yc, err := ythttp.NewClientCli(flagProxy)
+	yc, err := ythttp.NewClient(&yt.Config{
+		Proxy:             flagProxy,
+		ReadTokenFromFile: true,
+	})
 	if err != nil {
 		return err
 	}

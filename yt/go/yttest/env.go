@@ -31,10 +31,7 @@ func New(t testing.TB, opts ...Option) *Env {
 }
 
 func NewEnv(t testing.TB, opts ...Option) (env *Env, cancel func()) {
-	config, err := yt.NewConfigFromEnv()
-	if err != nil {
-		t.Fatalf("failed to get YT config from env: %+v", err)
-	}
+	var config yt.Config
 
 	var stopLogger func()
 	config.Logger, stopLogger = NewLogger(t)
@@ -47,9 +44,11 @@ func NewEnv(t testing.TB, opts ...Option) (env *Env, cancel func()) {
 	}
 
 	var cancelCtx func()
+	var err error
+
 	env = &Env{}
 	env.Ctx, cancelCtx = context.WithCancel(context.Background())
-	env.YT, err = ythttp.NewClient(config)
+	env.YT, err = ythttp.NewClient(&config)
 	if err != nil {
 		t.Fatalf("failed to create YT client: %+v", err)
 	}

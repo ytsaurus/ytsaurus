@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/jobfs"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/ytexec"
@@ -39,7 +40,10 @@ var downloadCmd = &cobra.Command{
 }
 
 func doDownload() error {
-	yc, err := ythttp.NewClientCli(flagProxy)
+	yc, err := ythttp.NewClient(&yt.Config{
+		Proxy:             flagProxy,
+		ReadTokenFromFile: true,
+	})
 	if err != nil {
 		return err
 	}

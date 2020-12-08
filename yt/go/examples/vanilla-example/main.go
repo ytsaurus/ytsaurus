@@ -35,7 +35,10 @@ func init() {
 }
 
 func Example() error {
-	yc, err := ythttp.NewClientCli(cluster)
+	yc, err := ythttp.NewClient(&yt.Config{
+		Proxy:             cluster,
+		ReadTokenFromFile: true,
+	})
 	if err != nil {
 		return err
 	}
