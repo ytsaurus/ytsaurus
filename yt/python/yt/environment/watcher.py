@@ -2,7 +2,7 @@ from .default_configs import get_watcher_config
 
 from yt.common import which, touch
 
-from yt.test_helpers import wait
+from yt.test_helpers import wait, yatest_common
 import yt.subprocess_wrapper as subprocess
 
 import yt.wrapper as yt
@@ -56,6 +56,8 @@ class ProcessWatcher(object):
         if self._binary_path is None:
             watcher_cmd = [sys.executable]
             env = {"Y_PYTHON_ENTRY_POINT": "__yt_env_watcher_entry_point__"}
+        elif yatest_common is None:
+            watcher_cmd = [sys.executable, self._binary_path]
         else:
             watcher_cmd = [self._binary_path]
         watcher_cmd += [
