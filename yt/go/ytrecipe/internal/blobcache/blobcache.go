@@ -11,12 +11,13 @@ import (
 	"a.yandex-team.ru/yt/go/migrate"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 const (
-	CacheTableName = "blob_cache"
+	CacheTableName = "blob_cache_v2"
 	BlobPath       = "blob"
 )
 
@@ -33,7 +34,7 @@ type (
 		Key        string      `yson:",key"`
 		Path       *ypath.Path `yson:",omitempty"`
 		LockedAt   schema.Timestamp
-		UsedAt     schema.Timestamp
+		ExpiresAt  schema.Timestamp
 		UploadedBy string
 	}
 
@@ -42,6 +43,7 @@ type (
 		UploadPingPeriod time.Duration
 		UploadTimeout    time.Duration
 		EntryTTL         time.Duration
+		ExpirationDelay  time.Duration
 		ProcessName      string
 	}
 
@@ -84,6 +86,10 @@ func (f *Cache) putEntry(ctx context.Context, tx yt.TabletTx, entry *Entry) erro
 
 func (f *Cache) isDead(e *Entry) bool {
 	return time.Since(e.LockedAt.Time()) > f.config.UploadTimeout
+}
+
+func (f *Cache) isFresh(e *Entry) bool {
+	return time.Until(e.ExpiresAt.Time()) > 0
 }
 
 func (f *Cache) pingKey(ctx context.Context, key string) error {
@@ -135,13 +141,16 @@ func (f *Cache) startPingKey(ctx context.Context, key string) (stop func()) {
 	}
 }
 
-func (f *Cache) doUpload(ctx context.Context, key string, openBlob func() (io.ReadCloser, error)) (ypath.Path, error) {
+func (f *Cache) doUpload(ctx context.Context, key string, openBlob func() (io.ReadCloser, error), expiresAt time.Time) (ypath.Path, error) {
 	stop := f.startPingKey(ctx, key)
 	defer stop()
 
 	id := guid.New().String()
 	path := f.config.Root.Child(BlobPath).Child(id[:2]).Child(id[2:])
-	if _, err := f.yc.CreateNode(ctx, path, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true, Force: true}); err != nil {
+	opts := &yt.CreateNodeOptions{Recursive: true, Force: true, Attributes: map[string]interface{}{
+		"expiration_time": yson.Time(expiresAt),
+	}}
+	if _, err := f.yc.CreateNode(ctx, path, yt.NodeFile, opts); err != nil {
 		return "", err
 	}
 
@@ -181,20 +190,7 @@ func (f *Cache) tryUpload(ctx context.Context, key string, openBlob func() (io.R
 	}
 
 	switch {
-	case entry != nil && entry.Path != nil:
-		updateErr := func() error {
-			entry.UsedAt = schema.NewTimestamp(time.Now())
-			if err := f.putEntry(ctx, tx, entry); err != nil {
-				return err
-			}
-
-			return tx.Commit()
-		}()
-
-		if updateErr != nil {
-			f.l.Warn("failed to update entry use time", log.Error(err))
-		}
-
+	case entry != nil && entry.Path != nil && f.isFresh(entry):
 		return *entry.Path, false, nil
 
 	case entry == nil || f.isDead(entry):
@@ -216,14 +212,15 @@ func (f *Cache) tryUpload(ctx context.Context, key string, openBlob func() (io.R
 			return "", false, err
 		}
 
-		path, err := f.doUpload(ctx, key, openBlob)
+		expiresAt := time.Now().Add(f.config.EntryTTL)
+		path, err := f.doUpload(ctx, key, openBlob, expiresAt.Add(f.config.ExpirationDelay))
 		if err != nil {
 			return "", false, err
 		}
 
 		entry = &Entry{
 			Key:        key,
-			UsedAt:     schema.NewTimestamp(time.Now()),
+			ExpiresAt:  schema.NewTimestamp(expiresAt),
 			UploadedBy: f.config.ProcessName,
 			Path:       &path,
 		}
@@ -280,9 +277,9 @@ func (f *Cache) Migrate(ctx context.Context) error {
 			Attributes: map[string]interface{}{
 				"in_memory_mode": "uncompressed",
 
-				//"max_data_ttl":      f.config.EntryTTL.Milliseconds(),
-				//"min_data_versions": 0,
-				//"min_data_ttl":      time.Hour.Milliseconds(),
+				"max_data_ttl":      f.config.EntryTTL.Milliseconds(),
+				"min_data_versions": 0,
+				"min_data_ttl":      time.Hour.Milliseconds(),
 			},
 		},
 	}

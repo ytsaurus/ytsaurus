@@ -100,6 +100,7 @@ func New(c Config) (*Exec, error) {
 			UploadTimeout:    time.Minute,
 			UploadPingPeriod: time.Second * 15,
 			EntryTTL:         c.Operation.BlobTTL,
+			ExpirationDelay:  3 * time.Hour,
 		})
 	}
 
