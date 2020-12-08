@@ -119,7 +119,7 @@ TChunkView* TChunkGeneratorBase::CreateChunkView(
     NTableClient::TLegacyOwningKey upperLimit)
 {
     NChunkClient::TLegacyReadRange readRange{
-        NChunkClient::TReadLimit(lowerLimit), NChunkClient::TReadLimit(upperLimit)};
+        NChunkClient::TLegacyReadLimit(lowerLimit), NChunkClient::TLegacyReadLimit(upperLimit)};
     auto chunkView = std::make_unique<TChunkView>(GenerateId(EObjectType::ChunkView));
 
     chunkView->SetUnderlyingChunk(underlyingChunk);

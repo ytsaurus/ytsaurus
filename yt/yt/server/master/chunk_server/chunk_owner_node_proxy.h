@@ -18,8 +18,8 @@ void BuildChunkSpec(
     TChunk* chunk,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
-    const NChunkClient::TReadLimit& lowerLimit,
-    const NChunkClient::TReadLimit& upperLimit,
+    const NChunkClient::TLegacyReadLimit& lowerLimit,
+    const NChunkClient::TLegacyReadLimit& upperLimit,
     TTransactionId timestampTransactionId,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
@@ -30,8 +30,8 @@ void BuildChunkSpec(
 
 void BuildDynamicStoreSpec(
     const TDynamicStore* dynamicStore,
-    const NChunkClient::TReadLimit& lowerLimit,
-    const NChunkClient::TReadLimit& upperLimit,
+    const NChunkClient::TLegacyReadLimit& lowerLimit,
+    const NChunkClient::TLegacyReadLimit& upperLimit,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NCellMaster::TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec);

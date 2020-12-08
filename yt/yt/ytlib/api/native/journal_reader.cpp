@@ -141,7 +141,7 @@ private:
             AddCellTagToSyncWith(req, userObject.ObjectId);
             req->set_fetch_parity_replicas(true);
 
-            TReadLimit lowerLimit, upperLimit;
+            TLegacyReadLimit lowerLimit, upperLimit;
             i64 firstRowIndex = Options_.FirstRowIndex.value_or(0);
             if (Options_.FirstRowIndex) {
                 lowerLimit.SetRowIndex(firstRowIndex);
@@ -221,10 +221,10 @@ private:
                     THROW_ERROR_EXCEPTION("Upper limit is missing in chunk spec");
                 }
 
-                auto lowerLimit = FromProto<TReadLimit>(chunkSpec.lower_limit());
+                auto lowerLimit = FromProto<TLegacyReadLimit>(chunkSpec.lower_limit());
                 BeginRowIndex_ = lowerLimit.GetRowIndex();
 
-                auto upperLimit = FromProto<TReadLimit>(chunkSpec.upper_limit());
+                auto upperLimit = FromProto<TLegacyReadLimit>(chunkSpec.upper_limit());
                 EndRowIndex_ = upperLimit.GetRowIndex();
 
                 CurrentRowIndex_ = BeginRowIndex_;

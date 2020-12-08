@@ -65,7 +65,7 @@ using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 
 using NChunkClient::TChunkReaderStatistics;
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 using NChunkClient::TLegacyReadRange;
 using NChunkClient::TDataSliceDescriptor;
 using NNodeTrackerClient::TNodeDescriptor;
@@ -617,7 +617,7 @@ TYsonString TClient::DoGetJobInputPaths(
         }
     }
 
-    auto compareAbsoluteReadLimits = [] (const TReadLimit& lhs, const TReadLimit& rhs) -> bool {
+    auto compareAbsoluteReadLimits = [] (const TLegacyReadLimit& lhs, const TLegacyReadLimit& rhs) -> bool {
         YT_VERIFY(lhs.HasRowIndex() == rhs.HasRowIndex());
 
         if (lhs.HasRowIndex() && lhs.GetRowIndex() != rhs.GetRowIndex()) {
@@ -697,7 +697,7 @@ TYsonString TClient::DoGetJobInputPaths(
         }
     }
 
-    auto buildSliceLimit = [](const TReadLimit& limit, TFluentAny fluent) {
+    auto buildSliceLimit = [](const TLegacyReadLimit& limit, TFluentAny fluent) {
         fluent.BeginMap()
               .DoIf(limit.HasRowIndex(), [&] (TFluentMap fluent) {
                   fluent

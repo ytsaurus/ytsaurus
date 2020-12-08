@@ -72,7 +72,7 @@ using namespace NRpc;
 using namespace NApi;
 
 using NChunkClient::TDataSliceDescriptor;
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 using NChunkClient::TLegacyReadRange;
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::TChunkReaderStatistics;
@@ -276,8 +276,8 @@ protected:
         const NChunkClient::NProto::TMiscExt& misc,
         const NProto::TBlockMetaExt& blockMeta,
         const TChunkSpec& chunkSpec,
-        const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit,
+        const TLegacyReadLimit& lowerLimit,
+        const TLegacyReadLimit& upperLimit,
         const TKeyColumns& keyColumns,
         i64 rowIndex) const
     {
@@ -929,7 +929,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
     YT_VERIFY(Options_->DynamicTable);
 
     for (const auto& key : Keys_) {
-        TReadLimit readLimit;
+        TLegacyReadLimit readLimit;
         readLimit.SetLegacyKey(TLegacyOwningKey(key));
 
         int index = ApplyLowerKeyLimit(ChunkMeta_->BlockLastKeys(), readLimit, KeyColumns_.size());

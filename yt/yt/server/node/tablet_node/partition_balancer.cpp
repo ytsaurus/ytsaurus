@@ -704,8 +704,8 @@ private:
                 ToProto(chunkSpec.mutable_chunk_id(), chunkId);
                 *chunkSpec.mutable_replicas() = subresponse.replicas();
                 *chunkSpec.mutable_chunk_meta() = store->GetChunkMeta();
-                ToProto(chunkSpec.mutable_lower_limit(), TReadLimit(partition->GetPivotKey()));
-                ToProto(chunkSpec.mutable_upper_limit(), TReadLimit(partition->GetNextPivotKey()));
+                ToProto(chunkSpec.mutable_lower_limit(), TLegacyReadLimit(partition->GetPivotKey()));
+                ToProto(chunkSpec.mutable_upper_limit(), TLegacyReadLimit(partition->GetNextPivotKey()));
                 chunkSpec.set_erasure_codec(subresponse.erasure_codec());
 
                 auto inputChunk = New<TInputChunk>(chunkSpec);

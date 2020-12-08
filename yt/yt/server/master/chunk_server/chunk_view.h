@@ -40,8 +40,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    NChunkClient::TReadLimit GetAdjustedLowerReadLimit(NChunkClient::TReadLimit readLimit) const;
-    NChunkClient::TReadLimit GetAdjustedUpperReadLimit(NChunkClient::TReadLimit readLimit) const;
+    NChunkClient::TLegacyReadLimit GetAdjustedLowerReadLimit(NChunkClient::TLegacyReadLimit readLimit) const;
+    NChunkClient::TLegacyReadLimit GetAdjustedUpperReadLimit(NChunkClient::TLegacyReadLimit readLimit) const;
 
     NChunkClient::TLegacyReadRange GetCompleteReadRange() const;
 

@@ -353,8 +353,8 @@ INSTANTIATE_TEST_SUITE_P(Unsorted,
         ::testing::Values(TColumnFilter(), TColumnFilter({2, 4})),
         ::testing::Values(
             TLegacyReadRange(),
-            TLegacyReadRange(TReadLimit().SetRowIndex(RowCount / 3), TReadLimit().SetRowIndex(RowCount / 3)),
-            TLegacyReadRange(TReadLimit().SetRowIndex(RowCount / 3), TReadLimit().SetRowIndex(2 * RowCount / 3)))));
+            TLegacyReadRange(TLegacyReadLimit().SetRowIndex(RowCount / 3), TLegacyReadLimit().SetRowIndex(RowCount / 3)),
+            TLegacyReadRange(TLegacyReadLimit().SetRowIndex(RowCount / 3), TLegacyReadLimit().SetRowIndex(2 * RowCount / 3)))));
 
 
 INSTANTIATE_TEST_SUITE_P(Sorted,
@@ -379,9 +379,9 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
         ::testing::Values(TColumnFilter(), TColumnFilter({0, 5})),
         ::testing::Values(
             TLegacyReadRange(),
-            TLegacyReadRange(TReadLimit().SetLegacyKey(YsonToKey("<type=null>#")), TReadLimit().SetLegacyKey(YsonToKey("<type=null>#"))),
-            TLegacyReadRange(TReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit()),
-            TLegacyReadRange(TReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetLegacyKey(YsonToKey("350000.1; 1; 1; \"Z\""))))));
+            TLegacyReadRange(TLegacyReadLimit().SetLegacyKey(YsonToKey("<type=null>#")), TLegacyReadLimit().SetLegacyKey(YsonToKey("<type=null>#"))),
+            TLegacyReadRange(TLegacyReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TLegacyReadLimit()),
+            TLegacyReadRange(TLegacyReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TLegacyReadLimit().SetLegacyKey(YsonToKey("350000.1; 1; 1; \"Z\""))))));
 
 // ToDo(psushin):
 //  1. Test sampling.

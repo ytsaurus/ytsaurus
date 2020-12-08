@@ -76,7 +76,7 @@ void TChunkView::Load(NCellMaster::TLoadContext& context)
     Load(context, TransactionId_);
 }
 
-TReadLimit TChunkView::GetAdjustedLowerReadLimit(TReadLimit readLimit) const
+TLegacyReadLimit TChunkView::GetAdjustedLowerReadLimit(TLegacyReadLimit readLimit) const
 {
     if (ReadRange_.LowerLimit().HasLegacyKey()) {
         readLimit.MergeLowerLegacyKey(ReadRange_.LowerLimit().GetLegacyKey());
@@ -84,7 +84,7 @@ TReadLimit TChunkView::GetAdjustedLowerReadLimit(TReadLimit readLimit) const
     return readLimit;
 }
 
-TReadLimit TChunkView::GetAdjustedUpperReadLimit(TReadLimit readLimit) const
+TLegacyReadLimit TChunkView::GetAdjustedUpperReadLimit(TLegacyReadLimit readLimit) const
 {
     if (ReadRange_.UpperLimit().HasLegacyKey()) {
         readLimit.MergeUpperLegacyKey(ReadRange_.UpperLimit().GetLegacyKey());
@@ -95,8 +95,8 @@ TReadLimit TChunkView::GetAdjustedUpperReadLimit(TReadLimit readLimit) const
 TLegacyReadRange TChunkView::GetCompleteReadRange() const
 {
     return {
-        GetAdjustedLowerReadLimit(TReadLimit(GetMinKeyOrThrow(UnderlyingChunk_))),
-        GetAdjustedUpperReadLimit(TReadLimit(GetUpperBoundKeyOrThrow(UnderlyingChunk_)))
+        GetAdjustedLowerReadLimit(TLegacyReadLimit(GetMinKeyOrThrow(UnderlyingChunk_))),
+        GetAdjustedUpperReadLimit(TLegacyReadLimit(GetUpperBoundKeyOrThrow(UnderlyingChunk_)))
     };
 }
 

@@ -71,7 +71,7 @@ using NYT::FromProto;
 using NYT::ToProto;
 
 using NChunkClient::TLegacyReadRange;
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -952,10 +952,10 @@ private:
             std::vector<TLegacyReadRange> complementaryRanges;
             const auto& range = ranges[0];
             if (!range.LowerLimit().IsTrivial()) {
-                complementaryRanges.push_back(TLegacyReadRange(TReadLimit(), range.LowerLimit()));
+                complementaryRanges.push_back(TLegacyReadRange(TLegacyReadLimit(), range.LowerLimit()));
             }
             if (!range.UpperLimit().IsTrivial()) {
-                complementaryRanges.push_back(TLegacyReadRange(range.UpperLimit(), TReadLimit()));
+                complementaryRanges.push_back(TLegacyReadRange(range.UpperLimit(), TLegacyReadLimit()));
             }
             path.SetRanges(complementaryRanges);
         } else {

@@ -38,7 +38,7 @@ using namespace NTabletClient;
 using namespace NApi;
 using namespace NObjectClient;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 using NYT::FromProto;
 using TIdMapping = SmallVector<int, TypicalColumnCount>;
@@ -278,8 +278,8 @@ private:
 
             ToProto(req->mutable_read_session_id(), ReadSessionId_);
 
-            auto lowerLimit = FromProto<NChunkClient::TReadLimit>(ChunkSpec_.lower_limit());
-            auto upperLimit = FromProto<NChunkClient::TReadLimit>(ChunkSpec_.upper_limit());
+            auto lowerLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.lower_limit());
+            auto upperLimit = FromProto<NChunkClient::TLegacyReadLimit>(ChunkSpec_.upper_limit());
             if (lowerLimit.HasLegacyKey()) {
                 ToProto(req->mutable_lower_bound(), lowerLimit.GetLegacyKey());
             }
@@ -709,7 +709,7 @@ private:
     void SetLowerBoundInChunkSpec()
     {
         if (LastKey_) {
-            TReadLimit lowerLimit;
+            TLegacyReadLimit lowerLimit;
             auto lastKeySuccessor = GetKeySuccessor(LastKey_);
             if (ChunkSpec_.has_lower_limit()) {
                 FromProto(&lowerLimit, ChunkSpec_.lower_limit());

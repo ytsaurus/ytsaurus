@@ -136,8 +136,8 @@ void BuildChunkSpec(
     TChunk* chunk,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit,
+    const TLegacyReadLimit& lowerLimit,
+    const TLegacyReadLimit& upperLimit,
     TTransactionId timestampTransactionId,
     bool fetchParityReplicas,
     bool fetchAllMetaExtensions,
@@ -254,8 +254,8 @@ void BuildChunkSpec(
 
 void BuildDynamicStoreSpec(
     const TDynamicStore* dynamicStore,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit,
+    const TLegacyReadLimit& lowerLimit,
+    const TLegacyReadLimit& upperLimit,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
@@ -375,8 +375,8 @@ private:
         TChunk* chunk,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
-        const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit,
+        const TLegacyReadLimit& lowerLimit,
+        const TLegacyReadLimit& upperLimit,
         TTransactionId timestampTransactionId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -421,8 +421,8 @@ private:
 
     virtual bool OnDynamicStore(
         TDynamicStore* dynamicStore,
-        const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit) override
+        const TLegacyReadLimit& lowerLimit,
+        const TLegacyReadLimit& upperLimit) override
     {
         if (FetchContext_.OmitDynamicStores) {
             return true;

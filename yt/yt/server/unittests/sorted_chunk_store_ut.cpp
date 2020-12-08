@@ -14,7 +14,7 @@ using namespace NYTree;
 using namespace NYson;
 
 using NChunkClient::TLegacyReadRange;
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 

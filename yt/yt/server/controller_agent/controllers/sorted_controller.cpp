@@ -59,7 +59,7 @@ using NYT::FromProto;
 using NYT::ToProto;
 
 using NChunkClient::TLegacyReadRange;
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 using NTableClient::TLegacyKey;
 
 ////////////////////////////////////////////////////////////////////////////////

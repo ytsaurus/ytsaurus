@@ -261,7 +261,7 @@ void ParseKeyPart(
 void ParseRowLimit(
     NYson::TTokenizer& tokenizer,
     std::vector<NYson::ETokenType> separators,
-    TReadLimit* limit)
+    TLegacyReadLimit* limit)
 {
     if (std::find(separators.begin(), separators.end(), tokenizer.GetCurrentType()) != separators.end()) {
         return;
@@ -318,7 +318,7 @@ void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
 
         bool finished = false;
         while (!finished) {
-            TReadLimit lowerLimit, upperLimit;
+            TLegacyReadLimit lowerLimit, upperLimit;
             ParseRowLimit(tokenizer, {RangeToken, RangeSeparatorToken, EndRowSelectorToken}, &lowerLimit);
             if (tokenizer.GetCurrentType() == RangeToken) {
                 tokenizer.ParseNext();
@@ -482,8 +482,8 @@ void TRichYPath::SetColumns(const std::vector<TString>& columns)
 std::vector<NChunkClient::TLegacyReadRange> TRichYPath::GetRanges() const
 {
     // COMPAT(ignat): top-level "lower_limit" and "upper_limit" are processed for compatibility.
-    auto optionalLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
-    auto optionalUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
+    auto optionalLowerLimit = FindAttribute<TLegacyReadLimit>(*this, "lower_limit");
+    auto optionalUpperLimit = FindAttribute<TLegacyReadLimit>(*this, "upper_limit");
     auto optionalRanges = FindAttribute<std::vector<TLegacyReadRange>>(*this, "ranges");
 
     if (optionalLowerLimit || optionalUpperLimit) {
@@ -493,8 +493,8 @@ std::vector<NChunkClient::TLegacyReadRange> TRichYPath::GetRanges() const
         }
         return std::vector<TLegacyReadRange>({
             TLegacyReadRange(
-                optionalLowerLimit.value_or(TReadLimit()),
-                optionalUpperLimit.value_or(TReadLimit())
+                optionalLowerLimit.value_or(TLegacyReadLimit()),
+                optionalUpperLimit.value_or(TLegacyReadLimit())
             )});
     } else {
         return optionalRanges.value_or(std::vector<TLegacyReadRange>({TLegacyReadRange()}));
@@ -511,8 +511,8 @@ void TRichYPath::SetRanges(const std::vector<NChunkClient::TLegacyReadRange>& va
 
 bool TRichYPath::HasNontrivialRanges() const
 {
-    auto optionalLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
-    auto optionalUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
+    auto optionalLowerLimit = FindAttribute<TLegacyReadLimit>(*this, "lower_limit");
+    auto optionalUpperLimit = FindAttribute<TLegacyReadLimit>(*this, "upper_limit");
     auto optionalRanges = FindAttribute<std::vector<TLegacyReadRange>>(*this, "ranges");
 
     return optionalLowerLimit || optionalUpperLimit || optionalRanges;

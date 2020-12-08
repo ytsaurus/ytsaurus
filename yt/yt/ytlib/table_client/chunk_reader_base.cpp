@@ -18,7 +18,7 @@ using namespace NTableClient::NProto;
 using NConcurrency::TAsyncSemaphore;
 
 using NYT::FromProto;
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,7 +160,7 @@ void TChunkReaderBase::CheckBlockUpperKeyLimit(
 void TChunkReaderBase::CheckBlockUpperLimits(
     i64 blockChunkRowCount,
     TLegacyKey blockLastKey,
-    const TReadLimit& upperLimit,
+    const TLegacyReadLimit& upperLimit,
     std::optional<int> keyColumnCount)
 {
     if (upperLimit.HasRowIndex()) {
@@ -172,7 +172,7 @@ void TChunkReaderBase::CheckBlockUpperLimits(
     }
 }
 
-int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const TReadLimit& lowerLimit) const
+int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const TLegacyReadLimit& lowerLimit) const
 {
     if (!lowerLimit.HasRowIndex()) {
         return 0;
@@ -206,7 +206,7 @@ int TChunkReaderBase::ApplyLowerRowLimit(const TBlockMetaExt& blockMeta, const T
     return (it != rend) ? std::distance(it, rend) : 0;
 }
 
-int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TReadLimit& lowerLimit, std::optional<int> keyColumnCount) const
+int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TLegacyReadLimit& lowerLimit, std::optional<int> keyColumnCount) const
 {
     if (!lowerLimit.HasLegacyKey()) {
         return 0;
@@ -221,7 +221,7 @@ int TChunkReaderBase::ApplyLowerKeyLimit(const TSharedRange<TLegacyKey>& blockIn
     return blockIndex;
 }
 
-int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const TReadLimit& upperLimit) const
+int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const TLegacyReadLimit& upperLimit) const
 {
     if (!upperLimit.HasRowIndex()) {
         return blockMeta.blocks_size();
@@ -241,7 +241,7 @@ int TChunkReaderBase::ApplyUpperRowLimit(const TBlockMetaExt& blockMeta, const T
     return  (it != end) ? std::distance(begin, it) + 1 : blockMeta.blocks_size();
 }
 
-int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TReadLimit& upperLimit, std::optional<int> keyColumnCount) const
+int TChunkReaderBase::ApplyUpperKeyLimit(const TSharedRange<TLegacyKey>& blockIndexKeys, const TLegacyReadLimit& upperLimit, std::optional<int> keyColumnCount) const
 {
     YT_VERIFY(!blockIndexKeys.Empty());
     if (!upperLimit.HasLegacyKey()) {

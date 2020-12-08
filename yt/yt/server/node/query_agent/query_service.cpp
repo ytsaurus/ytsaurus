@@ -633,8 +633,8 @@ private:
 
     void BuildChunkSpec(
         const IChunkStorePtr& chunk,
-        TReadLimit lowerLimit,
-        TReadLimit upperLimit,
+        TLegacyReadLimit lowerLimit,
+        TLegacyReadLimit upperLimit,
         bool fetchAllMetaExtensions,
         const THashSet<int>& extensionTags,
         NChunkClient::NProto::TChunkSpec* chunkSpec)
@@ -694,8 +694,8 @@ private:
     void BuildDynamicStoreSpec(
         const IDynamicStorePtr& dynamicStore,
         TTabletId tabletId,
-        const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit,
+        const TLegacyReadLimit& lowerLimit,
+        const TLegacyReadLimit& upperLimit,
         NChunkClient::NProto::TChunkSpec* chunkSpec)
     {
         ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
@@ -804,7 +804,7 @@ private:
                     THROW_ERROR_EXCEPTION("Fetching tablet stores for ordered tablets is not implemented");
                 }
 
-                auto validateReadLimit = [] (const TReadLimit& readLimit) {
+                auto validateReadLimit = [] (const TLegacyReadLimit& readLimit) {
                     if (readLimit.HasOffset()) {
                         THROW_ERROR_EXCEPTION("Cannot specify offset limit for fetching tablet stores");
                     }
@@ -843,8 +843,8 @@ private:
                         continue;
                     }
 
-                    TReadLimit inducedLowerBound;
-                    TReadLimit inducedUpperBound;
+                    TLegacyReadLimit inducedLowerBound;
+                    TLegacyReadLimit inducedUpperBound;
                     if (lowerBound != MinKey()) {
                         inducedLowerBound.SetLegacyKey(lowerBound);
                     }

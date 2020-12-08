@@ -20,7 +20,7 @@ namespace {
 using namespace NObjectClient;
 using namespace NChunkClient::NProto;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,8 +22,8 @@ struct IChunkVisitor
         TChunk* chunk,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
-        const NChunkClient::TReadLimit& startLimit,
-        const NChunkClient::TReadLimit& endLimit,
+        const NChunkClient::TLegacyReadLimit& startLimit,
+        const NChunkClient::TLegacyReadLimit& endLimit,
         TTransactionId timestampTransactionId) = 0;
 
     virtual void OnFinish(const TError& error) = 0;
@@ -39,8 +39,8 @@ struct IChunkVisitor
      */
     virtual bool OnDynamicStore(
         TDynamicStore* dynamicStore,
-        const NChunkClient::TReadLimit& startLimit,
-        const NChunkClient::TReadLimit& endLimit) = 0;
+        const NChunkClient::TLegacyReadLimit& startLimit,
+        const NChunkClient::TLegacyReadLimit& endLimit) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkVisitor)
@@ -100,8 +100,8 @@ void TraverseChunkTree(
     IChunkTraverserContextPtr context,
     IChunkVisitorPtr visitor,
     TChunkList* root,
-    const NChunkClient::TReadLimit& lowerLimit,
-    const NChunkClient::TReadLimit& upperLimit,
+    const NChunkClient::TLegacyReadLimit& lowerLimit,
+    const NChunkClient::TLegacyReadLimit& upperLimit,
     std::optional<int> keyColumnCount);
 
 //! Traverses the subtree at #root. No bounds are being checked,

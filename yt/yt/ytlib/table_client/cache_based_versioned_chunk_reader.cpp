@@ -40,7 +40,7 @@ using namespace NChunkClient;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////

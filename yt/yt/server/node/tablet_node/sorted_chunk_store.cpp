@@ -63,7 +63,7 @@ using namespace NDataNode;
 using namespace NClusterNode;
 using namespace NQueryAgent;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
