@@ -392,45 +392,45 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadRange::TReadRange(const TReadLimit& exact)
+TLegacyReadRange::TLegacyReadRange(const TReadLimit& exact)
     : LowerLimit_(exact)
     , UpperLimit_(exact.GetSuccessor())
 { }
 
-TReadRange::TReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit)
+TLegacyReadRange::TLegacyReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit)
     : LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)
 { }
 
-TReadRange::TReadRange(const NProto::TReadRange& range)
+TLegacyReadRange::TLegacyReadRange(const NProto::TReadRange& range)
 {
     InitCopy(range);
 }
 
-TReadRange::TReadRange(NProto::TReadRange&& range)
+TLegacyReadRange::TLegacyReadRange(NProto::TReadRange&& range)
 {
     InitMove(std::move(range));
 }
 
-TReadRange& TReadRange::operator= (const NProto::TReadRange& range)
+TLegacyReadRange& TLegacyReadRange::operator= (const NProto::TReadRange& range)
 {
     InitCopy(range);
     return *this;
 }
 
-TReadRange& TReadRange::operator= (NProto::TReadRange&& range)
+TLegacyReadRange& TLegacyReadRange::operator= (NProto::TReadRange&& range)
 {
     InitMove(std::move(range));
     return *this;
 }
 
-void TReadRange::InitCopy(const NProto::TReadRange& range)
+void TLegacyReadRange::InitCopy(const NProto::TReadRange& range)
 {
     LowerLimit_ = range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit();
     UpperLimit_ = range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit();
 }
 
-void TReadRange::InitMove(NProto::TReadRange&& range)
+void TLegacyReadRange::InitMove(NProto::TReadRange&& range)
 {
     LowerLimit_ = range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit();
     UpperLimit_ = range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit();
@@ -438,12 +438,12 @@ void TReadRange::InitMove(NProto::TReadRange&& range)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TReadRange& range)
+TString ToString(const TLegacyReadRange& range)
 {
     return Format("[<%v> : <%v>]", range.LowerLimit(), range.UpperLimit());
 }
 
-void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange)
+void ToProto(NProto::TReadRange* protoReadRange, const TLegacyReadRange& readRange)
 {
     if (!readRange.LowerLimit().IsTrivial()) {
         ToProto(protoReadRange->mutable_lower_limit(), readRange.LowerLimit());
@@ -453,12 +453,12 @@ void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange)
     }
 }
 
-void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange)
+void FromProto(TLegacyReadRange* readRange, const NProto::TReadRange& protoReadRange)
 {
-    *readRange = TReadRange(protoReadRange);
+    *readRange = TLegacyReadRange(protoReadRange);
 }
 
-void Serialize(const TReadRange& readRange, NYson::IYsonConsumer* consumer)
+void Serialize(const TLegacyReadRange& readRange, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -488,7 +488,7 @@ std::optional<T> FindReadRangeComponent(const IAttributeDictionaryPtr& attribute
 
 } // namespace
 
-void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
+void Deserialize(TLegacyReadRange& readRange, NYTree::INodePtr node)
 {
     if (node->GetType() != NYTree::ENodeType::Map) {
         THROW_ERROR_EXCEPTION("Error parsing read range: expected %Qlv, actual %Qlv",
@@ -496,7 +496,7 @@ void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
             node->GetType());
     }
 
-    readRange = TReadRange();
+    readRange = TLegacyReadRange();
     auto attributes = ConvertToAttributes(node);
     auto optionalExact = FindReadRangeComponent<TReadLimit>(attributes, "exact");
     auto optionalLowerLimit = FindReadRangeComponent<TReadLimit>(attributes, "lower_limit");
@@ -507,7 +507,7 @@ void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
             THROW_ERROR_EXCEPTION("\"lower_limit\" and \"upper_limit\" attributes cannot be specified "
                 "together with \"exact\" attribute");
         }
-        readRange = TReadRange(*optionalExact);
+        readRange = TLegacyReadRange(*optionalExact);
     }
 
     if (optionalLowerLimit) {
@@ -519,7 +519,7 @@ void Deserialize(TReadRange& readRange, NYTree::INodePtr node)
     }
 }
 
-void TReadRange::Persist(const TStreamPersistenceContext& context)
+void TLegacyReadRange::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, LowerLimit_);

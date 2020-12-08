@@ -284,7 +284,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     const NNative::IClientPtr& client,
     const TNodeDirectoryPtr& nodeDirectory,
     const TUserObject& userObject,
-    const std::vector<NChunkClient::TReadRange>& ranges,
+    const std::vector<NChunkClient::TLegacyReadRange>& ranges,
     int chunkCount,
     int maxChunksPerFetch,
     int maxChunksPerLocateRequest,
@@ -331,7 +331,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             req->Tag() = rangeIndex;
             req->set_address_type(static_cast<int>(addressType));
             initializeFetchRequest(req.Get());
-            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
+            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TLegacyReadRange>{adjustedRange});
             batchReq->AddRequest(req);
         }
     }
@@ -366,7 +366,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
 std::vector<NProto::TChunkSpec> FetchTabletStores(
     const NApi::NNative::IClientPtr& client,
     const TUserObject& userObject,
-    const std::vector<TReadRange>& ranges,
+    const std::vector<TLegacyReadRange>& ranges,
     const NLogging::TLogger& logger)
 {
     const auto& Logger = logger;

@@ -1001,7 +1001,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     fetchContext.AddressType = request->has_address_type()
         ? CheckedEnumCast<EAddressType>(request->address_type())
         : EAddressType::InternalRpc;
-    fetchContext.Ranges = FromProto<std::vector<TReadRange>>(request->ranges());
+    fetchContext.Ranges = FromProto<std::vector<TLegacyReadRange>>(request->ranges());
     ValidateFetch(&fetchContext);
 
     const auto* node = GetThisImpl<TChunkOwnerBase>();

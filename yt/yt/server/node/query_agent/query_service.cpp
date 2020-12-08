@@ -821,7 +821,7 @@ private:
 
                 for (int rangeIndex = 0; rangeIndex < subrequest.ranges_size(); ++rangeIndex) {
                     const auto& protoRange = subrequest.ranges(rangeIndex);
-                    auto range = FromProto<TReadRange>(protoRange);
+                    auto range = FromProto<TLegacyReadRange>(protoRange);
                     validateReadLimit(range.LowerLimit());
                     validateReadLimit(range.UpperLimit());
 

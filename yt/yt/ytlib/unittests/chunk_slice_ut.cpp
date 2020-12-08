@@ -185,7 +185,7 @@ protected:
 
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), GenerateChunkId());
-        auto range = ConvertTo<NChunkClient::TReadRange>(TYsonString(ysonRange));
+        auto range = ConvertTo<NChunkClient::TLegacyReadRange>(TYsonString(ysonRange));
         ToProto(chunkSpec.mutable_lower_limit(), range.LowerLimit());
         ToProto(chunkSpec.mutable_upper_limit(), range.UpperLimit());
         chunkSpec.mutable_chunk_meta()->Swap(&chunkMeta);

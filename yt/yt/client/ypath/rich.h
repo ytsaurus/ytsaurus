@@ -70,8 +70,8 @@ public:
 
     // "ranges"
     // COMPAT(ignat): also "lower_limit" and "upper_limit"
-    std::vector<NChunkClient::TReadRange> GetRanges() const;
-    void SetRanges(const std::vector<NChunkClient::TReadRange>& value);
+    std::vector<NChunkClient::TLegacyReadRange> GetRanges() const;
+    void SetRanges(const std::vector<NChunkClient::TLegacyReadRange>& value);
     bool HasNontrivialRanges() const;
 
     // "file_name"

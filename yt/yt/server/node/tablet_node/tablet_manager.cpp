@@ -3503,7 +3503,7 @@ private:
     {
         switch (type) {
             case EStoreType::SortedChunk: {
-                NChunkClient::TReadRange readRange;
+                NChunkClient::TLegacyReadRange readRange;
                 TChunkId chunkId;
                 TTimestamp chunkTimestamp = NullTimestamp;
 
@@ -3511,7 +3511,7 @@ private:
                     if (descriptor->has_chunk_view_descriptor()) {
                         const auto& chunkViewDescriptor = descriptor->chunk_view_descriptor();
                         if (chunkViewDescriptor.has_read_range()) {
-                            readRange = FromProto<NChunkClient::TReadRange>(chunkViewDescriptor.read_range());
+                            readRange = FromProto<NChunkClient::TLegacyReadRange>(chunkViewDescriptor.read_range());
                         }
                         if (chunkViewDescriptor.has_timestamp()) {
                             chunkTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.timestamp());

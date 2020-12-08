@@ -21,7 +21,7 @@ class TChunkView
 
     //! Denotes the portion of the chunk to be read. May contain only keys.
     //! Lower bound inclusive, upper bound exclusive.
-    DEFINE_BYREF_RO_PROPERTY(NChunkClient::TReadRange, ReadRange);
+    DEFINE_BYREF_RO_PROPERTY(NChunkClient::TLegacyReadRange, ReadRange);
 
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TTransactionId, TransactionId);
 
@@ -32,7 +32,7 @@ public:
     explicit TChunkView(const TChunkViewId& id);
 
     void SetUnderlyingChunk(TChunk* underlyingChunk);
-    void SetReadRange(NChunkClient::TReadRange readRange);
+    void SetReadRange(NChunkClient::TLegacyReadRange readRange);
 
     virtual TString GetLowercaseObjectName() const override;
     virtual TString GetCapitalizedObjectName() const override;
@@ -43,7 +43,7 @@ public:
     NChunkClient::TReadLimit GetAdjustedLowerReadLimit(NChunkClient::TReadLimit readLimit) const;
     NChunkClient::TReadLimit GetAdjustedUpperReadLimit(NChunkClient::TReadLimit readLimit) const;
 
-    NChunkClient::TReadRange GetCompleteReadRange() const;
+    NChunkClient::TLegacyReadRange GetCompleteReadRange() const;
 
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);

@@ -400,7 +400,7 @@ private:
                 YT_LOG_DEBUG("Skipping table as it already has non-trivial ranges (Table: %v)", inputTable->Path);
                 continue;
             }
-            std::vector<TReadRange> ranges;
+            std::vector<TLegacyReadRange> ranges;
 
             const auto& tablets = inputTable->TableMountInfo->Tablets;
 

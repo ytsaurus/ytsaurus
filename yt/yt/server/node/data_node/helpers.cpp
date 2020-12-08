@@ -140,7 +140,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
     auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
     auto req = TFileYPathProxy::Fetch(objectIdPath);
-    ToProto(req->mutable_ranges(), std::vector<TReadRange>{{}});
+    ToProto(req->mutable_ranges(), std::vector<TLegacyReadRange>{{}});
     SetSuppressAccessTracking(req, true);
     SetSuppressExpirationTimeoutRenewal(req, true);
     req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);

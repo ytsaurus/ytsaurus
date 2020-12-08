@@ -134,8 +134,8 @@ public:
         int childIndex,
         TChunkTree* newChild);
 
-    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange);
-    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TReadRange readRange);
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TLegacyReadRange readRange);
+    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange);
 
     TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const NTabletServer::TTablet* tablet);
 

@@ -173,7 +173,7 @@ struct TChunkReaderMemoryManagerOptions;
 DECLARE_REFCOUNTED_STRUCT(TMemoryManagedData)
 
 class TReadLimit;
-class TReadRange;
+class TLegacyReadRange;
 
 struct TUserObject;
 

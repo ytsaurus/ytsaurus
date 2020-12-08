@@ -149,7 +149,7 @@ private:
             if (Options_.RowCount) {
                 upperLimit.SetRowIndex(firstRowIndex + *Options_.RowCount);
             }
-            ToProto(req->mutable_ranges(), std::vector<TReadRange>({{lowerLimit, upperLimit}}));
+            ToProto(req->mutable_ranges(), std::vector<TLegacyReadRange>({{lowerLimit, upperLimit}}));
 
             AddCellTagToSyncWith(req, userObject.ObjectId);
             SetTransactionId(req, userObject.ExternalTransactionId);

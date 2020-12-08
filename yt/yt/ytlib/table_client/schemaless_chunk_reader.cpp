@@ -73,7 +73,7 @@ using namespace NApi;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadLimit;
-using NChunkClient::TReadRange;
+using NChunkClient::TLegacyReadRange;
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::TChunkReaderStatistics;
 
@@ -555,7 +555,7 @@ public:
         int virtualKeyPrefixLength,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
-        const TReadRange& readRange,
+        const TLegacyReadRange& readRange,
         std::optional<int> partitionTag,
         const TChunkReaderMemoryManagerPtr& memoryManager,
         std::optional<i64> virtualRowIndex = std::nullopt);
@@ -565,7 +565,7 @@ public:
     virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override;
 
 private:
-    TReadRange ReadRange_;
+    TLegacyReadRange ReadRange_;
 
     virtual void DoInitializeBlockSequence() override;
 
@@ -593,7 +593,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     int virtualKeyPrefixLength,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
-    const TReadRange& readRange,
+    const TLegacyReadRange& readRange,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager,
     std::optional<i64> virtualRowIndex)
@@ -1067,7 +1067,7 @@ public:
         int virtualKeyPrefixLength,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
-        const TReadRange& readRange,
+        const TLegacyReadRange& readRange,
         const TChunkReaderMemoryManagerPtr& memoryManager,
         std::optional<i64> virtualRowIndex)
         : TSchemalessChunkReaderBase(
@@ -1979,7 +1979,7 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TKeyColumns& keyColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
-    const TReadRange& readRange,
+    const TLegacyReadRange& readRange,
     std::optional<int> partitionTag,
     const TChunkReaderMemoryManagerPtr& memoryManager,
     int virtualKeyPrefixLength,

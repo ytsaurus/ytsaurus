@@ -52,7 +52,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     const TClientBlockReadOptions& blockReadOptions,
     const TTableSchemaPtr& resultSchema,
     const TKeyColumns& keyColumns,
-    const NChunkClient::TReadRange& readRange,
+    const NChunkClient::TLegacyReadRange& readRange,
     TTimestamp timestamp)
 {
     switch (chunkMeta->GetChunkFormat()) {

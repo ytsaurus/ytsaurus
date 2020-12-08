@@ -5158,7 +5158,7 @@ void TOperationControllerBase::FetchInputTables()
                 BuiltinRangeExtractorMap,
                 queryOptions);
 
-            std::vector<TReadRange> inferredRanges;
+            std::vector<TLegacyReadRange> inferredRanges;
             for (const auto& range : ranges) {
                 auto lower = range.LowerLimit().HasLegacyKey() ? range.LowerLimit().GetLegacyKey() : MinKey();
                 auto upper = range.UpperLimit().HasLegacyKey() ? range.UpperLimit().GetLegacyKey() : MaxKey();
@@ -5922,11 +5922,11 @@ void TOperationControllerBase::FetchUserFiles()
                 file.Path,
                 userJobSpec->TaskTitle);
 
-            std::vector<TReadRange> readRanges;
+            std::vector<TLegacyReadRange> readRanges;
             if (file.Type == EObjectType::Table) {
                 readRanges = file.Path.GetRanges();
             } else if (file.Type == EObjectType::File) {
-                readRanges = {TReadRange()};
+                readRanges = {TLegacyReadRange()};
             } else {
                 YT_ABORT();
             }

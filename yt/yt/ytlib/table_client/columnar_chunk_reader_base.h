@@ -70,7 +70,7 @@ protected:
     std::vector<TColumn> Columns_;
 
     std::optional<int> SampledColumnIndex_;
-    std::vector<NChunkClient::TReadRange> SampledRanges_;
+    std::vector<NChunkClient::TLegacyReadRange> SampledRanges_;
     int SampledRangeIndex_ = 0;
     bool SampledRangeIndexChanged_ = false;
 

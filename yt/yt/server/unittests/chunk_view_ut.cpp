@@ -14,7 +14,7 @@ using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
 
-using NChunkClient::TReadRange;
+using NChunkClient::TLegacyReadRange;
 using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////

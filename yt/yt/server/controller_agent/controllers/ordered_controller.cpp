@@ -70,7 +70,7 @@ using namespace NScheduler;
 using NYT::FromProto;
 using NYT::ToProto;
 
-using NChunkClient::TReadRange;
+using NChunkClient::TLegacyReadRange;
 using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -949,17 +949,17 @@ private:
         }
 
         if (ranges.size() == 1) {
-            std::vector<TReadRange> complementaryRanges;
+            std::vector<TLegacyReadRange> complementaryRanges;
             const auto& range = ranges[0];
             if (!range.LowerLimit().IsTrivial()) {
-                complementaryRanges.push_back(TReadRange(TReadLimit(), range.LowerLimit()));
+                complementaryRanges.push_back(TLegacyReadRange(TReadLimit(), range.LowerLimit()));
             }
             if (!range.UpperLimit().IsTrivial()) {
-                complementaryRanges.push_back(TReadRange(range.UpperLimit(), TReadLimit()));
+                complementaryRanges.push_back(TLegacyReadRange(range.UpperLimit(), TReadLimit()));
             }
             path.SetRanges(complementaryRanges);
         } else {
-            path.SetRanges(std::vector<TReadRange>());
+            path.SetRanges(std::vector<TLegacyReadRange>());
         }
     }
 

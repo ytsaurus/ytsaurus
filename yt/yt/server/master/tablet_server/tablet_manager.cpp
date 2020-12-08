@@ -3546,7 +3546,7 @@ private:
                 result.push_back(firstChunkView);
                 continue;
             } else {
-                NChunkClient::TReadRange readRange;
+                NChunkClient::TLegacyReadRange readRange;
                 const auto& adjustedLower = std::max(lowerLimit, lowerPivot);
                 const auto& adjustedUpper = std::min(upperLimit, upperPivot);
                 YT_VERIFY(adjustedLower < adjustedUpper);
@@ -3713,7 +3713,7 @@ private:
                                     upperPivot);
                             }
 
-                            NChunkClient::TReadRange newReadRange;
+                            NChunkClient::TLegacyReadRange newReadRange;
                             if (readRange.LowerLimit().GetLegacyKey() < lowerPivot) {
                                 newReadRange.LowerLimit().SetLegacyKey(lowerPivot);
                             }
@@ -3748,7 +3748,7 @@ private:
             std::vector<std::vector<TStoreId>> newEdenStoreIds(newTablets.size());
 
             for (TChunkTree* chunkOrView : chunksOrViews) {
-                NChunkClient::TReadRange readRange;
+                NChunkClient::TLegacyReadRange readRange;
                 if (chunkOrView->GetType() == EObjectType::ChunkView) {
                     readRange = chunkOrView->AsChunkView()->GetCompleteReadRange();
                 } else {
@@ -3788,7 +3788,7 @@ private:
                             }
                         } else {
                             // Chunk does not fit into the tablet, create chunk view.
-                            NChunkClient::TReadRange newReadRange;
+                            NChunkClient::TLegacyReadRange newReadRange;
                             if (readRange.LowerLimit().GetLegacyKey() < lowerPivot) {
                                 newReadRange.LowerLimit().SetLegacyKey(lowerPivot);
                             }
@@ -6155,7 +6155,7 @@ private:
 
     std::pair<std::vector<TTablet*>::iterator, std::vector<TTablet*>::iterator> GetIntersectingTablets(
         std::vector<TTablet*>& tablets,
-        const NChunkClient::TReadRange readRange)
+        const NChunkClient::TLegacyReadRange readRange)
     {
         YT_VERIFY(readRange.LowerLimit().HasLegacyKey());
         YT_VERIFY(readRange.UpperLimit().HasLegacyKey());

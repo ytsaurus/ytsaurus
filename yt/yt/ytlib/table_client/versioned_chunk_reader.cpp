@@ -44,7 +44,7 @@ using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 
 using NChunkClient::TReadLimit;
-using NChunkClient::TReadRange;
+using NChunkClient::TLegacyReadRange;
 using NChunkClient::TDataSliceDescriptor;
 
 using NYT::ToProto;
@@ -1735,7 +1735,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
                 auto cappedBounds = getCappedBounds();
 
-                TReadRange readRange(
+                TLegacyReadRange readRange(
                     TReadLimit(TLegacyOwningKey(cappedBounds.Front().first)),
                     TReadLimit(TLegacyOwningKey(cappedBounds.Front().second)));
 
