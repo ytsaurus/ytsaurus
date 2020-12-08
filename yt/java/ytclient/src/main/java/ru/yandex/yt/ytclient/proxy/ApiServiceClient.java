@@ -559,7 +559,8 @@ public class ApiServiceClient extends TransactionalClient {
                                 .stream()
                                 .map(x -> {
                                     List<TabletInfoReplica> replicas = x.getReplicasList().stream()
-                                            .map(o -> new TabletInfoReplica(o.getLastReplicationTimestamp()))
+                                            .map(o -> new TabletInfoReplica(RpcUtil.fromProto(o.getReplicaId()),
+                                                    o.getLastReplicationTimestamp()))
                                             .collect(Collectors.toList());
                                     return new TabletInfo(x.getTotalRowCount(), x.getTrimmedRowCount(),
                                             x.getLastWriteTimestamp(), replicas);
