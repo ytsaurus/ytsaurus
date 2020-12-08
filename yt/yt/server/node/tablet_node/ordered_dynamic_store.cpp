@@ -388,7 +388,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             TClientBlockReadOptions(),
             Schema_,
             TKeyColumns(),
-            TReadRange());
+            TLegacyReadRange());
 
         while (auto batch = tableReader->Read()) {
             if (batch->IsEmpty()) {

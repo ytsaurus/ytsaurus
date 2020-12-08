@@ -18,7 +18,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TTableSchemaPtr& resultSchema,
     const TKeyColumns& keyColumns,
-    const NChunkClient::TReadRange& readRange,
+    const NChunkClient::TLegacyReadRange& readRange,
     TTimestamp timestamp = NullTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

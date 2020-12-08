@@ -58,7 +58,7 @@ using namespace NScheduler;
 using NYT::FromProto;
 using NYT::ToProto;
 
-using NChunkClient::TReadRange;
+using NChunkClient::TLegacyReadRange;
 using NChunkClient::TReadLimit;
 using NTableClient::TLegacyKey;
 

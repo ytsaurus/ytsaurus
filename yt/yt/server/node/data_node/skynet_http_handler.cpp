@@ -44,7 +44,7 @@ const NLogging::TLogger Logger("SkynetHandler");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ParseRequest(TStringBuf rawQuery, TChunkId* chunkId, TReadRange* readRange, i64* partIndex)
+void ParseRequest(TStringBuf rawQuery, TChunkId* chunkId, TLegacyReadRange* readRange, i64* partIndex)
 {
     TCgiParameters params(rawQuery);
 
@@ -90,7 +90,7 @@ public:
     virtual void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         TChunkId chunkId;
-        TReadRange readRange;
+        TLegacyReadRange readRange;
         i64 startPartIndex;
         ParseRequest(req->GetUrl().RawQuery, &chunkId, &readRange, &startPartIndex);
 

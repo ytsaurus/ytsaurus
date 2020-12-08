@@ -92,17 +92,17 @@ void Deserialize(TReadLimit& readLimit, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadRange
+class TLegacyReadRange
 {
 public:
-    TReadRange() = default;
-    TReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit);
-    explicit TReadRange(const TReadLimit& exact);
+    TLegacyReadRange() = default;
+    TLegacyReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit);
+    explicit TLegacyReadRange(const TReadLimit& exact);
 
-    explicit TReadRange(const NProto::TReadRange& range);
-    explicit TReadRange(NProto::TReadRange&& range);
-    TReadRange& operator= (const NProto::TReadRange& range);
-    TReadRange& operator= (NProto::TReadRange&& range);
+    explicit TLegacyReadRange(const NProto::TReadRange& range);
+    explicit TLegacyReadRange(NProto::TReadRange&& range);
+    TLegacyReadRange& operator= (const NProto::TReadRange& range);
+    TLegacyReadRange& operator= (NProto::TReadRange&& range);
 
     DEFINE_BYREF_RW_PROPERTY(TReadLimit, LowerLimit);
     DEFINE_BYREF_RW_PROPERTY(TReadLimit, UpperLimit);
@@ -116,13 +116,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TReadRange& range);
+TString ToString(const TLegacyReadRange& range);
 
-void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange);
-void FromProto(TReadRange* readRange, const NProto::TReadRange& protoReadRange);
+void ToProto(NProto::TReadRange* protoReadRange, const TLegacyReadRange& readRange);
+void FromProto(TLegacyReadRange* readRange, const NProto::TReadRange& protoReadRange);
 
-void Serialize(const TReadRange& readRange, NYson::IYsonConsumer* consumer);
-void Deserialize(TReadRange& readRange, NYTree::INodePtr node);
+void Serialize(const TLegacyReadRange& readRange, NYson::IYsonConsumer* consumer);
+void Deserialize(TLegacyReadRange& readRange, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

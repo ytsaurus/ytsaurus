@@ -29,15 +29,15 @@ TEST(TReadLimitTest, Simple)
     EXPECT_FALSE(limit.IsTrivial());
 }
 
-TEST(TReadRangeTest, Simple)
+TEST(TLegacyReadRangeTest, Simple)
 {
-    TReadRange range;
+    TLegacyReadRange range;
     EXPECT_EQ("{}", DumpToYson(range));
 }
 
-TEST(TReadRangeTest, Simple2)
+TEST(TLegacyReadRangeTest, Simple2)
 {
-    auto range = ConvertTo<TReadRange>(TYsonString("{lower_limit={row_index=1};upper_limit={row_index=2}}"));
+    auto range = ConvertTo<TLegacyReadRange>(TYsonString("{lower_limit={row_index=1};upper_limit={row_index=2}}"));
     EXPECT_EQ(1, range.LowerLimit().GetRowIndex());
     EXPECT_EQ(2, range.UpperLimit().GetRowIndex());
 }

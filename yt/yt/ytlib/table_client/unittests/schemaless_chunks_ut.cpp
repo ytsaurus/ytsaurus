@@ -47,7 +47,7 @@ const std::vector<TString> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessChunksTest
-    : public ::testing::TestWithParam<std::tuple<EOptimizeFor, TTableSchema, TColumnFilter, TReadRange>>
+    : public ::testing::TestWithParam<std::tuple<EOptimizeFor, TTableSchema, TColumnFilter, TLegacyReadRange>>
 {
 protected:
     IChunkReaderPtr MemoryReader_;
@@ -234,7 +234,7 @@ protected:
         TNameTablePtr writeNameTable,
         TNameTablePtr readNameTable,
         TColumnFilter columnFilter,
-        TReadRange readRange,
+        TLegacyReadRange readRange,
         int keyColumnCount)
     {
         std::vector<TUnversionedRow> rows;
@@ -352,9 +352,9 @@ INSTANTIATE_TEST_SUITE_P(Unsorted,
                 "{name = c2; type = uint64}; {name = c3; type = string}; {name = c4; type = boolean}; {name = c5; type = double}; {name = c6; type = any};]"))),
         ::testing::Values(TColumnFilter(), TColumnFilter({2, 4})),
         ::testing::Values(
-            TReadRange(),
-            TReadRange(TReadLimit().SetRowIndex(RowCount / 3), TReadLimit().SetRowIndex(RowCount / 3)),
-            TReadRange(TReadLimit().SetRowIndex(RowCount / 3), TReadLimit().SetRowIndex(2 * RowCount / 3)))));
+            TLegacyReadRange(),
+            TLegacyReadRange(TReadLimit().SetRowIndex(RowCount / 3), TReadLimit().SetRowIndex(RowCount / 3)),
+            TLegacyReadRange(TReadLimit().SetRowIndex(RowCount / 3), TReadLimit().SetRowIndex(2 * RowCount / 3)))));
 
 
 INSTANTIATE_TEST_SUITE_P(Sorted,
@@ -378,10 +378,10 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
                 "{name = c6; type = any};]"))),
         ::testing::Values(TColumnFilter(), TColumnFilter({0, 5})),
         ::testing::Values(
-            TReadRange(),
-            TReadRange(TReadLimit().SetLegacyKey(YsonToKey("<type=null>#")), TReadLimit().SetLegacyKey(YsonToKey("<type=null>#"))),
-            TReadRange(TReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit()),
-            TReadRange(TReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetLegacyKey(YsonToKey("350000.1; 1; 1; \"Z\""))))));
+            TLegacyReadRange(),
+            TLegacyReadRange(TReadLimit().SetLegacyKey(YsonToKey("<type=null>#")), TReadLimit().SetLegacyKey(YsonToKey("<type=null>#"))),
+            TLegacyReadRange(TReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit()),
+            TLegacyReadRange(TReadLimit().SetLegacyKey(YsonToKey("-65537; -1; 1u; <type=null>#")), TReadLimit().SetLegacyKey(YsonToKey("350000.1; 1; 1; \"Z\""))))));
 
 // ToDo(psushin):
 //  1. Test sampling.
@@ -479,7 +479,7 @@ protected:
             /* keyColumns */ {},
             /* omittedInaccessibleColumns */ {},
             columnFilter,
-            TReadRange());
+            TLegacyReadRange());
     }
 };
 

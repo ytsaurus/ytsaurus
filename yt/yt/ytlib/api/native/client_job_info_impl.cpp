@@ -66,7 +66,7 @@ using namespace NNodeTrackerClient;
 
 using NChunkClient::TChunkReaderStatistics;
 using NChunkClient::TReadLimit;
-using NChunkClient::TReadRange;
+using NChunkClient::TLegacyReadRange;
 using NChunkClient::TDataSliceDescriptor;
 using NNodeTrackerClient::TNodeDescriptor;
 

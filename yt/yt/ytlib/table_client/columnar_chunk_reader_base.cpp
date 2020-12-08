@@ -327,7 +327,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
 
             const auto& lastBlockSegment = columnMeta.segments(nextBlockSegmentIndex - 1);
             if (Sampler_.Sample(blockIndex)) {
-                NChunkClient::TReadRange readRange;
+                NChunkClient::TLegacyReadRange readRange;
                 readRange.LowerLimit().SetRowIndex(std::max<i64>(segment.chunk_row_count() - segment.row_count(), LowerRowIndex_));
                 readRange.UpperLimit().SetRowIndex(std::min<i64>(lastBlockSegment.chunk_row_count(), HardUpperRowIndex_ + 1));
                 SampledRanges_.push_back(std::move(readRange));

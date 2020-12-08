@@ -215,7 +215,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     upperRowIndex = std::min(std::max(upperRowIndex, StartingRowIndex_), StartingRowIndex_ + GetRowCount());
     upperLimit.SetRowIndex(upperRowIndex - StartingRowIndex_);
 
-    TReadRange readRange(lowerLimit, upperLimit);
+    TLegacyReadRange readRange(lowerLimit, upperLimit);
 
     TColumnFilter valueColumnFilter;
     if (!columnFilter.IsUniversal()) {

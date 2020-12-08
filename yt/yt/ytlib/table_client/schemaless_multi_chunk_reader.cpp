@@ -73,7 +73,7 @@ using namespace NLogging;
 
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TReadLimit;
-using NChunkClient::TReadRange;
+using NChunkClient::TLegacyReadRange;
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::TChunkReaderStatistics;
 
@@ -170,7 +170,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         return MakeFuture<IReaderBasePtr>(ex);
                     }
 
-                    TReadRange range{
+                    TLegacyReadRange range{
                         chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
                         chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
                     };

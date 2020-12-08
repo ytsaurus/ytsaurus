@@ -648,7 +648,7 @@ public:
         }
     }
 
-    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange, TTransactionId transactionId = {})
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TLegacyReadRange readRange, TTransactionId transactionId = {})
     {
         switch (underlyingTree->GetType()) {
             case EObjectType::Chunk:
@@ -679,7 +679,7 @@ public:
         }
     }
 
-    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TReadRange readRange)
+    TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TLegacyReadRange readRange)
     {
         return CreateChunkView(chunkView->GetUnderlyingChunk(), readRange, chunkView->GetTransactionId());
     }
@@ -1634,7 +1634,7 @@ private:
     }
 
 
-    TChunkView* DoCreateChunkView(TChunk* underlyingChunk, NChunkClient::TReadRange readRange, TTransactionId transactionId)
+    TChunkView* DoCreateChunkView(TChunk* underlyingChunk, NChunkClient::TLegacyReadRange readRange, TTransactionId transactionId)
     {
         ++ChunkViewsCreated_;
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1653,7 +1653,7 @@ private:
         return chunkView;
     }
 
-    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TReadRange readRange)
+    TChunkView* DoCreateChunkView(TChunkView* underlyingChunkView, NChunkClient::TLegacyReadRange readRange)
     {
         readRange.LowerLimit() = underlyingChunkView->GetAdjustedLowerReadLimit(readRange.LowerLimit());
         readRange.UpperLimit() = underlyingChunkView->GetAdjustedUpperReadLimit(readRange.UpperLimit());
@@ -2398,7 +2398,7 @@ private:
             {
                 YT_VERIFY(child->GetType() == EObjectType::Chunk);
 
-                auto chunkView = CreateChunkView(child->AsChunk(), NChunkClient::TReadRange(), transactionId);
+                auto chunkView = CreateChunkView(child->AsChunk(), NChunkClient::TLegacyReadRange(), transactionId);
                 children.push_back(chunkView);
             } else {
                 children.push_back(child);
@@ -3824,14 +3824,14 @@ void TChunkManager::ReplaceChunkListChild(
 
 TChunkView* TChunkManager::CreateChunkView(
     TChunkTree* underlyingTree,
-    NChunkClient::TReadRange readRange)
+    NChunkClient::TLegacyReadRange readRange)
 {
     return Impl_->CreateChunkView(underlyingTree, std::move(readRange));
 }
 
 TChunkView* TChunkManager::CloneChunkView(
     TChunkView* chunkView,
-    NChunkClient::TReadRange readRange)
+    NChunkClient::TLegacyReadRange readRange)
 {
     return Impl_->CloneChunkView(chunkView, std::move(readRange));
 }

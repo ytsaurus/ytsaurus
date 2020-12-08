@@ -20,7 +20,7 @@ class TMiscExt;
 
 class TDataStatistics;
 
-class TReadRange;
+class TLegacyReadRange;
 
 class TMediumDirectory;
 

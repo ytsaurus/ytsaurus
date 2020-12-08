@@ -155,7 +155,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     using NApi::EMasterChannelKind;
     using NObjectClient::FromObjectId;
     using NNodeTrackerClient::TNodeDirectory;
-    using NChunkClient::TReadRange;
+    using NChunkClient::TLegacyReadRange;
 
     std::vector<TExternalFunctionSpec> result;
 
@@ -229,7 +229,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
             auto fetchReq = TFileYPathProxy::Fetch(FromObjectId(objectId));
             AddCellTagToSyncWith(fetchReq, objectId);
             fetchReq->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-            ToProto(fetchReq->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
+            ToProto(fetchReq->mutable_ranges(), std::vector<TLegacyReadRange>({TLegacyReadRange()}));
             fetchBatchReq->AddRequest(fetchReq);
         }
 

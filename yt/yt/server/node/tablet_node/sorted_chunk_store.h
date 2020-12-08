@@ -25,7 +25,7 @@ public:
         TTabletManagerConfigPtr config,
         TStoreId id,
         NChunkClient::TChunkId chunkId,
-        const NChunkClient::TReadRange& readRange,
+        const NChunkClient::TLegacyReadRange& readRange,
         TTimestamp chunkTimestamp,
         TTablet* tablet,
         NChunkClient::IBlockCachePtr blockCache,

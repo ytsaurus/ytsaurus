@@ -60,7 +60,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
 {
     TNodeDirectoryBuilder nodeDirectoryBuilder(NodeDirectory_, response->mutable_node_directory());
 
-    for (const auto& range : FromProto<std::vector<TReadRange>>(request->ranges())) {
+    for (const auto& range : FromProto<std::vector<TLegacyReadRange>>(request->ranges())) {
         auto lowerLimit = range.LowerLimit();
         auto upperLimit = range.UpperLimit();
         if (lowerLimit.HasLegacyKey() || lowerLimit.HasOffset() || upperLimit.HasLegacyKey() || upperLimit.HasOffset()) {

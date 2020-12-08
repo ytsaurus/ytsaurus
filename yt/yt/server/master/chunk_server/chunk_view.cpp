@@ -25,7 +25,7 @@ void TChunkView::SetUnderlyingChunk(TChunk* underlyingChunk)
     UnderlyingChunk_ = underlyingChunk;
 }
 
-void TChunkView::SetReadRange(TReadRange readRange)
+void TChunkView::SetReadRange(TLegacyReadRange readRange)
 {
     YT_VERIFY(!readRange.LowerLimit().HasOffset());
     YT_VERIFY(!readRange.UpperLimit().HasOffset());
@@ -92,7 +92,7 @@ TReadLimit TChunkView::GetAdjustedUpperReadLimit(TReadLimit readLimit) const
     return readLimit;
 }
 
-TReadRange TChunkView::GetCompleteReadRange() const
+TLegacyReadRange TChunkView::GetCompleteReadRange() const
 {
     return {
         GetAdjustedLowerReadLimit(TReadLimit(GetMinKeyOrThrow(UnderlyingChunk_))),

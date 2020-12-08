@@ -57,7 +57,7 @@ void TChunkSpecFetcher::Add(
     TCellTag externalCellTag,
     i64 chunkCount,
     int tableIndex,
-    const std::vector<TReadRange>& ranges)
+    const std::vector<TLegacyReadRange>& ranges)
 {
     auto& state = GetCellState(externalCellTag);
 
@@ -87,7 +87,7 @@ void TChunkSpecFetcher::Add(
             auto req = TChunkOwnerYPathProxy::Fetch(FromObjectId(objectId));
             AddCellTagToSyncWith(req, objectId);
             InitializeFetchRequest_(req.Get(), tableIndex);
-            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
+            ToProto(req->mutable_ranges(), std::vector<NChunkClient::TLegacyReadRange>{adjustedRange});
 
             state.BatchReq->AddRequest(req, "fetch");
             ++state.ReqCount;

@@ -314,7 +314,7 @@ void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
     if (tokenizer.GetCurrentType() == BeginRowSelectorToken) {
         tokenizer.ParseNext();
 
-        std::vector<TReadRange> ranges;
+        std::vector<TLegacyReadRange> ranges;
 
         bool finished = false;
         while (!finished) {
@@ -324,10 +324,10 @@ void ParseRowRanges(NYson::TTokenizer& tokenizer, IAttributeDictionary* attribut
                 tokenizer.ParseNext();
 
                 ParseRowLimit(tokenizer, {RangeSeparatorToken, EndRowSelectorToken}, &upperLimit);
-                ranges.push_back(TReadRange(lowerLimit, upperLimit));
+                ranges.push_back(TLegacyReadRange(lowerLimit, upperLimit));
             } else {
                 // The case of exact limit.
-                ranges.push_back(TReadRange(lowerLimit));
+                ranges.push_back(TLegacyReadRange(lowerLimit));
             }
             if (tokenizer.CurrentToken().GetType() == EndRowSelectorToken) {
                 finished = true;
@@ -479,29 +479,29 @@ void TRichYPath::SetColumns(const std::vector<TString>& columns)
     Attributes().Set("columns", columns);
 }
 
-std::vector<NChunkClient::TReadRange> TRichYPath::GetRanges() const
+std::vector<NChunkClient::TLegacyReadRange> TRichYPath::GetRanges() const
 {
     // COMPAT(ignat): top-level "lower_limit" and "upper_limit" are processed for compatibility.
     auto optionalLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
     auto optionalUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
-    auto optionalRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
+    auto optionalRanges = FindAttribute<std::vector<TLegacyReadRange>>(*this, "ranges");
 
     if (optionalLowerLimit || optionalUpperLimit) {
         if (optionalRanges) {
             THROW_ERROR_EXCEPTION("YPath cannot be annotated with both multiple (\"ranges\" attribute) "
                 "and single (\"lower_limit\" or \"upper_limit\" attributes) ranges");
         }
-        return std::vector<TReadRange>({
-            TReadRange(
+        return std::vector<TLegacyReadRange>({
+            TLegacyReadRange(
                 optionalLowerLimit.value_or(TReadLimit()),
                 optionalUpperLimit.value_or(TReadLimit())
             )});
     } else {
-        return optionalRanges.value_or(std::vector<TReadRange>({TReadRange()}));
+        return optionalRanges.value_or(std::vector<TLegacyReadRange>({TLegacyReadRange()}));
     }
 }
 
-void TRichYPath::SetRanges(const std::vector<NChunkClient::TReadRange>& value)
+void TRichYPath::SetRanges(const std::vector<NChunkClient::TLegacyReadRange>& value)
 {
     Attributes().Set("ranges", value);
     // COMPAT(ignat)
@@ -513,7 +513,7 @@ bool TRichYPath::HasNontrivialRanges() const
 {
     auto optionalLowerLimit = FindAttribute<TReadLimit>(*this, "lower_limit");
     auto optionalUpperLimit = FindAttribute<TReadLimit>(*this, "upper_limit");
-    auto optionalRanges = FindAttribute<std::vector<TReadRange>>(*this, "ranges");
+    auto optionalRanges = FindAttribute<std::vector<TLegacyReadRange>>(*this, "ranges");
 
     return optionalLowerLimit || optionalUpperLimit || optionalRanges;
 }
