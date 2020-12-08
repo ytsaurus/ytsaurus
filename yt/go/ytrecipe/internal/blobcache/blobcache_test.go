@@ -25,6 +25,8 @@ func TestBlobCache(t *testing.T) {
 		ProcessName:      "test",
 		UploadPingPeriod: time.Second * 5,
 		UploadTimeout:    time.Second * 15,
+		EntryTTL:         time.Hour,
+		ExpirationDelay:  time.Minute,
 	})
 
 	require.NoError(t, cache.Migrate(env.Ctx))
