@@ -83,17 +83,7 @@ private:
         const TTableMountCacheKey& key,
         bool isPeriodicUpdate) noexcept override
     {
-        TTableId tableId;
-        TCellTag cellTag;
-
-        auto mountInfoOrError = TAsyncExpiringCache::Find(key);
-        if (mountInfoOrError && mountInfoOrError->IsOK()) {
-            const auto& mountInfo = mountInfoOrError->Value();
-            tableId = mountInfo->TableId;
-            cellTag = mountInfo->CellTag;
-        }
-
-        auto session = New<TGetSession>(this, Connection_, key, tableId, cellTag, Logger);
+        auto session = New<TGetSession>(this, Connection_, key, Logger);
         return BIND(&TGetSession::Run, std::move(session))
             .AsyncVia(Invoker_)
             .Run();
@@ -112,8 +102,6 @@ private:
             TTableMountCachePtr owner,
             TWeakPtr<IConnection> connection,
             const TTableMountCacheKey& key,
-            TTableId tableId,
-            TCellTag cellTag,
             const NLogging::TLogger& logger)
             : Owner_(std::move(owner))
             , Connection_(std::move(connection))
@@ -122,28 +110,15 @@ private:
                 .AddTag("Path: %v, CacheSessionId: %v",
                     Key_.Path,
                     TGuid::Create()))
-            , TableId_(tableId)
-            , CellTag_(cellTag)
         { }
 
         TTableMountInfoPtr Run()
         {
             try {
-                bool isCached = TableId_ && CellTag_;
-
-                if (!isCached) {
-                    WaitFor(RequestTableAttributes(Key_.RefreshPrimaryRevision))
-                        .ThrowOnError();
-                }
+                WaitFor(RequestTableAttributes(Key_.RefreshPrimaryRevision))
+                    .ThrowOnError();
 
                 auto mountInfoOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
-
-                if (!mountInfoOrError.IsOK() && isCached) {
-                    WaitFor(RequestTableAttributes(Key_.RefreshPrimaryRevision))
-                        .ThrowOnError();
-                    mountInfoOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
-                }
-
                 if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
                     WaitFor(RequestTableAttributes(PrimaryRevision_))
                         .ThrowOnError();
@@ -290,7 +265,6 @@ private:
             auto tableInfo = New<TTableMountInfo>();
             tableInfo->Path = Key_.Path;
             tableInfo->TableId = FromProto<TObjectId>(rsp->table_id());
-            tableInfo->CellTag = CellTag_;
             tableInfo->SecondaryRevision = SecondaryRevision_;
             tableInfo->PrimaryRevision = PrimaryRevision_;
 

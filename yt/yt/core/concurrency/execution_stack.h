@@ -37,7 +37,7 @@ public:
 private:
     char* Base_;
 
-    static const int GuardPageCount = 4;
+    static const int GuardPageCount = 256;
 };
 
 #elif defined(_win_)

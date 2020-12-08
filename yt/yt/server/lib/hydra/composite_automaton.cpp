@@ -200,7 +200,6 @@ void TCompositeAutomatonPart::StartEpoch()
     EpochAutomatonInvoker_ = HydraManager_
         ->GetAutomatonCancelableContext()
         ->CreateInvoker(AutomatonInvoker_);
-    Automaton_->FinalRecoveryAction_ = EFinalRecoveryAction::None;
 }
 
 void TCompositeAutomatonPart::StopEpoch()
