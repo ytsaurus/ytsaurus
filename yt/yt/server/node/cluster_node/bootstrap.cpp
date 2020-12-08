@@ -461,7 +461,6 @@ void TBootstrap::DoInitialize()
 
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_->DynamicConfigManager, this);
     DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
-    DynamicConfigManager_->Start();
 
     RpcServer_->RegisterService(CreateDataNodeService(Config_->DataNode, this));
 
@@ -661,6 +660,8 @@ void TBootstrap::DoRun()
         GetValues(localRpcAddresses),
         Config_->ClusterConnection->PrimaryMaster->Addresses,
         Config_->Tags);
+
+    DynamicConfigManager_->Start();
 
     NodeResourceManager_->Start();
 #ifdef __linux__
