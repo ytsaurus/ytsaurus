@@ -2,8 +2,8 @@ package httpclient
 
 import (
 	"context"
-	"time"
 
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal"
 )
@@ -28,31 +28,28 @@ func (c *httpClient) BeginTabletTx(ctx context.Context, options *yt.StartTabletT
 		return nil, err
 	}
 
+	tx.StartCall = c.StartCall
 	tx.Invoke = tx.do
 	tx.InvokeReadRow = tx.doReadRow
 	tx.InvokeWriteRow = tx.doWriteRow
 
 	tx.c = c
 
+	txTimeout := yson.Duration(c.config.GetTxTimeout())
+
 	startOptions := &yt.StartTabletTxOptions{
-		Type:   "tablet",
-		Sticky: true,
-	}
-	if options != nil {
-		startOptions.Atomicity = options.Atomicity
-		if options.Timeout != nil {
-			startOptions.Timeout = options.Timeout
-		}
+		Type:    "tablet",
+		Sticky:  true,
+		Timeout: &txTimeout,
 	}
 
-	txTimeout := yt.DefaultTxTimeout
-	if startOptions.Timeout != nil {
-		txTimeout = time.Duration(*startOptions.Timeout)
+	if options != nil {
+		startOptions.Atomicity = options.Atomicity
 	}
 
 	tx.txID, err = tx.StartTabletTx(ctx, startOptions)
 	tx.ctx = ctx
-	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, txTimeout, c.stop)
+	tx.pinger = internal.NewPinger(ctx, &tx, tx.txID, c.config, c.stop)
 
 	go tx.pinger.Run()
 

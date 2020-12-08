@@ -16,7 +16,6 @@ import (
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/migrate"
 	"a.yandex-team.ru/yt/go/schema"
-	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
 )
@@ -172,13 +171,10 @@ func TestTxDuration(t *testing.T) {
 		&testRow{"foo", "1"},
 	}
 
-	var timeout = yson.Duration(1 * time.Second)
-	tx, err := env.YT.BeginTabletTx(env.Ctx, &yt.StartTabletTxOptions{
-		Timeout: &timeout,
-	})
+	tx, err := env.YT.BeginTabletTx(env.Ctx, nil)
 	require.NoError(t, err)
 
-	time.Sleep(time.Second * 15)
+	time.Sleep(time.Second * 20)
 
 	require.NoError(t, tx.InsertRows(env.Ctx, testTable, rows, nil))
 	require.NoError(t, tx.Commit())

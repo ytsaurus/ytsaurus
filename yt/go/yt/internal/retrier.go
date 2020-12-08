@@ -17,6 +17,7 @@ import (
 
 type Retrier struct {
 	ProxySet *ProxySet
+	Config   *yt.Config
 
 	Log log.Structured
 }
@@ -87,6 +88,12 @@ func isProxyBannedError(err error) bool {
 }
 
 func (r *Retrier) Intercept(ctx context.Context, call *Call, invoke CallInvoker) (res *CallResult, err error) {
+	var cancel func()
+	if timeout := r.Config.GetLightRequestTimeout(); timeout != 0 {
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
 	for {
 		res, err = invoke(ctx, call)
 		if err == nil || call.DisableRetries {
