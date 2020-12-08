@@ -173,6 +173,13 @@ type SetNodeOptions struct {
 	*PrerequisiteOptions
 }
 
+type MultisetAttributesOptions struct {
+	*TransactionOptions
+	*AccessTrackingOptions
+	*MutatingOptions
+	*PrerequisiteOptions
+}
+
 type ListNodeOptions struct {
 	Attributes []string `http:"attributes,omitnil"`
 	MaxSize    *int64   `http:"max_size,omitnil"`
@@ -282,6 +289,16 @@ type CypressClient interface {
 		path ypath.YPath,
 		value interface{},
 		options *SetNodeOptions,
+	) (err error)
+
+	// http:verb:"multiset_attributes"
+	// http:params:"path"
+	// http:extra
+	MultisetAttributes(
+		ctx context.Context,
+		path ypath.YPath,
+		attributes map[string]interface{},
+		options *MultisetAttributesOptions,
 	) (err error)
 
 	// http:verb:"list"

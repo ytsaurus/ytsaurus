@@ -48,6 +48,41 @@ func TestCypress(t *testing.T) {
 			require.NotZero(t, attrs.Revision)
 		})
 
+		t.Run("Set", func(t *testing.T) {
+			t.Parallel()
+
+			err := env.YT.SetNode(ctx, ypath.Path("//@test_cypress_attribute"), "test_value", nil)
+			require.NoError(t, err)
+
+			var value *string
+			err = env.YT.GetNode(ctx, ypath.Path("//@test_cypress_attribute"), &value, nil)
+
+			require.NoError(t, err)
+			require.Equal(t, "test_value", *value)
+		})
+
+		t.Run("MultisetAttributes", func(t *testing.T) {
+			t.Parallel()
+
+			attrValues := map[string]interface{}{
+				"x": "test_value",
+				"y": 42,
+			}
+			err := env.YT.MultisetAttributes(ctx, ypath.Path("//@"), attrValues, nil)
+			require.NoError(t, err)
+
+			var attrs struct {
+				X string `yson:"x,attr"`
+				Y int    `yson:"y,attr"`
+			}
+			err = env.YT.GetNode(ctx, ypath.Path("/"), &attrs, &yt.GetNodeOptions{Attributes: []string{"x", "y"}})
+
+			require.NoError(t, err)
+
+			require.Equal(t, "test_value", attrs.X)
+			require.Equal(t, 42, attrs.Y)
+		})
+
 		t.Run("List", func(t *testing.T) {
 			t.Parallel()
 

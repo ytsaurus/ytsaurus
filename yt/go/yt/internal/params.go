@@ -173,6 +173,16 @@ func writeSetNodeOptions(w *yson.Writer, o *yt.SetNodeOptions) {
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
 }
 
+func writeMultisetAttributesOptions(w *yson.Writer, o *yt.MultisetAttributesOptions) {
+	if o == nil {
+		return
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
+	writePrerequisiteOptions(w, o.PrerequisiteOptions)
+}
+
 func writeListNodeOptions(w *yson.Writer, o *yt.ListNodeOptions) {
 	if o == nil {
 		return
@@ -1157,6 +1167,60 @@ func (p *SetNodeParams) MutatingOptions() **yt.MutatingOptions {
 }
 
 func (p *SetNodeParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
+	return &p.options.PrerequisiteOptions
+}
+
+type MultisetAttributesParams struct {
+	verb    Verb
+	path    ypath.YPath
+	options *yt.MultisetAttributesOptions
+}
+
+func NewMultisetAttributesParams(
+	path ypath.YPath,
+	options *yt.MultisetAttributesOptions,
+) *MultisetAttributesParams {
+	if options == nil {
+		options = &yt.MultisetAttributesOptions{}
+	}
+	return &MultisetAttributesParams{
+		Verb("multiset_attributes"),
+		path,
+		options,
+	}
+}
+
+func (p *MultisetAttributesParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *MultisetAttributesParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
+func (p *MultisetAttributesParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+	}
+}
+
+func (p *MultisetAttributesParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	writeMultisetAttributesOptions(w, p.options)
+}
+
+func (p *MultisetAttributesParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+func (p *MultisetAttributesParams) AccessTrackingOptions() **yt.AccessTrackingOptions {
+	return &p.options.AccessTrackingOptions
+}
+
+func (p *MultisetAttributesParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
+}
+
+func (p *MultisetAttributesParams) PrerequisiteOptions() **yt.PrerequisiteOptions {
 	return &p.options.PrerequisiteOptions
 }
 
