@@ -41,7 +41,7 @@ TReadJournalCommand::TReadJournalCommand()
 
 void TReadJournalCommand::DoExecute(ICommandContextPtr context)
 {
-    auto checkLimit = [] (const TReadLimit& limit) {
+    auto checkLimit = [] (const TLegacyReadLimit& limit) {
         if (limit.HasLegacyKey()) {
             THROW_ERROR_EXCEPTION("Reading key range is not supported in journals");
         }

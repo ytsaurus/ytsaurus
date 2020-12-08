@@ -102,8 +102,8 @@ public:
     using TColumnarChunkReaderBase::TColumnarChunkReaderBase;
 
 protected:
-    NChunkClient::TReadLimit LowerLimit_;
-    NChunkClient::TReadLimit UpperLimit_;
+    NChunkClient::TLegacyReadLimit LowerLimit_;
+    NChunkClient::TLegacyReadLimit UpperLimit_;
 
     // Lower limit (both, key and row index) is greater or equal than this row index.
     // No need to read and check keys with lesser row indexes.

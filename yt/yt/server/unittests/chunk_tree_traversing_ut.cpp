@@ -41,7 +41,7 @@ using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,7 +50,7 @@ static constexpr double ForgetReadLimitProbability = 0.5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator == (const TReadLimit& lhs, const TReadLimit& rhs)
+bool operator == (const TLegacyReadLimit& lhs, const TLegacyReadLimit& rhs)
 {
     return lhs.AsProto().DebugString() == rhs.AsProto().DebugString();
 }
@@ -64,8 +64,8 @@ public:
         TChunk* chunk,
         std::optional<i64> rowIndex = {},
         std::optional<int> tabletIndex = {},
-        TReadLimit lowerLimit = {},
-        TReadLimit upperLimit = {})
+        TLegacyReadLimit lowerLimit = {},
+        TLegacyReadLimit upperLimit = {})
         : Chunk(chunk)
         , RowIndex(rowIndex)
         , TabletIndex(tabletIndex)
@@ -76,8 +76,8 @@ public:
     TChunk* Chunk;
     std::optional<i64> RowIndex;
     std::optional<int> TabletIndex;
-    TReadLimit LowerLimit;
-    TReadLimit UpperLimit;
+    TLegacyReadLimit LowerLimit;
+    TLegacyReadLimit UpperLimit;
 };
 
 bool operator < (const TChunkInfo& lhs, const TChunkInfo& rhs)
@@ -132,8 +132,8 @@ public:
         TChunk* chunk,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
-        const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit,
+        const TLegacyReadLimit& lowerLimit,
+        const TLegacyReadLimit& upperLimit,
         TTransactionId /*timestampTransactionId*/) override
     {
         ChunkInfos.insert(TChunkInfo(chunk, rowIndex, tabletIndex, lowerLimit, upperLimit));
@@ -145,7 +145,7 @@ public:
         return false;
     }
 
-    virtual bool OnDynamicStore(TDynamicStore*, const TReadLimit&, const TReadLimit&) override
+    virtual bool OnDynamicStore(TDynamicStore*, const TLegacyReadLimit&, const TLegacyReadLimit&) override
     {
         return true;
     }
@@ -174,8 +174,8 @@ public:
         TChunkList* chunkList,
         bool calculateRowIndex,
         bool calculateTabletIndex,
-        const TReadLimit& lowerLimit = TReadLimit{},
-        const TReadLimit& upperLimit = TReadLimit{},
+        const TLegacyReadLimit& lowerLimit = TLegacyReadLimit{},
+        const TLegacyReadLimit& upperLimit = TLegacyReadLimit{},
         const std::vector<int>& tabletStartRowCount = std::vector<int>{})
     {
         CalculateRowIndex_ = calculateRowIndex;
@@ -199,8 +199,8 @@ public:
 private:
     bool CalculateRowIndex_;
     bool CalculateTabletIndex_;
-    TReadLimit LowerLimit_;
-    TReadLimit UpperLimit_;
+    TLegacyReadLimit LowerLimit_;
+    TLegacyReadLimit UpperLimit_;
 
     std::set<TChunkInfo> Result_;
     int ChunkCount_ = 0;
@@ -335,8 +335,8 @@ private:
             RowCount_ = newRowCount;
         });
 
-        TReadLimit correctLowerLimit;
-        TReadLimit correctUpperLimit;
+        TLegacyReadLimit correctLowerLimit;
+        TLegacyReadLimit correctUpperLimit;
 
         if (ChunkCount_ >= UpperChunkIndexLimit()) {
             return false;
@@ -411,8 +411,8 @@ std::set<TChunkInfo> TraverseNaively(
     TChunkList* chunkList,
     bool calculateRowIndex,
     bool calculateTabletIndex = false,
-    const TReadLimit& lowerLimit = {},
-    const TReadLimit& upperLimit = {},
+    const TLegacyReadLimit& lowerLimit = {},
+    const TLegacyReadLimit& upperLimit = {},
     const std::vector<int>& tabletStartRowCount = {})
 {
     TNaiveChunkTreeTraverser naiveTraverser;
@@ -550,18 +550,18 @@ TEST_F(TChunkTreeTraversingTest, Simple)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetRowIndex(2);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetRowIndex(5);
 
         TraverseChunkTree(context, visitor, listA, lowerLimit, upperLimit, {} /*keyColumnCount*/);
 
-        TReadLimit correctLowerLimit;
+        TLegacyReadLimit correctLowerLimit;
         correctLowerLimit.SetRowIndex(1);
 
-        TReadLimit correctUpperLimit;
+        TLegacyReadLimit correctUpperLimit;
         correctUpperLimit.SetRowIndex(2);
 
         std::set<TChunkInfo> correctResult{
@@ -570,12 +570,12 @@ TEST_F(TChunkTreeTraversingTest, Simple)
                 1,
                 {} /*tabletIndex*/,
                 correctLowerLimit,
-                TReadLimit()),
+                TLegacyReadLimit()),
             TChunkInfo(
                 chunk3,
                 3,
                 {} /*tabletIndex*/,
-                TReadLimit(),
+                TLegacyReadLimit(),
                 correctUpperLimit)
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
@@ -630,18 +630,18 @@ TEST_F(TChunkTreeTraversingTest, WithEmptyChunkLists)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetRowIndex(1);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetRowIndex(2);
 
         TraverseChunkTree(context, visitor, list, lowerLimit, upperLimit, {} /*keyColumnCount*/);
         EXPECT_EQ(TraverseNaively(list, true, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
-        TReadLimit correctLowerLimit;
+        TLegacyReadLimit correctLowerLimit;
 
-        TReadLimit correctUpperLimit;
+        TLegacyReadLimit correctUpperLimit;
         correctUpperLimit.SetRowIndex(1);
 
         std::set<TChunkInfo> correctResult{
@@ -696,10 +696,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(0);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(2);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -715,10 +715,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(2);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(3);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -733,10 +733,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetLegacyKey(BuildKey("1"));
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetLegacyKey(BuildKey("5"));
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, 1);
@@ -749,7 +749,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
                 chunk2,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(),
+                TLegacyReadLimit(),
                 upperLimit),
             TChunkInfo(
                 chunk3)
@@ -805,16 +805,16 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
                 chunk1,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(BuildKey("1")),
-                TReadLimit(BuildKey("4"))),
+                TLegacyReadLimit(BuildKey("1")),
+                TLegacyReadLimit(BuildKey("4"))),
             TChunkInfo(
                 chunk2),
             TChunkInfo(
                 chunk1,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(BuildKey("7")),
-                TReadLimit(BuildKey("10")))
+                TLegacyReadLimit(BuildKey("7")),
+                TLegacyReadLimit(BuildKey("10")))
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -822,10 +822,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(0);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(2);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -835,8 +835,8 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
                 chunk1,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(BuildKey("1")),
-                TReadLimit(BuildKey("4"))),
+                TLegacyReadLimit(BuildKey("1")),
+                TLegacyReadLimit(BuildKey("4"))),
             TChunkInfo(
                 chunk2)
         };
@@ -846,10 +846,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(2);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(3);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -859,8 +859,8 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
                 chunk1,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(BuildKey("7")),
-                TReadLimit(BuildKey("10")))
+                TLegacyReadLimit(BuildKey("7")),
+                TLegacyReadLimit(BuildKey("10")))
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -868,10 +868,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetLegacyKey(BuildKey("1"));
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetLegacyKey(BuildKey("5"));
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, 1);
@@ -881,14 +881,14 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
                 chunk1,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(BuildKey("1")),
-                TReadLimit(BuildKey("4"))),
+                TLegacyReadLimit(BuildKey("1")),
+                TLegacyReadLimit(BuildKey("4"))),
             TChunkInfo(
                 chunk2,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(),
-                TReadLimit(BuildKey("5")))
+                TLegacyReadLimit(),
+                TLegacyReadLimit(BuildKey("5")))
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -896,10 +896,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetLegacyKey(BuildKey("2"));
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetLegacyKey(BuildKey("8"));
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, 1);
@@ -909,16 +909,16 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
                 chunk1,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(BuildKey("2")),
-                TReadLimit(BuildKey("4"))),
+                TLegacyReadLimit(BuildKey("2")),
+                TLegacyReadLimit(BuildKey("4"))),
             TChunkInfo(
                 chunk2),
             TChunkInfo(
                 chunk1,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(BuildKey("7")),
-                TReadLimit(BuildKey("8")))
+                TLegacyReadLimit(BuildKey("7")),
+                TLegacyReadLimit(BuildKey("8")))
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -947,10 +947,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
     AttachToChunkList(tablet3, std::vector<TChunkTree*>{chunk});
     AttachToChunkList(root, std::vector<TChunkTree*>{tablet1, tablet2, tablet3});
 
-    TReadLimit limit2;
+    TLegacyReadLimit limit2;
     limit2.SetLegacyKey(BuildKey("2"));
 
-    TReadLimit limit4;
+    TLegacyReadLimit limit4;
     limit4.SetLegacyKey(BuildKey("4"));
 
     auto context = GetSyncChunkTraverserContext();
@@ -965,7 +965,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
                 chunk,
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
-                TReadLimit(),
+                TLegacyReadLimit(),
                 limit2),
             TChunkInfo(
                 chunk,
@@ -978,7 +978,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
                 {} /*rowIndex*/,
                 {} /*tabletIndex*/,
                 limit4,
-                TReadLimit()),
+                TLegacyReadLimit()),
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -986,10 +986,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetLegacyKey(BuildKey("2"));
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetLegacyKey(BuildKey("4"));
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, 1);
@@ -1009,10 +1009,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetLegacyKey(BuildKey("1"));
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetLegacyKey(BuildKey("5"));
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, 1);
@@ -1108,10 +1108,10 @@ TEST_F(TChunkTreeTraversingTest, StartIndex)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetRowIndex(0);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetRowIndex(1);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -1126,10 +1126,10 @@ TEST_F(TChunkTreeTraversingTest, StartIndex)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetRowIndex(1);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetRowIndex(2);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -1144,10 +1144,10 @@ TEST_F(TChunkTreeTraversingTest, StartIndex)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetRowIndex(2);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetRowIndex(3);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -1181,10 +1181,10 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(0);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(1);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -1196,10 +1196,10 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(0);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(2);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -1215,10 +1215,10 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(1);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(2);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -1234,10 +1234,10 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(0);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(3);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -1271,10 +1271,10 @@ TEST_F(TChunkTreeTraversingTest, OrderedDynamicEmptyTablet)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(0);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(2);
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
@@ -1298,7 +1298,7 @@ TEST_F(TChunkTreeTraversingTest, OrderedDynamicEmptyTablet)
 class TTraverseWithKeyColumnCount
     : public TChunkTreeTraversingTest
     , public ::testing::WithParamInterface<std::tuple<
-        int, TString, TString, std::optional<TReadLimit>, std::optional<TReadLimit>>>
+        int, TString, TString, std::optional<TLegacyReadLimit>, std::optional<TLegacyReadLimit>>>
 { };
 
 TEST_P(TTraverseWithKeyColumnCount, TestStatic)
@@ -1319,10 +1319,10 @@ TEST_P(TTraverseWithKeyColumnCount, TestStatic)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetLegacyKey(BuildKey(std::get<1>(params)));
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetLegacyKey(BuildKey(std::get<2>(params)));
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, keyColumnCount);
@@ -1335,7 +1335,7 @@ TEST_P(TTraverseWithKeyColumnCount, TestStatic)
                 0,
                 {} /*tabletIndex*/,
                 *firstChunk,
-                TReadLimit()));
+                TLegacyReadLimit()));
         }
 
         if (auto secondChunk = std::get<4>(params)) {
@@ -1343,7 +1343,7 @@ TEST_P(TTraverseWithKeyColumnCount, TestStatic)
                 chunk2,
                 1,
                 {} /*tabletIndex*/,
-                TReadLimit(),
+                TLegacyReadLimit(),
                 *secondChunk));
         }
 
@@ -1369,10 +1369,10 @@ TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
     {
         auto visitor = New<TTestChunkVisitor>();
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetLegacyKey(BuildKey(std::get<1>(params)));
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetLegacyKey(BuildKey(std::get<2>(params)));
 
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, keyColumnCount);
@@ -1385,7 +1385,7 @@ TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
                 0,
                 0,
                 *firstChunk,
-                TReadLimit()));
+                TLegacyReadLimit()));
         }
 
         if (auto secondChunk = std::get<4>(params)) {
@@ -1393,7 +1393,7 @@ TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
                 chunk2,
                 1,
                 0,
-                TReadLimit(),
+                TLegacyReadLimit(),
                 *secondChunk));
         }
 
@@ -1409,20 +1409,20 @@ INSTANTIATE_TEST_SUITE_P(
             2,
             "0;<type=min>#",
             "2;<type=min>#",
-            TReadLimit(),
-            TReadLimit(BuildKey("2;<type=min>#"))),
+            TLegacyReadLimit(),
+            TLegacyReadLimit(BuildKey("2;<type=min>#"))),
         std::make_tuple(
             2,
             "0;<type=null>#",
             "2;<type=null>#",
-            TReadLimit(),
-            TReadLimit(BuildKey("2;<type=null>#"))),
+            TLegacyReadLimit(),
+            TLegacyReadLimit(BuildKey("2;<type=null>#"))),
         std::make_tuple(
             2,
             "0;<type=max>#",
             "2;<type=max>#",
             std::nullopt,
-            TReadLimit())));
+            TLegacyReadLimit())));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1456,11 +1456,11 @@ TEST_F(TChunkTreeTraversingStressTest, StaticWithoutKeys)
         auto chunkIndices = generateOrderedPair(statistics.ChunkCount);
         auto rowIndices = generateOrderedPair(statistics.RowCount);
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(chunkIndices.first);
         lowerLimit.SetRowIndex(rowIndices.first);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(chunkIndices.second);
         upperLimit.SetRowIndex(rowIndices.second);
 
@@ -1499,10 +1499,10 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamic)
         {
             auto chunkIndices = generateOrderedPair(statistics.ChunkCount);
 
-            TReadLimit lowerLimit;
+            TLegacyReadLimit lowerLimit;
             lowerLimit.SetChunkIndex(chunkIndices.first);
 
-            TReadLimit upperLimit;
+            TLegacyReadLimit upperLimit;
             upperLimit.SetChunkIndex(chunkIndices.second);
 
             auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
@@ -1516,10 +1516,10 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamic)
         {
             auto keys = generateOrderedPair(5 * 5 * 2 * 10);
 
-            TReadLimit lowerLimit;
+            TLegacyReadLimit lowerLimit;
             lowerLimit.SetLegacyKey(BuildKey(ToString(keys.first)));
 
-            TReadLimit upperLimit;
+            TLegacyReadLimit upperLimit;
             upperLimit.SetLegacyKey(BuildKey(ToString(keys.second)));
 
             auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
@@ -1559,10 +1559,10 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamicThreeLevel)
         {
             auto chunkIndices = generateOrderedPair(statistics.ChunkCount);
 
-            TReadLimit lowerLimit;
+            TLegacyReadLimit lowerLimit;
             lowerLimit.SetChunkIndex(chunkIndices.first);
 
-            TReadLimit upperLimit;
+            TLegacyReadLimit upperLimit;
             upperLimit.SetChunkIndex(chunkIndices.second);
 
             auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
@@ -1576,10 +1576,10 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamicThreeLevel)
         {
             auto keys = generateOrderedPair(5 * 5 * 5 * 2 * 10);
 
-            TReadLimit lowerLimit;
+            TLegacyReadLimit lowerLimit;
             lowerLimit.SetLegacyKey(BuildKey(ToString(keys.first)));
 
-            TReadLimit upperLimit;
+            TLegacyReadLimit upperLimit;
             upperLimit.SetLegacyKey(BuildKey(ToString(keys.second)));
 
             auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
@@ -1616,10 +1616,10 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamic)
     for (int iter = 0; iter < 100; ++iter) {
         auto chunkIndices = generateOrderedPair(statistics.ChunkCount);
 
-        TReadLimit lowerLimit;
+        TLegacyReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(chunkIndices.first);
 
-        TReadLimit upperLimit;
+        TLegacyReadLimit upperLimit;
         upperLimit.SetChunkIndex(chunkIndices.second);
 
         auto expected = TraverseNaively(root, true, true, lowerLimit, upperLimit);
@@ -1674,8 +1674,8 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamicWithTabletIndex)
         int leftRowIndex = gen() % leftRowIndexRange;
         int rightRowIndex = gen() % rightRowIndexRange;
 
-        TReadLimit lowerLimit;
-        TReadLimit upperLimit;
+        TLegacyReadLimit lowerLimit;
+        TLegacyReadLimit upperLimit;
 
         lowerLimit.SetTabletIndex(leftTabletIndex);
         upperLimit.SetTabletIndex(rightTabletIndex);
@@ -1686,10 +1686,10 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamicWithTabletIndex)
         }
 
         if (ForgetReadLimitProbability > dist(gen)) {
-            lowerLimit = TReadLimit{};
+            lowerLimit = TLegacyReadLimit{};
         }
         if (ForgetReadLimitProbability > dist(gen)) {
-            upperLimit = TReadLimit{};
+            upperLimit = TLegacyReadLimit{};
         }
 
         return std::make_pair(lowerLimit, upperLimit);

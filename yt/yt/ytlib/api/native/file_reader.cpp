@@ -194,7 +194,7 @@ private:
             auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());
             AddCellTagToSyncWith(req, userObject.ObjectId);
 
-            TReadLimit lowerLimit, upperLimit;
+            TLegacyReadLimit lowerLimit, upperLimit;
             i64 offset = Options_.Offset.value_or(0);
             if (Options_.Offset) {
                 lowerLimit.SetOffset(offset);

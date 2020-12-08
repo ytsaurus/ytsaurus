@@ -20,8 +20,8 @@ namespace NYT::NChunkClient {
 
 class TChunkSlice
 {
-    DEFINE_BYREF_RO_PROPERTY(TReadLimit, LowerLimit);
-    DEFINE_BYREF_RO_PROPERTY(TReadLimit, UpperLimit);
+    DEFINE_BYREF_RO_PROPERTY(TLegacyReadLimit, LowerLimit);
+    DEFINE_BYREF_RO_PROPERTY(TLegacyReadLimit, UpperLimit);
 
     DEFINE_BYVAL_RO_PROPERTY(i64, DataWeight);
     DEFINE_BYVAL_RO_PROPERTY(i64, RowCount);

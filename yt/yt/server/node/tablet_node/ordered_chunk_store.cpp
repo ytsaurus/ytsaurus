@@ -207,11 +207,11 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
 
-    TReadLimit lowerLimit;
+    TLegacyReadLimit lowerLimit;
     lowerRowIndex = std::min(std::max(lowerRowIndex, StartingRowIndex_), StartingRowIndex_ + GetRowCount());
     lowerLimit.SetRowIndex(lowerRowIndex - StartingRowIndex_);
 
-    TReadLimit upperLimit;
+    TLegacyReadLimit upperLimit;
     upperRowIndex = std::min(std::max(upperRowIndex, StartingRowIndex_), StartingRowIndex_ + GetRowCount());
     upperLimit.SetRowIndex(upperRowIndex - StartingRowIndex_);
 

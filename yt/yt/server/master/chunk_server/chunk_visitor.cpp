@@ -58,8 +58,8 @@ bool TChunkIdsAttributeVisitor::OnChunk(
     TChunk* chunk,
     std::optional<i64> /*rowIndex*/,
     std::optional<int> /*tabletIndex*/,
-    const TReadLimit& /*startLimit*/,
-    const TReadLimit& /*endLimit*/,
+    const TLegacyReadLimit& /*startLimit*/,
+    const TLegacyReadLimit& /*endLimit*/,
     TTransactionId /*timestampTransactionId*/)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -77,8 +77,8 @@ bool TChunkIdsAttributeVisitor::OnChunkView(TChunkView* /*chunkView*/)
 
 bool TChunkIdsAttributeVisitor::OnDynamicStore(
     TDynamicStore* /*dynamicStore*/,
-    const NChunkClient::TReadLimit& /*startLimit*/,
-    const NChunkClient::TReadLimit& /*endLimit*/)
+    const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+    const NChunkClient::TLegacyReadLimit& /*endLimit*/)
 {
     return true;
 }

@@ -74,11 +74,11 @@ TString ToString(const TDataSliceDescriptor& dataSliceDescriptor)
         if (chunkSpec.has_lower_limit() || chunkSpec.has_upper_limit()) {
             stringBuilder.AppendChar('[');
             if (chunkSpec.has_lower_limit()) {
-                stringBuilder.AppendString(ToString(FromProto<TReadLimit>(chunkSpec.lower_limit())));
+                stringBuilder.AppendString(ToString(FromProto<TLegacyReadLimit>(chunkSpec.lower_limit())));
             }
             stringBuilder.AppendChar(':');
             if (chunkSpec.has_upper_limit()) {
-                stringBuilder.AppendString(ToString(FromProto<TReadLimit>(chunkSpec.upper_limit())));
+                stringBuilder.AppendString(ToString(FromProto<TLegacyReadLimit>(chunkSpec.upper_limit())));
             }
             stringBuilder.AppendChar(']');
         }
@@ -90,13 +90,13 @@ TString ToString(const TDataSliceDescriptor& dataSliceDescriptor)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned)
+TLegacyReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, bool versioned)
 {
-    TReadLimit result;
+    TLegacyReadLimit result;
 
     if (versioned) {
         for (const auto& chunkSpec : descriptor.ChunkSpecs) {
-            TReadLimit readLimit;
+            TLegacyReadLimit readLimit;
             FromProto(&readLimit, chunkSpec.lower_limit());
             YT_VERIFY(!readLimit.HasRowIndex());
 
@@ -106,7 +106,7 @@ TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, boo
         }
     } else {
         const auto& chunkSpec = descriptor.GetSingleChunk();
-        TReadLimit readLimit;
+        TLegacyReadLimit readLimit;
         FromProto(&readLimit, chunkSpec.lower_limit());
         if (readLimit.HasRowIndex()) {
             result.SetRowIndex(readLimit.GetRowIndex() + chunkSpec.table_row_index());
@@ -122,13 +122,13 @@ TReadLimit GetAbsoluteLowerReadLimit(const TDataSliceDescriptor& descriptor, boo
     return result;
 }
 
-TReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, bool versioned)
+TLegacyReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, bool versioned)
 {
-    TReadLimit result;
+    TLegacyReadLimit result;
 
     if (versioned) {
         for (const auto& chunkSpec : descriptor.ChunkSpecs) {
-            TReadLimit readLimit;
+            TLegacyReadLimit readLimit;
             FromProto(&readLimit, chunkSpec.upper_limit());
             YT_VERIFY(!readLimit.HasRowIndex());
 
@@ -138,7 +138,7 @@ TReadLimit GetAbsoluteUpperReadLimit(const TDataSliceDescriptor& descriptor, boo
         }
     } else {
         const auto& chunkSpec = descriptor.GetSingleChunk();
-        TReadLimit readLimit;
+        TLegacyReadLimit readLimit;
         FromProto(&readLimit, chunkSpec.upper_limit());
         if (readLimit.HasRowIndex()) {
             result.SetRowIndex(readLimit.GetRowIndex() + chunkSpec.table_row_index());

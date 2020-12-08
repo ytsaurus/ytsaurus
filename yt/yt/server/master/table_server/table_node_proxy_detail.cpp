@@ -73,7 +73,7 @@ using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 

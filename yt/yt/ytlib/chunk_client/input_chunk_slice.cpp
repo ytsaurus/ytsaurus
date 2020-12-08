@@ -21,7 +21,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLegacyInputSliceLimit::TLegacyInputSliceLimit(const TReadLimit& other)
+TLegacyInputSliceLimit::TLegacyInputSliceLimit(const TLegacyReadLimit& other)
 {
     YT_VERIFY(!other.HasChunkIndex());
     YT_VERIFY(!other.HasOffset());

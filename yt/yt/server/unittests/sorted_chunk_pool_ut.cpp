@@ -179,10 +179,10 @@ protected:
         inputChunk->SetTableRowIndex(UnversionedTableRowCounts_[tableIndex]);
         UnversionedTableRowCounts_[tableIndex] += rowCount;
         if (lowerLimit) {
-            inputChunk->LowerLimit() = std::make_unique<TReadLimit>(TLegacyOwningKey(lowerLimit));
+            inputChunk->LowerLimit() = std::make_unique<TLegacyReadLimit>(TLegacyOwningKey(lowerLimit));
         }
         if (upperLimit) {
-            inputChunk->UpperLimit() = std::make_unique<TReadLimit>(TLegacyOwningKey(upperLimit));
+            inputChunk->UpperLimit() = std::make_unique<TLegacyReadLimit>(TLegacyOwningKey(upperLimit));
         }
         const auto& inputTable = InputTables_[tableIndex];
         if (!inputTable.IsVersioned()) {
@@ -207,10 +207,10 @@ protected:
         chunkCopy->SetTableRowIndex(chunk->GetTableRowIndex());
         chunkCopy->SetTotalRowCount(chunk->GetRowCount());
         if (chunk->LowerLimit()) {
-            chunkCopy->LowerLimit() = std::make_unique<TReadLimit>(*chunk->LowerLimit());
+            chunkCopy->LowerLimit() = std::make_unique<TLegacyReadLimit>(*chunk->LowerLimit());
         }
         if (chunk->UpperLimit()) {
-            chunkCopy->UpperLimit() = std::make_unique<TReadLimit>(*chunk->UpperLimit());
+            chunkCopy->UpperLimit() = std::make_unique<TLegacyReadLimit>(*chunk->UpperLimit());
         }
         const auto& inputTable = InputTables_[tableIndex];
         if (!inputTable.IsVersioned()) {

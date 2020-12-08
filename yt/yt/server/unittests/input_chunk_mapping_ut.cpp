@@ -142,9 +142,9 @@ TEST_F(TInputChunkMappingTest, SkippedInputChunk)
     auto chunkA = CreateChunk();
     auto chunkB = CreateChunk();
 
-    chunkA->LowerLimit() = std::make_unique<TReadLimit>();
+    chunkA->LowerLimit() = std::make_unique<TLegacyReadLimit>();
     chunkA->LowerLimit()->SetRowIndex(50);
-    chunkB->UpperLimit() = std::make_unique<TReadLimit>();
+    chunkB->UpperLimit() = std::make_unique<TLegacyReadLimit>();
     chunkB->UpperLimit()->SetRowIndex(200);
 
     auto stripeAB = CreateStripe({chunkA, chunkB});
@@ -166,9 +166,9 @@ TEST_F(TInputChunkMappingTest, RegeneratedIntermediateChunk)
     auto chunkA1 = CreateChunk();
     auto chunkA2 = CreateChunk();
 
-    chunkA1->LowerLimit() = std::make_unique<TReadLimit>();
+    chunkA1->LowerLimit() = std::make_unique<TLegacyReadLimit>();
     chunkA1->LowerLimit()->SetRowIndex(50);
-    chunkA2->LowerLimit() = std::make_unique<TReadLimit>();
+    chunkA2->LowerLimit() = std::make_unique<TLegacyReadLimit>();
     chunkA2->LowerLimit()->SetRowIndex(50);
 
     auto stripeA1 = CreateStripe({chunkA1});

@@ -38,7 +38,7 @@ using namespace NTableClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 using testing::PrintToString;
 

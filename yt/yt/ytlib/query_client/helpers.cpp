@@ -17,7 +17,7 @@ using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 using NTableClient::MinKey;
 using NTableClient::MaxKey;
 
@@ -40,7 +40,7 @@ TTableSchemaPtr GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
 TLegacyOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
 {
     if (dataSplit.has_lower_limit()) {
-        auto readLimit = FromProto<TReadLimit>(dataSplit.lower_limit());
+        auto readLimit = FromProto<TLegacyReadLimit>(dataSplit.lower_limit());
         return readLimit.GetLegacyKey();
     } else {
         return MinKey();
@@ -50,7 +50,7 @@ TLegacyOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)
 TLegacyOwningKey GetUpperBoundFromDataSplit(const TDataSplit& dataSplit)
 {
     if (dataSplit.has_upper_limit()) {
-        auto readLimit = FromProto<TReadLimit>(dataSplit.upper_limit());
+        auto readLimit = FromProto<TLegacyReadLimit>(dataSplit.upper_limit());
         return readLimit.GetLegacyKey();
     } else {
         return MaxKey();
@@ -94,7 +94,7 @@ void SetLowerBound(TDataSplit* dataSplit, const TLegacyOwningKey & lowerBound)
         dataSplit->clear_lower_limit();
         return;
     }
-    TReadLimit readLimit;
+    TLegacyReadLimit readLimit;
     readLimit.SetLegacyKey(lowerBound);
     ToProto(dataSplit->mutable_lower_limit(), readLimit);
 }
@@ -105,7 +105,7 @@ void SetUpperBound(TDataSplit* dataSplit, const TLegacyOwningKey & upperBound)
         dataSplit->clear_upper_limit();
         return;
     }
-    TReadLimit readLimit;
+    TLegacyReadLimit readLimit;
     readLimit.SetLegacyKey(upperBound);
     ToProto(dataSplit->mutable_upper_limit(), readLimit);
 }

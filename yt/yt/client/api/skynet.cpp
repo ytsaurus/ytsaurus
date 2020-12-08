@@ -28,10 +28,10 @@ void Serialize(const TSkynetSharePartsLocations& skynetPartsLocations, IYsonCons
                             .Item("row_count").Value(spec.row_count_override())
                             .Item("range_index").Value(spec.range_index())
                             .DoIf(spec.has_lower_limit(), [&] (TFluentMap fluent) {
-                                fluent.Item("lower_limit").Value(FromProto<TReadLimit>(spec.lower_limit()));
+                                fluent.Item("lower_limit").Value(FromProto<TLegacyReadLimit>(spec.lower_limit()));
                             })
                             .DoIf(spec.has_upper_limit(), [&] (TFluentMap fluent) {
-                                fluent.Item("upper_limit").Value(FromProto<TReadLimit>(spec.upper_limit()));
+                                fluent.Item("upper_limit").Value(FromProto<TLegacyReadLimit>(spec.upper_limit()));
                             })
                             .Item("replicas").DoListFor(spec.replicas(),
                                 [] (TFluentList fluent, ui32 packedReplica) {

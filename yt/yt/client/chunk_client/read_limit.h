@@ -15,45 +15,45 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReadLimit
+class TLegacyReadLimit
 {
 public:
-    TReadLimit() = default;
+    TLegacyReadLimit() = default;
 
-    explicit TReadLimit(const NProto::TReadLimit& readLimit);
-    explicit TReadLimit(NProto::TReadLimit&& readLimit);
-    explicit TReadLimit(const std::unique_ptr<NProto::TReadLimit>& protoLimit);
+    explicit TLegacyReadLimit(const NProto::TReadLimit& readLimit);
+    explicit TLegacyReadLimit(NProto::TReadLimit&& readLimit);
+    explicit TLegacyReadLimit(const std::unique_ptr<NProto::TReadLimit>& protoLimit);
 
-    explicit TReadLimit(const NTableClient::TLegacyOwningKey& key);
-    explicit TReadLimit(NTableClient::TLegacyOwningKey&& key);
+    explicit TLegacyReadLimit(const NTableClient::TLegacyOwningKey& key);
+    explicit TLegacyReadLimit(NTableClient::TLegacyOwningKey&& key);
 
-    TReadLimit& operator= (const NProto::TReadLimit& protoLimit);
-    TReadLimit& operator= (NProto::TReadLimit&& protoLimit);
+    TLegacyReadLimit& operator= (const NProto::TReadLimit& protoLimit);
+    TLegacyReadLimit& operator= (NProto::TReadLimit&& protoLimit);
 
-    TReadLimit GetSuccessor() const;
+    TLegacyReadLimit GetSuccessor() const;
 
     const NProto::TReadLimit& AsProto() const;
 
     const NTableClient::TLegacyOwningKey& GetLegacyKey() const;
     bool HasLegacyKey() const;
-    TReadLimit& SetLegacyKey(const NTableClient::TLegacyOwningKey& key);
-    TReadLimit& SetLegacyKey(NTableClient::TLegacyOwningKey&& key);
+    TLegacyReadLimit& SetLegacyKey(const NTableClient::TLegacyOwningKey& key);
+    TLegacyReadLimit& SetLegacyKey(NTableClient::TLegacyOwningKey&& key);
 
     i64 GetRowIndex() const;
     bool HasRowIndex() const;
-    TReadLimit& SetRowIndex(i64 rowIndex);
+    TLegacyReadLimit& SetRowIndex(i64 rowIndex);
 
     i64 GetOffset() const;
     bool HasOffset() const;
-    TReadLimit& SetOffset(i64 offset);
+    TLegacyReadLimit& SetOffset(i64 offset);
 
     i64 GetChunkIndex() const;
     bool HasChunkIndex() const;
-    TReadLimit& SetChunkIndex(i64 chunkIndex);
+    TLegacyReadLimit& SetChunkIndex(i64 chunkIndex);
 
     i32 GetTabletIndex() const;
     bool HasTabletIndex() const;
-    TReadLimit& SetTabletIndex(i32 tabletIndex);
+    TLegacyReadLimit& SetTabletIndex(i32 tabletIndex);
 
     bool IsTrivial() const;
 
@@ -79,16 +79,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TReadLimit& limit);
+TString ToString(const TLegacyReadLimit& limit);
 
-bool IsTrivial(const TReadLimit& limit);
+bool IsTrivial(const TLegacyReadLimit& limit);
 bool IsTrivial(const NProto::TReadLimit& limit);
 
-void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit);
-void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit);
+void ToProto(NProto::TReadLimit* protoReadLimit, const TLegacyReadLimit& readLimit);
+void FromProto(TLegacyReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit);
 
-void Serialize(const TReadLimit& readLimit, NYson::IYsonConsumer* consumer);
-void Deserialize(TReadLimit& readLimit, NYTree::INodePtr node);
+void Serialize(const TLegacyReadLimit& readLimit, NYson::IYsonConsumer* consumer);
+void Deserialize(TLegacyReadLimit& readLimit, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,16 +96,16 @@ class TLegacyReadRange
 {
 public:
     TLegacyReadRange() = default;
-    TLegacyReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit);
-    explicit TLegacyReadRange(const TReadLimit& exact);
+    TLegacyReadRange(const TLegacyReadLimit& lowerLimit, const TLegacyReadLimit& upperLimit);
+    explicit TLegacyReadRange(const TLegacyReadLimit& exact);
 
     explicit TLegacyReadRange(const NProto::TReadRange& range);
     explicit TLegacyReadRange(NProto::TReadRange&& range);
     TLegacyReadRange& operator= (const NProto::TReadRange& range);
     TLegacyReadRange& operator= (NProto::TReadRange&& range);
 
-    DEFINE_BYREF_RW_PROPERTY(TReadLimit, LowerLimit);
-    DEFINE_BYREF_RW_PROPERTY(TReadLimit, UpperLimit);
+    DEFINE_BYREF_RW_PROPERTY(TLegacyReadLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TLegacyReadLimit, UpperLimit);
 
     void Persist(const TStreamPersistenceContext& context);
 

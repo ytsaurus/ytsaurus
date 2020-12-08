@@ -3754,8 +3754,8 @@ private:
                 } else {
                     auto keyPair = GetChunkBoundaryKeys(chunkOrView->AsChunk()->ChunkMeta(), keyColumnCount);
                     readRange = {
-                        NChunkClient::TReadLimit(keyPair.first),
-                        NChunkClient::TReadLimit(GetKeySuccessor(keyPair.second))
+                        NChunkClient::TLegacyReadLimit(keyPair.first),
+                        NChunkClient::TLegacyReadLimit(GetKeySuccessor(keyPair.second))
                     };
                 }
 

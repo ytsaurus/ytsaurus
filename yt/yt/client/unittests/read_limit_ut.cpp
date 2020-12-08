@@ -18,9 +18,9 @@ TString DumpToYson(T obj)
     return ConvertToYsonString(obj, NYson::EYsonFormat::Text).GetData();
 }
 
-TEST(TReadLimitTest, Simple)
+TEST(TLegacyReadLimitTest, Simple)
 {
-    TReadLimit limit;
+    TLegacyReadLimit limit;
     EXPECT_EQ("{}", DumpToYson(limit));
     EXPECT_TRUE(limit.IsTrivial());
 

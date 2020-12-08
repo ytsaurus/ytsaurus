@@ -204,7 +204,7 @@ public:
                     IndexKeys_.begin(),
                     IndexKeys_.end(),
                     LowerLimit_,
-                    [] (const TIndexKey& indexKey, const NChunkClient::TReadLimit& limit) {
+                    [] (const TIndexKey& indexKey, const NChunkClient::TLegacyReadLimit& limit) {
                         return (limit.HasRowIndex() && indexKey.ChunkRowCount < limit.GetRowIndex())
                             || (limit.HasLegacyKey() && indexKey.Key < limit.GetLegacyKey());
                     }));
@@ -218,7 +218,7 @@ public:
                     IndexKeys_.begin() + BeginIndex_,
                     IndexKeys_.end(),
                     UpperLimit_,
-                    [] (const NChunkClient::TReadLimit& limit, const TIndexKey& indexKey) {
+                    [] (const NChunkClient::TLegacyReadLimit& limit, const TIndexKey& indexKey) {
                         return (limit.HasRowIndex() && limit.GetRowIndex() < indexKey.ChunkRowCount)
                             || (limit.HasLegacyKey() && limit.GetLegacyKey() < indexKey.Key);
                     }));
@@ -358,8 +358,8 @@ private:
 
     const NProto::TSliceRequest& SliceReq_;
     const NProto::TChunkMeta& Meta_;
-    NChunkClient::TReadLimit LowerLimit_;
-    NChunkClient::TReadLimit UpperLimit_;
+    NChunkClient::TLegacyReadLimit LowerLimit_;
+    NChunkClient::TLegacyReadLimit UpperLimit_;
 
     TLegacyOwningKey MinKey_;
     TLegacyOwningKey MaxKey_;

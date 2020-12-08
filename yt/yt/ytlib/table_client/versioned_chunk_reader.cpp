@@ -43,7 +43,7 @@ using namespace NChunkClient::NProto;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 using NChunkClient::TLegacyReadRange;
 using NChunkClient::TDataSliceDescriptor;
 
@@ -1736,8 +1736,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 auto cappedBounds = getCappedBounds();
 
                 TLegacyReadRange readRange(
-                    TReadLimit(TLegacyOwningKey(cappedBounds.Front().first)),
-                    TReadLimit(TLegacyOwningKey(cappedBounds.Front().second)));
+                    TLegacyReadLimit(TLegacyOwningKey(cappedBounds.Front().first)),
+                    TLegacyReadLimit(TLegacyOwningKey(cappedBounds.Front().second)));
 
                 return CreateSchemalessChunkReader(
                     chunkState,

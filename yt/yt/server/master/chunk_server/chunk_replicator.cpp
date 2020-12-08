@@ -78,7 +78,7 @@ using namespace NChunkServer::NProto;
 using namespace NCellMaster;
 using namespace NTransactionClient;
 
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1988,8 +1988,8 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             TChunk* chunk,
             std::optional<i64> /*rowIndex*/,
             std::optional<int> /*tabletIndex*/,
-            const TReadLimit& /*startLimit*/,
-            const TReadLimit& /*endLimit*/,
+            const TLegacyReadLimit& /*startLimit*/,
+            const TLegacyReadLimit& /*endLimit*/,
             TTransactionId /*timestampTransactionId*/) override
         {
             Owner_->ScheduleRequisitionUpdate(chunk);
@@ -2003,8 +2003,8 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
 
         virtual bool OnDynamicStore(
             TDynamicStore* /*dynamicStore*/,
-            const NChunkClient::TReadLimit& /*startLimit*/,
-            const NChunkClient::TReadLimit& /*endLimit*/) override
+            const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+            const NChunkClient::TLegacyReadLimit& /*endLimit*/) override
         {
             return true;
         }

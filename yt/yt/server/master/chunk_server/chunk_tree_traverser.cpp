@@ -87,16 +87,16 @@ protected:
         int ChildIndex;
         std::optional<i64> RowIndex;
         std::optional<int> TabletIndex;
-        TReadLimit LowerBound;
-        TReadLimit UpperBound;
+        TLegacyReadLimit LowerBound;
+        TLegacyReadLimit UpperBound;
 
         TStackEntry(
             TChunkList* chunkList,
             int childIndex,
             std::optional<i64> rowIndex,
             std::optional<int> tabletIndex,
-            const TReadLimit& lowerBound,
-            const TReadLimit& upperBound)
+            const TLegacyReadLimit& lowerBound,
+            const TLegacyReadLimit& upperBound)
             : ChunkList(chunkList)
             , ChunkListVersion(chunkList->GetVersion())
             , ChildIndex(childIndex)
@@ -341,8 +341,8 @@ protected:
         auto* child = chunkList->Children()[entry->ChildIndex];
         auto childType = child->GetType();
 
-        TReadLimit subtreeStartLimit;
-        TReadLimit subtreeEndLimit;
+        TLegacyReadLimit subtreeStartLimit;
+        TLegacyReadLimit subtreeEndLimit;
         std::optional<i64> rowIndex;
 
         if (EnforceBounds_) {
@@ -359,8 +359,8 @@ protected:
             // Tablet index.
             YT_VERIFY(!entry->LowerBound.HasTabletIndex() && !entry->UpperBound.HasTabletIndex());
 
-            TReadLimit childLowerBound;
-            TReadLimit childUpperBound;
+            TLegacyReadLimit childLowerBound;
+            TLegacyReadLimit childUpperBound;
 
             // Row index.
             {
@@ -472,8 +472,8 @@ protected:
         auto* child = chunkList->Children()[entry->ChildIndex];
         bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot;
 
-        TReadLimit subtreeStartLimit;
-        TReadLimit subtreeEndLimit;
+        TLegacyReadLimit subtreeStartLimit;
+        TLegacyReadLimit subtreeEndLimit;
         std::optional<int> tabletIndex;
 
         if (EnforceBounds_) {
@@ -486,8 +486,8 @@ protected:
             // Tablet index.
             YT_VERIFY((!entry->LowerBound.HasTabletIndex() && !entry->UpperBound.HasTabletIndex()) || isOrdered);
 
-            TReadLimit childLowerBound;
-            TReadLimit childUpperBound;
+            TLegacyReadLimit childLowerBound;
+            TLegacyReadLimit childUpperBound;
 
             auto pivotKey = chunkList->Children()[entry->ChildIndex]->AsChunkList()->GetPivotKey();
             auto nextPivotKey = entry->ChildIndex + 1 < chunkList->Children().size()
@@ -606,13 +606,13 @@ protected:
 
         auto tabletIndex = entry->TabletIndex;
 
-        TReadLimit subtreeStartLimit;
-        TReadLimit subtreeEndLimit;
+        TLegacyReadLimit subtreeStartLimit;
+        TLegacyReadLimit subtreeEndLimit;
         std::optional<i64> rowIndex;
 
         if (EnforceBounds_) {
-            TReadLimit childLowerBound;
-            TReadLimit childUpperBound;
+            TLegacyReadLimit childLowerBound;
+            TLegacyReadLimit childUpperBound;
 
             // Row index.
             if (isOrdered) {
@@ -754,8 +754,8 @@ protected:
         TChunkList* chunkList,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
-        const TReadLimit& lowerBound,
-        const TReadLimit& upperBound)
+        const TLegacyReadLimit& lowerBound,
+        const TLegacyReadLimit& upperBound)
     {
         if (chunkList->Children().empty()) {
             return;
@@ -818,8 +818,8 @@ protected:
     void PushFirstChildStatic(
         TChunkList* chunkList,
         std::optional<i64> rowIndex,
-        const TReadLimit& lowerBound,
-        const TReadLimit& upperBound)
+        const TLegacyReadLimit& lowerBound,
+        const TLegacyReadLimit& upperBound)
     {
         int chunkIndex = 0;
 
@@ -892,8 +892,8 @@ protected:
     void PushFirstChildDynamicRoot(
         TChunkList* chunkList,
         std::optional<i64> rowIndex,
-        TReadLimit lowerBound,
-        TReadLimit upperBound)
+        TLegacyReadLimit lowerBound,
+        TLegacyReadLimit upperBound)
     {
         int chunkIndex = 0;
 
@@ -958,8 +958,8 @@ protected:
         TChunkList* chunkList,
         std::optional<i64> rowIndex,
         std::optional<int> tabletIndex,
-        const TReadLimit& lowerBound,
-        const TReadLimit& upperBound)
+        const TLegacyReadLimit& lowerBound,
+        const TLegacyReadLimit& upperBound)
     {
         int chunkIndex = 0;
 
@@ -1022,10 +1022,10 @@ protected:
 
     void GetInducedSubtreeRange(
         const TStackEntry& entry,
-        const TReadLimit& childLowerBound,
-        const TReadLimit& childUpperBound,
-        TReadLimit* startLimit,
-        TReadLimit* endLimit)
+        const TLegacyReadLimit& childLowerBound,
+        const TLegacyReadLimit& childUpperBound,
+        TLegacyReadLimit* startLimit,
+        TLegacyReadLimit* endLimit)
     {
         YT_VERIFY(EnforceBounds_);
 
@@ -1195,8 +1195,8 @@ public:
         TChunkList* chunkList,
         bool enforceBounds,
         std::optional<int> keyColumnCount,
-        TReadLimit lowerBound,
-        TReadLimit upperBound)
+        TLegacyReadLimit lowerBound,
+        TLegacyReadLimit upperBound)
         : Context_(std::move(context))
         , Visitor_(std::move(visitor))
         , EnforceBounds_(enforceBounds)
@@ -1227,8 +1227,8 @@ void TraverseChunkTree(
     IChunkTraverserContextPtr traverserContext,
     IChunkVisitorPtr visitor,
     TChunkList* root,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit,
+    const TLegacyReadLimit& lowerLimit,
+    const TLegacyReadLimit& upperLimit,
     std::optional<int> keyColumnCount)
 {
     return New<TChunkTreeTraverser>(
@@ -1253,8 +1253,8 @@ void TraverseChunkTree(
         root,
         false,
         std::nullopt,
-        TReadLimit(),
-        TReadLimit())
+        TLegacyReadLimit(),
+        TLegacyReadLimit())
         ->Run();
 }
 
@@ -1399,8 +1399,8 @@ public:
 
     virtual bool OnDynamicStore(
         TDynamicStore* /*dynamicStore*/,
-        const NChunkClient::TReadLimit& /*startLimit*/,
-        const NChunkClient::TReadLimit& /*endLimit*/) override
+        const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+        const NChunkClient::TLegacyReadLimit& /*endLimit*/) override
     {
         return true;
     }
@@ -1409,8 +1409,8 @@ public:
         TChunk* chunk,
         std::optional<i64> /*rowIndex*/,
         std::optional<int> /*tabletIndex*/,
-        const NChunkClient::TReadLimit& /*startLimit*/,
-        const NChunkClient::TReadLimit& /*endLimit*/,
+        const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+        const NChunkClient::TLegacyReadLimit& /*endLimit*/,
         TTransactionId /*timestampTransactionId*/) override
     {
         Chunks_->push_back(chunk);
@@ -1467,8 +1467,8 @@ void EnumerateStoresInChunkTree(
 
         virtual bool OnDynamicStore(
             TDynamicStore* dynamicStore,
-            const NChunkClient::TReadLimit& /*startLimit*/,
-            const NChunkClient::TReadLimit& /*endLimit*/) override
+            const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+            const NChunkClient::TLegacyReadLimit& /*endLimit*/) override
         {
             Stores_->push_back(dynamicStore);
             return true;
@@ -1478,8 +1478,8 @@ void EnumerateStoresInChunkTree(
             TChunk* chunk,
             std::optional<i64> /*rowIndex*/,
             std::optional<int> /*tabletIndex*/,
-            const NChunkClient::TReadLimit& /*startLimit*/,
-            const NChunkClient::TReadLimit& /*endLimit*/,
+            const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+            const NChunkClient::TLegacyReadLimit& /*endLimit*/,
             TTransactionId /*timestampTransactionId*/) override
         {
             Stores_->push_back(chunk);

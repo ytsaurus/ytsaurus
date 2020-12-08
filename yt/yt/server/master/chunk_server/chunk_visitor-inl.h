@@ -42,8 +42,8 @@ private:
         TChunk* chunk,
         std::optional<i64> /*rowIndex*/,
         std::optional<int> /*tabletIndex*/,
-        const NChunkClient::TReadLimit& /*startLimit*/,
-        const NChunkClient::TReadLimit& /*endLimit*/,
+        const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+        const NChunkClient::TLegacyReadLimit& /*endLimit*/,
         TTransactionId /*timestampTransactionId*/) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -61,8 +61,8 @@ private:
 
     virtual bool OnDynamicStore(
         TDynamicStore* /*dynamicStore*/,
-        const NChunkClient::TReadLimit& /*startLimit*/,
-        const NChunkClient::TReadLimit& /*endLimit*/) override
+        const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+        const NChunkClient::TLegacyReadLimit& /*endLimit*/) override
     {
         return true;
     }

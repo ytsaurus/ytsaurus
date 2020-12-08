@@ -72,7 +72,7 @@ using namespace NApi;
 using namespace NLogging;
 
 using NChunkClient::TDataSliceDescriptor;
-using NChunkClient::TReadLimit;
+using NChunkClient::TLegacyReadLimit;
 using NChunkClient::TLegacyReadRange;
 using NChunkClient::NProto::TMiscExt;
 using NChunkClient::TChunkReaderStatistics;
@@ -171,8 +171,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     }
 
                     TLegacyReadRange range{
-                        chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
-                        chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
+                        chunkSpec.has_lower_limit() ? TLegacyReadLimit(chunkSpec.lower_limit()) : TLegacyReadLimit(),
+                        chunkSpec.has_upper_limit() ? TLegacyReadLimit(chunkSpec.upper_limit()) : TLegacyReadLimit()
                     };
 
                     auto asyncChunkMeta = DownloadChunkMeta(remoteReader, blockReadOptions, partitionTag);
@@ -1032,7 +1032,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto type = TypeFromId(FromProto<TChunkId>(chunkSpec.chunk_id()));
 
         if (chunkSpec.has_lower_limit()) {
-            auto limit = FromProto<TReadLimit>(chunkSpec.lower_limit());
+            auto limit = FromProto<TLegacyReadLimit>(chunkSpec.lower_limit());
             if (limit.HasLegacyKey()) {
                 return limit.GetLegacyKey();
             }
@@ -1093,17 +1093,17 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
         auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
-        TReadLimit lowerLimit;
-        TReadLimit upperLimit;
+        TLegacyReadLimit lowerLimit;
+        TLegacyReadLimit upperLimit;
 
         if (chunkSpec.has_lower_limit()) {
-            lowerLimit = NYT::FromProto<TReadLimit>(chunkSpec.lower_limit());
+            lowerLimit = NYT::FromProto<TLegacyReadLimit>(chunkSpec.lower_limit());
         } else {
             lowerLimit.SetLegacyKey(MinKey());
         }
 
         if (chunkSpec.has_upper_limit()) {
-            upperLimit = NYT::FromProto<TReadLimit>(chunkSpec.upper_limit());
+            upperLimit = NYT::FromProto<TLegacyReadLimit>(chunkSpec.upper_limit());
         } else {
             upperLimit.SetLegacyKey(MaxKey());
         }

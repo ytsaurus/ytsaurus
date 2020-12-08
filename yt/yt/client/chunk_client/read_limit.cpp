@@ -20,48 +20,48 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReadLimit::TReadLimit(const NProto::TReadLimit& protoLimit)
+TLegacyReadLimit::TLegacyReadLimit(const NProto::TReadLimit& protoLimit)
 {
     InitCopy(protoLimit);
 }
 
-TReadLimit::TReadLimit(NProto::TReadLimit&& protoLimit)
+TLegacyReadLimit::TLegacyReadLimit(NProto::TReadLimit&& protoLimit)
 {
     InitMove(std::move(protoLimit));
 }
 
-TReadLimit::TReadLimit(const std::unique_ptr<NProto::TReadLimit>& protoLimit)
+TLegacyReadLimit::TLegacyReadLimit(const std::unique_ptr<NProto::TReadLimit>& protoLimit)
 {
     if (protoLimit) {
         InitCopy(*protoLimit);
     }
 }
 
-TReadLimit::TReadLimit(const TLegacyOwningKey& key)
+TLegacyReadLimit::TLegacyReadLimit(const TLegacyOwningKey& key)
 {
     SetLegacyKey(key);
 }
 
-TReadLimit::TReadLimit(TLegacyOwningKey&& key)
+TLegacyReadLimit::TLegacyReadLimit(TLegacyOwningKey&& key)
 {
     SetLegacyKey(std::move(key));
 }
 
-TReadLimit& TReadLimit::operator= (const NProto::TReadLimit& protoLimit)
+TLegacyReadLimit& TLegacyReadLimit::operator= (const NProto::TReadLimit& protoLimit)
 {
     InitCopy(protoLimit);
     return *this;
 }
 
-TReadLimit& TReadLimit::operator= (NProto::TReadLimit&& protoLimit)
+TLegacyReadLimit& TLegacyReadLimit::operator= (NProto::TReadLimit&& protoLimit)
 {
     InitMove(std::move(protoLimit));
     return *this;
 }
 
-TReadLimit TReadLimit::GetSuccessor() const
+TLegacyReadLimit TLegacyReadLimit::GetSuccessor() const
 {
-    TReadLimit result;
+    TLegacyReadLimit result;
     if (HasLegacyKey()) {
         auto key = GetLegacyKey();
         result.SetLegacyKey(GetKeyPrefixSuccessor(key, key.GetCount()));
@@ -79,164 +79,164 @@ TReadLimit TReadLimit::GetSuccessor() const
     return result;
 }
 
-const NProto::TReadLimit& TReadLimit::AsProto() const
+const NProto::TReadLimit& TLegacyReadLimit::AsProto() const
 {
     return ReadLimit_;
 }
 
-const TLegacyOwningKey& TReadLimit::GetLegacyKey() const
+const TLegacyOwningKey& TLegacyReadLimit::GetLegacyKey() const
 {
     YT_ASSERT(HasLegacyKey());
     return Key_;
 }
 
-bool TReadLimit::HasLegacyKey() const
+bool TLegacyReadLimit::HasLegacyKey() const
 {
     return ReadLimit_.has_legacy_key();
 }
 
-TReadLimit& TReadLimit::SetLegacyKey(const TLegacyOwningKey& key)
+TLegacyReadLimit& TLegacyReadLimit::SetLegacyKey(const TLegacyOwningKey& key)
 {
     Key_ = key;
     ToProto(ReadLimit_.mutable_legacy_key(), Key_);
     return *this;
 }
 
-TReadLimit& TReadLimit::SetLegacyKey(TLegacyOwningKey&& key)
+TLegacyReadLimit& TLegacyReadLimit::SetLegacyKey(TLegacyOwningKey&& key)
 {
     swap(Key_, key);
     ToProto(ReadLimit_.mutable_legacy_key(), Key_);
     return *this;
 }
 
-i64 TReadLimit::GetRowIndex() const
+i64 TLegacyReadLimit::GetRowIndex() const
 {
     YT_ASSERT(HasRowIndex());
     return ReadLimit_.row_index();
 }
 
-bool TReadLimit::HasRowIndex() const
+bool TLegacyReadLimit::HasRowIndex() const
 {
     return ReadLimit_.has_row_index();
 }
 
-TReadLimit& TReadLimit::SetRowIndex(i64 rowIndex)
+TLegacyReadLimit& TLegacyReadLimit::SetRowIndex(i64 rowIndex)
 {
     ReadLimit_.set_row_index(rowIndex);
     return *this;
 }
 
-i64 TReadLimit::GetOffset() const
+i64 TLegacyReadLimit::GetOffset() const
 {
     YT_ASSERT(HasOffset());
     return ReadLimit_.offset();
 }
 
-bool TReadLimit::HasOffset() const
+bool TLegacyReadLimit::HasOffset() const
 {
     return ReadLimit_.has_offset();
 }
 
-TReadLimit& TReadLimit::SetOffset(i64 offset)
+TLegacyReadLimit& TLegacyReadLimit::SetOffset(i64 offset)
 {
     ReadLimit_.set_offset(offset);
     return *this;
 }
 
-i64 TReadLimit::GetChunkIndex() const
+i64 TLegacyReadLimit::GetChunkIndex() const
 {
     YT_ASSERT(HasChunkIndex());
     return ReadLimit_.chunk_index();
 }
 
-bool TReadLimit::HasChunkIndex() const
+bool TLegacyReadLimit::HasChunkIndex() const
 {
     return ReadLimit_.has_chunk_index();
 }
 
-TReadLimit& TReadLimit::SetChunkIndex(i64 chunkIndex)
+TLegacyReadLimit& TLegacyReadLimit::SetChunkIndex(i64 chunkIndex)
 {
     ReadLimit_.set_chunk_index(chunkIndex);
     return *this;
 }
 
-i32 TReadLimit::GetTabletIndex() const
+i32 TLegacyReadLimit::GetTabletIndex() const
 {
     YT_ASSERT(HasTabletIndex());
     return ReadLimit_.tablet_index();
 }
 
-bool TReadLimit::HasTabletIndex() const
+bool TLegacyReadLimit::HasTabletIndex() const
 {
     return ReadLimit_.has_tablet_index();
 }
 
-TReadLimit& TReadLimit::SetTabletIndex(i32 tabletIndex)
+TLegacyReadLimit& TLegacyReadLimit::SetTabletIndex(i32 tabletIndex)
 {
     ReadLimit_.set_tablet_index(tabletIndex);
     return *this;
 }
 
-bool TReadLimit::IsTrivial() const
+bool TLegacyReadLimit::IsTrivial() const
 {
     return NChunkClient::IsTrivial(ReadLimit_);
 }
 
-void TReadLimit::Persist(const TStreamPersistenceContext& context)
+void TLegacyReadLimit::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ReadLimit_);
     Persist(context, Key_);
 }
 
-void TReadLimit::MergeLowerLegacyKey(const TLegacyOwningKey& key)
+void TLegacyReadLimit::MergeLowerLegacyKey(const TLegacyOwningKey& key)
 {
     if (!HasLegacyKey() || GetLegacyKey() < key) {
         SetLegacyKey(key);
     }
 }
 
-void TReadLimit::MergeUpperLegacyKey(const TLegacyOwningKey& key)
+void TLegacyReadLimit::MergeUpperLegacyKey(const TLegacyOwningKey& key)
 {
     if (!HasLegacyKey() || GetLegacyKey() > key) {
         SetLegacyKey(key);
     }
 }
 
-void TReadLimit::MergeLowerRowIndex(i64 rowIndex)
+void TLegacyReadLimit::MergeLowerRowIndex(i64 rowIndex)
 {
     if (!HasRowIndex() || GetRowIndex() < rowIndex) {
         SetRowIndex(rowIndex);
     }
 }
 
-void TReadLimit::MergeUpperRowIndex(i64 rowIndex)
+void TLegacyReadLimit::MergeUpperRowIndex(i64 rowIndex)
 {
     if (!HasRowIndex() || GetRowIndex() > rowIndex) {
         SetRowIndex(rowIndex);
     }
 }
 
-void TReadLimit::InitKey()
+void TLegacyReadLimit::InitKey()
 {
     if (ReadLimit_.has_legacy_key()) {
         FromProto(&Key_, ReadLimit_.legacy_key());
     }
 }
 
-void TReadLimit::InitCopy(const NProto::TReadLimit& readLimit)
+void TLegacyReadLimit::InitCopy(const NProto::TReadLimit& readLimit)
 {
     ReadLimit_.CopyFrom(readLimit);
     InitKey();
 }
 
-void TReadLimit::InitMove(NProto::TReadLimit&& readLimit)
+void TLegacyReadLimit::InitMove(NProto::TReadLimit&& readLimit)
 {
     ReadLimit_.Swap(&readLimit);
     InitKey();
 }
 
-size_t TReadLimit::SpaceUsed() const
+size_t TLegacyReadLimit::SpaceUsed() const
 {
     return
        sizeof(*this) +
@@ -246,7 +246,7 @@ size_t TReadLimit::SpaceUsed() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TReadLimit& limit)
+TString ToString(const TLegacyReadLimit& limit)
 {
     using ::ToString;
 
@@ -288,7 +288,7 @@ TString ToString(const TReadLimit& limit)
     return builder.Flush();
 }
 
-bool IsTrivial(const TReadLimit& limit)
+bool IsTrivial(const TLegacyReadLimit& limit)
 {
     return limit.IsTrivial();
 }
@@ -303,19 +303,19 @@ bool IsTrivial(const NProto::TReadLimit& limit)
         !limit.has_tablet_index();
 }
 
-void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit)
+void ToProto(NProto::TReadLimit* protoReadLimit, const TLegacyReadLimit& readLimit)
 {
     protoReadLimit->CopyFrom(readLimit.AsProto());
 }
 
-void FromProto(TReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit)
+void FromProto(TLegacyReadLimit* readLimit, const NProto::TReadLimit& protoReadLimit)
 {
     *readLimit = protoReadLimit;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TReadLimit& readLimit, IYsonConsumer* consumer)
+void Serialize(const TLegacyReadLimit& readLimit, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -353,7 +353,7 @@ std::optional<T> FindReadLimitComponent(const IAttributeDictionaryPtr& attribute
 
 } // namespace
 
-void Deserialize(TReadLimit& readLimit, INodePtr node)
+void Deserialize(TLegacyReadLimit& readLimit, INodePtr node)
 {
     if (node->GetType() != NYTree::ENodeType::Map) {
         THROW_ERROR_EXCEPTION("Error parsing read limit: expected %Qlv, actual %Qlv",
@@ -361,7 +361,7 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
             node->GetType());
     }
 
-    readLimit = TReadLimit();
+    readLimit = TLegacyReadLimit();
     auto attributes = ConvertToAttributes(node);
 
     auto optionalKey = FindReadLimitComponent<TLegacyOwningKey>(attributes, "key");
@@ -392,12 +392,12 @@ void Deserialize(TReadLimit& readLimit, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLegacyReadRange::TLegacyReadRange(const TReadLimit& exact)
+TLegacyReadRange::TLegacyReadRange(const TLegacyReadLimit& exact)
     : LowerLimit_(exact)
     , UpperLimit_(exact.GetSuccessor())
 { }
 
-TLegacyReadRange::TLegacyReadRange(const TReadLimit& lowerLimit, const TReadLimit& upperLimit)
+TLegacyReadRange::TLegacyReadRange(const TLegacyReadLimit& lowerLimit, const TLegacyReadLimit& upperLimit)
     : LowerLimit_(lowerLimit)
     , UpperLimit_(upperLimit)
 { }
@@ -426,14 +426,14 @@ TLegacyReadRange& TLegacyReadRange::operator= (NProto::TReadRange&& range)
 
 void TLegacyReadRange::InitCopy(const NProto::TReadRange& range)
 {
-    LowerLimit_ = range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit();
-    UpperLimit_ = range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit();
+    LowerLimit_ = range.has_lower_limit() ? TLegacyReadLimit(range.lower_limit()) : TLegacyReadLimit();
+    UpperLimit_ = range.has_upper_limit() ? TLegacyReadLimit(range.upper_limit()) : TLegacyReadLimit();
 }
 
 void TLegacyReadRange::InitMove(NProto::TReadRange&& range)
 {
-    LowerLimit_ = range.has_lower_limit() ? TReadLimit(range.lower_limit()) : TReadLimit();
-    UpperLimit_ = range.has_upper_limit() ? TReadLimit(range.upper_limit()) : TReadLimit();
+    LowerLimit_ = range.has_lower_limit() ? TLegacyReadLimit(range.lower_limit()) : TLegacyReadLimit();
+    UpperLimit_ = range.has_upper_limit() ? TLegacyReadLimit(range.upper_limit()) : TLegacyReadLimit();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,9 +498,9 @@ void Deserialize(TLegacyReadRange& readRange, NYTree::INodePtr node)
 
     readRange = TLegacyReadRange();
     auto attributes = ConvertToAttributes(node);
-    auto optionalExact = FindReadRangeComponent<TReadLimit>(attributes, "exact");
-    auto optionalLowerLimit = FindReadRangeComponent<TReadLimit>(attributes, "lower_limit");
-    auto optionalUpperLimit = FindReadRangeComponent<TReadLimit>(attributes, "upper_limit");
+    auto optionalExact = FindReadRangeComponent<TLegacyReadLimit>(attributes, "exact");
+    auto optionalLowerLimit = FindReadRangeComponent<TLegacyReadLimit>(attributes, "lower_limit");
+    auto optionalUpperLimit = FindReadRangeComponent<TLegacyReadLimit>(attributes, "upper_limit");
 
     if (optionalExact) {
         if (optionalLowerLimit || optionalUpperLimit) {

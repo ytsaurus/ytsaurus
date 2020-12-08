@@ -22,7 +22,7 @@ namespace NYT::NChunkClient {
 struct TLegacyInputSliceLimit
 {
     TLegacyInputSliceLimit() = default;
-    explicit TLegacyInputSliceLimit(const TReadLimit& other);
+    explicit TLegacyInputSliceLimit(const TLegacyReadLimit& other);
     TLegacyInputSliceLimit(
         const NProto::TReadLimit& other,
         const NTableClient::TRowBufferPtr& rowBuffer,

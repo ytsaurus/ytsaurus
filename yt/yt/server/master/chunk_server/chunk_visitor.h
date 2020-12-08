@@ -51,16 +51,16 @@ private:
         TChunk* chunk,
         std::optional<i64> /*rowIndex*/,
         std::optional<int> /*tabletIndex*/,
-        const NChunkClient::TReadLimit& /*startLimit*/,
-        const NChunkClient::TReadLimit& /*endLimit*/,
+        const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+        const NChunkClient::TLegacyReadLimit& /*endLimit*/,
         TTransactionId /*timestampTransactionId*/) override;
 
     virtual bool OnChunkView(TChunkView* /*chunkView*/) override;
 
     virtual bool OnDynamicStore(
         TDynamicStore* /*dynamicStore*/,
-        const NChunkClient::TReadLimit& /*startLimit*/,
-        const NChunkClient::TReadLimit& /*endLimit*/) override;
+        const NChunkClient::TLegacyReadLimit& /*startLimit*/,
+        const NChunkClient::TLegacyReadLimit& /*endLimit*/) override;
 
     virtual void OnSuccess() override;
 };
