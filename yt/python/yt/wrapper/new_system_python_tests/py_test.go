@@ -227,8 +227,16 @@ func PreparePython(preparedPythonPath string, t *testing.T) error {
 
 func TestPyTest(t *testing.T) {
 	var err error
+	var isOK bool
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
+
+	var useSystemPython string
+	useSystemPython, isOK = yatest.BuildFlag("USE_SYSTEM_PYTHON")
+	if !isOK || useSystemPython == "" {
+		t.Skipf("You should specify USE_SYSTEM_PYTHON")
+		return
+	}
 
 	testsRoot := os.Getenv("TESTS_SANDBOX")
 	if testsRoot == "" {
