@@ -119,6 +119,23 @@ func (e *Encoder) SetNode(
 	return
 }
 
+func (e *Encoder) MultisetAttributes(
+	ctx context.Context,
+	path ypath.YPath,
+	attributes map[string]interface{},
+	options *yt.MultisetAttributesOptions,
+) (err error) {
+	call := e.newCall(NewMultisetAttributesParams(path, options))
+	call.YSONValue, err = yson.Marshal(attributes)
+	if err != nil {
+		return
+	}
+	err = e.do(ctx, call, func(res *CallResult) error {
+		return nil
+	})
+	return
+}
+
 func (e *Encoder) ListNode(
 	ctx context.Context,
 	path ypath.YPath,

@@ -3,15 +3,16 @@ package internal
 type Verb string
 
 const (
-	VerbCreate Verb = "create"
-	VerbExists Verb = "exists"
-	VerbRemove Verb = "remove"
-	VerbGet    Verb = "get"
-	VerbSet    Verb = "set"
-	VerbList   Verb = "list"
-	VerbCopy   Verb = "copy"
-	VerbMove   Verb = "move"
-	VerbLink   Verb = "link"
+	VerbCreate             Verb = "create"
+	VerbExists             Verb = "exists"
+	VerbRemove             Verb = "remove"
+	VerbGet                Verb = "get"
+	VerbSet                Verb = "set"
+	VerbMultisetAttributes Verb = "multiset_attributes"
+	VerbList               Verb = "list"
+	VerbCopy               Verb = "copy"
+	VerbMove               Verb = "move"
+	VerbLink               Verb = "link"
 
 	VerbWriteFile        Verb = "write_file"
 	VerbReadFile         Verb = "read_file"
@@ -58,7 +59,7 @@ const (
 
 func (v Verb) hasInput() bool {
 	switch v {
-	case VerbSet, VerbWriteFile, VerbWriteTable:
+	case VerbSet, VerbMultisetAttributes, VerbWriteFile, VerbWriteTable:
 		return true
 
 	case VerbInsertRows, VerbDeleteRows, VerbLookupRows, VerbLockRows:
