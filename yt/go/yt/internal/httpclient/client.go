@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/library/go/core/log"
@@ -221,6 +222,14 @@ func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, e
 	return
 }
 
+func (c *httpClient) startCall() *internal.Call {
+	bf := backoff.NewExponentialBackOff()
+	bf.MaxElapsedTime = c.config.GetLightRequestTimeout()
+	return &internal.Call{
+		Backoff: bf,
+	}
+}
+
 func (c *httpClient) do(ctx context.Context, call *internal.Call) (res *internal.CallResult, err error) {
 	var req *http.Request
 	req, err = c.newHTTPRequest(ctx, call, nil)
@@ -381,7 +390,7 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 }
 
 func (c *httpClient) BeginTx(ctx context.Context, options *yt.StartTxOptions) (yt.Tx, error) {
-	return internal.NewTx(ctx, c.Encoder, c.stop, options)
+	return internal.NewTx(ctx, c.Encoder, c.stop, c.config, options)
 }
 
 func (c *httpClient) Stop() {
@@ -437,6 +446,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.stop = internal.NewStopGroup()
 	client.proxySet = &internal.ProxySet{UpdateFn: client.listHeavyProxies}
 
+	client.Encoder.StartCall = client.startCall
 	client.Encoder.Invoke = client.do
 	client.Encoder.InvokeRead = client.doRead
 	client.Encoder.InvokeReadRow = client.doReadRow
@@ -444,7 +454,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.Encoder.InvokeWriteRow = client.doWriteRow
 
 	client.mutationRetrier = &internal.MutationRetrier{Log: client.log}
-	client.readRetrier = &internal.Retrier{Log: client.log}
+	client.readRetrier = &internal.Retrier{Config: client.config, Log: client.log}
 	client.requestLogger = &internal.LoggingInterceptor{Structured: client.log}
 	proxyBouncer := &internal.ProxyBouncer{ProxySet: client.proxySet}
 	errorWrapper := &internal.ErrorWrapper{}

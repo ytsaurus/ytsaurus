@@ -16,7 +16,11 @@ import (
 	zaplog "a.yandex-team.ru/library/go/core/log/zap"
 )
 
-const DefaultTxTimeout = 15 * time.Second
+const (
+	DefaultLightRequestTimeout = 5 * time.Minute
+	DefaultTxTimeout           = 15 * time.Second
+	DefaultTxPingPeriod        = 3 * time.Second
+)
 
 type Config struct {
 	// Proxy configures address of YT HTTP proxy.
@@ -48,6 +52,26 @@ type Config struct {
 	//
 	// WARNING: Running YT client in production without debug logs is highly discouraged.
 	Logger log.Structured
+
+	// LightRequestTimeout specifies default timeout for light requests. Timeout includes all retries and backoffs.
+	// Timeout for single request is not configurable right now.
+	//
+	// A Timeout of zero means no timeout. Client can still specify timeout on per-request basis using context.
+	//
+	// nil value means default timeout of 5 minutes.
+	LightRequestTimeout *time.Duration
+
+	// TxTimeout specifies timeout of YT transaction (both master and tablet).
+	//
+	// YT transaction is aborted by server after not receiving pings from client for TxTimeout seconds.
+	//
+	// TxTimeout of zero means default timeout of 15 seconds.
+	TxTimeout time.Duration
+
+	// TxPingPeriod specifies period of pings for YT transactions.
+	//
+	// TxPingPeriod of zero means default value of 3 seconds.
+	TxPingPeriod time.Duration
 }
 
 func (c *Config) GetProxy() (string, error) {
@@ -111,6 +135,30 @@ func (c *Config) GetLogger() log.Structured {
 		panic(fmt.Sprintf("failed to configure default logger: %+v", err))
 	}
 	return l.Structured()
+}
+
+func (c *Config) GetLightRequestTimeout() time.Duration {
+	if c.LightRequestTimeout != nil {
+		return *c.LightRequestTimeout
+	}
+
+	return DefaultLightRequestTimeout
+}
+
+func (c *Config) GetTxTimeout() time.Duration {
+	if c.TxTimeout == 0 {
+		return DefaultTxTimeout
+	}
+
+	return c.TxTimeout
+}
+
+func (c *Config) GetTxPingPeriod() time.Duration {
+	if c.TxPingPeriod == 0 {
+		return DefaultTxPingPeriod
+	}
+
+	return c.TxPingPeriod
 }
 
 type ClusterURL struct {

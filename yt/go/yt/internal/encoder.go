@@ -14,6 +14,8 @@ import (
 
 // Encoder is adapter between typed and untyped layer of API.
 type Encoder struct {
+	StartCall func() *Call
+
 	Invoke         CallInvoker
 	InvokeRead     ReadInvoker
 	InvokeWrite    WriteInvoker
@@ -22,11 +24,10 @@ type Encoder struct {
 }
 
 func (e *Encoder) newCall(p Params) *Call {
-	return &Call{
-		Params:  p,
-		CallID:  guid.New(),
-		Backoff: DefaultBackoff(),
-	}
+	call := e.StartCall()
+	call.Params = p
+	call.CallID = guid.New()
+	return call
 }
 
 func (e *Encoder) do(ctx context.Context, call *Call, decode func(res *CallResult) error) error {

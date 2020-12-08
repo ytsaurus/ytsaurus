@@ -3,7 +3,6 @@ package internal
 import (
 	"context"
 	"io"
-	"time"
 
 	"golang.org/x/xerrors"
 
@@ -21,16 +20,20 @@ type TransactionParams interface {
 	TransactionOptions() **yt.TransactionOptions
 }
 
-func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxOptions) (yt.Tx, error) {
+func NewTx(
+	ctx context.Context,
+	e Encoder,
+	stop *StopGroup,
+	config *yt.Config,
+	options *yt.StartTxOptions,
+) (yt.Tx, error) {
 	if options == nil {
 		options = &yt.StartTxOptions{}
 	}
 
 	updatedOptions := *options
-	txTimeout := yson.Duration(yt.DefaultTxTimeout)
-	if updatedOptions.Timeout == nil {
-		updatedOptions.Timeout = &txTimeout
-	}
+	txTimeout := yson.Duration(config.GetTxTimeout())
+	updatedOptions.Timeout = &txTimeout
 
 	txID, err := e.StartTx(ctx, &updatedOptions)
 	if err != nil {
@@ -40,7 +43,7 @@ func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxO
 	tx := &TxInterceptor{
 		Encoder: e,
 		Client:  e,
-		pinger:  NewPinger(ctx, &e, txID, time.Duration(*updatedOptions.Timeout), stop),
+		pinger:  NewPinger(ctx, &e, txID, config, stop),
 	}
 
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
@@ -81,7 +84,7 @@ func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions)
 
 	options.TransactionID = t.ID()
 
-	return NewTx(ctx, t.Client, t.pinger.stop, options)
+	return NewTx(ctx, t.Client, t.pinger.stop, t.pinger.config, options)
 }
 
 func (t *TxInterceptor) Abort() (err error) {

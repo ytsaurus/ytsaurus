@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yt"
 )
 
 type netError struct {
@@ -49,7 +50,7 @@ func TestReadOnlyMethods(t *testing.T) {
 }
 
 func TestReadRetrierRetriesGet(t *testing.T) {
-	r := &Retrier{}
+	r := &Retrier{Config: &yt.Config{}}
 
 	call := &Call{
 		Params:  NewGetNodeParams(ypath.Root, nil),
@@ -72,7 +73,7 @@ func TestReadRetrierRetriesGet(t *testing.T) {
 }
 
 func TestReadRetrierIgnoresMutations(t *testing.T) {
-	r := &Retrier{}
+	r := &Retrier{Config: &yt.Config{}}
 
 	call := &Call{
 		Params:  NewSetNodeParams(ypath.Root, nil),

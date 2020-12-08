@@ -32,19 +32,25 @@ type Pinger struct {
 	abortCtx           context.Context
 	stop               *StopGroup
 	txID               yt.TxID
-	txTimeout          time.Duration
+	config             *yt.Config
 	finished           chan struct{}
 }
 
-func NewPinger(ctx context.Context, yc yt.LowLevelTxClient, txID yt.TxID, txTimeout time.Duration, stop *StopGroup) *Pinger {
+func NewPinger(
+	ctx context.Context,
+	yc yt.LowLevelTxClient,
+	txID yt.TxID,
+	config *yt.Config,
+	stop *StopGroup,
+) *Pinger {
 	return &Pinger{
-		yc:        yc,
-		ctx:       ctx,
-		abortCtx:  &abortCtx{ctx},
-		stop:      stop,
-		txID:      txID,
-		txTimeout: txTimeout,
-		finished:  make(chan struct{}),
+		yc:       yc,
+		ctx:      ctx,
+		abortCtx: &abortCtx{ctx},
+		stop:     stop,
+		txID:     txID,
+		config:   config,
+		finished: make(chan struct{}),
 	}
 }
 
@@ -53,7 +59,7 @@ func (p *Pinger) abortBackground() {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(p.abortCtx, p.txTimeout)
+	ctx, cancel := context.WithTimeout(p.abortCtx, p.config.GetTxTimeout())
 	defer cancel()
 
 	_ = p.yc.AbortTx(ctx, p.txID, nil)
@@ -108,7 +114,7 @@ func (p *Pinger) TryCommit() error {
 func (p *Pinger) Run() {
 	defer p.stop.Done()
 
-	ticker := time.NewTicker(p.txTimeout / 3)
+	ticker := time.NewTicker(p.config.GetTxPingPeriod())
 	defer ticker.Stop()
 
 	for {
