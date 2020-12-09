@@ -353,7 +353,7 @@ TErasurePartsReader::TErasurePartsReader(
     , ChunkReaders_(std::move(readers))
     , PartIndices_(partIndices)
     , Logger(std::move(logger))
-    , ChunkId_(DecodeChunkId(ChunkReaders_[0]->GetChunkId()).Id)
+    , ChunkId_(ChunkReaders_.empty() ? TChunkId() : DecodeChunkId(ChunkReaders_[0]->GetChunkId()).Id)
 { }
 
 TFuture<std::vector<std::vector<TSharedRef>>> TErasurePartsReader::ReadRows(
