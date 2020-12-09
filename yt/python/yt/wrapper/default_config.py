@@ -301,6 +301,7 @@ default_config = {
 
     # By default HTTP requests to YT are forbidden inside jobs to avoid strange errors
     # and unnecessary cluster accesses.
+    # This option could be enabled ONLY by explicit approval on yt-admin@ mail list.
     "allow_http_requests_to_yt_from_job": False,
 
     "yamr_mode": {
