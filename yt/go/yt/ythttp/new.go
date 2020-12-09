@@ -9,7 +9,11 @@ import (
 	"a.yandex-team.ru/yt/go/yt/internal/httpclient"
 )
 
-func checkNotInsideJob() error {
+func checkNotInsideJob(c *yt.Config) error {
+	if c.AllowRequestsFromJob {
+		return nil
+	}
+
 	if mapreduce.RequestsFromJobAllowed() {
 		return nil
 	}
@@ -23,7 +27,7 @@ func checkNotInsideJob() error {
 
 // NewClient creates new client from config.
 func NewClient(c *yt.Config) (yt.Client, error) {
-	if err := checkNotInsideJob(); err != nil {
+	if err := checkNotInsideJob(c); err != nil {
 		return nil, err
 	}
 
