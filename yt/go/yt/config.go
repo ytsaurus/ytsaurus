@@ -72,6 +72,18 @@ type Config struct {
 	//
 	// TxPingPeriod of zero means default value of 3 seconds.
 	TxPingPeriod time.Duration
+
+	// AllowRequestsFromJob explicitly allows creating client inside YT job.
+	//
+	// WARNING: This option can be enabled ONLY after explicit approval from YT team. If you enable this option
+	// without approval, your might be BANNED.
+	//
+	// If you need to read tables, or access cypress from YT job, use API provided by mapreduce package, or
+	// redesign your application.
+	//
+	// Typical mapreduce operation can launch hundred of thousands concurrent jobs. If each job makes even a single request,
+	// that could easily lead to master/proxy overload.
+	AllowRequestsFromJob bool
 }
 
 func (c *Config) GetProxy() (string, error) {
