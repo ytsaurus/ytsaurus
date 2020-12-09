@@ -49,10 +49,12 @@ public:
         TDefaultSecretVaultServiceConfigPtr config,
         ITvmServicePtr tvmService,
         IPollerPtr poller,
-        NProfiling::TRegistry profiler)
+        NProfiling::TRegistry profiler,
+        bool validateResponseEncoding = false)
         : Config_(std::move(config))
         , TvmService_(std::move(tvmService))
         , HttpClient_(CreateHttpClient(std::move(poller)))
+        , ValidateResponseEncoding_(validateResponseEncoding)
         , SubrequestsPerCallGauge_(profiler.Gauge("/subrequests_per_call"))
         , CallCountCounter_(profiler.Counter("/call_count"))
         , SubrequestCountCounter_(profiler.Counter("/subrequest_count"))
@@ -78,6 +80,8 @@ private:
     const ITvmServicePtr TvmService_;
 
     const NHttp::IClientPtr HttpClient_;
+
+    const bool ValidateResponseEncoding_;
 
     NProfiling::TGauge SubrequestsPerCallGauge_;
     NProfiling::TCounter CallCountCounter_;
@@ -156,19 +160,17 @@ private:
 
         IMapNodePtr rootNode;
         try {
-            YT_LOG_DEBUG("Started reading response body from Vault (CallId: %v)",
-                callId);
-
             auto body = rsp->ReadAll();
-
-            YT_LOG_DEBUG("Finished reading response body from Vault (CallId: %v)\n%v",
-                callId,
-                body);
-
-            TMemoryInput stream(body.Begin(), body.Size());
-            auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
-            ParseJson(&stream, builder.get());
-            rootNode = builder->EndTree()->AsMap();
+            if (ValidateResponseEncoding_) {
+                rootNode = ParseVaultResponse(body, true);
+                auto alternate = ParseVaultResponse(body, false);
+                if (!AreNodesEqual(rootNode, alternate)) {
+                    THROW_ERROR_EXCEPTION(
+                        "YP-2608: broken utf8 decoding of secrets. Remove non-ASCII characters.");
+                }
+            } else {
+                rootNode = ParseVaultResponse(body, Config_->EnableBrokenUtf8DecoderForCompatibility);
+            }
         } catch (const std::exception& ex) {
             onError(TError(
                 ESecretVaultErrorCode::MalformedResponse,
@@ -254,6 +256,16 @@ private:
                 << ex);
         }
         return subresponses;
+    }
+
+    IMapNodePtr ParseVaultResponse(const TSharedRef& body, const bool mangleUtf8)
+    {
+        TMemoryInput stream(body.Begin(), body.Size());
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        auto jsonConfig = New<TJsonFormatConfig>();
+        jsonConfig->EncodeUtf8 = mangleUtf8;
+        ParseJson(&stream, builder.get(), jsonConfig);
+        return builder->EndTree()->AsMap();
     }
 
     static ESecretVaultErrorCode ParseErrorCode(TStringBuf codeString)
@@ -347,7 +359,7 @@ private:
         jsonWriter->Flush();
         return TSharedRef::FromString(std::move(body));
     }
-};
+}; // TDefaultSecretVaultService
 
 ISecretVaultServicePtr CreateDefaultSecretVaultService(
     TDefaultSecretVaultServiceConfigPtr config,
@@ -360,6 +372,20 @@ ISecretVaultServicePtr CreateDefaultSecretVaultService(
         std::move(tvmService),
         std::move(poller),
         std::move(profiler));
+}
+
+ISecretVaultServicePtr CreateValidatingSecretVaultService(
+    TDefaultSecretVaultServiceConfigPtr config,
+    ITvmServicePtr tvmService,
+    IPollerPtr poller,
+    NProfiling::TRegistry profiler)
+{
+    return New<TDefaultSecretVaultService>(
+        std::move(config),
+        std::move(tvmService),
+        std::move(poller),
+        std::move(profiler),
+        true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
