@@ -848,6 +848,14 @@ private:
             delimitedBuilder->AppendFormat("RequestId: %v", RequestId_);
         }
 
+        if (RequestHeader_->has_user()) {
+            delimitedBuilder->AppendFormat("User: %v", RequestHeader_->user());
+        }
+
+        if (RequestHeader_->has_user_tag() && RequestHeader_->user_tag() != RequestHeader_->user()) {
+            delimitedBuilder->AppendFormat("UserTag: %v", RequestHeader_->user_tag());
+        }
+
         auto responseMessage = GetResponseMessage();
         delimitedBuilder->AppendFormat("Error: %v, BodySize: %v, AttachmentsSize: %v/%v",
             Error_,
