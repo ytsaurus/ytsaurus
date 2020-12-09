@@ -109,6 +109,20 @@ private:
         return future;
     }
 
+    const IThroughputThrottlerPtr& GetJobThrottler(EJobThrottlerType throttlerType)
+    {
+        switch (throttlerType) {
+            case EJobThrottlerType::InBandwidth:
+                return Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::JobIn);
+            case EJobThrottlerType::OutBandwidth:
+                return Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::JobOut);
+            case EJobThrottlerType::OutRps:
+                return Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut);
+            default:
+                THROW_ERROR_EXCEPTION("Unknown throttler type %Qlv", throttlerType);
+        }
+    }
+
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpec)
     {
@@ -250,7 +264,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ThrottleJob)
     {
-        auto throttlerType = static_cast<EJobThrottlerType>(request->throttler_type());
+        auto throttlerType = CheckedEnumCast<EJobThrottlerType>(request->throttler_type());
         auto count = request->count();
         auto descriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
         auto jobId = FromProto<TJobId>(request->job_id());
@@ -261,21 +275,7 @@ private:
             jobId,
             descriptor);
 
-        IThroughputThrottlerPtr throttler;
-        switch (throttlerType) {
-            case EJobThrottlerType::InBandwidth:
-                throttler = Bootstrap_->GetDataNodeInThrottler(descriptor);
-                break;
-            case EJobThrottlerType::OutBandwidth:
-                throttler = Bootstrap_->GetDataNodeOutThrottler(descriptor);
-                break;
-            case EJobThrottlerType::OutRps:
-                throttler = Bootstrap_->GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind::ReadRpsOut);
-                break;
-            default:
-                YT_ABORT();
-        }
-
+        const auto& throttler = GetJobThrottler(throttlerType);
         auto future = throttler->Throttle(count);
         if (auto optionalResult = future.TryGet()) {
             optionalResult->ThrowOnError();
