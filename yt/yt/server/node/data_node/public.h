@@ -141,6 +141,10 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
     (TabletReplicationOut)
     //! Controls outcoming RPS of GetBlockSet and GetBlockRange requests.
     (ReadRpsOut)
+    //! Controls incoming bandwidth consumed by local jobs.
+    (JobIn)
+    //! Controls outcoming bandwidth consumed by local jobs.
+    (JobOut)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

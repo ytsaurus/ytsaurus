@@ -407,6 +407,7 @@ void TBootstrap::DoInitialize()
         EDataNodeThrottlerKind::TabletLoggingIn,
         EDataNodeThrottlerKind::TabletSnapshotIn,
         EDataNodeThrottlerKind::TabletStoreFlushIn,
+        EDataNodeThrottlerKind::JobIn,
     };
     static const THashSet<EDataNodeThrottlerKind> OutCombinedDataNodeThrottlerKinds = {
         EDataNodeThrottlerKind::ReplicationOut,
@@ -418,6 +419,7 @@ void TBootstrap::DoInitialize()
         EDataNodeThrottlerKind::TabletPreloadOut,
         EDataNodeThrottlerKind::TabletRecoveryOut,
         EDataNodeThrottlerKind::TabletReplicationOut,
+        EDataNodeThrottlerKind::JobOut,
     };
     for (auto kind : TEnumTraits<EDataNodeThrottlerKind>::GetDomainValues()) {
         auto throttler = IThroughputThrottlerPtr(RawDataNodeThrottlers_[kind]);
