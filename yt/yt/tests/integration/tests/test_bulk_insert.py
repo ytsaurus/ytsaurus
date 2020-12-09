@@ -509,7 +509,12 @@ class TestBulkInsert(DynamicTablesBase):
 
         map(in_="//tmp/t_input", out="<append=true>//tmp/t_output", command="cat")
 
+        chunk_id = get("//tmp/t_output/@chunk_ids/0")
+        chunk_ts = get("#{}/@min_timestamp".format(chunk_id))
+
         new_ts = generate_timestamp()
+        intermediate_ts = chunk_ts + 1
+        assert new_ts > intermediate_ts
 
         sync_flush_table("//tmp/t_output")
 
@@ -523,6 +528,7 @@ class TestBulkInsert(DynamicTablesBase):
             assert read_table("//tmp/t_verify") == expected
 
         _verify(old_ts, [])
+        _verify(intermediate_ts, [])
         _verify(new_ts, rows)
 
     @parametrize_external
