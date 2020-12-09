@@ -259,24 +259,20 @@ TSharedRefArray AdjustMessageMemoryZone(
     TSharedRefArray message,
     NYTAlloc::EMemoryZone memoryZone)
 {
-    size_t bytesToCopy = 0;
+    bool copyNeeded = false;
     for (int index = 2; index < message.Size(); ++index) {
         const auto& part = message[index];
         if (part.Size() > 0 && NYTAlloc::GetAllocationMemoryZone(part.Begin()) != memoryZone) {
-            bytesToCopy += part.Size();
+            copyNeeded = true;
+            break;
         }
     }
 
-    if (bytesToCopy == 0) {
+    if (!copyNeeded) {
         return message;
     }
 
-    TSharedRefArrayBuilder builder(
-        message.Size(),
-        bytesToCopy,
-        GetRefCountedTypeCookie<TAdjustedMemoryZoneMessageTag>());
-
-    NYTAlloc::TMemoryZoneGuard guard(memoryZone);
+    TSharedRefArrayBuilder builder(message.Size());
 
     for (int index = 0; index < std::min(static_cast<int>(message.Size()), 2); ++index) {
         builder.Add(message[index]);
@@ -285,8 +281,10 @@ TSharedRefArray AdjustMessageMemoryZone(
     for (int index = 2; index < message.Size(); ++index) {
         const auto& part = message[index];
         if (part.Size() > 0 && NYTAlloc::GetAllocationMemoryZone(part.Begin()) != memoryZone) {
-            auto copiedPart = builder.AllocateAndAdd(part.Size());
+            NYTAlloc::TMemoryZoneGuard guard(memoryZone);
+            auto copiedPart = TSharedMutableRef::Allocate<TAdjustedMemoryZoneMessageTag>(part.Size(), false);
             ::memcpy(copiedPart.Begin(), part.Begin(), part.Size());
+            builder.Add(std::move(copiedPart));
         } else {
             builder.Add(part);
         }
