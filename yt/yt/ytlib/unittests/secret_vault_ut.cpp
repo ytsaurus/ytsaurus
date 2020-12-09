@@ -26,6 +26,8 @@ static const TString SecretDelegationToken = "secret-token";
 static const TString SecretSignature = "secret-signature";
 static const TString SecretKey = "secret-key";
 static const TString SecretValue = "secret-value";
+static const TString CyrillicValue = "секретное-значение";
+static const TString HighAsciiValue = "secret-value-Æ";
 static const TString SecretEncoding = "EBCDIC";
 
 class TDefaultSecretVaultTest
@@ -47,6 +49,15 @@ protected:
         TDefaultSecretVaultServiceConfigPtr config = {})
     {
         return NAuth::CreateDefaultSecretVaultService(
+            config ? config : CreateDefaultSecretVaultServiceConfig(),
+            New<TMockTvmService>(),
+            CreateThreadPoolPoller(1, "HttpPoller"));
+    }
+
+    ISecretVaultServicePtr CreateValidatingSecretVaultService(
+        TDefaultSecretVaultServiceConfigPtr config = {})
+    {
+        return NAuth::CreateValidatingSecretVaultService(
             config ? config : CreateDefaultSecretVaultServiceConfig(),
             New<TMockTvmService>(),
             CreateThreadPoolPoller(1, "HttpPoller"));
@@ -193,6 +204,102 @@ TEST_F(TDefaultSecretVaultTest, NoEncoding)
     ASSERT_EQ(SecretKey, secrets[0].Key);
     ASSERT_EQ(SecretValue, secrets[0].Value);
     ASSERT_TRUE(secrets[0].Encoding.empty());
+}
+
+TEST_F(TDefaultSecretVaultTest, Utf8Trouble)
+{
+    TStringStream outputStream;
+    auto jsonConfig = New<NJson::TJsonFormatConfig>();
+    jsonConfig->EncodeUtf8 = false; // Otherwise the writer will produce the weird utf-in-utf.
+    auto consumer = NJson::CreateJsonConsumer(&outputStream, NYson::EYsonType::Node, jsonConfig);
+    NYTree::BuildYsonFluently(consumer.get())
+        .BeginMap()
+            .Item("secrets")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("status").Value("ok")
+                    .Item("value")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("key").Value(SecretKey)
+                            .Item("value").Value(CyrillicValue)
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+            .Item("status").Value("ok")
+        .EndMap();
+
+    consumer->Flush();
+
+    SetCallback(outputStream.Str());
+
+    auto service = CreateDefaultSecretVaultService();
+
+    std::vector<ISecretVaultService::TSecretSubrequest> subrequests;
+    subrequests.push_back({
+        SecretId,
+        SecretVersion,
+        SecretDelegationToken,
+        SecretSignature});
+
+    auto subresponses = WaitFor(service->GetSecrets(subrequests));
+    ASSERT_FALSE(subresponses.IsOK());
+
+    auto config = CreateDefaultSecretVaultServiceConfig();
+    config->EnableBrokenUtf8DecoderForCompatibility = false;
+    service = CreateDefaultSecretVaultService(config);
+    subresponses = WaitFor(service->GetSecrets(subrequests));
+    ASSERT_TRUE(subresponses.IsOK());
+}
+
+TEST_F(TDefaultSecretVaultTest, Validation)
+{
+    TStringStream outputStream;
+    auto jsonConfig = New<NJson::TJsonFormatConfig>();
+    jsonConfig->EncodeUtf8 = false; // Otherwise the writer will produce the weird utf-in-utf.
+    auto consumer = NJson::CreateJsonConsumer(&outputStream, NYson::EYsonType::Node, jsonConfig);
+    NYTree::BuildYsonFluently(consumer.get())
+        .BeginMap()
+            .Item("secrets")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("status").Value("ok")
+                    .Item("value")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("key").Value(SecretKey)
+                            .Item("value").Value(HighAsciiValue)
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+            .Item("status").Value("ok")
+        .EndMap();
+
+    consumer->Flush();
+
+    SetCallback(outputStream.Str());
+
+    auto service = CreateDefaultSecretVaultService();
+
+    std::vector<ISecretVaultService::TSecretSubrequest> subrequests;
+    subrequests.push_back({
+        SecretId,
+        SecretVersion,
+        SecretDelegationToken,
+        SecretSignature});
+
+    auto subresponses = WaitFor(service->GetSecrets(subrequests));
+    ASSERT_TRUE(subresponses.IsOK());
+
+    service = CreateValidatingSecretVaultService();
+    subresponses = WaitFor(service->GetSecrets(subrequests));
+    ASSERT_FALSE(subresponses.IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
