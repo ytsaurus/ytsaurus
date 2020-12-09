@@ -108,9 +108,15 @@ private:
 
     void AsyncAcceptConnection()
     {
-        Listener_->Accept().Subscribe(
-            BIND(&TServer::OnConnectionAccepted, MakeWeak(this))
-                .Via(Acceptor_->GetInvoker()));
+        try {
+            Listener_->Accept().Subscribe(
+                BIND(&TServer::OnConnectionAccepted, MakeWeak(this))
+                    .Via(Acceptor_->GetInvoker()));
+        } catch (const std::exception& ex) {
+            BIND(&TServer::OnConnectionAccepted, MakeWeak(this), TError(ex))
+                .Via(Acceptor_->GetInvoker())
+                .Run();
+        }
     }
 
     void OnConnectionAccepted(const TErrorOr<IConnectionPtr>& connectionOrError)
