@@ -158,6 +158,8 @@ void TMasterConnector::Start()
         BIND(&TMasterConnector::StartHeartbeats, MakeStrong(this))
             .Via(ControlInvoker_),
         RandomDuration(Config_->IncrementalHeartbeatPeriod));
+
+    Reset();
 }
 
 void TMasterConnector::StartHeartbeats()
