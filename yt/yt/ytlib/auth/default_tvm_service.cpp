@@ -190,7 +190,7 @@ private:
     void CheckClient()
     {
         auto status = Client_->GetStatus();
-        switch (status.GetState()) {
+        switch (status.GetCode()) {
             case TClientStatus::Ok:
                 break;
             case TClientStatus::Warning:
