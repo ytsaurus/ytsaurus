@@ -10,11 +10,11 @@ from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
 try:
     from .arcadia_interop import get_gdb_path
-except:
+except ImportError:
     def get_gdb_path():
         return None
 
-from yt.common import YtError, remove_file, makedirp, update, which, get_value
+from yt.common import YtError, remove_file, makedirp, update, get_value
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -221,7 +221,7 @@ class YTInstance(object):
         self._use_native_client = use_native_client
 
         self._random_generator = random.Random(random.SystemRandom().random())
-        self._uuid = generate_uuid(self._random_generator)
+        self._random_uuid = generate_uuid(self._random_generator)
         self._lock = RLock()
 
         self.configs = defaultdict(list)
@@ -388,7 +388,7 @@ class YTInstance(object):
                              enable_master_cache, enable_permission_cache, modify_configs_func,
                              enable_structured_master_logging, enable_structured_scheduler_logging, enable_rpc_driver_proxy_discovery):
         logger.info("Preparing cluster instance as follows:")
-        logger.info("  uuid               %s", self._uuid)
+        logger.info("  random_uuid        %s", self._random_uuid)
         logger.info("  clocks             %d", self.clock_count)
         logger.info("  masters            %d (%d nonvoting)", self.master_count, self.nonvoting_master_count)
         logger.info("  nodes              %d", self.node_count)
