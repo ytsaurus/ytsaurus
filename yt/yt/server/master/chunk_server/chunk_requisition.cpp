@@ -95,7 +95,7 @@ TChunkReplication::TEntry::TEntry(int mediumIndex, TReplicationPolicy policy)
     , Policy_(policy)
 { }
 
-void TChunkReplication::TEntry::Persist(TStreamPersistenceContext& context)
+void TChunkReplication::TEntry::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 

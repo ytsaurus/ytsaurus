@@ -40,7 +40,7 @@ DEFINE_ENUM(ESchemaSerializationMethod,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDynamicTableLock::Persist(NCellMaster::TPersistenceContext& context)
+void TDynamicTableLock::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using ::NYT::Persist;
     Persist(context, PendingTabletCount);

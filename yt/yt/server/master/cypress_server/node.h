@@ -36,12 +36,12 @@ class TVersionedBuiltinAttribute
 public:
     struct TNull
     {
-        void Persist(NCellMaster::TPersistenceContext& context);
+        void Persist(const NCellMaster::TPersistenceContext& context);
     };
 
     struct TTombstone
     {
-        void Persist(NCellMaster::TPersistenceContext& context);
+        void Persist(const NCellMaster::TPersistenceContext& context);
     };
 
     // NB: Don't reorder the types; tags are used for persistence.
@@ -67,7 +67,7 @@ public:
         TOwner* originatingNode,
         const TOwner* branchedNode);
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 
 private:
     TBoxedT BoxedValue_{TNull()};

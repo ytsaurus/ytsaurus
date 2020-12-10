@@ -35,7 +35,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
+void TTabletCellStatisticsBase::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -55,7 +55,7 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     Persist(context, DynamicMemoryPoolSize);
 }
 
-void TUncountableTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
+void TUncountableTabletCellStatisticsBase::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -63,20 +63,20 @@ void TUncountableTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceCont
     Persist(context, Health);
 }
 
-void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
+void TTabletCellStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     TTabletCellStatisticsBase::Persist(context);
     TUncountableTabletCellStatisticsBase::Persist(context);
 }
 
-void TTabletStatisticsBase::Persist(NCellMaster::TPersistenceContext& context)
+void TTabletStatisticsBase::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 
     Persist(context, OverlappingStoreCount);
 }
 
-void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
+void TTabletStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     TTabletCellStatisticsBase::Persist(context);
     TTabletStatisticsBase::Persist(context);

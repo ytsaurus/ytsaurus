@@ -33,7 +33,7 @@ struct TTableUploadOptions
 
     TTableSchemaPtr GetUploadSchema() const;
 
-    void Persist(NPhoenix::TPersistenceContext& context);
+    void Persist(const NPhoenix::TPersistenceContext& context);
 };
 
 TTableUploadOptions GetTableUploadOptions(

@@ -37,7 +37,7 @@ bool TSecurityTags::operator!=(const TSecurityTags& rhs) const
     return !(*this == rhs);
 }
 
-void TSecurityTags::Persist(TStreamPersistenceContext& context)
+void TSecurityTags::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 

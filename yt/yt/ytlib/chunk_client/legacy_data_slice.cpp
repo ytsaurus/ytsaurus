@@ -88,7 +88,7 @@ i64 TLegacyDataSlice::GetMaxBlockSize() const
     return result;
 }
 
-void TLegacyDataSlice::Persist(NTableClient::TPersistenceContext& context)
+void TLegacyDataSlice::Persist(const NTableClient::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, IsLegacy);

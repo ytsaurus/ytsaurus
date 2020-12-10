@@ -51,7 +51,7 @@ void TSummary::Reset()
     Max_ = std::numeric_limits<i64>::min();
 }
 
-void TSummary::Persist(TStreamPersistenceContext& context)
+void TSummary::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -173,7 +173,7 @@ TStatistics::TSummaryRange TStatistics::GetRangeByPrefix(const TString& prefix) 
     return TSummaryRange(begin, end);
 }
 
-void TStatistics::Persist(TStreamPersistenceContext& context)
+void TStatistics::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 

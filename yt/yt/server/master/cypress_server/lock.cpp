@@ -32,7 +32,7 @@ TLockKey::operator size_t() const
     return THash<ELockKeyKind>()(Kind) ^ THash<TString>()(Name);
 }
 
-void TLockKey::Persist(TPersistenceContext& context)
+void TLockKey::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Kind);
@@ -70,7 +70,7 @@ TLockRequest TLockRequest::MakeSharedAttribute(const TString& key)
     return result;
 }
 
-void TLockRequest::Persist(TPersistenceContext& context)
+void TLockRequest::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Mode);
@@ -101,7 +101,7 @@ bool TCypressNodeLockingState::IsEmpty() const
         TransactionToSnapshotLocks.empty();
 }
 
-void TCypressNodeLockingState::Persist(TPersistenceContext& context)
+void TCypressNodeLockingState::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, AcquiredLocks);

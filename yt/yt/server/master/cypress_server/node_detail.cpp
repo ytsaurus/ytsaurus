@@ -467,7 +467,7 @@ bool TCompositeNodeBase::TAttributes::operator!=(const TAttributes& rhs) const
     return !(*this == rhs);
 }
 
-void TCompositeNodeBase::TAttributes::Persist(NCellMaster::TPersistenceContext& context)
+void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceContext& context)
 {
 #define XX(camelCaseName, snakeCaseName) \
     Persist(context, camelCaseName);
@@ -486,7 +486,7 @@ void TCompositeNodeBase::TAttributes::Persist(NCellMaster::TPersistenceContext& 
 #undef XX
 }
 
-void TCompositeNodeBase::TAttributes::Persist(NCypressServer::TCopyPersistenceContext& context)
+void TCompositeNodeBase::TAttributes::Persist(const NCypressServer::TCopyPersistenceContext& context)
 {
 #define XX(camelCaseName, snakeCaseName) \
     Persist(context, camelCaseName);
@@ -503,26 +503,6 @@ void TCompositeNodeBase::TAttributes::Persist(NCypressServer::TCopyPersistenceCo
     }
 
 #undef XX
-}
-
-void TCompositeNodeBase::TAttributes::Save(NCellMaster::TSaveContext& context) const
-{
-    SaveViaPersist<NCellMaster::TPersistenceContext>(context, *this);
-}
-
-void TCompositeNodeBase::TAttributes::Load(NCellMaster::TLoadContext& context)
-{
-    LoadViaPersist<NCellMaster::TPersistenceContext>(context, *this);
-}
-
-void TCompositeNodeBase::TAttributes::Save(NCypressServer::TBeginCopyContext& context) const
-{
-    SaveViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
-}
-
-void TCompositeNodeBase::TAttributes::Load(NCypressServer::TEndCopyContext& context)
-{
-    LoadViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
 }
 
 bool TCompositeNodeBase::TAttributes::AreFull() const

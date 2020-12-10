@@ -15,7 +15,7 @@ struct TTransactionActionData
     //! Protobuf-encoded value.
     TString Value;
 
-    void Persist(TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 void ToProto(NProto::TTransactionActionData* protoData, const TTransactionActionData& data);

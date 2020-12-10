@@ -58,7 +58,7 @@ public:
     void DeclareModifiable();
     void DeclareTrimmable();
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 
     // Common interface for all kinds.
     void PushBack(const TCumulativeStatisticsEntry& entry);

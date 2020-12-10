@@ -115,10 +115,9 @@ template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
 class TCustomPersistenceContext
 {
 public:
-    template <class TActualSaveContext>
-    static TCustomPersistenceContext FromSave(TActualSaveContext& context);
-    template <class TActualLoadContext>
-    static TCustomPersistenceContext FromLoad(TActualLoadContext& context);
+    // Deliberately not explicit.
+    TCustomPersistenceContext(TSaveContext& saveContext);
+    TCustomPersistenceContext(TLoadContext& loadContext);
 
     bool IsSave() const;
     TSaveContext& SaveContext() const;

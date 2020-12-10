@@ -21,7 +21,7 @@ bool TCypressShardAccountStatistics::IsZero() const
     return NodeCount == 0;
 }
 
-void TCypressShardAccountStatistics::Persist(NCellMaster::TPersistenceContext& context)
+void TCypressShardAccountStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, NodeCount);

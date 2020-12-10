@@ -47,7 +47,7 @@ struct TTabletCellStatisticsBase
     int TabletCount = 0;
     TEnumIndexedVector<NTabletClient::EInMemoryMode, int> TabletCountPerMemoryMode;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 struct TUncountableTabletCellStatisticsBase
@@ -55,28 +55,28 @@ struct TUncountableTabletCellStatisticsBase
     bool Decommissioned = false;
     ETabletCellHealth Health = ETabletCellHealth::Initializing;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 struct TTabletCellStatistics
     : public TTabletCellStatisticsBase
     , public TUncountableTabletCellStatisticsBase
 {
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 struct TTabletStatisticsBase
 {
     int OverlappingStoreCount = 0;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 struct TTabletStatistics
     : public TTabletCellStatisticsBase
     , public TTabletStatisticsBase
 {
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 class TTabletStatisticsAggregate

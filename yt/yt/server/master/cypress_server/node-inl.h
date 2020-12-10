@@ -66,11 +66,11 @@ inline bool TCypressNodeRefComparer::Compare(const TCypressNode* lhs, const TCyp
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::TNull::Persist(NCellMaster::TPersistenceContext& context)
+void TVersionedBuiltinAttribute<T>::TNull::Persist(const NCellMaster::TPersistenceContext& context)
 { }
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::TTombstone::Persist(NCellMaster::TPersistenceContext& context)
+void TVersionedBuiltinAttribute<T>::TTombstone::Persist(const NCellMaster::TPersistenceContext& context)
 { }
 
 template <class T>
@@ -155,7 +155,7 @@ void TVersionedBuiltinAttribute<T>::Merge(
 }
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::Persist(NCellMaster::TPersistenceContext& context)
+void TVersionedBuiltinAttribute<T>::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, BoxedValue_);

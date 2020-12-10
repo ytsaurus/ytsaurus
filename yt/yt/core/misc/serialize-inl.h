@@ -370,20 +370,14 @@ TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::TCustom
 { }
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
-template <class TActualSaveContext>
-TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>
-TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::FromSave(TActualSaveContext& context)
-{
-    return TCustomPersistenceContext(&context, nullptr);
-}
+TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::TCustomPersistenceContext(TSaveContext& saveContext)
+    : TCustomPersistenceContext(&saveContext, nullptr)
+{ }
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
-template <class TActualLoadContext>
-TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>
-TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::FromLoad(TActualLoadContext& context)
-{
-    return TCustomPersistenceContext(nullptr, &context);
-}
+TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::TCustomPersistenceContext(TLoadContext& loadContext)
+    : TCustomPersistenceContext(nullptr, &loadContext)
+{ }
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
 bool TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::IsSave() const
@@ -415,7 +409,7 @@ template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
 template <class TOtherContext>
 TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::operator TOtherContext() const
 {
-    return IsSave() ? TOtherContext::FromSave(*SaveContext_) : TOtherContext::FromLoad(*LoadContext_);
+    return IsSave() ? TOtherContext(*SaveContext_) : TOtherContext(*LoadContext_);
 }
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
@@ -495,24 +489,22 @@ struct TPersistMemberTraits
 ////////////////////////////////////////////////////////////////////////////////
 // Simple types
 
-template <class P, class T, class C>
-void SaveViaPersist(C& context, const T& value)
-{
-    auto wrappedContext = P::FromSave(context);
-    const_cast<T&>(value).Persist(wrappedContext);
-}
-
-template <class P, class T, class C>
-void LoadViaPersist(C& context, T& value)
-{
-    auto wrappedContext = P::FromLoad(context);
-    value.Persist(wrappedContext);
-}
-
 struct TValueBoundSerializer
 {
     template <class T, class C, class = void>
     struct TSaver
+    { };
+
+    template <class T, class C, class = void>
+    struct TLoader
+    { };
+
+    template <class T, class C>
+    struct TSaver<
+        T,
+        C,
+        decltype(std::declval<const T&>().Save(std::declval<C&>()), void())
+        >
     {
         static void Do(C& context, const T& value)
         {
@@ -520,8 +512,11 @@ struct TValueBoundSerializer
         }
     };
 
-    template <class T, class C, class = void>
-    struct TLoader
+    template <class T, class C>
+    struct TLoader<
+        T,
+        C,
+        decltype(std::declval<T&>().Load(std::declval<C&>()), void())>
     {
         static void Do(C& context, T& value)
         {
@@ -530,20 +525,27 @@ struct TValueBoundSerializer
     };
 
     template <class T, class C>
-    struct TSaver<T, C, decltype(&T::Persist, void())>
+    struct TSaver<
+        T,
+        C,
+        decltype(std::declval<T&>().Persist(std::declval<C&>()), void())
+        >
     {
         static void Do(C& context, const T& value)
         {
-            SaveViaPersist<typename TPersistMemberTraits<T>::TContext>(context, value);
+            const_cast<T&>(value).Persist(context);
         }
     };
 
     template <class T, class C>
-    struct TLoader<T, C, decltype(&T::Persist, void())>
+    struct TLoader<
+        T,
+        C,
+        decltype(std::declval<T&>().Persist(std::declval<C&>()), void())>
     {
         static void Do(C& context, T& value)
         {
-            LoadViaPersist<typename TPersistMemberTraits<T>::TContext>(context, value);
+            value.Persist(context);
         }
     };
 
@@ -551,12 +553,24 @@ struct TValueBoundSerializer
     template <class T, class C>
     static void Save(C& context, const T& value)
     {
+        // If you see an "ambiguous partial specializations of 'TSaver'" error then
+        // you've probably defined both Persist and Save methods. Remove one.
+        //
+        // If you see a "no member named 'Do' in 'TSaver'" then
+        //  - either you're missing both Persist and Save methods on T
+        //  - or the method arguments are wrong (hint: Persist takes a const ref).
         TSaver<T, C>::Do(context, value);
     }
 
     template <class T, class C>
     static void Load(C& context, T& value)
     {
+        // If you see an "ambiguous partial specializations of TLoader" error then
+        // you've probably defined both Persist and Load methods. Remove one.
+        //
+        // If you see a "no member named 'Do' in 'TLoader'" then
+        //  - either you're missing both Persist and Load methods on T
+        //  - or the method arguments are wrong (hint: Persist takes a const ref).
         TLoader<T, C>::Do(context, value);
     }
 };

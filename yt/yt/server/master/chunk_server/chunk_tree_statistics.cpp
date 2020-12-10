@@ -71,7 +71,7 @@ TDataStatistics TChunkTreeStatistics::ToDataStatistics() const
     return result;
 }
 
-void TChunkTreeStatistics::Persist(NCellMaster::TPersistenceContext& context)
+void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, RowCount);

@@ -29,7 +29,7 @@ TTableSchemaPtr TTableUploadOptions::GetUploadSchema() const
     }
 }
 
-void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
+void TTableUploadOptions::Persist(const NPhoenix::TPersistenceContext& context)
 {
     using NYT::Persist;
 

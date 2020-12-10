@@ -16,7 +16,7 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAccountStatistics::Persist(NCellMaster::TPersistenceContext& context)
+void TAccountStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, ResourceUsage);

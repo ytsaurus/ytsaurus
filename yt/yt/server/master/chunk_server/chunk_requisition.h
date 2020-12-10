@@ -108,7 +108,7 @@ public:
         TEntry() = default;
         TEntry(int mediumIndex, TReplicationPolicy policy);
 
-        void Persist(TStreamPersistenceContext& context);
+        void Persist(const TStreamPersistenceContext& context);
 
         bool operator==(const TEntry& rhs) const;
 

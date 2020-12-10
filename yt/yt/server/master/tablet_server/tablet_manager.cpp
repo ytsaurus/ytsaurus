@@ -2412,7 +2412,7 @@ private:
         bool UpdateModificationTime;
         bool UpdateAccessTime;
 
-        void Persist(NCellMaster::TPersistenceContext& context)
+        void Persist(const NCellMaster::TPersistenceContext& context)
         {
             using NYT::Persist;
 
