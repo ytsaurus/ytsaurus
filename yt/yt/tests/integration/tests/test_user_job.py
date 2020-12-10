@@ -1483,7 +1483,8 @@ class TestUserFiles(YTEnvSetup):
         ]
 
     @authors("ignat")
-    def test_erasure_user_files(self):
+    @pytest.mark.parametrize("erasure_codec", ["reed_solomon_6_3", "isa_reed_solomon_6_3"])
+    def test_erasure_user_files(self, erasure_codec):
         create("table", "//tmp/input")
         write_table("//tmp/input", {"foo": "bar"})
 
@@ -1496,7 +1497,7 @@ class TestUserFiles(YTEnvSetup):
         create(
             "table",
             "//tmp/table_file",
-            attributes={"erasure_codec": "reed_solomon_6_3"},
+            attributes={"erasure_codec": erasure_codec},
         )
         write_table("<append=true>//tmp/table_file", {"text1": "info1"})
         write_table("<append=true>//tmp/table_file", {"text2": "info2"})

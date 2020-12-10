@@ -138,7 +138,7 @@ class TestErasure(TestErasureBase):
         assert get("//tmp/table/@chunk_count") == 2
 
     @authors("psushin", "ignat", "akozhikhov")
-    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2", "reed_solomon_6_3", "reed_solomon_3_3"])
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "lrc_12_2_2", "reed_solomon_6_3", "reed_solomon_3_3", "isa_reed_solomon_6_3"])
     def test_codecs_simple(self, erasure_codec):
         self._do_test_simple(erasure_codec)
 
@@ -284,6 +284,10 @@ class TestErasure(TestErasureBase):
     @authors("akozhikhov")
     def test_reed_solomon_3_3_repair(self):
         self._test_repair("reed_solomon_3_3", 6, 3)
+
+    @authors("akozhikhov")
+    def test_isa_reed_solomon_6_3_repair(self):
+        self._test_repair("isa_reed_solomon_6_3", 9, 6)
 
     @authors("akozhikhov")
     def test_isa_lrc_repair(self):

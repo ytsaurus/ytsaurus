@@ -63,6 +63,9 @@ INSTANTIATE_TEST_SUITE_P(
             std::vector<unsigned char>{194, 201, 87, 67}),
         std::make_tuple(
             TCodecTraits::ECodecType::IsaLrc_12_2_2,
-            std::vector<unsigned char>{194, 201, 104, 219})));
+            std::vector<unsigned char>{194, 201, 104, 219}),
+        std::make_tuple(
+            TCodecTraits::ECodecType::IsaReedSolomon_6_3,
+            std::vector<unsigned char>{194, 60, 234})));
 
 ////////////////////////////////////////////////////////////////////////////////

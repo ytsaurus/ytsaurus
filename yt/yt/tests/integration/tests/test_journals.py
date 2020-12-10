@@ -471,9 +471,15 @@ class TestErasureJournals(TestJournals):
             "read_quorum": 4,
             "write_quorum": 5,
         },
+        "isa_reed_solomon_6_3": {
+            "erasure_codec": "isa_reed_solomon_6_3",
+            "replication_factor": 1,
+            "read_quorum": 7,
+            "write_quorum": 8,
+        }
     }
 
-    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @authors("babenko", "ignat")
     def test_seal_abruptly_closed_journal(self, erasure_codec):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
@@ -487,7 +493,7 @@ class TestErasureJournals(TestJournals):
         assert get("//tmp/j/@chunk_count") == N
         assert read_journal("//tmp/j") == self.DATA * N
 
-    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @authors("babenko")
     def test_repair_jobs(self, erasure_codec):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
@@ -546,7 +552,7 @@ class TestErasureJournals(TestJournals):
     def test_erasure_lost(self):
         self._test_critical_erasure_state("lost_vital", 5)
 
-    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3", "isa_reed_solomon_6_3"])
     @authors("babenko", "ignat")
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_read_with_repair(self, erasure_codec):
