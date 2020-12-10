@@ -99,7 +99,15 @@ std::optional<DB::Field> TryGetMinimumTypeValue(const DB::DataTypePtr& dataType)
             return DB::Field(-std::numeric_limits<DB::Float32>::infinity());
         case DB::TypeIndex::Float64:
             return DB::Field(-std::numeric_limits<DB::Float64>::infinity());
-        
+
+        case DB::TypeIndex::Date:
+            return DB::Field(std::numeric_limits<DB::UInt16>::min());
+        case DB::TypeIndex::DateTime:
+            return DB::Field(std::numeric_limits<DB::UInt32>::min());
+        // TODO(dakovalkov): Now timestamps is represented as UInt64, not DateTime64.
+        // case DB::TypeIndex::DateTime64:
+            // return DB::Field(std::numeric_limits<DB::Decimal64>::min());
+
         case DB::TypeIndex::String:
             return DB::Field("");
 
@@ -137,6 +145,14 @@ std::optional<DB::Field> TryGetMaximumTypeValue(const DB::DataTypePtr& dataType)
         case DB::TypeIndex::Float64:
             return DB::Field(std::numeric_limits<DB::Float64>::infinity());
 
+        case DB::TypeIndex::Date:
+            return DB::Field(std::numeric_limits<DB::UInt16>::max());
+        case DB::TypeIndex::DateTime:
+            return DB::Field(std::numeric_limits<DB::UInt32>::max());
+        // TODO(dakovalkov): Now timestamps is represented as UInt64, not DateTime64.
+        // case DB::TypeIndex::DateTime64:
+            // return DB::Field(std::numeric_limits<DB::Decimal64>::max());
+
         case DB::TypeIndex::String:
             // The "maximum" string does not exist.
             return std::nullopt;
@@ -159,23 +175,21 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
             return TryDecrementFieldValue(field, DB::removeNullable(dataType));
 
         case DB::TypeIndex::Int8:
-            return DB::Field(field.get<Int8>() - 1);
         case DB::TypeIndex::Int16:
-            return DB::Field(field.get<Int16>() - 1);
         case DB::TypeIndex::Int32:
-            return DB::Field(field.get<Int32>() - 1);
         case DB::TypeIndex::Int64:
             return DB::Field(field.get<Int64>() - 1);
 
         case DB::TypeIndex::UInt8:
-            return DB::Field(field.get<UInt8>() - 1);
         case DB::TypeIndex::UInt16:
-            return DB::Field(field.get<UInt16>() - 1);
         case DB::TypeIndex::UInt32:
-            return DB::Field(field.get<UInt32>() - 1);
         case DB::TypeIndex::UInt64:
             return DB::Field(field.get<UInt64>() - 1);
-       
+
+        case DB::TypeIndex::Date:
+        case DB::TypeIndex::DateTime:
+            return DB::Field(field.get<UInt64>() - 1);
+
         case DB::TypeIndex::Float32:
         case DB::TypeIndex::Float64:
         case DB::TypeIndex::String:
