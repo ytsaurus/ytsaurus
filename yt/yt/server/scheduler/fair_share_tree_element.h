@@ -250,16 +250,13 @@ private:
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;
     };
 
-    DEFINE_BYVAL_RW_PROPERTY(bool, Initialized, false);
-
     DEFINE_BYREF_RW_PROPERTY(std::vector<bool>, CanSchedule);
 
     DEFINE_BYREF_RW_PROPERTY(TDynamicAttributesList, DynamicAttributesList);
 
     DEFINE_BYREF_RO_PROPERTY(ISchedulingContextPtr, SchedulingContext);
 
-    // Used to avoid unnecessary calculation of HasAggressivelyStarvingElements.
-    DEFINE_BYVAL_RW_PROPERTY(bool, PrescheduleCalled);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<bool>, HasAggressivelyStarvingElements);
 
     DEFINE_BYREF_RW_PROPERTY(TFairShareSchedulingStatistics, SchedulingStatistics);
 
@@ -270,10 +267,12 @@ private:
 public:
     TFairShareContext(
         ISchedulingContextPtr schedulingContext,
+        int treeSize,
+        std::vector<TSchedulingTagFilter> registeredSchedulingTagFilters,
         bool enableSchedulingInfoLogging,
         const NLogging::TLogger& logger);
 
-    void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
+    void PrepareForScheduling();
 
     TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
     const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
@@ -285,9 +284,15 @@ public:
     void FinishStage();
 
 private:
+    const int TreeSize_;
+
+    const std::vector<TSchedulingTagFilter> RegisteredSchedulingTagFilters_;
+
     const bool EnableSchedulingInfoLogging_;
 
     const NLogging::TLogger Logger;
+
+    bool Initialized_ = false;
 
     void ProfileStageTimings();
 

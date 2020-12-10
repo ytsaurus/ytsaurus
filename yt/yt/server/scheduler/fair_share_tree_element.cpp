@@ -119,28 +119,39 @@ TFairShareSchedulingStage::TFairShareSchedulingStage(TString loggingName, TSched
 
 TFairShareContext::TFairShareContext(
     ISchedulingContextPtr schedulingContext,
+    int treeSize,
+    std::vector<TSchedulingTagFilter> registeredSchedulingTagFilters,
     bool enableSchedulingInfoLogging,
     const NLogging::TLogger& logger)
     : SchedulingContext_(std::move(schedulingContext))
+    , TreeSize_(treeSize)
+    , RegisteredSchedulingTagFilters_(std::move(registeredSchedulingTagFilters))
     , EnableSchedulingInfoLogging_(enableSchedulingInfoLogging)
     , Logger(logger)
 { }
 
-void TFairShareContext::Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters)
+void TFairShareContext::PrepareForScheduling()
 {
-    YT_VERIFY(!Initialized_);
+    // TODO(ignat): add check that this method called before rootElement->PrescheduleJob (or refactor this code).
+    if (!Initialized_) {
+        Initialized_ = true;
 
-    Initialized_ = true;
-
-    DynamicAttributesList_.resize(treeSize);
-    CanSchedule_.reserve(registeredSchedulingTagFilters.size());
-    for (const auto& filter : registeredSchedulingTagFilters) {
-        CanSchedule_.push_back(SchedulingContext_->CanSchedule(filter));
+        DynamicAttributesList_.resize(TreeSize_);
+        CanSchedule_.reserve(RegisteredSchedulingTagFilters_.size());
+        for (const auto& filter : RegisteredSchedulingTagFilters_) {
+            CanSchedule_.push_back(SchedulingContext_->CanSchedule(filter));
+        }
+    } else {
+        for (auto& attributes : DynamicAttributesList_) {
+            attributes.Active = false;
+        }
     }
 }
 
 TDynamicAttributes& TFairShareContext::DynamicAttributesFor(const TSchedulerElement* element)
 {
+    YT_VERIFY(Initialized_);
+
     int index = element->GetTreeIndex();
     YT_VERIFY(index != UnassignedTreeIndex && index < DynamicAttributesList_.size());
     return DynamicAttributesList_[index];
@@ -148,6 +159,8 @@ TDynamicAttributes& TFairShareContext::DynamicAttributesFor(const TSchedulerElem
 
 const TDynamicAttributes& TFairShareContext::DynamicAttributesFor(const TSchedulerElement* element) const
 {
+    YT_VERIFY(Initialized_);
+
     int index = element->GetTreeIndex();
     YT_VERIFY(index != UnassignedTreeIndex && index < DynamicAttributesList_.size());
     return DynamicAttributesList_[index];
@@ -182,6 +195,10 @@ void TFairShareContext::FinishStage()
 
 void TFairShareContext::ProfileStageTimings()
 {
+    if (!Initialized_) {
+        return;
+    }
+
     YT_VERIFY(StageState_);
 
     auto* profilingCounters = &StageState_->SchedulingStage->ProfilingCounters;
@@ -208,6 +225,10 @@ void TFairShareContext::ProfileStageTimings()
 
 void TFairShareContext::LogStageStatistics()
 {
+    if (!Initialized_) {
+        return;
+    }
+
     YT_VERIFY(StageState_);
 
     YT_LOG_DEBUG("%v scheduling statistics (ActiveTreeSize: %v, ActiveOperationCount: %v, DeactivationReasons: %v, CanStartMoreJobs: %v, Address: %v)",
@@ -1370,7 +1391,7 @@ void TCompositeSchedulerElement::PrescheduleJob(
     auto starving = PersistentAttributes_.Starving;
     aggressiveStarvationEnabled = aggressiveStarvationEnabled || IsAggressiveStarvationEnabled();
     if (starving && aggressiveStarvationEnabled) {
-        context->SchedulingStatistics().HasAggressivelyStarvingElements = true;
+        context->SetHasAggressivelyStarvingElements(true);
     }
 
     auto operationCriterionForChildren = operationCriterion;
