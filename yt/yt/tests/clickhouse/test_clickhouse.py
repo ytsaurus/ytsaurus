@@ -2096,7 +2096,6 @@ class TestJobInput(ClickHouseTestBase):
     def test_key_types(self, required):
         int_types = ["uint64", "uint32", "uint16", "uint8", "int64", "int32", "int16", "int8"]
         int_values = [i * 2 for i in range(3)]
-
         # TODO(dakovalkov): For some reason KeyCondition can not construct from Nullable(int8) now.
         # Delete this test till ClickHouse fix this.
         if not required:
@@ -2107,10 +2106,18 @@ class TestJobInput(ClickHouseTestBase):
 
         string_types = ["string", "any"]
         string_values = ["{abc=2}", "{zzz=3}"]
-
         # Column of type "any" can not be required.
         if required:
             string_types.pop()
+
+        date_types = ["date", "datetime"] #, "timestamp"]
+        date_scales = [1, 24 * 60 * 60] #, 24 * 60 * 60 * 10**6]
+        date_values = [i * 10 for i in range(3)]
+
+        # TODO(dakovalkov): Delete this when timestamp is represented as DateTime64.
+        int_types.append("timestamp")
+        # Interval is represented as Int64.
+        int_types.append("interval")
 
         def create_type_table(type, values):
             path = "//tmp/t_{}".format(type)
@@ -2140,6 +2147,9 @@ class TestJobInput(ClickHouseTestBase):
         for type in string_types:
             create_type_table(type, string_values)
 
+        for type, scale in zip(date_types, date_scales):
+            create_type_table(type, [scale * value for value in date_values])
+
         with Clique(1) as clique:
             query1 = 'select * from "//tmp/t_{}" where key = 2'
             query2 = 'select * from "//tmp/t_{}" where 1 < key and key < 3'
@@ -2149,6 +2159,10 @@ class TestJobInput(ClickHouseTestBase):
 
             query = 'select * from "//tmp/t_{}" where key = \'{{abc=2}}\''
             for type in string_types:
+                clique.make_query_and_validate_row_count(query.format(type), exact=1)
+
+            query = 'select * from "//tmp/t_{}" where \'1970.01.10\' < key and key < \'1970.01.12\''
+            for type in date_types:
                 clique.make_query_and_validate_row_count(query.format(type), exact=1)
 
     @authors("max42")
