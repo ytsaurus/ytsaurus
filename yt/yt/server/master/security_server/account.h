@@ -22,7 +22,7 @@ struct TAccountStatistics
     TClusterResources ResourceUsage;
     TClusterResources CommittedResourceUsage;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 void ToProto(NProto::TAccountStatistics* protoStatistics, const TAccountStatistics& statistics);

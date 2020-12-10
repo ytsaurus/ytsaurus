@@ -38,14 +38,8 @@ struct TAccessControlEntry
     EAceInheritanceMode InheritanceMode;
     std::optional<std::vector<TString>> Columns;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
-    void Persist(NCypressServer::TCopyPersistenceContext& context);
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
-    void Save(NCypressServer::TBeginCopyContext& context) const;
-    void Load(NCypressServer::TEndCopyContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
+    void Persist(const NCypressServer::TCopyPersistenceContext& context);
 };
 
 void Serialize(const TAccessControlEntry& ace, NYson::IYsonConsumer* consumer);
@@ -56,14 +50,8 @@ struct TAccessControlList
 {
     std::vector<TAccessControlEntry> Entries;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
-    void Persist(NCypressServer::TCopyPersistenceContext& context);
-
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
-    void Save(NCypressServer::TBeginCopyContext& context) const;
-    void Load(NCypressServer::TEndCopyContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
+    void Persist(const NCypressServer::TCopyPersistenceContext& context);
 };
 
 void Serialize(const TAccessControlList& acl, NYson::IYsonConsumer* consumer);
@@ -96,14 +84,8 @@ public:
 
     void OnSubjectDestroyed(TSubject* subject, TSubject* defaultOwner);
 
-    void Save(NCellMaster::TSaveContext& context) const;
-    void Load(NCellMaster::TLoadContext& context);
-
-    void Save(NCypressServer::TBeginCopyContext& context) const;
-    void Load(NCypressServer::TEndCopyContext& context);
-
-    void Persist(NCellMaster::TPersistenceContext& context);
-    void Persist(NCypressServer::TCopyPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
+    void Persist(const NCypressServer::TCopyPersistenceContext& context);
 
 private:
     TSubject* Owner_ = nullptr;

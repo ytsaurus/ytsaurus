@@ -29,7 +29,7 @@ using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellStatus::Persist(TPersistenceContext& context)
+void TCellStatus::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Decommissioned);
@@ -59,7 +59,7 @@ void Serialize(const TCellStatus& status, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellBase::TPeer::Persist(NCellMaster::TPersistenceContext& context)
+void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 

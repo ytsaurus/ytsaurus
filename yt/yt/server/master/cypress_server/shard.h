@@ -21,7 +21,7 @@ struct TCypressShardAccountStatistics
 
     bool IsZero() const;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 void Serialize(const TCypressShardAccountStatistics& statistics, NYson::IYsonConsumer* consumer);

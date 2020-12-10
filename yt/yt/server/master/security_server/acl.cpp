@@ -39,7 +39,7 @@ TAccessControlEntry::TAccessControlEntry(
     , InheritanceMode(inheritanceMode)
 { }
 
-void TAccessControlEntry::Persist(NCellMaster::TPersistenceContext& context)
+void TAccessControlEntry::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Subjects);
@@ -49,7 +49,7 @@ void TAccessControlEntry::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Columns);
 }
 
-void TAccessControlEntry::Persist(NCypressServer::TCopyPersistenceContext& context)
+void TAccessControlEntry::Persist(const NCypressServer::TCopyPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Subjects);
@@ -57,26 +57,6 @@ void TAccessControlEntry::Persist(NCypressServer::TCopyPersistenceContext& conte
     Persist(context, Action);
     Persist(context, InheritanceMode);
     Persist(context, Columns);
-}
-
-void TAccessControlEntry::Save(NCellMaster::TSaveContext& context) const
-{
-    SaveViaPersist<NCellMaster::TPersistenceContext>(context, *this);
-}
-
-void TAccessControlEntry::Load(NCellMaster::TLoadContext& context)
-{
-    LoadViaPersist<NCellMaster::TPersistenceContext>(context, *this);
-}
-
-void TAccessControlEntry::Save(NCypressServer::TBeginCopyContext& context) const
-{
-    SaveViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
-}
-
-void TAccessControlEntry::Load(NCypressServer::TEndCopyContext& context)
-{
-    LoadViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
 }
 
 void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
@@ -95,36 +75,16 @@ void Serialize(const TAccessControlEntry& ace, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAccessControlList::Persist(NCellMaster::TPersistenceContext& context)
+void TAccessControlList::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Entries);
 }
 
-void TAccessControlList::Persist(NCypressServer::TCopyPersistenceContext& context)
+void TAccessControlList::Persist(const NCypressServer::TCopyPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Entries);
-}
-
-void TAccessControlList::Save(NCellMaster::TSaveContext& context) const
-{
-    SaveViaPersist<NCellMaster::TPersistenceContext>(context, *this);
-}
-
-void TAccessControlList::Load(NCellMaster::TLoadContext& context)
-{
-    LoadViaPersist<NCellMaster::TPersistenceContext>(context, *this);
-}
-
-void TAccessControlList::Save(NCypressServer::TBeginCopyContext& context) const
-{
-    SaveViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
-}
-
-void TAccessControlList::Load(NCypressServer::TEndCopyContext& context)
-{
-    LoadViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
 }
 
 void Serialize(const TAccessControlList& acl, IYsonConsumer* consumer)
@@ -263,27 +223,7 @@ void TAccessControlDescriptor::OnSubjectDestroyed(TSubject* subject, TSubject* d
     }
 }
 
-void TAccessControlDescriptor::Save(NCellMaster::TSaveContext& context) const
-{
-    SaveViaPersist<NCellMaster::TPersistenceContext>(context, *this);
-}
-
-void TAccessControlDescriptor::Load(NCellMaster::TLoadContext& context)
-{
-    LoadViaPersist<NCellMaster::TPersistenceContext>(context, *this);
-}
-
-void TAccessControlDescriptor::Save(NCypressServer::TBeginCopyContext& context) const
-{
-    SaveViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
-}
-
-void TAccessControlDescriptor::Load(NCypressServer::TEndCopyContext& context)
-{
-    LoadViaPersist<NCypressServer::TCopyPersistenceContext>(context, *this);
-}
-
-void TAccessControlDescriptor::Persist(NCellMaster::TPersistenceContext& context)
+void TAccessControlDescriptor::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Acl_);
@@ -291,7 +231,7 @@ void TAccessControlDescriptor::Persist(NCellMaster::TPersistenceContext& context
     Persist(context, Owner_);
 }
 
-void TAccessControlDescriptor::Persist(NCypressServer::TCopyPersistenceContext& context)
+void TAccessControlDescriptor::Persist(const NCypressServer::TCopyPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Acl_);

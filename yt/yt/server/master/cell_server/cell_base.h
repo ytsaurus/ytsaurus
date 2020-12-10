@@ -36,7 +36,7 @@ struct TCellStatus
     ECellHealth Health;
     bool Decommissioned;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 void ToProto(NProto::TCellStatus* protoStatus, const TCellStatus& statistics);
@@ -59,7 +59,7 @@ public:
         EPeerState LastSeenState = EPeerState::None;
         TError LastRevocationReason;
 
-        void Persist(NCellMaster::TPersistenceContext& context);
+        void Persist(const NCellMaster::TPersistenceContext& context);
     };
 
     using TPeerList = SmallVector<TPeer, TypicalPeerCount>;

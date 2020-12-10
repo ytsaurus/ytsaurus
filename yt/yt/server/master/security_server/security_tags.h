@@ -22,7 +22,7 @@ struct TSecurityTags
     bool operator == (const TSecurityTags& rhs) const;
     bool operator != (const TSecurityTags& rhs) const;
 
-    void Persist(TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 TSecurityTags operator + (const TSecurityTags& a, const TSecurityTags& b);

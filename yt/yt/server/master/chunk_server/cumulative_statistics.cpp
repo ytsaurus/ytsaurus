@@ -102,7 +102,7 @@ void TCumulativeStatistics::DeclareTrimmable()
     Statistics_.emplace<TrimmableAlternativeIndex>(1);
 }
 
-void TCumulativeStatistics::Persist(NCellMaster::TPersistenceContext& context)
+void TCumulativeStatistics::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Statistics_);

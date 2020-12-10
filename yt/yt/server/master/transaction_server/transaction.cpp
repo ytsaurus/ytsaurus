@@ -26,7 +26,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransaction::TExportEntry::Persist(NCellMaster::TPersistenceContext& context)
+void TTransaction::TExportEntry::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
 

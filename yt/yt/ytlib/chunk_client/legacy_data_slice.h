@@ -53,7 +53,7 @@ public:
     int GetTableIndex() const;
     int GetRangeIndex() const;
 
-    void Persist(NTableClient::TPersistenceContext& context);
+    void Persist(const NTableClient::TPersistenceContext& context);
 
     //! Check that data slice is an old single-chunk slice. Used for compatibility.
     bool IsTrivial() const;

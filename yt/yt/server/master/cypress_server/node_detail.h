@@ -656,7 +656,7 @@ public:
 
     std::optional<TString> GetProfilingTag() const;
     void SetProfilingTag(std::optional<TString> profilingTag);
-    
+
     struct TAttributes
     {
         std::optional<NCompression::ECodec> CompressionCodec;
@@ -676,14 +676,8 @@ public:
         bool operator==(const TAttributes& rhs) const;
         bool operator!=(const TAttributes& rhs) const;
 
-        void Persist(NCellMaster::TPersistenceContext& context);
-        void Persist(NCypressServer::TCopyPersistenceContext& context);
-
-        void Save(NCellMaster::TSaveContext& context) const;
-        void Load(NCellMaster::TLoadContext& context);
-
-        void Save(NCypressServer::TBeginCopyContext& context) const;
-        void Load(NCypressServer::TEndCopyContext& context);
+        void Persist(const NCellMaster::TPersistenceContext& context);
+        void Persist(const NCypressServer::TCopyPersistenceContext& context);
 
         // Are all attributes not null?
         bool AreFull() const;

@@ -30,7 +30,7 @@ struct TLockKey
     bool operator < (const TLockKey& other) const;
     operator size_t() const;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 void FormatValue(TStringBuilderBase* builder, const TLockKey& key, TStringBuf format);
@@ -45,7 +45,7 @@ struct TLockRequest
     static TLockRequest MakeSharedChild(const TString& key);
     static TLockRequest MakeSharedAttribute(const TString& key);
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 
     bool operator == (const TLockRequest& other) const;
     bool operator != (const TLockRequest& other) const;
@@ -71,7 +71,7 @@ struct TCypressNodeLockingState
     THashMultiMap<NTransactionServer::TTransaction*, TLock*> TransactionToSnapshotLocks;
 
     bool IsEmpty() const;
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 
     static const TCypressNodeLockingState Empty;
 };

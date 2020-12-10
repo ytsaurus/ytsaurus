@@ -31,7 +31,7 @@ struct TDynamicTableLock
     NTransactionClient::TTimestamp Timestamp;
     int PendingTabletCount;
 
-    void Persist(NCellMaster::TPersistenceContext& context);
+    void Persist(const NCellMaster::TPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

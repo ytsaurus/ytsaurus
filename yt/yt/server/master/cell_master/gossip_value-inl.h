@@ -55,7 +55,7 @@ void TGossipValue<TValue>::Initialize(TBootstrap* bootstrap)
 }
 
 template <class TValue>
-void TGossipValue<TValue>::Persist(TPersistenceContext& context)
+void TGossipValue<TValue>::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 

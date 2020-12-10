@@ -1079,7 +1079,7 @@ private:
         TTimestamp Timestamp = NullTimestamp;
         i64 RefCount = 1;
 
-        void Persist(NCellMaster::TPersistenceContext& context)
+        void Persist(const NCellMaster::TPersistenceContext& context)
         {
             using ::NYT::Persist;
             Persist(context, Timestamp);

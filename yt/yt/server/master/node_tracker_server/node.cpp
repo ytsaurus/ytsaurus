@@ -42,7 +42,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNode::TCellSlot::Persist(NCellMaster::TPersistenceContext& context)
+void TNode::TCellSlot::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Cell);

@@ -37,7 +37,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, Min);
     DEFINE_BYVAL_RO_PROPERTY(i64, Max);
 
-    void Persist(TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 
     bool operator == (const TSummary& other) const;
 
@@ -75,7 +75,7 @@ public:
      */
     TSummaryRange GetRangeByPrefix(const TString& prefixPath) const;
 
-    void Persist(TStreamPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 
 private:
     TSummary& GetSummary(const NYPath::TYPath& path);

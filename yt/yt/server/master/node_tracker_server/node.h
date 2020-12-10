@@ -189,7 +189,7 @@ public:
         //! Sum of `PreloadFailedStoreCount` over all tablets in slot.
         int PreloadFailedStoreCount = 0;
 
-        void Persist(NCellMaster::TPersistenceContext& context);
+        void Persist(const NCellMaster::TPersistenceContext& context);
     };
 
     using TCellSlotList = SmallVector<TCellSlot, NTabletClient::TypicalTabletSlotCount>;

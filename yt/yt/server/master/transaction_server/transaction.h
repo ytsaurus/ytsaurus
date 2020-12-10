@@ -51,7 +51,7 @@ public:
         NObjectServer::TObject* Object;
         NObjectClient::TCellTag DestinationCellTag;
 
-        void Persist(NCellMaster::TPersistenceContext& context);
+        void Persist(const NCellMaster::TPersistenceContext& context);
     };
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TExportEntry>, ExportedObjects);

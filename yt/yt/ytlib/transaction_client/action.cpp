@@ -6,7 +6,7 @@ namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransactionActionData::Persist(TStreamPersistenceContext& context)
+void TTransactionActionData::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Type);

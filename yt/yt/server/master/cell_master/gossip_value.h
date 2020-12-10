@@ -24,7 +24,7 @@ public:
     TValue* Remote(NObjectClient::TCellTag cellTag);
     void Initialize(TBootstrap* bootstrap);
 
-    void Persist(TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
