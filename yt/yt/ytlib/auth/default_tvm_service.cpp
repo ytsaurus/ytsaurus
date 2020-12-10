@@ -163,7 +163,7 @@ private:
         YT_LOG_INFO("Creating TvmClient");
 
         NTvmApi::TClientSettings settings;
-        settings.SetSelfClientId(Config_->ClientSelfId);
+        settings.SetSelfTvmId(Config_->ClientSelfId);
         if (!Config_->ClientDiskCacheDir.empty()) {
             settings.SetDiskCacheDir(Config_->ClientDiskCacheDir);
         }
