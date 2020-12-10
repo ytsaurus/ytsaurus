@@ -52,6 +52,7 @@ struct TChunkQuorumInfo
     std::optional<i64> FirstOverlayedRowIndex;
 
     //! The quorum number of rows (across all chunk replicas).
+    //! For overlayed chunks, this excludes the header row.
     i64 RowCount = 0;
 
     //! Some approximation for the uncompressed data size of the journal chunk.
