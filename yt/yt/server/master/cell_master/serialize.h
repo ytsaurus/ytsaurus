@@ -113,6 +113,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixChunkTreeAttachValidation)                                 (1428))  // babenko
     ((MutationIdempotizerToggle)                                    (1429))  // shakurov
     ((FixChunkSealValidation)                                       (1430))  // babenko
+    ((SupportIsaReedSolomon63_20_3)                                 (1431))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

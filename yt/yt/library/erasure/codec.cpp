@@ -15,6 +15,11 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
         // NB: This codec uses ISA-l as a backend.
+        case ECodec::IsaReedSolomon_6_3: {
+            static TReedSolomonIsa<6, 3, 8, TCodecTraits> result;
+            return &result;
+        }
+        // NB: This codec uses ISA-l as a backend.
         case ECodec::ReedSolomon_3_3: {
             static TReedSolomonIsa<3, 3, 8, TCodecTraits> result;
             return &result;
@@ -30,7 +35,7 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
         default:
-            Y_UNREACHABLE();
+            YT_ABORT();
     }
 }
 

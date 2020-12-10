@@ -71,6 +71,7 @@ class TestGetFeatures(YTEnvSetup):
             "none",
             "reed_solomon_6_3",
             "reed_solomon_3_3",
+            "isa_reed_solomon_6_3",
             "lrc_12_2_2",
             "isa_lrc_12_2_2",
         }
