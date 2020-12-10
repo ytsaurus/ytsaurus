@@ -1483,6 +1483,7 @@ bool TReplicatedTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, I
                             .Item("replication_lag_time").Value(replica->ComputeReplicationLagTime(
                                 timestampProvider->GetLatestTimestamp()))
                             .Item("error_count").Value(replica->GetErrorCount())
+                            .Item("enable_replicated_table_tracker").Value(replica->GetEnableReplicatedTableTracker())
                         .EndMap();
                 });
             return true;
