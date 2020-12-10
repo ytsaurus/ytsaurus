@@ -112,6 +112,7 @@ DEFINE_ENUM(EMasterReign,
     ((IgnoreStatisticsDuringNodeRegistration)                       (1427))  // gritukan
     ((FixChunkTreeAttachValidation)                                 (1428))  // babenko
     ((MutationIdempotizerToggle)                                    (1429))  // shakurov
+    ((FixChunkSealValidation)                                       (1430))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

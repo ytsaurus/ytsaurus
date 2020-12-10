@@ -620,17 +620,35 @@ public:
     void SealChunk(TChunk* chunk, const TChunkSealInfo& info)
     {
         if (!chunk->IsJournal()) {
-            THROW_ERROR_EXCEPTION("Not a journal chunk");
+            THROW_ERROR_EXCEPTION("Chunk %v is not a journal chunk",
+                chunk->GetId());
         }
 
         if (!chunk->IsConfirmed()) {
-            THROW_ERROR_EXCEPTION("Chunk is not confirmed");
+            THROW_ERROR_EXCEPTION("Chunk %v is not confirmed",
+                chunk->GetId());
         }
 
         if (chunk->IsSealed()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk is already sealed (ChunkId: %v)",
                 chunk->GetId());
             return;
+        }
+
+        for (auto [chunkTree, cardinality] : chunk->Parents()) {
+            const auto* chunkList = chunkTree->As<TChunkList>();
+            const auto& children = chunkList->Children();
+            int index = GetChildIndex(chunkList, chunk);
+            if (index == 0) {
+                continue;
+            }
+            const auto* leftSibling = children[index - 1]->AsChunk();
+            if (!leftSibling->IsSealed()) {
+                THROW_ERROR_EXCEPTION("Cannot seal chunk %v since its left silbing %v in chunk list %v is not sealed yet",
+                    chunk->GetId(),
+                    leftSibling->GetId(),
+                    chunkList->GetId());
+            }
         }
 
         chunk->Seal(info);
@@ -642,9 +660,11 @@ public:
             const auto* chunkList = chunkTree->As<TChunkList>();
             const auto& children = chunkList->Children();
             int index = GetChildIndex(chunkList, chunk);
-            if (index + 1 < static_cast<int>(children.size())) {
-                ScheduleChunkSeal(children[index + 1]->AsChunk());
+            if (index + 1 == static_cast<int>(children.size())) {
+                continue;
             }
+            auto* rightSibling = children[index + 1]->AsChunk();
+            ScheduleChunkSeal(rightSibling);
         }
     }
 

@@ -324,7 +324,7 @@ private:
             EChunkSessionState State = EChunkSessionState::Allocating;
             bool SwitchScheduled = false;
 
-            i64 FirstRowIndex = -1;
+            std::optional<i64> FirstRowIndex;
 
             TSharedRef HeaderRow;
         };
@@ -358,16 +358,26 @@ private:
             TChunkSessionPtr Session;
         };
 
+        struct TFailCommand
+        {
+            TError Error;
+        };
+
         using TCommand = std::variant<
             TBatchCommand,
             TCloseCommand,
             TCancelCommand,
-            TSwitchChunkCommand
+            TSwitchChunkCommand,
+            TFailCommand
         >;
 
         TNonblockingQueue<TCommand> CommandQueue_;
 
         THashMap<TString, TInstant> BannedNodeToDeadline_;
+
+        bool SealInProgress_ = false;
+        int FirstUnsealedSessionIndex_ = 0;
+        std::map<int, TChunkSessionPtr> IndexToChunkSessionToSeal_;
 
 
         void EnqueueCommand(TCommand command)
@@ -848,6 +858,10 @@ private:
                             session->State = EChunkSessionState::Allocated;
                         }
 
+                        if (session->State == EChunkSessionState::Discarded) {
+                            ScheduleChunkSessionSeal(session);
+                        }
+
                         YT_LOG_DEBUG("Chunk session allocated (SessionIndex: %v, SessionId: %v, SessionState: %v)",
                             sessionIndex,
                             session->Id,
@@ -873,17 +887,15 @@ private:
                     ScheduleChunkSessionAllocation();
                 }
 
-                if (session->State != EChunkSessionState::Allocated) {
-                    YT_LOG_DEBUG("Dropping chunk session due to invalid state (SessionId: %v, SessionState: %v)",
-                        session->Id,
-                        session->State);
-                    continue;
+                if (session->State == EChunkSessionState::Allocated) {
+                    YT_VERIFY(session->State == EChunkSessionState::Allocated);
+                    session->State = EChunkSessionState::Current;
+                    return session;
                 }
 
-                YT_VERIFY(session->State == EChunkSessionState::Allocated);
-                session->State = EChunkSessionState::Current;
-
-                return session;
+                YT_LOG_DEBUG("Skipping chunk session due to invalid state (SessionId: %v, SessionState: %v)",
+                    session->Id,
+                    session->State);
             }
         }
 
@@ -891,13 +903,16 @@ private:
         {
             CurrentChunkSession_ = OpenChunkSession();
 
+            YT_LOG_DEBUG("Current chunk session updated (SessionId: %v)",
+                CurrentChunkSession_->Id);
+
             if (!PendingBatches_.empty()) {
                 const auto& firstBatch = PendingBatches_.front();
                 const auto& lastBatch = PendingBatches_.back();
-                YT_LOG_DEBUG("Batches re-enqueued (Rows: %v-%v, Session: %v)",
+                YT_LOG_DEBUG("Batches re-enqueued (SessionId: %v, Rows: %v-%v)",
+                    CurrentChunkSession_->Id,
                     firstBatch->FirstRowIndex,
-                    lastBatch->FirstRowIndex + lastBatch->RowCount - 1,
-                    CurrentChunkSession_->Id);
+                    lastBatch->FirstRowIndex + lastBatch->RowCount - 1);
 
                 for (const auto& batch : PendingBatches_) {
                     EnqueueBatchToCurrentChunkSession(batch);
@@ -948,6 +963,9 @@ private:
                             return;
                         }
                         mustBreak = true;
+                    },
+                    [&] (const TFailCommand& typedCommand) {
+                        THROW_ERROR(typedCommand.Error);
                     });
 
                 if (mustBreak) {
@@ -993,7 +1011,7 @@ private:
                 batch->FlushedReplicas = 0;
             }
 
-            if (CurrentChunkSession_->FirstRowIndex < 0) {
+            if (!CurrentChunkSession_->FirstRowIndex) {
                 auto firstRowIndex = batch->FirstRowIndex;
 
                 YT_LOG_DEBUG("Initializing first row index of chunk session (SessionId: %v, FirstRowIndex: %v)",
@@ -1042,7 +1060,9 @@ private:
                 }
             }
 
-            if (!Config_->PreallocateChunks) {
+            if (Config_->PreallocateChunks) {
+                ScheduleChunkSessionSeal(session);
+            } else {
                 TEventTimerGuard timingGuard(Counters_.SealChunkTimer);
 
                 YT_LOG_DEBUG("Sealing chunk (SessionId: %v, RowCount: %v)",
@@ -1600,6 +1620,85 @@ private:
                 ? session->Id.ChunkId
                 : EncodeChunkId(TChunkIdWithIndex(session->Id.ChunkId, node->Index));
             return TSessionId(chunkId, session->Id.MediumIndex);
+        }
+
+
+        void ScheduleChunkSessionSeal(TChunkSessionPtr session)
+        {
+            YT_LOG_DEBUG("Scheduling chunk seal (SessionId: %v, SessionIndex: %v, FirstRowIndex: %v, RowCount: %v, DataSize: %v)",
+                session->Id,
+                session->Index,
+                session->FirstRowIndex,
+                session->FlushedRowCount,
+                session->FlushedDataSize);
+
+            YT_VERIFY(IndexToChunkSessionToSeal_.emplace(session->Index, std::move(session)).second);
+
+            MaybeSealChunks();
+        }
+
+        void MaybeSealChunks()
+        {
+            if (SealInProgress_) {
+                return;
+            }
+
+            if (IndexToChunkSessionToSeal_.empty()) {
+                return;
+            }
+
+            if (IndexToChunkSessionToSeal_.begin()->first != FirstUnsealedSessionIndex_) {
+                return;
+            }
+
+            TChunkServiceProxy proxy(UploadMasterChannel_);
+
+            auto batchReq = proxy.ExecuteBatch();
+            GenerateMutationId(batchReq);
+            batchReq->set_suppress_upstream_sync(true);
+
+            std::vector<TSessionId> sessionIds;
+            while (!IndexToChunkSessionToSeal_.empty() && IndexToChunkSessionToSeal_.begin()->first == FirstUnsealedSessionIndex_) {
+                ++FirstUnsealedSessionIndex_;
+                auto session = std::move(IndexToChunkSessionToSeal_.begin()->second);
+                IndexToChunkSessionToSeal_.erase(IndexToChunkSessionToSeal_.begin());
+                sessionIds.push_back(session->Id);
+
+                auto* req = batchReq->add_seal_chunk_subrequests();
+                ToProto(req->mutable_chunk_id(), session->Id.ChunkId);
+                if (session->FirstRowIndex) {
+                    req->mutable_info()->set_first_overlayed_row_index(*session->FirstRowIndex);
+                }
+                req->mutable_info()->set_row_count(session->FlushedRowCount);
+                req->mutable_info()->set_uncompressed_data_size(session->FlushedDataSize);
+                req->mutable_info()->set_compressed_data_size(session->FlushedDataSize);
+            }
+
+            SealInProgress_ = true;
+
+            YT_LOG_DEBUG("Sealing chunks (SessionIds: %v)",
+                sessionIds);
+
+            batchReq->Invoke().Subscribe(
+                BIND(&TImpl::OnChunksSealed, MakeWeak(this))
+                    .Via(Invoker_));
+        }
+
+        void OnChunksSealed(const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
+        {
+            auto error = GetCumulativeError(batchRspOrError);
+            if (!error.IsOK()) {
+                auto wrappedError = TError("Error sealing chunks")
+                    << error;
+                EnqueueCommand(TFailCommand{error});
+                // SealInProgress_ is left stuck.
+                return;
+            }
+
+            YT_LOG_DEBUG("Chunks sealed successfully");
+
+            SealInProgress_ = false;
+            MaybeSealChunks();
         }
     };
 
