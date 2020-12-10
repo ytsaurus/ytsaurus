@@ -191,8 +191,10 @@ void TBlockInputStream::readSuffixImpl()
     IdleTimer_.Stop();
 
     YT_LOG_DEBUG(
-        "Block input stream timing statistics (ConversionCpuTime: %v, ConversionSyncWaitTime: %v, IdleTime: %v, ReadCount: %v)",
-        ConversionCpuTime_,
+        "Block input stream timing statistics (ColumnarConversionCpuTime: %v, NonColumnarConvertionCpuTime: %v, "
+        "ConversionSyncWaitTime: %v, IdleTime: %v, ReadCount: %v)",
+        ColumnarConversionCpuTime_,
+        NonColumnarConversionCpuTime_,
         ConversionSyncWaitTime_,
         IdleTimer_.GetElapsedTime(),
         ReadCount_);
@@ -200,7 +202,22 @@ void TBlockInputStream::readSuffixImpl()
     if (TraceContext_) {
         TraceContext_->AddTag("chyt.reader.data_statistics", ToString(Reader_->GetDataStatistics()));
         TraceContext_->AddTag("chyt.reader.codec_statistics", ToString(Reader_->GetDecompressionStatistics()));
+        TraceContext_->AddTag("chyt.reader.timing_statistics", ToString(Reader_->GetTimingStatistics()));
         TraceContext_->AddTag("chyt.reader.idle_time", ToString(IdleTimer_.GetElapsedTime()));
+        if (ColumnarConversionCpuTime_ != TDuration::Zero()) {
+            TraceContext_->AddTag("chyt.reader.columnar_conversion_cpu_time", ToString(ColumnarConversionCpuTime_));
+        }
+        if (NonColumnarConversionCpuTime_ != TDuration::Zero()) {
+            TraceContext_->AddTag("chyt.reader.non_columnar_conversion_cpu_time", ToString(NonColumnarConversionCpuTime_));
+        }
+        if (ConversionSyncWaitTime_ != TDuration::Zero()) {
+            TraceContext_->AddTag("chyt.reader.conversion_sync_wait_time", ToString(ConversionSyncWaitTime_));
+        }
+        // TODO(dakovalkov): https://st.yandex-team.ru/YT-14032
+        // Delete this statistics when GetTimingStatistics() works properly for TSchemalessMergingMultiChunkReader.
+        if (WaitReadyEventTime_ != TDuration::Zero()) {
+            TraceContext_->AddTag("chyt.reader.wait_ready_event_time", ToString(WaitReadyEventTime_));
+        }
         TraceContext_->Finish();
     }
 }
@@ -235,7 +252,10 @@ DB::Block TBlockInputStream::readImpl()
             NProfiling::TWallTimer wallTimer;
             WaitFor(Reader_->GetReadyEvent())
                 .ThrowOnError();
+
             auto elapsed = wallTimer.GetElapsedTime();
+            WaitReadyEventTime_ += elapsed;
+
             if (elapsed > TDuration::Seconds(1)) {
                 YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
             }
@@ -294,6 +314,8 @@ void TBlockInputStream::Prepare()
 
 DB::Block TBlockInputStream::ConvertRowBatchToBlock(const IUnversionedRowBatchPtr& batch)
 {
+    bool isColumnarBatch = static_cast<bool>(batch->TryAsColumnar());
+
     NProfiling::TWallTimer timer;
     auto result = NClickHouseServer::ConvertRowBatchToBlock(
         batch,
@@ -303,7 +325,11 @@ DB::Block TBlockInputStream::ConvertRowBatchToBlock(const IUnversionedRowBatchPt
         InputHeaderBlock_,
         Settings_->Composite);
 
-    ConversionCpuTime_ += timer.GetElapsedTime();
+    if (isColumnarBatch) {
+        ColumnarConversionCpuTime_ += timer.GetElapsedTime();
+    } else {
+        NonColumnarConversionCpuTime_ += timer.GetElapsedTime();
+    }
 
     return result;
 }

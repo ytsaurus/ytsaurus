@@ -55,8 +55,11 @@ private:
     DB::Block OutputHeaderBlock_;
     std::vector<int> IdToColumnIndex_;
 
-    TDuration ConversionCpuTime_;
+    TDuration ColumnarConversionCpuTime_;
+    TDuration NonColumnarConversionCpuTime_;
     TDuration ConversionSyncWaitTime_;
+
+    TDuration WaitReadyEventTime_;
 
     NProfiling::TWallTimer IdleTimer_ = NProfiling::TWallTimer(false /* start */);
 
