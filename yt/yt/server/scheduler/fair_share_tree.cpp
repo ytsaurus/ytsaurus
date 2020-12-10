@@ -1145,7 +1145,12 @@ private:
             LastSchedulingInformationLoggedTime_ = now;
         }
 
-        TFairShareContext context(schedulingContext, enableSchedulingInfoLogging, Logger);
+        TFairShareContext context(
+            schedulingContext,
+            rootElementSnapshot->RootElement->GetTreeSize(),
+            RegisteredSchedulingTagFilters_,
+            enableSchedulingInfoLogging,
+            Logger);
 
         context.SchedulingStatistics().ResourceUsage = schedulingContext->ResourceUsage();
         context.SchedulingStatistics().ResourceLimits = schedulingContext->ResourceLimits();
@@ -1323,13 +1328,10 @@ private:
             {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
-                    if (!context->GetInitialized()) {
-                        context->Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters_);
-                    }
+                    context->PrepareForScheduling();
                     rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                     prescheduleExecuted = true;
-                    context->SetPrescheduleCalled(true);
                 }
                 ++context->StageState()->ScheduleJobAttemptCount;
                 auto scheduleJobResult = rootElement->ScheduleJob(context, ignorePacking);
@@ -1379,15 +1381,15 @@ private:
         auto& rootElement = rootElementSnapshot->RootElement;
         auto& config = rootElementSnapshot->Config;
 
-        if (!context->GetInitialized()) {
-            context->Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters_);
+        // TODO(ignat): move this logic inside TFairShareContext.
+        if (!context->GetHasAggressivelyStarvingElements()) {
+            context->SetHasAggressivelyStarvingElements(rootElement->HasAggressivelyStarvingElements(context, false));
         }
 
-        if (!context->GetPrescheduleCalled()) {
-            context->SchedulingStatistics().HasAggressivelyStarvingElements = rootElement->HasAggressivelyStarvingElements(context, false);
-        }
+        bool hasAggressivelyStarvingElements = *context->GetHasAggressivelyStarvingElements();
 
-        if (isAggressive && !context->SchedulingStatistics().HasAggressivelyStarvingElements) {
+        context->SchedulingStatistics().HasAggressivelyStarvingElements = hasAggressivelyStarvingElements;
+        if (isAggressive && !hasAggressivelyStarvingElements) {
             return;
         }
 
@@ -1398,6 +1400,13 @@ private:
         std::vector<TJobPtr> preemptableJobs;
         {
             TEventTimerGuard timer(AnalyzePreemptableJobsTimer_);
+
+            // We need to initialize dynamic attributes list to update
+            // resource usage discounts.
+            if (!context->SchedulingContext()->RunningJobs().empty()) {
+                context->PrepareForScheduling();
+            }
+
             for (const auto& job : context->SchedulingContext()->RunningJobs()) {
                 auto* operationElement = rootElementSnapshot->FindOperationElement(job->GetOperationId());
                 if (!operationElement || !operationElement->IsJobKnown(job->GetId())) {
@@ -1458,6 +1467,7 @@ private:
             {
                 if (!prescheduleExecuted) {
                     TWallTimer prescheduleTimer;
+                    context->PrepareForScheduling();
                     rootElement->PrescheduleJob(
                         context,
                         isAggressive
@@ -1466,7 +1476,6 @@ private:
                         /* aggressiveStarvationEnabled */ false);
                     context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                     prescheduleExecuted = true;
-                    context->SetPrescheduleCalled(true);
                 }
 
                 ++context->StageState()->ScheduleJobAttemptCount;

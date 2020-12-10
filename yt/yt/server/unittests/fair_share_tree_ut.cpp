@@ -530,26 +530,27 @@ protected:
             execNode,
             /* runningJobs */ {},
             mediumDirectory);
-        TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true, SchedulerLogger);
 
+        {
+            TUpdateFairShareContext updateContext;
+            rootElement->PreUpdate(&updateContext);
+            rootElement->Update(&updateContext);
+        }
+
+        TFairShareContext context(
+            schedulingContext,
+            rootElement->GetTreeSize(),
+            /* registeredSchedulingTagFilters */ {},
+            /* enableSchedulingInfoLogging */ true,
+            SchedulerLogger);
         context.StartStage(&SchedulingStageMock_);
-        PrepareForTestScheduling(rootElement, &context);
+
+        context.PrepareForScheduling();
+        rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
+
         operationElement->ScheduleJob(&context, /* ignorePacking */ true);
+
         context.FinishStage();
-    }
-
-private:
-    void PrepareForTestScheduling(
-        const TRootElementPtr& rootElement,
-        TFairShareContext* context)
-    {
-        TUpdateFairShareContext updateContext;
-        rootElement->PreUpdate(&updateContext);
-        rootElement->Update(&updateContext);
-
-        context->Initialize(rootElement->GetTreeSize(), /* registeredSchedulingTagFilters */ {});
-        rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
-        context->SetPrescheduleCalled(true);
     }
 };
 
@@ -2253,23 +2254,28 @@ TEST_F(TFairShareTreeTest, ChildHeap)
             }));
     }
 
+
+    {
+        TUpdateFairShareContext updateContext;
+        rootElement->PreUpdate(&updateContext);
+        rootElement->Update(&updateContext);
+    }
     auto schedulingContext = CreateSchedulingContext(
         /* nodeShardId */ 0,
         SchedulerConfig_,
         execNode,
         /* runningJobs */ {},
         host->GetMediumDirectory());
-    TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true, SchedulerLogger);
 
+    TFairShareContext context(
+        schedulingContext,
+        rootElement->GetTreeSize(),
+        /* registeredSchedulingTagFilters */ {},
+        /* enableSchedulingInfoLogging */ true,
+        SchedulerLogger);
     context.StartStage(&SchedulingStageMock_);
-    {
-        TUpdateFairShareContext updateContext;
-        rootElement->PreUpdate(&updateContext);
-        rootElement->Update(&updateContext);
-    }
-    context.Initialize(rootElement->GetTreeSize(), /* registeredSchedulingTagFilters */ {});
+    context.PrepareForScheduling();
     rootElement->PrescheduleJob(&context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
-    context.SetPrescheduleCalled(true);
 
     for (auto operationElement : operationElements) {
         const auto& dynamicAttributes = context.DynamicAttributesFor(rootElement.Get());
