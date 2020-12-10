@@ -26,7 +26,7 @@ using namespace NYTree;
 using namespace NHttp;
 using namespace NYPath;
 using namespace NConcurrency;
-using namespace NTicketParser2;
+using namespace NTvmAuth;
 
 using NYT::NLogging::ELogLevel;
 
@@ -35,7 +35,7 @@ using NYT::NLogging::ELogLevel;
 static const auto& Logger = AuthLogger;
 
 class TTvmLoggerAdapter
-    : public NTicketParser2::ILogger
+    : public NTvmAuth::ILogger
 {
 protected:
     void Log(int lvl, const TString& msg) override
