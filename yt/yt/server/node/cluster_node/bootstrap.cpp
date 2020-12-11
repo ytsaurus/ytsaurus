@@ -461,7 +461,7 @@ void TBootstrap::DoInitialize()
         TabletNodeThrottlers_[kind] = throttler;
     }
 
-    DynamicConfigManager_ = New<TDynamicConfigManager>(Config_->DynamicConfigManager, this);
+    DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
     DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
 
     RpcServer_->RegisterService(CreateDataNodeService(Config_->DataNode, this));
@@ -1010,7 +1010,7 @@ const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
     return MasterConnection_->GetNodeDirectory();
 }
 
-const TDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
+const TClusterNodeDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
 {
     return DynamicConfigManager_;
 }

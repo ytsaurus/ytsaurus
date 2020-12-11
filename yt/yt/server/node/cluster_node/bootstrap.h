@@ -101,7 +101,7 @@ public:
     const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
     const NQueryAgent::IQuerySubexecutorPtr& GetQueryExecutor() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
-    const TDynamicConfigManagerPtr& GetDynamicConfigManager() const;
+    const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const;
 
     const NConcurrency::IThroughputThrottlerPtr& GetDataNodeThrottler(NDataNode::EDataNodeThrottlerKind kind) const;
@@ -179,7 +179,7 @@ private:
     NDataNode::TJournalDispatcherPtr JournalDispatcher_;
     NDataNode::TMasterConnectorPtr MasterConnector_;
     ICoreDumperPtr CoreDumper_;
-    TDynamicConfigManagerPtr DynamicConfigManager_;
+    TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     NObjectClient::TObjectServiceCachePtr ObjectServiceCache_;
 
     TEnumIndexedVector<NDataNode::EDataNodeThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> RawDataNodeThrottlers_;

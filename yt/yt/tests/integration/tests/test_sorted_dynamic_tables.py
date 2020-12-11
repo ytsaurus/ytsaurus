@@ -1821,7 +1821,7 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
             node = ls("//sys/cluster_nodes")[0]
             config_manager = "//sys/cluster_nodes/{}/orchid/dynamic_config_manager".format(node)
             def _wait_func():
-                config = get(config_manager + "/config")
+                config = get(config_manager + "/applied_config")
                 return config.get("tablet_node", {}).get("forced_rotation_memory_ratio", None) == ratio
             wait(_wait_func)
 

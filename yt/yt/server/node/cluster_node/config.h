@@ -2,11 +2,11 @@
 
 #include "public.h"
 
+#include <yt/server/lib/dynamic_config/config.h>
+
 #include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/server/lib/misc/config.h>
-
-#include <yt/server/node/query_agent/config.h>
 
 #include <yt/server/lib/tablet_node/config.h>
 
@@ -302,7 +302,7 @@ public:
     bool AbortOnUnrecognizedOptions;
 
     //! Dynamic config manager config.
-    TDynamicConfigManagerConfigPtr DynamicConfigManager;
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
     TClusterNodeConfig()
     {
@@ -402,6 +402,8 @@ public:
                     InstanceLimitsUpdatePeriod = NYTree::ConvertTo<std::optional<TDuration>>(resourceLimitsUpdatePeriodNode);
                 }
             }
+
+            DynamicConfigManager->IgnoreConfigAbsence = true;
         });
     }
 };
