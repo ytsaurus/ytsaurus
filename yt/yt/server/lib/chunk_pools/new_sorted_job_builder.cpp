@@ -2,8 +2,12 @@
 
 #include "helpers.h"
 #include "input_stream.h"
+#include "new_job_manager.h"
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
+
+#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/client/table_client/row_buffer.h>
 
@@ -311,10 +315,10 @@ public:
 
     //! Barriers are used to indicate positions which should not be overlapped by jobs
     //! (in particular, pivot keys and teleport chunks define barriers).
-    //! Barriers are represented as "empty" jobs.
     void PutBarrier()
     {
-        PreparedJobs_.emplace_back();
+        auto& job = PreparedJobs_.emplace_back();
+        job.SetIsBarrier(true);
     }
 
     //! Either try flushing or forcefully flush data slices into one or more new jobs.
@@ -390,9 +394,7 @@ public:
         }
     }
 
-    using TJob = std::vector<TLegacyDataSlicePtr>;
-
-    std::vector<TJob>& PreparedJobs()
+    std::vector<TNewJobStub>& PreparedJobs()
     {
         return PreparedJobs_;
     }
@@ -424,7 +426,7 @@ private:
     TKeyBound UpperBound_ = TKeyBound::MakeEmpty(/* isUpper */ true);
 
     i64 TotalDataSliceCount_ = 0;
-    std::vector<TJob> PreparedJobs_;
+    std::vector<TNewJobStub> PreparedJobs_;
 
     //! These flags are used only for internal sanity check.
     bool PreviousJobContainedSingleton_ = false;
@@ -775,16 +777,22 @@ private:
 
         YT_LOG_DEBUG_IF(LogDetails_, "Flushing main domain into job (Statistics: %v)", PrimaryDomains_[EDomainKind::Main].Statistics);
 
-
         // Calculate the actual lower and upper bounds of newly formed job and move data slices to the job.
         auto actualLowerBound = TKeyBound::MakeEmpty(/* isUpper */ false);
         auto actualUpperBound = TKeyBound::MakeEmpty(/* isUpper */ true);
         for (auto it = mainDataSlices.begin(); it != mainDataSlices.end(); mainDataSlices.move_forward(it)) {
-            actualLowerBound = PrimaryComparator_.WeakerKeyBound((*it)->LowerLimit().KeyBound, actualLowerBound);
-            actualUpperBound = PrimaryComparator_.WeakerKeyBound((*it)->UpperLimit().KeyBound, actualUpperBound);
-            job.emplace_back(std::move(*it));
+            const auto& dataSlice = *it;
+            actualLowerBound = PrimaryComparator_.WeakerKeyBound(dataSlice->LowerLimit().KeyBound, actualLowerBound);
+            actualUpperBound = PrimaryComparator_.WeakerKeyBound(dataSlice->UpperLimit().KeyBound, actualUpperBound);
+            YT_VERIFY(dataSlice->Tag);
+            // Yeah! In the other words, take the value of the tag contained in TLegacyDataSlicePtr pointed by iterator.
+            auto tag = *dataSlice->Tag;
+            job.AddDataSlice(std::move(*it), tag, /* isPrimary */ true);
         }
-        YT_VERIFY(!job.empty());
+        YT_VERIFY(job.GetPrimarySliceCount() > 0);
+
+        job.SetPrimaryLowerBound(actualLowerBound);
+        job.SetPrimaryUpperBound(actualUpperBound);
 
         PrimaryDomains_[EDomainKind::Main].Clear();
 
@@ -808,7 +816,11 @@ private:
         TAggregatedStatistics foreignStatistics;
         for (const auto& dataSlice : ForeignDomain_.DataSlices) {
             if (!ForeignComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, shortenedActualUpperBound)) {
-                job.emplace_back(CreateInputDataSlice(dataSlice, ForeignComparator_, shortenedActualLowerBound, shortenedActualUpperBound));
+                YT_VERIFY(dataSlice->Tag);
+                job.AddDataSlice(
+                    CreateInputDataSlice(dataSlice, ForeignComparator_, shortenedActualLowerBound, shortenedActualUpperBound),
+                    *dataSlice->Tag,
+                    /* isPrimary */ false);
                 foreignStatistics += TAggregatedStatistics::FromDataSlice(dataSlice, /* isPrimary */ false);
             }
         }
@@ -820,11 +832,9 @@ private:
         YT_LOG_DEBUG_IF(
             LogDetails_,
             "Job prepared (DataSlices: %v)",
-            MakeFormattableView(job, [] (auto* builder, const auto& dataSlice) {
-                builder->AppendString(GetDataSliceDebugString(dataSlice));
-            }));
+            job.GetDebugString());
 
-        TotalDataSliceCount_ += job.size();
+        TotalDataSliceCount_ += job.GetSliceCount();
 
         ValidateTotalSliceCountLimit();
 
@@ -862,8 +872,8 @@ public:
         const TInputStreamDirectory& inputStreamDirectory,
         const TLogger& logger)
         : Options_(options)
-        , PrimaryComparator_(std::vector<ESortOrder>(options.PrimaryPrefixLength, ESortOrder::Ascending))
-        , ForeignComparator_(std::vector<ESortOrder>(options.ForeignPrefixLength, ESortOrder::Ascending))
+        , PrimaryComparator_(options.PrimaryComparator)
+        , ForeignComparator_(options.ForeignComparator)
         , JobSizeConstraints_(std::move(jobSizeConstraints))
         , JobSampler_(JobSizeConstraints_->GetSamplingRate())
         , RowBuffer_(rowBuffer)
@@ -897,7 +907,7 @@ public:
         Endpoints_.push_back(endpoint);
     }
 
-    virtual std::vector<std::unique_ptr<TJobStub>> Build() override
+    virtual std::vector<TNewJobStub> Build() override
     {
         AddPivotKeysEndpoints();
         SortEndpoints();
@@ -907,46 +917,47 @@ public:
         BuildJobs();
 
         for (auto& job : Jobs_) {
-            job->Finalize(true /* sortByPosition */);
-            ValidateJob(job.get());
+            job.Finalize(true /* sortByPosition */, PrimaryComparator_);
+            ValidateJob(&job);
         }
+
         return std::move(Jobs_);
     }
 
-    void ValidateJob(const TJobStub* job)
+    void ValidateJob(const TNewJobStub* job)
     {
         if (job->GetDataWeight() > JobSizeConstraints_->GetMaxDataWeightPerJob()) {
             YT_LOG_DEBUG("Maximum allowed data weight per sorted job exceeds the limit (DataWeight: %v, MaxDataWeightPerJob: %v, "
-                "LowerKey: %v, UpperKey: %v, JobDebugString: %v)",
+                "PrimaryLowerBound: %v, PrimaryUpperBound: %v, JobDebugString: %v)",
                 job->GetDataWeight(),
                 JobSizeConstraints_->GetMaxDataWeightPerJob(),
-                job->LowerPrimaryKey(),
-                job->UpperPrimaryKey(),
+                job->GetPrimaryLowerBound(),
+                job->GetPrimaryUpperBound(),
                 job->GetDebugString());
 
             THROW_ERROR_EXCEPTION(
                 EErrorCode::MaxDataWeightPerJobExceeded, "Maximum allowed data weight per sorted job exceeds the limit: %v > %v",
                 job->GetDataWeight(),
                 JobSizeConstraints_->GetMaxDataWeightPerJob())
-                << TErrorAttribute("lower_key", job->LowerPrimaryKey())
-                << TErrorAttribute("upper_key", job->UpperPrimaryKey());
+                << TErrorAttribute("lower_bound", job->GetPrimaryLowerBound())
+                << TErrorAttribute("upper_bound", job->GetPrimaryUpperBound());
         }
 
         if (job->GetPrimaryDataWeight() > JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob()) {
             YT_LOG_DEBUG("Maximum allowed primary data weight per sorted job exceeds the limit (PrimaryDataWeight: %v, MaxPrimaryDataWeightPerJob: %v, "
-                "LowerKey: %v, UpperKey: %v, JobDebugString: %v)",
+                "PrimaryLowerBound: %v, PrimaryUpperBound: %v, JobDebugString: %v)",
                 job->GetPrimaryDataWeight(),
                 JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
-                job->LowerPrimaryKey(),
-                job->UpperPrimaryKey(),
+                job->GetPrimaryLowerBound(),
+                job->GetPrimaryUpperBound(),
                 job->GetDebugString());
 
             THROW_ERROR_EXCEPTION(
                 EErrorCode::MaxPrimaryDataWeightPerJobExceeded, "Maximum allowed primary data weight per sorted job exceeds the limit: %v > %v",
                 job->GetPrimaryDataWeight(),
                 JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob())
-                << TErrorAttribute("lower_key", job->LowerPrimaryKey())
-                << TErrorAttribute("upper_key", job->UpperPrimaryKey());
+                << TErrorAttribute("lower_bound", job->GetPrimaryLowerBound())
+                << TErrorAttribute("upper_bound", job->GetPrimaryUpperBound());
         }
     }
 
@@ -980,7 +991,7 @@ private:
     //! These items are merely stubs of a future jobs that are filled during the BuildJobsBy{Key/TableIndices}()
     //! call, and when current job is finished it is passed to the `JobManager_` that becomes responsible
     //! for its future.
-    std::vector<std::unique_ptr<TJobStub>> Jobs_;
+    std::vector<TNewJobStub> Jobs_;
 
     int JobIndex_ = 0;
     i64 TotalDataWeight_ = 0;
@@ -1070,52 +1081,42 @@ private:
             : JobSizeConstraints_->GetPrimaryDataWeightPerJob();
     }
 
-    void AddJob(std::vector<TLegacyDataSlicePtr>& dataSlices)
+    void AddJob(TNewJobStub& job)
     {
-        auto& job = Jobs_.emplace_back(std::make_unique<TJobStub>());
-
-        for (auto& dataSlice : dataSlices) {
-            YT_VERIFY(dataSlice->Tag);
-            dataSlice->TransformToLegacy(RowBuffer_);
-            job->AddDataSlice(
-                std::move(dataSlice),
-                *dataSlice->Tag,
-                InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
-        }
-
         if (JobSampler_.Sample()) {
             YT_LOG_DEBUG("Sorted job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
                 "PrimarySliceCount: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
-                "PreliminaryForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
+                "PreliminaryForeignSliceCount: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
                 JobIndex_,
                 static_cast<int>(Jobs_.size()) - 1,
-                job->GetPrimaryDataWeight(),
-                job->GetPrimaryRowCount(),
-                job->GetPrimarySliceCount(),
-                job->GetPreliminaryForeignDataWeight(),
-                job->GetPreliminaryForeignRowCount(),
-                job->GetPreliminaryForeignSliceCount(),
-                job->LowerPrimaryKey(),
-                job->UpperPrimaryKey());
+                job.GetPrimaryDataWeight(),
+                job.GetPrimaryRowCount(),
+                job.GetPrimarySliceCount(),
+                job.GetPreliminaryForeignDataWeight(),
+                job.GetPreliminaryForeignRowCount(),
+                job.GetPreliminaryForeignSliceCount(),
+                job.GetPrimaryLowerBound(),
+                job.GetPrimaryUpperBound());
 
-            TotalDataWeight_ += Jobs_.back()->GetDataWeight();
+            TotalDataWeight_ += job.GetDataWeight();
 
             if (Options_.LogDetails) {
                 YT_LOG_DEBUG("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
                     JobIndex_,
-                    static_cast<int>(Jobs_.size()) - 1,
-                    Jobs_.back()->GetDebugString());
+                    static_cast<int>(Jobs_.size()),
+                    job.GetDebugString());
             }
+
+            Jobs_.emplace_back(std::move(job));
         } else {
             YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
-                "PreliminaryForeignDataSize: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
+                "PreliminaryForeignDataSize: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
                 JobIndex_,
-                static_cast<int>(Jobs_.size()) - 1,
-                job->GetPrimaryDataWeight(),
-                job->GetPreliminaryForeignDataWeight(),
-                job->LowerPrimaryKey(),
-                job->UpperPrimaryKey());
-            Jobs_.pop_back();
+                static_cast<int>(Jobs_.size()),
+                job.GetPrimaryDataWeight(),
+                job.GetPreliminaryForeignDataWeight(),
+                job.GetPrimaryLowerBound(),
+                job.GetPrimaryUpperBound());
         }
         ++JobIndex_;
     }
@@ -1204,18 +1205,14 @@ private:
         for (auto& preparedJob : stagingArea.PreparedJobs()) {
             yielder.TryYield();
 
-            if (preparedJob.empty()) {
-                Jobs_.emplace_back(std::make_unique<TJobStub>())->SetIsBarrier(true);
+            if (preparedJob.GetIsBarrier()) {
+                Jobs_.emplace_back(std::move(preparedJob));
             } else {
                 AddJob(preparedJob);
             }
         }
 
         JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
-
-        if (!Jobs_.empty() && Jobs_.back()->GetSliceCount() == 0) {
-            Jobs_.pop_back();
-        }
 
         YT_LOG_DEBUG("Jobs created (Count: %v)", Jobs_.size());
 
@@ -1224,7 +1221,7 @@ private:
                 JobSizeConstraints_->GetJobCount(),
                 Jobs_.size());
 
-            Jobs_.front()->SetUnsplittable();
+            Jobs_.front().SetUnsplittable();
         }
 
         TotalDataSliceCount_ = stagingArea.GetTotalDataSliceCount();

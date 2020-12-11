@@ -355,11 +355,19 @@ protected:
 
             InitTeleportableInputTables();
 
+            UnorderedTask_->SetIsInput(true);
+
             int unversionedSlices = 0;
             int versionedSlices = 0;
+            // TODO(max42): use CollectPrimaryInputDataSlices() here?
             for (auto& chunk : CollectPrimaryUnversionedChunks()) {
-                const auto& slice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-                UnorderedTask_->AddInput(New<TChunkStripe>(std::move(slice)));
+                const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+                InferLimitsFromBoundaryKeys(dataSlice, RowBuffer);
+
+                const auto& inputTable = InputTables_[dataSlice->GetTableIndex()];
+                dataSlice->TransformToNew(RowBuffer, inputTable->Comparator);
+
+                UnorderedTask_->AddInput(New<TChunkStripe>(std::move(dataSlice)));
                 ++unversionedSlices;
                 yielder.TryYield();
             }

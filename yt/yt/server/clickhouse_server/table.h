@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
+#include <yt/client/table_client/comparator.h>
+
 #include <yt/client/ypath/public.h>
 
 #include <yt/core/logging/public.h>
@@ -17,6 +19,7 @@ struct TTable
     , public NChunkClient::TUserObject
 {
     NTableClient::TTableSchemaPtr Schema;
+    NTableClient::TComparator Comparator;
     //! Operand index according to JOIN clause (if any):
     //! - SELECT * FROM AAA: AAA.TableIndex = 0.
     //! - SELECT * FROM AAA JOIN BBB: AAA.TableIndex = 0, BBB.TableIndex = 1.

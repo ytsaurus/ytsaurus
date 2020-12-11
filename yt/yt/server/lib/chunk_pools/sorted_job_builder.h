@@ -3,7 +3,9 @@
 #include "private.h"
 
 #include "chunk_pool.h"
-#include "job_manager.h"
+#include "new_job_manager.h"
+
+#include <yt/client/table_client/comparator.h>
 
 namespace NYT::NChunkPools {
 
@@ -12,6 +14,11 @@ namespace NYT::NChunkPools {
 struct TSortedJobOptions
 {
     bool EnableKeyGuarantee = false;
+    // COMPAT(max42): we are keeping both comparator and prefix length in order
+    // to maintain single TSortedJobOptions instead of two almost duplicating classes
+    // with almost duplicating filling code in sorted task.
+    NTableClient::TComparator PrimaryComparator;
+    NTableClient::TComparator ForeignComparator;
     int PrimaryPrefixLength = 0;
     int ForeignPrefixLength = 0;
     bool EnablePeriodicYielder = true;

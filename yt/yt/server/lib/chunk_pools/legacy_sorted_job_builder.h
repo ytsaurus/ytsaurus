@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "legacy_job_manager.h"
 #include "sorted_job_builder.h"
 
 #include <yt/ytlib/table_client/public.h>
@@ -19,11 +20,11 @@ struct ILegacySortedJobBuilder
 {
     virtual void AddForeignDataSlice(
         const NChunkClient::TLegacyDataSlicePtr& dataSlice,
-        IChunkPoolInput::TCookie cookie) = 0;
+        TInputCookie cookie) = 0;
     virtual void AddPrimaryDataSlice(
         const NChunkClient::TLegacyDataSlicePtr& dataSlice,
-        IChunkPoolInput::TCookie cookie) = 0;
-    virtual std::vector<std::unique_ptr<TJobStub>> Build() = 0;
+        TInputCookie cookie) = 0;
+    virtual std::vector<std::unique_ptr<TLegacyJobStub>> Build() = 0;
     virtual i64 GetTotalDataSliceCount() const = 0;
 };
 

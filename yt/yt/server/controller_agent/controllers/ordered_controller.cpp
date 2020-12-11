@@ -24,6 +24,7 @@
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
@@ -383,6 +384,8 @@ protected:
             TPeriodicYielder yielder(PrepareYieldPeriod);
 
             InitTeleportableInputTables();
+
+            OrderedTask_->SetIsInput(true);
 
             int sliceCount = 0;
             for (auto& slice : CollectPrimaryInputDataSlices(InputSliceDataWeight_)) {

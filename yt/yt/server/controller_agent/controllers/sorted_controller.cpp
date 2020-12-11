@@ -15,6 +15,7 @@
 
 #include <yt/server/lib/chunk_pools/chunk_pool.h>
 #include <yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -22,6 +23,7 @@
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
@@ -127,13 +129,23 @@ protected:
         TSortedTaskBase(TSortedControllerBase* controller, std::vector<TStreamDescriptor> streamDescriptors)
             : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
+            , Options_(controller->GetSortedChunkPoolOptions())
+            , UseNewSortedPool_(ParseOperationSpec<TSortedOperationSpec>(ConvertToNode(Controller_->GetSpec()))->UseNewSortedPool)
         {
-            auto options = controller->GetSortedChunkPoolOptions();
-            options.Task = GetTitle();
-            ChunkPool_ = CreateLegacySortedChunkPool(
-                options,
-                controller->CreateChunkSliceFetcherFactory(),
-                controller->GetInputStreamDirectory());
+            Options_.Task = GetTitle();
+
+            if (UseNewSortedPool_) {
+                ChunkPool_ = CreateNewSortedChunkPool(
+                    Options_,
+                    controller->CreateChunkSliceFetcherFactory(),
+                    controller->GetInputStreamDirectory());
+            } else {
+                ChunkPool_ = CreateLegacySortedChunkPool(
+                    Options_,
+                    controller->CreateChunkSliceFetcherFactory(),
+                    controller->GetInputStreamDirectory());
+            }
+
             ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
@@ -167,6 +179,7 @@ protected:
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
             Persist(context, TotalOutputRowCount_);
+            Persist(context, UseNewSortedPool_);
 
             ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
@@ -185,8 +198,31 @@ protected:
             return TotalOutputRowCount_;
         }
 
+        virtual void AdjustDataSliceForPool(const TLegacyDataSlicePtr& dataSlice) const override
+        {
+            // Consider the following case as an example: we are running reduce over a sorted table
+            // with two key columns [key, subkey] and a range >[5, foo]:<=[7, bar]. From the
+            // pool's point of this slice covers a range >=[5]:<=[7] (note that boundaries become inclusive
+            // when truncated).
+
+            YT_VERIFY(!dataSlice->IsLegacy);
+
+            auto prefixLength = Controller_->GetInputStreamDirectory().GetDescriptor(dataSlice->InputStreamIndex).IsPrimary()
+                ? Options_.SortedJobOptions.PrimaryPrefixLength
+                : Options_.SortedJobOptions.ForeignPrefixLength;
+
+            dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, prefixLength, TaskHost_->GetRowBuffer());
+            dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, prefixLength, TaskHost_->GetRowBuffer());
+
+            if (!UseNewSortedPool_) {
+                dataSlice->TransformToLegacy(Controller_->GetRowBuffer());
+            }
+        }
+
     protected:
         TSortedControllerBase* Controller_;
+        TSortedChunkPoolOptions Options_;
+        bool UseNewSortedPool_;
 
         //! Initialized in descendandt tasks.
         IChunkPoolPtr ChunkPool_;
@@ -412,13 +448,22 @@ protected:
 
             InitTeleportableInputTables();
 
+            SortedTask_->SetIsInput(true);
+
             int primaryUnversionedSlices = 0;
             int primaryVersionedSlices = 0;
             int foreignSlices = 0;
+            // TODO(max42): use CollectPrimaryInputDataSlices() here?
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
-                const auto& slice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-                InferLimitsFromBoundaryKeys(slice, RowBuffer);
-                SortedTask_->AddInput(CreateChunkStripe(slice));
+                const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+                InferLimitsFromBoundaryKeys(dataSlice, RowBuffer);
+
+                const auto& inputTable = InputTables_[dataSlice->GetTableIndex()];
+                YT_VERIFY(inputTable->Comparator);
+
+                dataSlice->TransformToNew(RowBuffer, inputTable->Comparator->GetLength());
+
+                SortedTask_->AddInput(CreateChunkStripe(dataSlice));
                 ++primaryUnversionedSlices;
                 yielder.TryYield();
             }
@@ -585,6 +630,8 @@ protected:
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;
         jobOptions.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
+        jobOptions.PrimaryComparator = TComparator(std::vector<ESortOrder>(PrimaryKeyColumns_.size(), ESortOrder::Ascending));
+        jobOptions.ForeignComparator = TComparator(std::vector<ESortOrder>(ForeignKeyColumns_.size(), ESortOrder::Ascending));
         jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
         jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
         jobOptions.ShouldSlicePrimaryTableByKeys = ShouldSlicePrimaryTableByKeys();

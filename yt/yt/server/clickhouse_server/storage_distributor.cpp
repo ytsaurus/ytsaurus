@@ -299,10 +299,10 @@ public:
                 index,
                 subqueryCount);
             for (const auto& threadSubquery : threadSubqueries) {
-                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerLimit: %v, UpperLimit: %v, DataWeight: %v, RowCount: %v, ChunkCount: %v)",
+                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerBound: %v, UpperBound: %v, DataWeight: %v, RowCount: %v, ChunkCount: %v)",
                     threadSubquery.Cookie,
-                    threadSubquery.Limits.first,
-                    threadSubquery.Limits.second,
+                    threadSubquery.Bounds.first,
+                    threadSubquery.Bounds.second,
                     threadSubquery.StripeList->TotalDataWeight,
                     threadSubquery.StripeList->TotalRowCount,
                     threadSubquery.StripeList->TotalChunkCount);
@@ -421,6 +421,7 @@ public:
             std::move(input.StripeList),
             queryAnalysisResult.KeyColumnCount,
             queryAnalysisResult.PoolKind,
+            SpecTemplate_.DataSourceDirectory,
             std::max<int>(1, subqueryCount * context.getSettings().max_threads),
             samplingRate,
             StorageContext_,

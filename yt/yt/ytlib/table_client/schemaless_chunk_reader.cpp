@@ -737,6 +737,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
 
     if (lowerLimit.HasLegacyKey()) {
         auto blockRowIndex = BlockReader_->GetRowIndex();
+
         YT_VERIFY(BlockReader_->SkipToKey(lowerLimit.GetLegacyKey().Get()));
         RowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
     }

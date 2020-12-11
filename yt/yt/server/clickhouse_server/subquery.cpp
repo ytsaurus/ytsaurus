@@ -13,15 +13,17 @@
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/server/lib/chunk_pools/helpers.h>
 #include <yt/server/lib/chunk_pools/unordered_chunk_pool.h>
-#include <yt/server/lib/chunk_pools/legacy_sorted_chunk_pool.h>
+#include <yt/server/lib/chunk_pools/new_sorted_chunk_pool.h>
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
+#include <yt/server/lib/controller_agent/read_range_registry.h>
 
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
@@ -43,6 +45,9 @@
 #include <yt/ytlib/table_client/table_read_spec.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/ytlib/table_client/virtual_value_directory.h>
+
+#include <yt/client/table_client/key_bound.h>
+#include <yt/client/table_client/comparator.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
@@ -212,13 +217,18 @@ private:
             auto& dataSlices = stripe->DataSlices;
 
             auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TLegacyDataSlicePtr& dataSlice) {
-                if (!dataSlice->LegacyLowerLimit().Key && !dataSlice->LegacyUpperLimit().Key) {
+                if (!dataSlice->LowerLimit().KeyBound && !dataSlice->UpperLimit().KeyBound) {
                     return false;
                 }
+
+                // TODO(max42, dakovalkov): rewrite GetRangeMask using key bounds.
+                auto legacyLowerKey = KeyBoundToLegacyRow(dataSlice->LowerLimit().KeyBound, RowBuffer_);
+                auto legacyUpperKey = KeyBoundToLegacyRow(dataSlice->UpperLimit().KeyBound, RowBuffer_);
+
                 return !GetRangeMask(
                     EKeyConditionScale::TopLevelDataSlice,
-                    dataSlice->LegacyLowerLimit().Key,
-                    dataSlice->LegacyUpperLimit().Key,
+                    legacyLowerKey,
+                    legacyUpperKey,
                     dataSlice->InputStreamIndex).can_be_true;
             });
             dataSlices.resize(it - dataSlices.begin());
@@ -299,16 +309,12 @@ private:
             }
 
             for (auto& dataSlice : InputDataSlices_[tableIndex]) {
+                YT_VERIFY(!dataSlice->IsLegacy);
                 dataSlice->InputStreamIndex = operandIndex;
-                
+
                 if (!VirtualColumnNames_.empty()) {
                     dataSlice->VirtualRowIndex = 0;
                 }
-
-                InferLimitsFromBoundaryKeys(
-                    dataSlice,
-                    RowBuffer_,
-                    dataSourceDirectory->DataSources()[tableIndex].GetVirtualValueDirectory());
 
                 ResultStripes_[operandIndex]->DataSlices.emplace_back(std::move(dataSlice));
             }
@@ -349,7 +355,7 @@ private:
         }
 
         auto row = rowBuilder.FinishRow();
-        
+
         std::vector<TColumnSchema> columnSchemas;
         columnSchemas.reserve(VirtualColumnNames_.size());
         for (const auto& column : VirtualColumnNames_) {
@@ -377,12 +383,12 @@ private:
         // from data slices so that we can form new data slices.
         for (auto& dataSlice : dataSlices) {
             for (auto& chunkSlice : dataSlice->ChunkSlices) {
-                InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, InputTables_[tableIndex]->Schema->GetKeyColumnCount());
+                YT_VERIFY(!chunkSlice->IsLegacy);
                 chunkSlices.emplace_back(std::move(chunkSlice));
             }
         }
 
-        dataSlices = CombineVersionedChunkSlices(chunkSlices);
+        dataSlices = CombineVersionedChunkSlices(chunkSlices, InputTables_[tableIndex]->Comparator);
     }
 
     //! When reading from dynamic tables, it is generally a good idea to start with checking each of the tablets
@@ -529,8 +535,13 @@ private:
         }
 
         auto tableIndex = inputChunk->GetTableIndex();
-        auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(std::move(inputChunk)));
+
+        auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
+        InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_);
+        auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+
         dataSlice->VirtualRowIndex = dataSliceDescriptor.VirtualRowIndex;
+        dataSlice->TransformToNew(RowBuffer_, InputTables_[tableIndex]->Comparator.GetLength());
 
         InputDataSlices_[tableIndex].emplace_back(std::move(dataSlice));
     }
@@ -604,7 +615,7 @@ private:
                 if (isExclusive) {
                     std::vector<std::optional<DB::Field>> inclusiveSuffix;
                     inclusiveSuffix.reserve(keyColumnCount);
-                    
+
                     // XXX(dakovalkov): Remove nullable again because CH does not support it.
                     auto getType = [&] (int index) {
                         return DB::removeNullable(keyColumnDataTypes[index]);
@@ -622,7 +633,7 @@ private:
                     for (int index = lastNonSentinelIndex + 1; !failed && index < keyColumnCount; ++index) {
                         failed |= !inclusiveSuffix.emplace_back(TryGetMaximumTypeValue(getType(index)));
                     }
-                    
+
                     if (!failed) {
                         for (int index = lastNonSentinelIndex; index < keyColumnCount; ++index) {
                             chKey[index] = *inclusiveSuffix[index - lastNonSentinelIndex];
@@ -635,7 +646,7 @@ private:
 
         int lowerKeyUsedColumnCount = convertToClickHouseKey(minKey, lowerKey, false);
         int upperKeyUsedColumnCount = convertToClickHouseKey(maxKey, upperKey, true);
-        
+
         int usedKeyColumnCount = std::min(lowerKeyUsedColumnCount, upperKeyUsedColumnCount);
 
         auto toFormattable = [&] (DB::FieldRef* fields, int keyColumUsed) {
@@ -767,6 +778,7 @@ std::vector<TSubquery> BuildSubqueries(
     const TChunkStripeListPtr& inputStripeList,
     std::optional<int> keyColumnCount,
     EPoolKind poolKind,
+    TDataSourceDirectoryPtr dataSourceDirectory,
     int jobCount,
     std::optional<double> samplingRate,
     const TStorageContext* storageContext,
@@ -813,10 +825,12 @@ std::vector<TSubquery> BuildSubqueries(
             TInputStreamDirectory({TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)}));
     } else if (poolKind == EPoolKind::Sorted) {
         YT_VERIFY(keyColumnCount);
-        chunkPool = CreateLegacySortedChunkPool(
+        TComparator comparator(std::vector<ESortOrder>(*keyColumnCount, ESortOrder::Ascending));
+        chunkPool = CreateNewSortedChunkPool(
             TSortedChunkPoolOptions{
                 .SortedJobOptions = TSortedJobOptions{
                     .EnableKeyGuarantee = true,
+                    .PrimaryComparator = comparator,
                     .PrimaryPrefixLength = *keyColumnCount,
                     .ShouldSlicePrimaryTableByKeys = true,
                     .MaxTotalSliceCount = std::numeric_limits<int>::max() / 2,
@@ -835,7 +849,48 @@ std::vector<TSubquery> BuildSubqueries(
         Y_UNREACHABLE();
     }
 
+    auto adjustDataSliceForPool = [&] (const TLegacyDataSlicePtr& dataSlice) {
+        YT_VERIFY(!dataSlice->IsLegacy);
+
+        if (poolKind == EPoolKind::Unordered) {
+            dataSlice->LowerLimit().KeyBound = TKeyBound();
+            dataSlice->UpperLimit().KeyBound = TKeyBound();
+
+            if (dataSlice->Type == EDataSourceType::UnversionedTable) {
+                for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                    chunkSlice->LowerLimit().KeyBound = TKeyBound();
+                    chunkSlice->UpperLimit().KeyBound = TKeyBound();
+                }
+            }
+
+        } else {
+            YT_VERIFY(keyColumnCount);
+            dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, *keyColumnCount, queryContext->RowBuffer);
+            dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, *keyColumnCount, queryContext->RowBuffer);
+
+            if (dataSlice->Type == EDataSourceType::UnversionedTable) {
+                // New sorted pool makes no use of chunk slice bounds.
+                for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                    chunkSlice->LowerLimit().KeyBound = dataSlice->LowerLimit().KeyBound;
+                    chunkSlice->UpperLimit().KeyBound = dataSlice->UpperLimit().KeyBound;
+                }
+            }
+        }
+    };
+
+    TReadRangeRegistry inputReadRangeRegistry;
+
     for (const auto& chunkStripe : inputStripeList->Stripes) {
+        for (const auto& dataSlice : chunkStripe->DataSlices) {
+            YT_VERIFY(!dataSlice->IsLegacy);
+            if ((dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal()) ||
+                (dataSlice->UpperLimit().KeyBound && !dataSlice->UpperLimit().KeyBound.IsUniversal()))
+            {
+                inputReadRangeRegistry.RegisterDataSlice(dataSlice);
+            }
+            adjustDataSliceForPool(dataSlice);
+        }
+
         chunkPool->Add(chunkStripe);
     }
     chunkPool->Finish();
@@ -847,11 +902,31 @@ std::vector<TSubquery> BuildSubqueries(
         }
         auto& subquery = subqueries.emplace_back();
         subquery.StripeList = chunkPool->GetStripeList(cookie);
+
+        for (const auto& chunkStripe : subquery.StripeList->Stripes) {
+            for (const auto& dataSlice : chunkStripe->DataSlices) {
+                YT_VERIFY(!dataSlice->IsLegacy);
+                if (dataSlice->ReadRangeIndex) {
+                    auto comparator = dataSourceDirectory->DataSources()[dataSlice->GetTableIndex()].GetComparator();
+                    inputReadRangeRegistry.ApplyReadRange(dataSlice, comparator);
+                }
+
+                dataSlice->TransformToLegacy(queryContext->RowBuffer);
+                YT_VERIFY(dataSlice->IsLegacy);
+            }
+        }
+
         subquery.Cookie = cookie;
         if (poolKind == EPoolKind::Sorted) {
-            auto limits = static_cast<ISortedChunkPool*>(chunkPool.Get())->GetLimits(cookie);
-            subquery.Limits.first = TUnversionedOwningRow(limits.first);
-            subquery.Limits.second = TUnversionedOwningRow(limits.second);
+            auto bounds = static_cast<ISortedChunkPool*>(chunkPool.Get())->GetBounds(cookie);
+            subquery.Bounds.first = TOwningKeyBound::FromRowUnchecked(
+                TUnversionedOwningRow(bounds.first.Prefix),
+                bounds.first.IsInclusive,
+                bounds.first.IsUpper);
+            subquery.Bounds.second = TOwningKeyBound::FromRowUnchecked(
+                TUnversionedOwningRow(bounds.second.Prefix),
+                bounds.second.IsInclusive,
+                bounds.second.IsUpper);
         }
     }
 
@@ -943,7 +1018,7 @@ std::vector<TSubquery> BuildSubqueries(
                     AddStripeToList(std::move(stripe), enlargedSubquery.StripeList);
                 }
 
-                enlargedSubquery.Limits = {subqueries[leftIndex].Limits.first, subqueries[rightIndex - 1].Limits.second};
+                enlargedSubquery.Bounds = {subqueries[leftIndex].Bounds.first, subqueries[rightIndex - 1].Bounds.second};
                 // This cookie is used as a hint for sorting in storage distributor, so the following line is ok.
                 enlargedSubquery.Cookie = subqueries[leftIndex].Cookie;
             }

@@ -11,6 +11,8 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/client/table_client/schema.h>
+
 #include <yt/core/logging/log.h>
 
 namespace NYT::NClickHouseServer {
@@ -38,6 +40,7 @@ TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
         : CellTagFromId(ObjectId);
     ChunkCount = attributes->Get<i64>("chunk_count", 0);
     Schema = attributes->Get<TTableSchemaPtr>("schema");
+    Comparator = Schema->ToComparator();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

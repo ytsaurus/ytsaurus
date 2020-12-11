@@ -16,11 +16,14 @@
 
 #include <yt/server/lib/controller_agent/progress_counter.h>
 #include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/server/lib/controller_agent/read_range_registry.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/public.h>
 
 #include <yt/ytlib/table_client/helpers.h>
+
+#include <yt/client/table_client/key_bound.h>
 
 #include <yt/core/misc/digest.h>
 #include <yt/core/misc/histogram.h>
@@ -36,6 +39,10 @@ class TTask
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TInstant>, DelayedTime);
     DEFINE_BYVAL_RW_PROPERTY(TDataFlowGraph::TVertexDescriptor, InputVertex, TDataFlowGraph::TVertexDescriptor());
+
+    // TODO(max42): this should be done somehow better.
+    //! Indicates if input for this task corresponds to input tables.
+    DEFINE_BYVAL_RW_PROPERTY(bool, IsInput);
 
 public:
     //! For persistence only.
@@ -255,6 +262,20 @@ protected:
 
     void AddFootprintAndUserJobResources(NScheduler::TExtendedJobResources& jobResources) const;
 
+    //! This method is called for each input data slice before adding it to the chunk pool input.
+    //! It transforms data slices into new mode, adapts them for using in corresponding chunk pool
+    //! (using task-dependent AdaptInputDataSlice virtual method) and registers data slice
+    //! input read limits in the InputChunkToReadBounds_ mapping.
+    void AdjustInputKeyBounds(const NChunkClient::TLegacyDataSlicePtr& dataSlice);
+
+    //! Default implementation simply drops key bounds which is perfectly OK for non-sorted chunk pools.
+    virtual void AdjustDataSliceForPool(const NChunkClient::TLegacyDataSlicePtr& dataSlice) const;
+
+    //! This method is called for each ouput data slice before serializing it to the job spec.
+    //! It applies data slice input read limits from the InputChunkToReadBounds_ mapping.
+    //! It is overridden only in the legacy version of sorted controller.
+    void AdjustOutputKeyBounds(const NChunkClient::TLegacyDataSlicePtr& dataSlice) const;
+
     //! This method processes `chunkListIds`, forming the chunk stripes (maybe with boundary
     //! keys taken from `jobResult` if they are present) and sends them to the destination pools
     //! depending on the table index.
@@ -316,6 +337,8 @@ private:
 
     std::unique_ptr<IHistogram> EstimatedInputDataWeightHistogram_;
     std::unique_ptr<IHistogram> InputDataWeightHistogram_;
+
+    TReadRangeRegistry InputReadRangeRegistry_;
 
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 

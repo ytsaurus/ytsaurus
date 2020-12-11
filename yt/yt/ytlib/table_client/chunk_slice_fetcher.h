@@ -18,11 +18,14 @@ namespace NYT::NTableClient {
 struct IChunkSliceFetcher
     : public virtual NChunkClient::IFetcher
 {
+    // TODO(max42): return data slices here.
     virtual std::vector<NChunkClient::TInputChunkSlicePtr> GetChunkSlices() = 0;
 
-    virtual void AddChunkForSlicing(
-        NChunkClient::TInputChunkPtr chunk,
-        i64 chunkSliceSize,
+    // TODO(max42): interface should accept abstract data slice. Particular implementation
+    // should hold a pointer to a physical data registry.
+    virtual void AddDataSliceForSlicing(
+        NChunkClient::TLegacyDataSlicePtr dataSlice,
+        i64 sliceDataWeight,
         int keyColumnCount,
         bool sliceByKeys) = 0;
 };

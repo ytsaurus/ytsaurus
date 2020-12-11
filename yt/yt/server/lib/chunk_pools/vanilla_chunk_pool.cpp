@@ -1,6 +1,6 @@
 #include "vanilla_chunk_pool.h"
 
-#include "job_manager.h"
+#include "new_job_manager.h"
 
 #include <yt/server/lib/controller_agent/serialize.h>
 #include <yt/server/lib/controller_agent/structs.h>
@@ -18,7 +18,7 @@ using namespace NControllerAgent;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TVanillaChunkPool
-    : public TChunkPoolOutputWithJobManagerBase
+    : public TChunkPoolOutputWithNewJobManagerBase
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
@@ -28,7 +28,7 @@ public:
         // We use very small portion of job manager functionality. We fill it with dummy
         // jobs and make manager deal with extracting/completing/failing/aborting jobs for us.
         for (int index = 0; index < options.JobCount; ++index) {
-            JobManager_->AddJob(std::make_unique<TJobStub>());
+            JobManager_->AddJob(std::make_unique<TNewJobStub>());
         }
     }
 

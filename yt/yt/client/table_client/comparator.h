@@ -46,6 +46,9 @@ public:
     //! (but possibly of different inclusiveness).
     TKeyBound StrongerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const;
 
+    //! Shorthand for #lhs = #StrongerKeyBound(#lhs, #rhs).
+    void ReplaceIfStrongerKeyBound(TKeyBound& lhs, const TKeyBound& rhs) const;
+
     //! Returns the weakest of two key bounds. Key bounds should be of same direction
     //! (but possibly of different inclusiveness).
     TKeyBound WeakerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const;

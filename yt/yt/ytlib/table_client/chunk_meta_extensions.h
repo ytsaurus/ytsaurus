@@ -54,13 +54,19 @@ void Deserialize(TOwningBoundaryKeys& key, const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Find owning boundary keys in chunk meta.
+//! If keyColumnCount is present and boundary keys are shorter than it,
+//! keys are padded with nulls (this is the case for alter-added key columns,
+//! see test_tables.py::test_alter_key_column).
 bool FindBoundaryKeys(
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
     TLegacyOwningKey* minKey,
-    TLegacyOwningKey* maxKey);
+    TLegacyOwningKey* maxKey,
+    std::optional<int> keyColumnCount = std::nullopt);
 
 std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(
-    const NChunkClient::NProto::TChunkMeta& chunkMeta);
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    std::optional<int> keyColumnCount = std::nullopt);
 
 ///////////////////////////////////////////////////////////////////////////////
 

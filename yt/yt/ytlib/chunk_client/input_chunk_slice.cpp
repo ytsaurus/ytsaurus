@@ -1,11 +1,14 @@
 #include "input_chunk_slice.h"
+
 #include "private.h"
 #include "chunk_meta_extensions.h"
+#include "input_chunk.h"
 
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/serialize.h>
 
 #include <yt/library/erasure/codec.h>
+
 #include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/ytree/fluent.h>
 
@@ -179,6 +182,29 @@ TInputSliceLimit::TInputSliceLimit(bool isUpper)
     : KeyBound(TKeyBound::MakeUniversal(isUpper))
 { }
 
+void TInputSliceLimit::MergeLower(const TInputSliceLimit& other, const TComparator& comparator)
+{
+    if (!RowIndex || (other.RowIndex && *other.RowIndex > *RowIndex)) {
+        RowIndex = other.RowIndex;
+    }
+    comparator.ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
+    YT_VERIFY(!KeyBound || !KeyBound.IsUpper);
+}
+
+void TInputSliceLimit::MergeUpper(const TInputSliceLimit& other, const TComparator& comparator)
+{
+    if (!RowIndex || (other.RowIndex && *other.RowIndex < *RowIndex)) {
+        RowIndex = other.RowIndex;
+    }
+    comparator.ReplaceIfStrongerKeyBound(KeyBound, other.KeyBound);
+    YT_VERIFY(!KeyBound || KeyBound.IsUpper);
+}
+
+bool TInputSliceLimit::IsTrivial() const
+{
+    return (!KeyBound || KeyBound.IsUniversal()) && !RowIndex;
+}
+
 void TInputSliceLimit::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -201,7 +227,7 @@ void FormatValue(TStringBuilderBase* builder, const TInputSliceLimit& limit, TSt
 
 bool IsTrivial(const TInputSliceLimit& limit)
 {
-    return !limit.RowIndex && limit.KeyBound.IsUniversal();
+    return !limit.RowIndex && (!limit.KeyBound || limit.KeyBound.IsUniversal());
 }
 
 void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit)
@@ -212,13 +238,14 @@ void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit)
         protoLimit->clear_row_index();
     }
 
-    protoLimit->set_key_bound_is_inclusive(limit.KeyBound.IsInclusive);
-
-    if (limit.KeyBound.IsUniversal()) {
+    if (!limit.KeyBound || limit.KeyBound.IsUniversal()) {
         protoLimit->clear_legacy_key();
         protoLimit->clear_key_bound_prefix();
+        protoLimit->clear_key_bound_is_inclusive();
     } else {
-        ToProto(protoLimit->mutable_legacy_key(), KeyBoundToLegacyRow(limit.KeyBound));
+        protoLimit->set_key_bound_is_inclusive(limit.KeyBound.IsInclusive);
+        auto legacyRow = KeyBoundToLegacyRow(limit.KeyBound);
+        ToProto(protoLimit->mutable_legacy_key(), legacyRow);
         ToProto(protoLimit->mutable_key_bound_prefix(), limit.KeyBound.Prefix);
     }
 }
@@ -370,6 +397,51 @@ TInputChunkSlice::TInputChunkSlice(
 }
 
 TInputChunkSlice::TInputChunkSlice(
+    const TInputChunkSlice& chunkSlice,
+    const TRowBufferPtr& rowBuffer,
+    const NProto::TChunkSlice& protoChunkSlice,
+    TRange<TLegacyKey> keySet)
+    : InputChunk_(chunkSlice.GetInputChunk())
+    , LegacyLowerLimit_(chunkSlice.LegacyLowerLimit())
+    , LegacyUpperLimit_(chunkSlice.LegacyUpperLimit())
+    , IsLegacy(chunkSlice.IsLegacy)
+{
+    YT_VERIFY(chunkSlice.IsLegacy);
+    LegacyLowerLimit_.MergeLowerLimit(TLegacyInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet));
+    LegacyUpperLimit_.MergeUpperLimit(TLegacyInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet));
+
+    PartIndex_ = DefaultPartIndex;
+
+    if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
+        YT_VERIFY(protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override());
+        OverrideSize(protoChunkSlice.row_count_override(), std::max<i64>(1, protoChunkSlice.data_weight_override() * chunkSlice.GetInputChunk()->GetColumnSelectivityFactor()));
+    }
+}
+
+TInputChunkSlice::TInputChunkSlice(
+    const TInputChunkSlice& chunkSlice,
+    const TComparator& comparator,
+    const TRowBufferPtr& rowBuffer,
+    const NProto::TChunkSlice& protoChunkSlice,
+    TRange<TLegacyKey> keySet)
+    : InputChunk_(chunkSlice.GetInputChunk())
+    , LegacyLowerLimit_(chunkSlice.LegacyLowerLimit())
+    , LegacyUpperLimit_(chunkSlice.LegacyUpperLimit())
+    , IsLegacy(chunkSlice.IsLegacy)
+{
+    YT_VERIFY(!chunkSlice.IsLegacy);
+    LowerLimit_.MergeLower(TInputSliceLimit(protoChunkSlice.lower_limit(), rowBuffer, keySet, comparator.GetLength(), /* isUpper */ false), comparator);
+    UpperLimit_.MergeUpper(TInputSliceLimit(protoChunkSlice.upper_limit(), rowBuffer, keySet, comparator.GetLength(), /* isUpper */ true), comparator);
+
+    PartIndex_ = DefaultPartIndex;
+
+    if (protoChunkSlice.has_row_count_override() || protoChunkSlice.has_data_weight_override()) {
+        YT_VERIFY(protoChunkSlice.has_row_count_override() && protoChunkSlice.has_data_weight_override());
+        OverrideSize(protoChunkSlice.row_count_override(), std::max<i64>(1, protoChunkSlice.data_weight_override() * chunkSlice.GetInputChunk()->GetColumnSelectivityFactor()));
+    }
+}
+
+TInputChunkSlice::TInputChunkSlice(
     const TInputChunkPtr& inputChunk,
     const TRowBufferPtr& rowBuffer,
     const NProto::TChunkSpec& protoChunkSpec)
@@ -391,9 +463,16 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
     YT_VERIFY(sliceDataWeight > 0);
     YT_VERIFY(sliceRowCount > 0);
 
-    i64 lowerRowIndex = LegacyLowerLimit_.RowIndex.value_or(0);
-    i64 upperRowIndex = LegacyUpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
+    i64 lowerRowIndex;
+    i64 upperRowIndex;
 
+    if (IsLegacy) {
+        lowerRowIndex = LegacyLowerLimit_.RowIndex.value_or(0);
+        upperRowIndex = LegacyUpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
+    } else {
+        lowerRowIndex = LowerLimit_.RowIndex.value_or(0);
+        upperRowIndex = UpperLimit_.RowIndex.value_or(InputChunk_->GetRowCount());
+    }
     i64 rowCount = upperRowIndex - lowerRowIndex;
 
     i64 count = std::max(DivCeil(GetDataWeight(), sliceDataWeight), DivCeil(rowCount, sliceRowCount));
@@ -417,6 +496,11 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
         result.back()
             ->LegacyUpperLimit().Key = rowBuffer->Capture(LegacyUpperLimit_.Key);
     }
+
+    for (const auto& slice : result) {
+        YT_VERIFY(slice->IsLegacy == IsLegacy);
+    }
+
     return result;
 }
 
@@ -544,6 +628,19 @@ void TInputChunkSlice::TransformToNew(const TRowBufferPtr& rowBuffer, int keyLen
     IsLegacy = false;
 }
 
+void TInputChunkSlice::TransformToNewKeyless()
+{
+    YT_VERIFY(IsLegacy);
+    YT_VERIFY(!LegacyLowerLimit_.Key);
+    YT_VERIFY(!LegacyUpperLimit_.Key);
+    LowerLimit_.RowIndex = LegacyLowerLimit_.RowIndex;
+    UpperLimit_.RowIndex = LegacyUpperLimit_.RowIndex;
+    LegacyLowerLimit_ = TLegacyInputSliceLimit();
+    LegacyUpperLimit_ = TLegacyInputSliceLimit();
+
+    IsLegacy = false;
+}
+
 void TInputChunkSlice::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -641,11 +738,16 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
     return slices;
 }
 
-void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice, const TRowBufferPtr& rowBuffer, int keyColumnCount)
+void InferLimitsFromBoundaryKeys(const TInputChunkSlicePtr& chunkSlice, const TRowBufferPtr& rowBuffer, std::optional<int> keyColumnCount)
 {
     if (const auto& boundaryKeys = chunkSlice->GetInputChunk()->BoundaryKeys()) {
-        chunkSlice->LegacyLowerLimit().MergeLowerKey(GetStrictKey(boundaryKeys->MinKey, keyColumnCount, rowBuffer));
-        chunkSlice->LegacyUpperLimit().MergeUpperKey(GetStrictKeySuccessor(boundaryKeys->MaxKey, keyColumnCount, rowBuffer));
+        if (keyColumnCount) {
+            chunkSlice->LegacyLowerLimit().MergeLowerKey(GetStrictKey(boundaryKeys->MinKey, *keyColumnCount, rowBuffer));
+            chunkSlice->LegacyUpperLimit().MergeUpperKey(GetStrictKeySuccessor(boundaryKeys->MaxKey, *keyColumnCount, rowBuffer));
+        } else {
+            chunkSlice->LegacyLowerLimit().MergeLowerKey(boundaryKeys->MinKey);
+            chunkSlice->LegacyUpperLimit().MergeUpperKey(GetKeySuccessor(boundaryKeys->MaxKey, rowBuffer));
+        }
     }
 }
 
@@ -657,7 +759,7 @@ std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     return CreateInputChunkSlice(inputChunk)->SliceEvenly(sliceDataWeight, sliceRowCount);
 }
 
-void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlice, EDataSourceType dataSourceType)
+void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlice, std::optional<TComparator> comparator, EDataSourceType dataSourceType)
 {
     // The chunk spec in the slice has arrived from master, so it can't possibly contain any extensions
     // except misc and boundary keys (in sorted merge or reduce). Jobs request boundary keys
@@ -666,37 +768,83 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
 
     ToProto(chunkSpec, inputSlice->GetInputChunk(), dataSourceType);
 
-    if (!IsTrivial(inputSlice->LegacyLowerLimit())) {
-        // NB(psushin): if lower limit key is less than min chunk key, we can eliminate it from job spec.
-        // Moreover, it is important for GetJobInputPaths handle to work properly.
-        bool pruneKeyLimit = dataSourceType == EDataSourceType::UnversionedTable
-            && inputSlice->LegacyLowerLimit().Key
-            && inputSlice->GetInputChunk()->BoundaryKeys()
-            && inputSlice->LegacyLowerLimit().Key <= inputSlice->GetInputChunk()->BoundaryKeys()->MinKey;
+    if (inputSlice->IsLegacy) {
+        if (!IsTrivial(inputSlice->LegacyLowerLimit())) {
+            // NB(psushin): if lower limit key is less than min chunk key, we can eliminate it from job spec.
+            // Moreover, it is important for GetJobInputPaths handle to work properly.
+            bool pruneKeyLimit = dataSourceType == EDataSourceType::UnversionedTable
+                && inputSlice->LegacyLowerLimit().Key
+                && inputSlice->GetInputChunk()->BoundaryKeys()
+                && inputSlice->LegacyLowerLimit().Key <= inputSlice->GetInputChunk()->BoundaryKeys()->MinKey;
 
-        if (pruneKeyLimit && inputSlice->LegacyLowerLimit().RowIndex) {
-            TLegacyInputSliceLimit inputSliceLimit;
-            inputSliceLimit.RowIndex = inputSlice->LegacyLowerLimit().RowIndex;
-            ToProto(chunkSpec->mutable_lower_limit(), inputSliceLimit);
-        } else if (!pruneKeyLimit) {
-            ToProto(chunkSpec->mutable_lower_limit(), inputSlice->LegacyLowerLimit());
+            if (pruneKeyLimit && inputSlice->LegacyLowerLimit().RowIndex) {
+                TLegacyInputSliceLimit inputSliceLimit;
+                inputSliceLimit.RowIndex = inputSlice->LegacyLowerLimit().RowIndex;
+                ToProto(chunkSpec->mutable_lower_limit(), inputSliceLimit);
+            } else if (!pruneKeyLimit) {
+                ToProto(chunkSpec->mutable_lower_limit(), inputSlice->LegacyLowerLimit());
+            }
         }
-    }
 
-    if (!IsTrivial(inputSlice->LegacyUpperLimit())) {
-        // NB(psushin): if upper limit key is greater than max chunk key, we can eliminate it from job spec.
-        // Moreover, it is important for GetJobInputPaths handle to work properly.
-        bool pruneKeyLimit = dataSourceType == EDataSourceType::UnversionedTable
-            && inputSlice->LegacyUpperLimit().Key
-            && inputSlice->GetInputChunk()->BoundaryKeys()
-            && inputSlice->LegacyUpperLimit().Key > inputSlice->GetInputChunk()->BoundaryKeys()->MaxKey;
+        if (!IsTrivial(inputSlice->LegacyUpperLimit())) {
+            // NB(psushin): if upper limit key is greater than max chunk key, we can eliminate it from job spec.
+            // Moreover, it is important for GetJobInputPaths handle to work properly.
+            bool pruneKeyLimit = dataSourceType == EDataSourceType::UnversionedTable
+                && inputSlice->LegacyUpperLimit().Key
+                && inputSlice->GetInputChunk()->BoundaryKeys()
+                && inputSlice->LegacyUpperLimit().Key > inputSlice->GetInputChunk()->BoundaryKeys()->MaxKey;
 
-        if (pruneKeyLimit && inputSlice->LegacyUpperLimit().RowIndex) {
-            TLegacyInputSliceLimit inputSliceLimit;
-            inputSliceLimit.RowIndex = inputSlice->LegacyUpperLimit().RowIndex;
-            ToProto(chunkSpec->mutable_upper_limit(), inputSliceLimit);
-        } else if (!pruneKeyLimit) {
-            ToProto(chunkSpec->mutable_upper_limit(), inputSlice->LegacyUpperLimit());
+            if (pruneKeyLimit && inputSlice->LegacyUpperLimit().RowIndex) {
+                TLegacyInputSliceLimit inputSliceLimit;
+                inputSliceLimit.RowIndex = inputSlice->LegacyUpperLimit().RowIndex;
+                ToProto(chunkSpec->mutable_upper_limit(), inputSliceLimit);
+            } else if (!pruneKeyLimit) {
+                ToProto(chunkSpec->mutable_upper_limit(), inputSlice->LegacyUpperLimit());
+            }
+        }
+    } else {
+        // TODO(max42): YT-13961. Revise this logic.
+        // TODO(max42): YT-14023. NB: right now we MUST keep pruning key bounds that are implied by chunk boundary keys
+        // as failure to do so would break readers when reducing by shorter key than present in chunk schema.
+        // Do not remove this logic unless there are no more nodes on 20.3.
+
+        auto chunkMinKeyBound = TKeyBound::MakeUniversal(/* isUpper */ false);
+        auto chunkMaxKeyBound = TKeyBound::MakeUniversal(/* isUpper */ true);
+
+        // NB: for dynamic table data slices involving dynamic stores boundary keys may contain sentinels.
+        // But we do not prune limits for them anyway.
+        if (const auto& boundaryKeys = inputSlice->GetInputChunk()->BoundaryKeys();
+            boundaryKeys && dataSourceType == EDataSourceType::UnversionedTable)
+        {
+            chunkMinKeyBound = TKeyBound::FromRow(boundaryKeys->MinKey, /* isInclusive */ true, /* isUpper */ false);
+            chunkMaxKeyBound = TKeyBound::FromRow(boundaryKeys->MaxKey, /* isInclusive */ true, /* isUpper */ true);
+        }
+
+        // NB: we prune non-trivial key bounds only if comparator is passed.
+        // In particular, sorted controller always passes comparator. In the rest
+        // of cases we do not prune it but it will not trigger YT-14023 as key lengths
+        // will be proper (due to marvelous coincedence).
+
+        if (!inputSlice->LowerLimit().IsTrivial()) {
+            auto lowerLimitToSerialize = inputSlice->LowerLimit();
+            if (!inputSlice->LowerLimit().KeyBound || inputSlice->LowerLimit().KeyBound.IsUniversal() ||
+                (dataSourceType == EDataSourceType::UnversionedTable && comparator &&
+                comparator->CompareKeyBounds(inputSlice->LowerLimit().KeyBound, chunkMinKeyBound) <= 0))
+            {
+                lowerLimitToSerialize.KeyBound = TKeyBound();
+            }
+            ToProto(chunkSpec->mutable_lower_limit(), lowerLimitToSerialize);
+        }
+
+        if (!inputSlice->UpperLimit().IsTrivial()) {
+            auto upperLimitToSerialize = inputSlice->UpperLimit();
+            if (!inputSlice->UpperLimit().KeyBound || inputSlice->UpperLimit().KeyBound.IsUniversal() ||
+                (dataSourceType == EDataSourceType::UnversionedTable &&
+                comparator && comparator->CompareKeyBounds(inputSlice->UpperLimit().KeyBound, chunkMaxKeyBound) >= 0))
+            {
+                upperLimitToSerialize.KeyBound = TKeyBound();
+            }
+            ToProto(chunkSpec->mutable_upper_limit(), upperLimitToSerialize);
         }
     }
 

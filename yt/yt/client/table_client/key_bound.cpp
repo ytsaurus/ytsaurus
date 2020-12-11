@@ -109,14 +109,14 @@ void TKeyBoundImpl<TRow, TKeyBound>::ValidateValueTypes(const TRow& row)
 template <class TRow, class TKeyBound>
 void TKeyBoundImpl<TRow, TKeyBound>::FormatValue(TStringBuilderBase* builder) const
 {
-    if (Prefix) {
+    if (!Prefix) {
+        builder->AppendChar('#');
+    } else {
         builder->AppendChar(IsUpper ? '<' : '>');
         if (IsInclusive) {
             builder->AppendChar('=');
         }
         builder->AppendFormat("%v", Prefix);
-    } else {
-        builder->AppendChar('#');
     }
 }
 
@@ -234,6 +234,8 @@ bool operator ==(const TOwningKeyBound& lhs, const TOwningKeyBound& rhs)
 // legacy key into key bound.
 std::pair<int, bool> KeyBoundFromLegacyRowImpl(TUnversionedRow row, bool isUpper, int keyLength)
 {
+    YT_VERIFY(row);
+
     // Flag indicating that row starts with #keyLength non-sentinel values followed by at least one arbitrary value.
     bool isLongRow = false;
 
@@ -302,14 +304,23 @@ TKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int keyLength
     }
 
     auto [prefixLength, isInclusive] = KeyBoundFromLegacyRowImpl(row, isUpper, keyLength);
+    YT_VERIFY(prefixLength <= row.GetCount());
+    if (prefixLength < row.GetCount()) {
+        // Capture a prefix.
+        row = rowBuffer->Capture(row.Begin(), prefixLength);
+    }
     return TKeyBound::FromRow(
-        rowBuffer->Capture(row.Begin(), prefixLength),
+        row,
         isInclusive,
         isUpper);
 }
 
 TUnversionedOwningRow KeyBoundToLegacyRow(TKeyBound keyBound)
 {
+    if (!keyBound) {
+        return TUnversionedOwningRow();
+    }
+
     TUnversionedOwningRowBuilder builder;
     for (const auto& value : keyBound.Prefix) {
         builder.AddValue(value);
@@ -323,6 +334,10 @@ TUnversionedOwningRow KeyBoundToLegacyRow(TKeyBound keyBound)
 
 TUnversionedRow KeyBoundToLegacyRow(TKeyBound keyBound, const TRowBufferPtr& rowBuffer)
 {
+    if (!keyBound) {
+        return TUnversionedRow();
+    }
+
     auto shouldAddMax = (keyBound.IsUpper && keyBound.IsInclusive) || (!keyBound.IsUpper && !keyBound.IsInclusive);
 
     auto row = rowBuffer->AllocateUnversioned(keyBound.Prefix.GetCount() + (shouldAddMax ? 1 : 0));
@@ -339,6 +354,10 @@ TUnversionedRow KeyBoundToLegacyRow(TKeyBound keyBound, const TRowBufferPtr& row
 
 TKeyBound ShortenKeyBound(TKeyBound keyBound, int length, const TRowBufferPtr& rowBuffer)
 {
+    if (!keyBound) {
+        return TKeyBound();
+    }
+
     if (keyBound.Prefix.GetCount() <= length) {
         // No need to change anything.
         return keyBound;
@@ -346,10 +365,12 @@ TKeyBound ShortenKeyBound(TKeyBound keyBound, int length, const TRowBufferPtr& r
 
     // If we do perform shortening, resulting key bound is going to be inclusive despite the original inclusiveness.
 
-    return TKeyBound::FromRowUnchecked(
+    auto result = TKeyBound::FromRowUnchecked(
         rowBuffer->Capture(keyBound.Prefix.Begin(), length),
         /* isInclusive */ true,
         keyBound.IsUpper);
+
+    return result;
 }
 
 //! Owning version of #ShortenKeyBound.

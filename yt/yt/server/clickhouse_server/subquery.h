@@ -22,7 +22,7 @@ struct TSubquery
 {
     NChunkPools::TChunkStripeListPtr StripeList;
     NChunkPools::IChunkPoolOutput::TCookie Cookie;
-    std::pair<NTableClient::TUnversionedOwningRow, NTableClient::TUnversionedOwningRow> Limits;
+    std::pair<NTableClient::TOwningKeyBound, NTableClient::TOwningKeyBound> Bounds;
 };
 
 struct TQueryInput
@@ -43,6 +43,7 @@ std::vector<TSubquery> BuildSubqueries(
     const NChunkPools::TChunkStripeListPtr& inputStripeList,
     std::optional<int> keyColumnCount,
     EPoolKind poolKind,
+    NChunkClient::TDataSourceDirectoryPtr dataSourceDirectory,
     int jobCount,
     std::optional<double> samplingRate,
     const TStorageContext* storageContext,

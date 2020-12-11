@@ -917,7 +917,7 @@ TString SerializeToString(const TUnversionedValue* begin, const TUnversionedValu
     return buffer;
 }
 
-TUnversionedOwningRow DeserializeFromString(const TString& data)
+TUnversionedOwningRow DeserializeFromString(const TString& data, std::optional<int> nullPaddingWidth = std::nullopt)
 {
     if (data == SerializedNullRow) {
         return TUnversionedOwningRow();
@@ -932,17 +932,23 @@ TUnversionedOwningRow DeserializeFromString(const TString& data)
     ui32 valueCount;
     current += ReadVarUint32(current, &valueCount);
 
-    size_t fixedSize = GetUnversionedRowByteSize(valueCount);
+    // TODO(max42): YT-14049.
+    int nullCount = nullPaddingWidth ? std::max<int>(0, *nullPaddingWidth - static_cast<int>(valueCount)) : 0;
+
+    size_t fixedSize = GetUnversionedRowByteSize(valueCount + nullCount);
     auto rowData = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, false);
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
 
-    header->Count = static_cast<i32>(valueCount);
-    header->Capacity = static_cast<i32>(valueCount);
+    header->Count = static_cast<i32>(valueCount + nullCount);
+    header->Capacity = static_cast<i32>(valueCount + nullCount);
 
     auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
     for (int index = 0; index < valueCount; ++index) {
         auto* value = values + index;
         current += ReadValue(current, value);
+    }
+    for (int index = valueCount; index < valueCount + nullCount; ++index) {
+        values[index] = MakeUnversionedNullValue(index);
     }
 
     return TUnversionedOwningRow(std::move(rowData), data);
@@ -1459,9 +1465,9 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const T
     *protoRow = SerializeToString(begin, end);
 }
 
-void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow)
+void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow, std::optional<int> nullPaddingWidth)
 {
-    *row = DeserializeFromString(protoRow);
+    *row = DeserializeFromString(protoRow, nullPaddingWidth);
 }
 
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer)

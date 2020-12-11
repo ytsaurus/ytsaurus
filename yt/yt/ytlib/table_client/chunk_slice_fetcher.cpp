@@ -6,6 +6,7 @@
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/key_set.h>
 
 #include <yt/client/table_client/row_buffer.h>
@@ -71,20 +72,43 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual void AddChunkForSlicing(
-        TInputChunkPtr chunk,
-        i64 chunkSliceSize,
+    virtual void AddDataSliceForSlicing(
+        TLegacyDataSlicePtr dataSlice,
+        i64 sliceDataWeight,
         int keyColumnCount,
         bool sliceByKeys)
     {
-        YT_VERIFY(chunkSliceSize > 0);
+        YT_VERIFY(sliceDataWeight > 0);
 
+        auto chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
         TFetcherBase::AddChunk(chunk);
 
+        YT_VERIFY(dataSlice->ChunkSlices.size() == 1);
+
+        // Note that we do not patch chunk slices limits anywhere in chunk pool as it is
+        // a part of data slice physical representation. In future it is going to become
+        // hidden in physical data reigstry.
+        //
+        // As a consequence, by this moment limit in chunk slice may be longer than needed,
+        // so we copy chunk slice for internal chunk slice fetcher needs and replace
+        // chunk slice limits with data slice limits which are already proper (i.e. have length
+        // of #keyColumnCount).
+        //
+        // This logic fixes test_scheduler_reduce.py::TestSchedulerReduceCommands::test_column_filter.
+
+        auto chunkSliceCopy = CreateInputChunkSlice(*dataSlice->ChunkSlices[0]);
+        chunkSliceCopy->LegacyLowerLimit() = dataSlice->LegacyLowerLimit();
+        chunkSliceCopy->LegacyUpperLimit() = dataSlice->LegacyUpperLimit();
+        chunkSliceCopy->LowerLimit() = dataSlice->LowerLimit();
+        chunkSliceCopy->UpperLimit() = dataSlice->UpperLimit();
+
+        auto dataSliceCopy = CreateUnversionedInputDataSlice(chunkSliceCopy);
+
         TChunkSliceRequest chunkSliceRequest {
-            .ChunkSliceSize = chunkSliceSize,
+            .ChunkSliceDataWeight = sliceDataWeight,
             .KeyColumnCount = keyColumnCount,
-            .SliceByKeys = sliceByKeys
+            .SliceByKeys = sliceByKeys,
+            .DataSlice = dataSliceCopy,
         };
         YT_VERIFY(ChunkToChunkSliceRequest_.emplace(chunk, chunkSliceRequest).second);
     }
@@ -118,9 +142,10 @@ private:
 
     struct TChunkSliceRequest
     {
-        i64 ChunkSliceSize;
+        i64 ChunkSliceDataWeight;
         int KeyColumnCount;
         bool SliceByKeys;
+        TLegacyDataSlicePtr DataSlice;
     };
     THashMap<TInputChunkPtr, TChunkSliceRequest> ChunkToChunkSliceRequest_;
 
@@ -148,7 +173,7 @@ private:
         std::vector<TFuture<void>> futures;
 
         TDataNodeServiceProxy::TReqGetChunkSlicesPtr req;
-        std::vector<int> requestedChunkIndexes;            
+        std::vector<int> requestedChunkIndexes;
 
         auto createRequest = [&] {
             req = proxy.GetChunkSlices();
@@ -164,7 +189,7 @@ private:
                     req->Invoke().Apply(
                         BIND(&TChunkSliceFetcher::OnResponse, MakeStrong(this), nodeId, Passed(std::move(requestedChunkIndexes)))
                             .AsyncVia(Invoker_)));
-                
+
                 requestedChunkIndexes.clear();
                 createRequest();
             }
@@ -183,37 +208,39 @@ private:
             }
             const auto& minKey = chunk->BoundaryKeys()->MinKey;
             const auto& maxKey = chunk->BoundaryKeys()->MaxKey;
-            auto chunkSliceSize = sliceRequest.ChunkSliceSize;
+            auto chunkSliceDataWeight = sliceRequest.ChunkSliceDataWeight;
             auto sliceByKeys = sliceRequest.SliceByKeys;
             auto keyColumnCount = sliceRequest.KeyColumnCount;
             auto chunkType = TypeFromId(chunk->ChunkId());
 
-            if (chunkDataSize < chunkSliceSize ||
+            if (chunkDataSize < chunkSliceDataWeight ||
                 IsDynamicTabletStoreType(chunkType) ||
                 (sliceByKeys && CompareRows(minKey, maxKey, keyColumnCount) == 0))
             {
-                auto slice = CreateInputChunkSlice(chunk);
-                InferLimitsFromBoundaryKeys(slice, RowBuffer_, keyColumnCount);
-
                 YT_VERIFY(chunkIndex < SlicesByChunkIndex_.size());
-                SlicesByChunkIndex_[chunkIndex].push_back(slice);
+                auto chunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
+                SlicesByChunkIndex_[chunkIndex].push_back(chunkSlice);
                 SliceCount_++;
             } else {
                 requestedChunkIndexes.push_back(chunkIndex);
                 auto chunkId = EncodeChunkId(chunk, nodeId);
 
-                auto* sliceRequest = req->add_slice_requests();
-                ToProto(sliceRequest->mutable_chunk_id(), chunkId);
-                if (chunk->LowerLimit()) {
-                    ToProto(sliceRequest->mutable_lower_limit(), *chunk->LowerLimit());
+                auto* protoSliceRequest = req->add_slice_requests();
+                ToProto(protoSliceRequest->mutable_chunk_id(), chunkId);
+
+                if (sliceRequest.DataSlice->IsLegacy) {
+                    ToProto(protoSliceRequest->mutable_lower_limit(), sliceRequest.DataSlice->LegacyLowerLimit());
+                    ToProto(protoSliceRequest->mutable_upper_limit(), sliceRequest.DataSlice->LegacyUpperLimit());
+                } else {
+                    ToProto(protoSliceRequest->mutable_lower_limit(), sliceRequest.DataSlice->LowerLimit());
+                    ToProto(protoSliceRequest->mutable_upper_limit(), sliceRequest.DataSlice->UpperLimit());
                 }
-                if (chunk->UpperLimit()) {
-                    ToProto(sliceRequest->mutable_upper_limit(), *chunk->UpperLimit());
-                }
-                sliceRequest->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
-                sliceRequest->set_slice_data_weight(chunkSliceSize);
-                sliceRequest->set_slice_by_keys(sliceByKeys);
-                sliceRequest->set_key_column_count(keyColumnCount);
+
+                // TODO(max42, gritukan): this field seems useless. Consider dropping it here and in proto message.
+                protoSliceRequest->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
+                protoSliceRequest->set_slice_data_weight(chunkSliceDataWeight);
+                protoSliceRequest->set_slice_by_keys(sliceByKeys);
+                protoSliceRequest->set_key_column_count(keyColumnCount);
             }
 
             if (req->slice_requests_size() >= Config_->MaxSlicesPerFetch) {
@@ -254,6 +281,7 @@ private:
         for (int i = 0; i < requestedChunkIndexes.size(); ++i) {
             int index = requestedChunkIndexes[i];
             const auto& chunk = Chunks_[index];
+            const auto& sliceRequest = ChunkToChunkSliceRequest_[chunk];
             const auto& sliceResponse = rsp->slice_responses(i);
 
             if (sliceResponse.has_error()) {
@@ -273,9 +301,19 @@ private:
                 index);
 
             YT_VERIFY(index < SlicesByChunkIndex_.size());
+
+            auto comparator = TComparator(std::vector<ESortOrder>(sliceRequest.KeyColumnCount, ESortOrder::Ascending));
+
+            const auto& originalChunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
+
             for (const auto& protoChunkSlice : sliceResponse.chunk_slices()) {
-                auto slice = New<TInputChunkSlice>(chunk, RowBuffer_, protoChunkSlice, keys);
-                SlicesByChunkIndex_[index].push_back(slice);
+                TInputChunkSlicePtr chunkSlice;
+                if (sliceRequest.DataSlice->IsLegacy) {
+                    chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, RowBuffer_, protoChunkSlice, keys);
+                } else {
+                    chunkSlice = New<TInputChunkSlice>(*originalChunkSlice, comparator, RowBuffer_, protoChunkSlice, keys);
+                }
+                SlicesByChunkIndex_[index].push_back(chunkSlice);
                 SliceCount_++;
             }
         }

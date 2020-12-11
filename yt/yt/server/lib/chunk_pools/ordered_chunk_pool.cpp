@@ -1,11 +1,14 @@
 #include "ordered_chunk_pool.h"
 
 #include "helpers.h"
-#include "job_manager.h"
+#include "new_job_manager.h"
 #include "output_order.h"
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 #include <yt/server/lib/controller_agent/structs.h>
+
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/library/random/bernoulli_sampler.h>
 
@@ -44,7 +47,7 @@ void TOrderedChunkPoolOptions::Persist(const TPersistenceContext& context)
 
 class TOrderedChunkPool
     : public TChunkPoolInputBase
-    , public TChunkPoolOutputWithJobManagerBase
+    , public TChunkPoolOutputWithNewJobManagerBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
@@ -93,6 +96,10 @@ public:
 
         if (stripe->DataSlices.empty()) {
             return IChunkPoolInput::NullCookie;
+        }
+
+        for (const auto& dataSlice : stripe->DataSlices) {
+            YT_VERIFY(!dataSlice->IsLegacy);
         }
 
         auto cookie = static_cast<int>(Stripes_.size());
@@ -229,7 +236,7 @@ private:
 
     TOutputOrderPtr OutputOrder_ = nullptr;
 
-    std::unique_ptr<TJobStub> CurrentJob_;
+    std::unique_ptr<TNewJobStub> CurrentJob_;
 
     int JobIndex_ = 0;
     int BuiltJobCount_ = 0;
@@ -304,11 +311,14 @@ private:
                 }
 
                 std::vector<TLegacyDataSlicePtr> slicedDataSlices;
+                YT_VERIFY(!dataSlice->IsLegacy);
                 if (dataSlice->Type == EDataSourceType::UnversionedTable && ShouldSliceByRowIndices_) {
-                    auto chunkSlices = CreateInputChunkSlice(dataSlice->GetSingleUnversionedChunkOrThrow())
+                    auto chunkSliceCopy = CreateInputChunkSlice(*dataSlice->ChunkSlices[0]);
+                    auto chunkSlices = chunkSliceCopy
                         ->SliceEvenly(JobSizeConstraints_->GetInputSliceDataWeight(), JobSizeConstraints_->GetInputSliceRowCount());
                     for (const auto& chunkSlice : chunkSlices) {
                         auto smallerDataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+                        smallerDataSlice->CopyPayloadFrom(*dataSlice);
                         AddPrimaryDataSlice(smallerDataSlice, inputCookie, JobSizeConstraints_->GetDataWeightPerJob());
                     }
                 } else {
@@ -378,6 +388,7 @@ private:
         IChunkPoolInput::TCookie cookie,
         i64 dataSizePerJob)
     {
+        YT_VERIFY(!dataSlice->IsLegacy);
         bool jobIsLargeEnough =
             CurrentJob()->GetPreliminarySliceCount() + 1 > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
             CurrentJob()->GetDataWeight() >= dataSizePerJob;
@@ -386,6 +397,7 @@ private:
         }
         auto dataSliceCopy = CreateInputDataSlice(dataSlice);
         dataSliceCopy->Tag = cookie;
+        dataSlice->CopyPayloadFrom(*dataSlice);
         CurrentJob()->AddDataSlice(dataSliceCopy, cookie, true /* isPrimary */);
     }
 
@@ -435,10 +447,10 @@ private:
         }
     }
 
-    std::unique_ptr<TJobStub>& CurrentJob()
+    std::unique_ptr<TNewJobStub>& CurrentJob()
     {
         if (!CurrentJob_) {
-            CurrentJob_ = std::make_unique<TJobStub>();
+            CurrentJob_ = std::make_unique<TNewJobStub>();
         }
         return CurrentJob_;
     }

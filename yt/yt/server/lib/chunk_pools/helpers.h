@@ -3,7 +3,7 @@
 #include "private.h"
 #include "chunk_pool.h"
 
-#include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 

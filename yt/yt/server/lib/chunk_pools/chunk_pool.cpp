@@ -1,6 +1,7 @@
 #include "chunk_pool.h"
 
-#include "job_manager.h"
+#include "legacy_job_manager.h"
+#include "new_job_manager.h"
 
 #include <yt/server/lib/controller_agent/structs.h>
 
@@ -106,75 +107,94 @@ void TChunkPoolOutputWithCountersBase::Persist(const TPersistenceContext& contex
 
 // IChunkPoolOutput implementation.
 
-TChunkPoolOutputWithJobManagerBase::TChunkPoolOutputWithJobManagerBase()
+template <class TJobManager>
+TChunkPoolOutputWithJobManagerBase<TJobManager>::TChunkPoolOutputWithJobManagerBase()
     : JobManager_(New<TJobManager>())
 { }
 
-TChunkStripeStatisticsVector TChunkPoolOutputWithJobManagerBase::GetApproximateStripeStatistics() const
+template <class TJobManager>
+TChunkStripeStatisticsVector TChunkPoolOutputWithJobManagerBase<TJobManager>::GetApproximateStripeStatistics() const
 {
     return JobManager_->GetApproximateStripeStatistics();
 }
 
-IChunkPoolOutput::TCookie TChunkPoolOutputWithJobManagerBase::Extract(TNodeId /* nodeId */)
+template <class TJobManager>
+IChunkPoolOutput::TCookie TChunkPoolOutputWithJobManagerBase<TJobManager>::Extract(TNodeId /* nodeId */)
 {
     return JobManager_->ExtractCookie();
 }
 
-TChunkStripeListPtr TChunkPoolOutputWithJobManagerBase::GetStripeList(IChunkPoolOutput::TCookie cookie)
+template <class TJobManager>
+TChunkStripeListPtr TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeList(IChunkPoolOutput::TCookie cookie)
 {
     return JobManager_->GetStripeList(cookie);
 }
 
-int TChunkPoolOutputWithJobManagerBase::GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const
+template <class TJobManager>
+int TChunkPoolOutputWithJobManagerBase<TJobManager>::GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const
 {
     return JobManager_->GetStripeList(cookie)->TotalChunkCount;
 }
 
-void TChunkPoolOutputWithJobManagerBase::Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary)
+template <class TJobManager>
+void TChunkPoolOutputWithJobManagerBase<TJobManager>::Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary)
 {
     JobManager_->Completed(cookie, jobSummary.InterruptReason);
 }
 
-void TChunkPoolOutputWithJobManagerBase::Failed(IChunkPoolOutput::TCookie cookie)
+template <class TJobManager>
+void TChunkPoolOutputWithJobManagerBase<TJobManager>::Failed(IChunkPoolOutput::TCookie cookie)
 {
     JobManager_->Failed(cookie);
 }
 
-void TChunkPoolOutputWithJobManagerBase::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
+template <class TJobManager>
+void TChunkPoolOutputWithJobManagerBase<TJobManager>::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
 {
     JobManager_->Aborted(cookie, reason);
 }
 
-void TChunkPoolOutputWithJobManagerBase::Lost(IChunkPoolOutput::TCookie cookie)
+template <class TJobManager>
+void TChunkPoolOutputWithJobManagerBase<TJobManager>::Lost(IChunkPoolOutput::TCookie cookie)
 {
     JobManager_->Lost(cookie);
 }
 
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetJobCounter() const
+template <class TJobManager>
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetJobCounter() const
 {
     return JobManager_->JobCounter();
 }
 
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetDataWeightCounter() const
+template <class TJobManager>
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetDataWeightCounter() const
 {
     return JobManager_->DataWeightCounter();
 }
 
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetRowCounter() const
+template <class TJobManager>
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetRowCounter() const
 {
     return JobManager_->RowCounter();
 }
 
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetDataSliceCounter() const
+template <class TJobManager>
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase<TJobManager>::GetDataSliceCounter() const
 {
     return JobManager_->DataSliceCounter();
 }
 
-void TChunkPoolOutputWithJobManagerBase::Persist(const TPersistenceContext& context)
+template <class TJobManager>
+void TChunkPoolOutputWithJobManagerBase<TJobManager>::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, JobManager_);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
+template class TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,6 +2,7 @@
 
 #include "private.h"
 
+#include "new_job_manager.h"
 #include "sorted_job_builder.h"
 
 #include <yt/ytlib/table_client/public.h>
@@ -18,7 +19,7 @@ struct INewSortedJobBuilder
     : public TRefCounted
 {
     virtual void AddDataSlice(const NChunkClient::TLegacyDataSlicePtr& dataSlice) = 0;
-    virtual std::vector<std::unique_ptr<TJobStub>> Build() = 0;
+    virtual std::vector<TNewJobStub> Build() = 0;
     virtual i64 GetTotalDataSliceCount() const = 0;
 };
 

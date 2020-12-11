@@ -2,6 +2,7 @@
 
 #include "chunk_stripe.h"
 
+#include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
@@ -35,6 +36,7 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
 
     auto mappedStripe = New<TChunkStripe>();
     for (const auto& dataSlice : stripe->DataSlices) {
+        YT_VERIFY(!dataSlice->IsLegacy);
         if (dataSlice->Type == EDataSourceType::UnversionedTable) {
             const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
             auto iterator = Substitutes_.find(chunk);
@@ -50,21 +52,17 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
                 if (dataSlice->HasLimits()) {
                     YT_VERIFY(substitutes.size() == 1);
                     auto substituteChunk = substitutes.front();
-                    auto chunkSlice = CreateInputChunkSlice(substituteChunk);
-                    chunkSlice->LegacyLowerLimit() = dataSlice->ChunkSlices[0]->LegacyLowerLimit();
-                    chunkSlice->LegacyUpperLimit() = dataSlice->ChunkSlices[0]->LegacyUpperLimit();
-                    mappedStripe->DataSlices.emplace_back(New<TLegacyDataSlice>(
-                            dataSlice->Type,
-                            TLegacyDataSlice::TChunkSliceList{std::move(chunkSlice)},
-                            dataSlice->LegacyLowerLimit(),
-                            dataSlice->LegacyUpperLimit()));
-                    mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
+
+                    auto mappedDataSlice = CreateInputDataSlice(dataSlice);
+                    mappedDataSlice->ChunkSlices[0]->SetInputChunk(substituteChunk);
+                    mappedDataSlice->CopyPayloadFrom(*dataSlice);
+                    mappedStripe->DataSlices.emplace_back(std::move(mappedDataSlice));
                 } else {
                     for (const auto& substituteChunk : substitutes) {
-                        mappedStripe->DataSlices.emplace_back(New<TLegacyDataSlice>(
-                                dataSlice->Type,
-                                TLegacyDataSlice::TChunkSliceList{CreateInputChunkSlice(substituteChunk)} ));
-                        mappedStripe->DataSlices.back()->InputStreamIndex = dataSlice->InputStreamIndex;
+                        auto mappedDataSlice = CreateInputDataSlice(dataSlice);
+                        mappedDataSlice->ChunkSlices[0]->SetInputChunk(substituteChunk);
+                        mappedDataSlice->CopyPayloadFrom(*dataSlice);
+                        mappedStripe->DataSlices.emplace_back(std::move(mappedDataSlice));
                     }
                 }
             }
