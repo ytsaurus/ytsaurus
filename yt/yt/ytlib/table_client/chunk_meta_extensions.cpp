@@ -2,6 +2,8 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 
+#include <yt/client/table_client/key_bound.h>
+
 #include <yt/core/misc/object_pool.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -105,6 +107,30 @@ std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(const TChunkMeta& chunkMet
     }
     return std::make_unique<TOwningBoundaryKeys>(std::move(keys));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool FindBoundaryKeyBounds(
+    const TChunkMeta& chunkMeta,
+    TOwningKeyBound* lowerBound,
+    TOwningKeyBound* upperBound)
+{
+    auto boundaryKeys = FindProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
+    if (!boundaryKeys) {
+        return false;
+    }
+
+    TUnversionedOwningRow minKey;
+    TUnversionedOwningRow maxKey;
+    FromProto(&minKey, boundaryKeys->min());
+    FromProto(&maxKey, boundaryKeys->max());
+
+    *lowerBound = TOwningKeyBound::FromRow(minKey, /* isInclusive */true, /* isUpper */false);
+    *upperBound = TOwningKeyBound::FromRow(maxKey, /* isInclusive */true, /* isUpper */true);
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TChunkMeta FilterChunkMetaByPartitionTag(const TChunkMeta& chunkMeta, const TCachedBlockMetaPtr& cachedBlockMeta, int partitionTag)
 {

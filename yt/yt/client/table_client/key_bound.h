@@ -120,6 +120,9 @@ TUnversionedRow KeyBoundToLegacyRow(TKeyBound keyBound, const TRowBufferPtr& row
 //! ray corresponding to #keyBound.
 TKeyBound ShortenKeyBound(TKeyBound keyBound, int length, const TRowBufferPtr& rowBuffer);
 
+//! Owning version of #ShortenKeyBound.
+TOwningKeyBound ShortenKeyBound(TOwningKeyBound keyBound, int length);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

@@ -19,456 +19,21 @@
 
 #include <yt/core/yson/string.h>
 
+#include <random>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
-// Function is defined here due to ADL.
-void PrintTo(const NChunkClient::TChunkSlice& slice, ::std::ostream* os)
-{
-    *os << "chunk slice with " << slice.GetRowCount() << " rows";
-}
 
 namespace NChunkClient {
 namespace {
 
 using namespace NObjectClient;
-using namespace NChunkClient::NProto;
 using namespace NTableClient;
-using namespace NTableClient::NProto;
 using namespace NYTree;
 using namespace NYson;
 
-using NChunkClient::TLegacyReadLimit;
-
-using testing::PrintToString;
-
 ////////////////////////////////////////////////////////////////////////////////
-
-MATCHER_P(HasRowCount, rowCount, "has row count " + std::string(negation ? "not " : "") + PrintToString(rowCount))
-{
-    return arg.GetRowCount() == rowCount;
-}
-
-MATCHER_P(HasLowerLimit, lowerLimit, "has lower limit " + std::string(negation ? "not " : "") + lowerLimit)
-{
-    auto actualLimitAsNode = ConvertToNode(arg.LowerLimit());
-    auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).GetData();
-
-    auto expectedLimitAsNode = ConvertToNode(TYsonString(lowerLimit));
-
-    *result_listener << "where HasLowerLimit(R\"_(" << actualLimitAsText.c_str() << ")_\")";
-
-    return AreNodesEqual(actualLimitAsNode, expectedLimitAsNode);
-}
-
-MATCHER_P(HasUpperLimit, upperLimit, "has upper limit " + std::string(negation ? "not " : "") + upperLimit)
-{
-    auto actualLimitAsNode = ConvertToNode(arg.UpperLimit());
-    auto actualLimitAsText = ConvertToYsonString(actualLimitAsNode, EYsonFormat::Text).GetData();
-
-    auto expectedLimitAsNode = ConvertToNode(TYsonString(upperLimit));
-
-    *result_listener << "where HasUpperLimit(R\"_(" << actualLimitAsText.c_str() << ")_\")";
-
-    return AreNodesEqual(actualLimitAsNode, expectedLimitAsNode);
-}
-
-class TChunkSliceTest
-    : public ::testing::Test
-{
-public:
-    static const bool DoSliceByKeys = true;
-    static const bool DoSliceByRows = false;
-
-    TChunkSliceTest()
-    {
-        EmptyChunk_ = CreateChunkSpec(
-            ETableChunkFormat::SchemalessHorizontal,
-            1, // keyRepetitions
-            0); // chunkRows
-
-        OneKeyChunk_ = CreateChunkSpec(
-            ETableChunkFormat::SchemalessHorizontal,
-            300); // keyRepetitions
-
-        TwoKeyChunk_ = CreateChunkSpec(
-            ETableChunkFormat::SchemalessHorizontal,
-            170); // keyRepetitions
-
-        ChunkWithLimits_ = CreateChunkSpec(
-            ETableChunkFormat::SchemalessHorizontal,
-            2, // keyRepetitions
-            300, // chunkRows
-            "{lower_limit={key=[\"10010\"];row_index=100};upper_limit={}}");
-
-        Chunk2WithLimits_ = CreateChunkSpec(
-            ETableChunkFormat::SchemalessHorizontal,
-            2, // keyRepetitions
-            300, // chunkRows
-            "{lower_limit={};upper_limit={key=[\"10280\"];row_index=240}}",
-            10150); // minKey
-    }
-
-protected:
-    TChunkSpec EmptyChunk_;
-    TChunkSpec OneKeyChunk_;
-    TChunkSpec TwoKeyChunk_;
-    TChunkSpec ChunkWithLimits_;
-    TChunkSpec Chunk2WithLimits_;
-
-    TGuid GenerateId(EObjectType type)
-    {
-        static i64 counter = 0;
-        return MakeId(type, 0, counter++, 0);
-    }
-
-    TGuid GenerateChunkId()
-    {
-        return GenerateId(EObjectType::Chunk);
-    }
-
-    TString FormatKey(i64 key)
-    {
-        return Format("%05d", key);
-    }
-
-    TLegacyOwningKey KeyWithValue(i64 key)
-    {
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedStringValue(FormatKey(key)));
-        return builder.FinishRow();
-    }
-
-    TChunkSpec CreateChunkSpec(
-        ETableChunkFormat version,
-        i64 keyRepetitions,         // the number of times that each key is repeated
-        i64 chunkRows = 300,        // the number of rows in the chunk
-        const TString& ysonRange = TString("{lower_limit={};upper_limit={}}"),
-                                    // range for chunk, specified as yson text
-        i64 minKey = 10000,         // minimal value of key
-        i64 blockRows = 79,         // the number of rows per block
-        i64 rowBytes = 13)          // the size of one block
-    {
-        TChunkMeta chunkMeta;
-        chunkMeta.set_type(static_cast<int>(EChunkType::Table));
-        chunkMeta.set_version(static_cast<int>(version));
-
-        i64 maxKey = minKey + (chunkRows - 1) / keyRepetitions;
-        i64 numBlocks = (chunkRows + blockRows - 1) / blockRows;
-        TBoundaryKeysExt boundaryKeys;
-
-        ToProto(boundaryKeys.mutable_min(), KeyWithValue(minKey));
-        ToProto(boundaryKeys.mutable_max(), KeyWithValue(maxKey));
-
-        SetProtoExtension<TBoundaryKeysExt>(chunkMeta.mutable_extensions(), boundaryKeys);
-
-        TBlockMetaExt blockMetaExt;
-        for (i64 i = 0; i < numBlocks; ++i) {
-            blockMetaExt.add_blocks();
-            auto block = blockMetaExt.mutable_blocks(i);
-
-            i64 rowIndex = std::min((i + 1) * blockRows, chunkRows);
-            i64 rowCount = rowIndex - i * blockRows;
-            block->set_row_count(rowCount);
-            block->set_uncompressed_size(rowCount * rowBytes);
-            block->set_chunk_row_count(rowIndex);
-            block->set_block_index(i);
-            ToProto(block->mutable_last_key(), KeyWithValue(minKey + (rowIndex - 1) / keyRepetitions));
-        }
-        SetProtoExtension<TBlockMetaExt>(chunkMeta.mutable_extensions(), blockMetaExt);
-
-        TMiscExt miscExt;
-        miscExt.set_row_count(chunkRows);
-        miscExt.set_uncompressed_data_size(chunkRows * rowBytes);
-        //miscExt.set_data_weight(chunkRows * rowBytes);
-        SetProtoExtension<TMiscExt>(chunkMeta.mutable_extensions(), miscExt);
-
-        TChunkSpec chunkSpec;
-        ToProto(chunkSpec.mutable_chunk_id(), GenerateChunkId());
-        auto range = ConvertTo<NChunkClient::TLegacyReadRange>(TYsonString(ysonRange));
-        ToProto(chunkSpec.mutable_lower_limit(), range.LowerLimit());
-        ToProto(chunkSpec.mutable_upper_limit(), range.UpperLimit());
-        chunkSpec.mutable_chunk_meta()->Swap(&chunkMeta);
-
-        return chunkSpec;
-    }
-
-    std::vector<NChunkClient::TChunkSlice> SliceChunk(
-        const TChunkSpec& chunkSpec,
-        i64 sliceDataWeight,
-        int keyColumnCount,
-        bool sliceByKeys)
-    {
-        NProto::TSliceRequest sliceRequest;
-
-        sliceRequest.mutable_chunk_id()->CopyFrom(chunkSpec.chunk_id());
-        if (chunkSpec.has_lower_limit()) {
-            sliceRequest.mutable_lower_limit()->CopyFrom(chunkSpec.lower_limit());
-        }
-        if (chunkSpec.has_upper_limit()) {
-            sliceRequest.mutable_upper_limit()->CopyFrom(chunkSpec.upper_limit());
-        }
-        sliceRequest.set_erasure_codec(chunkSpec.erasure_codec());
-        sliceRequest.set_slice_data_weight(sliceDataWeight);
-        sliceRequest.set_key_column_count(keyColumnCount);
-        sliceRequest.set_slice_by_keys(sliceByKeys);
-
-        return NChunkClient::SliceChunk(sliceRequest, chunkSpec.chunk_meta());
-    }
-};
-
-TEST_F(TChunkSliceTest, OneKeyChunkSmallSlice)
-{
-    const auto& chunkSpec = OneKeyChunk_;
-    auto keySlices = SliceChunk(
-        chunkSpec,
-        500, // sliceDataWeight
-        1,   // keyColumnCount
-        DoSliceByKeys);
-    EXPECT_EQ(1, keySlices.size());
-
-    EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({key=["10000"]})_"));
-    EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({key=["10000";<type=max>#]})_"));
-    EXPECT_THAT(keySlices[0], HasRowCount(300));
-
-    auto rowSlices = SliceChunk(
-        chunkSpec,
-        500, // sliceDataWeight
-        1,   // keyColumnCount
-        DoSliceByRows);
-    EXPECT_EQ(7, rowSlices.size());
-
-    EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10000"];"row_index"=0})_"));
-
-    Cerr << ConvertToYsonString(rowSlices[0].UpperLimit(), EYsonFormat::Pretty).GetData() << Endl;
-    Cerr << ConvertToYsonString(rowSlices[6].LowerLimit(), EYsonFormat::Pretty).GetData() << Endl;
-    Cerr << ConvertToYsonString(rowSlices[6].UpperLimit(), EYsonFormat::Pretty).GetData() << Endl;
-
-    EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=39})_"));
-    EXPECT_THAT(rowSlices[0], HasRowCount(39));
-
-    EXPECT_THAT(rowSlices[6], HasLowerLimit(R"_({"key"=["10000"];"row_index"=237})_"));
-    EXPECT_THAT(rowSlices[6], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=300})_"));
-    EXPECT_THAT(rowSlices[6], HasRowCount(63));
-}
-
-TEST_F(TChunkSliceTest, OneKeyChunkLargeSlice)
-{
-    const auto& chunkSpec = OneKeyChunk_;
-    auto keySlices = SliceChunk(
-        chunkSpec,
-        2500, // sliceDataSize
-        1,    // keyColumnCount
-        DoSliceByKeys);
-    EXPECT_EQ(keySlices.size(), 1);
-
-    EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10000"]})_"));
-    EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#]})_"));
-    EXPECT_THAT(keySlices[0], HasRowCount(300));
-
-    auto rowSlices = SliceChunk(
-        chunkSpec,
-        2500, // sliceDataSize
-        1,    // keyColumnCount
-        DoSliceByRows);
-    EXPECT_EQ(rowSlices.size(), 2);
-
-    EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10000"];"row_index"=0})_"));
-    EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=237})_"));
-    EXPECT_THAT(rowSlices[0], HasRowCount(237));
-
-    EXPECT_THAT(rowSlices[1], HasLowerLimit(R"_({"key"=["10000"];"row_index"=237})_"));
-    EXPECT_THAT(rowSlices[1], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=300})_"));
-    EXPECT_THAT(rowSlices[1], HasRowCount(63));
-}
-
-TEST_F(TChunkSliceTest, TwoKeyChunkSmallSlice)
-{
-    const auto& chunkSpec = TwoKeyChunk_;
-    auto keySlices = SliceChunk(
-        chunkSpec,
-        500, // sliceDataSize
-        1,   // keyColumnCount
-        DoSliceByKeys);
-    EXPECT_EQ(keySlices.size(), 1);
-
-    EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10000"]})_"));
-    EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#]})_"));
-    EXPECT_THAT(keySlices[0], HasRowCount(300));
-
-    auto rowSlices = SliceChunk(
-        chunkSpec,
-        500, // sliceDataSize
-        1,   // keyColumnCount
-        DoSliceByRows);
-    EXPECT_EQ(rowSlices.size(), 7);
-
-    EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10000"];"row_index"=0})_"));
-    EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10000";<"type"="max">#];"row_index"=39})_"));
-    EXPECT_THAT(rowSlices[0], HasRowCount(39));
-
-    EXPECT_THAT(rowSlices[6], HasLowerLimit(R"_({"key"=["10001"];"row_index"=237})_"));
-    EXPECT_THAT(rowSlices[6], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#];"row_index"=300})_"));
-    EXPECT_THAT(rowSlices[6], HasRowCount(63));
-}
-
-TEST_F(TChunkSliceTest, TwoKeyChunkLargeSlice)
-{
-    const auto& chunkSpec = TwoKeyChunk_;
-    auto keySlices = SliceChunk(
-        chunkSpec,
-        2500, // sliceDataSize
-        1,    // keyColumnCount
-        DoSliceByKeys);
-    EXPECT_EQ(keySlices.size(), 1);
-
-    EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10000"]})_"));
-    EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#]})_"));
-    EXPECT_THAT(keySlices[0], HasRowCount(300));
-
-    auto rowSlices = SliceChunk(
-        chunkSpec,
-        2500, // sliceDataSize
-        1,    // keyColumnCount
-        DoSliceByRows);
-    EXPECT_EQ(rowSlices.size(), 2);
-
-    EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10000"];"row_index"=0})_"));
-    EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#];"row_index"=237})_"));
-    EXPECT_THAT(rowSlices[0], HasRowCount(237));
-
-    EXPECT_THAT(rowSlices[1], HasLowerLimit(R"_({"key"=["10001"];"row_index"=237})_"));
-    EXPECT_THAT(rowSlices[1], HasUpperLimit(R"_({"key"=["10001";<"type"="max">#];"row_index"=300})_"));
-    EXPECT_THAT(rowSlices[1], HasRowCount(63));
-}
-
-TEST_F(TChunkSliceTest, ChunkWithLimitSmallSlice)
-{
-    const auto& chunkSpec = ChunkWithLimits_;
-    auto keySlices = SliceChunk(
-        chunkSpec,
-        500, // sliceDataSize
-        1,   // keyColumnCount
-        DoSliceByKeys);
-    EXPECT_EQ(keySlices.size(), 3);
-
-    EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10039"];"row_index"=100})_"));
-    EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10078";<"type"="max">#]})_"));
-    EXPECT_THAT(keySlices[0], HasRowCount(58));
-
-    EXPECT_THAT(keySlices[2], HasLowerLimit(R"_({"key"=["10118";<"type"="max">#];"row_index"=100})_"));
-    EXPECT_THAT(keySlices[2], HasUpperLimit(R"_({"key"=["10149";<"type"="max">#]})_"));
-    EXPECT_THAT(keySlices[2], HasRowCount(63));
-
-    auto rowSlices = SliceChunk(
-        chunkSpec,
-        500, // sliceDataSize
-        1,   // keyColumnCount
-        DoSliceByRows);
-    EXPECT_EQ(rowSlices.size(), 4);
-
-    EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10039"];"row_index"=100})_"));
-    EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10078";<"type"="max">#];"row_index"=158})_"));
-    EXPECT_THAT(rowSlices[0], HasRowCount(58));
-
-    EXPECT_THAT(rowSlices[3], HasLowerLimit(R"_({"key"=["10118"];"row_index"=237})_"));
-    EXPECT_THAT(rowSlices[3], HasUpperLimit(R"_({"key"=["10149";<"type"="max">#];"row_index"=300})_"));
-    EXPECT_THAT(rowSlices[3], HasRowCount(63));
-}
-
-TEST_F(TChunkSliceTest, ChunkWithLimitLargeSlice)
-{
-    const auto& chunkSpec = ChunkWithLimits_;
-    auto keySlices = SliceChunk(
-        chunkSpec,
-        2500, // sliceDataSize
-        1,    // keyColumnCount
-        DoSliceByKeys);
-    EXPECT_EQ(keySlices.size(), 1);
-
-    EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10039"];"row_index"=100})_"));
-    EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10149";<"type"="max">#]})_"));
-    EXPECT_THAT(keySlices[0], HasRowCount(200));
-
-    auto rowSlices = SliceChunk(
-        chunkSpec,
-        2500, // sliceDataSize
-        1,    // keyColumnCount
-        DoSliceByRows);
-    EXPECT_EQ(rowSlices.size(), 1);
-
-    EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10039"];"row_index"=100})_"));
-    EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10149";<"type"="max">#];"row_index"=300})_"));
-    EXPECT_THAT(rowSlices[0], HasRowCount(200));
-}
-
-TEST_F(TChunkSliceTest, Chunk2WithLimitSmallSlice)
-{
-    const auto& chunkSpec = Chunk2WithLimits_;
-    auto keySlices = SliceChunk(
-        chunkSpec,
-        500, // sliceDataSize
-        1,   // keyColumnCount
-        DoSliceByKeys);
-    EXPECT_EQ(keySlices.size(), 4);
-
-    EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10150"]})_"));
-    EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10189";<"type"="max">#];"row_index"=240})_"));
-    EXPECT_THAT(keySlices[0], HasRowCount(79));
-
-    EXPECT_THAT(keySlices[3], HasLowerLimit(R"_({"key"=["10268";<"type"="max">#]})_"));
-    EXPECT_THAT(keySlices[3], HasUpperLimit(R"_({"key"=["10280"];"row_index"=240})_"));
-    EXPECT_THAT(keySlices[3], HasRowCount(3));
-
-    auto rowSlices = SliceChunk(
-        chunkSpec,
-        500, // sliceDataSize
-        1,   // keyColumnCount
-        DoSliceByRows);
-    EXPECT_EQ(rowSlices.size(), 7);
-
-    EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10150"];"row_index"=0})_"));
-    EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10189";<"type"="max">#];"row_index"=39})_"));
-    EXPECT_THAT(rowSlices[0], HasRowCount(39));
-
-    EXPECT_THAT(rowSlices[6], HasLowerLimit(R"_({"key"=["10268"];"row_index"=237})_"));
-    EXPECT_THAT(rowSlices[6], HasUpperLimit(R"_({"key"=["10280"];"row_index"=240})_"));
-    EXPECT_THAT(rowSlices[6], HasRowCount(3));
-}
-
-TEST_F(TChunkSliceTest, Chunk2WithLimitLargeSlice)
-{
-    const auto& chunkSpec = Chunk2WithLimits_;
-    auto keySlices = SliceChunk(
-        chunkSpec,
-        2500, // sliceDataSize
-        1,    // keyColumnCount
-        DoSliceByKeys);
-    EXPECT_EQ(keySlices.size(), 2);
-
-    EXPECT_THAT(keySlices[0], HasLowerLimit(R"_({"key"=["10150"]})_"));
-    EXPECT_THAT(keySlices[0], HasUpperLimit(R"_({"key"=["10268";<"type"="max">#];"row_index"=240})_"));
-    EXPECT_THAT(keySlices[0], HasRowCount(237));
-
-    EXPECT_THAT(keySlices[1], HasLowerLimit(R"_({"key"=["10268";<"type"="max">#]})_"));
-    EXPECT_THAT(keySlices[1], HasUpperLimit(R"_({"key"=["10280"];"row_index"=240})_"));
-    EXPECT_THAT(keySlices[1], HasRowCount(3));
-
-    auto rowSlices = SliceChunk(
-        chunkSpec,
-        2500, // sliceDataSize
-        1,    // keyColumnCount
-        DoSliceByRows);
-    EXPECT_EQ(rowSlices.size(), 2);
-
-    EXPECT_THAT(rowSlices[0], HasLowerLimit(R"_({"key"=["10150";];"row_index"=0;})_"));
-    EXPECT_THAT(rowSlices[0], HasUpperLimit(R"_({"key"=["10268";<"type"="max";>#;];"row_index"=237;})_"));
-    EXPECT_THAT(rowSlices[0], HasRowCount(237));
-
-    EXPECT_THAT(rowSlices[1], HasLowerLimit(R"_({"key"=["10268";];"row_index"=237;})_"));
-    EXPECT_THAT(rowSlices[1], HasUpperLimit(R"_({"key"=["10280";];"row_index"=240;})_"));
-    EXPECT_THAT(rowSlices[1], HasRowCount(3));
-}
 
 TUnversionedOwningRow MakeRow(const std::vector<TUnversionedValue>& values)
 {
@@ -479,10 +44,1043 @@ TUnversionedOwningRow MakeRow(const std::vector<TUnversionedValue>& values)
     return builder.FinishRow();
 }
 
+TUnversionedOwningRow MakeRow(const std::vector<int>& values, bool addMax = false)
+{
+    TUnversionedOwningRowBuilder builder;
+    for (int value : values) {
+        builder.AddValue(MakeUnversionedInt64Value(value));
+    }
+    if (addMax) {
+        builder.AddValue(MakeUnversionedValueHeader(EValueType::Max));
+    }
+    return builder.FinishRow();
+}
+
 TOwningKeyBound MakeKeyBound(const std::vector<TUnversionedValue>& values, bool isInclusive, bool isUpper)
 {
     return TOwningKeyBound::FromRow(MakeRow(values), isInclusive, isUpper);
 }
+
+TLegacyReadLimit MakeReadLimit(
+    std::optional<TUnversionedOwningRow> key,
+    std::optional<i64> rowIndex)
+{
+    TLegacyReadLimit readLimit;
+    if (key) {
+        readLimit.SetLegacyKey(*key);
+    }
+    if (rowIndex) {
+        readLimit.SetRowIndex(*rowIndex);
+    }
+
+    return readLimit;   
+}
+
+void ValidateCovering(const std::vector<TChunkSlice>& slices, bool sliceByRows)
+{
+    for (int index = 0; index + 1 < slices.size(); ++index) {
+        const auto& slice = slices[index];
+        const auto& nextSlice = slices[index + 1];
+
+        if (sliceByRows) {
+            EXPECT_TRUE(slice.UpperLimit().GetRowIndex() == nextSlice.LowerLimit().GetRowIndex());
+        } else {
+            EXPECT_TRUE(slice.UpperLimit().GetLegacyKey() == nextSlice.LowerLimit().GetLegacyKey());
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkBuilder
+{
+public:
+    TChunkBuilder(int keyColumnCount)
+    {
+        ChunkMeta_.set_version(static_cast<int>(ETableChunkFormat::SchemalessHorizontal));
+
+        {
+            std::vector<TColumnSchema> columns;
+            columns.reserve(keyColumnCount);
+            for (int columnIndex = 0; columnIndex < keyColumnCount; ++columnIndex) {
+                std::optional<ESortOrder> sortOrder;
+                if (columnIndex < keyColumnCount) {
+                    sortOrder = ESortOrder::Ascending;
+                }
+                TColumnSchema columnSchema(
+                    /* name */Format("c%v", columnIndex),
+                    /* type */EValueType::Int64,
+                    /* sortOrder */sortOrder);
+                columns.push_back(std::move(columnSchema));
+            }
+
+            TTableSchema chunkSchema(std::move(columns));
+            NTableClient::NProto::TTableSchemaExt chunkSchemaExt;
+            ToProto(&chunkSchemaExt, chunkSchema);
+            SetProtoExtension(ChunkMeta_.mutable_extensions(), chunkSchemaExt);
+        }
+    }
+
+    void AddBlock(
+        TUnversionedOwningRow firstKey,
+        TUnversionedOwningRow lastKey,
+        i64 rowCount,
+        i64 dataWeight)
+    {
+        if (!FirstKey_) {
+            FirstKey_ = firstKey;
+        }
+        LastKey_ = lastKey;
+
+        ChunkRowCount_ += rowCount;
+        ChunkDataWeight_ += dataWeight;
+
+        int blockIndex = Blocks_.blocks_size();
+        auto* block = Blocks_.add_blocks();
+        block->set_block_index(blockIndex);
+        ToProto(block->mutable_last_key(), lastKey);
+        block->set_row_count(rowCount);
+        block->set_uncompressed_size(dataWeight);
+        block->set_chunk_row_count(ChunkRowCount_);
+    }
+
+    NChunkClient::NProto::TChunkMeta Finish()
+    {
+        {
+            NProto::TMiscExt miscExt;
+            miscExt.set_data_weight(ChunkDataWeight_);
+            miscExt.set_row_count(ChunkRowCount_);
+            SetProtoExtension(ChunkMeta_.mutable_extensions(), miscExt);
+        }
+
+        {
+            NTableClient::NProto::TBoundaryKeysExt boundaryKeysExt;
+            ToProto(boundaryKeysExt.mutable_min(), FirstKey_);
+            ToProto(boundaryKeysExt.mutable_max(), LastKey_);
+            SetProtoExtension(ChunkMeta_.mutable_extensions(), boundaryKeysExt);
+        }
+
+        SetProtoExtension(ChunkMeta_.mutable_extensions(), Blocks_);
+
+        return ChunkMeta_;
+    }
+
+private:
+    NChunkClient::NProto::TChunkMeta ChunkMeta_;
+    NTableClient::NProto::TBlockMetaExt Blocks_;
+    TUnversionedOwningRow FirstKey_;
+    TUnversionedOwningRow LastKey_;
+    i64 ChunkRowCount_ = 0;
+    i64 ChunkDataWeight_ = 0;
+};
+
+TEST(TChunkSlicerTest, SliceByRowsOneBlock)
+{
+    constexpr int DataWeightPerRow = 12345;
+
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100 * DataWeightPerRow);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    req.set_slice_data_weight(34 * DataWeightPerRow);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(false);
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */true);
+    ASSERT_EQ(slices.size(), 3);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 0);
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 34);
+    EXPECT_EQ(slices[0].GetDataWeight(), 34 * DataWeightPerRow);
+    EXPECT_EQ(slices[0].GetRowCount(), 34);
+
+    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 34);
+    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 68);
+    EXPECT_EQ(slices[1].GetDataWeight(), 34 * DataWeightPerRow);
+    EXPECT_EQ(slices[1].GetRowCount(), 34);
+
+    EXPECT_EQ(slices[2].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[2].LowerLimit().GetRowIndex(), 68);
+    EXPECT_EQ(slices[2].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[2].UpperLimit().GetRowIndex(), 100);
+    EXPECT_EQ(slices[2].GetDataWeight(), 32 * DataWeightPerRow);
+    EXPECT_EQ(slices[2].GetRowCount(), 32);
+}
+
+TEST(TChunkSlicerTest, SliceByRowsThreeBlocks)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({3}),
+        MakeRow({4}),
+        400,
+        400);
+    chunkBuilder.AddBlock(
+        MakeRow({5}),
+        MakeRow({6}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+    NProto::TSliceRequest req;
+
+    req.set_slice_data_weight(200);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(false);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */true);
+    ASSERT_EQ(slices.size(), 3);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 0);
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
+    EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 200);
+    EXPECT_EQ(slices[0].GetDataWeight(), 200);
+    EXPECT_EQ(slices[0].GetRowCount(), 200);
+
+    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 200);
+    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
+    EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 400);
+    EXPECT_EQ(slices[1].GetDataWeight(), 200);
+    EXPECT_EQ(slices[1].GetRowCount(), 200);
+
+    EXPECT_EQ(slices[2].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[2].LowerLimit().GetRowIndex(), 400);
+    EXPECT_EQ(slices[2].UpperLimit().GetLegacyKey(), MakeRow({6}, true));
+    EXPECT_EQ(slices[2].UpperLimit().GetRowIndex(), 600);
+    EXPECT_EQ(slices[2].GetDataWeight(), 200);
+    EXPECT_EQ(slices[2].GetRowCount(), 200);
+}
+
+TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits1)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({3}),
+        MakeRow({4}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({5}),
+        MakeRow({6}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({7}),
+        MakeRow({8}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({9}),
+        MakeRow({10}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    {
+        NProto::TSliceRequest req;
+        ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 150));
+        ToProto(req.mutable_upper_limit(), MakeReadLimit(std::nullopt, 350));
+        req.set_slice_data_weight(100);
+        req.set_key_column_count(1);
+        req.set_slice_by_keys(false);
+
+        auto slices = SliceChunk(req, chunkMeta);
+        ValidateCovering(slices, /* sliceByRows */true);
+        ASSERT_EQ(slices.size(), 2);
+
+        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
+        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 150);
+        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({6}, true));
+        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 250);
+        EXPECT_EQ(slices[0].GetDataWeight(), 100);
+        EXPECT_EQ(slices[0].GetRowCount(), 100);
+
+        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({4}, true));
+        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 250);
+        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({8}, true));
+        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 350);
+        EXPECT_EQ(slices[1].GetDataWeight(), 100);
+        EXPECT_EQ(slices[1].GetRowCount(), 100);
+    }
+    {
+        NProto::TSliceRequest req;
+        ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 150));
+        ToProto(req.mutable_upper_limit(), MakeReadLimit(std::nullopt, 350));
+        req.set_slice_data_weight(10000);
+        req.set_key_column_count(1);
+        req.set_slice_by_keys(false);
+
+        auto slices = SliceChunk(req, chunkMeta);
+        ValidateCovering(slices, /* sliceByRows */true);
+        ASSERT_EQ(slices.size(), 1);
+
+        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
+        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 150);
+        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({8}, true));
+        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 350);
+        EXPECT_EQ(slices[0].GetDataWeight(), 200);
+        EXPECT_EQ(slices[0].GetRowCount(), 200);
+    }
+}
+
+TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits2)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+    NProto::TSliceRequest req;
+
+    ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 23));
+    ToProto(req.mutable_upper_limit(), MakeReadLimit(std::nullopt, 34));
+    req.set_slice_data_weight(1000);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(false);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */true);
+    ASSERT_EQ(slices.size(), 1);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 23);
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 34);
+    EXPECT_EQ(slices[0].GetDataWeight(), 11);
+    EXPECT_EQ(slices[0].GetRowCount(), 11);
+}
+
+TEST(TChunkSlicerTest, SliceByRowsWithRowIndexLimits3)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({3}),
+        MakeRow({4}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({5}),
+        MakeRow({6}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+    NProto::TSliceRequest req;
+
+    ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 100));
+    ToProto(req.mutable_upper_limit(), MakeReadLimit(std::nullopt, 200));
+    req.set_slice_data_weight(90);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(false);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */true);
+    ASSERT_EQ(slices.size(), 2);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 100);
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
+    EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 190);
+    EXPECT_EQ(slices[0].GetDataWeight(), 90);
+    EXPECT_EQ(slices[0].GetRowCount(), 90);
+
+    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 190);
+    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
+    EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 200);
+    EXPECT_EQ(slices[1].GetDataWeight(), 10);
+    EXPECT_EQ(slices[1].GetRowCount(), 10);
+}
+
+TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits1)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({3}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({5}),
+        MakeRow({7}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({9}),
+        MakeRow({11}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({13}),
+        MakeRow({15}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({17}),
+        MakeRow({19}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    {
+        NProto::TSliceRequest req;
+        ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({6}), std::nullopt));
+        ToProto(req.mutable_upper_limit(), MakeReadLimit(MakeRow({14}), std::nullopt));
+        req.set_slice_data_weight(90);
+        req.set_key_column_count(1);
+        req.set_slice_by_keys(false);
+
+        auto slices = SliceChunk(req, chunkMeta);
+        ValidateCovering(slices, /* sliceByRows */true);
+        ASSERT_EQ(slices.size(), 4);
+
+        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
+        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 100);
+        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({7}, true));
+        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 190);
+        EXPECT_EQ(slices[0].GetDataWeight(), 90);
+        EXPECT_EQ(slices[0].GetRowCount(), 90);
+
+        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({6}));
+        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 190);
+        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({11}, true));
+        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 280);
+        EXPECT_EQ(slices[1].GetDataWeight(), 90);
+        EXPECT_EQ(slices[1].GetRowCount(), 90);
+
+        EXPECT_EQ(slices[2].LowerLimit().GetLegacyKey(), MakeRow({7}, true));
+        EXPECT_EQ(slices[2].LowerLimit().GetRowIndex(), 280);
+        EXPECT_EQ(slices[2].UpperLimit().GetLegacyKey(), MakeRow({14}));
+        EXPECT_EQ(slices[2].UpperLimit().GetRowIndex(), 370);
+        EXPECT_EQ(slices[2].GetDataWeight(), 90);
+        EXPECT_EQ(slices[2].GetRowCount(), 90);
+
+        EXPECT_EQ(slices[3].LowerLimit().GetLegacyKey(), MakeRow({11}, true));
+        EXPECT_EQ(slices[3].LowerLimit().GetRowIndex(), 370);
+        EXPECT_EQ(slices[3].UpperLimit().GetLegacyKey(), MakeRow({14}));
+        EXPECT_EQ(slices[3].UpperLimit().GetRowIndex(), 400);
+        EXPECT_EQ(slices[3].GetDataWeight(), 30);
+        EXPECT_EQ(slices[3].GetRowCount(), 30);
+    }
+
+    {
+        NProto::TSliceRequest req;
+        ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({6}), std::nullopt));
+        ToProto(req.mutable_upper_limit(), MakeReadLimit(MakeRow({14}), std::nullopt));
+        req.set_slice_data_weight(10000);
+        req.set_key_column_count(1);
+        req.set_slice_by_keys(false);
+
+        auto slices = SliceChunk(req, chunkMeta);
+        ValidateCovering(slices, /* sliceByRows */true);
+        ASSERT_EQ(slices.size(), 1);
+
+        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
+        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 100);
+        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({14}));
+        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 400);
+        EXPECT_EQ(slices[0].GetDataWeight(), 300);
+        EXPECT_EQ(slices[0].GetRowCount(), 300);
+    }
+}
+
+TEST(TChunkSlicerTest, SliceByRowsWithKeyLimits2)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({3}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    {
+        NProto::TSliceRequest req;
+        ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({2}), std::nullopt));
+        ToProto(req.mutable_upper_limit(), MakeReadLimit(MakeRow({2}), std::nullopt));
+        req.set_slice_data_weight(90);
+        req.set_key_column_count(1);
+        req.set_slice_by_keys(false);
+
+        auto slices = SliceChunk(req, chunkMeta);
+        ValidateCovering(slices, /* sliceByRows */true);
+        ASSERT_EQ(slices.size(), 2);
+
+        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({2}));
+        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 0);
+        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}));
+        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 90);
+        EXPECT_EQ(slices[0].GetDataWeight(), 90);
+        EXPECT_EQ(slices[0].GetRowCount(), 90);
+
+        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}));
+        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 90);
+        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({2}));
+        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 100);
+        EXPECT_EQ(slices[1].GetDataWeight(), 10);
+        EXPECT_EQ(slices[1].GetRowCount(), 10);
+    }
+    {
+        NProto::TSliceRequest req;
+        ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({0}), std::nullopt));
+        ToProto(req.mutable_upper_limit(), MakeReadLimit(MakeRow({4}), std::nullopt));
+        req.set_slice_data_weight(90);
+        req.set_key_column_count(1);
+        req.set_slice_by_keys(false);
+
+        auto slices = SliceChunk(req, chunkMeta);
+        ValidateCovering(slices, /* sliceByRows */true);
+        ASSERT_EQ(slices.size(), 2);
+
+        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 0);
+        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({3}, true));
+        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 90);
+        EXPECT_EQ(slices[0].GetDataWeight(), 90);
+        EXPECT_EQ(slices[0].GetRowCount(), 90);
+
+        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({1}));
+        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 90);
+        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({3}, true));
+        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 100);
+        EXPECT_EQ(slices[1].GetDataWeight(), 10);
+        EXPECT_EQ(slices[1].GetRowCount(), 10);
+    }
+}
+
+TEST(TChunkSlicerTest, SliceByRowsWithRowIndexAndKeyLimits)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({3}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({5}),
+        MakeRow({7}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({9}),
+        MakeRow({11}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({13}),
+        MakeRow({15}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({17}),
+        MakeRow({19}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    {
+        NProto::TSliceRequest req;
+        ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({6}), 50));
+        ToProto(req.mutable_upper_limit(), MakeReadLimit(MakeRow({18}), 320));
+        req.set_slice_data_weight(110);
+        req.set_key_column_count(1);
+        req.set_slice_by_keys(false);
+
+        auto slices = SliceChunk(req, chunkMeta);
+        ValidateCovering(slices, /* sliceByRows */true);
+        ASSERT_EQ(slices.size(), 2);
+
+        EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
+        EXPECT_EQ(slices[0].LowerLimit().GetRowIndex(), 100);
+        EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({11}, true));
+        EXPECT_EQ(slices[0].UpperLimit().GetRowIndex(), 210);
+        EXPECT_EQ(slices[0].GetDataWeight(), 110);
+        EXPECT_EQ(slices[0].GetRowCount(), 110);
+
+        EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({7}, true));
+        EXPECT_EQ(slices[1].LowerLimit().GetRowIndex(), 210);
+        EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({15}, true));
+        EXPECT_EQ(slices[1].UpperLimit().GetRowIndex(), 320);
+        EXPECT_EQ(slices[1].GetDataWeight(), 110);
+        EXPECT_EQ(slices[1].GetRowCount(), 110);
+    }
+}
+
+TEST(TChunkSlicerTest, SliceByKeysOneBlock)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 1);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[0].GetDataWeight(), 100);
+    EXPECT_EQ(slices[0].GetRowCount(), 100);
+}
+
+TEST(TChunkSlicerTest, SliceByKeysTwoBlocks)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({2}),
+        MakeRow({3}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 2);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[0].GetDataWeight(), 100);
+    EXPECT_EQ(slices[0].GetRowCount(), 100);
+
+    // NB: Second block actually contains key 2, however we don't know about it
+    // since only block last keys are stored in meta.
+    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({3}, true));
+    EXPECT_EQ(slices[1].GetDataWeight(), 100);
+    EXPECT_EQ(slices[1].GetRowCount(), 100);
+}
+
+TEST(TChunkSlicerTest, SliceByKeysManiac1)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({1}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({1}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 1);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({1}, true));
+    EXPECT_EQ(slices[0].GetDataWeight(), 200);
+    EXPECT_EQ(slices[0].GetRowCount(), 200);
+}
+
+TEST(TChunkSlicerTest, SliceByKeysManiac2)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({2}),
+        MakeRow({2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({2}),
+        MakeRow({2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({2}),
+        MakeRow({3}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 2);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[0].GetDataWeight(), 300);
+    EXPECT_EQ(slices[0].GetRowCount(), 300);
+
+    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({2}, true));
+    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({3}, true));
+    EXPECT_EQ(slices[1].GetDataWeight(), 100);
+    EXPECT_EQ(slices[1].GetRowCount(), 100);
+}
+
+TEST(TChunkSlicerTest, SliceByKeysManiac3)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({3}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({3}),
+        MakeRow({3}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({1}), std::nullopt));
+    ToProto(req.mutable_upper_limit(), MakeReadLimit(MakeRow({2}), std::nullopt));
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 1);
+
+    // We can take first block only since there is no key 2 in second block.
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({2}));
+    EXPECT_EQ(slices[0].GetDataWeight(), 100);
+    EXPECT_EQ(slices[0].GetRowCount(), 100);
+}
+
+TEST(TChunkSlicerTest, SliceByKeysManiac4)
+{
+    TChunkBuilder chunkBuilder(2);
+    chunkBuilder.AddBlock(
+        MakeRow({1, 1}),
+        MakeRow({1, 2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({1, 3}),
+        MakeRow({1, 4}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 1);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({1}, true));
+    EXPECT_EQ(slices[0].GetDataWeight(), 200);
+    EXPECT_EQ(slices[0].GetRowCount(), 200);
+}
+
+TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits1)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({2}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({3}),
+        MakeRow({4}),
+        100,
+        100);  
+    chunkBuilder.AddBlock(
+        MakeRow({5}),
+        MakeRow({6}),
+        100,
+        100);  
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 50));
+    ToProto(req.mutable_upper_limit(), MakeReadLimit(std::nullopt, 240));
+    req.set_slice_data_weight(100);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 2);
+
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({4}, true));
+    EXPECT_EQ(slices[0].GetDataWeight(), 150);
+    EXPECT_EQ(slices[0].GetRowCount(), 150);
+
+    EXPECT_EQ(slices[1].LowerLimit().GetLegacyKey(), MakeRow({4}, true));
+    EXPECT_EQ(slices[1].UpperLimit().GetLegacyKey(), MakeRow({6}, true));
+    EXPECT_EQ(slices[1].GetDataWeight(), 40);
+    EXPECT_EQ(slices[1].GetRowCount(), 40);
+}
+
+TEST(TChunkSlicerTest, SliceByKeysWithRowIndexLimits2)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({1}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({1}),
+        100,
+        100);  
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({1}),
+        100,
+        100);  
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    ToProto(req.mutable_lower_limit(), MakeReadLimit(std::nullopt, 134));
+    ToProto(req.mutable_upper_limit(), MakeReadLimit(std::nullopt, 135));
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 1);  
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({1}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({1}, true));
+    EXPECT_EQ(slices[0].GetDataWeight(), 1);
+    EXPECT_EQ(slices[0].GetRowCount(), 1);
+}
+
+TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits1)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({3}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({5}),
+        MakeRow({7}),
+        100,
+        100);  
+    chunkBuilder.AddBlock(
+        MakeRow({9}),
+        MakeRow({11}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({11}),
+        MakeRow({13}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({15}),
+        MakeRow({17}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({6}), std::nullopt));
+    ToProto(req.mutable_upper_limit(), MakeReadLimit(MakeRow({12}), std::nullopt));
+    req.set_slice_data_weight(10000);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 1);  
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({12}));
+    EXPECT_EQ(slices[0].GetDataWeight(), 300);
+    EXPECT_EQ(slices[0].GetRowCount(), 300);
+}
+
+TEST(TChunkSlicerTest, SliceByKeysWithKeyLimits2)
+{
+    TChunkBuilder chunkBuilder(1);
+    chunkBuilder.AddBlock(
+        MakeRow({1}),
+        MakeRow({3}),
+        100,
+        100);
+    chunkBuilder.AddBlock(
+        MakeRow({5}),
+        MakeRow({7}),
+        100,
+        100);  
+    chunkBuilder.AddBlock(
+        MakeRow({9}),
+        MakeRow({11}),
+        100,
+        100);
+
+    auto chunkMeta = chunkBuilder.Finish();
+
+    NProto::TSliceRequest req;
+    ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({6}), std::nullopt));
+    ToProto(req.mutable_upper_limit(), MakeReadLimit(MakeRow({6}), std::nullopt));
+    req.set_slice_data_weight(1);
+    req.set_key_column_count(1);
+    req.set_slice_by_keys(true);
+
+    auto slices = SliceChunk(req, chunkMeta);
+    ValidateCovering(slices, /* sliceByRows */false);
+    ASSERT_EQ(slices.size(), 1);  
+    EXPECT_EQ(slices[0].LowerLimit().GetLegacyKey(), MakeRow({6}));
+    EXPECT_EQ(slices[0].UpperLimit().GetLegacyKey(), MakeRow({6}));
+    EXPECT_EQ(slices[0].GetDataWeight(), 100);
+    EXPECT_EQ(slices[0].GetRowCount(), 100);
+}
+
+// TODO(gritukan): This test now checks only that slicing does not crash. Add more checks.
+TEST(TChunkSlicerTest, StressTest)
+{
+    static std::mt19937 rng(42);
+
+    constexpr int Iterations = 50'000;
+    constexpr int MaxBlocks = 10;
+    constexpr int MaxRowsPerBlock = 10;
+    constexpr int KeysRange = 20;
+
+    struct TBlock
+    {
+        int LowerLimit;
+        int UpperLimit;
+        int StartRowIndex;
+        int EndRowIndex;
+    };
+
+    for (int iteration = 0; iteration < Iterations; ++iteration) {
+        TChunkBuilder chunkBuilder(1);
+        std::vector<TBlock> blocks;
+
+        int keysRange = (rng() % KeysRange) + 1;
+        int lastKey = rng() % keysRange;
+        int totalRowCount = 0;
+
+        int blockCount = (rng() % MaxBlocks) + 1;
+        for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+            int upperLimit = lastKey + rng() % (keysRange - lastKey + 1);
+            int rowCount = rng() % MaxRowsPerBlock + 1;
+            blocks.push_back(TBlock{
+                .LowerLimit = lastKey,
+                .UpperLimit = upperLimit,
+                .StartRowIndex = totalRowCount,
+                .EndRowIndex = totalRowCount + rowCount
+            });
+            chunkBuilder.AddBlock(
+                MakeRow({lastKey}),
+                MakeRow({upperLimit}),
+                rowCount,
+                rowCount
+            );
+
+            lastKey = upperLimit;
+            totalRowCount += rowCount;
+        }
+
+        auto chunkMeta = chunkBuilder.Finish();
+
+        int sliceLowerLimit = rng() % keysRange;
+        int sliceUpperLimit = rng() % keysRange;
+        if (sliceLowerLimit > sliceUpperLimit) {
+            std::swap(sliceLowerLimit, sliceUpperLimit);
+        }
+        int sliceStartRowIndex = rng() % totalRowCount;
+        int sliceEndRowIndex = rng() % totalRowCount;
+        if (sliceStartRowIndex > sliceEndRowIndex) {
+            std::swap(sliceStartRowIndex, sliceEndRowIndex);
+        }
+
+        bool sliceByKeys = rng() % 2;
+
+        NProto::TSliceRequest req;
+        ToProto(req.mutable_lower_limit(), MakeReadLimit(MakeRow({sliceLowerLimit}), sliceStartRowIndex));
+        ToProto(req.mutable_upper_limit(), MakeReadLimit(MakeRow({sliceUpperLimit}), sliceEndRowIndex));
+        req.set_slice_data_weight(rng() % totalRowCount);
+        req.set_key_column_count(1);
+        req.set_slice_by_keys(sliceByKeys);
+        auto slices = SliceChunk(req, chunkMeta);
+        ValidateCovering(slices, /* sliceByRows */!sliceByKeys);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TChunkSliceLimitTest, LegacyNewInterop)
 {
@@ -515,5 +1113,5 @@ TEST(TChunkSliceLimitTest, LegacyNewInterop)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NChunkServer
+} // namespace NChunkClient
 } // namespace NYT

@@ -328,7 +328,7 @@ TUnversionedRow KeyBoundToLegacyRow(TKeyBound keyBound, const TRowBufferPtr& row
     auto row = rowBuffer->AllocateUnversioned(keyBound.Prefix.GetCount() + (shouldAddMax ? 1 : 0));
     memcpy(row.Begin(), keyBound.Prefix.Begin(), sizeof(TUnversionedValue) * keyBound.Prefix.GetCount());
     if (shouldAddMax) {
-        row[keyBound.Prefix.GetCount()] = MakeUnversionedSentinelValue(EValueType::Max);
+        row[keyBound.Prefix.GetCount()] = MakeUnversionedSentinelValue(EValueType::Max, keyBound.Prefix.GetCount());
     }
     for (auto& value : row) {
         rowBuffer->Capture(&value);
@@ -348,6 +348,22 @@ TKeyBound ShortenKeyBound(TKeyBound keyBound, int length, const TRowBufferPtr& r
 
     return TKeyBound::FromRowUnchecked(
         rowBuffer->Capture(keyBound.Prefix.Begin(), length),
+        /* isInclusive */ true,
+        keyBound.IsUpper);
+}
+
+//! Owning version of #ShortenKeyBound.
+TOwningKeyBound ShortenKeyBound(TOwningKeyBound keyBound, int length)
+{
+    if (keyBound.Prefix.GetCount() <= length) {
+        // No need to change anything.
+        return keyBound;
+    }
+
+    // If we do perform shortening, resulting key bound is going to be inclusive despite the original inclusiveness.
+
+    return TOwningKeyBound::FromRowUnchecked(
+        TUnversionedOwningRow(keyBound.Prefix.Begin(), keyBound.Prefix.Begin() + length),
         /* isInclusive */ true,
         keyBound.IsUpper);
 }
