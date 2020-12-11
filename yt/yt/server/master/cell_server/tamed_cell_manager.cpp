@@ -799,7 +799,9 @@ private:
         const auto& config = GetDynamicConfig();
 
         if (CellStatusGossipExecutor_) {
-            CellStatusGossipExecutor_->SetPeriod(config->MulticellGossip->TabletCellStatisticsGossipPeriod);
+            const auto& gossipConfig = config->MulticellGossip;
+            auto cellStatusGossipPeriod = gossipConfig->TabletCellStatusGossipPeriod.value_or(gossipConfig->TabletCellStatisticsGossipPeriod);
+            CellStatusGossipExecutor_->SetPeriod(cellStatusGossipPeriod);
         }
     }
 
