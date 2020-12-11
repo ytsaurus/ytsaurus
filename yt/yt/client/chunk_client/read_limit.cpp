@@ -528,6 +528,163 @@ void TLegacyReadRange::Persist(const TStreamPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReadLimit::TReadLimit(
+    const NProto::TReadLimit& readLimit,
+    bool isUpper,
+    std::optional<int> keyLength)
+{
+    if (readLimit.has_key_bound_prefix()) {
+        NTableClient::FromProto(&KeyBound_.Prefix, readLimit.key_bound_prefix());
+        KeyBound_.IsUpper = isUpper;
+        KeyBound_.IsInclusive = readLimit.key_bound_is_inclusive();
+    } else if (readLimit.has_legacy_key()) {
+        YT_VERIFY(keyLength);
+        TUnversionedOwningRow legacyKey;
+        FromProto(&legacyKey, readLimit.legacy_key());
+        KeyBound_ = KeyBoundFromLegacyRow(legacyKey, isUpper, *keyLength);
+    }
+
+    if (readLimit.has_row_index()) {
+        RowIndex_ = readLimit.row_index();
+    }
+    if (readLimit.has_offset()) {
+        Offset_ = readLimit.offset();
+    }
+    if (readLimit.has_chunk_index()) {
+        ChunkIndex_ = readLimit.chunk_index();
+    }
+    if (readLimit.has_tablet_index()) {
+        TabletIndex_ = readLimit.tablet_index();
+    }
+}
+
+bool TReadLimit::IsTrivial() const
+{
+    return
+        !KeyBound_ &&
+        !RowIndex_ &&
+        !Offset_ &&
+        !ChunkIndex_ &&
+        !TabletIndex_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString ToString(const TReadLimit& readLimit)
+{
+    using ::ToString;
+
+    TStringBuilder builder;
+    builder.AppendChar('{');
+
+    bool firstToken = true;
+    auto append = [&] (const char* label, TStringBuf value) {
+        if (!firstToken) {
+            builder.AppendString(", ");
+        }
+        firstToken = false;
+        builder.AppendString(label);
+        builder.AppendString(": ");
+        builder.AppendString(value);
+    };
+
+    if (readLimit.KeyBound()) {
+        append("Key", ToString(readLimit.KeyBound()));
+    }
+
+    if (readLimit.GetRowIndex()) {
+        append("RowIndex", ToString(readLimit.GetRowIndex()));
+    }
+
+    if (readLimit.GetOffset()) {
+        append("Offset", ToString(readLimit.GetOffset()));
+    }
+
+    if (readLimit.GetChunkIndex()) {
+        append("ChunkIndex", ToString(readLimit.GetChunkIndex()));
+    }
+
+    if (readLimit.GetTabletIndex()) {
+        append("TabletIndex", ToString(readLimit.GetTabletIndex()));
+    }
+
+    builder.AppendChar('}');
+    return builder.Flush();
+}
+
+void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit)
+{
+    if (readLimit.KeyBound()) {
+        ToProto(protoReadLimit->mutable_key_bound_prefix(), readLimit.KeyBound().Prefix);
+        protoReadLimit->set_key_bound_is_inclusive(readLimit.KeyBound().IsInclusive);
+        ToProto(protoReadLimit->mutable_legacy_key(), KeyBoundToLegacyRow(readLimit.KeyBound()));
+    }
+
+    if (readLimit.GetRowIndex()) {
+        protoReadLimit->set_row_index(*readLimit.GetRowIndex());
+    }
+    if (readLimit.GetOffset()) {
+        protoReadLimit->set_offset(*readLimit.GetOffset());
+    }
+    if (readLimit.GetChunkIndex()) {
+        protoReadLimit->set_chunk_index(*readLimit.GetChunkIndex());
+    }
+    if (readLimit.GetTabletIndex()) {
+        protoReadLimit->set_tablet_index(*readLimit.GetTabletIndex());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TReadRange::TReadRange(TReadLimit lowerLimit, TReadLimit upperLimit)
+    : LowerLimit_(std::move(lowerLimit))
+    , UpperLimit_(std::move(upperLimit))
+{
+    if (LowerLimit_.KeyBound()) {
+        YT_VERIFY(!LowerLimit_.KeyBound().IsUpper);
+    }
+    if (UpperLimit_.KeyBound()) {
+        YT_VERIFY(UpperLimit_.KeyBound().IsUpper);
+    }
+}
+
+TReadRange::TReadRange(
+    const NProto::TReadRange& range,
+    std::optional<int> keyLength)
+{
+    if (range.has_lower_limit()) {
+        LowerLimit_ = TReadLimit(range.lower_limit(), /* isUpper */false, keyLength);
+    }
+    if (range.has_upper_limit()) {
+        UpperLimit_ = TReadLimit(range.upper_limit(), /* isUpper */true, keyLength);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString ToString(const TReadRange& readRange)
+{
+    return Format("[<%v> : <%v>]", readRange.LowerLimit(), readRange.UpperLimit());
+}
+
+void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange)
+{
+    if (!readRange.LowerLimit().IsTrivial()) {
+        if (readRange.LowerLimit().KeyBound()) {
+            YT_VERIFY(!readRange.LowerLimit().KeyBound().IsUpper);
+        }
+        ToProto(protoReadRange->mutable_lower_limit(), readRange.LowerLimit());
+    }
+    if (!readRange.UpperLimit().IsTrivial()) {
+        if (readRange.UpperLimit().KeyBound()) {
+            YT_VERIFY(readRange.UpperLimit().KeyBound().IsUpper);
+        }
+        ToProto(protoReadRange->mutable_upper_limit(), readRange.UpperLimit());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TReadLimit, /*key*/4, TUnversionedOwningRow)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,6 +18,9 @@ template <class TRow, class TKeyBound>
 class TKeyBoundImpl
 {
 public:
+    // If #Prefix is a null row, key bound has a special meaning of being null bound.
+    // It is different from universal or empty bound; use it as a replacement for
+    // std::nullopt.
     TRow Prefix;
     bool IsInclusive = false;
     bool IsUpper = false;
@@ -43,6 +46,8 @@ public:
     static TKeyBound MakeEmpty(bool isUpper);
 
     void FormatValue(TStringBuilderBase* builder) const;
+
+    operator bool() const;
 
     //! Test if this key bound allows any key.
     bool IsUniversal() const;
@@ -92,6 +97,7 @@ TString ToString(const TOwningKeyBound& keyBound);
 ////////////////////////////////////////////////////////////////////////////////
 
 bool operator ==(const TKeyBound& lhs, const TKeyBound& rhs);
+bool operator ==(const TOwningKeyBound& lhs, const TOwningKeyBound& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
