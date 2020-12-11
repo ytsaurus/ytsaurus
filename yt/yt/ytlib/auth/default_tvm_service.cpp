@@ -113,7 +113,7 @@ public:
             return TError("Parsing user tickets disabled");
         }
 
-        YT_LOG_DEBUG("Parsing user ticket: %v", TUserTicket::RemoveSignature(ticket));
+        YT_LOG_DEBUG("Parsing user ticket: %v", TCheckedUserTicket::RemoveSignature(ticket));
         ParseUserTicketCountCounter_.Increment();
 
         try {
