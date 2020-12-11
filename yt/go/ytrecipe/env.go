@@ -97,9 +97,9 @@ func CaptureEnv() (*Env, error) {
 	}
 
 	e.Environ = os.Environ()
-	e.BuildRoot = os.Getenv("ARCADIA_BUILD_ROOT")
+	e.BuildRoot = yatest.BuildPath(".")
 	if e.BuildRoot == "" {
-		return nil, fmt.Errorf("ARCADIA_BUILD_ROOT is not defined")
+		return nil, fmt.Errorf("build root is not defined")
 	}
 
 	gr := os.Getenv("YA_GLOBAL_RESOURCES")
