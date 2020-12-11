@@ -190,12 +190,14 @@ void SerializePythonInteger(const Py::Object& obj, IYsonConsumer* consumer, TCon
     } else if (PyObject_IsInstance(obj.ptr(), YsonUint64Class)) {
         auto value = static_cast<ui64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
+            PyErr_Clear();
             throw CreateYsonError("Can not dump negative integer as YSON uint64", context);
         }
         consumer->OnUint64Scalar(value);
     } else if (PyObject_IsInstance(obj.ptr(), YsonInt64Class)) {
         auto value = static_cast<i64>(Py::LongLong(obj));
         if (PyErr_Occurred()) {
+            PyErr_Clear();
             throw CreateYsonError("Can not dump integer as YSON int64", context);
         }
         consumer->OnInt64Scalar(value);
