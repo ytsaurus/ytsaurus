@@ -57,6 +57,9 @@ int TComparator::CompareValues(int /* index */, const TUnversionedValue& lhs, co
 
 TKeyBound TComparator::StrongerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const
 {
+    YT_VERIFY(lhs);
+    YT_VERIFY(rhs);
+
     YT_VERIFY(lhs.IsUpper == rhs.IsUpper);
     auto comparisonResult = CompareKeyBounds(lhs, rhs);
     if (lhs.IsUpper) {
@@ -64,6 +67,15 @@ TKeyBound TComparator::StrongerKeyBound(const TKeyBound& lhs, const TKeyBound& r
     }
 
     return (comparisonResult <= 0) ? rhs : lhs;
+}
+
+void TComparator::ReplaceIfStrongerKeyBound(TKeyBound& lhs, const TKeyBound& rhs) const
+{
+    if (!rhs) {
+        return;
+    }
+
+    lhs = lhs ? StrongerKeyBound(lhs, rhs) : rhs;
 }
 
 TKeyBound TComparator::WeakerKeyBound(const TKeyBound& lhs, const TKeyBound& rhs) const

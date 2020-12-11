@@ -131,7 +131,7 @@ void TInputChunkBase::CheckOffsets()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
+TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int> keyColumnCount)
     : TInputChunkBase(chunkSpec)
     , LowerLimit_(chunkSpec.has_lower_limit()
         ? std::make_unique<TLegacyReadLimit>(chunkSpec.lower_limit())
@@ -139,7 +139,7 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
     , UpperLimit_(chunkSpec.has_upper_limit()
         ? std::make_unique<TLegacyReadLimit>(chunkSpec.upper_limit())
         : nullptr)
-    , BoundaryKeys_(FindBoundaryKeys(chunkSpec.chunk_meta()))
+    , BoundaryKeys_(FindBoundaryKeys(chunkSpec.chunk_meta(), keyColumnCount))
     , PartitionsExt_(HasProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions())
         ? std::make_unique<NTableClient::NProto::TPartitionsExt>(
             GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions()))

@@ -74,6 +74,15 @@ public:
     void TransformToLegacy(const NTableClient::TRowBufferPtr& rowBuffer);
     void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, int keyLength);
 
+    //! Transform to new assuming that there are no non-trivial key bounds in read limits.
+    void TransformToNewKeyless();
+
+    //! Helper around two previous versions for cases when we either have sorted data slice with keys
+    //! and we have some comparator or when we do not have comparator but data slice is actually keyless.
+    void TransformToNew(
+        const NTableClient::TRowBufferPtr& rowBuffer,
+        std::optional<NTableClient::TComparator> comparator);
+
     TChunkSliceList ChunkSlices;
     EDataSourceType Type;
 
@@ -81,9 +90,18 @@ public:
     //! the unread data slices and the original data slices.
     std::optional<i64> Tag;
 
+    //! Used to recover the original read ranges in task before serializing to job spec.
+    std::optional<i64> ReadRangeIndex;
+
     //! An index of an input stream this data slice corresponds to. If this is a data
     //! slice of some input table, it should normally be equal to `GetTableIndex()`.
     int InputStreamIndex = -1;
+
+    // COMPAT(max42)
+    //! Flag indicating that this basic conditions for teleporting are met:
+    //! data slice corresponds to an unversioned chunk with no non-trivial read limits.
+    //! Currently used only for the new sorted pool.
+    bool IsTeleportable = false;
 
     std::optional<i64> VirtualRowIndex = std::nullopt;
 };
@@ -101,6 +119,13 @@ TLegacyDataSlicePtr CreateInputDataSlice(
     const std::vector<TInputChunkSlicePtr>& inputChunks,
     NTableClient::TLegacyKey lowerKey,
     NTableClient::TLegacyKey upperKey);
+
+TLegacyDataSlicePtr CreateInputDataSlice(
+    NChunkClient::EDataSourceType type,
+    const std::vector<TInputChunkSlicePtr>& inputChunks,
+    const NTableClient::TComparator& comparator,
+    NTableClient::TKeyBound lowerBound,
+    NTableClient::TKeyBound upperBound);
 
 //! Copy given input data slice. Suitable both for legacy and new data slices.
 TLegacyDataSlicePtr CreateInputDataSlice(const TLegacyDataSlicePtr& dataSlice);
@@ -123,12 +148,16 @@ TLegacyDataSlicePtr CreateUnversionedInputDataSlice(TInputChunkSlicePtr chunkSli
 TLegacyDataSlicePtr CreateVersionedInputDataSlice(
     const std::vector<TInputChunkSlicePtr>& inputChunkSlices);
 
-// TODO(max42): stop infering limits each time you pass something into sorted chunk pool,
-// it is better to always infer them inside chunk pool.
 void InferLimitsFromBoundaryKeys(
     const TLegacyDataSlicePtr& dataSlice,
-    const NTableClient::TRowBufferPtr& rowBuffer,
-    const NTableClient::TVirtualValueDirectoryPtr& virtualValueDirectory = nullptr);
+    const NTableClient::TRowBufferPtr& rowBuffer);
+
+//! Set data slice limits to be equal to chunk boundary keys shortened to given prefix length.
+//! Works only for new data slices.
+void SetLimitsFromShortenedBoundaryKeys(
+    const TLegacyDataSlicePtr& dataSlice,
+    int prefixLength,
+    const NTableClient::TRowBufferPtr& rowBuffer);
 
 std::optional<TChunkId> IsUnavailable(const TLegacyDataSlicePtr& dataSlice, bool checkParityParts);
 bool CompareChunkSlicesByLowerLimit(const TInputChunkSlicePtr& slice1, const TInputChunkSlicePtr& slice2);
@@ -138,7 +167,8 @@ i64 GetCumulativeDataWeight(const std::vector<TLegacyDataSlicePtr>& dataSlices);
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TLegacyDataSlicePtr> CombineVersionedChunkSlices(
-    const std::vector<TInputChunkSlicePtr>& chunkSlices);
+    const std::vector<TInputChunkSlicePtr>& chunkSlices,
+    const NTableClient::TComparator& comparator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

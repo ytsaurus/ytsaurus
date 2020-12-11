@@ -38,6 +38,13 @@ TDataSource::TDataSource(
     , VirtualKeyPrefixLength_(virtualKeyPrefixLength)
 { }
 
+TComparator TDataSource::GetComparator() const
+{
+    YT_VERIFY(Schema_);
+    YT_VERIFY(Schema_->IsSorted());
+    return Schema_->ToComparator();
+}
+
 void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource, TSchemaDictionary* schemaDictionary, TColumnFilterDictionary* columnFilterDictionary)
 {
     using NYT::ToProto;

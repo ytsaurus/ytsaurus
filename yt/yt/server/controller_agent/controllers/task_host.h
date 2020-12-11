@@ -149,6 +149,8 @@ struct ITaskHost
     //! Joins job splitter config from the job spec with job splitter config
     //! from the controller agent config and returns the result.
     virtual TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const = 0;
+
+    virtual const TInputTablePtr& GetInputTable(int tableIndex) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

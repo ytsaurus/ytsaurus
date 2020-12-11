@@ -378,6 +378,8 @@ public:
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfigTemplate() const override;
 
+    virtual const TInputTablePtr& GetInputTable(int tableIndex) const override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;

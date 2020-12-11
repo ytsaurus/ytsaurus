@@ -13,6 +13,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
@@ -51,7 +52,7 @@ void FillDataSliceDescriptors(
             auto& inputDataSliceDescriptor = inputDataSliceDescriptors.emplace_back();
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
                 auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
-                ToProto(&chunkSpec, chunkSlice, EDataSourceType::UnversionedTable);
+                ToProto(&chunkSpec, chunkSlice, /* comparator */ std::nullopt, EDataSourceType::UnversionedTable);
                 auto it = miscExtMap.find(chunkSlice->GetInputChunk()->ChunkId());
                 YT_VERIFY(it != miscExtMap.end());
                 if (it->second) {
@@ -369,7 +370,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
 
     if ((TwoYTTableJoin_ && !CrossJoin_) || RightOrFullJoin_) {
         result.PoolKind = EPoolKind::Sorted;
-        result.KeyColumnCount = QueryInfo_.syntax_analyzer_result->analyzed_join->leftKeysList()->children.size();
+        result.KeyColumnCount = KeyColumnCount_ = QueryInfo_.syntax_analyzer_result->analyzed_join->leftKeysList()->children.size();
     } else {
         result.PoolKind = EPoolKind::Unordered;
     }
@@ -455,20 +456,23 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
 
     ReplaceTableExpressions(newTableExpressions);
 
+    // TODO(max42): this comparator should be created beforehand.
+    TComparator comparator(std::vector<ESortOrder>(KeyColumnCount_, ESortOrder::Ascending));
+
     if (RightOrFullJoin_) {
-        std::optional<TUnversionedOwningRow> lowerLimit;
-        if (PreviousUpperLimit_) {
-            lowerLimit = PreviousUpperLimit_;
+        TOwningKeyBound lowerBound;
+        if (PreviousUpperBound_) {
+            lowerBound = PreviousUpperBound_.Invert();
         }
-        std::optional<TUnversionedOwningRow> upperLimit;
+        TOwningKeyBound upperBound;
         if (!isLastSubquery) {
-            upperLimit = threadSubqueries.Back().Limits.second;
+            upperBound = threadSubqueries.Back().Bounds.second;
         }
-        PreviousUpperLimit_ = upperLimit;
-        if (lowerLimit) {
-            YT_VERIFY(!upperLimit || *lowerLimit <= *upperLimit);
+        PreviousUpperBound_ = upperBound;
+        if (lowerBound) {
+            YT_VERIFY(!upperBound || lowerBound <= upperBound);
         }
-        AppendWhereCondition(lowerLimit, upperLimit);
+        AppendWhereCondition(lowerBound, upperBound);
     }
 
     auto result = QueryInfo_.query->clone();
@@ -527,41 +531,11 @@ void TQueryAnalyzer::RollbackModifications()
 }
 
 void TQueryAnalyzer::AppendWhereCondition(
-    std::optional<TUnversionedOwningRow> lowerLimit,
-    std::optional<TUnversionedOwningRow> upperLimit)
+    TOwningKeyBound lowerBound,
+    TOwningKeyBound upperBound)
 {
     auto keyAsts = QueryInfo_.syntax_analyzer_result->analyzed_join->leftKeysList()->children;
-    int length = keyAsts.size();
-    YT_LOG_DEBUG("Appending where-condition (LowerLimit: %v, UpperLimit: %v)", lowerLimit, upperLimit);
-
-    bool lowerInclusiveness;
-    bool upperInclusiveness;
-    TUnversionedOwningRow truncatedLowerLimit;
-    TUnversionedOwningRow truncatedUpperLimit;
-
-    // It is kinda tricky to convert our rows into proper limit tuples as we have special
-    // sentinels like <max> while ClickHouse does not. So we utilize the fact that limits
-    // from sorted pool are always regular keys of length `length` plus possibly single sentinel
-    // value.
-    if (lowerLimit) {
-        YT_VERIFY(lowerLimit->GetCount() >= length);
-        YT_VERIFY(lowerLimit->GetCount() <= length + 1);
-        lowerInclusiveness = lowerLimit->GetCount() == length;
-        truncatedLowerLimit = GetKeyPrefix(*lowerLimit, length);
-        YT_LOG_DEBUG("Lower limit (LowerInclusiveness: %v, TruncatedLowerLimit: %v)",
-            lowerInclusiveness,
-            truncatedLowerLimit);
-    }
-
-    if (upperLimit) {
-        YT_VERIFY(upperLimit->GetCount() >= length);
-        YT_VERIFY(upperLimit->GetCount() <= length + 1);
-        upperInclusiveness = upperLimit->GetCount() == length + 1;
-        truncatedUpperLimit = GetKeyPrefix(*upperLimit, length);
-        YT_LOG_DEBUG("Upper limit (UpperInclusiveness: %v, TruncatedUpperLimit: %v)",
-            upperInclusiveness,
-            truncatedUpperLimit);
-    }
+    YT_LOG_DEBUG("Appending where-condition (LowerLimit: %v, UpperLimit: %v)", lowerBound, upperBound);
 
     auto createFunction = [] (std::string name, std::vector<DB::ASTPtr> params) {
         auto function = std::make_shared<DB::ASTFunction>();
@@ -586,16 +560,18 @@ void TQueryAnalyzer::AppendWhereCondition(
 
     auto keyTuple = createFunction("tuple", keyAsts);
 
-    if (lowerLimit) {
-        auto lowerTuple = unversionedRowToTuple(truncatedLowerLimit);
-        auto lowerFunctionName = lowerInclusiveness ? "greaterOrEquals" : "greater";
+    if (lowerBound) {
+        YT_VERIFY(!lowerBound.IsUpper);
+        auto lowerTuple = unversionedRowToTuple(lowerBound.Prefix);
+        auto lowerFunctionName = lowerBound.IsInclusive ? "greaterOrEquals" : "greater";
         auto lowerFunction = createFunction(lowerFunctionName, {keyTuple, lowerTuple});
         conjunctionArgs.emplace_back(std::move(lowerFunction));
     }
 
-    if (upperLimit) {
-        auto upperTuple = unversionedRowToTuple(truncatedUpperLimit);
-        auto upperFunctionName = upperInclusiveness ? "lessOrEquals" : "less";
+    if (upperBound) {
+        YT_VERIFY(upperBound.IsUpper);
+        auto upperTuple = unversionedRowToTuple(upperBound.Prefix);
+        auto upperFunctionName = upperBound.IsInclusive ? "lessOrEquals" : "less";
         auto upperFunction = createFunction(upperFunctionName, {keyTuple, upperTuple});
         conjunctionArgs.emplace_back(std::move(upperFunction));
     }

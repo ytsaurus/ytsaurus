@@ -4,6 +4,8 @@
 
 #include "storage_distributor.h"
 
+#include <yt/client/table_client/key_bound.h>
+
 #include <Storages/MergeTree/KeyCondition.h>
 
 namespace NYT::NClickHouseServer {
@@ -58,7 +60,9 @@ private:
     //! If the query joins two YT tables.
     bool TwoYTTableJoin_ = false;
 
-    std::optional<NTableClient::TUnversionedOwningRow> PreviousUpperLimit_;
+    int KeyColumnCount_ = 0;
+
+    NTableClient::TOwningKeyBound PreviousUpperBound_;
 
     std::vector<std::pair<DB::ASTPtr*, DB::ASTPtr>> Modifications_;
 
@@ -77,8 +81,8 @@ private:
 
     void ReplaceTableExpressions(std::vector<DB::ASTPtr> newTableExpressions);
     void AppendWhereCondition(
-        std::optional<NTableClient::TUnversionedOwningRow> lowerLimit,
-        std::optional<NTableClient::TUnversionedOwningRow> upperLimit);
+        NTableClient::TOwningKeyBound lowerBound,
+        NTableClient::TOwningKeyBound upperBound);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

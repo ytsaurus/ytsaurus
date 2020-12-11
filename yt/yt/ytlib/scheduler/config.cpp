@@ -1033,6 +1033,14 @@ TEraseOperationSpec::TEraseOperationSpec()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSortedOperationSpec::TSortedOperationSpec()
+{
+    RegisterParameter("use_new_sorted_pool", UseNewSortedPool)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TReduceOperationSpec::TReduceOperationSpec()
 {
     RegisterParameter("reducer", Reducer)
@@ -1992,6 +2000,7 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec);

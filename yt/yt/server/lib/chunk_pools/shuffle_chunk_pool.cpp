@@ -4,6 +4,7 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/core/misc/numeric_helpers.h>
@@ -70,6 +71,8 @@ public:
         inputStripe.ElementaryIndexBegin = static_cast<int>(ElementaryStripes_.size());
 
         for (const auto& dataSlice : stripe->DataSlices) {
+            YT_VERIFY(!dataSlice->IsLegacy);
+
             // NB: TShuffleChunkPool contains only chunks from unversioned tables.
             const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
 
@@ -319,6 +322,12 @@ private:
             list->TotalRowCount = run.GetTotalRowCount();
 
             list->IsApproximate = run.IsApproximate;
+
+            for (const auto& stripe : list->Stripes) {
+                for (const auto& dataSlice : stripe->DataSlices) {
+                    YT_VERIFY(!dataSlice->IsLegacy);
+                }
+            }
 
             return list;
         }

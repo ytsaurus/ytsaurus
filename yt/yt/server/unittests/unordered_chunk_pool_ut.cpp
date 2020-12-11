@@ -92,21 +92,6 @@ protected:
         return inputChunk;
     }
 
-    TInputChunkPtr CopyChunk(const TInputChunkPtr& chunk)
-    {
-        TInputChunkPtr chunkCopy = New<TInputChunk>();
-        chunkCopy->ChunkId() = chunk->ChunkId();
-        chunkCopy->SetCompressedDataSize(chunk->GetCompressedDataSize());
-        int tableIndex = chunk->GetTableIndex();
-        chunkCopy->SetTableIndex(tableIndex);
-        chunkCopy->SetTableRowIndex(chunk->GetTableRowIndex());
-        chunkCopy->SetTotalRowCount(chunk->GetTotalRowCount());
-        if (!InputTables_[tableIndex].IsVersioned()) {
-            CreatedUnversionedChunks_.insert(chunkCopy);
-        }
-        return chunkCopy;
-    }
-
     void InitTables(std::vector<bool> isTeleportable, std::vector<bool> isVersioned)
     {
         YT_VERIFY(isTeleportable.size() == isVersioned.size() && isVersioned.size() > 0);
@@ -128,6 +113,7 @@ protected:
     TLegacyDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
     {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+        dataSlice->TransformToNewKeyless();
         dataSlice->Tag = chunk->ChunkId().Parts64[0] ^ chunk->ChunkId().Parts64[1];
         return dataSlice;
     }

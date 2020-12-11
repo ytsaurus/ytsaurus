@@ -101,7 +101,9 @@ public:
 public:
     TInputChunk() = default;
     TInputChunk(TInputChunk&& other) = default;
-    explicit TInputChunk(const NProto::TChunkSpec& chunkSpec);
+    explicit TInputChunk(
+        const NProto::TChunkSpec& chunkSpec,
+        std::optional<int> keyColumnCount = std::nullopt);
 
     void Persist(const TStreamPersistenceContext& context);
 

@@ -2,7 +2,6 @@
 
 #include "public.h"
 #include "data_source.h"
-#include "input_chunk.h"
 
 #include <yt/client/chunk_client/read_limit.h>
 
@@ -10,6 +9,8 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/key_bound.h>
+
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/new.h>
 #include <yt/core/misc/optional.h>
@@ -64,6 +65,11 @@ struct TInputSliceLimit
         TRange<NTableClient::TLegacyKey> keySet,
         int keyLength,
         bool isUpper);
+
+    void MergeLower(const TInputSliceLimit& other, const NTableClient::TComparator& comparator);
+    void MergeUpper(const TInputSliceLimit& other, const NTableClient::TComparator& comparator);
+
+    bool IsTrivial() const;
 
     explicit TInputSliceLimit(bool isUpper);
 
@@ -146,6 +152,19 @@ public:
         TRange<NTableClient::TLegacyKey> keySet);
 
     TInputChunkSlice(
+        const TInputChunkSlice& chunkSlice,
+        const NTableClient::TRowBufferPtr& rowBuffer,
+        const NProto::TChunkSlice& protoChunkSlice,
+        TRange<NTableClient::TLegacyKey> keySet);
+
+    TInputChunkSlice(
+        const TInputChunkSlice& chunkSlice,
+        const NTableClient::TComparator& comparator,
+        const NTableClient::TRowBufferPtr& rowBuffer,
+        const NProto::TChunkSlice& protoChunkSlice,
+        TRange<NTableClient::TLegacyKey> keySet);
+
+    TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
         const NTableClient::TRowBufferPtr& rowBuffer,
         const NProto::TChunkSpec& protoChunkSpec);
@@ -168,6 +187,9 @@ public:
 
     void TransformToLegacy(const NTableClient::TRowBufferPtr& rowBuffer);
     void TransformToNew(const NTableClient::TRowBufferPtr& rowBuffer, int keyLength);
+
+    //! Transform to new assuming that there are no non-trivial key bounds in read limits.
+    void TransformToNewKeyless();
 
 private:
     int PartIndex_ = DefaultPartIndex;
@@ -225,16 +247,18 @@ std::vector<TInputChunkSlicePtr> CreateErasureInputChunkSlices(
 void InferLimitsFromBoundaryKeys(
     const TInputChunkSlicePtr& chunkSlice,
     const NTableClient::TRowBufferPtr& rowBuffer,
-    int keyColumnCount);
+    std::optional<int> keyColumnCount = std::nullopt);
 
 std::vector<TInputChunkSlicePtr> SliceChunkByRowIndexes(
     const TInputChunkPtr& inputChunk,
     i64 sliceDataSize,
     i64 sliceRowCount);
 
+//! Comparator should correspond to table this containing chunk.
 void ToProto(
     NProto::TChunkSpec* chunkSpec,
     const TInputChunkSlicePtr& inputSlice,
+    std::optional<NTableClient::TComparator> comparator,
     EDataSourceType dataSourceType);
 
 ////////////////////////////////////////////////////////////////////////////////

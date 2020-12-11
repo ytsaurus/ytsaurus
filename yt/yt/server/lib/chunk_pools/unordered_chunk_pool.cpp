@@ -2,12 +2,13 @@
 
 #include "helpers.h"
 #include "job_size_adjuster.h"
-#include "job_manager.h"
+#include "new_job_manager.h"
 #include "config.h"
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -56,7 +57,7 @@ public:
         , SliceErasureChunksByParts_(options.SliceErasureChunksByParts)
         , RowBuffer_(options.RowBuffer)
         , InputStreamDirectory_(std::move(directory))
-        , JobManager_(New<TJobManager>())
+        , JobManager_(New<TNewJobManager>())
         , FreeJobCounter_(New<TProgressCounter>())
         , FreeDataWeightCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
@@ -113,6 +114,7 @@ public:
         InputCookieIsSuspended_.emplace_back(false);
 
         for (const auto& dataSlice : stripe->DataSlices) {
+            YT_VERIFY(!dataSlice->IsLegacy);
             AddDataSlice(dataSlice, cookie);
         }
 
@@ -244,7 +246,7 @@ public:
         if (jobManagerJobCounter->GetPending() == 0) {
             auto idealDataWeightPerJob = GetIdealDataWeightPerJob();
 
-            auto jobStub = std::make_unique<TJobStub>();
+            auto jobStub = std::make_unique<TNewJobStub>();
             // Take local chunks first.
             if (nodeId != InvalidNodeId) {
                 auto it = NodeIdToEntry_.find(nodeId);
@@ -267,7 +269,7 @@ public:
                 nodeId,
                 idealDataWeightPerJob);
 
-            jobStub->Finalize(/*sortByPosition=*/false);
+            jobStub->Finalize(/* sortByPosition */ false);
             JobManager_->AddJob(std::move(jobStub));
 
             if (Mode_ == EUnorderedChunkPoolMode::Normal) {
@@ -475,7 +477,7 @@ private:
 
     TInputStreamDirectory InputStreamDirectory_;
 
-    TJobManagerPtr JobManager_;
+    TNewJobManagerPtr JobManager_;
 
     TProgressCounterPtr FreeJobCounter_;
     TProgressCounterPtr FreeDataWeightCounter_;
@@ -528,8 +530,8 @@ private:
                     auto newDataSlice = New<TLegacyDataSlice>(
                         EDataSourceType::UnversionedTable,
                         TLegacyDataSlice::TChunkSliceList{slice},
-                        slice->LegacyLowerLimit(),
-                        slice->LegacyUpperLimit());
+                        slice->LowerLimit(),
+                        slice->UpperLimit());
                     newDataSlice->CopyPayloadFrom(*dataSlice);
                     AddStripe(New<TChunkStripe>(newDataSlice));
                 }
@@ -541,9 +543,10 @@ private:
                         RowBuffer_);
 
                     for (auto& smallerSlice : smallerSlices) {
-                        auto newDataSlice = New <TLegacyDataSlice>(
+                        auto newDataSlice = New<TLegacyDataSlice>(
                             EDataSourceType::UnversionedTable,
                             TLegacyDataSlice::TChunkSliceList{std::move(smallerSlice)});
+                        newDataSlice->TransformToNewKeyless();
                         newDataSlice->CopyPayloadFrom(*dataSlice);
                         AddStripe(New<TChunkStripe>(newDataSlice));
                     }
@@ -688,7 +691,7 @@ private:
         YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
         YT_VERIFY(suspendableStripe.GetStripe()->Solid);
 
-        auto jobStub = std::make_unique<TJobStub>();
+        auto jobStub = std::make_unique<TNewJobStub>();
         for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
             jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary=*/true);
         }
@@ -729,7 +732,7 @@ private:
 
     template <class TIterator>
     void AddStripesToJob(
-        TJobStub* jobStub,
+        TNewJobStub* jobStub,
         const TIterator& begin,
         const TIterator& end,
         TNodeId nodeId,

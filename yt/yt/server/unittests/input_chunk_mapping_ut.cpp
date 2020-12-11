@@ -37,6 +37,9 @@ protected:
 
     EChunkMappingMode Mode_;
 
+    //! Such comparator is enough for all keys in this test suite.
+    const TComparator Comparator_ = TComparator(std::vector<ESortOrder>(2, ESortOrder::Ascending));
+
     void InitChunkMapping(EChunkMappingMode mode)
     {
         Mode_ = mode;
@@ -82,6 +85,7 @@ protected:
         for (const auto& chunk : chunks) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
             InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
+            dataSlice->TransformToNew(RowBuffer_, Comparator_);
             dataSlices.emplace_back(std::move(dataSlice));
         }
         auto stripe = New<TChunkStripe>();
@@ -277,25 +281,25 @@ TEST_F(TInputChunkMappingTest, TestChunkSliceLimits)
     ChunkMapping_->OnStripeRegenerated(42, stripeB);
 
     auto stripeAWithLimits = CreateStripe({chunkA});
-    TLegacyInputSliceLimit lowerLimit;
-    lowerLimit.Key = BuildRow({12});
+    TInputSliceLimit lowerLimit;
+    lowerLimit.KeyBound = TKeyBound::FromRow(BuildRow({12}), /* isInclusive */ true, /* isUpper */ false);
     lowerLimit.RowIndex = 34;
-    TLegacyInputSliceLimit upperLimit;
-    upperLimit.Key = BuildRow({56});
+    TInputSliceLimit upperLimit;
+    upperLimit.KeyBound = TKeyBound::FromRow(BuildRow({56}), /* isInclusive */ false, /* isUpper */ false);
     upperLimit.RowIndex = 78;
-    stripeAWithLimits->DataSlices[0]->LegacyLowerLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyLowerLimit() = lowerLimit;
-    stripeAWithLimits->DataSlices[0]->LegacyUpperLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyUpperLimit() = upperLimit;
+    stripeAWithLimits->DataSlices[0]->LowerLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit() = lowerLimit;
+    stripeAWithLimits->DataSlices[0]->UpperLimit() = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit() = upperLimit;
 
     auto mappedStripeAWithLimits = ChunkMapping_->GetMappedStripe(stripeAWithLimits);
 
-    auto oldLowerLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyLowerLimit();
-    auto newLowerLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyLowerLimit();
-    EXPECT_EQ(oldLowerLimit.Key, newLowerLimit.Key);
+    auto oldLowerLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit();
+    auto newLowerLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LowerLimit();
+    EXPECT_EQ(oldLowerLimit.KeyBound, newLowerLimit.KeyBound);
     EXPECT_EQ(oldLowerLimit.RowIndex, newLowerLimit.RowIndex);
 
-    auto oldUpperLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyUpperLimit();
-    auto newUpperLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->LegacyUpperLimit();
-    EXPECT_EQ(oldUpperLimit.Key, newUpperLimit.Key);
+    auto oldUpperLimit = mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit();
+    auto newUpperLimit = stripeAWithLimits->DataSlices[0]->ChunkSlices[0]->UpperLimit();
+    EXPECT_EQ(oldUpperLimit.KeyBound, newUpperLimit.KeyBound);
     EXPECT_EQ(oldUpperLimit.RowIndex, newUpperLimit.RowIndex);
 
     EXPECT_EQ(mappedStripeAWithLimits->DataSlices[0]->ChunkSlices[0]->GetInputChunk(), chunkB);

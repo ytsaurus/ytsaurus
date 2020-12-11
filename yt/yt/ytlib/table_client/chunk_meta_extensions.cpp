@@ -88,21 +88,28 @@ void Deserialize(TOwningBoundaryKeys& keys, const INodePtr& node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool FindBoundaryKeys(const TChunkMeta& chunkMeta, TLegacyOwningKey* minKey, TLegacyOwningKey* maxKey)
+bool FindBoundaryKeys(
+    const TChunkMeta& chunkMeta,
+    TLegacyOwningKey* minKey,
+    TLegacyOwningKey* maxKey,
+    std::optional<int> keyColumnCount)
 {
     auto boundaryKeys = FindProtoExtension<TBoundaryKeysExt>(chunkMeta.extensions());
     if (!boundaryKeys) {
         return false;
     }
-    FromProto(minKey, boundaryKeys->min());
-    FromProto(maxKey, boundaryKeys->max());
+    // TODO(max42): YT-14049. Padding should be done by master.
+    FromProto(minKey, boundaryKeys->min(), keyColumnCount);
+    FromProto(maxKey, boundaryKeys->max(), keyColumnCount);
     return true;
 }
 
-std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(const TChunkMeta& chunkMeta)
+std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(
+    const TChunkMeta& chunkMeta,
+    std::optional<int> keyColumnCount)
 {
     TOwningBoundaryKeys keys;
-    if (!FindBoundaryKeys(chunkMeta, &keys.MinKey, &keys.MaxKey)) {
+    if (!FindBoundaryKeys(chunkMeta, &keys.MinKey, &keys.MaxKey, keyColumnCount)) {
         return nullptr;
     }
     return std::make_unique<TOwningBoundaryKeys>(std::move(keys));

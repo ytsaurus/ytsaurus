@@ -56,6 +56,7 @@ protected:
         Options_.SliceForeignChunks = true;
         Options_.SortedJobOptions.MaxTotalSliceCount = Inf64;
         Options_.UseNewJobBuilder = false;
+        Options_.ReturnNewDataSlices = false;
         Options_.Task = "TestTask";
         DataSizePerJob_ = Inf64;
         MaxBuildRetryCount_ = 1;
@@ -107,7 +108,18 @@ protected:
         void RegisterSliceableUnversionedChunk(const TInputChunkPtr& chunk, std::vector<TInputChunkSlicePtr> slices)
         {
             ChunkSlices.insert(ChunkSlices.end(), slices.begin(), slices.end());
-            AllChunksAreAdded += EXPECT_CALL(*ChunkSliceFetcher, AddChunkForSlicing(chunk, _, _, _));
+            AllChunksAreAdded += EXPECT_CALL(
+                *ChunkSliceFetcher,
+                AddDataSliceForSlicing(
+                    Property(
+                        &TLegacyDataSlicePtr::Get,
+                        Pointee(
+                            Property(
+                                &TLegacyDataSlice::GetSingleUnversionedChunkOrThrow,
+                                Eq(chunk)))),
+                    _,
+                    _,
+                    _));
         }
 
         void RegisterTriviallySliceableUnversionedChunk(const TInputChunkPtr& chunk)
@@ -1319,6 +1331,57 @@ TEST_F(TSortedChunkPoolTest, SortedReduceSimple)
         (stripeLists[0]->Stripes[1] && stripeLists[1]->Stripes[1]));
 
     CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolTest, ReturnNewDataSlices)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = true;
+    InitTables(
+        {false, false} /* isForeign */,
+        {true, true} /* isTeleportable */,
+        {false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 1;
+    Options_.MinTeleportChunkSize = 0;
+    Options_.ReturnNewDataSlices = true;
+    MaxDataSlicesPerJob_ = 1;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    auto chunkA = CreateChunk(BuildRow({0}), BuildRow({2}), 0);
+    auto chunkB = CreateChunk(BuildRow({2}), BuildRow({5}), 1);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    ASSERT_EQ(2, stripeLists.size());
+
+    // At least one stripe list should be responsible for the shared key {2}.
+    bool anyCovers2 = false;
+    for (const auto& stripeList : stripeLists) {
+        if (stripeList->Stripes.size() == 2) {
+            anyCovers2 = true;
+        }
+    }
+    EXPECT_TRUE(anyCovers2);
+
+    for (const auto& stripeList : stripeLists) {
+        for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& dataSlice : stripe->DataSlices) {
+                EXPECT_TRUE(!dataSlice->IsLegacy);
+            }
+        }
+    }
 }
 
 TEST_F(TSortedChunkPoolTest, SortedReduceManiacs)

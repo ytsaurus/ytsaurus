@@ -5,6 +5,7 @@
 #include "job_splitter.h"
 #include "task_host.h"
 #include "helpers.h"
+#include "data_flow_graph.h"
 
 #include <yt/server/controller_agent/chunk_list_pool.h>
 #include <yt/server/controller_agent/config.h>
@@ -15,6 +16,8 @@
 #include <yt/server/lib/scheduler/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_slice.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
@@ -212,8 +215,65 @@ bool TTask::HasInputLocality() const
 
 void TTask::AddInput(TChunkStripePtr stripe)
 {
+    for (const auto& dataSlice : stripe->DataSlices) {
+        // For all pools except sorted pool this simply drops key bounds (keeping them
+        // in InputChunkToReadBounds_) as pools have no use for them.
+        // For sorted chunk pool behavior is trickier as task adjusts the input read limits
+        // to match comparator of sorted chunk pool.
+        YT_VERIFY(!dataSlice->IsLegacy);
+        AdjustInputKeyBounds(dataSlice);
+        // Data slice may be either legacy or not depending on whether task uses
+        // legacy sorted chunk pool or not.
+    }
+
     TaskHost_->RegisterInputStripe(stripe, this);
+
     UpdateTask();
+}
+
+void TTask::AdjustInputKeyBounds(const TLegacyDataSlicePtr& dataSlice)
+{
+    YT_VERIFY(!dataSlice->IsLegacy);
+
+    if ((dataSlice->LowerLimit().KeyBound && !dataSlice->LowerLimit().KeyBound.IsUniversal()) ||
+        (dataSlice->UpperLimit().KeyBound && !dataSlice->UpperLimit().KeyBound.IsUniversal()))
+    {
+        YT_VERIFY(IsInput_);
+
+        // Store original read range into read range registry.
+        InputReadRangeRegistry_.RegisterDataSlice(dataSlice);
+    } else {
+        dataSlice->ReadRangeIndex = std::nullopt;
+    }
+
+    AdjustDataSliceForPool(dataSlice);
+}
+
+void TTask::AdjustDataSliceForPool(const TLegacyDataSlicePtr& dataSlice) const
+{
+    YT_VERIFY(!dataSlice->IsLegacy);
+
+    dataSlice->LowerLimit().KeyBound = TKeyBound();
+    dataSlice->UpperLimit().KeyBound = TKeyBound();
+
+    for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+        chunkSlice->LowerLimit().KeyBound = TKeyBound();
+        chunkSlice->UpperLimit().KeyBound = TKeyBound();
+    }
+}
+
+void TTask::AdjustOutputKeyBounds(const TLegacyDataSlicePtr& dataSlice) const
+{
+    YT_VERIFY(!dataSlice->IsLegacy);
+    if (dataSlice->ReadRangeIndex) {
+        YT_VERIFY(IsInput_);
+        const auto& inputTable = TaskHost_->GetInputTable(dataSlice->GetTableIndex());
+        const auto& comparator = inputTable->Comparator;
+        YT_VERIFY(comparator);
+
+        // Intersect new read range with the original data slice read range.
+        InputReadRangeRegistry_.ApplyReadRange(dataSlice, *comparator);
+    }
 }
 
 void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
@@ -653,6 +713,10 @@ void TTask::Persist(const TPersistenceContext& context)
 
     Persist(context, EstimatedInputDataWeightHistogram_);
     Persist(context, InputDataWeightHistogram_);
+
+    Persist(context, InputReadRangeRegistry_);
+
+    Persist(context, IsInput_);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -754,6 +818,26 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         // to the released chunk list.
         TaskHost_->ReleaseChunkTrees(chunkListIds, true /* recursive */, true /* waitForSnapshot */);
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
+    }
+
+    auto transformToNew = [&] (const TLegacyDataSlicePtr& dataSlice) {
+        if (IsInput_) {
+            const auto& inputTable = TaskHost_->GetInputTable(dataSlice->GetTableIndex());
+            if (inputTable->Comparator) {
+                dataSlice->TransformToNew(TaskHost_->GetRowBuffer(), inputTable->Comparator->GetLength());
+                return;
+            }
+        }
+        dataSlice->TransformToNewKeyless();
+    };
+
+    for (const auto& dataSlice : jobSummary.ReadInputDataSlices) {
+        transformToNew(dataSlice);
+        AdjustInputKeyBounds(dataSlice);
+    }
+    for (const auto& dataSlice : jobSummary.UnreadInputDataSlices) {
+        transformToNew(dataSlice);
+        AdjustInputKeyBounds(dataSlice);
     }
     GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
 
@@ -1016,11 +1100,30 @@ void TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe)
 {
     for (const auto& dataSlice : stripe->DataSlices) {
+        YT_VERIFY(!dataSlice->IsLegacy);
+        AdjustOutputKeyBounds(dataSlice);
+        YT_VERIFY(!dataSlice->IsLegacy);
+
         inputSpec->add_chunk_spec_count_per_data_slice(dataSlice->ChunkSlices.size());
         inputSpec->add_virtual_row_index_per_data_slice(dataSlice->VirtualRowIndex.value_or(-1));
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             auto newChunkSpec = inputSpec->add_chunk_specs();
-            ToProto(newChunkSpec, chunkSlice, dataSlice->Type);
+            YT_LOG_TRACE(
+                "Serializing chunk slice (LowerLimit: %v, UpperLimit: %v)",
+                chunkSlice->LowerLimit().KeyBound,
+                chunkSlice->UpperLimit().KeyBound);
+
+            // This is a dirty hack. Comparator is needed in ToProto to overcome YT-14023.
+            // Issue happens only for (operation) input data slices in sorted controller.
+            // So, we have to pass comparator only if we are an input task and comparator is actually
+            // present on the input table.
+            std::optional<TComparator> comparator;
+            if (IsInput_) {
+                const auto& inputTable = TaskHost_->GetInputTable(dataSlice->GetTableIndex());
+                comparator = inputTable->Comparator;
+            }
+
+            ToProto(newChunkSpec, chunkSlice, comparator, dataSlice->Type);
             if (dataSlice->Tag) {
                 newChunkSpec->set_data_slice_tag(*dataSlice->Tag);
             }
@@ -1374,6 +1477,7 @@ std::vector<TChunkStripePtr> TTask::BuildChunkStripes(
         currentTableRowIndex += inputChunk->GetRowCount();
         auto chunkSlice = CreateInputChunkSlice(std::move(inputChunk));
         auto dataSlice = CreateUnversionedInputDataSlice(std::move(chunkSlice));
+        dataSlice->TransformToNewKeyless();
         // NB(max42): This heavily relies on the property of intermediate data being deterministic
         // (i.e. it may be reproduced with exactly the same content divided into chunks with exactly
         // the same boundary keys when the job output is lost).

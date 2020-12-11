@@ -4,6 +4,9 @@
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
+
 #include <yt/library/random/bernoulli_sampler.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
@@ -52,6 +55,8 @@ public:
 
     virtual void AddForeignDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
     {
+        YT_VERIFY(dataSlice->IsLegacy);
+
         DataSliceToInputCookie_[dataSlice] = cookie;
 
         if (dataSlice->InputStreamIndex >= ForeignDataSlices_.size()) {
@@ -91,6 +96,8 @@ public:
 
     virtual void AddPrimaryDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolInput::TCookie cookie) override
     {
+        YT_VERIFY(dataSlice->IsLegacy);
+
         if (dataSlice->LegacyLowerLimit().Key >= dataSlice->LegacyUpperLimit().Key) {
             // This can happen if ranges were specified.
             // Chunk slice fetcher can produce empty slices.
@@ -152,7 +159,7 @@ public:
         Endpoints_.push_back(rightEndpoint);
     }
 
-    virtual std::vector<std::unique_ptr<TJobStub>> Build() override
+    virtual std::vector<std::unique_ptr<TLegacyJobStub>> Build() override
     {
         AddPivotKeysEndpoints();
         SortEndpoints();
@@ -229,7 +236,7 @@ private:
     //! These items are merely stubs of a future jobs that are filled during the BuildJobsBy{Key/TableIndices}()
     //! call, and when current job is finished it is passed to the `JobManager_` that becomes responsible
     //! for its future.
-    std::vector<std::unique_ptr<TJobStub>> Jobs_;
+    std::vector<std::unique_ptr<TLegacyJobStub>> Jobs_;
 
     //! Stores correspondence between primary data slices added via `AddPrimaryDataSlice`
     //! (both unversioned and versioned) and their input cookies.
@@ -359,7 +366,7 @@ private:
                 JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
 
-        Jobs_.emplace_back(std::make_unique<TJobStub>());
+        Jobs_.emplace_back(std::make_unique<TLegacyJobStub>());
 
         THashMap<TLegacyDataSlicePtr, TLegacyKey> openedSlicesLowerLimits;
 
@@ -415,7 +422,7 @@ private:
                     totalDataWeight += Jobs_.back()->GetDataWeight();
                     TotalSliceCount_ += Jobs_.back()->GetSliceCount();
                     ValidateTotalSliceCountLimit();
-                    Jobs_.emplace_back(std::make_unique<TJobStub>());
+                    Jobs_.emplace_back(std::make_unique<TLegacyJobStub>());
 
                     if (Options_.LogDetails) {
                         YT_LOG_DEBUG("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
@@ -432,7 +439,7 @@ private:
                         Jobs_.back()->GetPreliminaryForeignDataWeight(),
                         Jobs_.back()->LowerPrimaryKey(),
                         Jobs_.back()->UpperPrimaryKey());
-                    Jobs_.back() = std::make_unique<TJobStub>();
+                    Jobs_.back() = std::make_unique<TLegacyJobStub>();
                 }
                 ++jobIndex;
             }
@@ -440,7 +447,7 @@ private:
 
         auto addBarrier = [&] () {
             Jobs_.back()->SetIsBarrier(true);
-            Jobs_.emplace_back(std::make_unique<TJobStub>());
+            Jobs_.emplace_back(std::make_unique<TLegacyJobStub>());
         };
 
         for (int index = 0, nextKeyIndex = 0; index < Endpoints_.size(); ++index) {
@@ -584,6 +591,7 @@ private:
                         auto inputCookie = DataSliceToInputCookie_.at(foreignDataSlice);
                         exactForeignDataSlice->Tag = inputCookie;
                         ++TotalSliceCount_;
+                        // exactForeignDataSlice->TransformToNew(RowBuffer_, Options_.ForeignPrefixLength);
                         job->AddDataSlice(
                             exactForeignDataSlice,
                             inputCookie,

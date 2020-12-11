@@ -1,6 +1,6 @@
-#include "sorted_chunk_pool.h"
+#include "new_sorted_chunk_pool.h"
 
-#include "job_manager.h"
+#include "new_job_manager.h"
 #include "helpers.h"
 #include "input_chunk_mapping.h"
 #include "new_sorted_job_builder.h"
@@ -11,6 +11,9 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
+
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/library/random/bernoulli_sampler.h>
 
@@ -35,7 +38,7 @@ using namespace NScheduler;
 
 class TNewSortedChunkPool
     : public TChunkPoolInputBase
-    , public TChunkPoolOutputWithJobManagerBase
+    , public TChunkPoolOutputWithNewJobManagerBase
     , public ISortedChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
@@ -48,13 +51,13 @@ public:
         IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
         TInputStreamDirectory inputStreamDirectory)
         : SortedJobOptions_(options.SortedJobOptions)
-        , PrimaryComparator_(std::vector<ESortOrder>(options.SortedJobOptions.PrimaryPrefixLength, ESortOrder::Ascending))
-        , ForeignComparator_(std::vector<ESortOrder>(options.SortedJobOptions.ForeignPrefixLength, ESortOrder::Ascending))
+        , PrimaryComparator_(options.SortedJobOptions.PrimaryComparator)
+        , ForeignComparator_(options.SortedJobOptions.ForeignComparator)
         , ChunkSliceFetcherFactory_(std::move(chunkSliceFetcherFactory))
         , EnableKeyGuarantee_(options.SortedJobOptions.EnableKeyGuarantee)
         , InputStreamDirectory_(std::move(inputStreamDirectory))
-        , PrimaryPrefixLength_(options.SortedJobOptions.PrimaryPrefixLength)
-        , ForeignPrefixLength_(options.SortedJobOptions.ForeignPrefixLength)
+        , PrimaryPrefixLength_(PrimaryComparator_.GetLength())
+        , ForeignPrefixLength_(ForeignComparator_.GetLength())
         , ShouldSlicePrimaryTableByKeys_(options.SortedJobOptions.ShouldSlicePrimaryTableByKeys)
         , SliceForeignChunks_(options.SliceForeignChunks)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
@@ -79,8 +82,8 @@ public:
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
             "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
-            SortedJobOptions_.PrimaryPrefixLength,
-            SortedJobOptions_.ForeignPrefixLength,
+            PrimaryPrefixLength_,
+            ForeignPrefixLength_,
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
@@ -96,7 +99,13 @@ public:
         bool isForeign = InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsForeign();
 
         for (auto& dataSlice : stripe->DataSlices) {
-            dataSlice->TransformToNew(RowBuffer_, PrimaryComparator_.GetLength());
+            YT_VERIFY(!dataSlice->IsLegacy);
+
+            // For simplicity, we require that any data slice in sorted chunk pool has
+            // non-trivial lower and upper key bounds. In particular this means that
+            // all limit inference from chunk boundary keys should be done in task.
+            YT_VERIFY(dataSlice->LowerLimit().KeyBound);
+            YT_VERIFY(dataSlice->UpperLimit().KeyBound);
 
             int prefixLength = isForeign ? ForeignPrefixLength_ : PrimaryPrefixLength_;
 
@@ -155,11 +164,8 @@ public:
         }
 
         for (auto& stripe : Stripes_) {
-            bool isForeign = InputStreamDirectory_.GetDescriptor(stripe.GetStripe()->GetInputStreamIndex()).IsForeign();
             for (auto& dataSlice : stripe.GetStripe()->DataSlices) {
-                if (dataSlice->IsLegacy) {
-                    dataSlice->TransformToNew(RowBuffer_, isForeign ? ForeignPrefixLength_ : PrimaryPrefixLength_);
-                }
+                YT_VERIFY(!dataSlice->IsLegacy);
             }
         }
 
@@ -234,9 +240,9 @@ public:
         }
     }
 
-    virtual std::pair<TUnversionedRow, TUnversionedRow> GetLimits(IChunkPoolOutput::TCookie cookie) const override
+    virtual std::pair<TKeyBound, TKeyBound> GetBounds(IChunkPoolOutput::TCookie cookie) const override
     {
-        return JobManager_->GetLimits(cookie);
+        return JobManager_->GetBounds(cookie);
     }
 
 private:
@@ -338,6 +344,9 @@ private:
             }
         };
 
+        // TODO(max42): logic here is schizophrenic :( introduce IdentityChunkSliceFetcher and
+        // stop converting chunk slices to data slices and forth.
+
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& suspendableStripe = Stripes_[inputCookie];
             const auto& stripe = suspendableStripe.GetStripe();
@@ -372,13 +381,14 @@ private:
                                 keyColumnCount,
                                 sliceByKeys);
                         }
-                        chunkSliceFetcher->AddChunkForSlicing(inputChunk, sliceSize, keyColumnCount, sliceByKeys);
+
+                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, sliceSize, keyColumnCount, sliceByKeys);
                     } else if (!isPrimary) {
                         // Take foreign slice as-is.
                         processDataSlice(dataSlice, inputCookie);
                     } else {
-                        auto chunkSlice = CreateInputChunkSlice(inputChunk);
-                        InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, PrimaryPrefixLength_);
+                        YT_VERIFY(dataSlice->ChunkSlices.size() == 1);
+                        auto chunkSlice = dataSlice->ChunkSlices[0];
                         unversionedChunkSlices.emplace_back(std::move(chunkSlice));
                     }
 
@@ -400,8 +410,17 @@ private:
             const auto& originalDataSlice = unversionedInputChunkToOwningDataSlice[chunkSlice->GetInputChunk()];
             int inputCookie = unversionedInputChunkToInputCookie.at(chunkSlice->GetInputChunk());
             auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+
+            auto isPrimary = InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary();
+            auto comparator = isPrimary
+                ? PrimaryComparator_
+                : ForeignComparator_;
             dataSlice->CopyPayloadFrom(*originalDataSlice);
-            dataSlice->TransformToNew(RowBuffer_, PrimaryPrefixLength_);
+
+            comparator.ReplaceIfStrongerKeyBound(dataSlice->LowerLimit().KeyBound, originalDataSlice->LowerLimit().KeyBound);
+            comparator.ReplaceIfStrongerKeyBound(dataSlice->UpperLimit().KeyBound, originalDataSlice->UpperLimit().KeyBound);
+
+            YT_VERIFY(!dataSlice->IsLegacy);
             processDataSlice(dataSlice, inputCookie);
         }
     }
@@ -443,7 +462,7 @@ private:
 
         struct TTeleportCandidate
         {
-            TInputChunkPtr InputChunk;
+            TLegacyDataSlicePtr DataSlice;
             TKeyBound LowerBound;
             TKeyBound UpperBound;
             IChunkPoolInput::TCookie InputCookie;
@@ -453,19 +472,19 @@ private:
 
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
-            auto primary = InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary();
+            auto inputStreamIndex = stripe->GetInputStreamIndex();
+            auto isPrimary = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsPrimary();
+            auto isTeleportable = InputStreamDirectory_.GetDescriptor(inputStreamIndex).IsTeleportable();
             for (const auto& dataSlice : stripe->DataSlices) {
                 yielder.TryYield();
 
                 auto lowerBound = dataSlice->LowerLimit().KeyBound;
                 auto upperBound = dataSlice->UpperLimit().KeyBound;
 
-                if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
-                    dataSlice->GetSingleUnversionedChunkOrThrow()->IsLargeCompleteChunk(MinTeleportChunkSize_) &&
-                    primary)
+                if (dataSlice->IsTeleportable && isPrimary && isTeleportable)
                 {
                     teleportCandidates.emplace_back(TTeleportCandidate{
-                        .InputChunk = dataSlice->GetSingleUnversionedChunkOrThrow(),
+                        .DataSlice = dataSlice,
                         .LowerBound = lowerBound,
                         .UpperBound = upperBound,
                         .InputCookie = inputCookie
@@ -523,7 +542,7 @@ private:
             if (disjointSlices == dataSlicesCount - 1) {
                 Stripes_[teleportCandidate.InputCookie].SetTeleport(true);
                 if (TeleportChunkSampler_.Sample()) {
-                    TeleportChunks_.emplace_back(teleportCandidate.InputChunk);
+                    TeleportChunks_.emplace_back(teleportCandidate.DataSlice->GetSingleUnversionedChunkOrThrow());
                 } else {
                     // Teleport chunk to /dev/null. He did not make it.
                     ++droppedTeleportChunkCount;
@@ -539,6 +558,7 @@ private:
             TeleportChunks_.end(),
             [] (const TInputChunkPtr& lhs, const TInputChunkPtr& rhs) {
                 // TODO(max42): should we introduce key bounds instead of boundary keys for input chunk?
+                // Actually we should make pool unaware of input chunks hiding them behind TDataSlice.
                 int cmpMin = CompareRows(lhs->BoundaryKeys()->MinKey, rhs->BoundaryKeys()->MinKey);
                 if (cmpMin != 0) {
                     return cmpMin < 0;
@@ -639,7 +659,7 @@ private:
 
         bool succeeded = false;
         INewSortedJobBuilderPtr builder;
-        std::vector<std::unique_ptr<TJobStub>> jobStubs;
+        std::vector<TNewJobStub> jobStubs;
         std::vector<TError> errors;
         for (int retryIndex = 0; retryIndex < JobSizeConstraints_->GetMaxBuildRetryCount(); ++retryIndex) {
             try {
@@ -677,12 +697,22 @@ private:
             THROW_ERROR_EXCEPTION("Retry limit exceeded while building jobs")
                 << errors;
         }
-        JobManager_->AddJobs(std::move(jobStubs));
+
+        // TODO(max42): why does job manager accept a vector of unique pointers to job stubs
+        // instead of simply vector of job stubs as a prvalue?
+        std::vector<std::unique_ptr<TNewJobStub>> jobStubPtrs;
+        jobStubPtrs.reserve(jobStubs.size());
+        for (auto& jobStub : jobStubs) {
+            jobStubPtrs.emplace_back(std::make_unique<TNewJobStub>(std::move(jobStub)));
+        }
+
+        JobManager_->AddJobs(std::move(jobStubPtrs));
 
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
                 JobSizeConstraints_->GetDataWeightPerJob(),
-                JobSizeConstraints_->GetPrimaryDataWeightPerJob());
+                JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
+                SortedJobOptions_.PrimaryComparator);
         }
 
         auto oldDataSliceCount = GetDataSliceCounter()->GetTotal();
@@ -698,9 +728,9 @@ private:
     {
         i64 dataWeight = 0;
         for (auto& dataSlice : unreadInputDataSlices) {
-            // NB(psushin): this is important, since we prune trivial limits from slices when serializing to proto.
-            // Here we restore them back.
-            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
+            YT_VERIFY(!dataSlice->IsLegacy);
+            YT_VERIFY(!dataSlice->LowerLimit().KeyBound.IsUniversal());
+            YT_VERIFY(!dataSlice->UpperLimit().KeyBound.IsUniversal());
             dataWeight += dataSlice->GetDataWeight();
         }
 
@@ -746,17 +776,22 @@ private:
 
         for (const auto& dataSlice : unreadInputDataSlices) {
             YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsPrimary());
-            dataSlice->TransformToNew(RowBuffer_, PrimaryPrefixLength_);
+            YT_VERIFY(!dataSlice->IsLegacy);
             builder->AddDataSlice(dataSlice);
         }
         for (const auto& dataSlice : foreignInputDataSlices) {
             YT_VERIFY(InputStreamDirectory_.GetDescriptor(dataSlice->InputStreamIndex).IsForeign());
-            dataSlice->TransformToNew(RowBuffer_, ForeignPrefixLength_);
+            YT_VERIFY(!dataSlice->IsLegacy);
             builder->AddDataSlice(dataSlice);
         }
 
         auto jobs = builder->Build();
-        JobManager_->AddJobs(std::move(jobs));
+        std::vector<std::unique_ptr<TNewJobStub>> jobStubs;
+        jobStubs.reserve(jobs.size());
+        for (auto& job : jobs) {
+            jobStubs.emplace_back(std::make_unique<TNewJobStub>(std::move(job)));
+        }
+        JobManager_->AddJobs(std::move(jobStubs));
     }
 
     void InvalidateCurrentJobs()

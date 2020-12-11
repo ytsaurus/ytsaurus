@@ -12,7 +12,7 @@ class TOutputOrder
     : public TRefCounted
 {
 public:
-    using TCookie = TIntCookie;
+    using TCookie = TOutputCookie;
 
     class TEntry
     {

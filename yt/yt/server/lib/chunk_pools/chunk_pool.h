@@ -20,7 +20,7 @@ struct IChunkPoolInput
     : public virtual TRefCounted
     , public virtual IPersistent
 {
-    using TCookie = TIntCookie;
+    using TCookie = TInputCookie;
     static const TCookie NullCookie = -1;
 
     virtual TCookie Add(TChunkStripePtr stripe) = 0;
@@ -89,7 +89,7 @@ struct IChunkPoolOutput
     : public virtual TRefCounted
     , public virtual IPersistent
 {
-    using TCookie = TIntCookie;
+    using TCookie = TOutputCookie;
     static constexpr TCookie NullCookie = -1;
 
     virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const = 0;
@@ -184,6 +184,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(max42): maybe make job manager implement IChunkPoolOutput itself?
+template <class TJobManager>
 class TChunkPoolOutputWithJobManagerBase
     : public TChunkPoolOutputBase
 {
@@ -206,8 +207,11 @@ public:
     virtual void Persist(const TPersistenceContext& context) override;
 
 protected:
-    TJobManagerPtr JobManager_;
+    TIntrusivePtr<TJobManager> JobManager_;
 };
+
+using TChunkPoolOutputWithLegacyJobManagerBase = TChunkPoolOutputWithJobManagerBase<TLegacyJobManager>;
+using TChunkPoolOutputWithNewJobManagerBase = TChunkPoolOutputWithJobManagerBase<TNewJobManager>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1125,15 +1125,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSortedOperationSpec
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    bool UseNewSortedPool;
+
+    TSortedOperationSpec();
+
+private:
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedOperationSpec, 0xaa7471bf);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSortedOperationSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationSpec)
 
 class TSortedMergeOperationSpec
     : public TMergeOperationSpec
+    , public TSortedOperationSpec
 {
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec, 0x213a54d6);
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationSpec)
 
@@ -1161,6 +1177,7 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 class TReduceOperationSpec
     : public TSimpleOperationSpecBase
     , public TOperationWithUserJobSpec
+    , public TSortedOperationSpec
 {
 public:
     TMandatoryUserJobSpecPtr Reducer;

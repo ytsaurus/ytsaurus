@@ -17,14 +17,18 @@ using NControllerAgent::TLoadContext;
 using NControllerAgent::TPersistenceContext;
 using NControllerAgent::IPersistent;
 
-using TIntCookie = int;
+// It's quite easy to mix up input cookies with output cookies,
+// so we use two following aliases to visually distinguish them.
+using TInputCookie = int;
+using TOutputCookie = int;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(ILegacySortedJobBuilder);
 DECLARE_REFCOUNTED_STRUCT(INewSortedJobBuilder);
 
-DECLARE_REFCOUNTED_CLASS(TJobManager)
+DECLARE_REFCOUNTED_CLASS(TNewJobManager)
+DECLARE_REFCOUNTED_CLASS(TLegacyJobManager)
 
 DECLARE_REFCOUNTED_CLASS(TOutputOrder)
 

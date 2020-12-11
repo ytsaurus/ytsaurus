@@ -23,12 +23,12 @@
 #include <yt/server/lib/chunk_pools/shuffle_chunk_pool.h>
 #include <yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
-#include <yt/client/api/client.h>
 #include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
 #include <yt/ytlib/chunk_client/key_set.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
@@ -1152,7 +1152,10 @@ protected:
                 auto stripe = BuildIntermediateChunkStripe(resultExt->mutable_output_chunk_specs());
 
                 for (const auto& dataSlice : stripe->DataSlices) {
-                    InferLimitsFromBoundaryKeys(dataSlice, Controller_->RowBuffer);
+                    // NB: intermediate sort uses sort_by as a prefix, while pool expects reduce_by as a prefix.
+                    SetLimitsFromShortenedBoundaryKeys(dataSlice, Controller_->GetSortedMergeKeyColumnCount(), Controller_->RowBuffer);
+                    // We currently use legacy sorted pool here, so transform to legacy.
+                    dataSlice->TransformToLegacy(Controller_->RowBuffer);
                     dataSlice->InputStreamIndex = inputStreamIndex;
                 }
 
@@ -2483,11 +2486,19 @@ protected:
     {
         TPeriodicYielder yielder(PrepareYieldPeriod);
 
+        inputTask->SetIsInput(true);
+
         int unversionedSlices = 0;
         int versionedSlices = 0;
+        // TODO(max42): use CollectPrimaryInputDataSlices() here?
         for (auto& chunk : CollectPrimaryUnversionedChunks()) {
-            const auto& slice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-            inputTask->AddInput(New<TChunkStripe>(std::move(slice)));
+            const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer);
+
+            const auto& inputTable = InputTables_[dataSlice->GetTableIndex()];
+            dataSlice->TransformToNew(RowBuffer, inputTable->Comparator);
+
+            inputTask->AddInput(New<TChunkStripe>(std::move(dataSlice)));
             ++unversionedSlices;
             yielder.TryYield();
         }

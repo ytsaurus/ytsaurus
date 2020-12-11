@@ -38,6 +38,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TVirtualValueDirectoryPtr, VirtualValueDirectory);
     DEFINE_BYVAL_RW_PROPERTY(int, VirtualKeyPrefixLength, 0);
 
+    //! Returns comparator built from data source schema. Crashes in case if data source is not sorted.
+    NTableClient::TComparator GetComparator() const;
+
     TDataSource() = default;
     TDataSource(
         EDataSourceType type,

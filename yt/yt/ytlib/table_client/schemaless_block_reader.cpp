@@ -27,6 +27,8 @@ THorizontalBlockReader::THorizontalBlockReader(
 {
     YT_VERIFY(Meta_.row_count() > 0);
 
+    // TODO(max42): YT-14023. This line is clearly wrong.
+    // Fix it with a separate commit.
     keyColumnCount = std::max(KeyColumnCount_, ChunkKeyColumnCount_);
     auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
     KeyBuffer_.reserve(keyDataSize);

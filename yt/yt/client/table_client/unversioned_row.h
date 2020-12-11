@@ -521,7 +521,7 @@ void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const TUnversionedValue* end);
 
-void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow);
+void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow, std::optional<int> nullPaddingWidth = std::nullopt);
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
 
 void ToBytes(TString* bytes, const TUnversionedOwningRow& row);
@@ -771,7 +771,7 @@ public:
 
 private:
     friend TLegacyOwningKey GetKeySuccessorImpl(const TLegacyOwningKey& key, int prefixLength, EValueType sentinelType);
-    friend TUnversionedOwningRow DeserializeFromString(const TString& data);
+    friend TUnversionedOwningRow DeserializeFromString(const TString& data, std::optional<int> nullPaddingWidth);
 
     friend class TUnversionedOwningRowBuilder;
 

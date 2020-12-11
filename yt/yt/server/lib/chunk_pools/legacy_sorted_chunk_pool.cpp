@@ -1,6 +1,6 @@
-#include "sorted_chunk_pool.h"
+#include "legacy_sorted_chunk_pool.h"
 
-#include "job_manager.h"
+#include "legacy_job_manager.h"
 #include "helpers.h"
 #include "input_chunk_mapping.h"
 #include "legacy_sorted_job_builder.h"
@@ -11,6 +11,9 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
+
+#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/library/random/bernoulli_sampler.h>
 
@@ -35,7 +38,7 @@ using namespace NScheduler;
 
 class TLegacySortedChunkPool
     : public TChunkPoolInputBase
-    , public TChunkPoolOutputWithJobManagerBase
+    , public TChunkPoolOutputWithLegacyJobManagerBase
     , public ISortedChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
@@ -48,7 +51,6 @@ public:
         IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
         TInputStreamDirectory inputStreamDirectory)
         : SortedJobOptions_(options.SortedJobOptions)
-        , UseNewJobBuilder_(options.UseNewJobBuilder)
         , ChunkSliceFetcherFactory_(std::move(chunkSliceFetcherFactory))
         , EnableKeyGuarantee_(options.SortedJobOptions.EnableKeyGuarantee)
         , InputStreamDirectory_(std::move(inputStreamDirectory))
@@ -60,6 +62,7 @@ public:
         , JobSizeConstraints_(options.JobSizeConstraints)
         , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
         , SupportLocality_(options.SupportLocality)
+        , ReturnNewDataSlices_(options.ReturnNewDataSlices)
         , OperationId_(options.OperationId)
         , Task_(options.Task)
         , RowBuffer_(options.RowBuffer)
@@ -90,6 +93,10 @@ public:
     {
         if (stripe->DataSlices.empty()) {
             return IChunkPoolInput::NullCookie;
+        }
+
+        for (const auto& dataSlice : stripe->DataSlices) {
+            YT_VERIFY(dataSlice->IsLegacy);
         }
 
         auto cookie = static_cast<int>(Stripes_.size());
@@ -164,6 +171,7 @@ public:
                 jobSummary.InterruptReason,
                 jobSummary.SplitJobCount);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
+
             SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount);
         }
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
@@ -184,7 +192,6 @@ public:
 
         using NYT::Persist;
         Persist(context, SortedJobOptions_);
-        Persist(context, UseNewJobBuilder_);
         Persist(context, ChunkSliceFetcherFactory_);
         Persist(context, EnableKeyGuarantee_);
         Persist(context, InputStreamDirectory_);
@@ -204,6 +211,7 @@ public:
         Persist(context, HasForeignData_);
         Persist(context, TeleportChunks_);
         Persist(context, IsCompleted_);
+        Persist(context, ReturnNewDataSlices_);
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
@@ -213,9 +221,48 @@ public:
         }
     }
 
-    virtual std::pair<TUnversionedRow, TUnversionedRow> GetLimits(IChunkPoolOutput::TCookie cookie) const override
+    virtual std::pair<TKeyBound, TKeyBound> GetBounds(IChunkPoolOutput::TCookie cookie) const override
     {
-        return JobManager_->GetLimits(cookie);
+        // We drop support for this method in legacy pool as it is used only in CHYT which already uses new pool.
+        YT_UNIMPLEMENTED();
+    }
+
+    virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
+    {
+        // NB: recall that sorted pool deals with legacy data slices. If we simply call TransformToNew
+        // on each data slice each time we extract a stripe list, it can lead to a controller-lifetime
+        // long memory leak as modified unversioned rows will be stored in row buffer permanently.
+        // Considering the fact that jobs may be failed/aborted and restarte arbitrarily number of times,
+        // this may be a serious problem. That's why we cache transformed stripe lists in the pool.
+
+        if (!ReturnNewDataSlices_) {
+            return JobManager_->GetStripeList(cookie);
+        }
+
+        if (CachedNewStripeLists_.size() > cookie && CachedNewStripeLists_[cookie]) {
+            return CachedNewStripeLists_[cookie];
+        }
+
+        if (CachedNewStripeLists_.size() <= cookie) {
+            CachedNewStripeLists_.resize(cookie + 1);
+        }
+
+        auto newStripeList = New<TChunkStripeList>();
+        auto legacyStripeList = JobManager_->GetStripeList(cookie);
+        for (const auto& legacyStripe : legacyStripeList->Stripes) {
+            auto newStripe = New<TChunkStripe>();
+            newStripe->Foreign = legacyStripe->Foreign;
+            for (const auto& legacyDataSlice : legacyStripe->DataSlices) {
+                auto newDataSlice = CreateInputDataSlice(legacyDataSlice);
+                auto prefixLength = InputStreamDirectory_.GetDescriptor(legacyDataSlice->GetTableIndex()).IsPrimary()
+                    ? PrimaryPrefixLength_
+                    : ForeignPrefixLength_;
+                newDataSlice->TransformToNew(RowBuffer_, prefixLength);
+                newStripe->DataSlices.emplace_back(std::move(newDataSlice));
+            }
+            AddStripeToList(newStripe, newStripeList);
+        }
+        return CachedNewStripeLists_[cookie] = newStripeList;
     }
 
 private:
@@ -223,9 +270,6 @@ private:
 
     //! All options necessary for sorted job builder.
     TSortedJobOptions SortedJobOptions_;
-
-    //! Use new sorted job builder.
-    bool UseNewJobBuilder_;
 
     //! A factory that is used to spawn chunk slice fetcher.
     IChunkSliceFetcherFactoryPtr ChunkSliceFetcherFactory_;
@@ -265,6 +309,8 @@ private:
 
     bool SupportLocality_ = false;
 
+    bool ReturnNewDataSlices_ = true;
+
     TLogger Logger = ChunkPoolLogger;
 
     TOperationId OperationId_;
@@ -279,6 +325,8 @@ private:
     std::vector<TInputChunkPtr> TeleportChunks_;
 
     bool IsCompleted_ = false;
+
+    std::vector<TChunkStripeListPtr> CachedNewStripeLists_;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -347,7 +395,7 @@ private:
                                 keyColumnCount,
                                 sliceByKeys);
                         }
-                        chunkSliceFetcher->AddChunkForSlicing(inputChunk, sliceSize, keyColumnCount, sliceByKeys);
+                        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, sliceSize, keyColumnCount, sliceByKeys);
                     } else if (!isPrimary) {
                         // Take foreign slice as-is.
                         processDataSlice(dataSlice, inputCookie);
@@ -629,7 +677,7 @@ private:
 
         bool succeeded = false;
         ILegacySortedJobBuilderPtr builder;
-        std::vector<std::unique_ptr<TJobStub>> jobStubs;
+        std::vector<std::unique_ptr<TLegacyJobStub>> jobStubs;
         std::vector<TError> errors;
         for (int retryIndex = 0; retryIndex < JobSizeConstraints_->GetMaxBuildRetryCount(); ++retryIndex) {
             try {

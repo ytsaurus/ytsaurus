@@ -11,6 +11,8 @@ void TSortedJobOptions::Persist(const TPersistenceContext& context)
     Persist(context, EnableKeyGuarantee);
     Persist(context, PrimaryPrefixLength);
     Persist(context, ForeignPrefixLength);
+    Persist(context, PrimaryComparator);
+    Persist(context, ForeignComparator);
     Persist(context, MaxTotalSliceCount);
     Persist(context, EnablePeriodicYielder);
     Persist(context, PivotKeys);

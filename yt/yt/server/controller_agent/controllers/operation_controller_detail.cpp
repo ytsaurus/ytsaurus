@@ -35,6 +35,7 @@
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
@@ -122,6 +123,8 @@
 #include <util/generic/algorithm.h>
 #include <util/generic/cast.h>
 #include <util/generic/vector.h>
+
+#include <library/cpp/iterator/zip.h>
 
 #include <functional>
 
@@ -5208,7 +5211,11 @@ void TOperationControllerBase::FetchInputTables()
         int tableIndex = chunkSpec.table_index();
         auto& table = InputTables_[tableIndex];
 
-        auto inputChunk = New<TInputChunk>(chunkSpec);
+        auto inputChunk = New<TInputChunk>(
+            chunkSpec,
+            /* keyColumnCount */ table->Comparator
+                ? std::make_optional(table->Comparator->GetLength())
+                : std::nullopt);
         inputChunk->SetTableIndex(tableIndex);
         inputChunk->SetChunkIndex(totalChunkCount++);
 
@@ -5384,6 +5391,9 @@ void TOperationControllerBase::GetInputTablesAttributes()
             auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
             table->Dynamic = attributes->Get<bool>("dynamic");
             table->Schema = attributes->Get<TTableSchemaPtr>("schema");
+            if (table->Schema->IsSorted()) {
+                table->Comparator = table->Schema->ToComparator();
+            }
             table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
             table->ChunkCount = attributes->Get<int>("chunk_count");
             table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
@@ -6503,6 +6513,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
     };
 
     std::vector<TFuture<void>> asyncResults;
+    std::vector<TComparator> comparators;
     std::vector<IChunkSliceFetcherPtr> fetchers;
 
     for (const auto& table : InputTables_) {
@@ -6518,6 +6529,8 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
 
             auto keyColumnCount = table->Schema->GetKeyColumns().size();
 
+            YT_VERIFY(table->Comparator);
+
             for (const auto& chunk : table->Chunks) {
                 if (IsUnavailable(chunk, CheckParityReplicas()) &&
                     Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip)
@@ -6525,30 +6538,47 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                     continue;
                 }
 
-                fetcher->AddChunkForSlicing(chunk, sliceSize, keyColumnCount, true);
+                auto chunkSlice = CreateInputChunkSlice(chunk);
+                InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer);
+                auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+                dataSlice->TransformToNew(RowBuffer, table->Comparator->GetLength());
+                fetcher->AddDataSliceForSlicing(dataSlice, sliceSize, keyColumnCount, true);
             }
 
             fetcher->SetCancelableContext(GetCancelableContext());
             asyncResults.emplace_back(fetcher->Fetch());
             fetchers.emplace_back(std::move(fetcher));
+            YT_VERIFY(table->Comparator);
+            comparators.push_back(*table->Comparator);
         }
     }
+
+    YT_LOG_INFO("Collecting primary versioned data slices");
 
     WaitFor(AllSucceeded(asyncResults))
         .ThrowOnError();
 
+    i64 totalDataSliceCount = 0;
+
     std::vector<TLegacyDataSlicePtr> result;
-    for (const auto& fetcher : fetchers) {
-        auto dataSlices = CombineVersionedChunkSlices(fetcher->GetChunkSlices());
+    for (const auto& [fetcher, comparator] : Zip(fetchers, comparators)) {
+        for (const auto& chunkSlice : fetcher->GetChunkSlices()) {
+            YT_VERIFY(!chunkSlice->IsLegacy);
+        }
+        auto dataSlices = CombineVersionedChunkSlices(fetcher->GetChunkSlices(), comparator);
         for (auto& dataSlice : dataSlices) {
             YT_LOG_TRACE("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
                 InputTables_[dataSlice->GetTableIndex()]->GetPath(),
                 dataSlice->LegacyLowerLimit(),
                 dataSlice->LegacyUpperLimit(),
                 dataSlice->ChunkSlices);
+
             result.emplace_back(std::move(dataSlice));
+            ++totalDataSliceCount;
         }
     }
+
+    YT_LOG_INFO("Collected versioned data slices (Count: %v)", totalDataSliceCount);
 
     DataSliceFetcherChunkScrapers.clear();
 
@@ -6560,6 +6590,10 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryInputDa
     std::vector<std::vector<TLegacyDataSlicePtr>> dataSlicesByTableIndex(InputTables_.size());
     for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
         auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+
+        const auto& inputTable = InputTables_[dataSlice->GetTableIndex()];
+        dataSlice->TransformToNew(RowBuffer, inputTable->Comparator);
+
         dataSlicesByTableIndex[dataSlice->GetTableIndex()].emplace_back(std::move(dataSlice));
     }
     for (auto& dataSlice : CollectPrimaryVersionedDataSlices(versionedSliceSize)) {
@@ -6582,14 +6616,18 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
             if (table->Dynamic && table->Schema->IsSorted()) {
                 std::vector<TInputChunkSlicePtr> chunkSlices;
                 chunkSlices.reserve(table->Chunks.size());
+                YT_VERIFY(table->Comparator);
                 for (const auto& chunkSpec : table->Chunks) {
-                    chunkSlices.push_back(CreateInputChunkSlice(
+                    auto& chunkSlice = chunkSlices.emplace_back(CreateInputChunkSlice(
                         chunkSpec,
                         RowBuffer->Capture(chunkSpec->BoundaryKeys()->MinKey.Get()),
                         GetKeySuccessor(chunkSpec->BoundaryKeys()->MaxKey.Get(), RowBuffer)));
+
+                    chunkSlice->TransformToNew(RowBuffer, table->Comparator->GetLength());
                 }
 
-                auto dataSlices = CombineVersionedChunkSlices(chunkSlices);
+                YT_VERIFY(table->Comparator);
+                auto dataSlices = CombineVersionedChunkSlices(chunkSlices, *table->Comparator);
                 for (const auto& dataSlice : dataSlices) {
                     if (IsUnavailable(dataSlice, CheckParityReplicas())) {
                         switch (Spec_->UnavailableChunkStrategy) {
@@ -6621,10 +6659,14 @@ std::vector<std::deque<TLegacyDataSlicePtr>> TOperationControllerBase::CollectFo
                                 YT_ABORT();
                         }
                     }
-                    result.back().push_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(
+                    auto& dataSlice = result.back().emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(
                         inputChunk,
                         GetKeyPrefix(inputChunk->BoundaryKeys()->MinKey.Get(), foreignKeyColumnCount, RowBuffer),
                         GetKeyPrefixSuccessor(inputChunk->BoundaryKeys()->MaxKey.Get(), foreignKeyColumnCount, RowBuffer))));
+
+                    YT_VERIFY(table->Comparator);
+
+                    dataSlice->TransformToNew(RowBuffer, table->Comparator->GetLength());
                 }
             }
         }
@@ -8976,6 +9018,11 @@ TJobSplitterConfigPtr TOperationControllerBase::GetJobSplitterConfigTemplate() c
     }
 
     return config;
+}
+
+const TInputTablePtr& TOperationControllerBase::GetInputTable(int tableIndex) const
+{
+    return InputTables_[tableIndex];
 }
 
 std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() const

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "legacy_sorted_job_builder.h"
+
 #include "sorted_chunk_pool.h"
 
 namespace NYT::NChunkPools {
