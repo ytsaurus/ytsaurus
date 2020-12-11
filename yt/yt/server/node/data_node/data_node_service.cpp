@@ -1016,27 +1016,6 @@ private:
                 THROW_ERROR_EXCEPTION("Chunk %v is not sorted", chunkId);
             }
 
-            // COMPAT(savrus) Support schemaful and versioned chunks.
-            TKeyColumns chunkKeyColumns;
-            auto optionalKeyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta->extensions());
-            if (optionalKeyColumnsExt) {
-                chunkKeyColumns = FromProto<TKeyColumns>(*optionalKeyColumnsExt);
-            } else {
-                auto schemaExt = GetProtoExtension<TTableSchemaExt>(chunkMeta->extensions());
-                chunkKeyColumns = FromProto<TTableSchema>(schemaExt).GetKeyColumns();
-            }
-
-            auto format = CheckedEnumCast<ETableChunkFormat>(chunkMeta->version());
-            auto versioned =
-                format == ETableChunkFormat::VersionedSimple ||
-                format == ETableChunkFormat::VersionedColumnar;
-
-            // NB(psushin): we don't validate key names, because possible column renaming could have happened.
-            ValidateKeyColumnCount(
-                sliceRequest.key_column_count(),
-                chunkKeyColumns.size(),
-                versioned);
-
             auto slices = SliceChunk(
                 sliceRequest,
                 *chunkMeta);

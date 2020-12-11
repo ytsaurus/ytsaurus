@@ -64,6 +64,13 @@ std::unique_ptr<TOwningBoundaryKeys> FindBoundaryKeys(
 
 ///////////////////////////////////////////////////////////////////////////////
 
+bool FindBoundaryKeyBounds(
+    const NChunkClient::NProto::TChunkMeta& chunkMeta,
+    TOwningKeyBound* lowerBound,
+    TOwningKeyBound* upperBound);
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TCachedBlockMeta
     : public TSyncCacheValueBase<NChunkClient::TChunkId, TCachedBlockMeta>
     , public NTableClient::NProto::TBlockMetaExt

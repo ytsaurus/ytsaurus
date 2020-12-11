@@ -5,10 +5,15 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/client/table_client/comparator.h>
+#include <yt/client/table_client/key_bound.h>
+#include <yt/client/table_client/schema.h>
+
 #include <yt/library/erasure/codec.h>
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
 #include <cmath>
@@ -136,7 +141,7 @@ TString ToString(const TChunkSlice& slice)
         slice.LowerLimit(),
         slice.UpperLimit(),
         slice.GetRowCount(),
-                  slice.GetDataWeight());
+        slice.GetDataWeight());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -148,8 +153,6 @@ public:
     TSortedChunkSlicer(const NProto::TSliceRequest& sliceReq, const NProto::TChunkMeta& meta)
         : SliceReq_(sliceReq)
         , Meta_(meta)
-        , LowerLimit_(sliceReq.lower_limit())
-        , UpperLimit_(sliceReq.upper_limit())
     {
         auto chunkFormat = ETableChunkFormat(Meta_.version());
         switch (chunkFormat) {
@@ -165,7 +168,26 @@ public:
                     chunkId);
         }
 
-        YT_VERIFY(FindBoundaryKeys(Meta_, &MinKey_, &MaxKey_));
+        TComparator chunkComparator;
+        if (auto schemaExt = FindProtoExtension<TTableSchemaExt>(Meta_.extensions())) {
+            chunkComparator = FromProto<TTableSchema>(*schemaExt).ToComparator();
+        } else {
+            // NB(gritukan): Very old chunks do not have schema, but they are always sorted in ascending order.
+            auto keyColumnsExt = GetProtoExtension<TKeyColumnsExt>(Meta_.extensions());
+            int keyColumnCount = keyColumnsExt.names_size();
+            chunkComparator = TComparator(std::vector<ESortOrder>(keyColumnCount, ESortOrder::Ascending));
+        }
+
+        if (SliceReq_.key_column_count() > chunkComparator.GetLength()) {
+            THROW_ERROR_EXCEPTION("Slice request has more key columns than chunk")
+                << TErrorAttribute("chunk_key_column_count", chunkComparator.GetLength())
+                << TErrorAttribute("request_key_column_count", SliceReq_.key_column_count());
+        }
+        SliceComparator_ = chunkComparator.Trim(SliceReq_.key_column_count());
+
+        YT_VERIFY(FindBoundaryKeyBounds(Meta_, &ChunkLowerBound_, &ChunkUpperBound_));
+        ChunkLowerBound_ = ShortenKeyBound(ChunkLowerBound_, SliceComparator_.GetLength());
+        ChunkUpperBound_ = ShortenKeyBound(ChunkUpperBound_, SliceComparator_.GetLength());
 
         auto miscExt = GetProtoExtension<NProto::TMiscExt>(Meta_.extensions());
         i64 chunkDataWeight = miscExt.has_data_weight()
@@ -173,199 +195,245 @@ public:
             : miscExt.uncompressed_data_size();
 
         i64 chunkRowCount = miscExt.row_count();
-
         YT_VERIFY(chunkRowCount > 0);
 
-        i64 dataWeightPerRow = std::max((i64)1, chunkDataWeight / chunkRowCount);
+        DataWeightPerRow_ = std::max((i64)1, chunkDataWeight / chunkRowCount);
 
         auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(Meta_.extensions());
 
-        IndexKeys_.reserve(blockMetaExt.blocks_size() + 0);
-        for (int i = 0; i < blockMetaExt.blocks_size(); ++i) {
-            YT_VERIFY(i == blockMetaExt.blocks(i).block_index());
-            auto indexKey = FromProto<TLegacyOwningKey>(blockMetaExt.blocks(i).last_key());
-            i64 chunkRowCount = blockMetaExt.blocks(i).chunk_row_count();
-            i64 rowCount = IndexKeys_.empty()
+        auto blockCount = blockMetaExt.blocks_size();
+        BlockDescriptors_.reserve(blockCount);
+        for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+            const auto& block = blockMetaExt.blocks(blockIndex);
+            YT_VERIFY(block.block_index() == blockIndex);
+
+            auto blockLastKey = FromProto<TUnversionedOwningRow>(block.last_key());
+            TUnversionedOwningRow trimedBlockLastKey(
+                blockLastKey.begin(),
+                blockLastKey.begin() + SliceComparator_.GetLength());
+            auto blockUpperBound = TOwningKeyBound::FromRow(
+                /* row */std::move(trimedBlockLastKey),
+                /* isInclusive */true,
+                /* isUpper */true);
+
+            i64 chunkRowCount = block.chunk_row_count();
+            i64 rowCount = BlockDescriptors_.empty()
                 ? chunkRowCount
-                : chunkRowCount - IndexKeys_.back().ChunkRowCount;
+                : chunkRowCount - BlockDescriptors_.back().RowCount;
 
-            IndexKeys_.push_back({
-                indexKey,
-                rowCount,
-                chunkRowCount,
-                rowCount * dataWeightPerRow});
-        }
-
-        BeginIndex_ = 0;
-        if (LowerLimit_.HasRowIndex() || LowerLimit_.HasLegacyKey()) {
-            BeginIndex_ = std::distance(
-                IndexKeys_.begin(),
-                std::lower_bound(
-                    IndexKeys_.begin(),
-                    IndexKeys_.end(),
-                    LowerLimit_,
-                    [] (const TIndexKey& indexKey, const NChunkClient::TLegacyReadLimit& limit) {
-                        return (limit.HasRowIndex() && indexKey.ChunkRowCount < limit.GetRowIndex())
-                            || (limit.HasLegacyKey() && indexKey.Key < limit.GetLegacyKey());
-                    }));
+            TBlockDescriptor blockDescriptor{
+                .UpperBound = blockUpperBound,
+                .RowCount = rowCount,
+                .ChunkRowCount = chunkRowCount,
+            };
+            BlockDescriptors_.push_back(std::move(blockDescriptor));
         }
 
-        EndIndex_ = IndexKeys_.size();
-        if (UpperLimit_.HasRowIndex() || UpperLimit_.HasLegacyKey()) {
-            EndIndex_ = std::distance(
-                IndexKeys_.begin(),
-                std::upper_bound(
-                    IndexKeys_.begin() + BeginIndex_,
-                    IndexKeys_.end(),
-                    UpperLimit_,
-                    [] (const NChunkClient::TLegacyReadLimit& limit, const TIndexKey& indexKey) {
-                        return (limit.HasRowIndex() && limit.GetRowIndex() < indexKey.ChunkRowCount)
-                            || (limit.HasLegacyKey() && limit.GetLegacyKey() < indexKey.Key);
-                    }));
+        TReadLimit sliceLowerLimit(sliceReq.lower_limit(), /* isLower */false, SliceComparator_.GetLength());
+        TReadLimit sliceUpperLimit(sliceReq.upper_limit(), /* isUpper */true, SliceComparator_.GetLength());
+
+        if (sliceLowerLimit.KeyBound()) {
+            SliceLowerBound_ = sliceLowerLimit.KeyBound();
+        } else {
+            SliceLowerBound_ = ChunkLowerBound_;
         }
-        if (EndIndex_ < IndexKeys_.size()) {
-            ++EndIndex_;
+
+        if (sliceUpperLimit.KeyBound()) {
+            SliceUpperBound_ = sliceUpperLimit.KeyBound();
+        } else {
+            SliceUpperBound_ = ChunkUpperBound_;
         }
+
+        SliceStartRowIndex_ = sliceLowerLimit.GetRowIndex().value_or(0);
+        SliceEndRowIndex_ = sliceUpperLimit.GetRowIndex().value_or(chunkRowCount);
     }
 
-    std::vector<TChunkSlice> SliceByKeys(i64 sliceDataWeight, int keyColumnCount)
+    std::vector<TChunkSlice> Slice()
     {
-        // Leave only key prefix.
-        const auto& lowerKey = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].Key : MinKey_;
-        auto lowerKeyPrefix = GetKeyPrefix(lowerKey, keyColumnCount);
+        i64 sliceDataWeight = SliceReq_.slice_data_weight();
+        bool sliceByKeys = SliceReq_.slice_by_keys();
 
         std::vector<TChunkSlice> slices;
 
-        i64 startRowIndex = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].ChunkRowCount + 1 : 0;
-        if (LowerLimit_.HasRowIndex()) {
-            startRowIndex = std::max(startRowIndex, LowerLimit_.GetRowIndex());
-        }
+        bool sliceStarted = false;
+        TOwningKeyBound currentSliceLowerBound;
+        i64 currentSliceStartRowIndex = 0;
 
-        i64 upperRowIndex = IndexKeys_[EndIndex_ - 1].ChunkRowCount;
-        if (UpperLimit_.HasRowIndex()) {
-            upperRowIndex = std::min(upperRowIndex, UpperLimit_.GetRowIndex());
-        }
+        auto startSlice = [&] (
+            const TOwningKeyBound& sliceLowerBound,
+            i64 sliceStartRowIndex)
+        {
+            YT_VERIFY(!sliceStarted);
+            sliceStarted = true;
 
-        i64 dataWeight = 0;
-        i64 sliceRowCount = 0;
-        for (i64 currentIndex = BeginIndex_; currentIndex < EndIndex_; ++currentIndex) {
-            i64 rowCount = IndexKeys_[currentIndex].RowCount;
-            if (startRowIndex > IndexKeys_[currentIndex].ChunkRowCount - IndexKeys_[currentIndex].RowCount) {
-                rowCount = std::max(IndexKeys_[currentIndex].ChunkRowCount - startRowIndex, i64(0));
-            }
-            if (upperRowIndex < IndexKeys_[currentIndex].ChunkRowCount) {
-                rowCount = std::max(rowCount - (IndexKeys_[currentIndex].ChunkRowCount - upperRowIndex), i64(0));
-            }
-            if (rowCount != IndexKeys_[currentIndex].RowCount) {
-                i64 dataWeightPerRow = IndexKeys_[currentIndex].DataWeight / IndexKeys_[currentIndex].RowCount;
-                dataWeight += rowCount * dataWeightPerRow;
+            currentSliceLowerBound = sliceLowerBound;
+            currentSliceStartRowIndex = sliceStartRowIndex;
+        };
+
+        auto endSlice = [&] (
+            const TOwningKeyBound& sliceUpperBound,
+            i64 sliceEndRowIndex)
+        {
+            YT_VERIFY(sliceStarted);
+            sliceStarted = false;
+
+            i64 sliceRowCount = sliceEndRowIndex - currentSliceStartRowIndex;
+            i64 sliceDataWeight = sliceRowCount * DataWeightPerRow_;
+            if (sliceByKeys) {
+                TChunkSlice slice(
+                    /* sliceReq */SliceReq_,
+                    /* meta */Meta_,
+                    /* lowerKeyPrefix */KeyBoundToLegacyRow(currentSliceLowerBound),
+                    /* upperKeyPrefix */KeyBoundToLegacyRow(sliceUpperBound),
+                    /* dataWeight */sliceDataWeight,
+                    /* rowCount */sliceRowCount);
+
+                slices.push_back(std::move(slice));
             } else {
-                dataWeight += IndexKeys_[currentIndex].DataWeight;
+                TChunkSlice slice(
+                    /* sliceReq */SliceReq_,
+                    /* meta */Meta_,
+                    /* lowerRowIndex */currentSliceStartRowIndex,
+                    /* upperRowIndex */sliceEndRowIndex,
+                    /* dataWeight */sliceDataWeight);
+
+                slice.SetKeys(
+                    /* lowerKey */KeyBoundToLegacyRow(currentSliceLowerBound),
+                    /* upperKey */KeyBoundToLegacyRow(sliceUpperBound));
+
+                slices.push_back(std::move(slice));
             }
-            sliceRowCount += rowCount;
+        };
 
-            const auto& key = IndexKeys_[currentIndex].Key;
+        // Upper bounds of intersection of last block and request.
+        TOwningKeyBound lastBlockUpperBound;
+        i64 lastBlockEndRowIndex = -1;
 
-            // Wait until some key to split
-            if (currentIndex < EndIndex_ - 1) {
-                const auto& nextIndexKey = IndexKeys_[currentIndex + 1].Key;
-                if (CompareRows(key, lowerKeyPrefix, keyColumnCount) == 0 ||
-                    CompareRows(nextIndexKey, key, keyColumnCount) == 0)
-                {
-                    continue;
+        for (int blockIndex = 0; blockIndex < BlockDescriptors_.size(); ++blockIndex) {
+            const auto& block = BlockDescriptors_[blockIndex];
+
+            auto blockLowerBound = blockIndex == 0
+                ? ChunkLowerBound_
+                : BlockDescriptors_[blockIndex - 1].UpperBound.Invert();
+            const auto& blockUpperBound = block.UpperBound;
+
+            // This might happen if block consisnts of single key.
+            if (SliceComparator_.IsRangeEmpty(blockLowerBound, blockUpperBound)) {
+                blockLowerBound = blockLowerBound.ToggleInclusiveness();
+                YT_VERIFY(!SliceComparator_.IsRangeEmpty(blockLowerBound, blockUpperBound));
+            }
+
+            i64 blockStartRowIndex = blockIndex == 0
+                ? 0
+                : BlockDescriptors_[blockIndex - 1].ChunkRowCount;
+            i64 blockEndRowIndex = block.ChunkRowCount;
+
+            // Block is completely to the left of the request by keys.
+            if (SliceComparator_.IsRangeEmpty(SliceLowerBound_, blockUpperBound)) {
+                continue;
+            }
+            // Block is completely to the right of the request by row indices.
+            if (SliceStartRowIndex_ >= blockEndRowIndex) {
+                continue;
+            }
+
+            // Block is completely to the right of the request by keys.
+            if (SliceComparator_.IsRangeEmpty(blockLowerBound, SliceUpperBound_)) {
+                break;
+            }
+            // Block is completely to the right of the request by keys.
+            if (SliceEndRowIndex_ <= blockStartRowIndex) {
+                break;
+            }
+
+            // Intersect block's ranges with request's ranges.
+            const auto& lowerBound = SliceComparator_.CompareKeyBounds(blockLowerBound, SliceLowerBound_) > 0
+                ? blockLowerBound
+                : SliceLowerBound_;
+
+            const auto& upperBound = SliceComparator_.CompareKeyBounds(blockUpperBound, SliceUpperBound_) < 0
+                ? blockUpperBound
+                : SliceUpperBound_;
+
+            i64 startRowIndex = std::max<i64>(blockStartRowIndex, SliceStartRowIndex_);
+            i64 endRowIndex = std::min<i64>(blockEndRowIndex, SliceEndRowIndex_);
+
+            if (!sliceStarted) {
+                startSlice(lowerBound, startRowIndex);
+            }
+
+            if (sliceByKeys) {
+                bool canSliceHere = true;
+                i64 currentSliceRowCount = endRowIndex - currentSliceStartRowIndex;
+                if (blockIndex + 1 < BlockDescriptors_.size()) {
+                    const auto& nextBlock = BlockDescriptors_[blockIndex + 1];
+                    // We are inside maniac key, so can't slice chunk here.
+                    if (upperBound == nextBlock.UpperBound) {
+                        canSliceHere = false;
+                    }
+                }
+                if (canSliceHere && currentSliceRowCount * DataWeightPerRow_ >= sliceDataWeight) {
+                    endSlice(upperBound, endRowIndex);
+                }
+            } else {
+                i64 rowsPerDataSlice = std::max<i64>(1, DivCeil<i64>(sliceDataWeight, DataWeightPerRow_));
+                while (endRowIndex - currentSliceStartRowIndex >= rowsPerDataSlice) {
+                    i64 currentSliceEndRowIndex = currentSliceStartRowIndex + rowsPerDataSlice;
+                    YT_VERIFY(currentSliceEndRowIndex > startRowIndex &&
+                        currentSliceEndRowIndex <= endRowIndex);
+
+                    endSlice(upperBound, currentSliceEndRowIndex);
+
+                    if (currentSliceEndRowIndex < endRowIndex) {
+                        startSlice(lowerBound, currentSliceEndRowIndex);
+                    } else {
+                        break;
+                    }
                 }
             }
 
-            if (dataWeight > sliceDataWeight || currentIndex == EndIndex_ - 1) {
-                YT_VERIFY(CompareRows(lowerKeyPrefix, key) <= 0);
-
-                auto upperKeyPrefix = GetKeyPrefixSuccessor(key, keyColumnCount);
-                slices.emplace_back(SliceReq_, Meta_, lowerKeyPrefix, upperKeyPrefix, dataWeight, sliceRowCount);
-
-                lowerKeyPrefix = upperKeyPrefix;
-                startRowIndex = IndexKeys_[currentIndex].ChunkRowCount;
-                dataWeight = 0;
-                sliceRowCount = 0;
-            }
+            lastBlockUpperBound = upperBound;
+            lastBlockEndRowIndex = endRowIndex;
         }
-        return slices;
-    }
 
-    // Slice by rows with keys estimates.
-    std::vector<TChunkSlice> SliceByRows(i64 sliceDataWeight, int keyColumnCount)
-    {
-        // Leave only key prefix.
-        const auto& lowerKey = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].Key : MinKey_;
-        auto lowerKeyPrefix = GetKeyPrefix(lowerKey, keyColumnCount);
-
-        std::vector<TChunkSlice> slices;
-
-        i64 startRowIndex = BeginIndex_ > 0 ? IndexKeys_[BeginIndex_ - 1].ChunkRowCount + 1 : 0;
-        if (LowerLimit_.HasRowIndex()) {
-            startRowIndex = std::max(startRowIndex, LowerLimit_.GetRowIndex());
+        // Finish last slice.
+        if (sliceStarted) {
+            endSlice(lastBlockUpperBound, lastBlockEndRowIndex);
         }
-        i64 upperRowIndex = IndexKeys_[EndIndex_ - 1].ChunkRowCount;
-        if (UpperLimit_.HasRowIndex()) {
-            upperRowIndex = std::min(upperRowIndex, UpperLimit_.GetRowIndex());
-        }
-        i64 dataWeight = 0;
-        i64 sliceRowCount = 0;
 
-        for (i64 currentIndex = BeginIndex_; currentIndex < EndIndex_; ++currentIndex) {
-            i64 rowCount = IndexKeys_[currentIndex].RowCount;
-            if (startRowIndex > IndexKeys_[currentIndex].ChunkRowCount - IndexKeys_[currentIndex].RowCount) {
-                rowCount = std::max(IndexKeys_[currentIndex].ChunkRowCount - startRowIndex, i64(0));
-            }
-            if (upperRowIndex < IndexKeys_[currentIndex].ChunkRowCount) {
-                rowCount = std::max(rowCount - (IndexKeys_[currentIndex].ChunkRowCount - upperRowIndex), i64(0));
-            }
-            if (rowCount != IndexKeys_[currentIndex].RowCount) {
-                i64 dataWeightPerRow = IndexKeys_[currentIndex].DataWeight / IndexKeys_[currentIndex].RowCount;
-                dataWeight += rowCount * dataWeightPerRow;
-            } else {
-                dataWeight += IndexKeys_[currentIndex].DataWeight;
-            }
-            sliceRowCount += rowCount;
-
-            const auto& key = IndexKeys_[currentIndex].Key;
-
-            if (dataWeight > sliceDataWeight || currentIndex == EndIndex_ - 1) {
-                YT_VERIFY(CompareRows(lowerKeyPrefix, key) <= 0);
-
-                auto upperKeyPrefix = GetKeyPrefixSuccessor(key, keyColumnCount);
-
-                auto slice = TChunkSlice(SliceReq_, Meta_, startRowIndex, startRowIndex + sliceRowCount, dataWeight);
-                slice.SetKeys(lowerKeyPrefix, upperKeyPrefix);
-                slice.SliceEvenly(slices, sliceDataWeight);
-
-                lowerKeyPrefix = GetKeyPrefix(key, keyColumnCount);
-                startRowIndex = IndexKeys_[currentIndex].ChunkRowCount;
-                dataWeight = 0;
-                sliceRowCount = 0;
-            }
-        }
         return slices;
     }
 
 private:
-    struct TIndexKey
+    //! Represents a block of chunk.
+    struct TBlockDescriptor
     {
-        TLegacyOwningKey Key;
+        //! Keys upper bound in block.
+        TOwningKeyBound UpperBound;
+
+        //! Amount of rows in block.
         i64 RowCount;
+
+        //! Total amount of rows in block and all the previous rows.
         i64 ChunkRowCount;
-        i64 DataWeight;
     };
+    std::vector<TBlockDescriptor> BlockDescriptors_;
 
     const NProto::TSliceRequest& SliceReq_;
     const NProto::TChunkMeta& Meta_;
-    NChunkClient::TLegacyReadLimit LowerLimit_;
-    NChunkClient::TLegacyReadLimit UpperLimit_;
 
-    TLegacyOwningKey MinKey_;
-    TLegacyOwningKey MaxKey_;
-    std::vector<TIndexKey> IndexKeys_;
-    i64 BeginIndex_ = 0;
-    i64 EndIndex_ = 0;
+    TOwningKeyBound SliceLowerBound_;
+    TOwningKeyBound SliceUpperBound_;
+
+    i64 SliceStartRowIndex_;
+    i64 SliceEndRowIndex_;
+
+    TComparator SliceComparator_;
+
+    TOwningKeyBound ChunkLowerBound_;
+    TOwningKeyBound ChunkUpperBound_;
+
+    i64 DataWeightPerRow_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -375,11 +443,7 @@ std::vector<TChunkSlice> SliceChunk(
     const NProto::TChunkMeta& meta)
 {
     TSortedChunkSlicer slicer(sliceReq, meta);
-    if (sliceReq.slice_by_keys()) {
-        return slicer.SliceByKeys(sliceReq.slice_data_weight(), sliceReq.key_column_count());
-    } else {
-        return slicer.SliceByRows(sliceReq.slice_data_weight(), sliceReq.key_column_count());
-    }
+    return slicer.Slice();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
