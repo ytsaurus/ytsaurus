@@ -29,26 +29,18 @@ import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
-import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
-import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
-import ru.yandex.yt.rpcproxy.TReqTrimTable;
 import ru.yandex.yt.rpcproxy.TReqWriteFile;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
-import ru.yandex.yt.rpcproxy.TRspAlterTableReplica;
-import ru.yandex.yt.rpcproxy.TRspCheckPermission;
 import ru.yandex.yt.rpcproxy.TRspLookupRows;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
-import ru.yandex.yt.rpcproxy.TRspStartOperation;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
-import ru.yandex.yt.rpcproxy.TRspTrimTable;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
@@ -58,6 +50,8 @@ import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.proxy.request.AbortTransaction;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
+import ru.yandex.yt.ytclient.proxy.request.AlterTableReplica;
+import ru.yandex.yt.ytclient.proxy.request.Atomicity;
 import ru.yandex.yt.ytclient.proxy.request.BuildSnapshot;
 import ru.yandex.yt.ytclient.proxy.request.CheckPermission;
 import ru.yandex.yt.ytclient.proxy.request.CommitTransaction;
@@ -87,8 +81,10 @@ import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.StartOperation;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
+import ru.yandex.yt.ytclient.proxy.request.TableReplicaMode;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfo;
 import ru.yandex.yt.ytclient.proxy.request.TabletInfoReplica;
+import ru.yandex.yt.ytclient.proxy.request.TrimTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -598,19 +594,14 @@ public class ApiServiceClient extends TransactionalClient {
     }
 
     public CompletableFuture<Void> trimTable(String path, int tableIndex, long trimmedRowCount) {
-        return trimTable(path, tableIndex, trimmedRowCount, null);
+        TrimTable req = new TrimTable(path, tableIndex, trimmedRowCount);
+        return trimTable(req);
     }
 
-    public CompletableFuture<Void> trimTable(String path, int tableIndex, long trimmedRowCount, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqTrimTable.Builder, RpcClientResponse<TRspTrimTable>> builder =
-                service.trimTable();
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body().setPath(path);
-        builder.body().setTabletIndex(tableIndex);
-        builder.body().setTrimmedRowCount(trimmedRowCount);
-        return RpcUtil.apply(invoke(builder), response -> null);
+    public CompletableFuture<Void> trimTable(TrimTable req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.trimTable()),
+                response -> null);
     }
 
     public CompletableFuture<Void> alterTable(AlterTable req) {
@@ -624,56 +615,58 @@ public class ApiServiceClient extends TransactionalClient {
             boolean enabled,
             ETableReplicaMode mode,
             boolean preserveTimestamp,
-            EAtomicity atomicity) {
-        return alterTableReplica(replicaId, enabled, mode, preserveTimestamp, atomicity, null);
-    }
-
-    public CompletableFuture<Void> alterTableReplica(
-            GUID replicaId,
-            boolean enabled,
-            ETableReplicaMode mode,
-            boolean preserveTimestamp,
-            EAtomicity atomicity,
-            @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqAlterTableReplica.Builder, RpcClientResponse<TRspAlterTableReplica>>
-                builder = service.alterTableReplica();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
+            EAtomicity atomicity)
+    {
+        TableReplicaMode convertedMode;
+        switch (mode) {
+            case TRM_ASYNC:
+                convertedMode = TableReplicaMode.Async;
+                break;
+            case TRM_SYNC:
+                convertedMode = TableReplicaMode.Sync;
+                break;
+            default:
+                throw new IllegalArgumentException();
         }
-        builder.body()
-                .setReplicaId(RpcUtil.toProto(replicaId))
-                .setEnabled(enabled)
-                .setPreserveTimestamps(preserveTimestamp)
-                .setAtomicity(atomicity)
-                .setMode(mode);
+        Atomicity convertedAtomicity;
+        switch (atomicity) {
+            case A_FULL:
+                convertedAtomicity = Atomicity.Full;
+                break;
+            case A_NONE:
+                convertedAtomicity = Atomicity.None;
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
 
-        return RpcUtil.apply(invoke(builder), response -> null);
+        return alterTableReplica(
+                new AlterTableReplica(replicaId)
+                        .setEnabled(enabled)
+                        .setMode(convertedMode)
+                        .setPreserveTimestamps(preserveTimestamp)
+                        .setAtomicity(convertedAtomicity)
+        );
     }
 
-    /* */
+    public CompletableFuture<Void> alterTableReplica(AlterTableReplica req) {
+        return RpcUtil.apply(
+                sendRequest(req, service.alterTableReplica()),
+                response -> null);
+    }
 
     @Override
     public CompletableFuture<GUID> startOperation(StartOperation req) {
-        RpcClientRequestBuilder<TReqStartOperation.Builder, RpcClientResponse<TRspStartOperation>>
-                builder = service.startOperation();
-
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
-        return RpcUtil.apply(invoke(builder), response -> RpcUtil.fromProto(response.body().getOperationId()));
+        return RpcUtil.apply(
+                sendRequest(req, service.startOperation()),
+                response -> RpcUtil.fromProto(response.body().getOperationId()));
     }
 
-    /* Jobs */
     @Override
     public CompletableFuture<TCheckPermissionResult> checkPermission(CheckPermission req) {
-        RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>>
-                builder = service.checkPermission();
-
-        req.writeHeaderTo(builder.header());
-        req.writeTo(builder.body());
-
-        return RpcUtil.apply(invoke(builder), response -> response.body().getResult());
+        return RpcUtil.apply(
+                sendRequest(req, service.checkPermission()),
+                response -> response.body().getResult());
     }
 
     @Override
