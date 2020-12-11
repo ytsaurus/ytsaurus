@@ -25,6 +25,7 @@ import os
 import shutil
 from copy import deepcopy
 
+
 def _convert_to_bytes(value):
     if not PY3:  # Fast path
         return str(value)

@@ -449,6 +449,8 @@ def simplify_structure(obj):
 
     if attributes is not None:
         obj.attributes = attributes
+    elif isinstance(obj, yson.YsonType) and obj.has_attributes():
+        obj.attributes = simplify_structure(obj.attributes)
 
     return obj
 
