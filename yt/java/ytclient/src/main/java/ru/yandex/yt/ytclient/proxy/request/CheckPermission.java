@@ -1,16 +1,17 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import java.util.Collections;
 import java.util.Set;
 
 import javax.annotation.Nonnull;
 
-import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class CheckPermission extends MutateNode<CheckPermission> {
+public class CheckPermission extends MutateNode<CheckPermission> implements HighLevelRequest<TReqCheckPermission.Builder> {
     private final String user;
     private final String path;
     private final int permissions;
@@ -19,7 +20,7 @@ public class CheckPermission extends MutateNode<CheckPermission> {
     private MasterReadOptions masterReadOptions;
 
     public CheckPermission(String user, String path, int permissions) {
-        this(user, path, permissions, Cf.set());
+        this(user, path, permissions, Collections.emptySet());
     }
 
     public CheckPermission(String user, String path, int permissions, Set<String> columns) {
@@ -34,7 +35,15 @@ public class CheckPermission extends MutateNode<CheckPermission> {
         return this;
     }
 
-    public TReqCheckPermission.Builder writeTo(TReqCheckPermission.Builder builder) {
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqCheckPermission.Builder, ?> requestBuilder) {
+        TReqCheckPermission.Builder builder = requestBuilder.body();
+
+        builder
+                .setUser(user)
+                .setPath(path)
+                .setPermission(permissions)
+                .setColumns(TReqCheckPermission.TColumns.newBuilder().addAllItems(columns));
 
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
@@ -48,12 +57,14 @@ public class CheckPermission extends MutateNode<CheckPermission> {
         if (masterReadOptions != null) {
             builder.setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
         }
+    }
 
-        return builder
-                .setUser(user)
-                .setPath(path)
-                .setPermission(permissions)
-                .setColumns(TReqCheckPermission.TColumns.newBuilder().addAllItems(columns));
+    @Override
+    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+        sb.append("Path: ").append(path).append("; ");
+        sb.append("User: ").append(user).append("; ");
+        sb.append("Permissions: ").append(permissions).append("; ");
+        super.writeArgumentsLogString(sb);
     }
 
     @Nonnull

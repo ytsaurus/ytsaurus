@@ -6,12 +6,14 @@ import com.google.protobuf.ByteString;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EOperationType;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
-public class StartOperation extends RequestBase<StartOperation> {
+public class StartOperation extends RequestBase<StartOperation> implements HighLevelRequest<TReqStartOperation.Builder> {
     private final EOperationType type;
     private final YTreeNode spec;
 
@@ -33,9 +35,11 @@ public class StartOperation extends RequestBase<StartOperation> {
         return this;
     }
 
-    public TReqStartOperation.Builder writeTo(TReqStartOperation.Builder builder) {
-        ByteString.Output output = ByteString.newOutput();
 
+    @Override
+    public void writeTo(RpcClientRequestBuilder<TReqStartOperation.Builder, ?> requestBuilder) {
+        TReqStartOperation.Builder builder = requestBuilder.body();
+        ByteString.Output output = ByteString.newOutput();
         YTreeBinarySerializer.serialize(spec, output);
 
         builder
@@ -49,8 +53,17 @@ public class StartOperation extends RequestBase<StartOperation> {
         if (mutatingOptions != null) {
             builder.setMutatingOptions(mutatingOptions.writeTo(TMutatingOptions.newBuilder()));
         }
+    }
 
-        return builder;
+    @Override
+    protected void writeArgumentsLogString(@Nonnull StringBuilder sb) {
+        sb.append("OperationType: ").append(type).append("; ");
+        super.writeArgumentsLogString(sb);
+    }
+
+    @Override
+    public void writeHeaderTo(TRequestHeader.Builder header) {
+        super.writeHeaderTo(header);
     }
 
     @Nonnull
