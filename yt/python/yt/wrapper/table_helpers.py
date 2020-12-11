@@ -6,7 +6,7 @@ from .batch_helpers import batch_apply, create_batch_client
 from .common import (NullContext, update, get_value, chunk_iter_stream, require, get_disk_size,
                      is_of_iterable_type, flatten)
 from .config import get_config
-from .errors import YtError, YtResponseError
+from .errors import YtError
 from .format import create_format, YsonFormat, YamrFormat, SkiffFormat
 from .ypath import TablePath
 from .cypress_commands import exists, get, get_attribute, remove

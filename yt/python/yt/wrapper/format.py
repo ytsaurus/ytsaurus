@@ -213,6 +213,9 @@ class Format(object):
             return self._raw
         return raw
 
+    def __str__(self):
+        return to_native_str(str(self._name))
+
     def __repr__(self):
         return to_native_str(yson.dumps(self._name))
 

@@ -37,6 +37,7 @@ import yt.wrapper as yt
 from yandex.type_info import typing
 
 import io
+import json
 import logging
 import os
 import pytest
@@ -639,6 +640,25 @@ print(op.id)
         yt.run_map_reduce(mapper=None, reducer="cat", reduce_by=["x"],
                           source_table=table, destination_table=output_table, spec=spec)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
+
+    @authors("ignat")
+    def test_table_file(self):
+        def foo(row):
+            assert json.load(open("./table_file")) == {"data": 10}
+            yield row
+
+        input_table = TEST_DIR + "/input_table"
+        output_table = TEST_DIR + "/output_table"
+        table_file = TEST_DIR + "/table_file"
+
+        yt.write_table(input_table, [{"x": 1}, {"y": 2}])
+        yt.write_table(table_file, [{"data": 10}])
+
+        table_file_with_format = yt.FilePath(
+            table_file,
+            attributes={"format": yt.JsonFormat(encoding="utf-8", encode_utf8=False)})
+
+        yt.run_map(foo, input_table, output_table, yt_files=[table_file_with_format])
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestStderrTable(object):
@@ -1467,7 +1487,7 @@ class TestOperationsTmpfs(object):
                 diff = -diff
             assert tmpfs_size > 8 * 1024
             assert diff < dynamic_libraries_size_correction + 2 * 1024 * 1024  # TMPFS_ADDEND + TMPFS_MULTIPLIER * archive_size + {rounded up file sizes}
-            
+
             memory_limit_addend = ASAN_USER_JOB_MEMORY_LIMIT if yatest_common.context.sanitize == "address" else 512 * 1024 * 1024
             assert memory_limit - tmpfs_size == memory_limit_addend
             assert get_spec_option(op.id, "mapper/tmpfs_path") == "."
