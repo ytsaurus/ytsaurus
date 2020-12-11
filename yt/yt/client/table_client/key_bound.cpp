@@ -21,6 +21,8 @@ namespace NDetail {
 template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::FromRow(const TRow& row, bool isInclusive, bool isUpper)
 {
+    YT_VERIFY(row);
+
     ValidateValueTypes(row);
     TKeyBound result;
     result.Prefix = row;
@@ -32,6 +34,8 @@ TKeyBound TKeyBoundImpl<TRow, TKeyBound>::FromRow(const TRow& row, bool isInclus
 template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::FromRow(TRow&& row, bool isInclusive, bool isUpper)
 {
+    YT_VERIFY(row);
+
     ValidateValueTypes(row);
     TKeyBound result;
     result.Prefix = row;
@@ -43,6 +47,8 @@ TKeyBound TKeyBoundImpl<TRow, TKeyBound>::FromRow(TRow&& row, bool isInclusive, 
 template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::FromRowUnchecked(const TRow& row, bool isInclusive, bool isUpper)
 {
+    YT_VERIFY(row);
+
 #ifndef NDEBUG
     try {
         ValidateValueTypes(row);
@@ -61,6 +67,8 @@ TKeyBound TKeyBoundImpl<TRow, TKeyBound>::FromRowUnchecked(const TRow& row, bool
 template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::FromRowUnchecked(TRow&& row, bool isInclusive, bool isUpper)
 {
+    YT_VERIFY(row);
+
 #ifndef NDEBUG
     try {
         ValidateValueTypes(row);
@@ -91,6 +99,8 @@ TKeyBound TKeyBoundImpl<TRow, TKeyBound>::MakeEmpty(bool isUpper)
 template <class TRow, class TKeyBound>
 void TKeyBoundImpl<TRow, TKeyBound>::ValidateValueTypes(const TRow& row)
 {
+    YT_VERIFY(row);
+
     for (const auto& value : row) {
         ValidateDataValueType(value.Type);
     }
@@ -99,40 +109,54 @@ void TKeyBoundImpl<TRow, TKeyBound>::ValidateValueTypes(const TRow& row)
 template <class TRow, class TKeyBound>
 void TKeyBoundImpl<TRow, TKeyBound>::FormatValue(TStringBuilderBase* builder) const
 {
-    builder->AppendChar(IsUpper ? '<' : '>');
-    if (IsInclusive) {
-        builder->AppendChar('=');
+    if (Prefix) {
+        builder->AppendChar(IsUpper ? '<' : '>');
+        if (IsInclusive) {
+            builder->AppendChar('=');
+        }
+        builder->AppendFormat("%v", Prefix);
+    } else {
+        builder->AppendChar('#');
     }
-    builder->AppendFormat("%v", Prefix);
+}
+
+template <class TRow, class TKeyBound>
+TKeyBoundImpl<TRow, TKeyBound>::operator bool() const
+{
+    return static_cast<bool>(Prefix);
 }
 
 template <class TRow, class TKeyBound>
 bool TKeyBoundImpl<TRow, TKeyBound>::IsUniversal() const
 {
-    return IsInclusive && Prefix.GetCount() == 0;
+    return IsInclusive && Prefix && Prefix.GetCount() == 0;
 }
 
 template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::Invert() const
 {
+    YT_VERIFY(Prefix);
     return TKeyBound::FromRowUnchecked(Prefix, !IsInclusive, !IsUpper);
 }
 
 template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::ToggleInclusiveness() const
 {
+    YT_VERIFY(Prefix);
     return TKeyBound::FromRowUnchecked(Prefix, !IsInclusive, IsUpper);
 }
 
 template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::UpperCounterpart() const
 {
+    YT_VERIFY(Prefix);
     return IsUpper ? *static_cast<const TKeyBound*>(this) : Invert();
 }
 
 template <class TRow, class TKeyBound>
 TKeyBound TKeyBoundImpl<TRow, TKeyBound>::LowerCounterpart() const
 {
+    YT_VERIFY(Prefix);
     return IsUpper ? Invert() : *static_cast<const TKeyBound*>(this);
 }
 
@@ -196,6 +220,11 @@ bool operator ==(const TKeyBound& lhs, const TKeyBound& rhs)
         lhs.Prefix == rhs.Prefix &&
         lhs.IsInclusive == rhs.IsInclusive &&
         lhs.IsUpper == rhs.IsUpper;
+}
+
+bool operator ==(const TOwningKeyBound& lhs, const TOwningKeyBound& rhs)
+{
+    return static_cast<TKeyBound>(lhs) == static_cast<TKeyBound>(rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,7 @@
 
 #include <yt/client/chunk_client/proto/read_limit.pb.h>
 
+#include <yt/client/table_client/key_bound.h>
 #include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/core/yson/consumer.h>
@@ -123,6 +124,55 @@ void FromProto(TLegacyReadRange* readRange, const NProto::TReadRange& protoReadR
 
 void Serialize(const TLegacyReadRange& readRange, NYson::IYsonConsumer* consumer);
 void Deserialize(TLegacyReadRange& readRange, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReadLimit
+{
+public:
+    DEFINE_BYREF_RW_PROPERTY(NTableClient::TOwningKeyBound, KeyBound);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<i64>, RowIndex);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<i64>, Offset);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<i64>, ChunkIndex);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<i32>, TabletIndex);
+
+public:
+    TReadLimit() = default;
+    TReadLimit(
+        const NProto::TReadLimit& readLimit,
+        bool isUpper,
+        std::optional<int> keyLength = std::nullopt);
+
+    bool IsTrivial() const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString ToString(const TReadLimit& readLimit);
+
+void ToProto(NProto::TReadLimit* protoReadLimit, const TReadLimit& readLimit);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReadRange
+{
+public:
+    DEFINE_BYREF_RW_PROPERTY(TReadLimit, LowerLimit);
+    DEFINE_BYREF_RW_PROPERTY(TReadLimit, UpperLimit);
+
+public:
+    TReadRange() = default;
+    TReadRange(TReadLimit lowerLimit, TReadLimit upperLimit);
+    TReadRange(
+        const NProto::TReadRange& range,
+        std::optional<int> keyLength = std::nullopt);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString ToString(const TReadRange& readRange);
+
+void ToProto(NProto::TReadRange* protoReadRange, const TReadRange& readRange);
 
 ////////////////////////////////////////////////////////////////////////////////
 
