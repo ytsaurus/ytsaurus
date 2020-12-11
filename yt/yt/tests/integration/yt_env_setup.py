@@ -1000,7 +1000,7 @@ class YTEnvSetup(object):
                 [
                     yt_commands.make_batch_request(
                         "get",
-                        path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node),
+                        path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/applied_config".format(node),
                         return_only_value=True,
                     )
                     for node in nodes

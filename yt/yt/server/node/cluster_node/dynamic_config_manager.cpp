@@ -6,197 +6,40 @@
 
 #include <yt/server/node/data_node/master_connector.h>
 
-#include <yt/ytlib/api/native/client.h>
-
-#include <yt/core/concurrency/periodic_executor.h>
-
-#include <yt/core/ytree/ypath_service.h>
-
 namespace NYT::NClusterNode {
 
-using namespace NApi;
-using namespace NConcurrency;
-using namespace NLogging;
-using namespace NYTree;
-using namespace NYson;
+using namespace NDynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger& Logger = ClusterNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TDynamicConfigManager::TDynamicConfigManager(
-    TDynamicConfigManagerConfigPtr config,
-    TBootstrap* bootstrap)
-    : Config_(std::move(config))
+TClusterNodeDynamicConfigManager::TClusterNodeDynamicConfigManager(const TBootstrap* bootstrap)
+    : TDynamicConfigManagerBase<TClusterNodeDynamicConfig>(
+        TDynamicConfigManagerOptions{
+            .ConfigPath = "//sys/cluster_nodes/@config",
+            .Name = "ClusterNode",
+            .ConfigIsTagged = true
+        },
+        bootstrap->GetConfig()->DynamicConfigManager,
+        bootstrap->GetMasterClient(),
+        bootstrap->GetControlInvoker())
     , Bootstrap_(bootstrap)
-    , ControlInvoker_(Bootstrap_->GetControlInvoker())
-    , Executor_(New<TPeriodicExecutor>(
-        ControlInvoker_,
-        BIND(&TDynamicConfigManager::DoFetchConfig, MakeWeak(this)),
-        Config_->UpdatePeriod))
-    , DynamicConfig_(GetEphemeralNodeFactory()->CreateMap())
-{ }
-
-void TDynamicConfigManager::Start()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    if (!Config_->Enabled) {
-        return;
-    }
-
-    YT_LOG_INFO("Starting dynamic config manager (UpdatePeriod: %v)",
-        Config_->UpdatePeriod);
-
     Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(
-        BIND(&TDynamicConfigManager::PopulateAlerts, MakeWeak(this)));
-    Executor_->Start();
-}
-
-void TDynamicConfigManager::PopulateAlerts(std::vector<TError>* errors)
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    if (!LastError_.IsOK()) {
-        errors->push_back(LastError_);
-    }
-    if (!LastUnrecognizedOptionError_.IsOK()) {
-        errors->push_back(LastUnrecognizedOptionError_);
-    }
-}
-
-NYTree::IYPathServicePtr TDynamicConfigManager::GetOrchidService()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    auto producer = BIND(&TDynamicConfigManager::DoBuildOrchid, MakeStrong(this));
-    return IYPathService::FromProducer(producer);
-}
-
-bool TDynamicConfigManager::IsDynamicConfigLoaded() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return ConfigLoaded_.load();
-}
-
-void TDynamicConfigManager::DoFetchConfig()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    YT_LOG_INFO("Fetching dynamic node config");
-    try {
-        TryFetchConfig();
-        LastError_ = {};
-    } catch (const std::exception& ex) {
-        YT_LOG_WARNING(TError(ex));
-        LastError_ = ex;
-    }
-}
-
-void TDynamicConfigManager::TryFetchConfig()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    const auto& client = Bootstrap_->GetMasterClient();
-
-    NApi::TGetNodeOptions getOptions;
-    getOptions.ReadFrom = EMasterChannelKind::Cache;
-    auto configOrError = WaitFor(client->GetNode("//sys/cluster_nodes/@config", getOptions));
-    if (configOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-        // TODO(gritukan): Set alert here after YT-12933.
-        YT_LOG_INFO("Dynamic config node does not exist");
-        return;
-    }
-
-    THROW_ERROR_EXCEPTION_IF_FAILED(configOrError,
-        NClusterNode::EErrorCode::FailedToFetchDynamicConfig,
-        "Failed to fetch dynamic config from Cypress")
-
-    auto configNode = ConvertTo<IMapNodePtr>(configOrError.Value());
-    auto nodeTagList = Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetTags();
-
-    auto nodeTagListChanged = (nodeTagList != CurrentNodeTagList_);
-    if (nodeTagListChanged) {
-        YT_LOG_INFO("Node tag list has changed (OldNodeTagList: %v, NewNodeTagList: %v)",
-            CurrentNodeTagList_,
-            nodeTagList);
-        CurrentNodeTagList_ = nodeTagList;
-    }
-
-    std::optional<int> matchingConfigIndex;
-    auto configs = configNode->GetChildren();
-    for (int configIndex = 0; configIndex < configs.size(); ++configIndex) {
-        if (MakeBooleanFormula(configs[configIndex].first).IsSatisfiedBy(CurrentNodeTagList_)) {
-            if (matchingConfigIndex) {
-                THROW_ERROR_EXCEPTION(NClusterNode::EErrorCode::DuplicateMatchingDynamicConfigs,
-                    "Found duplicate matching dynamic configs")
-                    << TErrorAttribute("first_config_filter", configs[*matchingConfigIndex].first)
-                    << TErrorAttribute("second_config_filter", configs[configIndex].first);
+        BIND([this, this_ = MakeStrong(this)] (std::vector<TError>* alerts) {
+            auto errors = GetErrors();
+            for (auto error : errors) {
+                alerts->push_back(error);
             }
-
-            YT_LOG_INFO("Found matching dynamic config (DynamicConfigFilter: %v)",
-                configs[configIndex].first);
-            matchingConfigIndex = configIndex;
-        }
-    }
-
-    INodePtr newConfigNode;
-    if (matchingConfigIndex) {
-        newConfigNode = configs[*matchingConfigIndex].second;
-    } else {
-        YT_LOG_INFO("No matching config found; using empty config");
-        newConfigNode = GetEphemeralNodeFactory()->CreateMap();
-    }
-
-    if (AreNodesEqual(newConfigNode, DynamicConfig_)) {
-        return;
-    }
-
-    YT_LOG_INFO("Node dynamic config has changed, reconfiguring");
-
-    auto newConfig = New<TClusterNodeDynamicConfig>();
-    newConfig->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
-    try {
-        newConfig->Load(newConfigNode);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION(NClusterNode::EErrorCode::InvalidDynamicConfig, "Invalid dynamic node config")
-            << ex;
-    }
-
-    auto unrecognizedOptions = newConfig->GetUnrecognizedRecursively();
-    if (unrecognizedOptions && unrecognizedOptions->GetChildCount() > 0 && Config_->EnableUnrecognizedOptionsAlert) {
-        auto error = TError(NClusterNode::EErrorCode::UnrecognizedDynamicConfigOption,
-            "Found unrecognized options in dynamic config")
-            << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, EYsonFormat::Text));
-        YT_LOG_WARNING(error);
-        LastUnrecognizedOptionError_ = error;
-    } else {
-        LastUnrecognizedOptionError_ = TError();
-    }
-
-    DynamicConfig_ = newConfigNode;
-    ConfigUpdated_.Fire(newConfig);
-    LastConfigUpdateTime_ = TInstant::Now();
-    ConfigLoaded_.store(true);
+        }));
 }
 
-void TDynamicConfigManager::DoBuildOrchid(IYsonConsumer* consumer)
+std::vector<TString> TClusterNodeDynamicConfigManager::GetInstanceTags() const
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("config").Value(DynamicConfig_)
-            .Item("last_config_update_time").Value(LastConfigUpdateTime_)
-        .EndMap();
+    return Bootstrap_->GetMasterConnector()->GetLocalDescriptor().GetTags();
 }
 
-DEFINE_REFCOUNTED_TYPE(TDynamicConfigManager)
+DEFINE_REFCOUNTED_TYPE(TClusterNodeDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClusterNode
-

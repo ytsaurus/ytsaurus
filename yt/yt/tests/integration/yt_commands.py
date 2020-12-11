@@ -68,10 +68,10 @@ NoSuchOperation = 1915
 NoSuchJob = 1916
 NoSuchAttribute = 1920
 UnrecognizedConfigOption = 2500
-FailedToFetchDynamicConfig = 2501
-DuplicateMatchingDynamicConfigs = 2502
-UnrecognizedDynamicConfigOption = 2503
-InvalidDynamicConfig = 2505
+FailedToFetchDynamicConfig = 2600
+DuplicateMatchingDynamicConfigs = 2601
+UnrecognizedDynamicConfigOption = 2602
+InvalidDynamicConfig = 2604
 ControllerMemoryLimitExceeded = 4416
 ContainerDoesNotExist = 12004
 
@@ -2515,7 +2515,7 @@ def scheduler_orchid_node_path(node):
 
 
 def get_applied_node_dynamic_config(node):
-    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node))
+    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/applied_config".format(node))
 
 
 # Implements config.update(new_config) for dynamic nodes config and waits for config apply

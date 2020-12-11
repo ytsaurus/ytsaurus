@@ -2,14 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/actions/future.h>
-#include <yt/core/actions/signal.h>
-
-#include <yt/core/concurrency/public.h>
-
-#include <yt/core/misc/error.h>
-
-#include <yt/core/ytree/public.h>
+#include <yt/server/lib/dynamic_config/dynamic_config_manager.h>
 
 namespace NYT::NClusterNode {
 
@@ -21,54 +14,20 @@ namespace NYT::NClusterNode {
  *  \note
  *  Thread affinity: Control (unless noted otherwise)
  */
-class TDynamicConfigManager
-    : public TRefCounted
+class TClusterNodeDynamicConfigManager
+    : public NDynamicConfig::TDynamicConfigManagerBase<TClusterNodeDynamicConfig>
 {
 public:
-    //! Raised in Control thread when dynamic config changes.
-    DEFINE_SIGNAL(void(const TClusterNodeDynamicConfigPtr&), ConfigUpdated);
+    TClusterNodeDynamicConfigManager(const TBootstrap* bootstrap);
 
-public:
-    TDynamicConfigManager(
-        TDynamicConfigManagerConfigPtr config,
-        TBootstrap* bootstrap);
-
-    void Start();
-
-    void PopulateAlerts(std::vector<TError>* errors);
-
-    NYTree::IYPathServicePtr GetOrchidService();
-
-    /*!
-    *  \note
-    *  Thread affinity: any
-    */
-    bool IsDynamicConfigLoaded() const;
+protected:
+    virtual std::vector<TString> GetInstanceTags() const override;
 
 private:
-    void DoFetchConfig();
-    void TryFetchConfig();
-
-    void DoBuildOrchid(NYson::IYsonConsumer* consumer);
-
-    const TDynamicConfigManagerConfigPtr Config_;
-    TBootstrap* const Bootstrap_;
-
-    const IInvokerPtr ControlInvoker_;
-    const NConcurrency::TPeriodicExecutorPtr Executor_;
-
-    NYTree::INodePtr DynamicConfig_;
-    std::vector<TString> CurrentNodeTagList_;
-
-    TError LastError_;
-    TError LastUnrecognizedOptionError_;
-
-    TInstant LastConfigUpdateTime_;
-
-    std::atomic<bool> ConfigLoaded_ = false;
+    const TBootstrap* Bootstrap_;
 };
 
-DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
+DECLARE_REFCOUNTED_CLASS(TClusterNodeDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

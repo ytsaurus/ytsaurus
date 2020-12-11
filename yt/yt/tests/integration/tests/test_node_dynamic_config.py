@@ -17,11 +17,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
         },
     }
 
-    def get_dynamic_config(self, node):
-        return get("//sys/cluster_nodes/{}/orchid/dynamic_config_manager/config".format(node))
-
     def get_dynamic_config_annotation(self, node):
-        dynamic_config = self.get_dynamic_config(node)
+        dynamic_config = get_applied_node_dynamic_config(node)
         if type(dynamic_config) == YsonEntity:
             return ""
 
@@ -45,7 +42,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
         for node in ls("//sys/cluster_nodes"):
             wait(lambda: self.get_dynamic_config_annotation(node) == "foo")
 
-        set("//sys/cluster_nodes/@config", {})
+        set("//sys/cluster_nodes/@config", {"%true": {}})
 
         for node in ls("//sys/cluster_nodes"):
             wait(lambda: self.get_dynamic_config_annotation(node) == "")
@@ -144,7 +141,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0)
 
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "boo")
-        assert self.get_dynamic_config(nodes[0])["some_unrecognized_option"] == 42
+        assert get_applied_node_dynamic_config(nodes[0])["some_unrecognized_option"] == 42
         wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "foo")
 
     @authors("gritukan")
@@ -203,7 +200,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[2]), ["nodeA", "nodeB"])
 
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "foo")
-        wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "")
+        wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "default")
         wait(lambda: self.get_dynamic_config_annotation(nodes[2]) == "foo")
 
         config = {
@@ -342,8 +339,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(lambda: check_jobs())
         wait(lambda: check_tablet_cells())
         for node in ls("//sys/cluster_nodes"):
-            # Default dynamic config has no annotation.
-            assert self.get_dynamic_config_annotation(node) == ""
+            assert not exists("//sys/cluster_nodes/dynamic_config_manager/applied_config")
             assert len(get("//sys/cluster_nodes/{0}/@alerts".format(node))) == 0
 
     @authors("gritukan")
