@@ -114,6 +114,7 @@ DEFINE_ENUM(EMasterReign,
     ((MutationIdempotizerToggle)                                    (1429))  // shakurov
     ((FixChunkSealValidation)                                       (1430))  // babenko
     ((SupportIsaReedSolomon63_20_3)                                 (1431))  // akozhikhov
+    ((TabletCellStatusGossipPeriod)                                 (1432))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
