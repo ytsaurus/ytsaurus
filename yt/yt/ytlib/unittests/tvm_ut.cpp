@@ -222,7 +222,7 @@ protected:
     {
         for (const auto file : { "public_keys", "service_tickets" }) {
             NFs::Copy(
-                ArcadiaSourceRoot() + "/library/cpp/ticket_parser2/client/ut/files/" + file,
+                ArcadiaSourceRoot() + "/library/cpp/tvmauth/client/ut/files/" + file,
                 CACHE_PATH + file);
         }
     }
