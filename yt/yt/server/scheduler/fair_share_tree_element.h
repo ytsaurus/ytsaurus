@@ -488,8 +488,6 @@ public:
     virtual std::optional<TMeteringKey> GetMeteringKey() const;
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const;
 
-    void BuildYson(NYTree::TFluentMap fluent) const;
-
     void Profile(NProfiling::ISensorWriter* writer, bool profilingCompatibilityEnabled) const;
 
     virtual bool AreDetailedLogsEnabled() const;

@@ -1003,20 +1003,6 @@ double TSchedulerElement::GetIntegralShareRatioByVolume() const
     return GetAccumulatedResourceRatioVolume() / TreeConfig_->IntegralGuarantees->SmoothPeriod.SecondsFloat();
 }
 
-void TSchedulerElement::BuildYson(TFluentMap fluent) const
-{
-    fluent
-        .Item("detailed_fair_share").Value(Attributes_.FairShare)
-        .Item("demand_share").Value(Attributes_.DemandShare)
-        .Item("usage_share").Value(Attributes_.UsageShare)
-        .Item("limits_share").Value(Attributes_.LimitsShare)
-        .Item("min_share").Value(Attributes_.StrongGuaranteeShare)
-        .Item("proposed_integral_share").Value(Attributes_.ProposedIntegralShare)
-        .Item("promised_fair_share").Value(Attributes_.PromisedFairShare)
-        .Item("best_allocation_share").Value(PersistentAttributes_.BestAllocationShare)
-        .Item("local_satisfaction_ratio").Value(Attributes_.LocalSatisfactionRatio);
-}
-
 void TSchedulerElement::Profile(ISensorWriter* writer, bool profilingCompatibilityEnabled) const
 {
     const auto& detailedFairShare = Attributes().FairShare;
