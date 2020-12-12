@@ -15,8 +15,8 @@
 #include <yt/core/http/client.h>
 #include <yt/core/http/http.h>
 
-#include <library/cpp/ticket_parser2/client/facade.h>
-#include <library/cpp/ticket_parser2/client/logger.h>
+#include <library/cpp/tvmauth/client/facade.h>
+#include <library/cpp/tvmauth/client/logger.h>
 
 #include <util/system/mutex.h>
 
