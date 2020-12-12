@@ -64,6 +64,7 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TEventTimer StrategyScheduleJobTime;
     NProfiling::TEventTimer PackingRecordHeartbeatTime;
     NProfiling::TEventTimer PackingCheckTime;
+    NProfiling::TEventTimer AnalyzeJobsTime;
     NProfiling::TCounter ScheduleJobAttemptCount;
     NProfiling::TCounter ScheduleJobFailureCount;
 
@@ -74,7 +75,7 @@ struct TScheduleJobsProfilingCounters
 
 struct TDetailedFairShare
 {
-    TResourceVector MinShareGuarantee = {};
+    TResourceVector StrongGuarantee = {};
     TResourceVector IntegralGuarantee = {};
     TResourceVector WeightProportional = {};
     TResourceVector Total = {};
@@ -85,6 +86,7 @@ TString ToString(const TDetailedFairShare& detailedFairShare);
 void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /* format */);
 
 void Serialize(const TDetailedFairShare& detailedFairShare, NYson::IYsonConsumer* consumer);
+void SerializeDominant(const TDetailedFairShare& detailedFairShare, NYTree::TFluentAny fluent);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,9 +98,9 @@ struct TSchedulableAttributes
     TResourceVector UsageShare;
     TResourceVector DemandShare;
     TResourceVector LimitsShare;
-    TResourceVector MinShare;
+    TResourceVector StrongGuaranteeShare;
     TResourceVector ProposedIntegralShare;
-    TResourceVector UnlimitedDemandFairShare;
+    TResourceVector PromisedFairShare;
 
     double BurstRatio = 0.0;
     double TotalBurstRatio = 0.0;
@@ -117,17 +119,6 @@ struct TSchedulableAttributes
 
 
     // TODO(eshcherbin): Rethink whether we want to use |MaxComponent| here or the share of |DominantResource|.
-
-    double GetFairShareRatio() const
-    {
-        return MaxComponent(FairShare.Total);
-    }
-
-    double GetDemandRatio() const
-    {
-        return MaxComponent(DemandShare);
-    }
-
     TResourceVector GetFairShare() const
     {
         return FairShare.Total;
@@ -135,15 +126,15 @@ struct TSchedulableAttributes
 
     TResourceVector GetGuaranteeShare() const
     {
-        return MinShare + ProposedIntegralShare;
+        return StrongGuaranteeShare + ProposedIntegralShare;
     }
 
     void SetFairShare(const TResourceVector& fairShare)
     {
         FairShare.Total = fairShare;
-        FairShare.MinShareGuarantee = TResourceVector::Min(fairShare, MinShare);
-        FairShare.IntegralGuarantee = TResourceVector::Min(fairShare - FairShare.MinShareGuarantee, ProposedIntegralShare);
-        FairShare.WeightProportional = fairShare - FairShare.MinShareGuarantee - FairShare.IntegralGuarantee;
+        FairShare.StrongGuarantee = TResourceVector::Min(fairShare, StrongGuaranteeShare);
+        FairShare.IntegralGuarantee = TResourceVector::Min(fairShare - FairShare.StrongGuarantee, ProposedIntegralShare);
+        FairShare.WeightProportional = fairShare - FairShare.StrongGuarantee - FairShare.IntegralGuarantee;
     }
 };
 
@@ -241,6 +232,7 @@ private:
         TDuration ExecScheduleJobDuration;
         TDuration PackingRecordHeartbeatDuration;
         TDuration PackingCheckDuration;
+        TDuration AnalyzeJobsDuration;
         TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, int> FailedScheduleJob;
 
         int ActiveOperationCount = 0;
@@ -418,7 +410,7 @@ public:
     virtual std::optional<double> GetSpecifiedWeight() const = 0;
     virtual double GetWeight() const;
 
-    virtual TJobResources GetMinShareResources() const = 0;
+    virtual TJobResources GetStrongGuaranteeResources() const = 0;
 
     virtual TResourceVector GetMaxShare() const = 0;
 
@@ -453,7 +445,7 @@ public:
     TResourceVector GetResourceUsageShareWithPrecommit() const;
 
     // Used for diagnostics.
-    double GetResourceUsageRatioAtUpdate() const;
+    double GetResourceDominantUsageShareAtUpdate() const;
 
     virtual TString GetTreeId() const;
 
@@ -498,7 +490,7 @@ public:
 
     void BuildYson(NYTree::TFluentMap fluent) const;
 
-    void Profile(NProfiling::ISensorWriter* writer) const;
+    void Profile(NProfiling::ISensorWriter* writer, bool profilingCompatibilityEnabled) const;
 
     virtual bool AreDetailedLogsEnabled() const;
 
@@ -635,7 +627,7 @@ public:
     void SetMode(ESchedulingMode);
 
     void RegisterProfiler(const NProfiling::TRegistry& profiler);
-    void ProfileFull();
+    void ProfileFull(bool profilingCompatibilityEnabled);
 
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
@@ -700,13 +692,13 @@ protected:
         bool strictMode = true);
 
     void InitIntegralPoolLists(TUpdateFairShareContext* context);
-    void AdjustMinShares();
+    void AdjustStrongGuarantees();
 
     void PrepareFairShareByFitFactorFifo(TUpdateFairShareContext* context);
     void PrepareFairShareByFitFactorNormal(TUpdateFairShareContext* context);
 
     void PrepareFifoPool();
-    void UpdateMinShareNormal(TUpdateFairShareContext* context);
+    void UpdateStrongGuaranteeNormal(TUpdateFairShareContext* context);
 
     using TChildSuggestions = std::vector<double>;
     TChildSuggestions GetEnabledChildSuggestionsFifo(double fitFactor);
@@ -783,7 +775,7 @@ public:
     virtual TString GetId() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual TJobResources GetMinShareResources() const override;
+    virtual TJobResources GetStrongGuaranteeResources() const override;
     virtual TResourceVector GetMaxShare() const override;
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const override;
 
@@ -1064,7 +1056,7 @@ public:
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual TJobResources GetMinShareResources() const override;
+    virtual TJobResources GetStrongGuaranteeResources() const override;
     virtual TResourceVector GetMaxShare() const override;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
@@ -1095,7 +1087,7 @@ public:
     std::optional<int> GetMaybeSlotIndex() const;
 
     void RegisterProfiler(std::optional<int> slotIndex, const NProfiling::TRegistry& profiler);
-    void ProfileFull();
+    void ProfileFull(bool profilingCompatibilityEnabled);
 
     TString GetUserName() const;
 
@@ -1229,7 +1221,7 @@ public:
 
     //! Computes various lightweight attributes in the tree. Thread-unsafe.
     void PreUpdate(TUpdateFairShareContext* context);
-    //! Computes min share ratio and fair share ratio in the tree. Thread-safe.
+    //! Computes fair shares in the tree. Thread-safe.
     void Update(TUpdateFairShareContext* context);
 
     void UpdateFairShare(TUpdateFairShareContext* context);
@@ -1244,7 +1236,7 @@ public:
     virtual TString GetId() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual TJobResources GetMinShareResources() const override;
+    virtual TJobResources GetStrongGuaranteeResources() const override;
     virtual TResourceVector GetMaxShare() const override;
 
     virtual double GetFairShareStarvationTolerance() const override;

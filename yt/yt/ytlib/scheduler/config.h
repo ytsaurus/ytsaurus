@@ -136,7 +136,7 @@ public:
     TResourceLimitsConfigPtr ResourceLimits;
 
     // Specifies guaranteed resources in absolute values.
-    TResourceLimitsConfigPtr MinShareResources;
+    TResourceLimitsConfigPtr StrongGuaranteeResources;
 
     // The following settings override scheduler configuration.
     std::optional<TDuration> FairSharePreemptionTimeout;

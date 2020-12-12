@@ -10,12 +10,15 @@ namespace NYT::NScheduler {
 
 class TMeteringStatistics
 {
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, MinShareResources);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, StrongGuaranteeResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AllocatedResources);
     DEFINE_BYREF_RO_PROPERTY(TJobMetrics, JobMetrics);
 
 public:
-    TMeteringStatistics(TJobResources minShareResources, TJobResources allocatedResources, TJobMetrics jobMetrics);
+    TMeteringStatistics(
+        TJobResources strongGuaranteeResources,
+        TJobResources allocatedResources,
+        TJobMetrics jobMetrics);
 
     TMeteringStatistics& operator+=(const TMeteringStatistics& other);
     TMeteringStatistics& operator-=(const TMeteringStatistics& other);

@@ -209,6 +209,7 @@ public:
             case EInternedAttributeKey::MaxOperationCount:
             case EInternedAttributeKey::MaxRunningOperationCount:
             case EInternedAttributeKey::MinShareResources:
+            case EInternedAttributeKey::StrongGuaranteeResources:
             case EInternedAttributeKey::ForbidImmediateOperations:
             case EInternedAttributeKey::Mode:
             case EInternedAttributeKey::FifoSortParameters:

@@ -1560,7 +1560,8 @@ TSchedulableConfig::TSchedulableConfig()
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
 
-    RegisterParameter("min_share_resources", MinShareResources)
+    RegisterParameter("strong_guarantee_resources", StrongGuaranteeResources)
+        .Alias("min_share_resources")
         .DefaultNew();
 
     RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)

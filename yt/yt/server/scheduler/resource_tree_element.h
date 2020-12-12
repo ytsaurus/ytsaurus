@@ -40,9 +40,6 @@ public:
     inline TResourceVector GetFairShare() const;
     inline void SetFairShare(TResourceVector fairShare);
 
-    inline double GetFairShareRatio() const;
-    inline void SetFairShareRatio(double fairShare);
-
     inline const TString& GetId();
 
     void MarkInitialized();

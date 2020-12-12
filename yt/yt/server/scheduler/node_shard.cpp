@@ -578,9 +578,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
     }
 
-    YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
-        SubmitJobsToStrategy();
-    }
+    SubmitJobsToStrategy();
 
     if (!skipScheduleJobs) {
         YT_PROFILE_TIMING("/scheduler/schedule_time") {
@@ -602,9 +600,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             /* requestContext */ context);
 
         // NB: some jobs maybe considered aborted after processing scheduled jobs.
-        YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
-            SubmitJobsToStrategy();
-        }
+        SubmitJobsToStrategy();
 
         context->SetResponseInfo(
             "NodeId: %v, NodeAddress: %v, SchedulingSegment: %v, "

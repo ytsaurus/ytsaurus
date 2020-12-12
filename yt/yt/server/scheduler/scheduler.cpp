@@ -1393,7 +1393,8 @@ public:
                 .Item("finish").Value(now.Seconds())
             .EndMap()
             .Item("tags").BeginMap()
-                .Item("min_share_resources").Value(statistics.MinShareResources())
+                .Item("strong_guarantee_resources").Value(statistics.StrongGuaranteeResources())
+                .Item("min_share_resources").Value(statistics.StrongGuaranteeResources())
                 .Item("allocated_resources").Value(statistics.AllocatedResources())
                 .Item("pool_tree").Value(key.TreeId)
                 .Item("pool").Value(key.PoolId)
@@ -1708,6 +1709,11 @@ public:
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) override
     {
         MasterConnector_->InvokeStoringStrategyState(std::move(strategyState));
+    }
+
+    virtual bool IsCoreProfilingCompatibilityEnabled() const override
+    {
+        return Bootstrap_->GetConfig()->SolomonExporter->EnableCoreProfilingCompatibility;
     }
 
     TFuture<TOperationId> FindOperationIdByJobId(TJobId jobId)

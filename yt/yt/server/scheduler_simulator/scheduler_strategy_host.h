@@ -98,6 +98,8 @@ public:
 
     virtual void InvokeStoringStrategyState(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
 
+    virtual bool IsCoreProfilingCompatibilityEnabled() const override;
+
     void CloseEventLogger();
 
 private:

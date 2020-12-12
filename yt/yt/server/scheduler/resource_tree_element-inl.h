@@ -39,16 +39,6 @@ void TResourceTreeElement::SetFairShare(TResourceVector fairShare)
     FairShare_.Store(fairShare);
 }
 
-double TResourceTreeElement::GetFairShareRatio() const
-{
-    return MaxComponent(FairShare_.Load());
-}
-
-inline void TResourceTreeElement::SetFairShareRatio(double fairShare)
-{
-    FairShare_.Store(TResourceVector::FromDouble(fairShare));
-}
-
 const TString& TResourceTreeElement::GetId()
 {
     return Id_;

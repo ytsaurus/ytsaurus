@@ -71,6 +71,7 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
     , StrategyScheduleJobTime(profiler.Timer("/strategy_schedule_job_time"))
     , PackingRecordHeartbeatTime(profiler.Timer("/packing_record_heartbeat_time"))
     , PackingCheckTime(profiler.Timer("/packing_check_time"))
+    , AnalyzeJobsTime(profiler.Timer("/analyze_jobs"))
     , ScheduleJobAttemptCount(profiler.Counter("/schedule_job_attempt_count"))
     , ScheduleJobFailureCount(profiler.Counter("/schedule_job_failure_count"))
 {
@@ -91,8 +92,8 @@ TString ToString(const TDetailedFairShare& detailedFairShare)
 void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailedFairShare, TStringBuf /* format */)
 {
     builder->AppendFormat(
-        "{MinShareGuarantee: %.6g, IntegralGuarantee: %.6g, WeightProportional: %.6g}",
-        detailedFairShare.MinShareGuarantee,
+        "{StrongGuarantee: %.6g, IntegralGuarantee: %.6g, WeightProportional: %.6g}",
+        detailedFairShare.StrongGuarantee,
         detailedFairShare.IntegralGuarantee,
         detailedFairShare.WeightProportional);
 }
@@ -101,10 +102,21 @@ void Serialize(const TDetailedFairShare& detailedFairShare, NYson::IYsonConsumer
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("min_share_guarantee").Value(detailedFairShare.MinShareGuarantee)
+            .Item("strong_guarantee").Value(detailedFairShare.StrongGuarantee)
             .Item("integral_guarantee").Value(detailedFairShare.IntegralGuarantee)
             .Item("weight_proportional").Value(detailedFairShare.WeightProportional)
             .Item("total").Value(detailedFairShare.Total)
+        .EndMap();
+}
+
+void SerializeDominant(const TDetailedFairShare& detailedFairShare, TFluentAny fluent)
+{
+    fluent
+        .BeginMap()
+            .Item("strong_guarantee").Value(MaxComponent(detailedFairShare.StrongGuarantee))
+            .Item("integral_guarantee").Value(MaxComponent(detailedFairShare.IntegralGuarantee))
+            .Item("weight_proportional").Value(MaxComponent(detailedFairShare.WeightProportional))
+            .Item("total").Value(MaxComponent(detailedFairShare.Total))
         .EndMap();
 }
 
@@ -214,6 +226,7 @@ void TFairShareContext::ProfileStageTimings()
     profilingCounters->ExecControllerScheduleJobTime.Record(StageState_->ExecScheduleJobDuration);
     profilingCounters->PackingRecordHeartbeatTime.Record(StageState_->PackingRecordHeartbeatDuration);
     profilingCounters->PackingCheckTime.Record(StageState_->PackingCheckDuration);
+    profilingCounters->AnalyzeJobsTime.Record(StageState_->AnalyzeJobsDuration);
 
     profilingCounters->ScheduleJobAttemptCount.Increment(StageState_->ScheduleJobAttemptCount);
     profilingCounters->ScheduleJobFailureCount.Increment(StageState_->ScheduleJobFailureCount);
@@ -330,14 +343,14 @@ void TSchedulerElement::UpdateAttributes()
     YT_VERIFY(Dominates(TResourceVector::Ones(), Attributes_.LimitsShare));
     YT_VERIFY(Dominates(Attributes_.LimitsShare, TResourceVector::Zero()));
 
-    // TODO(eshcherbin): Make MinShare a true vector (see: YT-13755).
-    auto minShareRatio = GetMaxResourceRatio(GetMinShareResources(), TotalResourceLimits_);
-    Attributes_.MinShare = TResourceVector::FromDouble(minShareRatio);
+    // TODO(eshcherbin): Make StrongGuarantee a true vector (see: YT-13755).
+    auto strongGuaranteeDominantShare = GetMaxResourceRatio(GetStrongGuaranteeResources(), TotalResourceLimits_);
+    Attributes_.StrongGuaranteeShare = TResourceVector::FromDouble(strongGuaranteeDominantShare);
 
     // NB: We need to ensure that |FairShareByFitFactor_(0.0)| is less than or equal to |LimitsShare| so that there exists a feasible fit factor and |MaxFitFactorBySuggestion_| is well defined.
-    // To achieve this we limit |MinShare| with |LimitsShare| here, and later adjust the sum of children's |MinShare| to fit into the parent's |MinShare|.
+    // To achieve this we limit |StrongGuarantee| with |LimitsShare| here, and later adjust the sum of children's |StrongGuarantee| to fit into the parent's |StrongGuarantee|.
     // This way children can't ask more than parent's |LimitsShare| when given a zero suggestion.
-    Attributes_.MinShare = TResourceVector::Min(Attributes_.MinShare, Attributes_.LimitsShare);
+    Attributes_.StrongGuaranteeShare = TResourceVector::Min(Attributes_.StrongGuaranteeShare, Attributes_.LimitsShare);
 
     if (ResourceUsageAtUpdate_ == TJobResources()) {
         Attributes_.DominantResource = GetDominantResource(ResourceDemand_, TotalResourceLimits_);
@@ -378,11 +391,11 @@ TString TSchedulerElement::GetLoggingAttributesString() const
         "DemandShare: %.6g, "
         "UsageShare: %.6g, "
         "LimitsShare: %.6g, "
-        "MinShare: %.6g, "
+        "StrongGuaranteeShare: %.6g, "
         "FairShare: %.6g, "
         "Satisfaction: %.4lg, "
         "LocalSatisfaction: %.4lg, "
-        "UnlimitedDemandFairShare: %.6g, "
+        "PromisedFairShare: %.6g, "
         "Starving: %v, "
         "Weight: %v, "
         "Volume: %v",
@@ -391,11 +404,11 @@ TString TSchedulerElement::GetLoggingAttributesString() const
         Attributes_.DemandShare,
         Attributes_.UsageShare,
         Attributes_.LimitsShare,
-        Attributes_.MinShare,
+        Attributes_.StrongGuaranteeShare,
         Attributes_.FairShare,
         Attributes_.SatisfactionRatio,
         Attributes_.LocalSatisfactionRatio,
-        Attributes_.UnlimitedDemandFairShare,
+        Attributes_.PromisedFairShare,
         GetStarving(),
         GetWeight(),
         GetAccumulatedResourceRatioVolume());
@@ -428,25 +441,27 @@ double TSchedulerElement::GetWeight() const
         return *specifiedWeight;
     }
 
-    if (!TreeConfig_->InferWeightFromMinShareRatioMultiplier) {
+    if (!TreeConfig_->InferWeightFromStrongGuaranteeShareMultiplier) {
         return 1.0;
     }
-    double minShareRatio = MaxComponent(Attributes().MinShare);
+    double strongGuaranteeDominantShare = MaxComponent(Attributes().StrongGuaranteeShare);
 
-    if (minShareRatio < RatioComputationPrecision) {
+    if (strongGuaranteeDominantShare < RatioComputationPrecision) {
         return 1.0;
     }
 
-    double parentMinShareRatio = 1.0;
+    double parentStrongGuaranteeDominantShare = 1.0;
     if (GetParent()) {
-        parentMinShareRatio = MaxComponent(GetParent()->Attributes().MinShare);
+        parentStrongGuaranteeDominantShare = MaxComponent(GetParent()->Attributes().StrongGuaranteeShare);
     }
 
-    if (parentMinShareRatio < RatioComputationPrecision) {
+    if (parentStrongGuaranteeDominantShare < RatioComputationPrecision) {
         return 1.0;
     }
 
-    return minShareRatio * (*TreeConfig_->InferWeightFromMinShareRatioMultiplier) / parentMinShareRatio;
+    return strongGuaranteeDominantShare *
+        (*TreeConfig_->InferWeightFromStrongGuaranteeShareMultiplier) /
+        parentStrongGuaranteeDominantShare;
 }
 
 TCompositeSchedulerElement* TSchedulerElement::GetMutableParent()
@@ -526,7 +541,7 @@ TResourceVector TSchedulerElement::GetResourceUsageShare() const
         ResourceTreeElement_->GetResourceUsage(), TotalResourceLimits_, /* zeroDivByZero */ 0.0, /* oneDivByZero */ 1.0);
 }
 
-double TSchedulerElement::GetResourceUsageRatioAtUpdate() const
+double TSchedulerElement::GetResourceDominantUsageShareAtUpdate() const
 {
     return MaxComponent(Attributes_.UsageShare);
 }
@@ -780,7 +795,7 @@ TResourceVector TSchedulerElement::ComputeLimitsShare() const
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
 {
     TResourceVector vectorSuggestion = TResourceVector::FromDouble(suggestion);
-    vectorSuggestion = TResourceVector::Max(vectorSuggestion, Attributes().MinShare);
+    vectorSuggestion = TResourceVector::Max(vectorSuggestion, Attributes().StrongGuaranteeShare);
     vectorSuggestion = TResourceVector::Min(vectorSuggestion, Attributes().LimitsShare);
     return vectorSuggestion;
 }
@@ -898,15 +913,15 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
         context->PointwiseMinTotalTime += timer.GetElapsedCpuTime();
     }
 
-    auto precisionAdjustedRecursiveMinShare = FairShareByFitFactor_->ValueAt(0.0);
+    auto precisionAdjustedRecursiveStrongGuaranteeShare = FairShareByFitFactor_->ValueAt(0.0);
     YT_VERIFY(Dominates(
         Attributes().GetGuaranteeShare() + TResourceVector::Epsilon(),
-        precisionAdjustedRecursiveMinShare));
+        precisionAdjustedRecursiveStrongGuaranteeShare));
 
     auto sampleMaxFitFactor = [&] (double suggestion) -> double {
         const auto suggestedVector = TResourceVector::Max(
             GetVectorSuggestion(suggestion),
-            precisionAdjustedRecursiveMinShare);
+            precisionAdjustedRecursiveStrongGuaranteeShare);
 
         return FloatingPointInverseLowerBound(
             /* lo */ 0,
@@ -995,21 +1010,37 @@ void TSchedulerElement::BuildYson(TFluentMap fluent) const
         .Item("demand_share").Value(Attributes_.DemandShare)
         .Item("usage_share").Value(Attributes_.UsageShare)
         .Item("limits_share").Value(Attributes_.LimitsShare)
-        .Item("min_share").Value(Attributes_.MinShare)
+        .Item("min_share").Value(Attributes_.StrongGuaranteeShare)
         .Item("proposed_integral_share").Value(Attributes_.ProposedIntegralShare)
-        .Item("unlimited_demand_fair_share").Value(Attributes_.UnlimitedDemandFairShare)
+        .Item("promised_fair_share").Value(Attributes_.PromisedFairShare)
         .Item("best_allocation_share").Value(PersistentAttributes_.BestAllocationShare)
         .Item("local_satisfaction_ratio").Value(Attributes_.LocalSatisfactionRatio);
 }
 
-void TSchedulerElement::Profile(ISensorWriter* writer) const
+void TSchedulerElement::Profile(ISensorWriter* writer, bool profilingCompatibilityEnabled) const
 {
-    writer->AddGauge("/fair_share_ratio_x100000", static_cast<i64>(Attributes().GetFairShareRatio() * 1e5));
-    writer->AddGauge("/usage_ratio_x100000", static_cast<i64>(GetResourceUsageRatioAtUpdate() * 1e5));
-    writer->AddGauge("/demand_ratio_x100000", static_cast<i64>(Attributes().GetDemandRatio() * 1e5));
-    writer->AddGauge("/unlimited_demand_fair_share_ratio_x100000", static_cast<i64>(MaxComponent(Attributes().UnlimitedDemandFairShare) * 1e5));
-    writer->AddGauge("/accumulated_resource_ratio_volume_x100000", static_cast<i64>(GetAccumulatedResourceRatioVolume() * 1e5));
-    writer->AddGauge("/accumulated_resource_volume_cpu", static_cast<i64>(GetAccumulatedResourceVolume().GetCpu()));
+    const auto& detailedFairShare = Attributes().FairShare;
+
+    if (profilingCompatibilityEnabled) {
+        writer->AddGauge("/fair_share_ratio_x100000", static_cast<i64>(MaxComponent(Attributes().FairShare.Total) * 1e5));
+        writer->AddGauge("/usage_ratio_x100000", static_cast<i64>(GetResourceDominantUsageShareAtUpdate() * 1e5));
+        writer->AddGauge("/demand_ratio_x100000", static_cast<i64>(MaxComponent(Attributes().DemandShare) * 1e5));
+        writer->AddGauge("/unlimited_demand_fair_share_ratio_x100000", static_cast<i64>(MaxComponent(Attributes().PromisedFairShare) * 1e5));
+        writer->AddGauge("/accumulated_resource_ratio_volume_x100000", static_cast<i64>(GetAccumulatedResourceRatioVolume() * 1e5));
+        writer->AddGauge("/min_share_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.StrongGuarantee) * 1e5));
+        writer->AddGauge("/integral_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.IntegralGuarantee) * 1e5));
+        writer->AddGauge("/weight_proportional_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.WeightProportional) * 1e5));
+    } else {
+        writer->AddGauge("/dominant_fair_share", MaxComponent(Attributes().FairShare.Total));
+        writer->AddGauge("/dominant_usage_share", GetResourceDominantUsageShareAtUpdate());
+        writer->AddGauge("/dominant_demand_share", MaxComponent(Attributes().DemandShare));
+        writer->AddGauge("/promised_dominant_fair_share", MaxComponent(Attributes().PromisedFairShare));
+        writer->AddGauge("/accumulated_volume_dominant_share", GetAccumulatedResourceRatioVolume());
+        writer->AddGauge("/dominant_fair_share/strong_guarantee", MaxComponent(detailedFairShare.StrongGuarantee));
+        writer->AddGauge("/dominant_fair_share/integral_guarantee", MaxComponent(detailedFairShare.IntegralGuarantee));
+        writer->AddGauge("/dominant_fair_share/weight_proportional", MaxComponent(detailedFairShare.WeightProportional));
+        writer->AddGauge("/dominant_fair_share/total", MaxComponent(detailedFairShare.Total));
+    }
 
     ProfileResources(writer, ResourceUsageAtUpdate(), "/resource_usage");
     ProfileResources(writer, ResourceLimits(), "/resource_limits");
@@ -1024,12 +1055,6 @@ void TSchedulerElement::Profile(ISensorWriter* writer) const
         enableVectorProfiling = TreeConfig_->EnablePoolsVectorProfiling;
     }
 
-    auto detailedFairShare = Attributes_.FairShare;
-
-    writer->AddGauge("/min_share_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.MinShareGuarantee) * 1e5));
-    writer->AddGauge("/integral_guarantee_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.IntegralGuarantee) * 1e5));
-    writer->AddGauge("/weight_proportional_ratio_x100000", static_cast<i64>(MaxComponent(detailedFairShare.WeightProportional) * 1e5));
-
     if (enableVectorProfiling) {
         const auto& profiledResources = IsOperation()
             ? TreeConfig_->ProfiledOperationResources
@@ -1038,8 +1063,8 @@ void TSchedulerElement::Profile(ISensorWriter* writer) const
         ProfileResourceVector(
             writer,
             profiledResources,
-            detailedFairShare.MinShareGuarantee,
-            "/fair_share/min_share_guarantee");
+            detailedFairShare.StrongGuarantee,
+            "/fair_share/strong_guarantee");
         ProfileResourceVector(
             writer,
             profiledResources,
@@ -1074,11 +1099,19 @@ void TSchedulerElement::Profile(ISensorWriter* writer) const
             Attributes_.LimitsShare,
             "/limits_share");
 
-        ProfileResourceVector(
-            writer,
-            profiledResources,
-            Attributes_.MinShare,
-            "/min_share");
+        if (profilingCompatibilityEnabled) {
+            ProfileResourceVector(
+                writer,
+                profiledResources,
+                Attributes_.StrongGuaranteeShare,
+                "/min_share");
+        } else {
+            ProfileResourceVector(
+                writer,
+                profiledResources,
+                Attributes_.StrongGuaranteeShare,
+                "/strong_guarantee_share");
+        }
 
         ProfileResourceVector(
             writer,
@@ -1089,8 +1122,15 @@ void TSchedulerElement::Profile(ISensorWriter* writer) const
         ProfileResourceVector(
             writer,
             profiledResources,
-            Attributes_.UnlimitedDemandFairShare,
-            "/unlimited_demand_fair_share");
+            Attributes_.PromisedFairShare,
+            "/promised_fair_share");
+
+        if (!IsOperation()) {
+            ProfileResources(
+                writer,
+                GetAccumulatedResourceVolume(),
+                "/accumulated_resource_volume");
+        }
     }
 }
 
@@ -1547,15 +1587,19 @@ void TCompositeSchedulerElement::RegisterProfiler(const NProfiling::TRegistry& p
     profiler.AddProducer("/pools", ProducerBuffer_);
 }
 
-void TCompositeSchedulerElement::ProfileFull()
+void TCompositeSchedulerElement::ProfileFull(bool profilingCompatibilityEnabled)
 {
     TSensorBuffer buffer;
-    Profile(&buffer);
+    Profile(&buffer, profilingCompatibilityEnabled);
     buffer.AddGauge("/max_operation_count", GetMaxOperationCount());
     buffer.AddGauge("/max_running_operation_count", GetMaxRunningOperationCount());
     buffer.AddGauge("/running_operation_count", RunningOperationCount());
     buffer.AddGauge("/total_operation_count", OperationCount());
-    ProfileResources(&buffer, GetMinShareResources(), "/min_share_resources");
+    if (profilingCompatibilityEnabled) {
+        ProfileResources(&buffer, GetStrongGuaranteeResources(), "/min_share_resources");
+    } else {
+        ProfileResources(&buffer, GetStrongGuaranteeResources(), "/strong_guarantee_resources");
+    }
     ProducerBuffer_->Update(std::move(buffer));
 }
 
@@ -1619,84 +1663,84 @@ void TCompositeSchedulerElement::InitIntegralPoolLists(TUpdateFairShareContext* 
     }
 }
 
-void TCompositeSchedulerElement::AdjustMinShares()
+void TCompositeSchedulerElement::AdjustStrongGuarantees()
 {
-    TResourceVector totalPoolChildrenMinShare;
-    TResourceVector totalChildrenMinShare;
+    TResourceVector totalPoolChildrenStrongGuaranteeShare;
+    TResourceVector totalChildrenStrongGuaranteeShare;
     for (const auto& child : EnabledChildren_) {
-        totalChildrenMinShare += child->Attributes().MinShare;
+        totalChildrenStrongGuaranteeShare += child->Attributes().StrongGuaranteeShare;
 
         if (!child->IsOperation()) {
-            totalPoolChildrenMinShare += child->Attributes().MinShare;
+            totalPoolChildrenStrongGuaranteeShare += child->Attributes().StrongGuaranteeShare;
         }
     }
 
-    if (!Dominates(Attributes_.MinShare, totalPoolChildrenMinShare)) {
-        // Drop min share of operations, adjust min share of pools.
+    if (!Dominates(Attributes_.StrongGuaranteeShare, totalPoolChildrenStrongGuaranteeShare)) {
+        // Drop strong guarantee shares of operations, adjust strong guarantee shares of pools.
         for (const auto& child : EnabledChildren_) {
             if (child->IsOperation()) {
-                child->Attributes().MinShare = TResourceVector::Zero();
+                child->Attributes().StrongGuaranteeShare = TResourceVector::Zero();
             }
         }
 
         // Use binary search instead of division to avoid problems with precision.
         ComputeByFitting(
             /* getter */ [&] (double fitFactor, const TSchedulerElementPtr& child) -> TResourceVector {
-                return child->Attributes().MinShare * fitFactor;
+                return child->Attributes().StrongGuaranteeShare * fitFactor;
             },
             /* setter */ [&] (const TSchedulerElementPtr& child, const TResourceVector& value) {
-                YT_LOG_DEBUG("Adjusting min share (ChildId: %v, OldMinShare: %v, NewMinShare: %v)",
+                YT_LOG_DEBUG("Adjusting strong guarantee shares (ChildId: %v, OldStrongGuaranteeShare: %v, NewStrongGuaranteeShare: %v)",
                     child->GetId(),
-                    child->Attributes().MinShare,
+                    child->Attributes().StrongGuaranteeShare,
                     value);
-                child->Attributes().MinShare = value;
+                child->Attributes().StrongGuaranteeShare = value;
             },
-            /* maxSum */ Attributes().MinShare);
-    } else if (!Dominates(Attributes_.MinShare, totalChildrenMinShare)) {
-        // Adjust min share of operations, preserve min share of pools.
+            /* maxSum */ Attributes().StrongGuaranteeShare);
+    } else if (!Dominates(Attributes_.StrongGuaranteeShare, totalChildrenStrongGuaranteeShare)) {
+        // Adjust strong guarantee shares of operations, preserve strong guarantee shares of pools.
         ComputeByFitting(
             /* getter */ [&] (double fitFactor, const TSchedulerElementPtr& child) -> TResourceVector {
                 if (child->IsOperation()) {
-                    return child->Attributes().MinShare * fitFactor;
+                    return child->Attributes().StrongGuaranteeShare * fitFactor;
                 } else {
-                    return child->Attributes().MinShare;
+                    return child->Attributes().StrongGuaranteeShare;
                 }
             },
             /* setter */ [&] (const TSchedulerElementPtr& child, const TResourceVector& value) {
-                YT_LOG_DEBUG("Adjusting min share (ChildId: %v, OldMinShare: %v, NewMinShare: %v)",
+                YT_LOG_DEBUG("Adjusting string guarantee shares (ChildId: %v, OldStrongGuaranteeShare: %v, NewStrongGuaranteeShare: %v)",
                     child->GetId(),
-                    child->Attributes().MinShare,
+                    child->Attributes().StrongGuaranteeShare,
                     value);
-                child->Attributes().MinShare = value;
+                child->Attributes().StrongGuaranteeShare = value;
             },
-            /* maxSum */ Attributes().MinShare);
+            /* maxSum */ Attributes().StrongGuaranteeShare);
     }
 
     if (IsRoot()) {
-        Attributes_.UnlimitedDemandFairShare = TResourceVector::Ones();
+        Attributes_.PromisedFairShare = TResourceVector::Ones();
     }
 
     double weightSum = 0.0;
-    auto undistributedUnlimitedDemandFairShare = Attributes_.UnlimitedDemandFairShare;
+    auto undistributedPromisedFairShare = Attributes_.PromisedFairShare;
     for (const auto& child : EnabledChildren_) {
         weightSum += child->GetWeight();
-        // NB: Sum of total min share and total resource flow can be greater than total resource limits. This results in a scheduler alert.
+        // NB: Sum of total strong guarantee share and total resource flow can be greater than total resource limits. This results in a scheduler alert.
         // However, no additional adjustment is done so we need to handle this case here as well.
-        child->Attributes().UnlimitedDemandFairShare = TResourceVector::Min(
-            child->Attributes().MinShare + TResourceVector::FromDouble(child->Attributes().TotalResourceFlowRatio),
-            undistributedUnlimitedDemandFairShare);
-        undistributedUnlimitedDemandFairShare -= child->Attributes().UnlimitedDemandFairShare;
+        child->Attributes().PromisedFairShare = TResourceVector::Min(
+            child->Attributes().StrongGuaranteeShare + TResourceVector::FromDouble(child->Attributes().TotalResourceFlowRatio),
+            undistributedPromisedFairShare);
+        undistributedPromisedFairShare -= child->Attributes().PromisedFairShare;
     }
 
     for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
         for (const auto& child : EnabledChildren_) {
-            child->Attributes().UnlimitedDemandFairShare[resourceType] += undistributedUnlimitedDemandFairShare[resourceType] * child->GetWeight() / weightSum;
+            child->Attributes().PromisedFairShare[resourceType] += undistributedPromisedFairShare[resourceType] * child->GetWeight() / weightSum;
         }
     }
 
     for (const auto& child : EnabledChildren_) {
         if (auto* childPool = child->AsPool()) {
-            childPool->AdjustMinShares();
+            childPool->AdjustStrongGuarantees();
         }
     }
 }
@@ -2127,7 +2171,7 @@ void TCompositeSchedulerElement::BuildResourceMetering(const std::optional<TMete
     YT_VERIFY(key || parentKey);
 
     if (key) {
-        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetMinShareResources(), GetInstantResourceUsage(), GetJobMetrics())}).second);
+        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetStrongGuaranteeResources(), GetInstantResourceUsage(), GetJobMetrics())}).second);
     }
 
     for (const auto& child : EnabledChildren_) {
@@ -2331,9 +2375,9 @@ std::optional<double> TPool::GetSpecifiedWeight() const
     return Config_->Weight;
 }
 
-TJobResources TPool::GetMinShareResources() const
+TJobResources TPool::GetStrongGuaranteeResources() const
 {
-    return ToJobResources(Config_->MinShareResources, {});
+    return ToJobResources(Config_->StrongGuaranteeResources, {});
 }
 
 TResourceVector TPool::GetMaxShare() const
@@ -2569,7 +2613,7 @@ void TPool::ApplyLimitsForRelaxedPool()
     auto relaxedPoolLimit = TResourceVector::Min(
         TResourceVector::FromDouble(GetIntegralShareRatioByVolume()),
         GetIntegralShareLimitForRelaxedPool());
-    relaxedPoolLimit += Attributes_.MinShare;
+    relaxedPoolLimit += Attributes_.StrongGuaranteeShare;
     Attributes_.LimitsShare = TResourceVector::Min(Attributes_.LimitsShare, relaxedPoolLimit);
 }
 
@@ -3263,11 +3307,11 @@ void TOperationElement::UpdatePreemptionAttributes()
     // If fair share ratio equals demand ratio then we want to explicitly disable preemption.
     // It is necessary since some job's resource usage may increase before the next fair share update,
     //  and in this case we don't want any jobs to become preemptable
-    bool isFairShareRatioEqualToDemandRatio =
+    bool isDominantFairShareEqualToDominantDemandShare =
         TResourceVector::Near(Attributes_.FairShare.Total, Attributes_.DemandShare, RatioComparisonPrecision) &&
         !Dominates(TResourceVector::Epsilon(), Attributes_.DemandShare);
 
-    bool newPreemptableValue = !isFairShareRatioEqualToDemandRatio;
+    bool newPreemptableValue = !isDominantFairShareEqualToDominantDemandShare;
     bool oldPreemptableValue = OperationElementSharedState_->GetPreemptable();
     if (oldPreemptableValue != newPreemptableValue) {
         YT_LOG_DEBUG("Preemptable status changed %v -> %v", oldPreemptableValue, newPreemptableValue);
@@ -3714,9 +3758,9 @@ std::optional<double> TOperationElement::GetSpecifiedWeight() const
     return RuntimeParameters_->Weight;
 }
 
-TJobResources TOperationElement::GetMinShareResources() const
+TJobResources TOperationElement::GetStrongGuaranteeResources() const
 {
-    return ToJobResources(Spec_->MinShareResources, {});
+    return ToJobResources(Spec_->StrongGuaranteeResources, {});
 }
 
 TResourceVector TOperationElement::GetMaxShare() const
@@ -3914,10 +3958,10 @@ void TOperationElement::RegisterProfiler(std::optional<int> slotIndex, const NPr
     }
 }
 
-void TOperationElement::ProfileFull()
+void TOperationElement::ProfileFull(bool profilingCompatibilityEnabled)
 {
     TSensorBuffer buffer;
-    Profile(&buffer);
+    Profile(&buffer, profilingCompatibilityEnabled);
     ProducerBuffer_->Update(std::move(buffer));
 }
 
@@ -4327,21 +4371,21 @@ void TRootElement::PreUpdate(TUpdateFairShareContext* context)
 ///
 /// 1. Initialize burst and relaxed pool lists. This is a single pass through the tree.
 ///
-/// 2. Update attributes needed for calculation of fair share (LimitsShare, DemandShare, UsageShare, MinShare and others);
+/// 2. Update attributes needed for calculation of fair share (LimitsShare, DemandShare, UsageShare, StrongGuaranteeShare and others);
 ///
 /// 3. Consume and refill accumulated resource volume of integral pools.
 ///   The amount of resources consumed by a pool is based on its integral guarantee share since the last fair share update.
 ///   Refilling is based on the resource flow ratio which was calculated in the previous step.
 ///
-/// 4. Validate that the sum of burst and min share guarantees meets the total resources and that the min share of every pool meets the limits share of that pool.
+/// 4. Validate that the sum of burst and strong guarantee shares meet the total resources and that the strong guarantee share of every pool meets the limits share of that pool.
 ///   Shrink the guarantees in case of limits violations.
 ///
 /// 5. Calculate integral shares for burst pools.
 ///   We temporarily increase the pool's resource guarantees by burst guarantees, and calculate how many resources the pool would consume within these extended guarantees.
-///   Then we subtract the pool's min share from consumed resources to get the integral share.
+///   Then we subtract the pool's strong guarantee share from the consumed resources to estimate the integral shares.
 ///   Descendants of burst pools have their fair share functions built on this step.
 ///
-/// 6. Estimate the amount of available resources after satisfying the min share and burst guarantees of all pools.
+/// 6. Estimate the amount of available resources after satisfying strong and burst guarantees of all pools.
 ///
 /// 7. Distribute available resources among the relaxed pools using binary search.
 ///   We build fair share functions for descendants of relaxed pools in this step.
@@ -4414,22 +4458,22 @@ void TRootElement::UpdateFairShare(TUpdateFairShareContext* context)
 void TRootElement::UpdateRootFairShare()
 {
     // Make fair share at root equal to sum of children.
-    TResourceVector totalUsedMinShare;
+    TResourceVector totalUsedStrongGuaranteeShare;
     TResourceVector totalFairShare;
     for (const auto& child : EnabledChildren_) {
-        totalUsedMinShare += child->Attributes().FairShare.MinShareGuarantee;
+        totalUsedStrongGuaranteeShare += child->Attributes().FairShare.StrongGuarantee;
         totalFairShare += child->Attributes().FairShare.Total;
     }
 
     // NB(eshcherbin): In order to compute the detailed fair share components correctly,
-    // we need to set |Attributes_.MinShare| to the actual used min share before calling |SetFairShare|.
+    // we need to set |Attributes_.StrongGuaranteeShare| to the actual used strong guarantee share before calling |SetFairShare|.
     // However, afterwards it seems more natural to restore the previous value, which shows
-    // the total configured min share in the tree.
+    // the total configured strong guarantee shares in the tree.
     {
-        auto staticMinShare = Attributes_.MinShare;
-        Attributes_.MinShare = totalUsedMinShare;
+        auto staticStrongGuaranteeShare = Attributes_.StrongGuaranteeShare;
+        Attributes_.StrongGuaranteeShare = totalUsedStrongGuaranteeShare;
         Attributes_.SetFairShare(totalFairShare);
-        Attributes_.MinShare = staticMinShare;
+        Attributes_.StrongGuaranteeShare = staticStrongGuaranteeShare;
     }
 }
 
@@ -4453,7 +4497,7 @@ std::optional<double> TRootElement::GetSpecifiedWeight() const
     return std::nullopt;
 }
 
-TJobResources TRootElement::GetMinShareResources() const
+TJobResources TRootElement::GetStrongGuaranteeResources() const
 {
     return TotalResourceLimits_;
 }
@@ -4549,20 +4593,20 @@ std::optional<TMeteringKey> TRootElement::GetMeteringKey() const
 
 void TRootElement::BuildResourceDistributionInfo(TFluentMap fluent) const
 {
-    double distributedMinShareRatio = 0.0;
+    double distributedStrongGuaranteeDominantShare = 0.0;
     for (const auto& child : EnabledChildren_) {
-        // TODO(renadeen): Fix when min share becomes disproportional.
-        distributedMinShareRatio += GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
+        // TODO(renadeen): Fix when strong guarantee share becomes disproportional.
+        distributedStrongGuaranteeDominantShare += GetMaxResourceRatio(child->GetStrongGuaranteeResources(), TotalResourceLimits_);
     }
     double maxDistributedIntegralRatio = std::max(Attributes_.TotalBurstRatio, Attributes_.TotalResourceFlowRatio);
     double undistributedResourceFlowRatio = std::max(Attributes_.TotalBurstRatio - Attributes_.TotalResourceFlowRatio, 0.0);
     double undistributedBurstGuaranteeRatio = std::max(Attributes_.TotalResourceFlowRatio - Attributes_.TotalBurstRatio, 0.0);
 
     fluent
-        .Item("distributed_min_share_resources").Value(TotalResourceLimits_ * distributedMinShareRatio)
+        .Item("distributed_strong_guarantee_resources").Value(TotalResourceLimits_ * distributedStrongGuaranteeDominantShare)
         .Item("distributed_resource_flow").Value(TotalResourceLimits_ * Attributes_.TotalResourceFlowRatio)
         .Item("distributed_burst_guarantee_resources").Value(TotalResourceLimits_ * Attributes_.TotalBurstRatio)
-        .Item("undistributed_resources").Value(TotalResourceLimits_ * (1.0 - distributedMinShareRatio - maxDistributedIntegralRatio))
+        .Item("undistributed_resources").Value(TotalResourceLimits_ * (1.0 - distributedStrongGuaranteeDominantShare - maxDistributedIntegralRatio))
         .Item("undistributed_resource_flow").Value(TotalResourceLimits_ * undistributedResourceFlowRatio)
         .Item("undistributed_burst_guarantee_resources").Value(TotalResourceLimits_ * undistributedBurstGuaranteeRatio);
 }
@@ -4570,31 +4614,31 @@ void TRootElement::BuildResourceDistributionInfo(TFluentMap fluent) const
 void TRootElement::UpdateCumulativeAttributes(TUpdateFairShareContext* context)
 {
     TCompositeSchedulerElement::UpdateCumulativeAttributes(context);
-    Attributes_.MinShare = TResourceVector::Zero();
+    Attributes_.StrongGuaranteeShare = TResourceVector::Zero();
     for (const auto& child : EnabledChildren_) {
-        Attributes_.MinShare += child->Attributes().MinShare;
+        Attributes_.StrongGuaranteeShare += child->Attributes().StrongGuaranteeShare;
     }
 }
 
 void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TUpdateFairShareContext* context)
 {
     auto totalResourceFlow = TotalResourceLimits_ * Attributes_.TotalResourceFlowRatio;
-    auto minShareResources = TotalResourceLimits_ * Attributes_.MinShare;
-    if (!Dominates(TotalResourceLimits_, minShareResources + totalResourceFlow)) {
-        context->Errors.push_back(TError("Total min share guarantee and resource flow exceed total cluster resources")
-            << TErrorAttribute("total_min_share_resources", minShareResources)
+    auto strongGuaranteeResources = TotalResourceLimits_ * Attributes_.StrongGuaranteeShare;
+    if (!Dominates(TotalResourceLimits_, strongGuaranteeResources + totalResourceFlow)) {
+        context->Errors.push_back(TError("Strong guarantees and resource flows exceed total cluster resources")
+            << TErrorAttribute("total_strong_guarantee_resources", strongGuaranteeResources)
             << TErrorAttribute("total_resource_flow", totalResourceFlow)
             << TErrorAttribute("total_cluster_resources", TotalResourceLimits_));
     }
     auto totalBurstResources = TotalResourceLimits_ * Attributes_.TotalBurstRatio;
-    if (!Dominates(TotalResourceLimits_, minShareResources + totalBurstResources)) {
-        context->Errors.push_back(TError("Total min share guarantee and burst ratio exceed cluster capacity")
-            << TErrorAttribute("total_min_share_resources", minShareResources)
+    if (!Dominates(TotalResourceLimits_, strongGuaranteeResources + totalBurstResources)) {
+        context->Errors.push_back(TError("Strong guarantees and burst guarantees exceed total cluster resources")
+            << TErrorAttribute("total_strong_guarantee_resources", strongGuaranteeResources)
             << TErrorAttribute("total_burst_resources", totalBurstResources)
             << TErrorAttribute("total_cluster_resources", TotalResourceLimits_));
 
         auto checkSum = [&] (double fitFactor) -> bool {
-            auto sum = Attributes_.MinShare * fitFactor;
+            auto sum = Attributes_.StrongGuaranteeShare * fitFactor;
             for (const auto& pool : context->BurstPools) {
                 sum += TResourceVector::FromDouble(pool->Attributes().BurstRatio) * fitFactor;
             }
@@ -4603,12 +4647,12 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TUpdateFairShareContext*
 
         double fitFactor = FloatingPointInverseLowerBound(0.0, 1.0, checkSum);
 
-        Attributes_.MinShare = Attributes_.MinShare * fitFactor;
+        Attributes_.StrongGuaranteeShare = Attributes_.StrongGuaranteeShare * fitFactor;
         for (const auto& pool : context->BurstPools) {
             pool->Attributes().BurstRatio *= fitFactor;
         }
     }
-    AdjustMinShares();
+    AdjustStrongGuarantees();
 }
 
 void TRootElement::UpdateBurstPoolIntegralShares(TUpdateFairShareContext* context)
@@ -4625,7 +4669,7 @@ void TRootElement::UpdateBurstPoolIntegralShares(TUpdateFairShareContext* contex
         burstPool->Attributes().ProposedIntegralShare = TResourceVector::Zero();
 
         auto fairShareWithinGuarantees = burstPool->FairShareBySuggestion()->ValueAt(0.0);
-        auto integralShare = TResourceVector::Max(fairShareWithinGuarantees - burstPool->Attributes().MinShare, TResourceVector::Zero());
+        auto integralShare = TResourceVector::Max(fairShareWithinGuarantees - burstPool->Attributes().StrongGuaranteeShare, TResourceVector::Zero());
         burstPool->IncreaseHierarchicalIntegralShare(integralShare);
         burstPool->PersistentAttributes().LastIntegralShareRatio = MaxComponent(integralShare);
         burstPool->ResetFairShareFunctions();
@@ -4679,7 +4723,7 @@ void TRootElement::UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* cont
         for (int index = 0; index < relaxedPools.size(); ++index) {
             auto suggestion = std::min(1.0, fitFactor * weights[index]);
             auto fairShare = relaxedPools[index]->FairShareBySuggestion()->ValueAt(suggestion);
-            fairShareResult += TResourceVector::Max(fairShare - relaxedPools[index]->Attributes().MinShare, TResourceVector::Zero());
+            fairShareResult += TResourceVector::Max(fairShare - relaxedPools[index]->Attributes().StrongGuaranteeShare, TResourceVector::Zero());
         }
 
         return Dominates(availableShare, fairShareResult);
@@ -4695,7 +4739,7 @@ void TRootElement::UpdateRelaxedPoolIntegralShares(TUpdateFairShareContext* cont
         const auto& relaxedPool = relaxedPools[index];
         auto suggestion = std::min(1.0, fitFactor * weight);
         auto fairShareWithinGuarantees = relaxedPool->FairShareBySuggestion()->ValueAt(suggestion);
-        auto integralShare = TResourceVector::Max(fairShareWithinGuarantees - relaxedPool->Attributes().MinShare, TResourceVector::Zero());
+        auto integralShare = TResourceVector::Max(fairShareWithinGuarantees - relaxedPool->Attributes().StrongGuaranteeShare, TResourceVector::Zero());
 
         relaxedPool->Attributes().LimitsShare = originalLimits[index];
         auto limitedIntegralShare = TResourceVector::Min(
