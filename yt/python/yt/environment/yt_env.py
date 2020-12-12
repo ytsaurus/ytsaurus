@@ -37,7 +37,6 @@ import signal
 import socket
 import shutil
 import sys
-import getpass
 import random
 import traceback
 from collections import defaultdict, namedtuple
@@ -1467,6 +1466,8 @@ class YTInstance(object):
                 self._try_dump_backtrace(process.pid, backtrace_path)
 
     def _start_watcher(self):
+        logger.info("Starting watcher")
+
         log_paths = []
         if self._enable_debug_logging:
             def extract_debug_log_paths(service, config, result):
