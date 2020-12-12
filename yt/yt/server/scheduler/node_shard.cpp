@@ -606,7 +606,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             "NodeId: %v, NodeAddress: %v, SchedulingSegment: %v, "
             "StartedJobs: {All: %v, ByPreemption: %v}, PreemptedJobs: %v, "
             "PreemptableInfo: {Count: %v, Resources: %v}, "
-            "ScheduleJobAttempts: {NP: %v, P: %v, AP: %v, C: %v}, "
+            "ScheduleJobAttempts: {NP: %v, AP: %v, P: %v, C: %v}, "
             "HasAggressivelyStarvingElements: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
