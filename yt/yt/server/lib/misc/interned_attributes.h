@@ -171,6 +171,7 @@
     XX(Index, index) \
     XX(InferChildrenWeightsFromHistoricUsage, infer_children_weights_from_historic_usage) \
     XX(InferWeightFromMinShareRatioMultiplier, infer_weight_from_min_share_ratio_multiplier) \
+    XX(InferWeightFromStrongGuaranteeShareMultiplier, infer_weight_from_strong_guarantee_share_multiplier) \
     XX(InheritAcl, inherit_acl) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOWeights, io_weights) \
@@ -348,6 +349,7 @@
     XX(StoredReplicas, stored_replicas) \
     XX(StoresUpdatePrepared, stores_update_prepared) \
     XX(StoresUpdatePreparedTransactionId, stores_update_prepared_transaction_id) \
+    XX(StrongGuaranteeResources, strong_guarantee_resources) \
     XX(TableChunkFormat, table_chunk_format) \
     XX(TableChunkFormatStatistics, table_chunk_format_statistics) \
     XX(TableId, table_id) \

@@ -161,7 +161,8 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("tentative_tree_saturation_deactivation_period", TentativeTreeSaturationDeactivationPeriod)
         .Default(TDuration::Seconds(10));
 
-    RegisterParameter("infer_weight_from_min_share_ratio_multiplier", InferWeightFromMinShareRatioMultiplier)
+    RegisterParameter("infer_weight_from_strong_guarantee_share_multiplier", InferWeightFromStrongGuaranteeShareMultiplier)
+        .Alias("infer_weight_from_min_share_ratio_multiplier")
         .Default()
         .GreaterThanOrEqual(1.0);
 

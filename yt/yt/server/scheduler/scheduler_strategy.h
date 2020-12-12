@@ -81,6 +81,8 @@ struct ISchedulerStrategyHost
     virtual int GetDefaultAbcId() const = 0;
 
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) = 0;
+
+    virtual bool IsCoreProfilingCompatibilityEnabled() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

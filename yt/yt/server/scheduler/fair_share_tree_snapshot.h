@@ -11,7 +11,7 @@ namespace NYT::NScheduler {
 struct TSchedulerElementStateSnapshot
 {
     TResourceVector DemandShare;
-    TResourceVector UnlimitedDemandFairShare;
+    TResourceVector PromisedFairShare;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

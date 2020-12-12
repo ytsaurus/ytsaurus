@@ -65,10 +65,10 @@ void TSchedulerPool::ValidateChildrenCompatibility()
     }
 
     // TODO(renadeen): move children validation to pool config?
-    FullConfig()->MinShareResources->ForEachResource([this] (auto TResourceLimitsConfig::* resourceDataMember, const TString& name) {
+    FullConfig()->StrongGuaranteeResources->ForEachResource([this] (auto TResourceLimitsConfig::* resourceDataMember, const TString& name) {
         using TResource = typename std::remove_reference_t<decltype(std::declval<TResourceLimitsConfig>().*resourceDataMember)>::value_type;
         auto getResource = [&] (TSchedulerPool* object) -> TResource {
-            return (object->FullConfig()->MinShareResources.Get()->*resourceDataMember).value_or(0);
+            return (object->FullConfig()->StrongGuaranteeResources.Get()->*resourceDataMember).value_or(0);
         };
 
         auto parentResource = getResource(this);

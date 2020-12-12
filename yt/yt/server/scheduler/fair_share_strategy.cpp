@@ -902,7 +902,7 @@ public:
         // First, we ignore all trees in which the new operation is not marked running.
         // Then for every candidate pool we model the case if the new operation is assigned to it:
         // 1) We add the pool's current demand share and the operation's demand share to get the model demand share.
-        // 2) We calculate reserveShare, defined as (unlimitedDemandFairShare - modelDemandShare).
+        // 2) We calculate reserveShare, defined as (promisedFairShare - modelDemandShare).
         // Finally, we choose the pool with the maximum of MinComponent(reserveShare) over all trees.
         // More precisely, we compute MinComponent ignoring the resource types which are absent in the tree (e.g. GPU).
         TString bestTree;
@@ -917,13 +917,13 @@ public:
 
             auto totalResourceLimits = snapshot->GetTotalResourceLimits();
             TResourceVector currentDemandShare;
-            TResourceVector unlimitedDemandFairShare;
+            TResourceVector promisedFairShare;
 
             // If pool is not present in the snapshot (e.g. due to poor timings or if it is an ephemeral pool),
             // then its demand and guaranteed resources ratio are considered to be zero.
             if (auto poolStateSnapshot = snapshot->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
                 currentDemandShare = poolStateSnapshot->DemandShare;
-                unlimitedDemandFairShare = poolStateSnapshot->UnlimitedDemandFairShare;
+                promisedFairShare = poolStateSnapshot->PromisedFairShare;
             }
 
             auto newDemandShare = TResourceVector::FromJobResources(
@@ -932,7 +932,7 @@ public:
                 /* zeroDivByZero */ 0.0,
                 /* oneDivByZero */ 1.0);
             auto modelDemandShare = newDemandShare + currentDemandShare;
-            auto reserveShare = unlimitedDemandFairShare - modelDemandShare;
+            auto reserveShare = promisedFairShare - modelDemandShare;
 
             // TODO(eshcherbin): Perhaps we need to add a configurable main resource for each tree and compare the shares of this resource.
             auto currentReserveRatio = std::numeric_limits<double>::max();
@@ -948,14 +948,14 @@ public:
                 "Considering candidate single tree for operation ("
                 "OperationId: %v, Tree: %v, TotalResourceLimits: %v, "
                 "NewDemandShare: %.6g, CurrentDemandShare: %.6g, ModelDemandShare: %.6g, "
-                "UnlimitedDemandFairShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v)",
+                "PromisedFairShare: %.6g, ReserveShare: %.6g, CurrentReserveRatio: %v)",
                 operationId,
                 treeId,
                 FormatResources(totalResourceLimits),
                 newDemandShare,
                 currentDemandShare,
                 modelDemandShare,
-                unlimitedDemandFairShare,
+                promisedFairShare,
                 reserveShare,
                 currentReserveRatio);
 
@@ -1527,7 +1527,7 @@ private:
                 const auto& newMetrics = value.JobMetrics();
                 const auto& metricsDelta = Dominates(newMetrics, oldMetrics) ? newMetrics - oldMetrics : newMetrics;
 
-                TMeteringStatistics delta(value.MinShareResources(), value.AllocatedResources(), metricsDelta);
+                TMeteringStatistics delta(value.StrongGuaranteeResources(), value.AllocatedResources(), metricsDelta);
                 Host->LogResourceMetering(key, delta, LastMeteringStatisticsUpdateTime_, now);
             } else {
                 Host->LogResourceMetering(key, value, LastMeteringStatisticsUpdateTime_, now);

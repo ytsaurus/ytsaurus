@@ -93,7 +93,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         )
 
     @authors("ignat")
-    def test_scheduler_unlimited_demand_fair_share_ratio(self):
+    def test_scheduler_promised_fair_share(self):
         total_resource_limits = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
 
         create_pool(
@@ -109,28 +109,28 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         # Wait for fair share update.
         time.sleep(1)
 
-        get_pool_unlimited_demand_fair_share_resources = lambda pool: get(
-            scheduler_orchid_pool_path(pool) + "/unlimited_demand_fair_share_resources"
+        get_pool_promised_fair_share_resources = lambda pool: get(
+            scheduler_orchid_pool_path(pool) + "/promised_fair_share_resources"
         )
 
-        get_pool_unlimited_demand_fair_share_ratio = lambda pool: get(
-            scheduler_orchid_pool_path(pool) + "/unlimited_demand_fair_share_ratio"
+        get_pool_promised_dominant_fair_share = lambda pool: get(
+            scheduler_orchid_pool_path(pool) + "/promised_dominant_fair_share"
         )
 
-        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("big_pool"), 1.0)
-        assert get_pool_unlimited_demand_fair_share_resources("big_pool") == total_resource_limits
+        assert are_almost_equal(get_pool_promised_dominant_fair_share("big_pool"), 1.0)
+        assert get_pool_promised_fair_share_resources("big_pool") == total_resource_limits
 
-        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("small_pool"), 0)
-        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_3"), 0)
-        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_4"), 0)
+        assert are_almost_equal(get_pool_promised_dominant_fair_share("small_pool"), 0)
+        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_3"), 0)
+        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_4"), 0)
 
-        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_1"), 1.0 / 4.0)
-        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_2"), 3.0 / 4.0)
+        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_1"), 1.0 / 4.0)
+        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_2"), 3.0 / 4.0)
 
         self._prepare_tables()
 
-        get_operation_unlimited_demand_fair_share_ratio = lambda op_id: get(
-            "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/unlimited_demand_fair_share_ratio".format(
+        get_operation_promised_dominant_fair_share = lambda op_id: get(
+            "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/promised_dominant_fair_share".format(
                 op_id
             )
         )
@@ -147,9 +147,9 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         # Wait for fair share update.
         time.sleep(1)
 
-        assert are_almost_equal(get_operation_unlimited_demand_fair_share_ratio(op.id), 1.0 / 5.0)
-        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_1"), 1.0 / 5.0)
-        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_2"), 3.0 / 5.0)
+        assert are_almost_equal(get_operation_promised_dominant_fair_share(op.id), 1.0 / 5.0)
+        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_1"), 1.0 / 5.0)
+        assert are_almost_equal(get_pool_promised_dominant_fair_share("subpool_2"), 3.0 / 5.0)
 
         release_breakpoint()
         op.track()
@@ -2436,7 +2436,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             if len(pools_info) != 1:
                 return False
             custom_pool_info = pools_info[-1]["pools"]["default"]["event_log_test_pool"]
-            assert are_almost_equal(custom_pool_info["min_share_resources"]["cpu"], 1.0)
+            assert are_almost_equal(custom_pool_info["strong_guarantee_resources"]["cpu"], 1.0)
             assert custom_pool_info["mode"] == "fair_share"
             return True
 
@@ -3846,6 +3846,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 ##################################################################
 
 
+# TODO(ignat): move most of this tests to unittests.
 @authors("renadeen")
 class TestIntegralGuarantees(YTEnvSetup):
     NUM_MASTERS = 1
@@ -3860,14 +3861,14 @@ class TestIntegralGuarantees(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"resource_limits": {"cpu": 10, "user_slots": 10}}}}
 
-    def wait_pool_fair_share(self, pool, min_share, integral, weight_proportional):
+    def wait_pool_fair_share(self, pool, strong, integral, weight_proportional):
         path = scheduler_orchid_default_pool_tree_path() + "/pools/" + pool + "/detailed_fair_share"
         wait(lambda: exists(path))
 
         def check_pool_fair_share():
             fair_share = get(path, default=-1)
             return (
-                are_almost_equal(fair_share["min_share_guarantee"]["cpu"], min_share)
+                are_almost_equal(fair_share["strong_guarantee"]["cpu"], strong)
                 and are_almost_equal(fair_share["integral_guarantee"]["cpu"], integral)
                 and are_almost_equal(fair_share["weight_proportional"]["cpu"], weight_proportional)
             )
@@ -3892,7 +3893,7 @@ class TestIntegralGuarantees(YTEnvSetup):
         )
 
         run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
-        self.wait_pool_fair_share("burst_pool", min_share=0.2, integral=0.3, weight_proportional=0.5)
+        self.wait_pool_fair_share("burst_pool", strong=0.2, integral=0.3, weight_proportional=0.5)
 
     def test_simple_relaxed_integral_guarantee(self):
         create_pool(
@@ -3907,7 +3908,7 @@ class TestIntegralGuarantees(YTEnvSetup):
         )
 
         run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.2, integral=0.3, weight_proportional=0.5)
+        self.wait_pool_fair_share("relaxed_pool", strong=0.2, integral=0.3, weight_proportional=0.5)
 
     def test_min_share_vs_burst(self):
         create_pool(
@@ -3931,11 +3932,9 @@ class TestIntegralGuarantees(YTEnvSetup):
         run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
         run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
 
-        self.wait_pool_fair_share("min_share_pool", min_share=0.5, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=0.5, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.5, integral=0.5, weight_proportional=0.0)
+        self.wait_pool_fair_share("min_share_pool", strong=0.5, integral=0.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("burst_pool", strong=0.0, integral=0.5, weight_proportional=0.0)
+        self.wait_pool_fair_share("<Root>", strong=0.5, integral=0.5, weight_proportional=0.0)
 
     def test_min_share_vs_relaxed(self):
         create_pool(
@@ -3958,15 +3957,13 @@ class TestIntegralGuarantees(YTEnvSetup):
         run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
         run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
 
-        self.wait_pool_fair_share("min_share_pool", min_share=0.5, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=0.5, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.5, integral=0.5, weight_proportional=0.0)
+        self.wait_pool_fair_share("min_share_pool", strong=0.5, integral=0.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("relaxed_pool", strong=0.0, integral=0.5, weight_proportional=0.0)
+        self.wait_pool_fair_share("<Root>", strong=0.5, integral=0.5, weight_proportional=0.0)
 
     def test_relaxed_vs_empty_min_share(self):
         create_pool(
-            "min_share_pool",
+            "strong_guarantee_pool",
             attributes={
                 "min_share_resources": {"cpu": 5},
             },
@@ -3984,11 +3981,9 @@ class TestIntegralGuarantees(YTEnvSetup):
 
         run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
 
-        self.wait_pool_fair_share("min_share_pool", min_share=0.0, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.0, integral=1.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("strong_guarantee_pool", strong=0.0, integral=0.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("relaxed_pool", strong=0.0, integral=1.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("<Root>", strong=0.0, integral=1.0, weight_proportional=0.0)
 
     def test_relaxed_vs_no_guarantee(self):
         create_pool(
@@ -4006,11 +4001,9 @@ class TestIntegralGuarantees(YTEnvSetup):
         run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
         run_sleeping_vanilla(job_count=10, spec={"pool": "no_guarantee_pool"})
 
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("no_guarantee_pool", min_share=0.0, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.0, integral=1.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("relaxed_pool", strong=0.0, integral=1.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("no_guarantee_pool", strong=0.0, integral=0.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("<Root>", strong=0.0, integral=1.0, weight_proportional=0.0)
 
     def test_burst_gets_all_relaxed_none(self):
         create_pool(
@@ -4037,11 +4030,9 @@ class TestIntegralGuarantees(YTEnvSetup):
         run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
         run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
 
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=1.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.0, integral=1.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("burst_pool", strong=0.0, integral=1.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("relaxed_pool", strong=0.0, integral=0.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("<Root>", strong=0.0, integral=1.0, weight_proportional=0.0)
 
     def test_burst_gets_its_guarantee_relaxed_gets_remaining(self):
         create_pool(
@@ -4068,11 +4059,9 @@ class TestIntegralGuarantees(YTEnvSetup):
         run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
         run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
 
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=0.6, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=0.4, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.0, integral=1.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("burst_pool", strong=0.0, integral=0.6, weight_proportional=0.0)
+        self.wait_pool_fair_share("relaxed_pool", strong=0.0, integral=0.4, weight_proportional=0.0)
+        self.wait_pool_fair_share("<Root>", strong=0.0, integral=1.0, weight_proportional=0.0)
 
     def test_all_kinds_of_pools_weight_proportional_distribution(self):
         create_pool(
@@ -4110,15 +4099,11 @@ class TestIntegralGuarantees(YTEnvSetup):
         run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
         run_sleeping_vanilla(job_count=10, spec={"pool": "no_guarantee_pool"})
 
-        self.wait_pool_fair_share("min_share_pool", min_share=0.1, integral=0.0, weight_proportional=0.3)
-
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=0.1, weight_proportional=0.1)
-
-        self.wait_pool_fair_share("relaxed_pool", min_share=0.0, integral=0.1, weight_proportional=0.1)
-
-        self.wait_pool_fair_share("no_guarantee_pool", min_share=0.0, integral=0.0, weight_proportional=0.2)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.1, integral=0.2, weight_proportional=0.7)
+        self.wait_pool_fair_share("min_share_pool", strong=0.1, integral=0.0, weight_proportional=0.3)
+        self.wait_pool_fair_share("burst_pool", strong=0.0, integral=0.1, weight_proportional=0.1)
+        self.wait_pool_fair_share("relaxed_pool", strong=0.0, integral=0.1, weight_proportional=0.1)
+        self.wait_pool_fair_share("no_guarantee_pool", strong=0.0, integral=0.0, weight_proportional=0.2)
+        self.wait_pool_fair_share("<Root>", strong=0.1, integral=0.2, weight_proportional=0.7)
 
     def test_min_share_and_burst_guarantees_adjustment(self):
         create_pool(
@@ -4142,11 +4127,9 @@ class TestIntegralGuarantees(YTEnvSetup):
         run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
         run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
 
-        self.wait_pool_fair_share("min_share_pool", min_share=0.4, integral=0.0, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("burst_pool", min_share=0.0, integral=0.6, weight_proportional=0.0)
-
-        self.wait_pool_fair_share("<Root>", min_share=0.4, integral=0.6, weight_proportional=0.0)
+        self.wait_pool_fair_share("min_share_pool", strong=0.4, integral=0.0, weight_proportional=0.0)
+        self.wait_pool_fair_share("burst_pool", strong=0.0, integral=0.6, weight_proportional=0.0)
+        self.wait_pool_fair_share("<Root>", strong=0.4, integral=0.6, weight_proportional=0.0)
 
     def test_accumulated_resource_ratio_volume_consumption(self):
         create_pool(

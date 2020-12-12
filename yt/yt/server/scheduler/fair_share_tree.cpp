@@ -137,7 +137,6 @@ public:
         , FairShareUpdateTimer_(TreeProfiler_.Timer("/fair_share_update_time"))
         , FairShareFluentLogTimer_(TreeProfiler_.Timer("/fair_share_fluent_log_time"))
         , FairShareTextLogTimer_(TreeProfiler_.Timer("/fair_share_text_log_time"))
-        , AnalyzePreemptableJobsTimer_(TreeProfiler_.Timer("/analyze_preemptable_jobs_time"))
         , PoolCountGauge_(TreeProfiler_.WithGlobal().Gauge("/pools/pool_count"))
     {
         RootElement_ = New<TRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
@@ -752,7 +751,8 @@ public:
         fluent
             .Item("pool").Value(parent->GetId())
             .Item("weight").Value(element->GetWeight())
-            .Item("fair_share_ratio").Value(attributes.GetFairShareRatio());
+            .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
+            .Item("dominant_fair_share").Value(MaxComponent(attributes.FairShare.Total));
     }
 
 
@@ -869,6 +869,7 @@ private:
         TRawPoolMap PoolNameToElement;
         THashMap<TString, int> ElementIndexes;
         TFairShareStrategyTreeConfigPtr Config;
+        bool CoreProfilingCompatibilityEnabled;
 
         TOperationElement* FindOperationElement(TOperationId operationId) const
         {
@@ -992,7 +993,7 @@ private:
             if (auto* element = RootElementSnapshot_->FindPool(poolId)) {
                 return TSchedulerElementStateSnapshot{
                     element->Attributes().DemandShare,
-                    element->Attributes().UnlimitedDemandFairShare};
+                    element->Attributes().PromisedFairShare};
             }
 
             return std::nullopt;
@@ -1039,7 +1040,6 @@ private:
     TEventTimer FairShareUpdateTimer_;
     TEventTimer FairShareFluentLogTimer_;
     TEventTimer FairShareTextLogTimer_;
-    TEventTimer AnalyzePreemptableJobsTimer_;
     TGauge PoolCountGauge_;
 
     TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
@@ -1120,6 +1120,7 @@ private:
 
         rootElementSnapshot->RootElement = rootElement;
         rootElementSnapshot->Config = Config_;
+        rootElementSnapshot->CoreProfilingCompatibilityEnabled = StrategyHost_->IsCoreProfilingCompatibilityEnabled();
 
         RootElementSnapshotPrecommit_ = rootElementSnapshot;
         LastFairShareUpdateTime_ = now;
@@ -1399,7 +1400,7 @@ private:
         THashSet<const TCompositeSchedulerElement *> discountedPools;
         std::vector<TJobPtr> preemptableJobs;
         {
-            TEventTimerGuard timer(AnalyzePreemptableJobsTimer_);
+            NProfiling::TWallTimer timer;
 
             // We need to initialize dynamic attributes list to update
             // resource usage discounts.
@@ -1443,6 +1444,8 @@ private:
                     preemptableJobs.push_back(job);
                 }
             }
+
+            context->StageState()->AnalyzeJobsDuration += timer.GetElapsedTime();
         }
 
         context->SchedulingStatistics().PreemptableJobCount = preemptableJobs.size();
@@ -2253,13 +2256,13 @@ private:
         PoolCountGauge_.Update(rootElementSnapshot->PoolNameToElement.size());
 
         for (const auto& [poolName, pool] : rootElementSnapshot->PoolNameToElement) {
-            pool->ProfileFull();
+            pool->ProfileFull(rootElementSnapshot->CoreProfilingCompatibilityEnabled);
         }
-        rootElementSnapshot->RootElement.Get()->ProfileFull();
+        rootElementSnapshot->RootElement.Get()->ProfileFull(rootElementSnapshot->CoreProfilingCompatibilityEnabled);
 
         if (Config_->EnableOperationsProfiling) {
             for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
-                element->ProfileFull();
+                element->ProfileFull(rootElementSnapshot->CoreProfilingCompatibilityEnabled);
             }
         }
     }
@@ -2427,7 +2430,7 @@ private:
     {
         const auto& attributes = element->Attributes();
 
-        auto unlimitedDemandFairShareResources = element->GetTotalResourceLimits() * attributes.UnlimitedDemandFairShare;
+        auto promisedFairShareResources = element->GetTotalResourceLimits() * attributes.PromisedFairShare;
 
         // TODO(eshcherbin): Rethink which fields should be here and which should in in |TSchedulerElement::BuildYson|.
         // Also rethink which scalar fields should be exported to Orchid.
@@ -2444,14 +2447,21 @@ private:
             .Item("dominant_resource").Value(attributes.DominantResource)
             .Item("weight").Value(element->GetWeight())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
-            .Item("min_share_resources").Value(element->GetMinShareResources())
-            .Item("min_share_ratio").Value(MaxComponent(attributes.MinShare))
-            .Item("unlimited_demand_fair_share_ratio").Value(MaxComponent(attributes.UnlimitedDemandFairShare))
-            .Item("unlimited_demand_fair_share_resources").Value(unlimitedDemandFairShareResources)
-            .Item("usage_ratio").Value(element->GetResourceUsageRatioAtUpdate())
-            .Item("demand_ratio").Value(attributes.GetDemandRatio())
-            .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
-            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio);
+            .Item("min_share_resources").Value(element->GetStrongGuaranteeResources())
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("min_share_ratio").Value(MaxComponent(attributes.StrongGuaranteeShare))
+            .Item("promised_dominant_fair_share").Value(MaxComponent(attributes.PromisedFairShare))
+            .Item("promised_fair_share_resources").Value(promisedFairShareResources)
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("usage_ratio").Value(element->GetResourceDominantUsageShareAtUpdate())
+            .Item("dominant_usage_share").Value(element->GetResourceDominantUsageShareAtUpdate())
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("demand_ratio").Value(MaxComponent(attributes.DemandShare))
+            .Item("dominant_demand_share").Value(MaxComponent(attributes.DemandShare))
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
+            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
+            .Item("detailed_dominant_fair_share").Do(std::bind(&SerializeDominant, attributes.FairShare, std::placeholders::_1));
 
         element->BuildYson(fluent);
     }
@@ -2499,9 +2509,15 @@ private:
         const auto& attributes = element->Attributes();
 
         fluent
-            .Item("usage_ratio").Value(element->GetResourceUsageRatioAtUpdate())
-            .Item("demand_ratio").Value(attributes.GetDemandRatio())
-            .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("usage_ratio").Value(element->GetResourceDominantUsageShareAtUpdate())
+            .Item("dominant_usage_share").Value(element->GetResourceDominantUsageShareAtUpdate())
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("demand_ratio").Value(MaxComponent(attributes.DemandShare))
+            .Item("dominant_demand_share").Value(MaxComponent(attributes.DemandShare))
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
+            .Item("dominant_fair_share").Value(MaxComponent(attributes.FairShare.Total))
             .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
             .Item("dominant_resource").Value(attributes.DominantResource)
             .DoIf(element->IsOperation(), [&] (TFluentMap fluent) {
