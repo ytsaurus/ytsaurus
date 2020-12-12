@@ -2429,6 +2429,7 @@ private:
     void DoBuildElementYson(const TSchedulerElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
     {
         const auto& attributes = element->Attributes();
+        const auto& persistentAttributes = element->PersistentAttributes();
 
         auto promisedFairShareResources = element->GetTotalResourceLimits() * attributes.PromisedFairShare;
 
@@ -2441,29 +2442,48 @@ private:
             .Item("fair_share_preemption_timeout").Value(element->GetFairSharePreemptionTimeout())
             .Item("adjusted_fair_share_starvation_tolerance").Value(attributes.AdjustedFairShareStarvationTolerance)
             .Item("adjusted_fair_share_preemption_timeout").Value(attributes.AdjustedFairSharePreemptionTimeout)
-            .Item("resource_demand").Value(element->ResourceDemand())
-            .Item("resource_usage").Value(element->ResourceUsageAtUpdate())
-            .Item("resource_limits").Value(element->ResourceLimits())
-            .Item("dominant_resource").Value(attributes.DominantResource)
             .Item("weight").Value(element->GetWeight())
             .Item("max_share_ratio").Value(element->GetMaxShareRatio())
-            .Item("min_share_resources").Value(element->GetStrongGuaranteeResources())
-            // COMPAT(ignat): remove it after UI and other tools migration.
-            .Item("min_share_ratio").Value(MaxComponent(attributes.StrongGuaranteeShare))
-            .Item("promised_dominant_fair_share").Value(MaxComponent(attributes.PromisedFairShare))
-            .Item("promised_fair_share_resources").Value(promisedFairShareResources)
+            .Item("dominant_resource").Value(attributes.DominantResource)
+
+            .Item("resource_usage").Value(element->ResourceUsageAtUpdate())
+            .Item("usage_share").Value(attributes.UsageShare)
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("usage_ratio").Value(element->GetResourceDominantUsageShareAtUpdate())
             .Item("dominant_usage_share").Value(element->GetResourceDominantUsageShareAtUpdate())
+
+            .Item("resource_demand").Value(element->ResourceDemand())
+            .Item("demand_share").Value(attributes.DemandShare)
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("demand_ratio").Value(MaxComponent(attributes.DemandShare))
             .Item("dominant_demand_share").Value(MaxComponent(attributes.DemandShare))
+
+            .Item("resource_limits").Value(element->ResourceLimits())
+            .Item("limits_share").Value(attributes.LimitsShare)
+
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("min_share").Value(attributes.StrongGuaranteeShare)
+            .Item("strong_guarantee_share").Value(attributes.StrongGuaranteeShare)
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("min_share_resources").Value(element->GetStrongGuaranteeResources())
+            .Item("strong_guarantee_resources").Value(attributes.StrongGuaranteeShare)
+            // COMPAT(ignat): remove it after UI and other tools migration.
+            .Item("min_share_ratio").Value(MaxComponent(attributes.StrongGuaranteeShare))
+
             // COMPAT(ignat): remove it after UI and other tools migration.
             .Item("fair_share_ratio").Value(MaxComponent(attributes.FairShare.Total))
-            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
-            .Item("detailed_dominant_fair_share").Do(std::bind(&SerializeDominant, attributes.FairShare, std::placeholders::_1));
+            .Item("detailed_fair_share").Value(attributes.FairShare)
+            .Item("detailed_dominant_fair_share").Do(std::bind(&SerializeDominant, attributes.FairShare, std::placeholders::_1))
 
-        element->BuildYson(fluent);
+            .Item("promised_fair_share").Value(attributes.PromisedFairShare)
+            .Item("promised_dominant_fair_share").Value(MaxComponent(attributes.PromisedFairShare))
+            .Item("promised_fair_share_resources").Value(promisedFairShareResources)
+
+            .Item("proposed_integral_share").Value(attributes.ProposedIntegralShare)
+            .Item("best_allocation_share").Value(persistentAttributes.BestAllocationShare)
+
+            .Item("satisfaction_ratio").Value(attributes.SatisfactionRatio)
+            .Item("local_satisfaction_ratio").Value(attributes.LocalSatisfactionRatio);
     }
 
     void DoBuildEssentialFairShareInfo(const TRootElementSnapshotPtr& rootElementSnapshot, TFluentMap fluent) const
