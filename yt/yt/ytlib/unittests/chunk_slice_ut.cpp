@@ -35,15 +35,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedOwningRow MakeRow(const std::vector<TUnversionedValue>& values)
-{
-    TUnversionedOwningRowBuilder builder;
-    for (const auto& value : values) {
-        builder.AddValue(value);
-    }
-    return builder.FinishRow();
-}
-
 TUnversionedOwningRow MakeRow(const std::vector<int>& values, bool addMax = false)
 {
     TUnversionedOwningRowBuilder builder;
@@ -58,7 +49,11 @@ TUnversionedOwningRow MakeRow(const std::vector<int>& values, bool addMax = fals
 
 TOwningKeyBound MakeKeyBound(const std::vector<TUnversionedValue>& values, bool isInclusive, bool isUpper)
 {
-    return TOwningKeyBound::FromRow(MakeRow(values), isInclusive, isUpper);
+    TUnversionedOwningRowBuilder builder;
+    for (auto value : values) {
+        builder.AddValue(value);
+    }
+    return TOwningKeyBound::FromRow(builder.FinishRow(), isInclusive, isUpper);
 }
 
 TLegacyReadLimit MakeReadLimit(
@@ -1093,7 +1088,15 @@ TEST(TChunkSliceLimitTest, LegacyNewInterop)
     auto intValue = MakeUnversionedInt64Value(27);
     auto maxValue = MakeUnversionedSentinelValue(EValueType::Max);
 
-    legacyLimit.Key = rowBuffer->Capture(MakeRow({intValue, maxValue, maxValue}));
+    auto makeRow = [] (const std::vector<TUnversionedValue>& values) {
+        TUnversionedOwningRowBuilder builder;
+        for (auto value : values) {
+            builder.AddValue(value);
+        }
+        return builder.FinishRow();
+    };
+
+    legacyLimit.Key = rowBuffer->Capture(makeRow({intValue, maxValue, maxValue}));
 
     NProto::TReadLimit protoLimit;
     ToProto(&protoLimit, legacyLimit);
@@ -1107,7 +1110,7 @@ TEST(TChunkSliceLimitTest, LegacyNewInterop)
 
     legacyLimit = TLegacyInputSliceLimit(protoLimit, rowBuffer, TRange<TLegacyKey>());
     EXPECT_EQ(std::make_optional(42), legacyLimit.RowIndex);
-    EXPECT_EQ(MakeRow({intValue, maxValue}), legacyLimit.Key);
+    EXPECT_EQ(makeRow({intValue, maxValue}), legacyLimit.Key);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
