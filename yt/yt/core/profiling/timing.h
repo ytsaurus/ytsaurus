@@ -17,13 +17,13 @@ TCpuInstant GetCpuInstant();
 TInstant GetInstant();
 
 //! Converts a number of processor ticks into a regular duration.
-TDuration CpuDurationToDuration(TCpuDuration duration);
+TDuration CpuDurationToDuration(TCpuDuration cpuDuration);
 
 //! Converts a regular duration into the number of processor ticks.
 TCpuDuration DurationToCpuDuration(TDuration duration);
 
 //! Converts a processor clock into the regular time instant.
-TInstant CpuInstantToInstant(TCpuInstant instant);
+TInstant CpuInstantToInstant(TCpuInstant cpuInstant);
 
 //! Converts a regular time instant into the processor clock.
 TCpuInstant InstantToCpuInstant(TInstant instant);
@@ -41,7 +41,7 @@ TValue DurationToValue(TDuration duration);
 TDuration ValueToDuration(TValue value);
 
 //! Converts a CPU duration into TValue suitable for profiling.
-TValue CpuDurationToValue(TCpuDuration duration);
+TValue CpuDurationToValue(TCpuDuration cpuDuration);
 
 ////////////////////////////////////////////////////////////////////////////////
 

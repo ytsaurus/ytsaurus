@@ -1,9 +1,8 @@
 #include "timing.h"
 
-#include <yt/core/misc/singleton.h>
+#include <yt/core/misc/assert.h>
 
-#include <util/system/sanitizers.h>
-#include <util/system/spinlock.h>
+#include <util/system/hp_timer.h>
 
 #include <array>
 
@@ -11,185 +10,103 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto CalibrationInterval = TDuration::Seconds(3);
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClockConverter
+namespace {
+
+// Re-calibrate every 1B CPU ticks.
+constexpr auto CalibrationCpuPeriod = 1'000'000'000;
+
+struct TCalibrationState
 {
-public:
-    static TClockConverter* Get()
-    {
-        return LeakySingleton<TClockConverter>();
-    }
-
-    // TDuration is unsigned and does not support negative values,
-    // thus we consider two cases separately.
-    TInstant Convert(TCpuInstant cpuInstant)
-    {
-        auto state = GetCalibrationState();
-        return cpuInstant >= state.CpuInstant
-            ? state.Instant + CpuDurationToDuration(cpuInstant - state.CpuInstant)
-            : state.Instant - CpuDurationToDuration(state.CpuInstant - cpuInstant);
-    }
-
-    TCpuInstant Convert(TInstant instant)
-    {
-        auto state = GetCalibrationState();
-        return instant >= state.Instant
-            ? state.CpuInstant + DurationToCpuDuration(instant - state.Instant)
-            : state.CpuInstant - DurationToCpuDuration(state.Instant - instant);
-    }
-
-    double GetClockRate()
-    {
-        return ClockRate_;
-    }
-
-private:
-    DECLARE_LEAKY_SINGLETON_FRIEND()
-
-    const double ClockRate_;
-
-    struct TCalibrationState
-    {
-        TCpuInstant CpuInstant;
-        TInstant Instant;
-    };
-
-    std::atomic<TCpuInstant> NextCalibrationCpuInstant_ = {0};
-    YT_DECLARE_SPINLOCK(TAdaptiveLock, CalibrationLock_);
-    std::array<TCalibrationState, 2> CalibrationStates_;
-    std::atomic<size_t> CalibrationStateIndex_ = {0};
-
-
-    TClockConverter()
-        : ClockRate_(EstimateClockRate())
-    {
-        Calibrate(0);
-    }
-
-    void CalibrateIfNeeded()
-    {
-        auto nowCpuInstant = GetCpuInstant();
-        if (nowCpuInstant < NextCalibrationCpuInstant_) {
-            return;
-        }
-
-        TTryGuard guard(CalibrationLock_);
-        if (!guard.WasAcquired()) {
-            return;
-        }
-
-        Calibrate(1 - CalibrationStateIndex_);
-        NextCalibrationCpuInstant_ += DurationToCpuDuration(CalibrationInterval);
-    }
-
-    void Calibrate(int index)
-    {
-        auto& state = CalibrationStates_[index];
-        state.CpuInstant = GetCpuInstant();
-        state.Instant = TInstant::Now();
-        CalibrationStateIndex_ = index;
-    }
-
-    TCalibrationState GetCalibrationState()
-    {
-        CalibrateIfNeeded();
-        if (NSan::TSanIsOn()) {
-            // The data structure is designed to avoid locking on read
-            // but we cannot explain it to TSan.
-            auto guard = Guard(CalibrationLock_);
-            return CalibrationStates_[CalibrationStateIndex_];
-        } else {
-            return CalibrationStates_[CalibrationStateIndex_];
-        }
-    }
-
-    static double EstimateClockRateOnce()
-    {
-        ui64 startCycle = 0;
-        ui64 startMS = 0;
-
-        for (;;) {
-            startMS = MicroSeconds();
-            startCycle = GetCpuInstant();
-
-            ui64 n = MicroSeconds();
-
-            if (n - startMS < 100) {
-                break;
-            }
-        }
-
-        Sleep(TDuration::MicroSeconds(5000));
-
-        ui64 finishCycle = 0;
-        ui64 finishMS = 0;
-
-        for (;;) {
-            finishMS = MicroSeconds();
-
-            if (finishMS - startMS < 100) {
-                continue;
-            }
-
-            finishCycle = GetCpuInstant();
-
-            ui64 n = MicroSeconds();
-
-            if (n - finishMS < 100) {
-                break;
-            }
-        }
-
-        return (finishCycle - startCycle) * 1000000.0 / (finishMS - startMS);
-    }
-
-    static double EstimateClockRate()
-    {
-        const size_t N = 9;
-        std::array<double, N> estimates;
-
-        for (auto& estimate : estimates) {
-            estimate = EstimateClockRateOnce();
-        }
-
-        std::sort(estimates.begin(), estimates.end());
-
-        return estimates[N / 2];
-    }
+    TCpuInstant CpuInstant;
+    TInstant Instant;
+    double TicksToMicroseconds;
+    double MicrosecondsToTicks;
 };
+
+double GetMicrosecondsToTicks()
+{
+    return static_cast<double>(NHPTimer::GetCyclesPerSecond()) / 1'000'000;
+}
+
+double GetTicksToMicroseconds()
+{
+    return 1.0 / GetMicrosecondsToTicks();
+}
+
+TCalibrationState GetCalibrationState(TCpuInstant cpuInstant)
+{
+    thread_local TCalibrationState State;
+
+    if (State.CpuInstant + CalibrationCpuPeriod < cpuInstant) {
+        State.CpuInstant = cpuInstant;
+        State.Instant = TInstant::Now();
+        State.TicksToMicroseconds = GetTicksToMicroseconds();
+        State.MicrosecondsToTicks = GetMicrosecondsToTicks();
+    }
+
+    return State;
+}
+
+TCalibrationState GetCalibrationState()
+{
+    return GetCalibrationState(GetCpuInstant());
+}
+
+TDuration CpuDurationToDuration(TCpuDuration cpuDuration, double ticksToMicroseconds)
+{
+    // TDuration is unsigned and thus does not support negative values.
+    if (cpuDuration < 0) {
+        return TDuration::Zero();
+    }
+    return TDuration::MicroSeconds(static_cast<ui64>(cpuDuration * ticksToMicroseconds));
+}
+
+TCpuDuration DurationToCpuDuration(TDuration duration, double microsecondsToTicks)
+{
+    return static_cast<TCpuDuration>(duration.MicroSeconds() * microsecondsToTicks);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TInstant GetInstant()
 {
-    return CpuInstantToInstant(GetCpuInstant());
+    auto cpuInstant = GetCpuInstant();
+    auto state = GetCalibrationState(cpuInstant);
+    YT_ASSERT(cpuInstant >= state.CpuInstant);
+    return state.Instant + CpuDurationToDuration(cpuInstant - state.CpuInstant, state.TicksToMicroseconds);
 }
 
-TDuration CpuDurationToDuration(TCpuDuration duration)
+TDuration CpuDurationToDuration(TCpuDuration cpuDuration)
 {
-    // TDuration is unsigned and thus does not support negative values.
-    if (duration < 0) {
-        duration = 0;
-    }
-    return TDuration::Seconds(static_cast<double>(duration) / TClockConverter::Get()->GetClockRate());
+    return CpuDurationToDuration(cpuDuration, GetTicksToMicroseconds());
 }
 
 TCpuDuration DurationToCpuDuration(TDuration duration)
 {
-    return static_cast<TCpuDuration>(static_cast<double>(duration.MicroSeconds()) * TClockConverter::Get()->GetClockRate() / 1000000);
+    return DurationToCpuDuration(duration, GetMicrosecondsToTicks());
 }
 
-TInstant CpuInstantToInstant(TCpuInstant instant)
+TInstant CpuInstantToInstant(TCpuInstant cpuInstant)
 {
-    return TClockConverter::Get()->Convert(instant);
+    // TDuration is unsigned and does not support negative values,
+    // thus we consider two cases separately.
+    auto state = GetCalibrationState();
+    return cpuInstant >= state.CpuInstant
+        ? state.Instant + CpuDurationToDuration(cpuInstant - state.CpuInstant, state.TicksToMicroseconds)
+        : state.Instant - CpuDurationToDuration(state.CpuInstant - cpuInstant, state.TicksToMicroseconds);
 }
 
 TCpuInstant InstantToCpuInstant(TInstant instant)
 {
-    return TClockConverter::Get()->Convert(instant);
+    // See above.
+    auto state = GetCalibrationState();
+    return instant >= state.Instant
+        ? state.CpuInstant + DurationToCpuDuration(instant - state.Instant, state.MicrosecondsToTicks)
+        : state.CpuInstant - DurationToCpuDuration(state.Instant - instant, state.MicrosecondsToTicks);
 }
 
 TValue DurationToValue(TDuration duration)
@@ -206,11 +123,11 @@ TDuration ValueToDuration(TValue value)
     return TDuration::MicroSeconds(static_cast<ui64>(value));
 }
 
-TValue CpuDurationToValue(TCpuDuration duration)
+TValue CpuDurationToValue(TCpuDuration cpuDuration)
 {
-    return duration > 0
-        ? DurationToValue(CpuDurationToDuration(duration))
-        : -DurationToValue(CpuDurationToDuration(-duration));
+    return cpuDuration > 0
+        ? DurationToValue(CpuDurationToDuration(cpuDuration))
+        : -DurationToValue(CpuDurationToDuration(-cpuDuration));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
