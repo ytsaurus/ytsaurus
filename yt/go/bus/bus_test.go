@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"a.yandex-team.ru/yt/go/guid"
 )
 
 func connPair() (a, b net.Conn, err error) {
@@ -43,10 +45,11 @@ func TestBusPingPong(t *testing.T) {
 		[]byte(""),
 	}
 
-	err = busA.Send(message)
+	err = busA.Send(guid.New(), message, &busSendOptions{})
 	require.NoError(t, err)
 
 	transferred, err := busB.Receive()
 	require.NoError(t, err)
-	require.Equal(t, message, transferred)
+	require.Equal(t, packetMessage, transferred.fixHeader.typ)
+	require.Equal(t, message, transferred.parts)
 }

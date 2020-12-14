@@ -8,7 +8,6 @@ import (
 
 	"a.yandex-team.ru/yt/go/bus"
 	"a.yandex-team.ru/yt/go/proto/client/api/rpc_proxy"
-	"go.uber.org/zap"
 )
 
 var (
@@ -16,12 +15,6 @@ var (
 )
 
 func testBus() error {
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		return err
-	}
-	_ = logger
-
 	ctx := context.Background()
 	conn, err := bus.NewClient(ctx, *flagAddress)
 	if err != nil {

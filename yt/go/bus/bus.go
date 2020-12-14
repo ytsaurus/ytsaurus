@@ -15,6 +15,13 @@ import (
 	"a.yandex-team.ru/yt/go/guid"
 )
 
+type AttributeKey string
+
+const (
+	AttributeKeyFeatureID   AttributeKey = "feature_id"
+	AttributeKeyFeatureName AttributeKey = "feature_name"
+)
+
 type Options struct {
 	Address string
 	Logger  log.Logger
@@ -27,7 +34,8 @@ const (
 	packetMessage = packetType(0)
 	packetAck     = packetType(1)
 
-	packetFlagsNone = packetFlags(0x0000)
+	packetFlagsNone                   = packetFlags(0x0000)
+	packetFlagsRequestAcknowledgement = packetFlags(0x0001)
 
 	packetSignature = uint32(0x78616d4f)
 	maxPartSize     = 512 * 1024 * 1024
@@ -100,12 +108,12 @@ type busMsg struct {
 	parts     [][]byte
 }
 
-func newPacket(data [][]byte, computeCRC bool) busMsg {
+func newMessagePacket(id guid.GUID, data [][]byte, flags packetFlags, computeCRC bool) busMsg {
 	hdr := fixedHeader{
 		typ:       packetMessage,
-		flags:     packetFlagsNone,
+		flags:     flags,
 		partCount: uint32(len(data)),
-		packetID:  guid.New(),
+		packetID:  id,
 		checksum:  0,
 		signature: packetSignature,
 	}
@@ -163,6 +171,19 @@ type Bus struct {
 	once    sync.Once
 }
 
+func NewBus(conn net.Conn, options Options) *Bus {
+	logger := options.Logger
+	if logger == nil {
+		logger = &nop.Logger{}
+	}
+
+	return &Bus{
+		options: options,
+		conn:    conn,
+		logger:  log.With(logger, log.Any("busID", guid.New())),
+	}
+}
+
 func (c *Bus) Close() {
 	c.once.Do(func() {
 		if err := c.conn.Close(); err != nil {
@@ -173,33 +194,51 @@ func (c *Bus) Close() {
 	})
 }
 
-func (c *Bus) Send(data [][]byte) error {
-	packet := newPacket(data, true)
+type DeliveryTrackingLevel int
+
+const (
+	DeliveryTrackingLevelNone      DeliveryTrackingLevel = 0
+	DeliveryTrackingLevelErrorOnly DeliveryTrackingLevel = 1
+	DeliveryTrackingLevelFull      DeliveryTrackingLevel = 2
+)
+
+type busSendOptions struct {
+	DeliveryTrackingLevel DeliveryTrackingLevel
+}
+
+func (c *Bus) Send(packetID guid.GUID, packetData [][]byte, opts *busSendOptions) error {
+	flags := packetFlagsNone
+	if opts.DeliveryTrackingLevel == DeliveryTrackingLevelFull {
+		flags = packetFlagsRequestAcknowledgement
+	}
+
+	packet := newMessagePacket(packetID, packetData, flags, true)
 	l, err := packet.writeTo(c.conn)
 	if err != nil {
 		c.logger.Error("Unable to send packet", log.Error(err))
 		return err
 	}
 
-	c.logger.Debug("Packet sent", log.Any("bytes", l))
+	c.logger.Debug("Packet sent",
+		log.String("id", packet.fixHeader.packetID.String()),
+		log.Any("bytes", l))
+
 	return nil
 }
 
-func (c *Bus) Receive() ([][]byte, error) {
-	for {
-		packet, err := c.receive(c.conn)
-		if err != nil {
-			c.logger.Error("Receive error", log.Error(err))
-			return nil, err
-		}
-
-		if packet.fixHeader.typ == packetAck {
-			c.logger.Debug("Receive ack", log.Any("id", packet.fixHeader.packetID))
-			continue
-		}
-
-		return packet.parts, nil
+func (c *Bus) Receive() (busMsg, error) {
+	packet, err := c.receive(c.conn)
+	if err != nil {
+		c.logger.Error("Receive error", log.Error(err))
+		return busMsg{}, err
 	}
+
+	c.logger.Info("Packet received",
+		log.String("id", packet.fixHeader.packetID.String()),
+		log.Any("type", packet.fixHeader.typ),
+		log.Int16("flags", int16(packet.fixHeader.flags)))
+
+	return packet, nil
 }
 
 func (c *Bus) receive(message io.Reader) (busMsg, error) {
@@ -233,10 +272,18 @@ func (c *Bus) receive(message io.Reader) (busMsg, error) {
 		return busMsg{}, fmt.Errorf("bus: too many parts: %d > %d", fixHeader.partCount, maxPartCount)
 	}
 
+	if fixHeader.partCount == 0 {
+		return busMsg{
+			parts:     nil,
+			fixHeader: fixHeader,
+			varHeader: variableHeader{},
+		}, nil
+	}
+
 	// variableHeader
 	varHeader := variableHeader{
-		checksums: make([]uint64, fixHeader.partCount),
 		sizes:     make([]uint32, fixHeader.partCount),
+		checksums: make([]uint64, fixHeader.partCount),
 	}
 
 	rawVarHeader := make([]byte, int((4+8)*fixHeader.partCount+8))
@@ -256,7 +303,8 @@ func (c *Bus) receive(message io.Reader) (busMsg, error) {
 	varHeader.headerChecksum = binary.LittleEndian.Uint64(rawVarHeader[p:])
 
 	if varHeader.headerChecksum != crc64.Checksum(rawVarHeader[:p]) {
-		return busMsg{}, fmt.Errorf("bus: variabled header checksum mismatch")
+		return busMsg{}, fmt.Errorf("bus: variabled header checksum mismatch, expected %x got %x",
+			varHeader.headerChecksum, crc64.Checksum(rawVarHeader[:p]))
 	}
 
 	parts := make([][]byte, fixHeader.partCount)
@@ -281,19 +329,6 @@ func (c *Bus) receive(message io.Reader) (busMsg, error) {
 		fixHeader: fixHeader,
 		varHeader: varHeader,
 	}, nil
-}
-
-func NewBus(conn net.Conn, options Options) *Bus {
-	logger := options.Logger
-	if logger == nil {
-		logger = &nop.Logger{}
-	}
-
-	return &Bus{
-		options: options,
-		conn:    conn,
-		logger:  log.With(logger, log.Any("busID", guid.New())),
-	}
 }
 
 func Dial(ctx context.Context, options Options) (*Bus, error) {
