@@ -1144,7 +1144,7 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .GreaterThan(0)
         .Default(10'000'000);
     RegisterParameter("sort_by", SortBy)
-        .NonEmpty();
+        .Default();
     RegisterParameter("enable_partitioned_data_balancing", EnablePartitionedDataBalancing)
         .Default(true);
     RegisterParameter("enable_intermediate_output_recalculation", EnableIntermediateOutputRecalculation)
@@ -1243,6 +1243,10 @@ TSortOperationSpec::TSortOperationSpec()
 
     RegisterPostprocessor([&] {
         OutputTablePath = OutputTablePath.Normalize();
+
+        if (SortBy.empty()) {
+            THROW_ERROR_EXCEPTION("\"sort_by\" option should be set in Sort operations");
+        }
 
         if (Sampling && Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("Sampling in sort operation is not supported");
@@ -1360,6 +1364,10 @@ TMapReduceOperationSpec::TMapReduceOperationSpec()
 
         if (ReduceBy.empty()) {
             ReduceBy = SortBy;
+        }
+
+        if (SortBy.empty()) {
+            SortBy = ReduceBy;
         }
 
         if (HasNontrivialMapper()) {
