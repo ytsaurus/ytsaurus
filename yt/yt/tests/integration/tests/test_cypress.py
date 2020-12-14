@@ -2428,16 +2428,62 @@ class TestCypress(YTEnvSetup):
     @authors("shakurov")
     def test_inheritable_attributes_with_transactions(self):
         create("map_node", "//tmp/dir1")
-        tx = start_transaction()
 
-        # Inheritable attributes cannot be changed within trasactions.
-        with pytest.raises(YtError):
-            set("//tmp/dir1/@compression_codec", "lz4", tx=tx)
+        tx = start_transaction(timeout=60000)
 
-        set("//tmp/dir1/@compression_codec", "lz4")
+        set("//tmp/dir1/@compression_codec", "zlib_9", tx=tx)
+        assert not exists("//tmp/dir1/@compression_codec")
 
         create("table", "//tmp/dir1/t1", tx=tx)
-        assert get("//tmp/dir1/t1/@compression_codec", tx=tx) == "lz4"
+        assert get("//tmp/dir1/t1/@compression_codec", tx=tx) == "zlib_9"
+
+        create("table", "//tmp/dir1/t2")
+        assert get("//tmp/dir1/t2/@compression_codec") == "lz4"
+
+        with pytest.raises(YtError):
+            set("//tmp/dir1/@compression_codec", "snappy")
+
+        set("//tmp/dir1/@erasure_codec", "reed_solomon_6_3")
+        assert not exists("//tmp/dir1/t4/@erasure_codec", tx=tx)
+
+        commit_transaction(tx)
+
+        assert get("//tmp/dir1/@compression_codec") == "zlib_9"
+        assert get("//tmp/dir1/@erasure_codec") == "reed_solomon_6_3"
+
+    @authors("shakurov")
+    def test_inheritable_attributes_with_nested_transactions(self):
+        tx1 = start_transaction(timeout=60000)
+        tx2 = start_transaction(tx=tx1, timeout=60000)
+        tx3 = start_transaction(tx=tx2, timeout=60000)
+
+        def prepare_dir(dir_base_name, tx):
+            dir_name = "//tmp/" + dir_base_name
+            create("map_node", dir_name)
+            set(dir_name + "/@compression_codec", "lz4", tx=tx)
+            with pytest.raises(YtError):
+                set(dir_name + "/@erasure_codec", None, tx=tx)
+            remove(dir_name + "/@erasure_codec", tx=tx)
+
+        # Non-transactional changes.
+        prepare_dir("dir1", "0-0-0-0")
+        assert get("//tmp/dir1/@compression_codec", tx=tx3) == "lz4"
+        assert not exists("//tmp/dir1/@erasure_codec", tx=tx3)
+
+        # Ancestor transaction changes.
+        prepare_dir("dir2", tx1)
+        assert get("//tmp/dir2/@compression_codec", tx=tx3) == "lz4"
+        assert not exists("//tmp/dir2/@erasure_codec", tx=tx3)
+
+        # Parent transaction changes.
+        prepare_dir("dir3", tx2)
+        assert get("//tmp/dir3/@compression_codec", tx=tx3) == "lz4"
+        assert not exists("//tmp/dir3/@erasure_codec", tx=tx3)
+
+        # Immediate transaction changes.
+        prepare_dir("dir4", tx3)
+        assert get("//tmp/dir4/@compression_codec", tx=tx3) == "lz4"
+        assert not exists("//tmp/dir4/@erasure_codec", tx=tx3)
 
     @authors("shakurov")
     def test_inheritable_attributes_media_validation(self):
@@ -3229,21 +3275,26 @@ class TestCypressPortal(TestCypressMulticell):
     def test_cross_shard_copy_inhertible_attributes(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
 
+        create_tablet_cell_bundle("b")
         create("map_node", "//tmp/d", attributes={
-            "compression_codec": "snappy"
+            "compression_codec": "snappy",
+            "tablet_cell_bundle": "b"
         })
 
         copy("//tmp/d", "//tmp/p/d1")
         assert get("//tmp/p/d1/@compression_codec") == "snappy"
+        assert get("//tmp/p/d1/@tablet_cell_bundle") == "b"
 
         tx = start_transaction()
 
         copy("//tmp/d", "//tmp/p/d2", tx=tx)
         assert get("//tmp/p/d2/@compression_codec", tx=tx) == "snappy"
+        assert get("//tmp/p/d2/@tablet_cell_bundle", tx=tx) == "b"
 
         commit_transaction(tx)
 
         assert get("//tmp/p/d2/@compression_codec") == "snappy"
+        assert get("//tmp/p/d2/@tablet_cell_bundle") == "b"
 
     @authors("shakurov")
     def test_cross_shard_copy_w_tx(self):

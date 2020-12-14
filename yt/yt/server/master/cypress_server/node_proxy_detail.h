@@ -263,6 +263,12 @@ protected:
     virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
 
     virtual bool CanHaveChildren() const override;
+
+private:
+    void SetReplicationFactor(int replicationFactor);
+    void SetPrimaryMedium(const TString& primaryMediumName);
+    void SetMedia(NChunkServer::TSerializableChunkReplication serializableReplication);
+    void ThrowReplicationFactorMismatch(int mediumIndex) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

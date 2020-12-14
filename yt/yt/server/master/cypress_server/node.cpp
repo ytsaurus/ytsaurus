@@ -19,6 +19,20 @@ using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNullVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& context)
+{ }
+
+void TNullVersionedBuiltinAttribute::Persist(const NCypressServer::TCopyPersistenceContext& context)
+{ }
+
+void TTombstonedVersionedBuiltinAttribute::Persist(const NCellMaster::TPersistenceContext& context)
+{ }
+
+void TTombstonedVersionedBuiltinAttribute::Persist(const NCypressServer::TCopyPersistenceContext& context)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCypressNode::TCypressNode(const TVersionedNodeId& id)
     : TObject(id.ObjectId)
     , Acd_(this)
@@ -217,7 +231,17 @@ void TCypressNode::Load(TLoadContext& context)
     Load(context, AccessTime_);
     Load(context, AccessCounter_);
     Load(context, Shard_);
-    Load(context, Annotation_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < EMasterReign::CorrectMergeBranchSemanticsForAttributes) {
+        auto annotation = Load<std::optional<TString>>(context);
+        if (annotation) {
+            Annotation_.Set(*annotation);
+        } else {
+            Annotation_.Reset();
+        }
+    } else {
+        Load(context, Annotation_);
+    }
 }
 
 TVersionedObjectId GetObjectId(const TCypressNode* object)

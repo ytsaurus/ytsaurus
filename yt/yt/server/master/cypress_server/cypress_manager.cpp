@@ -1782,8 +1782,6 @@ public:
 
         if (time) {
             node->SetExpirationTime(*time);
-        } else if (node->IsTrunk()) {
-            node->ResetExpirationTime();
         } else {
             node->RemoveExpirationTime();
         }
@@ -1799,8 +1797,6 @@ public:
 
         if (timeout) {
             node->SetExpirationTimeout(*timeout);
-        } else if (node->IsTrunk()) {
-            node->ResetExpirationTimeout();
         } else {
             node->RemoveExpirationTimeout();
         }
