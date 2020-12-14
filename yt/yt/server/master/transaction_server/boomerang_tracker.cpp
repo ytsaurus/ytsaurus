@@ -236,18 +236,21 @@ void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* requ
     // TODO(shakurov): use mutation idempotizer.
 
     TMutationContext mutationContext(GetCurrentMutationContext(), mutationRequest);
-    TMutationContextGuard mutationContextGuard(&mutationContext);
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-    const auto& automaton = hydraFacade->GetAutomaton();
 
     {
+        const auto& automaton = hydraFacade->GetAutomaton();
+        TMutationContextGuard mutationContextGuard(&mutationContext);
         TBoomerangMutationGuard boomerangMutationGuard;
         automaton->ApplyMutation(&mutationContext);
     }
 
+    const auto& responseKeeper = hydraFacade->GetResponseKeeper();
+
     if (!mutationContext.GetResponseKeeperSuppressed()) {
-        const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-        responseKeeper->EndRequest(mutationRequest.MutationId, mutationContext.GetResponseData());
+        responseKeeper->EndRequest(
+            mutationRequest.MutationId,
+            mutationContext.GetResponseData());
     }
 }
 
