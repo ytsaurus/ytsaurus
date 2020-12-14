@@ -8,9 +8,9 @@ from yt.packages.six import iteritems, itervalues, PY3, Iterator
 from yt.packages.six.moves import xrange, map as imap, filter as ifilter, zip as izip
 
 try:
-    from collections import Iterable
-except ImportError:
     from collections.abc import Iterable
+except ImportError:
+    from collections import Iterable
 
 import argparse
 import collections
