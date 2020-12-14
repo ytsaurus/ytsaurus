@@ -66,18 +66,111 @@ inline bool TCypressNodeRefComparer::Compare(const TCypressNode* lhs, const TCyp
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::TNull::Persist(const NCellMaster::TPersistenceContext& context)
-{ }
+void TVersionedBuiltinAttribute<T>::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, BoxedValue_);
+}
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::TTombstone::Persist(const NCellMaster::TPersistenceContext& context)
-{ }
+void TVersionedBuiltinAttribute<T>::Persist(const NCypressServer::TCopyPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, BoxedValue_);
+}
+
+template <class T>
+std::optional<T> TVersionedBuiltinAttribute<T>::Set(T value)
+{
+    if constexpr (std::is_pointer_v<T>) {
+        // nullptrs are not allowed; Remove() should be used instead.
+        YT_VERIFY(value);
+    }
+
+    auto result = ToOptional();
+    BoxedValue_ = std::move(value);
+    return result;
+}
+
+template <class T>
+std::optional<T> TVersionedBuiltinAttribute<T>::Reset()
+{
+    auto result = ToOptional();
+    if constexpr (std::is_pointer_v<T>) {
+        BoxedValue_ = std::nullopt;
+    } else {
+        BoxedValue_ = TNullVersionedBuiltinAttribute{};
+    }
+    return result;
+}
+
+template <class T>
+std::optional<T> TVersionedBuiltinAttribute<T>::Remove()
+{
+    auto result = ToOptional();
+    if constexpr (std::is_pointer_v<T>) {
+        BoxedValue_ = nullptr;
+    } else {
+        BoxedValue_ = TTombstonedVersionedBuiltinAttribute{};
+    }
+    return result;
+}
+
+template <class T>
+bool TVersionedBuiltinAttribute<T>::IsNull() const
+{
+    if constexpr (std::is_pointer_v<T>) {
+        return !BoxedValue_.has_value();
+    } else {
+        return std::holds_alternative<TNullVersionedBuiltinAttribute>(BoxedValue_);
+    }
+}
+
+template <class T>
+bool TVersionedBuiltinAttribute<T>::IsTombstoned() const
+{
+    if constexpr (std::is_pointer_v<T>) {
+        return BoxedValue_ && *BoxedValue_ == nullptr;
+    } else {
+        return std::holds_alternative<TTombstonedVersionedBuiltinAttribute>(BoxedValue_);
+    }
+}
+
+template <class T>
+bool TVersionedBuiltinAttribute<T>::IsSet() const
+{
+    if constexpr (std::is_pointer_v<T>) {
+        return BoxedValue_ && *BoxedValue_ != nullptr;
+    } else {
+        return std::holds_alternative<T>(BoxedValue_);
+    }
+}
+
+template <class T>
+T TVersionedBuiltinAttribute<T>::Unbox() const
+{
+    if constexpr (std::is_pointer_v<T>) {
+        auto* result = *BoxedValue_;
+        YT_VERIFY(result);
+        return result;
+    } else {
+        auto* result = std::get_if<T>(&BoxedValue_);
+        YT_VERIFY(result);
+        return *result;
+    }
+}
+
+template <class T>
+std::optional<T> TVersionedBuiltinAttribute<T>::ToOptional() const
+{
+    return IsSet() ? std::make_optional(Unbox()) : std::nullopt;
+}
 
 template <class T>
 template <class TOwner>
-T TVersionedBuiltinAttribute<T>::Get(
+/*static*/ T TVersionedBuiltinAttribute<T>::Get(
     TVersionedBuiltinAttribute<T> TOwner::*member,
-    const TOwner* node) const
+    const TOwner* node)
 {
     auto result = TryGet(member, node);
     YT_VERIFY(result);
@@ -86,79 +179,77 @@ T TVersionedBuiltinAttribute<T>::Get(
 
 template <class T>
 template <class TOwner>
-std::optional<T> TVersionedBuiltinAttribute<T>::TryGet(
+/*static*/ T TVersionedBuiltinAttribute<T>::Get(
+    const TVersionedBuiltinAttribute<T>* (TOwner::*memberGetter)() const,
+    const TOwner* node)
+{
+    auto result = TryGet(memberGetter, node);
+    YT_VERIFY(result);
+    return *result;
+}
+
+template <class T>
+template <class TOwner>
+/*static*/ std::optional<T> TVersionedBuiltinAttribute<T>::TryGet(
     TVersionedBuiltinAttribute<T> TOwner::*member,
-    const TOwner* node) const
+    const TOwner* node)
 {
     for (auto* currentNode = node; currentNode; currentNode = currentNode->GetOriginator()->template As<TOwner>()) {
         const auto& attribute = currentNode->*member;
 
-        auto [result, mustBreak] = Visit(attribute.BoxedValue_,
-            [&] (TNull) {
-                return std::pair<std::optional<T>, bool>(std::nullopt, false);
-            },
-            [&] (TTombstone) {
-                return std::pair<std::optional<T>, bool>(std::nullopt, true);
-            },
-            [&] (const T& value) {
-                return std::pair<std::optional<T>, bool>(value, true);
-            });
-
-        if (mustBreak) {
-            return result;
+        if (attribute.IsNull()) {
+            continue;
         }
+
+        if (attribute.IsTombstoned()) {
+            return std::nullopt;
+        }
+
+        return attribute.Unbox();
     }
 
     return std::nullopt;
 }
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::Set(T value)
-{
-    BoxedValue_ = std::move(value);
-}
-
-template <class T>
-void TVersionedBuiltinAttribute<T>::Reset()
-{
-    BoxedValue_ = TNull();
-}
-
-template <class T>
-void TVersionedBuiltinAttribute<T>::Remove()
-{
-    BoxedValue_ = TTombstone();
-}
-
-template <class T>
 template <class TOwner>
-void TVersionedBuiltinAttribute<T>::Merge(
-    TVersionedBuiltinAttribute<T> TOwner::*member,
-    TOwner* originatingNode,
-    const TOwner* branchedNode)
+/*static*/ std::optional<T> TVersionedBuiltinAttribute<T>::TryGet(
+    const TVersionedBuiltinAttribute<T>* (TOwner::*memberGetter)() const,
+    const TOwner* node)
 {
-    const auto& branchedAttribute = branchedNode->*member;
-    Visit(branchedAttribute.BoxedValue_,
-        [&] (TTombstone) {
-            if (originatingNode->IsTrunk()) {
-                BoxedValue_ = TNull();
-            } else {
-                BoxedValue_ = TTombstone();
-            }
-        },
-        [&] (const T& value) {
-            BoxedValue_ = value;
-        },
-        [&] (TNull) {
-            // ignore
-        });
+    for (auto* currentNode = node; currentNode; currentNode = currentNode->GetOriginator()->template As<TOwner>()) {
+        auto* attribute = (currentNode->*memberGetter)();
+
+        if (!attribute) {
+            continue;
+        }
+
+        if (attribute->IsNull()) {
+            continue;
+        }
+
+        if (attribute->IsTombstoned()) {
+            return std::nullopt;
+        }
+
+        return attribute->Unbox();
+    }
+
+    return std::nullopt;
 }
 
 template <class T>
-void TVersionedBuiltinAttribute<T>::Persist(const NCellMaster::TPersistenceContext& context)
+void TVersionedBuiltinAttribute<T>::Merge(const TVersionedBuiltinAttribute& from, bool isTrunk)
 {
-    using NYT::Persist;
-    Persist(context, BoxedValue_);
+    if (from.IsTombstoned()) {
+        if (isTrunk) {
+            Reset();
+        } else {
+            Remove();
+        }
+    } else if (!from.IsNull()) {
+        Set(from.Unbox());
+    } // NB: null attributes are ignored.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

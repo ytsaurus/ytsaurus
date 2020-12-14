@@ -1389,10 +1389,10 @@ public:
 
     std::optional<TString> GetEffectiveAnnotation(TCypressNode* node)
     {
-        while (node && !node->GetAnnotation()) {
+        while (node && !node->TryGetAnnotation()) {
             node = node->GetParent();
         }
-        return node? node->GetAnnotation() : std::nullopt;
+        return node? node->TryGetAnnotation() : std::nullopt;
     }
 
     TAccessControlList GetEffectiveAcl(NObjectServer::TObject* object)
@@ -2077,12 +2077,12 @@ private:
 
             auto policy = entry.ReplicationPolicy;
             auto diskSpace = delta * GetDiskSpaceToCharge(chunkDiskSpace, erasureCodec, policy);
-            
+
             auto chunkCount = delta;
             auto masterMemoryUsage = masterMemoryUsageDelta;
             // Сharge once per account.
             if (account == lastAccount) {
-                chunkCount = 0; 
+                chunkCount = 0;
                 masterMemoryUsage = 0;
             }
 

@@ -30,83 +30,109 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TNullVersionedBuiltinAttribute
+{
+    void Persist(const NCellMaster::TPersistenceContext& context);
+    void Persist(const NCypressServer::TCopyPersistenceContext& context);
+};
+
+struct TTombstonedVersionedBuiltinAttribute
+{
+    void Persist(const NCellMaster::TPersistenceContext& context);
+    void Persist(const NCypressServer::TCopyPersistenceContext& context);
+};
+
 template <class T>
 class TVersionedBuiltinAttribute
 {
 public:
-    struct TNull
-    {
-        void Persist(const NCellMaster::TPersistenceContext& context);
-    };
-
-    struct TTombstone
-    {
-        void Persist(const NCellMaster::TPersistenceContext& context);
-    };
-
-    // NB: Don't reorder the types; tags are used for persistence.
-    using TBoxedT = std::variant<TNull, TTombstone, T>;
-
-    template <class TOwner>
-    T Get(
-        TVersionedBuiltinAttribute<T> TOwner::*member,
-        const TOwner* node) const;
-
-    template <class TOwner>
-    std::optional<T> TryGet(
-        TVersionedBuiltinAttribute<T> TOwner::*member,
-        const TOwner* node) const;
-
-    void Set(T value);
-    void Reset();
-    void Remove();
-
-    template <class TOwner>
-    void Merge(
-        TVersionedBuiltinAttribute<T> TOwner::*member,
-        TOwner* originatingNode,
-        const TOwner* branchedNode);
-
     void Persist(const NCellMaster::TPersistenceContext& context);
+    void Persist(const NCypressServer::TCopyPersistenceContext& context);
+
+public:
+    using TValue = T;
+
+    std::optional<T> ToOptional() const;
+
+    //! Precondition: IsSet().
+    T Unbox() const;
+
+    bool IsSet() const;
+    bool IsNull() const;
+    bool IsTombstoned() const;
+
+    //! Sets this attribute to a new value and returns the old value (if any).
+    std::optional<T> Set(T value);
+    //! Resets this attribute (to null) and returns the old value (if any).
+    std::optional<T> Reset();
+    //! Marks this attribute as removed (with a tombstone) and returns the old
+    //! value (if any).
+    std::optional<T> Remove();
+
+    template <class TOwner>
+    static T Get(
+        TVersionedBuiltinAttribute TOwner::*member,
+        const TOwner* node);
+
+    template <class TOwner>
+    static T Get(
+        const TVersionedBuiltinAttribute<T>* (TOwner::*memberGetter)() const,
+        const TOwner* node);
+
+    template <class TOwner>
+    static std::optional<T> TryGet(
+        TVersionedBuiltinAttribute<T> TOwner::*member,
+        const TOwner* node);
+
+    template <class TOwner>
+    static std::optional<T> TryGet(
+        const TVersionedBuiltinAttribute<T>* (TOwner::* memberGetter)() const,
+        const TOwner* node);
+
+    void Merge(const TVersionedBuiltinAttribute& from, bool isTrunk);
 
 private:
-    TBoxedT BoxedValue_{TNull()};
+    using TBox = std::conditional_t<
+        std::is_pointer_v<T>,
+        std::optional<T>, // std::nullopt is null, nullptr is tombstone.
+        // NB: Don't reorder the types; tags are used for persistence.
+        std::variant<TNullVersionedBuiltinAttribute, TTombstonedVersionedBuiltinAttribute, T>>;
 
+    TBox BoxedValue_ = {};
 };
 
 #define DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(ownerType, attrType, name) \
-    private: \
-        ::NYT::NCypressServer::TVersionedBuiltinAttribute<attrType> name##_; \
-        \
-    public: \
-        attrType Get##name() const \
-        { \
-            return name##_.Get(&ownerType::name##_, this); \
-        } \
-        std::optional<attrType> TryGet##name() const     \
-        { \
-            return name##_.TryGet(&ownerType::name##_, this); \
-        } \
-        \
-        void Set##name(attrType value) \
-        { \
-            name##_.Set(std::move(value)); \
-        } \
-        \
-        void Reset##name() \
-        { \
+private: \
+    ::NYT::NCypressServer::TVersionedBuiltinAttribute<attrType> name##_; \
+    \
+public: \
+    attrType Get##name() const \
+    { \
+        return ::NYT::NCypressServer::TVersionedBuiltinAttribute<attrType>::Get(&ownerType::name##_, this); \
+    } \
+    std::optional<attrType> TryGet##name() const \
+    { \
+        return ::NYT::NCypressServer::TVersionedBuiltinAttribute<attrType>::TryGet(&ownerType::name##_, this); \
+    } \
+    \
+    void Set##name(attrType value) \
+    { \
+        name##_.Set(std::move(value)); \
+    } \
+    \
+    void Remove##name() \
+    { \
+        if (IsTrunk()) { \
             name##_.Reset(); \
-        } \
-        \
-        void Remove##name() \
-        { \
+        } else { \
             name##_.Remove(); \
         } \
-        \
-        void Merge##name(ownerType* originatingNode, const ownerType* branchedNode) \
-        { \
-            name##_.Merge(&ownerType::name##_, originatingNode, branchedNode); \
-        }
+    } \
+    \
+    void Merge##name(const ownerType* branchedNode) \
+    { \
+        name##_.Merge(branchedNode->name##_, IsTrunk()); \
+    }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,7 +185,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Annotation);
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TString, Annotation)
 
     //! The shard this node belongs to.
     //! Always null for foreign and non-trunk nodes.

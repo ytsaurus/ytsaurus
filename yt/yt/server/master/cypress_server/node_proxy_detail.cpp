@@ -464,8 +464,13 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             if (annotation) {
                 ValidateAnnotation(*annotation);
             }
-            auto* lockedNode = LockThisImpl();
-            lockedNode->SetAnnotation(annotation);
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedNode = LockThisImpl(lockRequest);
+            if (annotation) {
+                lockedNode->SetAnnotation(*annotation);
+            } else {
+                lockedNode->RemoveAnnotation();
+            }
             return true;
         }
 
@@ -487,8 +492,9 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
                 THROW_ERROR_EXCEPTION("Cannot remove annotation from portal node; consider overriding it somewhere down the tree or setting it to an empty string");
             }
 
-            auto* lockedNode = LockThisImpl();
-            lockedNode->SetAnnotation(std::nullopt);
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedNode = LockThisImpl(lockRequest);
+            lockedNode->RemoveAnnotation();
             return true;
         }
 
@@ -771,7 +777,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             const auto* annotationNode = FindClosestAncestorWithAnnotation(node);
             if (annotationNode) {
                 BuildYsonFluently(consumer)
-                    .Value(*annotationNode->GetAnnotation());
+                    .Value(annotationNode->TryGetAnnotation());
             } else {
                 BuildYsonFluently(consumer)
                     .Entity();
@@ -1124,9 +1130,9 @@ void TNontemplateCypressNodeProxyBase::GatherInheritableAttributes(TCypressNode*
 
 #define XX(camelCaseName, snakeCaseName) \
         { \
-            auto inheritedValue = compositeAncestor->Get##camelCaseName(); \
-            if (!attributes->camelCaseName && inheritedValue) { \
-                attributes->camelCaseName = inheritedValue; \
+            auto inheritedValue = compositeAncestor->TryGet##camelCaseName(); \
+            if (!attributes->camelCaseName.IsSet() && inheritedValue) { \
+                attributes->camelCaseName.Set(std::move(*inheritedValue)); \
             } \
         }
 
@@ -1871,56 +1877,28 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
 
     descriptors->push_back(EInternedAttributeKey::Count);
 
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CompressionCodec)
-        .SetPresent(node->GetCompressionCodec().operator bool())
-        .SetWritable(true)
+    auto hasInheritableAttributes = node->HasInheritableAttributes();
+
+#define XX(camelCaseName, snakeCaseName) \
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::camelCaseName) \
+        .SetPresent(hasInheritableAttributes && node->Has##camelCaseName()) \
+        .SetWritable(true) \
         .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ErasureCodec)
-        .SetPresent(node->GetErasureCodec().operator bool())
-        .SetWritable(true)
-        .SetRemovable(true));
+
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
+
+#undef XX
+
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
-        .SetPresent(node->GetPrimaryMediumIndex().operator bool())
+        .SetPresent(hasInheritableAttributes && node->HasPrimaryMediumIndex())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Media)
-        .SetPresent(node->GetMedia().operator bool())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Vital)
-        .SetPresent(node->GetVital().operator bool())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationFactor)
-        .SetPresent(node->GetReplicationFactor().operator bool())
+        .SetPresent(hasInheritableAttributes && node->HasMedia())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
-        .SetPresent(node->GetTabletCellBundle())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Atomicity)
-        .SetPresent(node->GetAtomicity().operator bool())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CommitOrdering)
-        .SetPresent(node->GetCommitOrdering().operator bool())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
-        .SetPresent(node->GetInMemoryMode().operator bool())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeFor)
-        .SetPresent(node->GetOptimizeFor().operator bool())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProfilingMode)
-        .SetPresent(node->GetProfilingMode().operator bool())
-        .SetWritable(true)
-        .SetRemovable(true));
-    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProfilingTag)
-        .SetPresent(node->GetProfilingTag().operator bool())
+        .SetPresent(hasInheritableAttributes && node->HasTabletCellBundle())
         .SetWritable(true)
         .SetRemovable(true));
 }
@@ -1936,48 +1914,53 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
             return true;
 
 #define XX(camelCaseName, snakeCaseName) \
-        case EInternedAttributeKey::camelCaseName: \
-            if (!node->Get##camelCaseName()) { \
+        case EInternedAttributeKey::camelCaseName: { \
+            auto value = node->TryGet##camelCaseName(); \
+            if (!value) { \
                 break; \
             } \
             BuildYsonFluently(consumer) \
-                .Value(node->Get##camelCaseName()); \
+                .Value(*value); \
             return true; \
+        }
 
         FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
-
-        XX(ProfilingMode, profiling_mode)
-        XX(ProfilingTag, profiling_tag)
 #undef XX
 
         case EInternedAttributeKey::PrimaryMedium: {
-            if (!node->GetPrimaryMediumIndex()) {
+            auto optionalPrimaryMediumIndex = node->TryGetPrimaryMediumIndex();
+            if (!optionalPrimaryMediumIndex) {
                 break;
             }
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            auto* medium = chunkManager->GetMediumByIndex(*node->GetPrimaryMediumIndex());
+            auto* medium = chunkManager->GetMediumByIndex(*optionalPrimaryMediumIndex);
             BuildYsonFluently(consumer)
                 .Value(medium->GetName());
             return true;
         }
 
         case EInternedAttributeKey::Media: {
-            if (!node->GetMedia()) {
+            auto optionalMedia = node->TryGetMedia();
+            if (!optionalMedia) {
                 break;
             }
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             BuildYsonFluently(consumer)
-                .Value(TSerializableChunkReplication(*node->GetMedia(), chunkManager));
+                .Value(TSerializableChunkReplication(*optionalMedia, chunkManager));
             return true;
         }
 
-        case EInternedAttributeKey::TabletCellBundle:
-            if (!node->GetTabletCellBundle()) {
+        case EInternedAttributeKey::TabletCellBundle: {
+            auto optionalTabletCellBundle = node->TryGetTabletCellBundle();
+            if (!optionalTabletCellBundle) {
                 break;
             }
+            auto* tabletCellBundle = *optionalTabletCellBundle;
+            YT_VERIFY(tabletCellBundle);
             BuildYsonFluently(consumer)
-                .Value(node->GetTabletCellBundle()->GetName());
+                .Value((tabletCellBundle)->GetName());
             return true;
+        }
 
         default:
             break;
@@ -2000,16 +1983,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
     // set. Without it, it's impossible to tell which medium the "replication_factor"
     // pertains to, and these attributes may be modified virtually independently.
 
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
-
-    auto throwReplicationFactorMismatch = [&] (int mediumIndex) {
-        const auto& medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
-        THROW_ERROR_EXCEPTION(
-            "Attributes \"media\" and \"replication_factor\" have contradicting values for medium %Qv",
-            medium->GetName());
-    };
-
     switch (key) {
         case EInternedAttributeKey::ExpirationTime:
         case EInternedAttributeKey::ExpirationTimeout:
@@ -2026,96 +1999,14 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             break;
 
         case EInternedAttributeKey::PrimaryMedium: {
-            ValidateNoTransaction();
-
-            auto mediumName = ConvertTo<TString>(value);
-            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-            const auto mediumIndex = medium->GetIndex();
-            const auto replication = node->GetMedia();
-
-            if (!replication) {
-                ValidatePermission(medium, EPermission::Use);
-                node->SetPrimaryMediumIndex(mediumIndex);
-                return true;
-            }
-
-            TChunkReplication newReplication;
-            if (ValidatePrimaryMediumChange(
-                medium,
-                *replication,
-                node->GetPrimaryMediumIndex(), // may be null
-                &newReplication))
-            {
-                const auto replicationFactor = node->GetReplicationFactor();
-                if (replicationFactor &&
-                    *replicationFactor != newReplication.Get(mediumIndex).GetReplicationFactor())
-                {
-                    throwReplicationFactorMismatch(mediumIndex);
-                }
-
-                node->SetMedia(newReplication);
-                node->SetPrimaryMediumIndex(mediumIndex);
-            } // else no change is required
-
+            auto primaryMediumName = ConvertTo<TString>(value);
+            SetPrimaryMedium(primaryMediumName);
             return true;
         }
 
         case EInternedAttributeKey::Media: {
-            ValidateNoTransaction();
-
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-            TChunkReplication replication;
-            // Vitality isn't a part of TSerializableChunkReplication, assume true.
-            replication.SetVital(true);
-            serializableReplication.ToChunkReplication(&replication, chunkManager);
-
-            const auto oldReplication = node->GetMedia();
-
-            if (replication == oldReplication) {
-                return true;
-            }
-
-            const auto primaryMediumIndex = node->GetPrimaryMediumIndex();
-            const auto replicationFactor = node->GetReplicationFactor();
-            if (primaryMediumIndex && replicationFactor) {
-                if (replication.Get(*primaryMediumIndex).GetReplicationFactor() != *replicationFactor) {
-                    throwReplicationFactorMismatch(*primaryMediumIndex);
-                }
-            }
-
-            // NB: primary medium index may be null, in which case corresponding
-            // parts of validation will be skipped.
-            ValidateMediaChange(oldReplication, primaryMediumIndex, replication);
-            node->SetMedia(replication);
-
-            return true;
-        }
-
-        case EInternedAttributeKey::ReplicationFactor: {
-            ValidateNoTransaction();
-
-            auto replicationFactor = ConvertTo<int>(value);
-            if (replicationFactor == node->GetReplicationFactor()) {
-                return true;
-            }
-
-            ValidateReplicationFactor(replicationFactor);
-
-            const auto mediumIndex = node->GetPrimaryMediumIndex();
-            if (mediumIndex) {
-                const auto replication = node->GetMedia();
-                if (replication) {
-                    if (replication->Get(*mediumIndex).GetReplicationFactor() != replicationFactor) {
-                        throwReplicationFactorMismatch(*mediumIndex);
-                    }
-                } else if (!node->GetReplicationFactor()) {
-                    auto* medium = chunkManager->GetMediumByIndex(*mediumIndex);
-                    ValidatePermission(medium, EPermission::Use);
-                }
-            }
-
-            node->SetReplicationFactor(replicationFactor);
-
+            SetMedia(serializableReplication);
             return true;
         }
 
@@ -2124,55 +2015,153 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
 
             auto name = ConvertTo<TString>(value);
 
+            const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
-            tabletManager->SetTabletCellBundle(node, newBundle);
+            node->SetTabletCellBundle(newBundle, objectManager);
 
             return true;
         }
 
 #define XX(camelCaseName, snakeCaseName) \
         case EInternedAttributeKey::camelCaseName: \
-            ValidateNoTransaction(); \
-            node->Set##camelCaseName(ConvertTo<decltype(node->Get##camelCaseName())>(value)); \
+            if (key == EInternedAttributeKey::ReplicationFactor) { \
+                auto replicationFactor = ConvertTo<int>(value); \
+                SetReplicationFactor(replicationFactor); \
+                return true; \
+            } \
+            \
+            if (key == EInternedAttributeKey::CompressionCodec) { \
+                const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
+                ValidateCompressionCodec( \
+                    value, \
+                    chunkManagerConfig->DeprecatedCodecIds, \
+                    chunkManagerConfig->DeprecatedCodecNameToAlias); \
+            } \
+            { \
+                auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern()); \
+                auto* lockedNode = LockThisImpl<TCompositeNodeBase>(lockRequest); \
+                using TAttr = decltype(std::declval<TCompositeNodeBase::TAttributes>().camelCaseName)::TValue; \
+                lockedNode->Set##camelCaseName(ConvertTo<TAttr>(value)); \
+            } \
             return true; \
 
-        // Can't use FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE here as
-        // replication_factor is "simple" yet must be handled separately,
-        // and we have non-standard processing for "compression_codec".
-        XX(ErasureCodec, erasure_codec)
-        XX(Vital, vital)
-        XX(Atomicity, atomicity)
-        XX(CommitOrdering, commit_ordering)
-        XX(InMemoryMode, in_memory_mode)
-        XX(OptimizeFor, optimize_for)
+        FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
+
 #undef XX
-
-        case EInternedAttributeKey::CompressionCodec: {
-            ValidateNoTransaction();
-            ValidateCompressionCodec(
-                value,
-                chunkManagerConfig->DeprecatedCodecIds,
-                chunkManagerConfig->DeprecatedCodecNameToAlias);
-            node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
-            return true;
-        }
-
-        case EInternedAttributeKey::ProfilingMode: {
-            node->SetProfilingMode(ConvertTo<NTabletNode::EDynamicTableProfilingMode>(value));
-            return true;
-        }
-
-        case EInternedAttributeKey::ProfilingTag: {
-            node->SetProfilingTag(ConvertTo<TString>(value));
-            return true;
-        }
 
         default:
             break;
     }
 
     return TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(key, value);
+}
+
+void TNontemplateCompositeCypressNodeProxyBase::SetReplicationFactor(int replicationFactor)
+{
+    ValidateNoTransaction();
+
+    auto* node = GetThisImpl<TCompositeNodeBase>();
+
+    if (replicationFactor == node->TryGetReplicationFactor()) {
+        return;
+    }
+
+    ValidateReplicationFactor(replicationFactor);
+
+    const auto mediumIndex = node->TryGetPrimaryMediumIndex();
+    if (mediumIndex) {
+        const auto replication = node->TryGetMedia();
+        if (replication) {
+            if (replication->Get(*mediumIndex).GetReplicationFactor() != replicationFactor) {
+                ThrowReplicationFactorMismatch(*mediumIndex);
+            }
+        } else if (!node->TryGetReplicationFactor()) {
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            auto* medium = chunkManager->GetMediumByIndex(*mediumIndex);
+            ValidatePermission(medium, EPermission::Use);
+        }
+    }
+
+    node->SetReplicationFactor(replicationFactor);
+}
+
+void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const TString& primaryMediumName)
+{
+    ValidateNoTransaction();
+
+    auto* node = GetThisImpl<TCompositeNodeBase>();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+    auto* medium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
+    const auto mediumIndex = medium->GetIndex();
+    const auto replication = node->TryGetMedia();
+
+    if (!replication) {
+        ValidatePermission(medium, EPermission::Use);
+        node->SetPrimaryMediumIndex(mediumIndex);
+        return;
+    }
+
+    TChunkReplication newReplication;
+    if (ValidatePrimaryMediumChange(
+            medium,
+            *replication,
+            node->TryGetPrimaryMediumIndex(), // may be null
+            &newReplication))
+    {
+        const auto replicationFactor = node->TryGetReplicationFactor();
+        if (replicationFactor &&
+            *replicationFactor != newReplication.Get(mediumIndex).GetReplicationFactor())
+        {
+            ThrowReplicationFactorMismatch(mediumIndex);
+        }
+
+        node->SetMedia(newReplication);
+        node->SetPrimaryMediumIndex(mediumIndex);
+    } // else no change is required
+}
+
+void TNontemplateCompositeCypressNodeProxyBase::SetMedia(TSerializableChunkReplication serializableReplication)
+{
+    ValidateNoTransaction();
+
+    auto* node = GetThisImpl<TCompositeNodeBase>();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+
+    TChunkReplication replication;
+    // Vitality isn't a part of TSerializableChunkReplication, assume true.
+    replication.SetVital(true);
+    serializableReplication.ToChunkReplication(&replication, chunkManager);
+
+    const auto oldReplication = node->TryGetMedia();
+
+    if (replication == oldReplication) {
+        return;
+    }
+
+    const auto primaryMediumIndex = node->TryGetPrimaryMediumIndex();
+    const auto replicationFactor = node->TryGetReplicationFactor();
+    if (primaryMediumIndex && replicationFactor) {
+        if (replication.Get(*primaryMediumIndex).GetReplicationFactor() != *replicationFactor) {
+            ThrowReplicationFactorMismatch(*primaryMediumIndex);
+        }
+    }
+
+    // NB: primary medium index may be null, in which case corresponding
+    // parts of validation will be skipped.
+    ValidateMediaChange(oldReplication, primaryMediumIndex, replication);
+    node->SetMedia(replication);
+}
+
+void TNontemplateCompositeCypressNodeProxyBase::ThrowReplicationFactorMismatch(int mediumIndex) const
+{
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
+    THROW_ERROR_EXCEPTION(
+        "Attributes \"media\" and \"replication_factor\" have contradicting values for medium %Qv",
+        medium->GetName());
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey key)
@@ -2182,40 +2171,30 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
     switch (key) {
 
 #define XX(camelCaseName, snakeCaseName) \
-        case EInternedAttributeKey::camelCaseName: \
-            ValidateNoTransaction(); \
-            node->Set##camelCaseName(std::nullopt); \
+        case EInternedAttributeKey::camelCaseName: { \
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern()); \
+            auto* lockedNode = LockThisImpl<TCompositeNodeBase>(lockRequest); \
+            lockedNode->Remove##camelCaseName(); \
             return true; \
+        }
 
         FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
-        XX(Media, media);
 #undef XX
 
-        case EInternedAttributeKey::ProfilingMode: {
-            node->SetProfilingMode(std::nullopt);
+        case EInternedAttributeKey::Media:
+            ValidateNoTransaction();
+            node->RemoveMedia();
             return true;
-        }
-
-        case EInternedAttributeKey::ProfilingTag: {
-            node->SetProfilingTag(std::nullopt);
-            return true;
-        }
 
         case EInternedAttributeKey::PrimaryMedium:
             ValidateNoTransaction();
-            node->SetPrimaryMediumIndex(std::nullopt);
+            node->RemovePrimaryMediumIndex();
             return true;
 
         case EInternedAttributeKey::TabletCellBundle: {
             ValidateNoTransaction();
-
-            auto* bundle = node->GetTabletCellBundle();
-            if (bundle) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->UnrefObject(bundle);
-                node->SetTabletCellBundle(nullptr);
-            }
-
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            node->RemoveTabletCellBundle(objectManager);
             return true;
         }
 
@@ -2230,7 +2209,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
 TCypressNode* TNontemplateCypressNodeProxyBase::FindClosestAncestorWithAnnotation(TCypressNode* node)
 {
     auto* result = node;
-    while (result && !result->GetAnnotation()) {
+    while (result && !result->TryGetAnnotation()) {
         result = result->GetParent();
     }
     return result;
@@ -2251,7 +2230,7 @@ std::vector<TString> TInheritedAttributeDictionary::ListKeys() const
 {
     std::vector<TString> result;
 #define XX(camelCaseName, snakeCaseName) \
-    if (InheritedAttributes_.camelCaseName) { \
+    if (InheritedAttributes_.camelCaseName.IsSet()) {  \
         result.push_back(#snakeCaseName); \
     }
 
@@ -2276,41 +2255,39 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \
-        const auto& value = InheritedAttributes_.camelCaseName; \
-        return value ? ConvertToYsonString(*value) : TYsonString(); \
-    }
+        auto optionalValue = InheritedAttributes_.camelCaseName.ToOptional(); \
+        return optionalValue ? ConvertToYsonString(*optionalValue) : TYsonString(); \
+    } \
 
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
-
-    XX(ProfilingMode, profiling_mode)
-    XX(ProfilingTag, profiling_tag)
 #undef XX
 
     if (key == "primary_medium") {
-        const auto& primaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex;
-        if (!primaryMediumIndex) {
+        auto optionalPrimaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex.ToOptional();
+        if (!optionalPrimaryMediumIndex) {
             return {};
         }
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* medium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
+        auto* medium = chunkManager->GetMediumByIndex(*optionalPrimaryMediumIndex);
         return ConvertToYsonString(medium->GetName());
     }
 
     if (key == "media") {
-        const auto& replication = InheritedAttributes_.Media;
-        if (!replication) {
+        auto optionalReplication = InheritedAttributes_.Media.ToOptional();
+        if (!optionalReplication) {
             return {};
         }
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return ConvertToYsonString(TSerializableChunkReplication(*replication, chunkManager));
+        return ConvertToYsonString(TSerializableChunkReplication(*optionalReplication, chunkManager));
     }
 
     if (key == "tablet_cell_bundle") {
-        auto* tabletCellBundle = InheritedAttributes_.TabletCellBundle;
-        if (!tabletCellBundle) {
+        auto optionalTabletCellBundle = InheritedAttributes_.TabletCellBundle.ToOptional();
+        if (!optionalTabletCellBundle) {
             return {};
         }
-        return ConvertToYsonString(tabletCellBundle->GetName());
+        YT_VERIFY(*optionalTabletCellBundle);
+        return ConvertToYsonString((*optionalTabletCellBundle)->GetName());
     }
 
     return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
@@ -2320,39 +2297,27 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \
-        auto& attr = InheritedAttributes_.camelCaseName; \
-        using TAttr = std::remove_reference<decltype(*attr)>::type; \
-        attr = ConvertTo<TAttr>(value); \
+        if (key == "compression_codec") { \
+            const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager; \
+            ValidateCompressionCodec( \
+                value, \
+                chunkManagerConfig->DeprecatedCodecIds, \
+                chunkManagerConfig->DeprecatedCodecNameToAlias); \
+        } \
+        using TAttr = decltype(InheritedAttributes_.camelCaseName)::TValue; \
+        InheritedAttributes_.camelCaseName.Set(ConvertTo<TAttr>(value)); \
         return; \
     }
 
-    XX(ErasureCodec, erasure_codec)
-    XX(ReplicationFactor, replication_factor)
-    XX(Vital, vital)
-    XX(Atomicity, atomicity)
-    XX(CommitOrdering, commit_ordering)
-    XX(InMemoryMode, in_memory_mode)
-    XX(OptimizeFor, optimize_for)
-    XX(ProfilingMode, profiling_mode)
-    XX(ProfilingTag, profiling_tag)
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
 
 #undef XX
-
-    if (key == "compression_codec") {
-        const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
-        ValidateCompressionCodec(
-            value,
-            chunkManagerConfig->DeprecatedCodecIds,
-            chunkManagerConfig->DeprecatedCodecNameToAlias);
-        InheritedAttributes_.CompressionCodec = ConvertTo<NCompression::ECodec>(value);
-        return;
-    }
 
     if (key == "primary_medium") {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& mediumName = ConvertTo<TString>(value);
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-        InheritedAttributes_.PrimaryMediumIndex = medium->GetIndex();
+        InheritedAttributes_.PrimaryMediumIndex.Set(medium->GetIndex());
         return;
     }
 
@@ -2362,7 +2327,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         TChunkReplication replication;
         replication.SetVital(true);
         serializableReplication.ToChunkReplication(&replication, chunkManager);
-        InheritedAttributes_.Media = replication;
+        InheritedAttributes_.Media.Set(replication);
         return;
     }
 
@@ -2370,7 +2335,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         auto bundleName = ConvertTo<TString>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
-        InheritedAttributes_.TabletCellBundle = bundle;
+        InheritedAttributes_.TabletCellBundle.Set(bundle);
         return;
     }
 
@@ -2385,9 +2350,7 @@ bool TInheritedAttributeDictionary::Remove(const TString& key)
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \
-        if (InheritedAttributes_.camelCaseName) { \
-            InheritedAttributes_.camelCaseName = decltype(InheritedAttributes_.camelCaseName)(); \
-        } \
+        InheritedAttributes_.camelCaseName.Reset(); \
         return true; \
     }
 

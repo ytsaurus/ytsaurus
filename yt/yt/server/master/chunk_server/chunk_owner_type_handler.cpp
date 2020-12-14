@@ -232,8 +232,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     TBase::DoMerge(originatingNode, branchedNode);
 
     // Merge builtin attributes.
-    originatingNode->MergeCompressionCodec(originatingNode, branchedNode);
-    originatingNode->MergeErasureCodec(originatingNode, branchedNode);
+    originatingNode->MergeCompressionCodec(branchedNode);
+    originatingNode->MergeErasureCodec(branchedNode);
 
     bool isExternal = originatingNode->IsExternal();
 

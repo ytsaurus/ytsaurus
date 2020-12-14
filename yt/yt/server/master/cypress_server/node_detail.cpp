@@ -148,7 +148,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     Save(*context, node->GetTotalResourceUsage());
     Save(*context, node->Acd());
     Save(*context, node->GetOpaque());
-    Save(*context, node->GetAnnotation());
+    Save(*context, node->TryGetAnnotation());
     Save(*context, node->GetCreationTime());
     Save(*context, node->GetModificationTime());
     Save(*context, node->TryGetExpirationTime());
@@ -272,8 +272,12 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     trunkNode->SetOpaque(opaque);
 
     // Copy annotation.
-    auto annotation = Load<std::optional<TString>>(*context);
-    trunkNode->SetAnnotation(annotation);
+    auto optionalAnnotation = Load<std::optional<TString>>(*context);
+    if (optionalAnnotation) {
+        trunkNode->SetAnnotation(*optionalAnnotation);
+    } else {
+        trunkNode->RemoveAnnotation();
+    }
 
     // Copy creation time.
     auto creationTime = Load<TInstant>(*context);
@@ -339,7 +343,6 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
     branchedNode->SetTransaction(transaction);
     branchedNode->SetOriginator(originatingNode);
     branchedNode->SetExternalCellTag(originatingNode->GetExternalCellTag());
-    branchedNode->SetAnnotation(originatingNode->GetAnnotation());
     if (originatingNode->IsForeign()) {
         branchedNode->SetForeign();
     }
@@ -370,7 +373,7 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
 
     // Merge user attributes.
     objectManager->MergeAttributes(originatingNode, branchedNode);
-    originatingNode->SetAnnotation(branchedNode->GetAnnotation());
+    originatingNode->MergeAnnotation(branchedNode);
 
     // Perform cleanup by resetting the parent link of the branched node.
     branchedNode->SetParent(nullptr);
@@ -440,7 +443,9 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
     // Copy builtin attributes.
     clonedTrunkNode->SetOpaque(sourceNode->GetOpaque());
-    clonedTrunkNode->SetAnnotation(sourceNode->GetAnnotation());
+    if (auto optionalAnnotation = sourceNode->TryGetAnnotation()) {
+        clonedTrunkNode->SetAnnotation(*optionalAnnotation);
+    }
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->UpdateMasterMemoryUsage(clonedTrunkNode);
@@ -448,42 +453,41 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TCompositeNodeBase::TAttributes::operator==(const TAttributes& rhs) const
-{
-    if (this == &rhs) {
-        return true;
-    }
-
-#define XX(camelCaseName, snakeCaseName) \
-    && camelCaseName == rhs.camelCaseName
-
-    return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
-
-#undef XX
-}
-
-bool TCompositeNodeBase::TAttributes::operator!=(const TAttributes& rhs) const
-{
-    return !(*this == rhs);
-}
-
 void TCompositeNodeBase::TAttributes::Persist(const NCellMaster::TPersistenceContext& context)
 {
-#define XX(camelCaseName, snakeCaseName) \
+#define PERSIST(camelCaseName, snakeCaseName) \
     Persist(context, camelCaseName);
 
-    using NYT::Persist;
-    // COMPAT(akozhikhov)
-    auto reign = static_cast<EMasterReign>(context.GetVersion());
-    if ((reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && reign < EMasterReign::SubjectAliases) ||
-        reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3)
-    {
-        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-    } else {
-        FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(XX)
+#define LOAD_AS_OPTIONAL(camelCaseName, snakeCaseName) \
+    { \
+        YT_VERIFY(context.IsLoad()); \
+        std::optional<decltype(camelCaseName)::TValue> optionalAttribute; \
+        Persist(context, optionalAttribute); \
+        if (optionalAttribute) { \
+            camelCaseName.Set(std::move(*optionalAttribute)); \
+        } else { \
+            camelCaseName.Reset(); \
+        } \
     }
 
-#undef XX
+    using NYT::Persist;
+
+    // COMPAT(shakurov)
+    if (auto reign = context.GetVersion(); reign < EMasterReign::CorrectMergeBranchSemanticsForAttributes) {
+        // COMPAT(akozhikhov)
+        if ((reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && reign < EMasterReign::SubjectAliases) ||
+            reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3)
+        {
+            FOR_EACH_INHERITABLE_ATTRIBUTE(LOAD_AS_OPTIONAL);
+        } else {
+            FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(LOAD_AS_OPTIONAL);
+        }
+    } else {
+        FOR_EACH_INHERITABLE_ATTRIBUTE(PERSIST);
+    }
+
+#undef LOAD_AS_OPTIONAL
+#undef PERSIST
 }
 
 void TCompositeNodeBase::TAttributes::Persist(const NCypressServer::TCopyPersistenceContext& context)
@@ -492,15 +496,9 @@ void TCompositeNodeBase::TAttributes::Persist(const NCypressServer::TCopyPersist
     Persist(context, camelCaseName);
 
     using NYT::Persist;
-    // COMPAT(akozhikhov)
-    auto reign = static_cast<EMasterReign>(context.GetVersion());
-    if ((reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && reign < EMasterReign::SubjectAliases) ||
-        reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3)
-    {
-        FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
-    } else {
-        FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(XX)
-    }
+
+    // COMPAT(shakurov)
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
 
 #undef XX
 }
@@ -508,7 +506,7 @@ void TCompositeNodeBase::TAttributes::Persist(const NCypressServer::TCopyPersist
 bool TCompositeNodeBase::TAttributes::AreFull() const
 {
 #define XX(camelCaseName, snakeCaseName) \
-    && camelCaseName
+    && camelCaseName.IsSet()
     return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
 #undef XX
 }
@@ -516,7 +514,7 @@ bool TCompositeNodeBase::TAttributes::AreFull() const
 bool TCompositeNodeBase::TAttributes::AreEmpty() const
 {
 #define XX(camelCaseName, snakeCaseName) \
-    && !camelCaseName
+    && !camelCaseName.IsNull()
     return true FOR_EACH_INHERITABLE_ATTRIBUTE(XX);
 #undef XX
 }
@@ -552,7 +550,7 @@ const TCompositeNodeBase::TAttributes* TCompositeNodeBase::FindAttributes() cons
     return Attributes_.get();
 }
 
-void TCompositeNodeBase::SetAttributes(const TCompositeNodeBase::TAttributes* attributes)
+void TCompositeNodeBase::SetAttributes(const TAttributes* attributes)
 {
     if (!attributes || attributes->AreEmpty()) {
         Attributes_.reset();
@@ -563,41 +561,127 @@ void TCompositeNodeBase::SetAttributes(const TCompositeNodeBase::TAttributes* at
     }
 }
 
-#define IMPLEMENT_ATTRIBUTE_ACCESSORS(camelCaseName, snakeCaseName) \
-auto TCompositeNodeBase::Get##camelCaseName() const -> decltype(TCompositeNodeBase::TAttributes::camelCaseName) \
+void TCompositeNodeBase::CloneAttributesFrom(const TCompositeNodeBase* sourceNode)
+{
+    auto* attributes = sourceNode->FindAttributes();
+    SetAttributes(attributes);
+}
+
+void TCompositeNodeBase::MergeAttributesFrom(const TCompositeNodeBase* branchedNode)
+{
+    auto* attributes = branchedNode->FindAttributes();
+    if (!attributes) {
+        return;
+    }
+
+    if (!Attributes_) {
+        SetAttributes(attributes);
+        return;
+    }
+
+#define XX(camelCaseName, snakeCaseName) \
+    Attributes_->camelCaseName.Merge(attributes->camelCaseName, IsTrunk());
+
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+}
+
+#define XX(camelCaseName, snakeCaseName) \
+const decltype(std::declval<TCompositeNodeBase::TAttributes>().camelCaseName)* TCompositeNodeBase::DoTryGet##camelCaseName() const \
 { \
-    if (Attributes_) { \
-        return Attributes_->camelCaseName; \
-    } else { \
-        return {}; \
-    } \
+    return Attributes_ ? &Attributes_->camelCaseName : nullptr; \
 } \
-void TCompositeNodeBase::Set##camelCaseName(decltype(TCompositeNodeBase::TAttributes::camelCaseName) value) \
+\
+std::optional<decltype(std::declval<TCompositeNodeBase::TAttributes>().camelCaseName)::TValue> TCompositeNodeBase::TryGet##camelCaseName() const \
 { \
-    if (Attributes_) { \
-        Attributes_->camelCaseName = value; \
-        if (Attributes_->AreEmpty()) { \
-            Attributes_.reset(); \
-        } \
-    } else if (value) { \
+    using TAttribute = decltype(TAttributes::camelCaseName); \
+    return TAttribute::TryGet(&TCompositeNodeBase::DoTryGet##camelCaseName, this); \
+} \
+\
+bool TCompositeNodeBase::Has##camelCaseName() const \
+{ \
+    return TryGet##camelCaseName().has_value(); \
+} \
+
+FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+
+#undef XX
+
+#define XX(camelCaseName, snakeCaseName) \
+void TCompositeNodeBase::Set##camelCaseName(decltype(std::declval<TCompositeNodeBase::TAttributes>().camelCaseName)::TValue value) \
+{ \
+    if (!Attributes_) { \
         Attributes_ = std::make_unique<TAttributes>(); \
-        Attributes_->camelCaseName = value; \
+    } \
+    Attributes_->camelCaseName.Set(value); \
+} \
+\
+void TCompositeNodeBase::Remove##camelCaseName() \
+{ \
+    if (!Attributes_) { \
+        return; \
+    } \
+\
+    if (IsTrunk()) { \
+        Attributes_->camelCaseName.Reset(); \
+    } else { \
+        Attributes_->camelCaseName.Remove(); \
+    } \
+\
+    if (Attributes_->AreEmpty()) { \
+        Attributes_.reset(); \
     } \
 }
 
-FOR_EACH_INHERITABLE_ATTRIBUTE(IMPLEMENT_ATTRIBUTE_ACCESSORS)
+FOR_EACH_NON_OBJECT_REF_INHERITABLE_ATTRIBUTE(XX)
 
-#undef IMPLEMENT_ATTRIBUTE_ACCESSORS
+#undef XX
+
+#define XX(camelCaseName, snakeCaseName) \
+void TCompositeNodeBase::Set##camelCaseName( \
+    decltype(std::declval<TCompositeNodeBase::TAttributes>().camelCaseName)::TValue value, \
+    const TObjectManagerPtr& objectManager) \
+{ \
+    if (!Attributes_) { \
+        Attributes_ = std::make_unique<TAttributes>(); \
+    } \
+    auto optionalOldValue = Attributes_->camelCaseName.Set(value); \
+    objectManager->RefObject(value); \
+    if (optionalOldValue) { \
+        objectManager->UnrefObject(*optionalOldValue); \
+    } \
+} \
+\
+void TCompositeNodeBase::Remove##camelCaseName(const TObjectManagerPtr& objectManager) \
+{ \
+    if (!Attributes_) { \
+        return; \
+    } \
+\
+    auto optionalOldValue = IsTrunk() \
+        ? Attributes_->camelCaseName.Reset() \
+        : Attributes_->camelCaseName.Remove(); \
+    if (optionalOldValue) { \
+        objectManager->UnrefObject(*optionalOldValue); \
+    } \
+\
+    if (Attributes_->AreEmpty()) { \
+        Attributes_.reset(); \
+    } \
+}
+
+FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(XX)
+
+#undef XX
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>
 void TCompositeNodeTypeHandler<TImpl>::DoDestroy(TImpl* node)
 {
-    if (auto* bundle = node->GetTabletCellBundle()) {
-        const auto& objectManager = this->Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(bundle);
-    }
+    // Unref bundle, if any.
+    const auto& objectManager = this->Bootstrap_->GetObjectManager();
+    node->RemoveTabletCellBundle(objectManager);
 
     TBase::DoDestroy(node);
 }
@@ -612,9 +696,14 @@ void TCompositeNodeTypeHandler<TImpl>::DoClone(
 {
     TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
-    clonedTrunkNode->SetAttributes(sourceNode->FindAttributes());
-
-    if (auto* bundle = clonedTrunkNode->GetTabletCellBundle()) {
+    clonedTrunkNode->CloneAttributesFrom(sourceNode);
+    auto* attributes = clonedTrunkNode->FindAttributes();
+    auto optionalBundle = attributes
+        ? attributes->TabletCellBundle.ToOptional()
+        : std::nullopt;
+    if (optionalBundle) {
+        auto* bundle = *optionalBundle;
+        YT_VERIFY(bundle);
         const auto& objectManager = this->Bootstrap_->GetObjectManager();
         objectManager->RefObject(bundle);
     }
@@ -628,30 +717,7 @@ void TCompositeNodeTypeHandler<TImpl>::DoBranch(
 {
     TBase::DoBranch(originatingNode, branchedNode, lockRequest);
 
-    branchedNode->SetAttributes(originatingNode->FindAttributes());
-
-    if (auto* bundle = branchedNode->GetTabletCellBundle()) {
-        const auto& objectManager = this->Bootstrap_->GetObjectManager();
-        objectManager->RefObject(bundle);
-    }
-
-    branchedNode->SetProfilingMode(originatingNode->GetProfilingMode());
-    branchedNode->SetProfilingTag(originatingNode->GetProfilingTag());
-}
-
-template <class TImpl>
-void TCompositeNodeTypeHandler<TImpl>::DoUnbranch(
-    TImpl* originatingNode,
-    TImpl* branchedNode)
-{
-    TBase::DoUnbranch(originatingNode, branchedNode);
-
-    if (auto* bundle = branchedNode->GetTabletCellBundle()) {
-        const auto& objectManager = this->Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(bundle);
-    }
-
-    branchedNode->SetAttributes(nullptr); // just in case
+    // NB: leaving branch's Attributes_ null here.
 }
 
 template <class TImpl>
@@ -661,15 +727,31 @@ void TCompositeNodeTypeHandler<TImpl>::DoMerge(
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
-    if (auto* bundle = originatingNode->GetTabletCellBundle()) {
+    auto optionalOldBundle = originatingNode->FindAttributes()
+        ? originatingNode->FindAttributes()->TabletCellBundle.ToOptional()
+        : std::nullopt;
+
+    originatingNode->MergeAttributesFrom(branchedNode);
+
+    auto optionalNewBundle = originatingNode->FindAttributes()
+        ? originatingNode->FindAttributes()->TabletCellBundle.ToOptional()
+        : std::nullopt;
+
+    if (optionalOldBundle || optionalNewBundle) {
         const auto& objectManager = this->Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(bundle);
+
+        if (optionalNewBundle) {
+            auto* newBundle = *optionalNewBundle;
+            YT_VERIFY(newBundle);
+            objectManager->RefObject(newBundle);
+        }
+
+        if (optionalOldBundle) {
+            auto* oldBundle = *optionalOldBundle;
+            YT_VERIFY(oldBundle);
+            objectManager->UnrefObject(oldBundle);
+        }
     }
-
-    originatingNode->SetProfilingMode(branchedNode->GetProfilingMode());
-    originatingNode->SetProfilingTag(branchedNode->GetProfilingTag());
-
-    originatingNode->SetAttributes(branchedNode->FindAttributes());
 }
 
 template <class TImpl>
@@ -681,20 +763,8 @@ bool TCompositeNodeTypeHandler<TImpl>::HasBranchedChangesImpl(
         return true;
     }
 
-    auto* originatingAttributes = originatingNode->FindAttributes();
     auto* branchedAttributes = originatingNode->FindAttributes();
-
-    if (!originatingAttributes && !branchedAttributes) {
-        return false;
-    }
-
-    if (originatingAttributes && !branchedAttributes ||
-        !originatingAttributes && branchedAttributes)
-    {
-        return true;
-    }
-
-    return *originatingAttributes != *branchedAttributes;
+    return branchedAttributes && !branchedAttributes->AreEmpty();
 }
 
 template <class TImpl>
@@ -724,6 +794,16 @@ void TCompositeNodeTypeHandler<TImpl>::DoEndCopy(
     if (Load<bool>(*context)) {
         auto attributes = Load<TCompositeNodeBase::TAttributes>(*context);
         trunkNode->SetAttributes(&attributes);
+    }
+
+    auto optionalBundle = trunkNode->FindAttributes()
+        ? trunkNode->FindAttributes()->TabletCellBundle.ToOptional()
+        : std::nullopt;
+    if (optionalBundle) {
+        auto* bundle = *optionalBundle;
+        YT_VERIFY(bundle);
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
+        objectManager->RefObject(bundle);
     }
 }
 

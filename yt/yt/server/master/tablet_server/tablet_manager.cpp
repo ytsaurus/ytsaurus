@@ -2331,24 +2331,6 @@ public:
         objectManager->RefObject(newBundle);
     }
 
-    void SetTabletCellBundle(TCompositeNodeBase* node, TTabletCellBundle* newBundle)
-    {
-        auto* oldBundle = node->GetTabletCellBundle();
-        if (oldBundle == newBundle) {
-            return;
-        }
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        if (oldBundle) {
-            objectManager->UnrefObject(oldBundle);
-        }
-
-        node->SetTabletCellBundle(newBundle);
-        objectManager->RefObject(newBundle);
-    }
-
-
     void SendTableStatisticsUpdates(TChunkOwnerBase* chunkOwner)
     {
         if (chunkOwner->IsNative()) {
@@ -6582,11 +6564,6 @@ TTabletCellBundle* TTabletManager::GetDefaultTabletCellBundle()
 void TTabletManager::SetTabletCellBundle(TTableNode* table, TTabletCellBundle* cellBundle)
 {
     Impl_->SetTabletCellBundle(table, cellBundle);
-}
-
-void TTabletManager::SetTabletCellBundle(TCompositeNodeBase* node, TTabletCellBundle* cellBundle)
-{
-    Impl_->SetTabletCellBundle(node, cellBundle);
 }
 
 void TTabletManager::DestroyTablet(TTablet* tablet)

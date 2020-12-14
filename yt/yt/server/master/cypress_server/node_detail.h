@@ -371,7 +371,7 @@ protected:
         securityManager->ResetAccount(branchedNode);
 
         auto oldExpirationTime = originatingNode->TryGetExpirationTime();
-        originatingNode->MergeExpirationTime(originatingNode, branchedNode);
+        originatingNode->MergeExpirationTime(branchedNode);
         auto newExpirationTime = originatingNode->TryGetExpirationTime();
         if (originatingNode->IsTrunk() && newExpirationTime != oldExpirationTime) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -379,7 +379,7 @@ protected:
         }
 
         auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
-        originatingNode->MergeExpirationTimeout(originatingNode, branchedNode);
+        originatingNode->MergeExpirationTimeout(branchedNode);
         auto newExpirationTimeout = originatingNode->TryGetExpirationTimeout();
         if (originatingNode->IsTrunk() && newExpirationTimeout != oldExpirationTimeout) {
             const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -600,98 +600,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompositeNodeBase
-    : public TCypressNode
-{
-public:
-    using TCypressNode::TCypressNode;
+// NB: the list of inheritable attributes doesn't include the "account"
+// attribute because that's already present on every Cypress node.
 
-    virtual void Save(NCellMaster::TSaveContext& context) const override;
-    virtual void Load(NCellMaster::TLoadContext& context) override;
-
-    bool HasInheritableAttributes() const;
-
-    // NB: the list of inheritable attributes doesn't include the "account"
-    // attribute because that's already present on every Cypress node.
-
-    std::optional<NCompression::ECodec> GetCompressionCodec() const;
-    void SetCompressionCodec(std::optional<NCompression::ECodec> compressionCodec);
-
-    std::optional<NErasure::ECodec> GetErasureCodec() const;
-    void SetErasureCodec(std::optional<NErasure::ECodec> erasureCodec);
-
-    std::optional<int> GetPrimaryMediumIndex() const;
-    void SetPrimaryMediumIndex(std::optional<int> primaryMediumIndex);
-
-    std::optional<NChunkServer::TChunkReplication> GetMedia() const;
-    void SetMedia(std::optional<NChunkServer::TChunkReplication> media);
-
-    // Although both Vital and ReplicationFactor can be deduced from Media, it's
-    // important to be able to specify just the ReplicationFactor (or the Vital
-    // flag) while leaving Media null.
-
-    std::optional<int> GetReplicationFactor() const;
-    void SetReplicationFactor(std::optional<int> replicationFactor);
-
-    std::optional<bool> GetVital() const;
-    void SetVital(std::optional<bool> vital);
-
-    NTabletServer::TTabletCellBundle* GetTabletCellBundle() const;
-    void SetTabletCellBundle(NTabletServer::TTabletCellBundle* cellBundle);
-
-    std::optional<NTransactionClient::EAtomicity> GetAtomicity() const;
-    void SetAtomicity(std::optional<NTransactionClient::EAtomicity> atomicity);
-
-    std::optional<NTransactionClient::ECommitOrdering> GetCommitOrdering() const;
-    void SetCommitOrdering(std::optional<NTransactionClient::ECommitOrdering> commitOrdering);
-
-    std::optional<NTabletClient::EInMemoryMode> GetInMemoryMode() const;
-    void SetInMemoryMode(std::optional<NTabletClient::EInMemoryMode> inMemoryMode);
-
-    std::optional<NTableClient::EOptimizeFor> GetOptimizeFor() const;
-    void SetOptimizeFor(std::optional<NTableClient::EOptimizeFor> optimizeFor);
-
-    std::optional<NTabletNode::EDynamicTableProfilingMode> GetProfilingMode() const;
-    void SetProfilingMode(std::optional<NTabletNode::EDynamicTableProfilingMode> profilingMode);
-
-    std::optional<TString> GetProfilingTag() const;
-    void SetProfilingTag(std::optional<TString> profilingTag);
-
-    struct TAttributes
-    {
-        std::optional<NCompression::ECodec> CompressionCodec;
-        std::optional<NErasure::ECodec> ErasureCodec;
-        std::optional<int> PrimaryMediumIndex;
-        std::optional<NChunkServer::TChunkReplication> Media;
-        std::optional<int> ReplicationFactor;
-        std::optional<bool> Vital;
-        NTabletServer::TTabletCellBundle* TabletCellBundle = nullptr;
-        std::optional<NTransactionClient::EAtomicity> Atomicity;
-        std::optional<NTransactionClient::ECommitOrdering> CommitOrdering;
-        std::optional<NTabletClient::EInMemoryMode> InMemoryMode;
-        std::optional<NTableClient::EOptimizeFor> OptimizeFor;
-        std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
-        std::optional<TString> ProfilingTag;
-
-        bool operator==(const TAttributes& rhs) const;
-        bool operator!=(const TAttributes& rhs) const;
-
-        void Persist(const NCellMaster::TPersistenceContext& context);
-        void Persist(const NCypressServer::TCopyPersistenceContext& context);
-
-        // Are all attributes not null?
-        bool AreFull() const;
-
-        // Are all attributes null?
-        bool AreEmpty() const;
-    };
-
-    const TAttributes* FindAttributes() const;
-    void SetAttributes(const TAttributes* attributes);
-
-private:
-    std::unique_ptr<TAttributes> Attributes_;
-};
+// NB: although both Vital and ReplicationFactor can be deduced from Media, it's
+// important to be able to specify just the ReplicationFactor (or the Vital
+// flag) while leaving Media null.
 
 // Beware: changing these macros changes snapshot format.
 #define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
@@ -702,15 +616,23 @@ private:
     process(Atomicity, atomicity) \
     process(CommitOrdering, commit_ordering) \
     process(InMemoryMode, in_memory_mode) \
-    process(OptimizeFor, optimize_for)
+    process(OptimizeFor, optimize_for) \
+    process(ProfilingMode, profiling_mode) \
+    process(ProfilingTag, profiling_tag)
+
+#define FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
+    process(TabletCellBundle, tablet_cell_bundle)
 
 #define FOR_EACH_INHERITABLE_ATTRIBUTE(process) \
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
-    process(ProfilingMode, profiling_mode) \
-    process(ProfilingTag, profiling_tag) \
     process(PrimaryMediumIndex, primary_medium) \
     process(Media, media) \
-    process(TabletCellBundle, tablet_cell_bundle)
+    FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
+
+#define FOR_EACH_NON_OBJECT_REF_INHERITABLE_ATTRIBUTE(process) \
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
+    process(PrimaryMediumIndex, primary_medium) \
+    process(Media, media) \
 
 // COMPAT(akozhikhov)
 #define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1403(process) \
@@ -729,6 +651,83 @@ private:
     process(PrimaryMediumIndex, primary_medium) \
     process(Media, media) \
     process(TabletCellBundle, tablet_cell_bundle)
+
+class TCompositeNodeBase
+    : public TCypressNode
+{
+public:
+    using TCypressNode::TCypressNode;
+
+    virtual void Save(NCellMaster::TSaveContext& context) const override;
+    virtual void Load(NCellMaster::TLoadContext& context) override;
+
+    bool HasInheritableAttributes() const;
+
+    struct TAttributes
+    {
+        TVersionedBuiltinAttribute<NCompression::ECodec> CompressionCodec;
+        TVersionedBuiltinAttribute<NErasure::ECodec> ErasureCodec;
+        TVersionedBuiltinAttribute<int> PrimaryMediumIndex;
+        TVersionedBuiltinAttribute<NChunkServer::TChunkReplication> Media;
+        TVersionedBuiltinAttribute<int> ReplicationFactor;
+        TVersionedBuiltinAttribute<bool> Vital;
+        TVersionedBuiltinAttribute<NTabletServer::TTabletCellBundle*> TabletCellBundle;
+        TVersionedBuiltinAttribute<NTransactionClient::EAtomicity> Atomicity;
+        TVersionedBuiltinAttribute<NTransactionClient::ECommitOrdering> CommitOrdering;
+        TVersionedBuiltinAttribute<NTabletClient::EInMemoryMode> InMemoryMode;
+        TVersionedBuiltinAttribute<NTableClient::EOptimizeFor> OptimizeFor;
+        TVersionedBuiltinAttribute<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
+        TVersionedBuiltinAttribute<TString> ProfilingTag;
+
+        void Persist(const NCellMaster::TPersistenceContext& context);
+        void Persist(const NCypressServer::TCopyPersistenceContext& context);
+
+        // Are all attributes not null?
+        bool AreFull() const;
+
+        // Are all attributes null?
+        bool AreEmpty() const;
+    };
+
+#define XX(camelCaseName, snakeCaseName) \
+public: \
+    void Remove##camelCaseName(); \
+    void Set##camelCaseName(decltype(std::declval<TAttributes>().camelCaseName)::TValue value); \
+
+    FOR_EACH_NON_OBJECT_REF_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+
+#define XX(camelCaseName, snakeCaseName) \
+public: \
+    void Remove##camelCaseName(const NObjectServer::TObjectManagerPtr& objectManager); \
+    void Set##camelCaseName( \
+        decltype(std::declval<TAttributes>().camelCaseName)::TValue value, \
+        const NObjectServer::TObjectManagerPtr& objectManager);
+
+    FOR_EACH_OBJECT_REF_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+
+#define XX(camelCaseName, snakeCaseName) \
+public: \
+    std::optional<decltype(std::declval<TAttributes>().camelCaseName)::TValue> TryGet##camelCaseName() const; \
+    bool Has##camelCaseName() const; \
+private: \
+    const decltype(std::declval<TAttributes>().camelCaseName)* DoTryGet##camelCaseName() const;
+
+    FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
+#undef XX
+
+private:
+    template <class U>
+    friend class TCompositeNodeTypeHandler;
+
+    const TAttributes* FindAttributes() const;
+    void SetAttributes(const TAttributes* attributes);
+    void CloneAttributesFrom(const TCompositeNodeBase* sourceNode);
+    void MergeAttributesFrom(const TCompositeNodeBase* branchedNode);
+
+    std::unique_ptr<TAttributes> Attributes_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -756,9 +755,6 @@ protected:
         const TImpl* originatingNode,
         TImpl* branchedNode,
         const TLockRequest& lockRequest) override;
-    virtual void DoUnbranch(
-        TImpl* originatingNode,
-        TImpl* branchedNode) override;
     virtual void DoMerge(
         TImpl* originatingNode,
         TImpl* branchedNode) override;

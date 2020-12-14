@@ -233,7 +233,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
 {
     originatingNode->SharedTableSchema() = branchedNode->SharedTableSchema();
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
-    originatingNode->MergeOptimizeFor(originatingNode, branchedNode);
+    originatingNode->MergeOptimizeFor(branchedNode);
     originatingNode->SetProfilingMode(branchedNode->GetProfilingMode());
     originatingNode->SetProfilingTag(branchedNode->GetProfilingTag());
 
