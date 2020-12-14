@@ -114,6 +114,7 @@ type Spec struct {
 	Ordered   bool            `yson:"ordered,omitempty"`
 	ReduceBy  []string        `yson:"reduce_by,omitempty"`
 	SortBy    []string        `yson:"sort_by,omitempty"`
+	JoinBy    []string        `yson:"join_by,omitempty"`
 	PivotKeys [][]interface{} `yson:"pivot_keys,omitempty"`
 
 	MergeMode      string   `yson:"mode,omitempty"`
@@ -143,7 +144,9 @@ type Spec struct {
 
 	AutoMerge *AutoMerge `yson:"auto_merge,omitempty"`
 
-	ACL []yt.ACE `yson:"acl,omitempty"`
+	ACL                     []yt.ACE `yson:"acl,omitempty"`
+	EnableKeyGuarantee      *bool    `yson:"enable_key_guarantee,omitempty"`
+	ConsiderOnlyPrimarySize *bool    `yson:"consider_only_primary_size,omitempty"`
 }
 
 func (s *Spec) ReduceByColumns(columns ...string) *Spec {
@@ -153,6 +156,11 @@ func (s *Spec) ReduceByColumns(columns ...string) *Spec {
 
 func (s *Spec) SortByColumns(columns ...string) *Spec {
 	s.SortBy = columns
+	return s
+}
+
+func (s *Spec) JoinByColumns(columns ...string) *Spec {
+	s.JoinBy = columns
 	return s
 }
 
