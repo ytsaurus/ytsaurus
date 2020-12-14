@@ -75,9 +75,8 @@ type Rich struct {
 	Columns  []string       `yson:"columns,attr,omitempty"`
 	Schema   *schema.Schema `yson:"schema,attr,omitempty"`
 
-	JoinBy   []string `yson:"join_by,attr,omitempty"`
-	Teleport bool     `yson:"teleport,attr,omitempty"`
-	Foreign  bool     `yson:"foreign,attr,omitempty"`
+	Teleport bool `yson:"teleport,attr,omitempty"`
+	Foreign  bool `yson:"foreign,attr,omitempty"`
 
 	Compression CompressionCodec `yson:"compression_codec,attr,omitempty"`
 	Erasure     ErasureCodec     `yson:"erasure_codec,attr,omitempty"`
