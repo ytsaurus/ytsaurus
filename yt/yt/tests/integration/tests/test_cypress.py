@@ -3226,6 +3226,26 @@ class TestCypressPortal(TestCypressMulticell):
         set("//tmp/@annotation", "")
 
     @authors("shakurov")
+    def test_cross_shard_copy_inhertible_attributes(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+
+        create("map_node", "//tmp/d", attributes={
+            "compression_codec": "snappy"
+        })
+
+        copy("//tmp/d", "//tmp/p/d1")
+        assert get("//tmp/p/d1/@compression_codec") == "snappy"
+
+        tx = start_transaction()
+
+        copy("//tmp/d", "//tmp/p/d2", tx=tx)
+        assert get("//tmp/p/d2/@compression_codec", tx=tx) == "snappy"
+
+        commit_transaction(tx)
+
+        assert get("//tmp/p/d2/@compression_codec") == "snappy"
+
+    @authors("shakurov")
     def test_cross_shard_copy_w_tx(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
 

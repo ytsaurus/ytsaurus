@@ -365,12 +365,14 @@ public:
         if (mutationContext) {
             mutationContext->SetResponseKeeperSuppressed(true);
         }
-
         const auto& hydraManager  = Bootstrap_->GetHydraFacade()->GetHydraManager();
         bool isMutating = IsRequestMutating(context->RequestHeader());
         if (isMutating && hydraManager->GetAutomatonState() != EPeerState::Leading) {
             return;
         }
+
+        const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+        auto mutationId = mutationContext ? mutationContext->Request().MutationId : NullMutationId;
 
         auto requestMessage = context->GetRequestMessage();
         auto forwardedRequestHeader = context->RequestHeader();
@@ -387,11 +389,20 @@ public:
             auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
             const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
             if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != ForwardedCellTag_) {
-                THROW_ERROR_EXCEPTION(
+                TError error(
                     NObjectClient::EErrorCode::CrossCellAdditionalPath,
                     "Request is cross-cell since it involves target path %v and additional path %v",
                     forwardedYPathExt->original_target_path(),
                     additionalPath);
+
+                if (mutationId) {
+                    // Make sure to end the request because we may be
+                    // committing a boomerang mutation right now, and
+                    // replies to those are passed via the response keeper.
+                    responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), false);
+                }
+
+                THROW_ERROR(error);
             }
             auto additionalPathRewrite = MakeYPathRewrite(
                 additionalPath,
@@ -410,12 +421,22 @@ public:
                 auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
                 const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&prerequisiteResolveResult.Payload);
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
-                    THROW_ERROR_EXCEPTION(
+                    TError error(
                         NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
                         "Request is cross-cell since it involves target path %v and prerequisite reivision path %v",
                         forwardedYPathExt->original_target_path(),
                         prerequisitePath);
+
+                    if (mutationId) {
+                        // Make sure to end the request because we may be
+                        // committing a boomerang mutation right now, and
+                        // replies to those are passed via the response keeper.
+                        responseKeeper->EndRequest(mutationId, NRpc::CreateErrorResponseMessage(error), false);
+                    }
+
+                    THROW_ERROR(error);
                 }
+
                 auto prerequisitePathRewrite = MakeYPathRewrite(
                     prerequisitePath,
                     prerequisitePayload->ObjectId,
@@ -479,7 +500,7 @@ public:
                 context,
                 forwardedRequestId,
                 bootstrap = Bootstrap_,
-                mutationId = mutationContext ? mutationContext->Request().MutationId : NullMutationId
+                mutationId
             ] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                 const auto& responseKeeper = bootstrap->GetHydraFacade()->GetResponseKeeper();
 
