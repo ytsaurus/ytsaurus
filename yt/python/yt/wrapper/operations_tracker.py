@@ -30,6 +30,7 @@ class _OperationsTrackingThread(Thread):
         self._print_progress = print_progress
         self._operations_to_track = deque()
         self._thread_lock = RLock()
+        self._warning_printed = False
 
         self.finished = False
         self.errors = []
@@ -74,7 +75,9 @@ class _OperationsTrackingThread(Thread):
                 operation = self._operations_to_track.popleft()
                 self.processing_operations_count += 1
                 if get_backend_type(operation.client) == "native" or operation.client is None:
-                    logger.warning("Batch polling for native back-end is not supported")
+                    if not self._warning_printed:
+                        logger.warning("Batch polling for native back-end is not supported")
+                        self._warning_printed = True
                     proxy = None
                 else:
                     proxy = operation.client.config.get("proxy", {}).get("url", None)
