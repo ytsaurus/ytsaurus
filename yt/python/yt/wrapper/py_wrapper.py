@@ -18,11 +18,10 @@ try:
 except ImportError:
     from yt.packages.importlib import import_module
 
-from yt.packages.six import iteritems, text_type, binary_type
+from yt.packages.six import PY3, iteritems, text_type, binary_type
 from yt.packages.six.moves import map as imap
 
 import re
-import imp
 import copy
 import string
 import inspect
@@ -139,7 +138,12 @@ class TempfilesManager(object):
 def module_relpath(module_names, module_file, client):
     search_extensions = get_config(client)["pickling"]["search_extensions"]
     if search_extensions is None:
-        suffixes = [suf for suf, _, _ in imp.get_suffixes()]
+        if PY3:
+            import importlib.machinery
+            suffixes = importlib.machinery.all_suffixes()
+        else:
+            import imp
+            suffixes = [suf for suf, _, _ in imp.get_suffixes()]
     else:
         suffixes = ["." + ext for ext in search_extensions]
 
