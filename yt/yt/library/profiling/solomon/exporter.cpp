@@ -86,11 +86,18 @@ TSolomonExporter::TSolomonExporter(
     Registry_->SetWindowSize(Config_->WindowSize);
 
     if (config->ReportBuildInfo) {
-        TRegistry profiler{registry, "/build"};
+        TRegistry profiler{registry, ""};
 
         profiler
             .WithRequiredTag("version", GetVersion())
-            .AddFuncGauge("/version", MakeStrong(this), [] { return 1.0; });
+            .AddFuncGauge("/build/version", MakeStrong(this), [] { return 1.0; });
+        
+        profiler.AddFuncGauge(
+            "/server/restarted_5min_ago",
+            MakeStrong(this),
+            [this] {
+                return (TInstant::Now() - StartTime_ < TDuration::Minutes(5)) ? 1.0 : 0.0;
+            });
     }
 }
 
@@ -219,6 +226,7 @@ void TSolomonExporter::HandleStatus(const IRequestPtr&, const IResponseWriterPtr
     ReplyJson(rsp, [&] (auto consumer) {
         BuildYsonFluently(consumer)
             .BeginMap()
+                .Item("start_time").Value(StartTime_)
                 .Item("last_fetch").Value(LastFetch_)
                 .Item("last_shard_fetch").DoMapFor(LastShardFetch_, [] (auto fluent, auto time) {
                     fluent
