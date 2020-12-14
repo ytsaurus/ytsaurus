@@ -3,16 +3,40 @@ package bus
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/golang/protobuf/proto"
+	"go.uber.org/atomic"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/library/go/ptr"
+	"a.yandex-team.ru/yt/go/compression"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/proto/core/misc"
 	"a.yandex-team.ru/yt/go/proto/core/rpc"
+	"a.yandex-team.ru/yt/go/yterrors"
+	"a.yandex-team.ru/yt/go/ytlog"
 )
+
+const (
+	// defaultAcknowledgementTimeout is a default timeout used to cancel inflight unacked requests.
+	defaultAcknowledgementTimeout = time.Second * 5
+
+	// effectiveTimeout is a request timeout used when user has
+	// neither set context deadline nor specified request timeout.
+	effectiveTimeout = time.Hour * 24
+)
+
+// featureIDFormatter is a function that converts feature id to string.
+type featureIDFormatter func(i int32) string
+
+// defaultFeatureIDFormatter simply converts number to string.
+func defaultFeatureIDFormatter(i int32) string {
+	return fmt.Sprintf("%d", i)
+}
 
 type clientReq struct {
 	id guid.GUID
@@ -24,6 +48,9 @@ type clientReq struct {
 
 	reqAttachments [][]byte
 	rspAttachments [][]byte
+
+	acknowledgementTimeout *time.Duration
+	acked                  atomic.Bool
 
 	done chan error
 }
@@ -45,6 +72,26 @@ var (
 	codecNone  int32 = 0
 )
 
+type ClientOption func(conn *ClientConn)
+
+func WithLogger(l log.Logger) ClientOption {
+	return func(conn *ClientConn) {
+		conn.log = l
+	}
+}
+
+func WithDefaultProtocolVersionMajor(v int32) ClientOption {
+	return func(conn *ClientConn) {
+		conn.defaultProtocolVersionMajor = v
+	}
+}
+
+func WithFeatureIDFormatter(f featureIDFormatter) ClientOption {
+	return func(conn *ClientConn) {
+		conn.featureIDFormatter = f
+	}
+}
+
 type ClientConn struct {
 	l    sync.Mutex
 	err  error
@@ -53,13 +100,54 @@ type ClientConn struct {
 
 	sendQueue, cancelQueue chan *clientReq
 
+	// mu guards the following maps.
+	mu sync.Mutex
+	// unackedReqs stores unacked request id to packet id mapping.
+	unackedReqs map[guid.GUID]guid.GUID
+	// unackedPackets stores unacked packet id to request id mapping.
+	unackedPackets map[guid.GUID]guid.GUID
+
+	defaultProtocolVersionMajor int32
+	featureIDFormatter          featureIDFormatter
+
 	bus *Bus
 	log log.Logger
 }
 
-type SendOption interface {
-	before(req *clientReq)
-	after(req *clientReq)
+func NewClient(ctx context.Context, address string, opts ...ClientOption) (*ClientConn, error) {
+	l, err := ytlog.New()
+	if err != nil {
+		return nil, err
+	}
+
+	bus, err := Dial(ctx, Options{Address: address, Logger: l})
+	if err != nil {
+		return nil, err
+	}
+
+	client := &ClientConn{
+		reqs:        make(map[guid.GUID]*clientReq, maxInFlightRequests),
+		sendQueue:   make(chan *clientReq, maxInFlightRequests),
+		cancelQueue: make(chan *clientReq, maxInFlightRequests),
+		stop:        make(chan struct{}),
+
+		featureIDFormatter: defaultFeatureIDFormatter,
+
+		unackedReqs:    make(map[guid.GUID]guid.GUID),
+		unackedPackets: make(map[guid.GUID]guid.GUID),
+
+		bus: bus,
+		log: l,
+	}
+
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	go client.runSender()
+	go client.runReceiver()
+
+	return client, nil
 }
 
 func (c *ClientConn) Close() {
@@ -94,36 +182,61 @@ func (c *ClientConn) runSender() {
 			delete(c.reqs, req.id)
 			c.l.Unlock()
 
-			// TODO(prime@):
+			c.deleteUnackedReq(req.id)
+
+			cancelReq := &clientReq{
+				id: guid.New(),
+				reqHeader: &rpc.TRequestHeader{
+					RequestId: req.reqHeader.RequestId,
+					Service:   req.reqHeader.Service,
+					Method:    req.reqHeader.Method,
+					RealmId:   req.reqHeader.RealmId,
+					UserAgent: &ytGoClient,
+
+					RequestCodec:  &codecNone,
+					ResponseCodec: &codecNone,
+				},
+				request: &rpc.TRequestCancelationHeader{
+					RequestId: req.reqHeader.RequestId,
+					Service:   req.reqHeader.Service,
+					Method:    req.reqHeader.Method,
+					RealmId:   req.reqHeader.RealmId,
+				},
+			}
+
+			msg, err := c.buildMsg(cancelReq, msgCancel)
+			if err != nil {
+				c.fail(err)
+				return
+			}
+
+			if err := c.bus.Send(guid.New(), msg, &busSendOptions{}); err != nil {
+				c.fail(err)
+				return
+			}
 
 		case req := <-c.sendQueue:
-			msg := make([][]byte, 2+len(req.reqAttachments))
-
-			var err error
-			var protoHeader []byte
-			if protoHeader, err = proto.Marshal(req.reqHeader); err != nil {
+			msg, err := c.buildMsg(req, msgRequest)
+			if err != nil {
 				req.done <- err
 				continue
-			}
-
-			msg[0] = make([]byte, 4, 4+len(protoHeader))
-			binary.LittleEndian.PutUint32(msg[0], uint32(msgRequest))
-			msg[0] = append(msg[0], protoHeader...)
-
-			if msg[1], err = proto.Marshal(req.request); err != nil {
-				req.done <- err
-				continue
-			}
-
-			for i, blob := range req.reqAttachments {
-				msg[2+i] = blob
 			}
 
 			c.l.Lock()
 			c.reqs[req.id] = req
 			c.l.Unlock()
 
-			if err := c.bus.Send(msg); err != nil {
+			opts := &busSendOptions{}
+			if req.acknowledgementTimeout != nil {
+				opts.DeliveryTrackingLevel = DeliveryTrackingLevelFull
+			}
+
+			packetID := guid.New()
+			if req.acknowledgementTimeout != nil {
+				c.addUnackedReq(req.id, packetID)
+			}
+
+			if err := c.bus.Send(packetID, msg, opts); err != nil {
 				c.fail(err)
 				return
 			}
@@ -132,6 +245,64 @@ func (c *ClientConn) runSender() {
 			return
 		}
 	}
+}
+
+func (c *ClientConn) buildMsg(req *clientReq, msgType msgType) ([][]byte, error) {
+	msg := make([][]byte, 2+len(req.reqAttachments))
+
+	var err error
+	var protoHeader []byte
+	if protoHeader, err = proto.Marshal(req.reqHeader); err != nil {
+		return nil, err
+	}
+
+	msg[0] = make([]byte, 4, 4+len(protoHeader))
+	binary.LittleEndian.PutUint32(msg[0], uint32(msgType))
+	msg[0] = append(msg[0], protoHeader...)
+
+	data, err := proto.Marshal(req.request)
+	if err != nil {
+		return nil, err
+	}
+
+	codecID := compression.CodecIDNone
+	if req.reqHeader.RequestCodec != nil {
+		codecID = compression.CodecID(*req.reqHeader.RequestCodec)
+	}
+
+	codec := compression.NewCodec(codecID)
+	compressed, err := codec.Compress(data)
+	if err != nil {
+		return nil, err
+	}
+	msg[1] = compressed
+
+	for i, a := range req.reqAttachments {
+		compressed, err := codec.Compress(a)
+		if err != nil {
+			return nil, err
+		}
+		msg[2+i] = compressed
+	}
+
+	return msg, nil
+}
+
+func (c *ClientConn) handleAck(packetID guid.GUID) {
+	reqID, ok := c.deleteUnackedPacket(packetID)
+	if !ok {
+		return
+	}
+
+	c.l.Lock()
+	req, ok := c.reqs[reqID]
+	c.l.Unlock()
+
+	if !ok {
+		return
+	}
+
+	req.acked.Store(true)
 }
 
 func (c *ClientConn) handleMsg(msg [][]byte) error {
@@ -143,8 +314,8 @@ func (c *ClientConn) handleMsg(msg [][]byte) error {
 		return fmt.Errorf("bus: message type is missing")
 	}
 
-	if msgType(binary.LittleEndian.Uint32(msg[0][:4])) != msgResponse {
-		// TODO(prime@): log
+	if typ := msgType(binary.LittleEndian.Uint32(msg[0][:4])); typ != msgResponse {
+		c.log.Warnf("ignoring message of unexpected type: got %x, want %x", typ, msgResponse)
 		return nil
 	}
 
@@ -165,7 +336,7 @@ func (c *ClientConn) handleMsg(msg [][]byte) error {
 	c.l.Unlock()
 
 	if !ok {
-		// TODO(prime@): log
+		c.log.Warn("request not found; ignoring", log.String("request_id", reqID.String()))
 		return nil
 	}
 
@@ -180,12 +351,32 @@ func (c *ClientConn) handleMsg(msg [][]byte) error {
 		return nil
 	}
 
-	if err := proto.Unmarshal(msg[1], req.reply); err != nil {
+	codecID := compression.CodecIDNone
+	if req.reqHeader.ResponseCodec != nil {
+		codecID = compression.CodecID(*req.reqHeader.ResponseCodec)
+	}
+
+	codec := compression.NewCodec(codecID)
+	reply, err := codec.Decompress(msg[1])
+	if err != nil {
 		req.done <- err
 		return nil
 	}
 
-	req.rspAttachments = msg[2:]
+	if err := proto.Unmarshal(reply, req.reply); err != nil {
+		req.done <- err
+		return nil
+	}
+
+	for _, a := range msg[2:] {
+		decompressed, err := codec.Decompress(a)
+		if err != nil {
+			req.done <- err
+			return nil
+		}
+		req.rspAttachments = append(req.rspAttachments, decompressed)
+	}
+
 	req.done <- nil
 	return nil
 }
@@ -198,32 +389,17 @@ func (c *ClientConn) runReceiver() {
 			return
 		}
 
-		if err := c.handleMsg(msg); err != nil {
-			c.fail(err)
-			return
+		switch msg.fixHeader.typ {
+		case packetAck:
+			c.handleAck(msg.fixHeader.packetID)
+
+		default:
+			if err := c.handleMsg(msg.parts); err != nil {
+				c.fail(err)
+				return
+			}
 		}
 	}
-}
-
-func NewClient(ctx context.Context, address string) (*ClientConn, error) {
-	bus, err := Dial(ctx, Options{Address: address})
-	if err != nil {
-		return nil, err
-	}
-
-	client := &ClientConn{
-		reqs:        make(map[guid.GUID]*clientReq, maxInFlightRequests),
-		sendQueue:   make(chan *clientReq, maxInFlightRequests),
-		cancelQueue: make(chan *clientReq, maxInFlightRequests),
-		stop:        make(chan struct{}),
-
-		bus: bus,
-	}
-
-	go client.runSender()
-	go client.runReceiver()
-
-	return client, nil
 }
 
 func (c *ClientConn) Send(
@@ -239,20 +415,30 @@ func (c *ClientConn) Send(
 		reply:   reply,
 
 		reqHeader: &rpc.TRequestHeader{
-			RequestId: misc.NewProtoFromGUID(reqID),
-			Service:   &service,
-			Method:    &method,
-			UserAgent: &ytGoClient,
+			RequestId:            misc.NewProtoFromGUID(reqID),
+			Service:              &service,
+			Method:               &method,
+			ProtocolVersionMajor: &c.defaultProtocolVersionMajor,
+			UserAgent:            &ytGoClient,
 
 			RequestCodec:  &codecNone,
 			ResponseCodec: &codecNone,
 		},
+
+		acknowledgementTimeout: ptr.Duration(defaultAcknowledgementTimeout),
 
 		done: make(chan error, 1),
 	}
 
 	for _, opt := range opts {
 		opt.before(req)
+	}
+
+	userDeadline, hasUserDeadline := ctx.Deadline()
+	if hasUserDeadline && req.reqHeader.Timeout == nil {
+		if timeout := time.Until(userDeadline); timeout > 0 {
+			req.reqHeader.Timeout = ptr.Int64(durationToMicroseconds(timeout))
+		}
 	}
 
 	select {
@@ -265,23 +451,64 @@ func (c *ClientConn) Send(
 		return ctx.Err()
 	}
 
+	reqCtx := ctx
+	if !hasUserDeadline {
+		effectiveTimeout := effectiveTimeout
+		if req.reqHeader.Timeout != nil {
+			effectiveTimeout = microsecondsToDuration(*req.reqHeader.Timeout)
+		}
+		var cancel func()
+		reqCtx, cancel = context.WithTimeout(ctx, effectiveTimeout)
+		defer cancel()
+	}
+
+	var ackTimeout <-chan time.Time
+	if req.acknowledgementTimeout != nil {
+		t := time.NewTimer(*req.acknowledgementTimeout)
+		defer func() { _ = t.Stop() }()
+
+		ackTimeout = t.C
+	}
+
+loop:
 	select {
 	case <-c.stop:
 		return c.err
 
 	case err := <-req.done:
 		if err != nil {
+			c.enrichClientRequestErrorWithFeatureName(err)
 			return err
 		}
 
-	case <-ctx.Done():
-		select {
-		case c.cancelQueue <- req:
-		default:
-			c.l.Lock()
-			delete(c.reqs, req.id)
-			c.l.Unlock()
+	case <-ackTimeout:
+		if req.acked.Load() {
+			goto loop
 		}
+
+		c.finishReq(req)
+
+		err := yterrors.Err(yterrors.CodeTimeout, "Request acknowledgement timed out")
+		c.log.Error("Request acknowledgement timeout", log.Error(err))
+		return err
+
+	case <-reqCtx.Done():
+		c.finishReq(req)
+
+		if errors.Is(reqCtx.Err(), context.DeadlineExceeded) {
+			msg := "Request timed out or timer was aborted"
+			if ctx.Err() == nil {
+				msg = "Request timed out"
+			}
+			err := yterrors.Err(yterrors.CodeTimeout, msg)
+			c.log.Error("Request timeout", log.Error(err))
+			return err
+		} else if errors.Is(reqCtx.Err(), context.Canceled) {
+			err := yterrors.Err(yterrors.CodeCanceled, "Request canceled")
+			c.log.Error("Context canceled", log.Error(err))
+			return err
+		}
+
 		return ctx.Err()
 	}
 
@@ -290,4 +517,74 @@ func (c *ClientConn) Send(
 	}
 
 	return nil
+}
+
+func (c *ClientConn) finishReq(req *clientReq) {
+	select {
+	case c.cancelQueue <- req:
+	default:
+		c.l.Lock()
+		delete(c.reqs, req.id)
+		c.l.Unlock()
+
+		c.deleteUnackedReq(req.id)
+	}
+}
+
+func (c *ClientConn) enrichClientRequestErrorWithFeatureName(err error) {
+	yterr, ok := err.(*yterrors.Error)
+	if !ok {
+		return
+	}
+
+	if yterr.Code != yterrors.CodeUnsupportedServerFeature ||
+		!yterr.HasAttr(string(AttributeKeyFeatureID)) ||
+		yterr.HasAttr(string(AttributeKeyFeatureName)) {
+		return
+	}
+
+	featureID := int32(yterr.Attributes[string(AttributeKeyFeatureID)].(int64))
+	yterr.AddAttr(string(AttributeKeyFeatureName), c.featureIDFormatter(featureID))
+}
+
+func (c *ClientConn) addUnackedReq(reqID, packetID guid.GUID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.unackedReqs[reqID] = packetID
+	c.unackedPackets[packetID] = reqID
+}
+
+func (c *ClientConn) deleteUnackedReq(reqID guid.GUID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	packetID, ok := c.unackedReqs[reqID]
+	if ok {
+		delete(c.unackedPackets, packetID)
+	}
+	delete(c.unackedReqs, reqID)
+}
+
+func (c *ClientConn) deleteUnackedPacket(packetID guid.GUID) (guid.GUID, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	reqID, ok := c.unackedPackets[packetID]
+	if !ok {
+		return guid.GUID{}, false
+	}
+
+	delete(c.unackedPackets, packetID)
+	delete(c.unackedReqs, reqID)
+
+	return reqID, true
+}
+
+func durationToMicroseconds(d time.Duration) int64 {
+	return int64(d / time.Microsecond)
+}
+
+func microsecondsToDuration(us int64) time.Duration {
+	return time.Microsecond * time.Duration(us)
 }

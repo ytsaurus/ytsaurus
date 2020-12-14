@@ -110,6 +110,11 @@ func ContainsMessageRE(err error, messageRE *regexp.Regexp) bool {
 	return matchRecursive(ytErr)
 }
 
+func (yt *Error) HasAttr(name string) bool {
+	_, ok := yt.Attributes[name]
+	return ok
+}
+
 func (yt *Error) AddAttr(name string, value interface{}) {
 	if yt.Attributes == nil {
 		yt.Attributes = map[string]interface{}{}
