@@ -51,6 +51,8 @@ struct TSolomonExporterConfig
 
     bool ReportBuildInfo;
 
+    bool ReportRestart;
+
     TDuration ReadDelay;
 
     std::optional<TString> Host;
@@ -80,6 +82,9 @@ struct TSolomonExporterConfig
             .Default(false);
 
         RegisterParameter("report_build_info", ReportBuildInfo)
+            .Default(true);
+
+        RegisterParameter("report_restart", ReportRestart)
             .Default(true);
 
         RegisterParameter("read_delay", ReadDelay)
@@ -127,6 +132,7 @@ private:
 
     const NConcurrency::TPeriodicExecutorPtr CoreProfilingPusher_;
 
+    TInstant StartTime_ = TInstant::Now();
     std::optional<TInstant> LastFetch_;
     THashMap<TString, std::optional<TInstant>> LastShardFetch_;
 
