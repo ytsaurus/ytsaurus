@@ -23,6 +23,7 @@
 #include <yt/ytlib/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
 
 #include <yt/ytlib/transaction_client/transaction_manager.h>
@@ -1022,6 +1023,7 @@ private:
 
     EObjectType CommonType_;
 
+    std::vector<TTableSchema> InputTableSchemas_;
     TTableSchemaPtr OutputTableSchema_;
     ETableSchemaMode OutputTableSchemaMode_;
 
@@ -1278,6 +1280,7 @@ private:
             }
         }
 
+        InputTableSchemas_.reserve(SrcObjects_.size());
         {
             const auto& rspsOrError = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_src_schema");
             YT_VERIFY(rspsOrError.size() == SrcObjects_.size());
@@ -1294,6 +1297,8 @@ private:
                 }
 
                 outputSchemaInferer->AddInputTableSchema(srcObject->GetPath(), schema, schemaMode);
+
+                InputTableSchemas_.push_back(schema);
             }
         }
 
@@ -1345,6 +1350,27 @@ private:
 
     void ValidateChunkSchemas()
     {
+        bool needChunkSchemasValidation = false;
+        for (const auto& inputTableSchema : InputTableSchemas_) {
+            auto schemasCompatibility = CheckTableSchemaCompatibility(
+                inputTableSchema,
+                *OutputTableSchema_,
+                /* ignoreSortOrder */false);
+            if (schemasCompatibility.first != ESchemaCompatibility::FullyCompatible) {
+                YT_LOG_DEBUG(schemasCompatibility.second,
+                    "Input table schema and output table schema are incompatible; "
+                    "need to validate chunk schemas");
+                needChunkSchemasValidation = true;
+                break;
+            }
+        }
+
+        if (!needChunkSchemasValidation) {
+            YT_LOG_DEBUG("Input table schemas and output table schema are compatible; "
+                "skipping chunk schemas validation");
+            return;
+        }
+
         auto chunkMetaFetcher = New<TChunkMetaFetcher>(
             Options_.ChunkMetaFetcherConfig,
             Client_->Connection_->GetNodeDirectory(),
