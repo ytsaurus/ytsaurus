@@ -1145,6 +1145,8 @@ private:
     {
         auto& table = OutputTables_[0];
 
+        ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
+
         switch (Spec_->SchemaInferenceMode) {
             case ESchemaInferenceMode::Auto:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
@@ -1178,14 +1180,20 @@ private:
 
     virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& dataSlice) override
     {
+        auto errorCode = NChunkClient::EErrorCode::InvalidInputChunk;
         if (!dataSlice->IsTrivial()) {
-            THROW_ERROR_EXCEPTION("Remote copy operation supports only unversioned tables");
+            THROW_ERROR_EXCEPTION(errorCode, "Remote copy operation does not support versioned data slices");
         }
         const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+        YT_VERIFY(!chunk->IsDynamicStore());
         if ((chunk->LowerLimit() && !IsTrivial(*chunk->LowerLimit())) ||
             (chunk->UpperLimit() && !IsTrivial(*chunk->UpperLimit())))
         {
-            THROW_ERROR_EXCEPTION("Remote copy operation does not support non-trivial table limits");
+            TString message = "Remote copy operation does not support non-trivial table limits";
+            if (InputTables_[0]->Dynamic) {
+                message += " and chunks crossing tablet boundaries";
+            }
+            THROW_ERROR_EXCEPTION(errorCode, message);
         }
     }
 
@@ -1211,6 +1219,30 @@ private:
             const auto& rsp = rspOrError.Value();
             InputTableAttributes_ = ConvertToAttributes(TYsonString(rsp->value()));
         }
+
+        bool hasDynamicInputTable = false;
+        bool hasDynamicOutputTable = false;
+        for (const auto& table : InputTables_) {
+            hasDynamicInputTable |= table->Dynamic;
+        }
+        for (const auto& table : OutputTables_) {
+            hasDynamicOutputTable |= table->Dynamic;
+        }
+
+        if (hasDynamicInputTable) {
+            if (!hasDynamicOutputTable) {
+                THROW_ERROR_EXCEPTION("Dynamic table can be copied only to another dynamic table");
+            }
+            if (InputTables_.size() != 1 || OutputTables_.size() != 1) {
+                THROW_ERROR_EXCEPTION("Only one dynamic table can be copied at a time");
+            }
+            if (OutputTables_[0]->TableUploadOptions.UpdateMode != EUpdateMode::Overwrite) {
+                THROW_ERROR_EXCEPTION("Remote copy of dynamic tables can only be done in overwrite mode");
+            }
+        } else if (hasDynamicOutputTable) {
+            THROW_ERROR_EXCEPTION("Static table cannot be copied into a dynamic table");
+        }
+
 
         TOrderedControllerBase::CustomPrepare();
     }

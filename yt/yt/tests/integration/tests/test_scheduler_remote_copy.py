@@ -9,13 +9,17 @@ from yt_env_setup import (
 )
 from yt_commands import *
 
+from yt.environment.helpers import assert_items_equal
+
 import time
+
+import __builtin__
 
 
 ##################################################################
 
 
-class TestSchedulerRemoteCopyCommands(YTEnvSetup):
+class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 9
     NUM_SCHEDULERS = 1
@@ -27,16 +31,21 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
     REMOTE_CLUSTER_NAME = "remote_0"
 
+    @classmethod
+    def setup_class(cls):
+        super(TestSchedulerRemoteCopyCommandsBase, cls).setup_class()
+        cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
+
+
+##################################################################
+
+
+class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "snapshot_period": 500,
         }
     }
-
-    @classmethod
-    def setup_class(cls):
-        super(TestSchedulerRemoteCopyCommands, cls).setup_class()
-        cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
 
     @authors("ignat")
     def test_empty_table(self):
@@ -660,23 +669,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 ##################################################################
 
 
-class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 9
-    NUM_SCHEDULERS = 1
-
-    NUM_REMOTE_CLUSTERS = 1
-
-    NUM_MASTERS_REMOTE_0 = 1
-    NUM_SCHEDULERS_REMOTE_0 = 0
-
-    REMOTE_CLUSTER_NAME = "remote_0"
-
-    @classmethod
-    def setup_class(cls):
-        super(TestSchedulerRemoteCopyNetworks, cls).setup_class()
-        cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
-
+class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
     @classmethod
     def modify_node_config(cls, config):
         config["addresses"].append(["custom_network", dict(config["addresses"])["default"]])
@@ -720,3 +713,300 @@ class TestSchedulerRemoteCopyNetworks(YTEnvSetup):
 
 class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+##################################################################
+
+
+class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyCommandsBase):
+    USE_DYNAMIC_TABLES = True
+    ENABLE_BULK_INSERT = True
+
+    def _create_sorted_table(self, path, driver=None, **attributes):
+        if "schema" not in attributes:
+            schema = yson.YsonList([
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ])
+            schema.attributes["unique_keys"] = True
+            attributes.update({"schema": schema})
+        if "dynamic" not in attributes:
+            attributes["dynamic"] = True
+        create("table", path, driver=driver, attributes=attributes)
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("from_static", [True, False])
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_copy_sorted_dynamic_table(self, optimize_for, from_static):
+        sync_create_cells(1)
+        sync_create_cells(1, driver=self.remote_driver)
+        self._create_sorted_table("//tmp/t2", optimize_for=optimize_for)
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+
+        self._create_sorted_table(
+            "//tmp/t1",
+            optimize_for=optimize_for,
+            dynamic=not from_static,
+            driver=self.remote_driver)
+
+        if from_static:
+            write_table("//tmp/t1", rows, driver=self.remote_driver)
+            alter_table("//tmp/t1", dynamic=True, driver=self.remote_driver)
+        else:
+            sync_mount_table("//tmp/t1", driver=self.remote_driver)
+            insert_rows("//tmp/t1", rows[::2], driver=self.remote_driver)
+            insert_rows("//tmp/t1", rows[1::2], driver=self.remote_driver)
+            sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+        )
+
+        assert read_table("//tmp/t2") == rows
+        src_chunk = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
+        dst_chunk = get("//tmp/t2/@chunk_ids/0")
+        attr_list = [
+            "optimize_for",
+            "table_chunk_format",
+            "min_timestamp",
+            "max_timestamp",
+            "min_key",
+            "max_key",
+        ]
+        src_attrs = get("#{}/@".format(src_chunk), attributes=attr_list, driver=self.remote_driver)
+        dst_attrs = get("#{}/@".format(dst_chunk), attributes=attr_list)
+        assert src_attrs == dst_attrs
+
+        sync_mount_table("//tmp/t2")
+        assert_items_equal(select_rows("* from [//tmp/t2]"), rows)
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize(
+        ["src_pivots", "dst_pivots"],
+        [
+            [[0], [0, 5]],
+            [[0, 2, 3, 7], [0, 5]],
+            [[0, 5], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]]
+        ])
+    def test_multiple_tablets(self, src_pivots, dst_pivots):
+        sync_create_cells(1, driver=self.remote_driver)
+
+        self._create_sorted_table(
+            "//tmp/t2",
+            pivot_keys=[[]] + [[x] for x in dst_pivots[1:]])
+        self._create_sorted_table(
+            "//tmp/t1",
+            pivot_keys=[[]] + [[x] for x in src_pivots[1:]],
+            driver=self.remote_driver)
+
+        rows = [{"key": i, "value": str(i)} for i in range(15)]
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+        insert_rows("//tmp/t1", rows, driver=self.remote_driver)
+        sync_compact_table("//tmp/t1", driver=self.remote_driver)
+        sync_freeze_table("//tmp/t1", driver=self.remote_driver)
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+        )
+
+        assert read_table("//tmp/t2") == rows
+
+        # Check that tablet chunk lists contain expected chunks.
+        root_chunk_list_id = get("//tmp/t2/@chunk_list_id")
+        tree = get("#{}/@tree".format(root_chunk_list_id))
+        src_pivots.append(100)
+        dst_pivots.append(100)
+        for tablet_index in range(len(tree)):
+            lhs = dst_pivots[tablet_index]
+            rhs = dst_pivots[tablet_index + 1]
+            expected_chunk_count = 0
+            for i in range(len(src_pivots) - 1):
+                if lhs < src_pivots[i + 1] and rhs > src_pivots[i]:
+                    expected_chunk_count += 1
+            assert len(tree[tablet_index]) == expected_chunk_count
+            assert all(child.attributes.get("type", "chunk") == "chunk" for child in tree[tablet_index])
+
+    @authors("ifsmirnov")
+    def test_versions_preserved(self):
+        sync_create_cells(1, driver=self.remote_driver)
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t1", driver=self.remote_driver)
+        self._create_sorted_table("//tmp/t2")
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+        insert_rows("//tmp/t1", [{"key": 1, "value": "foo"}], driver=self.remote_driver)
+        delete_rows("//tmp/t1", [{"key": 1}], driver=self.remote_driver)
+        insert_rows("//tmp/t1", [{"key": 1, "value": "bar"}], driver=self.remote_driver)
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+        )
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+        sync_mount_table("//tmp/t2")
+        assert (
+            lookup_rows("//tmp/t1", [{"key": 1}], versioned=True, driver=self.remote_driver) ==
+            lookup_rows("//tmp/t2", [{"key": 1}], versioned=True))
+
+    @authors("ifsmirnov")
+    def test_invalid_input_chunks(self):
+        sync_create_cells(1, driver=self.remote_driver)
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t1", driver=self.remote_driver)
+        self._create_sorted_table("//tmp/t2")
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+        insert_rows("//tmp/t1", [{"key": 0}, {"key": 1}], driver=self.remote_driver)
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+
+        # Chunk crosses tablet boundaries and is under nontrivial chunk view.
+        sync_reshard_table("//tmp/t1", [[], [1]], driver=self.remote_driver)
+        with raises_yt_error(InvalidInputChunk):
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+            )
+
+        # Chunk is under bulk-inserted chunk view with timestamp.
+        self._create_sorted_table("//tmp/t3")
+        sync_mount_table("//tmp/t3")
+        insert_rows("//tmp/t3", [{"key": 1}])
+        sync_freeze_table("//tmp/t3")
+        merge(in_="//tmp/t3", out="//tmp/t3", mode="ordered")
+        sync_unmount_table("//tmp/t3")
+        with raises_yt_error(InvalidInputChunk):
+            remote_copy(
+                in_="//tmp/t3",
+                out="//tmp/t2",
+                spec={"cluster_name": "primary"},
+            )
+
+    @authors("ifsmirnov")
+    def test_invalid_tables(self):
+        sync_create_cells(1)
+
+        def _run_remote_copy(src, dst):
+            remote_copy(
+                in_=src,
+                out=dst,
+                spec={"cluster_name": "primary"}
+            )
+
+        self._create_sorted_table("//tmp/dynamic1")
+        self._create_sorted_table("//tmp/dynamic2")
+        self._create_sorted_table("//tmp/static", dynamic=False)
+
+        # Cannot copy static table into dynamic and vice versa.
+        with raises_yt_error():
+            _run_remote_copy("//tmp/dynamic1", "//tmp/static")
+        with raises_yt_error():
+            _run_remote_copy("//tmp/static", "//tmp/dynamic1")
+
+        # Cannot have several dynamic tables in the input.
+        with raises_yt_error():
+            _run_remote_copy(["//tmp/dynamic1", "//tmp/dynamic1"], "//tmp/dynamic2")
+
+        # Input table should be frozen or unmounted.
+        sync_mount_table("//tmp/dynamic1")
+        with raises_yt_error():
+            _run_remote_copy("//tmp/dynamic1", "//tmp/dynamic2")
+        sync_freeze_table("//tmp/dynamic1")
+        _run_remote_copy("//tmp/dynamic1", "//tmp/dynamic2")
+
+        # Output table should be unmounted.
+        with raises_yt_error():
+            _run_remote_copy("//tmp/dynamic2", "//tmp/dynamic1")
+        sync_unmount_table("//tmp/dynamic1")
+        _run_remote_copy("//tmp/dynamic2", "//tmp/dynamic1")
+
+        # Ordered tables are not supported.
+        self._create_sorted_table("//tmp/ordered", schema=[{"name": "key", "type": "int64"}])
+        with raises_yt_error():
+            _run_remote_copy("//tmp/ordered", "//tmp/ordered")
+
+    @authors("ifsmirnov")
+    def test_self_cluster(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t1")
+        self._create_sorted_table("//tmp/t2")
+        sync_mount_table("//tmp/t1")
+        insert_rows("//tmp/t1", [{"key": 1, "value": "foo"}])
+        sync_unmount_table("//tmp/t1")
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"cluster_name": "primary"},
+        )
+        assert read_table("//tmp/t2") == [{"key": 1, "value": "foo"}]
+
+        remove("//tmp/t1")
+        self._create_sorted_table("//tmp/t1")
+        remote_copy(
+            in_="//tmp/t2",
+            out="//tmp/t1",
+            spec={"cluster_name": "primary"},
+        )
+        assert read_table("//tmp/t1") == [{"key": 1, "value": "foo"}]
+
+    @authors("ifsmirnov")
+    def test_erasure(self):
+        sync_create_cells(1, driver=self.remote_driver)
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t1", driver=self.remote_driver)
+        set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
+        self._create_sorted_table("//tmp/t2")
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+        insert_rows("//tmp/t1", [{"key": 1, "value": "foo"}], driver=self.remote_driver)
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
+        )
+
+        assert read_table("//tmp/t2") == [{"key": 1, "value": "foo"}]
+        chunk_id = get("//tmp/t2/@chunk_ids/0")
+        assert get("#{}/@erasure_codec".format(chunk_id)) == "reed_solomon_6_3"
+
+
+##################################################################
+
+
+class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynamicTables):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    @authors("ifsmirnov")
+    def test_remote_copy_from_primary_cell_to_secondary(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t1", external=False)
+        self._create_sorted_table("//tmp/t2")
+        sync_mount_table("//tmp/t1")
+        insert_rows("//tmp/t1", [{"key": 1, "value": "foo"}])
+        sync_unmount_table("//tmp/t1")
+
+        remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"cluster_name": "primary"},
+        )
+
+        assert not (
+            __builtin__.set(get("//tmp/t1/@chunk_ids")) &
+            __builtin__.set(get("//tmp/t2/@chunk_ids")))
+        remove("//tmp/t1")
+        assert get("//tmp/t2/@external")
+        assert read_table("//tmp/t2") == [{"key": 1, "value": "foo"}]
+        sync_mount_table("//tmp/t2")
+        assert select_rows("* from [//tmp/t2]") == [{"key": 1, "value": "foo"}]

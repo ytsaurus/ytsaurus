@@ -822,6 +822,7 @@ public:
     NRe2::TRe2Ptr LegacyLivePreviewUserBlacklist;
 
     bool EnableBulkInsertForEveryone;
+    bool EnableVersionedRemoteCopy;
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 

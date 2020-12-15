@@ -109,6 +109,12 @@ public:
         YT_VERIFY(tabletStatistics.OverlappingStoreCount == 0);
     }
 
+    void Reset()
+    {
+        CellStatistics_.Reset();
+        OverlappingStoreCount_.Reset();
+    }
+
     void Save(NCellMaster::TSaveContext& context) const
     {
         using NYT::Save;

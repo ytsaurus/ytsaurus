@@ -416,6 +416,11 @@ private:
 
     virtual bool OnChunkView(TChunkView* /*chunkView*/) override
     {
+        if (FetchContext_.ThrowOnChunkViews) {
+            THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::InvalidInputChunk,
+                "Chunk view cannot be copied to remote cluster");
+        }
+
         return false;
     }
 
@@ -988,7 +993,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
     DeclareNonMutating();
 
-    context->SetRequestInfo("OmitDynamicStores: %v", request->omit_dynamic_stores());
+    context->SetRequestInfo("OmitDynamicStores: %v, ThrowOnChunkViews: %v",
+        request->omit_dynamic_stores(),
+        request->throw_on_chunk_views());
 
     // NB: No need for a permission check;
     // the client must have invoked GetBasicAttributes.
@@ -998,6 +1005,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     TFetchContext fetchContext;
     fetchContext.FetchParityReplicas = request->fetch_parity_replicas();
     fetchContext.OmitDynamicStores = request->omit_dynamic_stores();
+    fetchContext.ThrowOnChunkViews = request->throw_on_chunk_views();
     fetchContext.AddressType = request->has_address_type()
         ? CheckedEnumCast<EAddressType>(request->address_type())
         : EAddressType::InternalRpc;

@@ -736,6 +736,8 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("enable_bulk_insert_for_everyone", EnableBulkInsertForEveryone)
         .Default(false);
+    RegisterParameter("enable_versioned_remote_copy", EnableVersionedRemoteCopy)
+        .Default(false);
 
     RegisterParameter("default_enable_porto", DefaultEnablePorto)
         .Default(NScheduler::EEnablePorto::None);

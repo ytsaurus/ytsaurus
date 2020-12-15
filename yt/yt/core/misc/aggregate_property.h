@@ -29,6 +29,7 @@ public:
     void Account(T value);
     void Discount(T value);
     void AccountDelta(T value);
+    void Reset();
 
     template <class TSaveContext>
     void Save(TSaveContext& context) const;
@@ -49,6 +50,7 @@ public:
     void Account(T value);
     void Discount(T value);
     void AccountDelta(T value);
+    void Reset();
 
     template <class TSaveContext>
     void Save(TSaveContext& context) const;

@@ -97,6 +97,8 @@ message TReqFetch
     optional int32 address_type = 12; // EAddressType
 
     optional bool omit_dynamic_stores = 13 [default = false];
+
+    optional bool throw_on_chunk_views = 14 [default = false];
 }
 
 message TRspFetch

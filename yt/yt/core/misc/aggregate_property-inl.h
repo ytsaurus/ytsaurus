@@ -29,6 +29,11 @@ public: \
     { \
         name##_.AccountDelta(value); \
     } \
+    \
+    void Reset##name() \
+    { \
+    name##_.Reset(); \
+    } \
 
 #define DEFINE_BYVAL_AGGREGATE_PROPERTY(aggregator, type, name, ...) \
     DEFINE_AGGREGATE_PROPERTY_IMPL(aggregator, type, name, __VA_ARGS__) \
@@ -61,6 +66,11 @@ public: \
         INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
         holder##_->name.AccountDelta(val); \
     } \
+    Y_FORCE_INLINE void Reset##name() \
+    { \
+        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
+        holder##_->name.Reset(); \
+    } \
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,6 +100,12 @@ template <class T>
 void TSumAggregate<T>::AccountDelta(T delta)
 {
     Value_ += delta;
+}
+
+template <class T>
+void TSumAggregate<T>::Reset()
+{
+    Value_ = T{};
 }
 
 template <class T>
@@ -150,6 +166,12 @@ template <class T, class TPredicate>
 void TComparableAggregateBase<T, TPredicate>::AccountDelta(T /*value*/)
 {
     YT_ABORT();
+}
+
+template <class T, class TPredicate>
+void TComparableAggregateBase<T, TPredicate>::Reset()
+{
+    Values_.clear();
 }
 
 template <class T, class TPredicate>

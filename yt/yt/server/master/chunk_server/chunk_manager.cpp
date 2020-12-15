@@ -2416,10 +2416,25 @@ private:
             if (parent->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
                 parent->GetKind() == EChunkListKind::SortedDynamicTablet)
             {
-                YT_VERIFY(child->GetType() == EObjectType::Chunk);
+                if (!IsBlobChunkType(child->GetType())) {
+                    YT_LOG_ALERT("Attempted to attach chunk tree of unexpected type to a dynamic table "
+                        "(ChunkTreeId: %v, Type: %v, ChunkListId: %v, ChunkListKind: %v)",
+                        childId,
+                        child->GetType(),
+                        parent->GetId(),
+                        parent->GetKind());
+                    continue;
+                }
 
-                auto chunkView = CreateChunkView(child->AsChunk(), NChunkClient::TLegacyReadRange(), transactionId);
-                children.push_back(chunkView);
+                if (transactionId) {
+                    // Bulk insert. Inserted chunks inherit transaction timestamp.
+                    auto chunkView = CreateChunkView(child->AsChunk(), NChunkClient::TLegacyReadRange(), transactionId);
+                    children.push_back(chunkView);
+                } else {
+                    // Remote copy. Inserted chunks preserve original timestamps.
+                    YT_VERIFY(parent->GetKind() == EChunkListKind::SortedDynamicTablet);
+                    children.push_back(child);
+                }
             } else {
                 children.push_back(child);
             }
