@@ -116,7 +116,7 @@ public:
     TError Sanitize() const;
     TError Sanitize(TInstant datetime) const;
 
-    TError Truncate() const;
+    TError Truncate(int maxInnerErrorCount = 2, i64 stringLimit = 16_KB) const;
 
     bool IsOK() const;
 

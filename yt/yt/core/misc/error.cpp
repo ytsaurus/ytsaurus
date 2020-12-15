@@ -291,22 +291,45 @@ TError TError::Sanitize(TInstant datetime) const
     return result;
 }
 
-TError TError::Truncate() const
+TError TError::Truncate(int maxInnerErrorCount, i64 stringLimit) const
 {
+    auto truncateString = [stringLimit] (TString string) {
+        if (string.length() > stringLimit) {
+            return Format("%v...<message truncated>", string.substr(0, stringLimit));
+        }
+        return string;
+    };
+
+    auto truncateAttributes = [stringLimit] (const IAttributeDictionaryPtr& attributes) {
+        auto clonedAttributes = attributes->Clone();
+        for (const auto& key : clonedAttributes->ListKeys()) {
+            if (clonedAttributes->FindYson(key).GetData().Size() > stringLimit) {
+                clonedAttributes->SetYson(
+                    key,
+                    BuildYsonStringFluently()
+                        .Value("...<attribute truncated>..."));
+            }
+        }
+        return clonedAttributes;
+    };
+
     TError result;
     result.Code_ = Code_;
-    result.Message_ = Message_;
+    result.Message_ = truncateString(std::move(Message_));
     if (Attributes_) {
-        result.Attributes_ = Attributes_->Clone();
+        result.Attributes_ = truncateAttributes(Attributes_);
     }
-    if (InnerErrors_.size() <= 2) {
+
+    if (InnerErrors_.size() <= maxInnerErrorCount) {
         for (const auto& innerError : InnerErrors_) {
             result.InnerErrors_.push_back(innerError.Truncate());
         }
     } else {
         static const TString InnerErrorsTruncatedKey("inner_errors_truncated");
         result.Attributes().Set(InnerErrorsTruncatedKey, true);
-        result.InnerErrors_.push_back(InnerErrors_.front().Truncate());
+        for (int i = 0; i + 1 < maxInnerErrorCount; ++i) {
+            result.InnerErrors_.push_back(InnerErrors_[i].Truncate());
+        }
         result.InnerErrors_.push_back(InnerErrors_.back().Truncate());
     }
     return result;
