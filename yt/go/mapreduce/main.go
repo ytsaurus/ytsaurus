@@ -4,13 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-
-	"a.yandex-team.ru/yt/go/mapreduce/spec"
 )
-
-func RequestsFromJobAllowed() bool {
-	return os.Getenv(spec.EnvAllowRequests) != ""
-}
 
 // InsideJob determines whether current process is running inside a mapreduce job.
 func InsideJob() bool {
