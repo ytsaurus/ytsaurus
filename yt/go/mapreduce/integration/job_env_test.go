@@ -31,7 +31,7 @@ type SetCypressNodeJob struct {
 }
 
 func (s *SetCypressNodeJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
-	yc, err := ythttp.NewClient(&yt.Config{Proxy: s.Proxy})
+	yc, err := ythttp.NewClient(&yt.Config{Proxy: s.Proxy, AllowRequestsFromJob: true})
 	if err != nil {
 		return err
 	}
@@ -67,10 +67,6 @@ func runVanilla(t *testing.T, env *yttest.Env, allow bool, job mapreduce.Job) er
 	s := spec.Vanilla().
 		AddVanillaTask("test", 1)
 	s.MaxFailedJobCount = 1
-
-	if allow {
-		s.AllowRequestsFromJob()
-	}
 
 	op, err := env.MR.Vanilla(s, map[string]mapreduce.Job{"test": job})
 	if err != nil {

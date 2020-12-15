@@ -14,12 +14,8 @@ func checkNotInsideJob(c *yt.Config) error {
 		return nil
 	}
 
-	if mapreduce.RequestsFromJobAllowed() {
-		return nil
-	}
-
 	if mapreduce.InsideJob() {
-		return xerrors.New("requests to cluster from jobs are forbidden")
+		return xerrors.New("requests to cluster from inside job are forbidden")
 	}
 
 	return nil
