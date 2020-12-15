@@ -3116,12 +3116,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto truncatedError = error.Truncate();
+
         if (!operation->GetStarted().IsSet()) {
-            operation->SetStarted(error);
+            operation->SetStarted(truncatedError);
         }
         operation->SetStateAndEnqueueEvent(state);
         operation->SetFinishTime(TInstant::Now());
-        ToProto(operation->MutableResult().mutable_error(), error);
+        ToProto(operation->MutableResult().mutable_error(), truncatedError);
     }
 
     void FinishOperation(const TOperationPtr& operation)
