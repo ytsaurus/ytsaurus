@@ -36,6 +36,7 @@ public:
     virtual IInvokerPtr GetFairShareLoggingInvoker() const override;
     virtual IInvokerPtr GetFairShareProfilingInvoker() const override;
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override;
+    virtual IInvokerPtr GetOrchidWorkerInvoker() const override;
 
     virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override;
 

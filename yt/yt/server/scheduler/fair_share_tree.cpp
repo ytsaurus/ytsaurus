@@ -784,7 +784,9 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        DoBuildFairShareInfo(RootElementSnapshot_, fluent);
+        Y_UNUSED(WaitFor(BIND(&TFairShareTree::DoBuildFairShareInfo, MakeWeak(this), RootElementSnapshot_, fluent)
+            .AsyncVia(StrategyHost_->GetOrchidWorkerInvoker())
+            .Run()));
     }
 
     virtual void BuildOrchid(TFluentMap fluent) const override

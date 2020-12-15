@@ -64,6 +64,11 @@ struct TSchedulerStrategyHostMock
     {
         return GetCurrentInvoker();
     }
+    
+    virtual IInvokerPtr GetOrchidWorkerInvoker() const override
+    {
+        return GetCurrentInvoker();
+    }
 
     virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override
     {
