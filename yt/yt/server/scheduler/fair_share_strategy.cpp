@@ -595,12 +595,22 @@ public:
             }
         }
 
+        // Snapshot list of treeIds.
+        std::vector<TString> treeIds;
+        for (auto [treeId, _] : IdToTree_) {
+            treeIds.push_back(treeId);
+        }
+
         fluent
             // COMAPT(ignat)
             .OptionalItem("default_fair_share_tree", DefaultTreeId_)
             .OptionalItem("default_pool_tree", DefaultTreeId_)
-            .Item("scheduling_info_per_pool_tree").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& pair) {
-                const auto& [treeId, tree] = pair;
+            .Item("scheduling_info_per_pool_tree").DoMapFor(treeIds, [&] (TFluentMap fluent, const TString& treeId) {
+                auto tree = FindTree(treeId);
+                if (!tree) {
+                    return;
+                }
+                // descriptorsPerPoolTree and treeIds are consistent.
                 const auto& treeNodeDescriptor = GetOrCrash(descriptorsPerPoolTree, treeId);
                 fluent
                     .Item(treeId).BeginMap()
@@ -1492,9 +1502,6 @@ private:
 
         fluent
             .Item("user_to_ephemeral_pools").Do(BIND(&ISchedulerTree::BuildUserToEphemeralPoolsInDefaultPool, tree))
-            .Item("fair_share_info").BeginMap()
-                .Do(BIND(&ISchedulerTree::BuildFairShareInfo, tree))
-            .EndMap()
             .Do(BIND(&ISchedulerTree::BuildOrchid, tree))
             .Item("resource_limits").Value(resourceLimits)
             .Item("node_count").Value(descriptors.size())
@@ -1503,7 +1510,11 @@ private:
                     fluent
                         .Item().Value(descriptor.Address);
                 })
-            .EndList();
+            .EndList()
+            // This part is asynchronous.
+            .Item("fair_share_info").BeginMap()
+                .Do(BIND(&ISchedulerTree::BuildFairShareInfo, tree))
+            .EndMap();
     }
 
     virtual void DoBuildResourceMeteringAt(TInstant now)

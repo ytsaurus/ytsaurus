@@ -55,6 +55,11 @@ IInvokerPtr TSchedulerStrategyHost::GetFairShareUpdateInvoker() const
     return GetCurrentInvoker();
 }
 
+IInvokerPtr TSchedulerStrategyHost::GetOrchidWorkerInvoker() const
+{
+    return GetCurrentInvoker();
+}
+
 TFluentLogEvent TSchedulerStrategyHost::LogFairShareEventFluently(TInstant now)
 {
     return LogEventFluently(ELogEventType::FairShareInfo, now);

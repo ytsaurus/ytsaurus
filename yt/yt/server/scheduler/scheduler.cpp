@@ -1335,6 +1335,11 @@ public:
     {
         return FairShareUpdatePool_->GetInvoker();
     }
+    
+    virtual IInvokerPtr GetOrchidWorkerInvoker() const override
+    {
+        return OrchidWorkerPool_->GetInvoker();
+    }
 
     IYsonConsumer* GetControlEventLogConsumer()
     {
