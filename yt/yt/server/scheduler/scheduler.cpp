@@ -251,7 +251,7 @@ public:
         EventLogWriter_ = New<TEventLogWriter>(
             Config_->EventLog,
             GetMasterClient(),
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity));
+            Bootstrap_->GetControlInvoker(EControlQueue::EventLog));
         ControlEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
         FairShareEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
 
@@ -259,25 +259,25 @@ public:
             .Item("address").Value(ServiceAddress_);
 
         ClusterInfoLoggingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            Bootstrap_->GetControlInvoker(EControlQueue::EventLog),
             BIND(&TImpl::OnClusterInfoLogging, MakeWeak(this)),
             Config_->ClusterInfoLoggingPeriod);
         ClusterInfoLoggingExecutor_->Start();
 
         NodesInfoLoggingExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            Bootstrap_->GetControlInvoker(EControlQueue::EventLog),
             BIND(&TImpl::OnNodesInfoLogging, MakeWeak(this)),
             Config_->NodesInfoLoggingPeriod);
         NodesInfoLoggingExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            Bootstrap_->GetControlInvoker(EControlQueue::NodesPeriodicActivity),
             BIND(&TImpl::UpdateExecNodeDescriptors, MakeWeak(this)),
             Config_->ExecNodeDescriptorsUpdatePeriod);
         UpdateExecNodeDescriptorsExecutor_->Start();
 
         JobReporterWriteFailuresChecker_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            Bootstrap_->GetControlInvoker(EControlQueue::CommonPeriodicActivity),
             BIND(&TImpl::CheckJobReporterIssues, MakeWeak(this)),
             Config_->JobReporterIssuesCheckPeriod);
         JobReporterWriteFailuresChecker_->Start();
@@ -285,22 +285,22 @@ public:
         CachedExecNodeMemoryDistributionByTags_ = New<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>>(
             BIND(&TImpl::CalculateMemoryDistribution, MakeStrong(this)),
             Config_->SchedulingTagFilterExpireTimeout,
-            GetControlInvoker(EControlQueue::PeriodicActivity));
+            GetControlInvoker(EControlQueue::CommonPeriodicActivity));
 
         StrategyHungOperationsChecker_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            Bootstrap_->GetControlInvoker(EControlQueue::OperationsPeriodicActivity),
             BIND(&TImpl::CheckHungOperations, MakeWeak(this)),
             Config_->OperationHangupCheckPeriod);
         StrategyHungOperationsChecker_->Start();
 
         OperationsDestroyerExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            Bootstrap_->GetControlInvoker(EControlQueue::OperationsPeriodicActivity),
             BIND(&TImpl::PostOperationsToDestroy, MakeWeak(this)),
             Config_->OperationsDestroyPeriod);
         OperationsDestroyerExecutor_->Start();
 
         SchedulingSegmentsManagerExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            Bootstrap_->GetControlInvoker(EControlQueue::CommonPeriodicActivity),
             BIND(&TImpl::ManageSchedulingSegments, MakeWeak(this)),
             Config_->SchedulingSegmentsManagePeriod);
         SchedulingSegmentsManagerExecutor_->Start();
@@ -2089,13 +2089,13 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         TransientOperationQueueScanPeriodExecutor_ = New<TPeriodicExecutor>(
-            MasterConnector_->GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
+            MasterConnector_->GetCancelableControlInvoker(EControlQueue::OperationsPeriodicActivity),
             BIND(&TImpl::ScanTransientOperationQueue, MakeWeak(this)),
             Config_->TransientOperationQueueScanPeriod);
         TransientOperationQueueScanPeriodExecutor_->Start();
 
         PendingByPoolOperationScanPeriodExecutor_ = New<TPeriodicExecutor>(
-            MasterConnector_->GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
+            MasterConnector_->GetCancelableControlInvoker(EControlQueue::OperationsPeriodicActivity),
             BIND(&TImpl::ScanPendingOperations, MakeWeak(this)),
             Config_->PendingByPoolOperationScanPeriod);
         PendingByPoolOperationScanPeriodExecutor_->Start();

@@ -582,7 +582,7 @@ private:
         }
 
         OperationNodesUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
-            GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
+            GetCancelableControlInvoker(EControlQueue::OperationsPeriodicActivity),
             BIND(&TImpl::UpdateOperationNode, Unretained(this)),
             BIND([] (const TOperationNodeUpdate*) { return false; }),
             BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
@@ -590,18 +590,18 @@ private:
             Logger);
 
         CommonWatchersExecutor_ = New<TPeriodicExecutor>(
-            GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
+            GetCancelableControlInvoker(EControlQueue::CommonPeriodicActivity),
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
             Config_->WatchersUpdatePeriod);
 
         AlertsExecutor_ = New<TPeriodicExecutor>(
-            GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
+            GetCancelableControlInvoker(EControlQueue::CommonPeriodicActivity),
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
             Config_->AlertsUpdatePeriod);
 
         for (const auto& record : CustomWatcherRecords_) {
             auto executor = New<TPeriodicExecutor>(
-                GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
+                GetCancelableControlInvoker(EControlQueue::CommonPeriodicActivity),
                 BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record),
                 record.Period);
             CustomWatcherExecutors_[record.WatcherType] = executor;
@@ -1629,7 +1629,7 @@ private:
         }
         Y_UNUSED(WaitFor(batchReq->Invoke().Apply(
             BIND(&TImpl::OnCommonWatchersUpdated, MakeStrong(this))
-                .AsyncVia(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)))));
+                .AsyncVia(GetCancelableControlInvoker(EControlQueue::CommonPeriodicActivity)))));
     }
 
     void OnCommonWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
