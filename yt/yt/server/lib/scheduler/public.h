@@ -107,13 +107,16 @@ DEFINE_ENUM(EControlQueue,
     (UserRequest)
     (MasterConnector)
     (Orchid)
-    (PeriodicActivity)
+    (CommonPeriodicActivity)
+    (OperationsPeriodicActivity)
+    (NodesPeriodicActivity)
     (SchedulerProfiling)
     (Operation)
     (AgentTracker)
     (NodeTracker)
     (OperationsCleaner)
     (FairShareStrategy)
+    (EventLog)
 );
 
 DEFINE_ENUM(EControllerAgentPickStrategy,
