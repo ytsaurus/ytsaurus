@@ -193,6 +193,18 @@ inline bool IsJournalChunkId(TChunkId id)
     return IsJournalChunkType(NObjectClient::TypeFromId(id));
 }
 
+inline bool IsBlobChunkType(NObjectClient::EObjectType type)
+{
+    return
+        type == NObjectClient::EObjectType::Chunk ||
+        type == NObjectClient::EObjectType::ErasureChunk;
+}
+
+inline bool IsBlobChunkId(TChunkId id)
+{
+    return IsBlobChunkType(NObjectClient::TypeFromId(id));
+}
+
 inline bool IsErasureChunkType(NObjectClient::EObjectType type)
 {
     return

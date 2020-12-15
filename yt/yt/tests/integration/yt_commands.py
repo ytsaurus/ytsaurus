@@ -57,6 +57,7 @@ InvalidSchemaValue = 314
 InvalidPartitionedBy = 317
 MisconfiguredPartitions = 318
 ResolveErrorCode = 500
+InvalidInputChunk = 733
 AuthorizationErrorCode = 901
 InvalidObjectType = 1006
 TmpfsOverflow = 1124
@@ -2278,7 +2279,8 @@ def sync_unfreeze_table(path, **kwargs):
 
 def sync_reshard_table(path, *args, **kwargs):
     reshard_table(path, *args, **kwargs)
-    wait(lambda: get(path + "/@tablet_state") != "transient")
+    driver=kwargs.get("driver", None)
+    wait(lambda: get(path + "/@tablet_state", driver=driver) != "transient")
 
 
 def _wait_for_tablet_actions(action_ids):

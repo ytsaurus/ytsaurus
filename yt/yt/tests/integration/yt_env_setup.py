@@ -632,6 +632,7 @@ class YTEnvSetup(object):
                             attributes={
                                 "value": {
                                     "enable_bulk_insert_for_everyone": self.ENABLE_BULK_INSERT,
+                                    "enable_versioned_remote_copy": self.ENABLE_BULK_INSERT,
                                     "testing_options": {
                                         "rootfs_test_layers": [
                                             "//layers/exec.tar.gz",

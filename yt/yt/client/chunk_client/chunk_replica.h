@@ -119,6 +119,12 @@ bool IsJournalChunkType(NObjectClient::EObjectType type);
 //! Returns |true| iff this is a journal chunk.
 bool IsJournalChunkId(TChunkId id);
 
+//! Returns |true| iff this is a blob chunk (regular or erasure).
+bool IsBlobChunkType(NObjectClient::EObjectType type);
+
+//! Returns |true| iff this is a blob chunk (regular or erasure).
+bool IsBlobChunkId(TChunkId id);
+
 //! Returns |true| iff this is an erasure chunk.
 bool IsErasureChunkType(NObjectClient::EObjectType type);
 

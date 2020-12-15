@@ -146,7 +146,7 @@ public:
         std::vector<TFuture<void>> chunkCopyResults;
         std::vector<TChunkId> outputChunkIds;
 
-    YT_PROFILE_TIMING("/job_proxy/remote_copy_time") {
+        YT_PROFILE_TIMING("/job_proxy/remote_copy_time") {
             for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
                 for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
                     auto outputSessionId = CreateOutputChunk(inputChunkSpec);
@@ -186,6 +186,12 @@ public:
 
         TJobResult result;
         ToProto(result.mutable_error(), TError());
+
+        if (IsTableDynamic()) {
+            auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            ToProto(schedulerResultExt->mutable_output_chunk_specs(), WrittenChunks_);
+        }
+
         return result;
     }
 
@@ -257,6 +263,9 @@ private:
     TClientBlockReadOptions BlockReadOptions_;
 
     std::vector<TFuture<void>> ChunkFinalizationResults_;
+
+    // For dynamic tables only.
+    std::vector<TChunkSpec> WrittenChunks_;
 
     NChunkClient::TSessionId CreateOutputChunk(const TChunkSpec& inputChunkSpec)
     {
@@ -719,6 +728,13 @@ private:
             NChunkClient::EErrorCode::MasterCommunicationFailed,
             "Failed to confirm chunk %v",
             outputSessionId.ChunkId);
+
+        if (IsTableDynamic()) {
+            TChunkSpec chunkSpec;
+            *chunkSpec.mutable_chunk_meta() = masterChunkMeta;
+            ToProto(chunkSpec.mutable_chunk_id(), outputSessionId.ChunkId);
+            WrittenChunks_.push_back(chunkSpec);
+        }
     }
 
     void DoCopy(
@@ -818,6 +834,11 @@ private:
         auto deferredChunkMeta = New<TDeferredChunkMeta>();
         deferredChunkMeta->CopyFrom(*result.Value());
         return deferredChunkMeta;
+    }
+
+    bool IsTableDynamic() const
+    {
+        return SchedulerJobSpecExt_.output_table_specs(0).dynamic();
     }
 };
 

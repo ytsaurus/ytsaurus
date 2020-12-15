@@ -1573,13 +1573,14 @@ public:
         for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
             auto* tablet = originatingNode->Tablets()[index];
 
+            auto tabletStatistics = GetTabletStatistics(tablet);
+            originatingNode->DiscountTabletStatistics(tabletStatistics);
+
             if (tablet->GetState() != ETabletState::Unmounted) {
                 totalMemorySizeDelta -= tablet->GetTabletStaticMemorySize();
 
                 auto* cell = tablet->GetCell();
-                auto tabletStatistics = GetTabletStatistics(tablet);
                 cell->GossipStatistics().Local() -= tabletStatistics;
-                originatingNode->DiscountTabletStatistics(tabletStatistics);
             }
         }
 
@@ -1592,16 +1593,18 @@ public:
 
         // Merge tablet chunk lists and accumulate new tablet statistics.
         for (int index = 0; index < branchedChunkList->Children().size(); ++index) {
-            auto* appendChunkList = branchedChunkList->Children()[index];
+            auto* appendChunkList = branchedChunkList->Children()[index]->AsChunkList();
             auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
             auto* tablet = originatingNode->Tablets()[index];
 
             if (updateMode == EUpdateMode::Overwrite) {
                 AbandonDynamicStores(tablet);
+                YT_VERIFY(appendChunkList->GetKind() == EChunkListKind::SortedDynamicTablet);
+                appendChunkList->SetPivotKey(tabletChunkList->GetPivotKey());
             }
 
             if (updateMode == EUpdateMode::Append) {
-                if (!appendChunkList->AsChunkList()->Children().empty()) {
+                if (!appendChunkList->Children().empty()) {
                     chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
                 }
             }
@@ -1632,7 +1635,7 @@ public:
                 transactionManager->GetTimestampHolderTimestamp(transaction->GetId())));
             req.set_update_mode(ToProto<int>(updateMode));
 
-            auto stores = EnumerateStoresInChunkTree(appendChunkList->AsChunkList());
+            auto stores = EnumerateStoresInChunkTree(appendChunkList);
             auto storeType = originatingNode->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
             i64 startingRowIndex = 0;
 
@@ -4018,7 +4021,7 @@ private:
         Load(context, TabletStatistisUpdateRequests_);
 
         // COMPAT(ifsmirnov)
-        RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::AggregateTabletStatistics);
+        RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::VersionedRemoteCopy);
     }
 
 
@@ -4027,8 +4030,12 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         if (RecomputeAggregateTabletStatistics_) {
+            THashSet<TTableNode*> resetTables;
             for (const auto& [id, tablet] : Tablets()) {
                 if (auto* table = tablet->GetTable()) {
+                    if (resetTables.insert(table).second) {
+                        table->ResetTabletStatistics();
+                    }
                     table->AccountTabletStatistics(GetTabletStatistics(tablet));
                 }
             }
