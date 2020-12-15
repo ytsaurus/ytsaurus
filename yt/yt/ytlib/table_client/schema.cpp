@@ -595,9 +595,9 @@ std::pair<ESchemaCompatibility, TError> CheckTableSchemaCompatibility(
     auto result = CheckTableSchemaCompatibilityImpl(inputSchema, outputSchema, ignoreSortOrder);
     if (result.first != ESchemaCompatibility::FullyCompatible) {
         result.second = TError(EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
-                << result.second
-                << TErrorAttribute("input_table_schema", inputSchema)
-                << TErrorAttribute("output_table_schema", outputSchema);
+            << result.second
+            << TErrorAttribute("input_table_schema", inputSchema)
+            << TErrorAttribute("output_table_schema", outputSchema);
     }
     return result;
 }
