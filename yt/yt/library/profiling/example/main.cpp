@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
                 { }
             }
 
-            if (i % 6000 == 0) {
+            if (i % 18000 == 0) {
                 sparseCounter.Increment();
             }
         }

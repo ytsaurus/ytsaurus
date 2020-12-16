@@ -2,6 +2,7 @@
 
 #include "tag_registry.h"
 
+#include <limits>
 #include <yt/yt/library/profiling/sensor.h>
 #include <yt/yt/library/profiling/summary.h>
 
@@ -32,6 +33,8 @@ struct TReadOptions
 
     bool Sparse = false;
     bool Global = false;
+
+    int LingerWindowSize = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,8 +61,9 @@ public:
         std::vector<T> Values;
 
         bool IsZero(int index) const;
+        bool IsLingering(i64 iteration) const;
 
-        i64 LastUpdateIteration = 0;
+        i64 LastNonZeroIteration = std::numeric_limits<i64>::min();
         int UsageCount = 0;
     };
 
@@ -67,6 +71,7 @@ public:
     int GetSize() const;
 
     int GetIndex(i64 iteration) const;
+    i64 GetIteration(int index) const;
     T Rollup(const TProjection& window, int index) const;
 
     void ReadSensors(
@@ -78,6 +83,7 @@ public:
 private:
     int WindowSize_;
     i64 NextIteration_;
+    i64 BaseIteration_;
     int Index_ = 0;
 
     THashMap<TTagIdList, TProjection> Projections_;
