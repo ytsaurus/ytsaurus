@@ -934,6 +934,10 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
                     multicell_gossip_config["table_statistics_gossip_period"] = 100
                 if "tablet_cell_statistics_gossip_period" not in multicell_gossip_config:
                     multicell_gossip_config["tablet_cell_statistics_gossip_period"] = 100
+                if "tablet_cell_status_full_gossip_period" not in multicell_gossip_config:
+                    multicell_gossip_config["tablet_cell_status_full_gossip_period"] = 1000
+                if "tablet_cell_status_incremental_gossip_period" not in multicell_gossip_config:
+                    multicell_gossip_config["tablet_cell_status_incremental_gossip_period"] = 100
 
                 if "tablet_cell_decommissioner" not in tablet_manager_config:
                     tablet_manager_config["tablet_cell_decommissioner"] = {

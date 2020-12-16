@@ -1435,7 +1435,7 @@ void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* objec
     NProto::TReqConfirmObjectLifeStage request;
     ToProto(request.mutable_object_id(), object->GetId());
     request.set_cell_tag(multicellManager->GetCellTag());
-    multicellManager->PostToMaster(request, PrimaryMasterCellTag);
+    multicellManager->PostToPrimaryMaster(request);
 }
 
 void TObjectManager::TImpl::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjectServer::TObject* object)

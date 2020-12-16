@@ -84,7 +84,7 @@ public:
             *req->mutable_statistics() = trunkNode->SnapshotStatistics();
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            multicellManager->PostToMaster(req, PrimaryMasterCellTag);
+            multicellManager->PostToPrimaryMaster(req);
         }
     }
 

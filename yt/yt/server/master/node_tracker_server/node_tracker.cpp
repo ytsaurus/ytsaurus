@@ -1545,7 +1545,7 @@ private:
 
         YT_LOG_INFO("Sending node states gossip message (Incremental: %v)",
             incremental);
-        multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
+        multicellManager->PostToPrimaryMaster(request, false);
     }
 
 
