@@ -340,6 +340,8 @@ public:
 
     virtual TSnapshotCookie OnSnapshotStarted() override;
 
+    virtual bool HasSnapshot() const override;
+
     virtual void Dispose() override;
 
     virtual void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& update) override;
@@ -1096,7 +1098,7 @@ private:
     TReleaseQueue<NChunkClient::TChunkTreeId>::TCookie ChunkTreeSnapshotCookie_ = 0;
 
     //! Number of times `OnSnapshotStarted()` was called up to this moment.
-    int SnapshotIndex_ = 0;
+    std::atomic<int> SnapshotIndex_ = 0;
     //! Index of a snapshot that is building right now.
     std::optional<int> RecentSnapshotIndex_ = std::nullopt;
     //! Timestamp of last successful uploaded snapshot.

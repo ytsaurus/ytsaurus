@@ -7142,11 +7142,12 @@ TSnapshotCookie TOperationControllerBase::OnSnapshotStarted()
 {
     VERIFY_INVOKER_AFFINITY(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
+    int snapshotIndex = SnapshotIndex_++;
     if (RecentSnapshotIndex_) {
         YT_LOG_WARNING("Starting next snapshot without completing previous one (SnapshotIndex: %v)",
-            SnapshotIndex_);
+            snapshotIndex);
     }
-    RecentSnapshotIndex_ = SnapshotIndex_++;
+    RecentSnapshotIndex_ = snapshotIndex;
 
     CompletedJobIdsSnapshotCookie_ = CompletedJobIdsReleaseQueue_.Checkpoint();
     IntermediateStripeListSnapshotCookie_ = IntermediateStripeListReleaseQueue_.Checkpoint();
@@ -7213,8 +7214,13 @@ void TOperationControllerBase::SafeOnSnapshotCompleted(const TSnapshotCookie& co
         Host->AddChunkTreesToUnstageList(chunkTreeIdsToRelease, true /* recursive */);
     }
 
-    RecentSnapshotIndex_    .reset();
+    RecentSnapshotIndex_.reset();
     LastSuccessfulSnapshotTime_ = TInstant::Now();
+}
+
+bool TOperationControllerBase::HasSnapshot() const
+{
+    return SnapshotIndex_.load();
 }
 
 void TOperationControllerBase::Dispose()
@@ -7558,7 +7564,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             fluent
                 .Item("input_data_size_histogram").Value(*InputDataSizeHistogram_);
         })
-        .Item("snapshot_index").Value(SnapshotIndex_)
+        .Item("snapshot_index").Value(SnapshotIndex_.load())
         .Item("recent_snapshot_index").Value(RecentSnapshotIndex_)
         .Item("last_successful_snapshot_time").Value(LastSuccessfulSnapshotTime_)
         .Item("tasks").DoListFor(GetTopologicallyOrderedTasks(), [=] (TFluentList fluent, const TTaskPtr& task) {
