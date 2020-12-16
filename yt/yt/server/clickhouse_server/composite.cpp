@@ -637,9 +637,9 @@ private:
             // TODO(max42): specify timezone explicitly here.
             CASE(ESimpleLogicalValueType::Date, ui16, DB::ColumnVector<ui16>, std::make_shared<DB::DataTypeDate>())
             CASE(ESimpleLogicalValueType::Datetime, ui32, DB::ColumnVector<ui32>, std::make_shared<DB::DataTypeDateTime>())
-            CASE(ESimpleLogicalValueType::String, ui8 /* actually unused */, DB::ColumnString, std::make_shared<DB::DataTypeString>())
-            CASE(ESimpleLogicalValueType::Utf8, ui8 /* actually unused */, DB::ColumnString, std::make_shared<DB::DataTypeString>())
-            CASE(ESimpleLogicalValueType::Void, ui8 /* actually unused */, DB::ColumnNothing, std::make_shared<DB::DataTypeNothing>())
+            CASE(ESimpleLogicalValueType::String, DB::UInt8 /* actually unused */, DB::ColumnString, std::make_shared<DB::DataTypeString>())
+            CASE(ESimpleLogicalValueType::Utf8, DB::UInt8 /* actually unused */, DB::ColumnString, std::make_shared<DB::DataTypeString>())
+            CASE(ESimpleLogicalValueType::Void, DB::UInt8 /* actually unused */, DB::ColumnNothing, std::make_shared<DB::DataTypeNothing>())
             default:
                 ThrowConversionError(descriptor, "simple logical value type %v is not supported", valueType);
         }
