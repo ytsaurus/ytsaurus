@@ -18,7 +18,9 @@ public enum RpcErrorCode {
     AuthenticationError(109),
     InvalidCsrfToken(110),
     InvalidCredentials(111),
-    StreamingNotSupported(112);
+    StreamingNotSupported(112),
+    TableMountInfoNotReady(1707),
+    ;
 
     public final int code;
 
