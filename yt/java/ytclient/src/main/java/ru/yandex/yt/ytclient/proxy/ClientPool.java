@@ -36,6 +36,7 @@ import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientPool;
 import ru.yandex.yt.ytclient.rpc.RpcError;
+import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 
@@ -646,7 +647,13 @@ class ClientPool implements DataCenterRpcClientPool {
             this.hostPort = hostPort;
             this.publicClient = new FailureDetectingRpcClient(
                     client,
-                    RpcError::isUnrecoverable,
+                    e -> {
+                        if (e instanceof RpcError && ((RpcError)e).matches(RpcErrorCode.TableMountInfoNotReady.code)) {
+                            // Workaround: we want to treat such errors as recoverable.
+                            return false;
+                        }
+                        return RpcError.isUnrecoverable(e);
+                    },
                     e -> {
                         logger.debug("Banning rpc-proxy connection {} due to error:", this, e);
                         banErrorClient(this);
