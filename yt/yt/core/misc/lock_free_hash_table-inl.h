@@ -37,78 +37,6 @@ size_t TLockFreeHashTable<T>::GetByteSize() const
 }
 
 template <class T>
-template <class TCallback>
-void TLockFreeHashTable<T>::ForEach(TCallback callback)
-{
-    for (size_t index = 0; index < Size_; ++index) {
-        auto tableEntry = HashTable_[index].load(std::memory_order_relaxed);
-        auto stamp = StampFromEntry(tableEntry);
-        if (stamp != 0) {
-            callback(ValueFromEntry(tableEntry));
-        }
-    }
-}
-
-template <class T>
-size_t TLockFreeHashTable<T>::GetLoadFactor()
-{
-    size_t result = 0;
-    for (size_t index = 0; index < Size_; ++index) {
-        auto tableEntry = HashTable_[index].load(std::memory_order_relaxed);
-        auto stamp = StampFromEntry(tableEntry);
-        result += stamp != 0 ? 1 : 0;
-    }
-
-    return result;
-}
-
-template <class T>
-bool TLockFreeHashTable<T>::Update(TFingerprint fingerprint, TValuePtr value)
-{
-    auto index = IndexFromFingerprint(fingerprint) % Size_;
-    auto stamp = StampFromFingerprint(fingerprint);
-
-    auto entry = MakeEntry(stamp, value.Get());
-
-    for (size_t probeCount = Size_; probeCount != 0;) {
-        auto tableEntry = HashTable_[index].load(std::memory_order_acquire);
-        auto tableStamp = StampFromEntry(tableEntry);
-
-        if (tableStamp == 0) {
-            break;
-        }
-
-        if (tableStamp == stamp) {
-            // This hazard ptr protects from Unref. We do not want to change ref count so frequently.
-            auto item = THazardPtr<T>::Acquire([&] {
-                return ValueFromEntry(HashTable_[index].load(std::memory_order_acquire));
-            }, ValueFromEntry(tableEntry));
-
-            if (TEqualTo<T>()(item.Get(), value.Get())) {
-                // Exchange allows to use this function concurrently.
-                auto oldElement = HashTable_[index].exchange(entry);
-                value.Release();
-                item.Reset();
-
-                ScheduleObjectDeletion(ValueFromEntry(oldElement), [] (void* ptr) {
-                    Unref(static_cast<T*>(ptr));
-                });
-
-                return true;
-            }
-        }
-
-        ++index;
-        if (index == Size_) {
-            index = 0;
-        }
-        --probeCount;
-    }
-
-    return false;
-}
-
-template <class T>
 bool TLockFreeHashTable<T>::Insert(TFingerprint fingerprint, TValuePtr value)
 {
     auto index = IndexFromFingerprint(fingerprint) % Size_;
@@ -187,6 +115,46 @@ TIntrusivePtr<T> TLockFreeHashTable<T>::Find(TFingerprint fingerprint, const TKe
     }
 
     return nullptr;
+}
+
+template <class T>
+template <class TKey>
+typename TLockFreeHashTable<T>::TItemRef TLockFreeHashTable<T>::FindRef(TFingerprint fingerprint, const TKey& key)
+{
+    using TItemRef = typename TLockFreeHashTable<T>::TItemRef;
+
+    auto index = IndexFromFingerprint(fingerprint) % Size_;
+    auto stamp = StampFromFingerprint(fingerprint);
+
+    for (size_t probeCount = Size_; probeCount != 0;) {
+        auto tableEntry = HashTable_[index].load(std::memory_order_relaxed);
+        auto tableStamp = StampFromEntry(tableEntry);
+
+        if (tableStamp == 0) {
+            break;
+        }
+
+        if (tableStamp == stamp) {
+            // This hazard ptr protects from Unref. We do not want to change ref count so frequently.
+            // TIntrusivePtr::AcquireUnchecked could be used outside this function.
+
+            auto item = THazardPtr<T>::Acquire([&] {
+                return ValueFromEntry(HashTable_[index].load(std::memory_order_relaxed));
+            }, ValueFromEntry(tableEntry));
+
+            if (TEqualTo<T>()(item.Get(), key)) {
+                return TItemRef(&HashTable_[index]);
+            }
+        }
+
+        ++index;
+        if (index == Size_) {
+            index = 0;
+        }
+        --probeCount;
+    }
+
+    return TItemRef();
 }
 
 template <class T>

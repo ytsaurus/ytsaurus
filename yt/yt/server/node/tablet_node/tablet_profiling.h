@@ -26,6 +26,7 @@ struct TLookupCounters
 
     explicit TLookupCounters(const NProfiling::TRegistry& profiler)
         : CacheHits(profiler.Counter("/lookup/cache_hits"))
+        , CacheOutdated(profiler.Counter("/lookup/cache_outdated"))
         , CacheMisses(profiler.Counter("/lookup/cache_misses"))
         , RowCount(profiler.Counter("/lookup/row_count"))
         , DataWeight(profiler.Counter("/lookup/data_weight"))
@@ -37,6 +38,7 @@ struct TLookupCounters
     { }
 
     NProfiling::TCounter CacheHits;
+    NProfiling::TCounter CacheOutdated;
     NProfiling::TCounter CacheMisses;
     NProfiling::TCounter RowCount;
     NProfiling::TCounter DataWeight;

@@ -102,15 +102,21 @@ TEST_P(TConcurrentCacheTest, Stress)
 
                 key->Hash = THash<TStringBuf>{}(TStringBuf(&key->Data[0], keyColumnCount));
 
-                auto accessor = concurrentCache.GetLookupAccessor();
-                auto found = accessor.Lookup(key, reinsert);
+                auto lookuper = concurrentCache.GetLookuper();
+                auto inserter = concurrentCache.GetInserter();
+                auto foundRef = lookuper(key);
 
-                if (!found) {
+                if (!foundRef) {
                     auto value = NewWithExtraSpace<TElement>(&allocator, columnCount);
                     memcpy(value.Get(), key, sizeof(TElement) + columnCount);
-                    bool inserted = accessor.Insert(std::move(value));
+                    bool inserted = inserter.GetTable()->Insert(std::move(value));
 
                     insertCount += inserted;
+                } else if (reinsert) {
+                    auto table = inserter.GetTable();
+                    if (table != foundRef.Origin) {
+                        table->Insert(foundRef.Get());
+                    }
                 }
             }
 

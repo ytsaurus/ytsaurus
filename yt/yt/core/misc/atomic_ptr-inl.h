@@ -97,7 +97,7 @@ TIntrusivePtr<T> TAtomicPtr<T>::Acquire() const
 }
 
 template <class T>
-TIntrusivePtr<T> TAtomicPtr<T>::Exchange(TIntrusivePtr<T>&& other)
+TIntrusivePtr<T> TAtomicPtr<T>::Exchange(TIntrusivePtr<T> other)
 {
     auto oldPtr = Ptr_.exchange(other.Release());
     return TIntrusivePtr<T>(oldPtr, false);

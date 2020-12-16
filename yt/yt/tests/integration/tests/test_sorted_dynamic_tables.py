@@ -360,17 +360,23 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000, 2)]
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 300, 2)]
         insert_rows("//tmp/t", rows)
 
         expected = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2)]
         actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
+        # Insert rows again to increase last store timestamp.
+        rows = [{"key": i, "value": str(2 * i)} for i in xrange(0, 300, 4)]
+        insert_rows("//tmp/t", rows)
+
         sync_flush_table("//tmp/t")
 
         # Lookup again. Check that rows are in cache.
+        expected = [{"key": i, "value": str(2 * i if i % 4 == 0 else i)} for i in xrange(100, 200, 2)]
         actual = lookup_rows("//tmp/t", [{"key": i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
+        assert_items_equal(actual, expected)
 
         # Lookup non-existent key without polluting cache.
         lookup_rows("//tmp/t", [{"key": 1}])
@@ -421,6 +427,78 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 no_cache = lookup_rows("//tmp/t", keys, timestamp=ts)
                 cache = lookup_rows("//tmp/t", keys, use_lookup_cache=True, timestamp=ts)
                 assert no_cache == cache
+
+            sync_flush_table("//tmp/t")
+
+        tablet_profiling = self._get_table_profiling("//tmp/t")
+        assert tablet_profiling.get_counter("lookup/cache_hits") > 0
+        assert tablet_profiling.get_counter("lookup/cache_misses") > 0
+
+    @authors("lukyan")
+    def test_lookup_cache_stress2(self):
+        sync_create_cells(1)
+
+        create_dynamic_table(
+            "//tmp/t",
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "int64"},
+                {"name": "i", "type": "int64"},
+                {"name": "a", "type": "int64"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"},
+                {"name": "s", "type": "string"},
+                {"name": "t", "type": "string"},
+                {"name": "md5", "type": "string"}],
+            lookup_cache_rows_per_tablet=100)
+
+        sync_mount_table("//tmp/t")
+
+        count = 500
+
+        verify_map = {}
+        revision_map = {}
+
+        def get_checksum(row):
+            row_data = " ".join(yson.dumps(row.get(col, yson.YsonEntity())) for col in ["v", "i", "a", "b", "c", "s", "t"])
+            return row_data
+
+        for wave in xrange(1, 30):
+            rows = [{
+                "k": k,
+                "v": k,
+                "i": wave,
+                choice(["a", "b", "c"]): randint(1, 10000),
+                choice(["s", "t"]): str(randint(1, 10000))}
+                for k in sample(range(1, count), 200)]
+
+            for row in rows:
+                key = row["k"]
+                item = verify_map.get(key, {})
+                item.update(row)
+                row["md5"] = get_checksum(item)
+                verify_map[key] = item
+
+            print_debug("Insert rows ", rows)
+            insert_rows("//tmp/t", rows, update=True)
+
+            keys = [{"k": k} for k in sample(range(1, 1000), 100)]
+            for key in keys:
+                if key["k"] in verify_map:
+                    del verify_map[key["k"]]
+            print_debug("Delete rows ", keys)
+            delete_rows("//tmp/t", keys)
+
+            for i in xrange(1, 10):
+                keys = [{"k": k} for k in sample(range(1, count), 10)]
+                result = lookup_rows("//tmp/t", keys, use_lookup_cache=True)
+
+                for row in result:
+                    assert row["k"] == row["v"]
+                    assert get_checksum(row) == row["md5"]
+                    revision = row["i"]
+                    assert revision >= revision_map.get(row["k"], 0)
+                    revision_map[row["k"]] = revision
 
             sync_flush_table("//tmp/t")
 

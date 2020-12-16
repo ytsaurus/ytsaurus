@@ -94,6 +94,12 @@ TSortedStoreManager::TSortedStoreManager(
         if (sortedStore->GetStoreState() != EStoreState::ActiveDynamic) {
             MaxTimestampToStore_.emplace(sortedStore->GetMaxTimestamp(), sortedStore);
         }
+
+        if (sortedStore->GetStoreState() == EStoreState::PassiveDynamic) {
+            auto sortedDynamicStore = sortedStore->AsSortedDynamic();
+            YT_VERIFY(sortedDynamicStore->GetFlushIndex() == 0);
+            StoreFlushIndexQueue_.push_back(sortedDynamicStore->GetFlushIndex());
+        }
     }
 
     if (Tablet_->GetActiveStore()) {
@@ -563,6 +569,13 @@ void TSortedStoreManager::RemoveStore(IStorePtr store)
         }
     }
 
+    if (sortedStore->IsDynamic()) {
+        auto sortedDynamicStore = store->AsSortedDynamic();
+        YT_VERIFY(!StoreFlushIndexQueue_.empty());
+        YT_VERIFY(StoreFlushIndexQueue_.front() == sortedDynamicStore->GetFlushIndex());
+        StoreFlushIndexQueue_.pop_front();
+    }
+
     SchedulePartitionSampling(sortedStore->GetPartition());
 
     TStoreManagerBase::RemoveStore(store);
@@ -603,6 +616,12 @@ void TSortedStoreManager::ResetActiveStore()
 
 void TSortedStoreManager::OnActiveStoreRotated()
 {
+    auto storeFlushIndex = Tablet_->GetStoreFlushIndex();
+    ++storeFlushIndex;
+    Tablet_->SetStoreFlushIndex(storeFlushIndex);
+    ActiveStore_->SetFlushIndex(storeFlushIndex);
+    StoreFlushIndexQueue_.push_back(storeFlushIndex);
+
     MaxTimestampToStore_.emplace(ActiveStore_->GetMaxTimestamp(), ActiveStore_);
 }
 
@@ -617,6 +636,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     YT_VERIFY(reader->Open().Get().IsOK());
 
     auto inMemoryMode = isUnmountWorkflow ? EInMemoryMode::None : GetInMemoryMode();
+
+    auto storeFlushIndex = sortedDynamicStore->GetFlushIndex();
 
     return BIND([=, this_ = MakeStrong(this)] (
         ITransactionPtr transaction,
@@ -714,6 +735,15 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         const auto& rowCache = tabletSnapshot->RowCache;
 
+        if (rowCache) {
+            // Discard cached rows with revision not greater than lastStoreTimestamp.
+            auto currentFlushIndex = rowCache->FlushIndex.load(std::memory_order_acquire);
+            // Check that stores are flushed in proper order.
+            // Revsion is equal if retrying flush.
+            YT_VERIFY(currentFlushIndex <= storeFlushIndex);
+            rowCache->FlushIndex.store(storeFlushIndex, std::memory_order_release);
+        }
+
         YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "
             "MergeDeletionsOnFlush: %v, RetentionConfig: %v, HaveRowCache: %v, RetainedTimestamp: %v)",
             store->GetId(),
@@ -745,33 +775,71 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             }
 
             if (rowCache) {
-                auto accessor = rowCache->Cache.GetLookupAccessor();
+                auto lookuper = rowCache->Cache.GetLookuper();
 
                 for (auto row : rows) {
-                    // TODO(lukyan): Get here address of cell and use it in update. Or use Update with callback.
-                    auto foundRow = accessor.Lookup(row);
+                    auto foundItemRef = lookuper(row);
 
-                    if (foundRow) {
-                        YT_VERIFY(foundRow->GetVersionedRow().GetKeyCount() > 0);
+                    if (auto foundItem = foundItemRef.Get()) {
+                        foundItem = GetLatestRow(std::move(foundItem));
 
-                        compactionRowMerger.AddPartialRow(foundRow->GetVersionedRow());
+                        YT_VERIFY(foundItem->GetVersionedRow().GetKeyCount() > 0);
+
+                        // Row is inserted in lookup thread in two steps.
+                        // Initially it is inserted with last known flush revision of passive dynamic stores.
+                        //
+                        // Cached row revision is updated to maximum value after insertion
+                        // if RowCache->FlushIndex is still not greater than cached row initial revision.
+                        // Otherwise the second step of insertion is failed and inserted row beacomes outdated.
+                        // Its revision is also checked when reading it in lookup thread.
+                        //
+                        // If updating revision to maximum value takes too long time it can be canceled by
+                        // the following logic.
+
+                        // Normally this condition is rare.
+                        if (foundItem->Revision.load(std::memory_order_acquire) < storeFlushIndex) {
+                            // No way to update row and preserve revision.
+                            // Discard its revision.
+                            // In lookup use CAS to update revision to Max.
+
+                            YT_LOG_TRACE("Discard row (Row: %v, Revision: %v, StoreFlushIndex: %v)",
+                                foundItem->GetVersionedRow(),
+                                foundItem->Revision.load(),
+                                storeFlushIndex);
+
+                            foundItem->Revision.store(std::numeric_limits<ui32>::min(), std::memory_order_release);
+                            continue;
+                        }
+
+                        if (GetMaxTimestamp(foundItem->GetVersionedRow()) >= GetMaxTimestamp(row)) {
+                            // Data in found row is more recent than data in current store.
+                            YT_LOG_TRACE("Skipping row update (RowFromCache: %v, RowFromStore: %v)",
+                                foundItem->GetVersionedRow(),
+                                row);
+                            continue;
+                        }
+
+                        compactionRowMerger.AddPartialRow(foundItem->GetVersionedRow());
                         compactionRowMerger.AddPartialRow(row);
                         auto mergedRow = compactionRowMerger.BuildMergedRow();
 
                         YT_VERIFY(mergedRow);
                         YT_VERIFY(mergedRow.GetKeyCount() > 0);
 
-                        auto cachedRow = CachedRowFromVersionedRow(
+                        auto updatedItem = CachedRowFromVersionedRow(
                             &rowCache->Allocator,
                             mergedRow);
 
-                        bool updated = accessor.Update(cachedRow);
+                        YT_LOG_TRACE("Updating cache (Row: %v, Revision: %v, StoreFlushIndex: %v)",
+                            updatedItem->GetVersionedRow(),
+                            foundItem->Revision.load(),
+                            storeFlushIndex);
 
-                        if (updated) {
-                            YT_LOG_TRACE("Cache updated (Row: %v)", cachedRow->GetVersionedRow());
-                        } else {
-                            YT_LOG_TRACE("Cache update failed (Row: %v)", cachedRow->GetVersionedRow());
-                        }
+                        updatedItem->Revision.store(std::numeric_limits<ui32>::max(), std::memory_order_release);
+
+                        YT_VERIFY(!foundItem->Updated.Exchange(updatedItem));
+
+                        foundItemRef.Update(updatedItem);
                     }
                 }
             }
@@ -849,6 +917,19 @@ bool TSortedStoreManager::IsStoreCompactable(IStorePtr store) const
     }
 
     return true;
+}
+
+bool TSortedStoreManager::IsStoreFlushable(IStorePtr store) const
+{
+    if (!TStoreManagerBase::IsStoreFlushable(store)) {
+        return false;
+    }
+
+    // Ensure that stores are being flushed in order.
+    auto sortedStore = store->AsSortedDynamic();
+
+    YT_VERIFY(!StoreFlushIndexQueue_.empty());
+    return sortedStore->GetFlushIndex() == StoreFlushIndexQueue_.front();
 }
 
 ISortedStoreManagerPtr TSortedStoreManager::AsSorted()

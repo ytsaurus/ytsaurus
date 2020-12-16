@@ -1191,6 +1191,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     snapshot->LockManager = LockManager_;
     snapshot->LockManagerEpoch = epoch.value_or(LockManager_->GetEpoch());
     snapshot->RowCache = RowCache_;
+    snapshot->StoreFlushIndex = StoreFlushIndex_;
 
     auto addStoreStatistics = [&] (const IStorePtr& store) {
         if (store->IsChunk()) {

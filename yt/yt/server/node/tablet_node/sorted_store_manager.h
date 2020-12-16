@@ -69,6 +69,7 @@ public:
 
     virtual bool IsFlushNeeded() const override;
     virtual bool IsStoreCompactable(IStorePtr store) const override;
+    virtual bool IsStoreFlushable(IStorePtr store) const override;
 
     virtual ISortedStoreManagerPtr AsSorted() override;
 
@@ -99,6 +100,7 @@ private:
 
     TSortedDynamicStorePtr ActiveStore_;
     std::multimap<TTimestamp, ISortedStorePtr> MaxTimestampToStore_;
+    std::deque<ui32> StoreFlushIndexQueue_;
 
     virtual IDynamicStore* GetActiveStore() const override;
     virtual void ResetActiveStore() override;

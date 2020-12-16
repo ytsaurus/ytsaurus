@@ -13,6 +13,16 @@ namespace NYT::NTabletNode {
 struct TCachedRow final
 {
     ui64 Hash;
+
+    // Row contains all versions of data from passive dynamic stores with flush index not greater than revision.
+    std::atomic<ui32> Revision = 0;
+
+    // Updated row constructed from current.
+    // Supports case when row concurrently reinserted in lookup thread and updated in flush.
+    // We cannot update Revision when reinserting existing row
+    // but we have to make updated row visible from primary lookup table.
+    TAtomicPtr<TCachedRow> Updated;
+
     char Data[0];
 
     using TAllocator = TSlabAllocator;
@@ -30,6 +40,20 @@ struct TCachedRow final
 };
 
 using TCachedRowPtr = TIntrusivePtr<TCachedRow>;
+
+inline TCachedRowPtr GetLatestRow(TCachedRowPtr cachedItem)
+{
+    // Get last updated.
+    while (cachedItem->Updated) {
+        // TODO(lukyan): AcquireDangerous without hazard ptr.
+        // Here weak is enough because Updated is never assigned from non null to null.
+        auto updated = cachedItem->Updated.AcquireWeak();
+        YT_VERIFY(updated);
+        cachedItem = std::move(updated);
+    }
+
+    return cachedItem;
+}
 
 template <class TAlloc>
 TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersionedRow row)
@@ -65,40 +89,6 @@ TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersio
     }
 
     for (auto it = capturedRow.BeginValues(); it != capturedRow.EndValues(); ++it) {
-        if (IsStringLikeType(it->Type)) {
-            memcpy(dest, it->Data.String, it->Length);
-            it->Data.String = dest;
-            dest += it->Length;
-        }
-    }
-
-    cachedRow->Hash = GetFarmFingerprint(row.BeginKeys(), row.EndKeys());
-
-    return cachedRow;
-}
-
-template <class TAlloc>
-TCachedRowPtr CachedKeyFromVersionedRow(TAlloc* allocator, NTableClient::TVersionedRow row)
-{
-    auto rowSize = sizeof(NTableClient::TVersionedRowHeader) + sizeof(NTableClient::TUnversionedValue) * row.GetKeyCount();
-
-    int stringDataSize = 0;
-    for (auto it = row.BeginKeys(); it != row.EndKeys(); ++it) {
-        if (IsStringLikeType(it->Type)) {
-            stringDataSize += it->Length;
-        }
-    }
-
-    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, rowSize + stringDataSize);
-    auto capturedRow = cachedRow->GetVersionedRow();
-
-    *capturedRow.GetHeader() = {0, ui32(row.GetKeyCount()), 0, 0};
-
-    memcpy(capturedRow.BeginKeys(), row.BeginKeys(), sizeof(NTableClient::TUnversionedValue) * row.GetKeyCount());
-
-    char* dest = const_cast<char*>(capturedRow.GetMemoryEnd());
-
-    for (auto it = capturedRow.BeginKeys(); it != capturedRow.EndKeys(); ++it) {
         if (IsStringLikeType(it->Type)) {
             memcpy(dest, it->Data.String, it->Length);
             it->Data.String = dest;
