@@ -16,12 +16,6 @@ import (
 	zaplog "a.yandex-team.ru/library/go/core/log/zap"
 )
 
-const (
-	DefaultLightRequestTimeout = 5 * time.Minute
-	DefaultTxTimeout           = 15 * time.Second
-	DefaultTxPingPeriod        = 3 * time.Second
-)
-
 type Config struct {
 	// Proxy configures address of YT HTTP proxy.
 	//
@@ -84,6 +78,11 @@ type Config struct {
 	// Typical mapreduce operation can launch hundred of thousands concurrent jobs. If each job makes even a single request,
 	// that could easily lead to master/proxy overload.
 	AllowRequestsFromJob bool
+
+	// CompressionCodec specifies codec used for compression of client requests and server responses.
+	//
+	// NOTE: this codec has nothing to do with codec used for storing table chunks.
+	CompressionCodec ClientCompressionCodec
 }
 
 func (c *Config) GetProxy() (string, error) {
@@ -173,6 +172,14 @@ func (c *Config) GetTxPingPeriod() time.Duration {
 	return c.TxPingPeriod
 }
 
+func (c *Config) GetClientCompressionCodec() ClientCompressionCodec {
+	if c.CompressionCodec == ClientCodecDefault {
+		return ClientCodecGZIP
+	}
+
+	return c.CompressionCodec
+}
+
 type ClusterURL struct {
 	Address          string
 	DisableDiscovery bool
@@ -194,4 +201,45 @@ func NormalizeProxyURL(proxy string) ClusterURL {
 	proxy = strings.TrimPrefix(proxy, prefix)
 	url.Address = proxy
 	return url
+}
+
+const (
+	DefaultLightRequestTimeout = 5 * time.Minute
+	DefaultTxTimeout           = 15 * time.Second
+	DefaultTxPingPeriod        = 3 * time.Second
+)
+
+// ClientCompressionCodec. See yt.Config doc for more details.
+type ClientCompressionCodec int
+
+const (
+	// Default compression codec, selected by YT team. Particular choice may change in the future.
+	ClientCodecDefault ClientCompressionCodec = iota
+
+	// Use default GZIP codec, provided by net/http.
+	ClientCodecGZIP
+
+	// No compression at all. It almost never makes sense to disable compression in production.
+	ClientCodecNone
+
+	ClientCodecSnappy
+
+	ClientCodecZSTDFastest
+	ClientCodecZSTDDefault
+	ClientCodecZSTDBetterCompression
+)
+
+func (c ClientCompressionCodec) BlockCodec() (string, bool) {
+	switch c {
+	case ClientCodecSnappy:
+		return "snappy", true
+	case ClientCodecZSTDFastest:
+		return "zstd_1", true
+	case ClientCodecZSTDDefault:
+		return "zstd_3", true
+	case ClientCodecZSTDBetterCompression:
+		return "zstd_7", true
+	default:
+		return "", false
+	}
 }

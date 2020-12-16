@@ -6,7 +6,8 @@ import (
 )
 
 type httpReader struct {
-	body io.ReadCloser
+	body       io.Reader
+	bodyCloser io.Closer
 
 	rsp     *http.Response
 	readErr error
@@ -19,7 +20,6 @@ func (r *httpReader) Read(data []byte) (n int, err error) {
 	}
 
 	n, err = r.body.Read(data)
-
 	if err == io.EOF {
 		ytErr, decodeErr := decodeYTErrorFromHeaders(r.rsp.Trailer)
 		if ytErr != nil || err != nil {
@@ -38,7 +38,7 @@ func (r *httpReader) Read(data []byte) (n int, err error) {
 
 func (r *httpReader) Close() error {
 	if r.body != nil {
-		return r.body.Close()
+		return r.bodyCloser.Close()
 	}
 
 	return nil

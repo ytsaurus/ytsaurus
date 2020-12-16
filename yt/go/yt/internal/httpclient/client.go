@@ -15,6 +15,8 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/xerrors"
 
+	"a.yandex-team.ru/library/go/blockcodecs"
+	_ "a.yandex-team.ru/library/go/blockcodecs/all"
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
 	"a.yandex-team.ru/yt/go/yson"
@@ -264,6 +266,18 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 		return nil, err
 	}
 
+	switch c.config.GetClientCompressionCodec() {
+	case yt.ClientCodecGZIP, yt.ClientCodecNone:
+		// do nothing
+	default:
+		encoding, err := toHTTPEncoding(c.config.GetClientCompressionCodec())
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Add("Content-Encoding", encoding)
+	}
+
 	go func() {
 		defer close(errChan)
 
@@ -299,8 +313,44 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 		closeErr(unexpectedStatusCode(rsp))
 	}()
 
-	w = &httpWriter{p: pw, errChan: errChan}
+	hw := &httpWriter{w: pw, c: pw, errChan: errChan}
+	w = hw
+
+	switch c.config.GetClientCompressionCodec() {
+	case yt.ClientCodecGZIP, yt.ClientCodecNone:
+		// do nothing
+	default:
+		block, ok := c.config.GetClientCompressionCodec().BlockCodec()
+		if !ok {
+			err = fmt.Errorf("unsupported compression codec %d", c.config.GetClientCompressionCodec())
+			return
+		}
+
+		codec := blockcodecs.FindCodecByName(block)
+		if codec == nil {
+			err = fmt.Errorf("unsupported compression codec %q", block)
+			return
+		}
+
+		encoder := blockcodecs.NewEncoder(hw.w, codec)
+		hw.w = encoder
+		hw.c = &compressorCloser{enc: encoder, pw: pw}
+	}
+
 	return
+}
+
+type compressorCloser struct {
+	enc io.WriteCloser
+	pw  io.Closer
+}
+
+func (c *compressorCloser) Close() error {
+	if err := c.enc.Close(); err != nil {
+		return err
+	}
+
+	return c.pw.Close()
 }
 
 func (c *httpClient) doWriteRow(ctx context.Context, call *internal.Call) (w yt.TableWriter, err error) {
@@ -346,11 +396,31 @@ func (c *httpClient) doReadRow(ctx context.Context, call *internal.Call) (r yt.T
 	return
 }
 
+func toHTTPEncoding(c yt.ClientCompressionCodec) (string, error) {
+	if block, ok := c.BlockCodec(); ok {
+		return "z-" + block, nil
+	}
+
+	return "", fmt.Errorf("codec %d is not supported", c)
+}
+
 func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.ReadCloser, err error) {
 	var req *http.Request
 	req, err = c.newHTTPRequest(ctx, call, nil)
 	if err != nil {
 		return nil, err
+	}
+
+	switch c.config.GetClientCompressionCodec() {
+	case yt.ClientCodecGZIP, yt.ClientCodecNone:
+		// do nothing
+	default:
+		encoding, err := toHTTPEncoding(c.config.GetClientCompressionCodec())
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Add("Accept-Encoding", encoding)
 	}
 
 	var rsp *http.Response
@@ -361,7 +431,7 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 
 	c.logResponse(ctx, rsp)
 	if rsp.StatusCode != 200 {
-		defer func() { _ = rsp.Body.Close() }()
+		_ = rsp.Body.Close()
 
 		var callErr *yterrors.Error
 		callErr, err = decodeYTErrorFromHeaders(rsp.Header)
@@ -375,15 +445,34 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 	if err == nil && call.OnRspParams != nil {
 		if p := rsp.Header.Get("X-YT-Response-Parameters"); p != "" {
 			err = call.OnRspParams([]byte(p))
+			if err != nil {
+				_ = rsp.Body.Close()
+			}
 		}
 	}
 
-	if err == nil {
+	if err != nil {
+		return
+	}
 
-		r = &httpReader{
-			body: rsp.Body,
-			rsp:  rsp,
+	br := &httpReader{
+		body:       rsp.Body,
+		bodyCloser: rsp.Body,
+		rsp:        rsp,
+	}
+	r = br
+
+	switch c.config.GetClientCompressionCodec() {
+	case yt.ClientCodecGZIP, yt.ClientCodecNone:
+		// do nothing
+	default:
+		if rspEncoding := rsp.Header.Get("Content-Encoding"); rspEncoding != req.Header.Get("Accept-Encoding") {
+			_ = rsp.Body.Close()
+			err = fmt.Errorf("unexpected response encoding %q", rspEncoding)
+			return
 		}
+
+		br.body = blockcodecs.NewDecoder(br.body)
 	}
 
 	return
@@ -441,6 +530,8 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 			MaxIdleConns:        100,
 			IdleConnTimeout:     90 * time.Second,
 			TLSHandshakeTimeout: 10 * time.Second,
+
+			DisableCompression: c.GetClientCompressionCodec() != yt.ClientCodecGZIP,
 		},
 	}
 	client.stop = internal.NewStopGroup()

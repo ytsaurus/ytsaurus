@@ -1,17 +1,16 @@
 package httpclient
 
-import (
-	"io"
-)
+import "io"
 
 type httpWriter struct {
 	errChan <-chan error
 	err     error
-	p       *io.PipeWriter
+	w       io.Writer
+	c       io.Closer
 }
 
 func (w *httpWriter) Write(buf []byte) (n int, err error) {
-	n, err = w.p.Write(buf)
+	n, err = w.w.Write(buf)
 	return
 }
 
@@ -26,7 +25,7 @@ func (w *httpWriter) Close() error {
 	}
 
 	if w.err == nil {
-		w.err = w.p.Close()
+		w.err = w.c.Close()
 	}
 
 	if w.err == nil {
