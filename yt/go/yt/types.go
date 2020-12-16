@@ -40,7 +40,6 @@ const (
 	OperationMap        OperationType = "map"
 	OperationReduce     OperationType = "reduce"
 	OperationMapReduce  OperationType = "map_reduce"
-	OperationJoinReduce OperationType = "join_reduce"
 	OperationSort       OperationType = "sort"
 	OperationMerge      OperationType = "merge"
 	OperationErase      OperationType = "erase"

@@ -33,6 +33,7 @@ func TestRunningOperationInsideTx(t *testing.T) {
 	op, err := mr.MapReduce(&MapJob{"test-map"}, &ReduceJob{Field: "test-reduce"},
 		spec.MapReduce().
 			ReduceByColumns("a").
+			SortByColumns("a"). // todo verytable@ remove when https://st.yandex-team.ru/YT-14073 is merged
 			AddInput(inputPath).
 			AddOutput(outputPath))
 	require.NoError(t, err)
