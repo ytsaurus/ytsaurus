@@ -11,6 +11,18 @@ const (
 	CodecIDLz4                CodecID = 4
 	CodecIDLz4HighCompression CodecID = 5
 
+	CodecIDBrotli1  CodecID = 11
+	CodecIDBrotli2  CodecID = 12
+	CodecIDBrotli3  CodecID = 8
+	CodecIDBrotli4  CodecID = 13
+	CodecIDBrotli5  CodecID = 9
+	CodecIDBrotli6  CodecID = 14
+	CodecIDBrotli7  CodecID = 15
+	CodecIDBrotli8  CodecID = 10
+	CodecIDBrotli9  CodecID = 16
+	CodecIDBrotli10 CodecID = 17
+	CodecIDBrotli11 CodecID = 18
+
 	CodecIDZlib1 CodecID = 19
 	CodecIDZlib2 CodecID = 20
 	CodecIDZlib3 CodecID = 21
@@ -38,6 +50,29 @@ func (i CodecID) String() string {
 		return "lz4"
 	case CodecIDLz4HighCompression:
 		return "lz4_high_compression"
+
+	case CodecIDBrotli1:
+		return "brotli_1"
+	case CodecIDBrotli2:
+		return "brotli_2"
+	case CodecIDBrotli3:
+		return "brotli_3"
+	case CodecIDBrotli4:
+		return "brotli_4"
+	case CodecIDBrotli5:
+		return "brotli_5"
+	case CodecIDBrotli6:
+		return "brotli_6"
+	case CodecIDBrotli7:
+		return "brotli_7"
+	case CodecIDBrotli8:
+		return "brotli_8"
+	case CodecIDBrotli9:
+		return "brotli_9"
+	case CodecIDBrotli10:
+		return "brotli_10"
+	case CodecIDBrotli11:
+		return "brotli_11"
 
 	case CodecIDZlib1:
 		return "zlib_1"
@@ -88,6 +123,29 @@ func NewCodec(id CodecID) Codec {
 		return &CodecLz4{}
 	case CodecIDLz4HighCompression:
 		return &CodecLz4HighCompression{}
+
+	case CodecIDBrotli1:
+		return CodecBrotli(1)
+	case CodecIDBrotli2:
+		return CodecBrotli(2)
+	case CodecIDBrotli3:
+		return CodecBrotli(3)
+	case CodecIDBrotli4:
+		return CodecBrotli(4)
+	case CodecIDBrotli5:
+		return CodecBrotli(5)
+	case CodecIDBrotli6:
+		return CodecBrotli(6)
+	case CodecIDBrotli7:
+		return CodecBrotli(7)
+	case CodecIDBrotli8:
+		return CodecBrotli(8)
+	case CodecIDBrotli9:
+		return CodecBrotli(9)
+	case CodecIDBrotli10:
+		return CodecBrotli(10)
+	case CodecIDBrotli11:
+		return CodecBrotli(11)
 
 	case CodecIDZlib1:
 		return CodecZlib(1)

@@ -80,6 +80,7 @@ func TestCodecs(t *testing.T) {
 	codecs := []CodecID{
 		CodecIDSnappy,
 		CodecIDLz4, CodecIDLz4HighCompression,
+		CodecIDBrotli1, CodecIDBrotli2, CodecIDBrotli3, CodecIDBrotli4, CodecIDBrotli5, CodecIDBrotli6, CodecIDBrotli7, CodecIDBrotli8, CodecIDBrotli9, CodecIDBrotli10, CodecIDBrotli11,
 		CodecIDZlib1, CodecIDZlib2, CodecIDZlib3, CodecIDZlib4, CodecIDZlib5, CodecIDZlib6, CodecIDZlib7, CodecIDZlib8, CodecIDZlib9,
 		CodecIDZstd1, CodecIDZstd3, CodecIDZstd7,
 	}
