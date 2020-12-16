@@ -3,6 +3,8 @@
 #include "format.h"
 #include "parser_detail.h"
 
+#include <yt/core/actions/bind.h>
+
 namespace NYT::NYson {
 
 using namespace NConcurrency;

@@ -2,6 +2,8 @@
 
 #include <yt/core/rpc/authentication_identity.h>
 
+#include <yt/core/misc/error.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
