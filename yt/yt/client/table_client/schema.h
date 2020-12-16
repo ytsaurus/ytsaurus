@@ -312,11 +312,13 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns);
 void ValidateColumnSchema(
     const TColumnSchema& columnSchema,
     bool isTableSorted = false,
-    bool isTableDynamic = false);
+    bool isTableDynamic = false,
+    bool allowUnversionedUpdateColumns = false);
 
 void ValidateTableSchema(
     const TTableSchema& schema,
-    bool isTableDynamic = false);
+    bool isTableDynamic = false,
+    bool allowUnversionedUpdateColumns = false);
 
 void ValidateColumnUniqueness(const TTableSchema& schema);
 
