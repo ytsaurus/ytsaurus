@@ -50,7 +50,7 @@ func (s *Spec) Reduce() *Spec {
 
 func MapReduce() *Spec {
 	spec := &Spec{}
-	return spec.Reduce()
+	return spec.MapReduce()
 }
 
 func (s *Spec) MapReduce() *Spec {
@@ -61,18 +61,6 @@ func (s *Spec) MapReduce() *Spec {
 	// Required for Reduce because this operation
 	// does not support indexes (table, row and range)
 	disableIndexControlAttributes(ss.ReduceJobIO.ControlAttributes)
-	return ss
-}
-
-func JoinReduce() *Spec {
-	spec := &Spec{}
-	return spec.JoinReduce()
-}
-
-func (s *Spec) JoinReduce() *Spec {
-	ss := s.Clone()
-	ss.Type = yt.OperationJoinReduce
-	enableControlAttributes(&ss.JobIO)
 	return ss
 }
 
