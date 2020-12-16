@@ -1,5 +1,7 @@
 #pragma once
 
+#include "histogram_snapshot.h"
+
 #include <yt/yt/library/profiling/impl.h>
 #include <yt/yt/library/profiling/summary.h>
 
@@ -85,6 +87,34 @@ private:
     TSpinLock Lock_;
     TSummarySnapshot<T> Value_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(THistogram)
+
+class THistogram
+    : public ISummaryImplBase<TDuration>
+{
+public:
+    THistogram(const TSensorOptions& options);
+
+    virtual void Record(TDuration value) override;
+
+    THistogramSnapshot GetSnapshotAndReset();
+
+    static std::vector<double> BucketBoundsSeconds(const TSensorOptions& options);
+    static std::vector<TDuration> BucketBounds(const TSensorOptions& options);
+
+private:
+    std::vector<TDuration> Bounds_;
+    std::vector<std::atomic<int>> Buckets_;
+
+    // These to methods are not used.
+    virtual TSummarySnapshot<TDuration> GetValue() override;
+    virtual TSummarySnapshot<TDuration> GetValueAndReset() override;
+};
+
+DEFINE_REFCOUNTED_TYPE(THistogram)
 
 ////////////////////////////////////////////////////////////////////////////////
 

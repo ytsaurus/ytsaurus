@@ -97,12 +97,18 @@ TString ToString(const TSensorOptions& options)
     return "{sparse=" + ToString(options.Sparse) +
         ";global=" + ToString(options.Global) +
         ";hot=" + ToString(options.Hot) +
+        ":histogram_min=" + ToString(options.HistogramMin) +
+        ":histogram_max=" + ToString(options.HistogramMax) +
         "}";
 }
 
 bool TSensorOptions::operator == (const TSensorOptions& other) const
 {
-    return Sparse == other.Sparse && Global == other.Global && Hot == other.Hot;
+    return Sparse == other.Sparse &&
+        Global == other.Global &&
+        Hot == other.Hot &&
+        HistogramMin == other.HistogramMin &&
+        HistogramMax == other.HistogramMax;
 }
 
 bool TSensorOptions::operator != (const TSensorOptions& other) const
@@ -297,6 +303,21 @@ TEventTimer TRegistry::Timer(const TString& name) const
 
     TEventTimer timer;
     timer.Timer_ = Impl_->RegisterTimerSummary(Namespace_ + Prefix_ + name, Tags_, Options_);
+    return timer;
+}
+
+TEventTimer TRegistry::Histogram(const TString& name, TDuration min, TDuration max) const
+{
+    if (!Impl_) {
+        return {};
+    }
+
+    auto options = Options_;
+    options.HistogramMin = min;
+    options.HistogramMax = max;
+
+    TEventTimer timer;
+    timer.Timer_ = Impl_->RegisterExponentialTimerHistogram(Namespace_ + Prefix_ + name, Tags_, options);;
     return timer;
 }
 
