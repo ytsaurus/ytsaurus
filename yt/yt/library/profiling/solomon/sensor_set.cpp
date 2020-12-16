@@ -22,6 +22,7 @@ TSensorSet::TSensorSet(TSensorOptions options, i64 iteration, int windowSize)
     , GaugesCube_{windowSize, iteration}
     , SummariesCube_{windowSize, iteration}
     , TimersCube_{windowSize, iteration}
+    , HistogramsCube_{windowSize, iteration}
 { }
 
 bool TSensorSet::IsEmpty() const
@@ -29,7 +30,8 @@ bool TSensorSet::IsEmpty() const
     return Counters_.empty() &&
         Gauges_.empty() &&
         Summaries_.empty() &&
-        Timers_.empty();
+        Timers_.empty() &&
+        Histograms_.empty();
 }
 
 void TSensorSet::ValidateOptions(TSensorOptions options)
@@ -74,6 +76,13 @@ void TSensorSet::AddTimeCounter(TTimeCounterStatePtr counter)
     InitializeType(4);
     TimeCountersCube_.AddAll(counter->TagIds, counter->Projections);
     TimeCounters_.emplace(std::move(counter));
+}
+
+void TSensorSet::AddHistogram(THistogramStatePtr counter)
+{
+    InitializeType(5);
+    HistogramsCube_.AddAll(counter->TagIds, counter->Projections);
+    Histograms_.emplace(std::move(counter));
 }
 
 int TSensorSet::Collect()
@@ -174,6 +183,16 @@ int TSensorSet::Collect()
         return {value, true};
     });
 
+    collect(Histograms_, HistogramsCube_, [] (auto counter) -> std::pair<THistogramSnapshot, bool> {
+        auto owner = counter->Owner.Lock();
+        if (!owner) {
+            return {{}, false};
+        }
+
+        auto value = owner->GetSnapshotAndReset();
+        return {value, true};
+    });
+
     return count;
 }
 
@@ -190,12 +209,14 @@ void TSensorSet::ReadSensors(
     auto readOptions = options;
     readOptions.Sparse = Options_.Sparse;
     readOptions.Global = Options_.Global;
+    readOptions.BucketBound = THistogram::BucketBoundsSeconds(Options_);
 
     CountersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
     TimeCountersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
     GaugesCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
     SummariesCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
     TimersCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
+    HistogramsCube_.ReadSensors(name, readOptions, tagsRegistry, consumer);
 }
 
 void TSensorSet::LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry)
@@ -304,7 +325,8 @@ int TSensorSet::GetObjectCount() const
         TimeCounters_.size() +
         Gauges_.size() +
         Summaries_.size() +
-        Timers_.size();
+        Timers_.size() +
+        Histograms_.size();
 }
 
 int TSensorSet::GetCubeSize() const
@@ -313,7 +335,8 @@ int TSensorSet::GetCubeSize() const
         TimeCountersCube_.GetSize() +
         GaugesCube_.GetSize() +
         SummariesCube_.GetSize() +
-        TimersCube_.GetSize();
+        TimersCube_.GetSize() +
+        HistogramsCube_.GetSize();
 }
 
 const TError& TSensorSet::GetError() const

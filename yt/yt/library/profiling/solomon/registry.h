@@ -54,6 +54,11 @@ public:
         const TTagSet& tags,
         TSensorOptions options) override;
 
+    virtual ITimerImplPtr RegisterExponentialTimerHistogram(
+        const TString& name,
+        const TTagSet& tags,
+        TSensorOptions options) override;
+
     virtual void RegisterFuncCounter(
         const TString& name,
         const TTagSet& tags,

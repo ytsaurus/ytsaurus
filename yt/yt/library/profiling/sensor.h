@@ -114,6 +114,9 @@ struct TSensorOptions
     bool Sparse = false;
     bool Hot = false;
 
+    TDuration HistogramMin;
+    TDuration HistogramMax;
+
     bool operator == (const TSensorOptions& other) const;
     bool operator != (const TSensorOptions& other) const;
 };
@@ -197,7 +200,25 @@ public:
     TSummary Summary(const TString& name) const;
 
     //! Timer is used to measure distribution of event durations.
+    /*!
+     *  Currently, max value during 5 second interval is exported to solomon.
+     *  Use it, when you need a cheap way to monitor lag spikes.
+     */
     TEventTimer Timer(const TString& name) const;
+
+    //! Histogram is used to measure distribution of event durations.
+    /*!
+     *  Bins are distributed _almost_ exponentially with step of 2; the only difference is that 64
+     *  is followed by 125, 64'000 is followed by 125'000 and so on for the sake of better human-readability
+     *  of upper limit.
+     *
+     *  The first several bin marks are:
+     *  1, 2, 4, 8, 16, 32, 64, 125, 250, 500, 1000, 2000, 4000, 8000, 16'000, 32'000, 64'000, 125'000, ...
+     *
+     *  In terms of time this can be read as:
+     *  1us, 2us, 4us, 8us, ..., 500us, 1ms, 2ms, ..., 500ms, 1s, ...
+     */
+    TEventTimer Histogram(const TString& name, TDuration min, TDuration max) const;
 
     void AddFuncCounter(
         const TString& name,

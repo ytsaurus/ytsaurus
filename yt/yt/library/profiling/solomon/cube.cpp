@@ -1,4 +1,5 @@
 #include "cube.h"
+#include "histogram_snapshot.h"
 
 #include <yt/yt/library/profiling/summary.h>
 #include <yt/yt/library/profiling/tag.h>
@@ -328,6 +329,18 @@ void TCube<T>::ReadSensors(
                 } else {
                     consumer->OnSummaryDouble(time, snapshot);
                 }
+            } else if constexpr (std::is_same_v<T, THistogramSnapshot>) {
+                consumer->OnMetricBegin(NMonitoring::EMetricType::HIST);
+
+                writeLabels(tagIds, false, false, true);
+
+                auto hist = NMonitoring::TExplicitHistogramSnapshot::New(options.BucketBound.size());
+                for (size_t i = 0; i < value.Values.size(); ++i) {
+                    int bucketValue = i < value.Values.size() ? value.Values[i] : 0;
+                    (*hist)[i] = {options.BucketBound[i], bucketValue};
+                }
+
+                consumer->OnHistogram(time, hist);
             } else {
                 THROW_ERROR_EXCEPTION("Unexpected cube type");
             }
@@ -341,6 +354,7 @@ template class TCube<double>;
 template class TCube<i64>;
 template class TCube<TSummarySnapshot<double>>;
 template class TCube<TSummarySnapshot<TDuration>>;
+template class TCube<THistogramSnapshot>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

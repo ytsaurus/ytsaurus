@@ -10,6 +10,8 @@
 
 #include <yt/core/http/server.h>
 
+#include <yt/core/utilex/random.h>
+
 #include <yt/core/ytalloc/bindings.h>
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
@@ -83,7 +85,12 @@ int main(int argc, char* argv[])
         auto invalidGauge = r.Gauge("/invalid");
 
         auto sparseCounter = r.WithSparse().Counter("/sparse_count");
-        
+
+        auto histogram = r.WithSparse().Histogram(
+            "/histogram",
+            TDuration::MilliSeconds(1),
+            TDuration::Seconds(1));
+
         auto poolUsage = r.WithTag("pool", "prime").WithGlobal().Gauge("/cpu");
         poolUsage.Update(3000.0);
 
@@ -103,6 +110,8 @@ int main(int argc, char* argv[])
                 while (TInstant::Now() < endBusyTime)
                 { }
             }
+
+            histogram.Record(RandomDuration(TDuration::Seconds(1)));
 
             if (i % 18000 == 0) {
                 sparseCounter.Increment();

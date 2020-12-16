@@ -138,6 +138,30 @@ DEFINE_REFCOUNTED_TYPE(TTimerSummaryState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+DECLARE_REFCOUNTED_STRUCT(THistogramState)
+
+struct THistogramState final
+{
+    THistogramState(
+        TWeakPtr<THistogram> owner,
+        const TTagIdList& tagIds,
+        const TProjectionSet& projections)
+        : Owner(owner)
+        , TagIds(tagIds)
+        , Projections(projections)
+    { }
+
+    const TWeakPtr<THistogram> Owner;
+
+    const TTagIdList TagIds;
+    const TProjectionSet Projections;
+};
+
+DEFINE_REFCOUNTED_TYPE(THistogramState)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSensorSet
 {
 public:
@@ -152,6 +176,7 @@ public:
     void AddSummary(TSummaryStatePtr summary);
     void AddTimerSummary(TTimerSummaryStatePtr timer);
     void AddTimeCounter(TTimeCounterStatePtr counter);
+    void AddHistogram(THistogramStatePtr counter);
 
     int Collect();
 
@@ -186,6 +211,9 @@ private:
 
     THashSet<TTimerSummaryStatePtr> Timers_;
     TCube<TSummarySnapshot<TDuration>> TimersCube_;
+
+    THashSet<THistogramStatePtr> Histograms_;
+    TCube<THistogramSnapshot> HistogramsCube_;
 
     std::optional<int> Type_;
 
