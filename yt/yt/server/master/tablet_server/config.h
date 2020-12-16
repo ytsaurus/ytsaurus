@@ -206,10 +206,14 @@ public:
     //! Multicell tablet cell statistics gossip period.
     TDuration TabletCellStatisticsGossipPeriod;
 
-    //! Multicell tablet cell status gossip period.
+    //! Multicell tablet cell status full gossip period.
     // COMPAT(gritukan): If not set, #TabletCellStatisticsGossipPeriod is used instead.
     // Set this option at all clusters and drop optional.
-    std::optional<TDuration> TabletCellStatusGossipPeriod;
+    std::optional<TDuration> TabletCellStatusFullGossipPeriod;
+
+    //! Multicell tablet cell status full gossip period.
+    //! If not set, only full tablet cell status gossip is performed.
+    std::optional<TDuration> TabletCellStatusIncrementalGossipPeriod;
 
     //! Multicell table (e.g. chunk owner) statistics gossip period.
     TDuration TableStatisticsGossipPeriod;
@@ -223,7 +227,9 @@ public:
     {
         RegisterParameter("tablet_cell_statistics_gossip_period", TabletCellStatisticsGossipPeriod)
             .Default(TDuration::Seconds(1));
-        RegisterParameter("tablet_cell_status_gossip_period", TabletCellStatusGossipPeriod)
+        RegisterParameter("tablet_cell_status_full_gossip_period", TabletCellStatusFullGossipPeriod)
+            .Default();
+        RegisterParameter("tablet_cell_status_incremental_gossip_period", TabletCellStatusIncrementalGossipPeriod)
             .Default();
         RegisterParameter("table_statistics_gossip_period", TableStatisticsGossipPeriod)
             .Default(TDuration::Seconds(1));

@@ -98,6 +98,9 @@ public:
         const TCrossCellMessage& message,
         const NObjectClient::TCellTagList& cellTags,
         bool reliable = true);
+    void PostToPrimaryMaster(
+        const TCrossCellMessage& message,
+        bool reliable = true);
     void PostToSecondaryMasters(
         const TCrossCellMessage& message,
         bool reliable = true);

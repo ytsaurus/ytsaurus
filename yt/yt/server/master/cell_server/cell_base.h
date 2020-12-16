@@ -44,6 +44,9 @@ void FromProto(TCellStatus* status, const NProto::TCellStatus& protoStatistics);
 
 void Serialize(const TCellStatus& status, NYson::IYsonConsumer* consumer);
 
+bool operator == (const TCellStatus& lhs, const TCellStatus& rhs);
+bool operator != (const TCellStatus& lhs, const TCellStatus& rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBase
@@ -77,6 +80,10 @@ public:
 
     using TGossipStatus = NCellMaster::TGossipValue<TCellStatus>;
     DEFINE_BYREF_RW_PROPERTY(TGossipStatus, GossipStatus);
+
+    //! Last cell status reported during gossip.
+    // NB: This field is intentionally transient.
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TCellStatus>, LastGossipStatus);
 
     //! Overrides `peer_count` in cell bundle.
     DEFINE_BYREF_RW_PROPERTY(std::optional<int>, PeerCount);

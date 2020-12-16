@@ -783,7 +783,8 @@ private:
     THashMap<TString, TCellSet> AddressToCell_;
     THashMap<TTransaction*, TCellBase*> TransactionToCellMap_;
 
-    TPeriodicExecutorPtr CellStatusGossipExecutor_;
+    TPeriodicExecutorPtr CellStatusIncrementalGossipExecutor_;
+    TPeriodicExecutorPtr CellStatusFullGossipExecutor_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -797,11 +798,14 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         const auto& config = GetDynamicConfig();
+        const auto& gossipConfig = config->MulticellGossip;
 
-        if (CellStatusGossipExecutor_) {
-            const auto& gossipConfig = config->MulticellGossip;
-            auto cellStatusGossipPeriod = gossipConfig->TabletCellStatusGossipPeriod.value_or(gossipConfig->TabletCellStatisticsGossipPeriod);
-            CellStatusGossipExecutor_->SetPeriod(cellStatusGossipPeriod);
+        if (CellStatusFullGossipExecutor_) {
+            auto gossipPeriod = gossipConfig->TabletCellStatusFullGossipPeriod.value_or(gossipConfig->TabletCellStatisticsGossipPeriod);
+            CellStatusFullGossipExecutor_->SetPeriod(gossipPeriod);
+        }
+        if (CellStatusIncrementalGossipExecutor_) {
+            CellStatusIncrementalGossipExecutor_->SetPeriod(gossipConfig->TabletCellStatusIncrementalGossipPeriod);
         }
     }
 
@@ -884,30 +888,39 @@ private:
         BundleNodeTracker_->Clear();
     }
 
-    void OnCellStatusGossip()
+    void OnCellStatusGossip(bool incremental)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsLocalMasterCellRegistered()) {
             return;
         }
 
-        YT_LOG_INFO("Sending cell status gossip message");
+        YT_LOG_INFO("Sending cell status gossip message (Incremental: %v)",
+            incremental);
 
         NProto::TReqSetCellStatus request;
         request.set_cell_tag(Bootstrap_->GetCellTag());
 
         for (auto [cellId, cell] : CellMap_) {
-            if (!IsObjectAlive(cell))
+            if (!IsObjectAlive(cell)) {
                 continue;
+            }
+
+            TCellStatus cellStatus;
+            if (multicellManager->IsPrimaryMaster()) {
+                cellStatus = cell->GossipStatus().Cluster();
+            } else {
+                cellStatus = cell->GossipStatus().Local();
+            }
+
+            if (incremental && cell->LastGossipStatus() == cellStatus) {
+                continue;
+            }
+            cell->LastGossipStatus() = cellStatus;
 
             auto* entry = request.add_entries();
             ToProto(entry->mutable_cell_id(), cell->GetId());
-
-            if (multicellManager->IsPrimaryMaster()) {
-                ToProto(entry->mutable_status(), cell->GossipStatus().Cluster());
-            } else {
-                ToProto(entry->mutable_status(), cell->GossipStatus().Local());
-            }
+            ToProto(entry->mutable_status(), cellStatus);
         }
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
@@ -917,7 +930,7 @@ private:
         if (multicellManager->IsPrimaryMaster()) {
             multicellManager->PostToSecondaryMasters(request, false);
         } else {
-            multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
+            multicellManager->PostToPrimaryMaster(request, false);
         }
     }
 
@@ -934,14 +947,17 @@ private:
             return;
         }
 
-        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell status gossip message (CellTag: %v)",
-            cellTag);
+        YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Received cell status gossip message (CellTag: %v, EntryCount: %v)",
+            cellTag,
+            request->entries_size());
 
+        THashSet<TCellBundle*> updatedBundles;
         for (const auto& entry : request->entries()) {
             auto cellId = FromProto<TTamedCellId>(entry.cell_id());
             auto* cell = FindCell(cellId);
-            if (!IsObjectAlive(cell))
+            if (!IsObjectAlive(cell)) {
                 continue;
+            }
 
             auto newStatus = FromProto<TCellStatus>(entry.status());
             if (multicellManager->IsPrimaryMaster()) {
@@ -949,15 +965,22 @@ private:
             } else {
                 cell->GossipStatus().Cluster() = newStatus;
             }
+
+            updatedBundles.insert(cell->GetCellBundle());
         }
 
-        UpdateBundlesHealth();
+        UpdateBundlesHealth(updatedBundles);
     }
 
     void HydraUpdateCellHealth(TReqUpdateTabletCellHealthStatistics* /*request*/)
     {
         UpdateCellsHealth();
-        UpdateBundlesHealth();
+
+        THashSet<TCellBundle*> allBundles;
+        for (const auto& [bundleId, bundle] : CellBundleMap_) {
+            allBundles.insert(bundle);
+        }
+        UpdateBundlesHealth(allBundles);
     }
 
     void UpdateCellsHealth()
@@ -993,9 +1016,9 @@ private:
         }
     }
 
-    void UpdateBundlesHealth()
+    void UpdateBundlesHealth(const THashSet<TCellBundle*>& bundles)
     {
-        for (auto [bundleId, bundle] : CellBundleMap_) {
+        for (auto* bundle : bundles) {
             if (!IsObjectAlive(bundle)) {
                 continue;
             }
@@ -1505,10 +1528,14 @@ private:
             CellTracker_->Start();
         }
 
-        CellStatusGossipExecutor_ = New<TPeriodicExecutor>(
+        CellStatusIncrementalGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-            BIND(&TImpl::OnCellStatusGossip, MakeWeak(this)));
-        CellStatusGossipExecutor_->Start();
+            BIND(&TImpl::OnCellStatusGossip, MakeWeak(this), /* incremental */true));
+        CellStatusIncrementalGossipExecutor_->Start();
+        CellStatusFullGossipExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
+            BIND(&TImpl::OnCellStatusGossip, MakeWeak(this), /* incremental */false));
+        CellStatusFullGossipExecutor_->Start();
 
         OnDynamicConfigChanged();
     }
@@ -1521,9 +1548,13 @@ private:
 
         CellTracker_->Stop();
 
-        if (CellStatusGossipExecutor_) {
-            CellStatusGossipExecutor_->Stop();
-            CellStatusGossipExecutor_.Reset();
+        if (CellStatusIncrementalGossipExecutor_) {
+            CellStatusIncrementalGossipExecutor_->Stop();
+            CellStatusIncrementalGossipExecutor_.Reset();
+        }
+        if (CellStatusFullGossipExecutor_) {
+            CellStatusFullGossipExecutor_->Stop();
+            CellStatusFullGossipExecutor_.Reset();
         }
     }
 

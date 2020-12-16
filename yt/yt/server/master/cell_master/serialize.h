@@ -117,6 +117,7 @@ DEFINE_ENUM(EMasterReign,
     ((TabletCellStatusGossipPeriod)                                 (1432))  // gritukan
     ((CorrectMergeBranchSemanticsForAttributes)                     (1433))  // shakurov
     ((VersionedRemoteCopy)                                          (1435))  // ifsmirnov
+    ((IncrementalCellStatusGossip)                                  (1436))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

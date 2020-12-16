@@ -199,6 +199,16 @@ public:
         DoPostMessage(std::move(encapsulatedMessage), cellTags, reliable);
     }
 
+    void PostToPrimaryMaster(
+        const TCrossCellMessage& message,
+        bool reliable)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(IsSecondaryMaster());
+
+        PostToMaster(message, PrimaryMasterCellTag, reliable);
+    }
+
     void PostToSecondaryMasters(
         const TCrossCellMessage& message,
         bool reliable)
@@ -734,7 +744,7 @@ private:
 
         NProto::TReqRegisterSecondaryMasterAtPrimary request;
         request.set_cell_tag(GetCellTag());
-        PostToMaster(request, PrimaryMasterCellTag, true);
+        PostToPrimaryMaster(request, true);
     }
 
     void HydraSetCellStatistics(NProto::TReqSetCellStatistics* request) noexcept
@@ -873,7 +883,7 @@ private:
         NProto::TReqSetCellStatistics request;
         request.set_cell_tag(GetCellTag());
         *request.mutable_statistics() = GetLocalCellStatistics();
-        PostToMaster(request, PrimaryMasterCellTag, false);
+        PostToPrimaryMaster(request, false);
     }
 
     NProto::TCellStatistics GetLocalCellStatistics()
@@ -1142,6 +1152,13 @@ void TMulticellManager::PostToMasters(
     bool reliable)
 {
     Impl_->PostToMasters(message, cellTags, reliable);
+}
+
+void TMulticellManager::PostToPrimaryMaster(
+    const TCrossCellMessage& message,
+    bool reliable)
+{
+    return Impl_->PostToPrimaryMaster(message, reliable);
 }
 
 void TMulticellManager::PostToSecondaryMasters(
