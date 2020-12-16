@@ -92,9 +92,6 @@
 #include "public.h"
 #include "callback_internal.h"
 
-// TODO(lukyan): Remove this header and fix includes in other places
-#include <yt/core/misc/error.h>
-
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
 #include <yt/core/misc/source_location.h>
 #endif
@@ -235,4 +232,3 @@ public:
 
 } // namespace NYT
 
-#include "bind.h"

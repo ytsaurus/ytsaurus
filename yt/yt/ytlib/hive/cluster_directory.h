@@ -10,6 +10,8 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <yt/core/concurrency/spinlock.h>
+
 namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////

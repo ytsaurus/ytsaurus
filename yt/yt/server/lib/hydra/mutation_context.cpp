@@ -2,6 +2,8 @@
 
 #include <yt/core/concurrency/fls.h>
 
+#include <yt/core/misc/error.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
