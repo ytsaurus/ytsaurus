@@ -282,7 +282,7 @@ TQuerySettingsPtr ParseCustomSettings(
         auto field = setting.getValue();
         auto fieldType = ToValueType(field.getType());
         YT_LOG_TRACE("Parsing custom setting (YPath: %v, FieldValue: %v)", ypath, field.dump());
-        
+
         auto modifiedNode = FindNodeByYPath(node, ypath);
 
         INodePtr patchNode;
@@ -424,7 +424,7 @@ THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters&
     THashMap<TString, size_t> result;
 
     for (const auto& event : SignificantEvents) {
-        result[CamelCaseToUnderscoreCase(ProfileEvents::getName(event))] = profileCounters[event].load(std::memory_order::memory_order_relaxed);
+        result[CamelCaseToUnderscoreCase(ProfileEvents::getName(event))] = profileCounters[event].load(std::memory_order_relaxed);
     }
 
     return result;
