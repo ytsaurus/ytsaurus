@@ -97,26 +97,35 @@ public:
         // Lookup in dynamic stores always and merge with cache.
         if (UseLookupCache_) {
             YT_LOG_DEBUG("Looking up in row cache");
-            auto accessor = TabletSnapshot_->RowCache->Cache.GetLookupAccessor();
-            for (auto key : LookupKeys_) {
-                auto found = accessor.Lookup(key, true);
 
-                if (found) {
-                    YT_VERIFY(found->GetVersionedRow().GetKeyCount() > 0);
-                    ++CacheHits_;
-                    YT_LOG_TRACE("Row found (Key: %v, Row: %v)",
-                        key,
-                        found->GetVersionedRow());
+            auto flushIndex = TabletSnapshot_->RowCache->FlushIndex.load(std::memory_order_acquire);
+
+            CacheLookuper_ = TabletSnapshot_->RowCache->Cache.GetLookuper();
+            for (auto key : LookupKeys_) {
+                auto foundItemRef = CacheLookuper_(key);
+                auto foundItem = foundItemRef.Get();
+
+                if (foundItem) {
+                    // If table is frozen both revisions are null.
+                    if (foundItem->Revision.load(std::memory_order_acquire) >= flushIndex) {
+                        ++CacheHits_;
+                        YT_LOG_TRACE("Row found (Key: %v)", key);
+                        RowsFromCache_.push_back(std::move(foundItemRef));
+                        continue;
+                    } else {
+                        ++CacheOutdated_;
+                    }
                 } else {
-                    chunkLookupKeys.push_back(key);
                     ++CacheMisses_;
                     YT_LOG_TRACE("Row not found (Key: %v)", key);
                 }
-                RowsFromCache_.push_back(std::move(found));
+
+                chunkLookupKeys.push_back(key);
+                RowsFromCache_.emplace_back();
             }
         } else {
             chunkLookupKeys = LookupKeys_.ToVector();
-            RowsFromCache_.resize(LookupKeys_.Size(), nullptr);
+            RowsFromCache_.resize(LookupKeys_.Size());
         }
 
         ChunkLookupKeys_ = MakeSharedRange(chunkLookupKeys, LookupKeys_);
@@ -125,22 +134,21 @@ public:
         std::vector<ISortedStorePtr> dynamicEdenStores;
         std::vector<ISortedStorePtr> chunkEdenStores;
 
-        auto unflushedTimestamp = MaxTimestamp;
-        auto latestTimestamp = MinTimestamp;
+        auto compactionTimestamp = TabletSnapshot_->RetainedTimestamp;
+        auto majorTimestamp = TabletSnapshot_->RetainedTimestamp;
 
         for (const auto& store : edenStores) {
             if (store->IsDynamic()) {
                 dynamicEdenStores.push_back(store);
-                unflushedTimestamp = std::min(unflushedTimestamp, store->GetMinTimestamp());
-                latestTimestamp = std::min(latestTimestamp, store->GetMaxTimestamp());
+                majorTimestamp = std::min(majorTimestamp, store->GetMinTimestamp());
             } else {
                 chunkEdenStores.push_back(store);
             }
+
+            compactionTimestamp = std::max(compactionTimestamp, store->GetMaxTimestamp());
         }
 
-        UnflushedTimestamp_ = unflushedTimestamp;
-
-        auto majorTimestamp = std::min(unflushedTimestamp, TabletSnapshot_->RetainedTimestamp);
+        StoreFlushIndex_ = TabletSnapshot_->StoreFlushIndex;
 
         CacheRowMerger_ = std::make_unique<TVersionedRowMerger>(
             New<TRowBuffer>(TLookupSessionBufferTag()),
@@ -148,7 +156,7 @@ public:
             TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
             UniversalColumnFilter,
             TabletSnapshot_->Config,
-            latestTimestamp, // compaction timestamp
+            compactionTimestamp,
             majorTimestamp,
             TabletSnapshot_->ColumnEvaluator,
             /*lookup*/ false,
@@ -222,6 +230,7 @@ public:
             auto counters = TabletSnapshot_->TableProfiler->GetLookupCounters(GetCurrentProfilingUser());
 
             counters->CacheHits.Increment(CacheHits_);
+            counters->CacheOutdated.Increment(CacheOutdated_);
             counters->CacheMisses.Increment(CacheMisses_);
             counters->RowCount.Increment(FoundRowCount_);
             counters->DataWeight.Increment(FoundDataWeight_);
@@ -234,11 +243,12 @@ public:
             counters->ChunkReaderStatisticsCounters.Increment(BlockReadOptions_.ChunkReaderStatistics);
         }
 
-        YT_LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, CacheHits: %v, CacheMisses: %v, "
+        YT_LOG_DEBUG("Tablet lookup completed (TabletId: %v, CellId: %v, CacheHits: %v, CacheOutdated: %v, CacheMisses: %v, "
             "FoundRowCount: %v, FoundDataWeight: %v, CpuTime: %v, DecompressionCpuTime: %v, ReadSessionId: %v)",
             TabletSnapshot_->TabletId,
             TabletSnapshot_->CellId,
             CacheHits_,
+            CacheOutdated_,
             CacheMisses_,
             FoundRowCount_,
             FoundDataWeight_,
@@ -320,9 +330,11 @@ private:
     const TClientBlockReadOptions& BlockReadOptions_;
     const TSharedRange<TUnversionedRow> LookupKeys_;
     TSharedRange<TUnversionedRow> ChunkLookupKeys_;
-    std::vector<TCachedRowPtr> RowsFromCache_;
+    // Holds references to lookup tables.
+    TConcurrentCache<TCachedRow>::TLookuper CacheLookuper_;
+    std::vector<TConcurrentCache<TCachedRow>::TCachedItemRef> RowsFromCache_;
     std::unique_ptr<TVersionedRowMerger> CacheRowMerger_;
-    TTimestamp UnflushedTimestamp_;
+    ui32 StoreFlushIndex_;
 
     static const int TypicalSessionCount = 16;
     using TReadSessionList = SmallVector<TReadSession, TypicalSessionCount>;
@@ -332,6 +344,7 @@ private:
 
     int CacheHits_ = 0;
     int CacheMisses_ = 0;
+    int CacheOutdated_ = 0;
     int FoundRowCount_ = 0;
     size_t FoundDataWeight_ = 0;
     int UnmergedRowCount_ = 0;
@@ -418,64 +431,78 @@ private:
         const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
         const std::function<std::pair<bool, size_t>()>& onRow)
     {
-        std::optional<TConcurrentCache<TCachedRow>::TInsertAccessor> accessor;
-
-        if (UseLookupCache_) {
-            accessor.emplace(TabletSnapshot_->RowCache->Cache.GetInsertAccessor());
-        }
-
         auto processSessions = [&] (TReadSessionList& sessions) {
             for (auto& session : sessions) {
                 auto row = session.FetchRow();
                 onPartialRow(row, MaxTimestamp);
-                if (accessor) {
+                if (UseLookupCache_) {
                     CacheRowMerger_->AddPartialRow(row);
                 }
             }
         };
 
+        TConcurrentCache<TCachedRow>::TInserter inserter;
+
+        if (UseLookupCache_) {
+            inserter = TabletSnapshot_->RowCache->Cache.GetInserter();
+        }
+
         for (int index = startKeyIndex; index < endKeyIndex; ++index) {
-            auto rowFromCache = std::move(RowsFromCache_[index]);
-            bool populateFromDynamicStore = true;
-            if (rowFromCache) {
-                YT_LOG_TRACE("Using row from cache (Row: %v)", rowFromCache->GetVersionedRow());
-                // Consider only versions before unflushed timestamp.
-                onPartialRow(rowFromCache->GetVersionedRow(), UnflushedTimestamp_);
-                populateFromDynamicStore = false;
+            // Need to insert rows into cache even from active dynamic store.
+            // Otherwise cache misses will occur.
+            // Process dynamic store rows firstly.
+            processSessions(DynamicEdenSessions_);
+
+            auto cachedItemRef = std::move(RowsFromCache_[index]);
+
+            if (auto cachedItemHead = cachedItemRef.Get()) {
+                auto cachedItem = GetLatestRow(cachedItemHead);
+
+                YT_LOG_TRACE("Using row from cache (Row: %v, Revision: %v, DynamicMinTimestamp: %v, ReadTimestamp: %v)",
+                    cachedItem->GetVersionedRow(),
+                    cachedItem->Revision.load(),
+                    CacheRowMerger_->GetMinTimestamp(),
+                    Timestamp_);
+
+                // Consider only versions before versions from dynamic rows.
+                onPartialRow(cachedItem->GetVersionedRow(), CacheRowMerger_->GetMinTimestamp());
+
+                // Reinsert row here.
+                YT_LOG_TRACE("Reinserting row (Row: %v)", cachedItem->GetVersionedRow());
+                auto lookupTable = inserter.GetTable();
+                if (lookupTable == cachedItemRef.Origin) {
+                    cachedItemRef.Update(std::move(cachedItem), cachedItemHead.Get());
+                } else {
+                    lookupTable->Insert(std::move(cachedItem));
+                }
+
+                // Build row to reset merger.
+                CacheRowMerger_->BuildMergedRow();
             } else {
                 processSessions(*partitionSessions);
                 processSessions(ChunkEdenSessions_);
 
-                if (accessor) {
+                if (UseLookupCache_) {
                     auto mergedRow = CacheRowMerger_->BuildMergedRow();
                     if (mergedRow) {
                         YT_VERIFY(mergedRow.GetKeyCount() > 0);
 
-                        auto cachedRow = CachedRowFromVersionedRow(
+                        auto cachedItem = CachedRowFromVersionedRow(
                             &TabletSnapshot_->RowCache->Allocator,
                             mergedRow);
+                        auto revision = StoreFlushIndex_;
+                        cachedItem->Revision.store(revision, std::memory_order_release);
 
-                        YT_LOG_TRACE("Populating cache (Row: %v)", cachedRow->GetVersionedRow());
+                        YT_LOG_TRACE("Populating cache (Row: %v, Revision: %v)", cachedItem->GetVersionedRow(), revision);
+                        inserter.GetTable()->Insert(cachedItem);
 
-                        accessor->Insert(std::move(cachedRow));
-                        populateFromDynamicStore = false;
+                        auto flushIndex = TabletSnapshot_->RowCache->FlushIndex.load(std::memory_order_acquire);
+
+                        // Row revision is equal to flushRevsion if last passive dynamic store is already flushing.
+                        if (revision >= flushIndex) {
+                            cachedItem->Revision.compare_exchange_strong(revision, std::numeric_limits<ui32>::max());
+                        }
                     }
-                }
-            }
-
-            for (auto& session : DynamicEdenSessions_) {
-                auto row = session.FetchRow();
-                onPartialRow(row, MaxTimestamp);
-
-                // Row not present in cache and in chunks but present in dynamic store.
-                if (accessor && row && populateFromDynamicStore) {
-                    auto cachedRow = CachedKeyFromVersionedRow(
-                        &TabletSnapshot_->RowCache->Allocator,
-                        row);
-
-                    YT_LOG_TRACE("Populating cache (Row: %v)", cachedRow->GetVersionedRow());
-
-                    accessor->Insert(std::move(cachedRow));
                 }
             }
 

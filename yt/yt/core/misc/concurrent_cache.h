@@ -16,7 +16,7 @@ private:
 
     struct TLookupTable;
 
-    void IncrementElementCount(const TIntrusivePtr<TLookupTable>& head);
+    TIntrusivePtr<TLookupTable> RenewTable(const TIntrusivePtr<TLookupTable>& head);
 
 public:
     using TValuePtr = TIntrusivePtr<T>;
@@ -25,55 +25,122 @@ public:
 
     ~TConcurrentCache();
 
-    class TInsertAccessor
+    struct TCachedItemRef
+        : public THashTable::TItemRef
+    {
+        TCachedItemRef() = default;
+
+        TCachedItemRef(typename THashTable::TItemRef ref, TLookupTable* origin)
+            : THashTable::TItemRef(ref)
+            , Origin(origin)
+        { }
+
+        TLookupTable* const Origin = nullptr;
+    };
+
+    class TLookuper
     {
     public:
-        TInsertAccessor(
+        TLookuper() = default;
+
+        TLookuper(TLookuper&& other) = default;
+
+        TLookuper& operator= (TLookuper&& other)
+        {
+            Parent_ = std::move(other.Parent_);
+            Primary_ = std::move(other.Primary_);
+            Secondary_ = std::move(other.Secondary_);
+
+            return *this;
+        }
+
+        TLookuper(
             TConcurrentCache* parent,
-            TIntrusivePtr<TLookupTable> primary);
+            TIntrusivePtr<TLookupTable> primary,
+            TIntrusivePtr<TLookupTable> secondary)
+            : Parent_(parent)
+            , Primary_(std::move(primary))
+            , Secondary_(std::move(secondary))
+        { }
 
-        TInsertAccessor(TInsertAccessor&& other);
+        template <class TKey>
+        TCachedItemRef operator() (const TKey& key)
+        {
+            auto fingerprint = THash<T>()(key);
 
-        // TODO(lukyan): Return inserted value (existing, new) or nullptr.
-        bool Insert(TFingerprint fingerprint, TValuePtr item);
+            // Use fixed lookup tables. No need to read head.
 
-        bool Insert(TValuePtr value);
-    protected:
-        TConcurrentCache* const Parent_;
+            if (auto item = Primary_->FindRef(fingerprint, key)) {
+                return TCachedItemRef(item, Primary_.Get());
+            }
+
+            if (!Secondary_) {
+                return TCachedItemRef();
+            }
+
+            return TCachedItemRef(Secondary_->FindRef(fingerprint, key), Secondary_.Get());
+        }
+
+        explicit operator bool ()
+        {
+            return Parent_;
+        }
+
+    private:
+        TConcurrentCache* Parent_ = nullptr;
+        TIntrusivePtr<TLookupTable> Primary_;
+        TIntrusivePtr<TLookupTable> Secondary_;
+    };
+
+    TLookuper GetLookuper()
+    {
+        auto primary = Head_.Acquire();
+        auto secondary = primary ? primary->Next.Acquire() : nullptr;
+
+        return TLookuper(this, std::move(primary), std::move(secondary));
+    }
+
+    class TInserter
+    {
+    public:
+        TInserter() = default;
+
+        TInserter(TInserter&& other) = default;
+
+        TInserter& operator= (TInserter&& other)
+        {
+            Parent_ = std::move(other.Parent_);
+            Primary_ = std::move(other.Primary_);
+
+            return *this;
+        }
+
+        TInserter(
+            TConcurrentCache* parent,
+            TIntrusivePtr<TLookupTable> primary)
+            : Parent_(parent)
+            , Primary_(std::move(primary))
+        { }
+
+        TLookupTable* GetTable()
+        {
+            if (Primary_->Size >= Parent_->Capacity_) {
+                Primary_ = Parent_->RenewTable(Primary_);
+            }
+
+            return Primary_.Get();
+        }
+
+    private:
+        TConcurrentCache* Parent_ = nullptr;
         TIntrusivePtr<TLookupTable> Primary_;
     };
 
-    TInsertAccessor GetInsertAccessor();
-
-    class TLookupAccessor
-        : public TInsertAccessor
+    TInserter GetInserter()
     {
-    public:
-        using TInsertAccessor::Insert;
-
-        TLookupAccessor(
-            TConcurrentCache* parent,
-            TIntrusivePtr<TLookupTable> primary,
-            TIntrusivePtr<TLookupTable> secondary);
-
-        TLookupAccessor(TLookupAccessor&& other);
-
-        template <class TKey>
-        TIntrusivePtr<T> Lookup(const TKey& key, bool touch = false);
-
-        bool Update(TFingerprint fingerprint, TValuePtr item);
-
-        bool Update(TValuePtr value);
-    private:
-        using TInsertAccessor::Parent_;
-        using TInsertAccessor::Primary_;
-
-        // TODO(lukyan): Acquire secondary lazily
-        TIntrusivePtr<TLookupTable> Secondary_;
-
-    };
-
-    TLookupAccessor GetLookupAccessor();
+        auto primary = Head_.Acquire();
+        return TInserter(this, std::move(primary));
+    }
 
 public:
     const size_t Capacity_;

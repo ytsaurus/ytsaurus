@@ -46,6 +46,9 @@ struct TRowCache
     TSlabAllocator Allocator;
     TConcurrentCache<TCachedRow> Cache;
 
+    // Rows with revision less than FlushIndex are considered outdated.
+    std::atomic<ui32> FlushIndex = 0;
+
     TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker);
 };
 
@@ -189,6 +192,7 @@ struct TTabletSnapshot
     TLockManagerPtr LockManager;
     TLockManagerEpoch LockManagerEpoch;
     TRowCachePtr RowCache;
+    ui32 StoreFlushIndex;
 
     //! Returns a range of partitions intersecting with the range |[lowerBound, upperBound)|.
     std::pair<TPartitionListIterator, TPartitionListIterator> GetIntersectingPartitions(
@@ -348,6 +352,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, CriticalPartitionCount);
 
     DEFINE_BYVAL_RW_PROPERTY(IDynamicStorePtr, ActiveStore);
+
+    // NB: This field is transient.
+    DEFINE_BYVAL_RW_PROPERTY(ui32, StoreFlushIndex, 0);
 
     using TReplicaMap = THashMap<TTableReplicaId, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);

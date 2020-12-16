@@ -152,6 +152,10 @@ public:
 
     virtual TSortedDynamicStorePtr AsSortedDynamic() override;
 
+    // Passive dynamic stores loaded from snapshot can be flushed in arbitrary order.
+    // Their flush index is null.
+    DEFINE_BYVAL_RW_PROPERTY(ui32, FlushIndex, 0);
+
 private:
     class TReaderBase;
     class TRangeReader;

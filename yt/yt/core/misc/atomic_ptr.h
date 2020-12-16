@@ -39,7 +39,7 @@ public:
 
     TIntrusivePtr<T> Acquire() const;
 
-    TIntrusivePtr<T> Exchange(TIntrusivePtr<T>&& other);
+    TIntrusivePtr<T> Exchange(TIntrusivePtr<T> other);
 
     TIntrusivePtr<T> SwapIfCompare(THazardPtr<T>& compare, TIntrusivePtr<T> target);
 
