@@ -1717,6 +1717,78 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
         # but eventually is.
         wait(lambda: select_rows("* from [//tmp/t_output]") == [])
 
+    def test_input_query(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "aggregate": "sum"},
+            {"name": "str", "type": "string"},
+        ]
+        self._create_simple_dynamic_table("//tmp/t_output", schema=schema)
+        sync_mount_table("//tmp/t_output")
+        rows = [
+            {"key": 1, "value": 11},
+            {"key": 2, "value": 22, "str": "foo"},
+            {"key": 3, "value": 33, "str": "bar"},
+        ]
+        insert_rows("//tmp/t_output", rows)
+
+        create("table", "//tmp/t_input", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t_input", [{"a": 1}])
+
+        def _run(input_query):
+            merge(
+                in_="//tmp/t_input",
+                out="<schema_modification=unversioned_update;append=%true>//tmp/t_output",
+                mode="ordered",
+                spec={"input_query": input_query})
+
+        # Wrong type of $change_type column.
+        with raises_yt_error():
+            _run("1 as [$change_type], 2 as key")
+
+        # Garbage system column.
+        with raises_yt_error():
+            _run("1u as [$change_type], 2 as key, 3 as [$foo:bar]")
+
+        # Wrong type of flags column.
+        with raises_yt_error():
+            _run("1u as [$change_type], 2 as key, 3 as [$flags:value]")
+
+        # Delete.
+        _run("1u as [$change_type], 1 as key")
+        # Aggregate.
+        _run("0u as [$change_type], 2 as key, {}u as [$flags:value], 55 as [$value:value]".format(self.AGGREGATE_FLAG))
+        # Missing.
+        _run("0u as [$change_type], 3 as key, 123 as [$value:value], {}u as [$flags:str]".format(self.MISSING_FLAG))
+
+        expected = [
+            {"key": 2, "value": 22 + 55, "str": yson.YsonEntity()},
+            {"key": 3, "value": 123, "str": "bar"},
+        ]
+        actual = select_rows("* from [//tmp/t_output]")
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), expected)
+        assert expected == read_table("//tmp/t_output")
+
+    def test_input_query_delete_where(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        merge(
+            in_="//tmp/t",
+            out="<schema_modification=unversioned_update;append=%true>//tmp/t",
+            mode="ordered",
+            spec={"input_query": "1u as [$change_type], key where key % 2 = 0"})
+
+        expected = [row for row in rows if row["key"] % 2 != 0]
+        actual = select_rows("* from [//tmp/t]")
+        assert_items_equal(select_rows("* from [//tmp/t]"), expected)
+        assert expected == read_table("//tmp/t")
+
 
 ##################################################################
 

@@ -1097,23 +1097,71 @@ void ValidateKeyColumns(const TKeyColumns& keyColumns)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateSystemColumnSchema(
+    const TColumnSchema& columnSchema,
+    bool isTableSorted,
+    bool allowUnversionedUpdateColumns)
+{
+    static const auto allowedSortedTablesSystemColumns = THashMap<TString, EValueType>{
+    };
+
+    static const auto allowedOrderedTablesSystemColumns = THashMap<TString, EValueType>{
+        {TimestampColumnName, EValueType::Uint64}
+    };
+
+    auto validateType = [&] (EValueType expected) {
+        auto actual = columnSchema.GetPhysicalType();
+        if (actual != expected) {
+            THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv, got %Qlv",
+                columnSchema.Name(),
+                expected,
+                actual);
+        }
+    };
+
+    const auto& name = columnSchema.Name();
+
+    const auto& allowedSystemColumns = isTableSorted
+        ? allowedSortedTablesSystemColumns
+        : allowedOrderedTablesSystemColumns;
+    auto it = allowedSystemColumns.find(name);
+
+    // Ordinary system column.
+    if (it != allowedSystemColumns.end()) {
+        validateType(it->second);
+        return;
+    }
+
+    if (allowUnversionedUpdateColumns) {
+        // Unversioned update schema system column.
+        if (name == TUnversionedUpdateSchema::ChangeTypeColumnName) {
+            validateType(EValueType::Uint64);
+            return;
+        } else if (name.StartsWith(TUnversionedUpdateSchema::FlagsColumnNamePrefix)) {
+            validateType(EValueType::Uint64);
+            return;
+        } else if (name.StartsWith(TUnversionedUpdateSchema::ValueColumnNamePrefix)) {
+            // Value can have any type.
+            return;
+        }
+    }
+
+    // Unexpected system column.
+    THROW_ERROR_EXCEPTION("System column name %Qv is not allowed here",
+        name);
+}
+
 void ValidateColumnSchema(
     const TColumnSchema& columnSchema,
     bool isTableSorted,
-    bool isTableDynamic)
+    bool isTableDynamic,
+    bool allowUnversionedUpdateColumns)
 {
     static const auto allowedAggregates = THashSet<TString>{
         "sum",
         "min",
         "max",
         "first"
-    };
-
-    static const auto allowedSortedTablesSystemColumns = THashMap<TString, EValueType>{
-    };
-
-    static const auto allowedOrderedTablesSystemColumns = THashMap<TString, EValueType>{
-        {TimestampColumnName, EValueType::Uint64}
     };
 
     const auto& name = columnSchema.Name();
@@ -1123,20 +1171,7 @@ void ValidateColumnSchema(
 
     try {
         if (name.StartsWith(SystemColumnNamePrefix)) {
-            const auto& allowedSystemColumns = isTableSorted
-                ? allowedSortedTablesSystemColumns
-                : allowedOrderedTablesSystemColumns;
-            auto it = allowedSystemColumns.find(name);
-            if (it == allowedSystemColumns.end()) {
-                THROW_ERROR_EXCEPTION("System column name %Qv is not allowed here",
-                    name);
-            }
-            if (columnSchema.GetPhysicalType() != it->second) {
-                THROW_ERROR_EXCEPTION("Invalid type of column %Qv: expected %Qlv, got %Qlv",
-                    name,
-                    it->second,
-                    columnSchema.GetPhysicalType());
-            }
+            ValidateSystemColumnSchema(columnSchema, isTableSorted, allowUnversionedUpdateColumns);
         }
 
         if (name.size() > MaxColumnNameLength) {
@@ -1331,14 +1366,15 @@ void ValidateSchemaAttributes(const TTableSchema& schema)
     }
 }
 
-void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic)
+void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic, bool allowUnversionedUpdateColumns)
 {
     int totalTypeComplexity = 0;
     for (const auto& column : schema.Columns()) {
         ValidateColumnSchema(
             column,
             schema.IsSorted(),
-            isTableDynamic);
+            isTableDynamic,
+            allowUnversionedUpdateColumns);
         totalTypeComplexity += column.LogicalType()->GetTypeComplexity();
     }
     if (totalTypeComplexity >= MaxSchemaTotalTypeComplexity) {

@@ -6414,7 +6414,10 @@ void TOperationControllerBase::ParseInputQuery(
     InputQuery->Query = std::move(query);
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
 
-    ValidateTableSchema(*InputQuery->Query->GetTableSchema());
+    ValidateTableSchema(
+        *InputQuery->Query->GetTableSchema(),
+        /*isTableDynamic*/ false,
+        /*allowUnversionedUpdateColumns*/ true);
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(TSchedulerJobSpecExt* schedulerJobSpecExt)
