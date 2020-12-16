@@ -145,6 +145,15 @@ void TSolomonExporter::Start()
     }
 }
 
+void TSolomonExporter::Stop()
+{
+    Collector_.Cancel(TError("Stopped"));
+
+    if (Config_->EnableCoreProfilingCompatibility) {
+        CoreProfilingPusher_->Stop();
+    }
+}
+
 void TSolomonExporter::DoCollect()
 {
     auto nowUnix = TInstant::Now().GetValue();

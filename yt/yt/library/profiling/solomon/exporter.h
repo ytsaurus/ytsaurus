@@ -121,6 +121,7 @@ public:
 
     // There must be at most 1 running exporter per registry.
     void Start();
+    void Stop();
 
 private:
     const TSolomonExporterConfigPtr Config_;
