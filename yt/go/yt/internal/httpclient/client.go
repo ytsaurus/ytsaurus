@@ -468,7 +468,7 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 	default:
 		if rspEncoding := rsp.Header.Get("Content-Encoding"); rspEncoding != req.Header.Get("Accept-Encoding") {
 			_ = rsp.Body.Close()
-			err = fmt.Errorf("unexpected response encoding %q", rspEncoding)
+			err = fmt.Errorf("unexpected response encoding %q != %q", rspEncoding, req.Header.Get("Accept-Encoding"))
 			return
 		}
 
