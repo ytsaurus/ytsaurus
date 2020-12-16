@@ -1705,6 +1705,15 @@ private:
                         ->GetNativeConnection()
                         ->GetMediumDirectory()
                 )
+                .Item("snapshotted_operation_ids")
+                    .BeginAttributes()
+                        .Item("opaque").Value(true)
+                    .EndAttributes()
+                    .DoListFor(IdToOperation_, [&] (TFluentList fluent, const std::pair<TGuid, TOperationPtr>& it) {
+                        if (it.second->GetController()->HasSnapshot()) {
+                            fluent.Item().Value(ToString(it.first));
+                        }
+                    })
                 .Do([&] (TFluentMap fluent) {
                     std::vector<TString> tags;
                     if (MasterConnector_->TagsLoaded()) {

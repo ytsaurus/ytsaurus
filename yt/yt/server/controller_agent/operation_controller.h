@@ -370,6 +370,13 @@ struct IOperationControllerSnapshotBuilderHost
      */
     virtual void OnSnapshotCompleted(const TSnapshotCookie& cookie) = 0;
 
+    //! Returns whether operation has any completed snapshot.
+    //! Used in an Orchid call to determine list of snapshotted operations.
+    /*!
+     *  \note Invoker affinity: any.
+     */
+    virtual bool HasSnapshot() const = 0;
+
     //! Suspends controller invoker and returns future that is set after last action in invoker is executed.
     /*!
      *  \note Invoker affinity: Control invoker

@@ -400,6 +400,11 @@ public:
         return Underlying_->OnSnapshotCompleted(cookie);
     }
 
+    virtual bool HasSnapshot() const override
+    {
+        return Underlying_->HasSnapshot();
+    }
+
     virtual IYPathServicePtr GetOrchid() const override
     {
         return Underlying_->GetOrchid();

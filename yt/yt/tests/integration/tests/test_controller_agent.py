@@ -24,6 +24,13 @@ import __builtin__
 class TestControllerAgentOrchid(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "snapshot_period": 3000,
+        }
+    }
+
     @authors("levysotsky")
     def test_controller_agent_orchid(self):
         controller_agents = ls("//sys/controller_agents/instances")
@@ -34,6 +41,36 @@ class TestControllerAgentOrchid(YTEnvSetup):
         )
 
         wait(lambda: exists(controller_agent_orchid + "/incarnation_id"))
+
+    @authors("akozhikhov")
+    def test_list_operations_with_snapshots(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": 0}])
+        create("table", "//tmp/t2")
+
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+        orchid_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/snapshotted_operation_ids".format(
+            controller_agents[0]
+        )
+
+        assert list(get(orchid_path)) == []
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"data_size_per_job": 1},
+        )
+
+        assert list(get(orchid_path)) == []
+
+        wait_breakpoint()
+        op.wait_for_fresh_snapshot()
+
+        assert list(get(orchid_path)) == [str(op.id)]
 
 
 class TestControllerMemoryUsage(YTEnvSetup):
