@@ -454,6 +454,7 @@ void TSolomonExporter::HandleShard(
         options.Times = readWindow;
         options.ExportSummaryAsMax = Config_->ExportSummaryAsMax;
         options.MarkAggregates = Config_->MarkAggregates;
+        options.LingerWindowSize = Config_->LingerTimeout / Config_->GridStep;
 
         if (name) {
             options.SensorFilter = std::bind(&TSolomonExporterConfig::Filter, Config_.Get(), *name, std::placeholders::_1);

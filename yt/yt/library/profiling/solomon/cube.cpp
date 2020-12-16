@@ -20,9 +20,16 @@ bool TCube<T>::TProjection::IsZero(int index) const
 }
 
 template <class T>
+bool TCube<T>::TProjection::IsLingering(i64 iteration) const
+{
+    return LastNonZeroIteration >= iteration;
+}
+
+template <class T>
 TCube<T>::TCube(int windowSize, i64 nextIteration)
     : WindowSize_(windowSize)
     , NextIteration_(nextIteration)
+    , BaseIteration_(nextIteration - (nextIteration % windowSize))
 { }
 
 template <class T>
@@ -30,6 +37,7 @@ void TCube<T>::StartIteration()
 {
     Index_ = GetIndex(NextIteration_);
     NextIteration_++;
+    BaseIteration_ = NextIteration_ - (NextIteration_ % WindowSize_);
 
     for (auto& [tagIds, projection] : Projections_) {
         projection.Rollup += projection.Values[Index_];
@@ -93,7 +101,9 @@ void TCube<T>::Update(const TTagIdList& tagIds, T value)
     }
 
     it->second.Values[Index_] += value;
-    it->second.LastUpdateIteration = NextIteration_ - 1;
+    if (!it->second.IsZero(Index_)) {
+        it->second.LastNonZeroIteration = NextIteration_ - 1;
+    }
 }
 
 template <class T>
@@ -112,6 +122,16 @@ template <class T>
 int TCube<T>::GetIndex(i64 iteration) const
 {
     return iteration % WindowSize_;
+}
+
+template <class T>
+i64 TCube<T>::GetIteration(int index) const
+{
+    auto iteration =  BaseIteration_ + index;
+    if (iteration >= NextIteration_) {
+        iteration -= WindowSize_;
+    }
+    return iteration;
 }
 
 template <class T>
@@ -197,7 +217,7 @@ void TCube<T>::ReadSensors(
 
         for (const auto& readBatch : options.Times) {
             for (auto index : readBatch.first) {
-                if (!window.IsZero(index)) {
+                if (window.IsLingering(GetIteration(index) - options.LingerWindowSize)) {
                     return false;
                 }
             }
@@ -212,7 +232,7 @@ void TCube<T>::ReadSensors(
         }
 
         for (auto index : indices) {
-            if (!window.IsZero(index)) {
+            if (window.IsLingering(GetIteration(index) - options.LingerWindowSize)) {
                 return false;
             }
         }

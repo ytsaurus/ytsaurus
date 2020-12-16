@@ -39,6 +39,8 @@ struct TSolomonExporterConfig
 {
     TDuration GridStep;
 
+    TDuration LingerTimeout;
+
     int WindowSize;
 
     bool ConvertCountersToRate;
@@ -65,6 +67,9 @@ struct TSolomonExporterConfig
     {
         RegisterParameter("grid_step", GridStep)
             .Default(TDuration::Seconds(5));
+
+        RegisterParameter("linger_timeout", LingerTimeout)
+            .Default(TDuration::Minutes(5));
 
         RegisterParameter("window_size", WindowSize)
             .Default(12);
@@ -98,6 +103,12 @@ struct TSolomonExporterConfig
 
         RegisterParameter("shards", Shards)
             .Default();
+
+        RegisterPostprocessor([this] {
+            if (LingerTimeout.GetValue() % GridStep.GetValue() != 0) {
+                THROW_ERROR_EXCEPTION("\"linger_timeout\" must be multiple of \"grid_step\"");
+            }
+        });
     }
 
 
