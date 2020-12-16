@@ -26,6 +26,10 @@ func TestClientCompression(t *testing.T) {
 		yt.ClientCodecZSTDFastest,
 		yt.ClientCodecZSTDDefault,
 		yt.ClientCodecZSTDBetterCompression,
+		yt.ClientCodecBrotliFastest,
+		yt.ClientCodecBrotliDefault,
+		// TODO(prime@): fix codec select in HTTP proxy
+		// yt.ClientCodecBrotliBestCompression,
 	} {
 		t.Run(fmt.Sprint(codec), func(t *testing.T) {
 			yc, err := ythttp.NewClient(&yt.Config{

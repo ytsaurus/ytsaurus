@@ -227,6 +227,10 @@ const (
 	ClientCodecZSTDFastest
 	ClientCodecZSTDDefault
 	ClientCodecZSTDBetterCompression
+
+	ClientCodecBrotliFastest
+	ClientCodecBrotliDefault
+	// ClientCodecBrotliBestCompression
 )
 
 func (c ClientCompressionCodec) BlockCodec() (string, bool) {
@@ -239,6 +243,12 @@ func (c ClientCompressionCodec) BlockCodec() (string, bool) {
 		return "zstd_3", true
 	case ClientCodecZSTDBetterCompression:
 		return "zstd_7", true
+	case ClientCodecBrotliFastest:
+		return "brotli_1", true
+	case ClientCodecBrotliDefault:
+		return "brotli_6", true
+		//	case ClientCodecBrotliBestCompression:
+		//		return "brotli_11", true
 	default:
 		return "", false
 	}
