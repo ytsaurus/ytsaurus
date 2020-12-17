@@ -283,6 +283,9 @@ enum EValueType : int
     VT_DATETIME,
     VT_TIMESTAMP,
     VT_INTERVAL,
+
+    VT_FLOAT,
+    VT_JSON,
 };
 
 enum ESortOrder : int
