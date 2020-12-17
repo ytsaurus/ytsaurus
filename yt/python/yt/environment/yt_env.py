@@ -693,6 +693,17 @@ class YTInstance(object):
                 del self._pid_to_process[process.pid]
                 processes[index] = None
 
+    def get_service_pids(self, name, indexes=None):
+        result = []
+        with self._lock:
+            logger.info("Obtaining %s pids", name)
+            processes = self._service_processes[name]
+            for index, process in enumerate(processes):
+                if process is None or (indexes is not None and index not in indexes):
+                    continue
+                result.append(process.pid)
+        return result
+
     def list_node_subcontainers(self, index):
         with self._lock:
             processes = self._service_processes["node"]
