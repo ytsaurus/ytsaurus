@@ -72,6 +72,11 @@ static NTi::TTypePtr OldTypeToTypeV3(EValueType type)
             return NTi::Timestamp();
         case VT_INTERVAL:
             return NTi::Interval();
+
+        case VT_FLOAT:
+            return NTi::Float();
+        case VT_JSON:
+            return NTi::Json();
     }
 }
 
@@ -450,6 +455,10 @@ TString ToString(EValueType type)
         case VT_DATETIME:  return "datetime";
         case VT_TIMESTAMP: return "timestamp";
         case VT_INTERVAL:  return "interval";
+
+        case VT_FLOAT: return "float";
+
+        case VT_JSON: return "json";
     }
     ythrow yexception() << "Invalid value type " << static_cast<int>(type);
 }

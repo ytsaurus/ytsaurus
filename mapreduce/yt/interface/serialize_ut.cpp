@@ -1,6 +1,11 @@
 #include <mapreduce/yt/interface/serialize.h>
+#include <mapreduce/yt/interface/common.h>
+
+#include <library/cpp/yson/node/node_builder.h>
 
 #include <library/cpp/testing/unittest/registar.h>
+
+#include <util/generic/serialized_enum.h>
 
 using namespace NYT;
 
@@ -74,5 +79,15 @@ Y_UNIT_TEST_SUITE(Serialization)
         UNIT_ASSERT_VALUES_EQUAL(schemaNode[2]["type"], "int64");
         UNIT_ASSERT_VALUES_EQUAL(schemaNode[2]["required"], true);
         UNIT_ASSERT_VALUES_EQUAL(schemaNode[2]["type_v2"], "int64");
+    }
+
+    Y_UNIT_TEST(ValueTypeSerialization)
+    {
+        for (const auto value : GetEnumAllValues<EValueType>()) {
+            TNode serialized = NYT::NDetail::ToString(value);
+            EValueType deserialized;
+            Deserialize(deserialized, serialized);
+            UNIT_ASSERT_VALUES_EQUAL(value, deserialized);
+        }
     }
 }
