@@ -270,7 +270,7 @@ static TWeightLimitedYsonToYqlConverter CreateWeightLimitedYsonToYqlConverter(
     const TLogicalTypePtr& logicalType,
     TYqlConverterConfigPtr config);
 
-static void EnsureYsonItemTypeEqual(TYsonItem item, EYsonItemType type)
+static void EnsureYsonItemTypeEqual(const TYsonItem& item, EYsonItemType type)
 {
     if (Y_UNLIKELY(item.GetType() != type)) {
         THROW_ERROR_EXCEPTION("YSON item type mismatch: expected %Qlv, got %Qlv",
@@ -279,7 +279,7 @@ static void EnsureYsonItemTypeEqual(TYsonItem item, EYsonItemType type)
     }
 }
 
-static void EnsureYsonItemTypeNotEqual(TYsonItem item, EYsonItemType type)
+static void EnsureYsonItemTypeNotEqual(const TYsonItem& item, EYsonItemType type)
 {
     if (Y_UNLIKELY(item.GetType() == type)) {
         THROW_ERROR_EXCEPTION("Unexpected YSON item type %Qlv",
@@ -377,6 +377,32 @@ TWeightLimitedYsonToYqlConverter CreateSimpleTypeYsonToYqlConverter(
     }
     ThrowUnexpectedValueType(physicalType);
 }
+
+class TDecimalYsonToYqlConverter
+{
+public:
+    TDecimalYsonToYqlConverter(int precision, int scale)
+        : Precision_(precision)
+        , Scale_(scale)
+    { }
+
+    void operator () (TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 totalLimit) const
+    {
+        const auto& item = cursor->GetCurrent();
+        EnsureYsonItemTypeEqual(item, EYsonItemType::StringValue);
+
+        char buffer[NDecimal::TDecimal::MaxTextSize];
+        const auto binaryDecimal = item.UncheckedAsString();
+        const auto textDecimal = NDecimal::TDecimal::BinaryToText(binaryDecimal, Precision_, Scale_, buffer, sizeof(buffer));
+        consumer->OnStringScalarNoWeightLimit(textDecimal);
+
+        cursor->Next();
+    }
+
+private:
+    const int Precision_;
+    const int Scale_;
+};
 
 class TListYsonToYqlConverter
 {
@@ -572,8 +598,9 @@ static TWeightLimitedYsonToYqlConverter CreateWeightLimitedYsonToYqlConverter(
                 GetPhysicalType(logicalType->AsSimpleTypeRef().GetElement()),
                 std::move(config));
         case ELogicalMetatype::Decimal:
-            // TODO(ermolovd) support decimal.
-            return CreateSimpleTypeYsonToYqlConverter(EValueType::String, std::move(config));
+            return TDecimalYsonToYqlConverter(
+                logicalType->AsDecimalTypeRef().GetPrecision(),
+                logicalType->AsDecimalTypeRef().GetScale());
         case ELogicalMetatype::List:
             return TListYsonToYqlConverter(logicalType->AsListTypeRef(), std::move(config));
         case ELogicalMetatype::Struct:
@@ -658,6 +685,41 @@ public:
     }
 };
 
+class TDecimalUnversionedValueToYqlConverter
+{
+public:
+    TDecimalUnversionedValueToYqlConverter(int precision, int scale, bool isNullable)
+        : Precision_(precision)
+        , Scale_(scale)
+        , IsNullable_(isNullable)
+    { }
+
+    void operator () (TUnversionedValue value, TYqlJsonWriter* consumer, i64 totalLimit) const
+    {
+        if (IsNullable_) {
+            if (value.Type == EValueType::Null) {
+                consumer->OnEntity();
+                return;
+            }
+            consumer->OnBeginList();
+        }
+
+        char buffer[NDecimal::TDecimal::MaxTextSize];
+        const auto binaryDecimal = TStringBuf(value.Data.String, value.Length);
+        const auto textDecimal = NDecimal::TDecimal::BinaryToText(binaryDecimal, Precision_, Scale_, buffer, sizeof(buffer));
+        consumer->OnStringScalarNoWeightLimit(textDecimal);
+
+        if (IsNullable_) {
+            consumer->OnEndList();
+        }
+    }
+
+private:
+    const int Precision_;
+    const int Scale_;
+    const bool IsNullable_;
+};
+
 class TComplexUnversionedValueToYqlConverter
 {
 public:
@@ -731,15 +793,31 @@ static TWeightLimitedUnversionedValueToYqlConverter CreateWeightLimitedUnversion
     const TLogicalTypePtr& logicalType,
     TYqlConverterConfigPtr config)
 {
-    // TODO: (ermolovd) here should be fair switch over our metatypes
-    if (IsV1Type(logicalType) ||
-        CastToV1Type(logicalType).first == ESimpleLogicalValueType::String) // Decimal
-    {
-        auto[simpleType, isRequired] = CastToV1Type(logicalType);
-        auto physicalType = GetPhysicalType(simpleType);
-        return CreateSimpleUnversionedValueToYqlConverter(physicalType, isRequired, std::move(config));
-    } else {
-        return TComplexUnversionedValueToYqlConverter(logicalType, std::move(config));
+    auto denullifiedLogicalType = DenullifyLogicalType(logicalType);
+    switch (denullifiedLogicalType->GetMetatype()) {
+        case ELogicalMetatype::Simple: {
+            auto[simpleType, isRequired] = CastToV1Type(logicalType);
+            auto physicalType = GetPhysicalType(simpleType);
+            return CreateSimpleUnversionedValueToYqlConverter(physicalType, isRequired, std::move(config));
+        }
+        case ELogicalMetatype::Decimal: {
+            const int precision = denullifiedLogicalType->AsDecimalTypeRef().GetPrecision();
+            const int scale = denullifiedLogicalType->AsDecimalTypeRef().GetScale();
+            const int isNullable = logicalType->IsNullable();
+            return TDecimalUnversionedValueToYqlConverter(precision, scale, isNullable);
+        }
+        case ELogicalMetatype::Optional:
+            // NB. It's complex optional because we called DenullifyLogicalType
+        case ELogicalMetatype::List:
+        case ELogicalMetatype::Tuple:
+        case ELogicalMetatype::Struct:
+        case ELogicalMetatype::VariantTuple:
+        case ELogicalMetatype::VariantStruct:
+        case ELogicalMetatype::Dict:
+            return TComplexUnversionedValueToYqlConverter(logicalType, std::move(config));
+        case ELogicalMetatype::Tagged:
+            // DenullifyLogicalType should have cleaned type of tagged types.
+            Y_FAIL();
     }
 }
 
