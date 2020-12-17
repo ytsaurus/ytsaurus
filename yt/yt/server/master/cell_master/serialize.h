@@ -116,9 +116,10 @@ DEFINE_ENUM(EMasterReign,
     ((SupportIsaReedSolomon63_20_3)                                 (1431))  // akozhikhov
     ((TabletCellStatusGossipPeriod)                                 (1432))  // gritukan
     ((CorrectMergeBranchSemanticsForAttributes)                     (1433))  // shakurov
-    ((OrderedRemoteDynamicStoreReader)                              (1434))  // ifsmirnov
-    ((VersionedRemoteCopy)                                          (1435))  // ifsmirnov
-    ((IncrementalCellStatusGossip)                                  (1436))  // gritukan
+    ((IncrementalCellStatusGossip)                                  (1434))  // gritukan
+    // Late 20.3 starts here.
+    ((OrderedRemoteDynamicStoreReader)                              (1444))  // ifsmirnov
+    ((VersionedRemoteCopy)                                          (1445))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
