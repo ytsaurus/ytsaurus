@@ -201,7 +201,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         result = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy".format(
             node, job_id
         )
-        wait(lambda: exists(result), sleep_backoff=0.1)
+        wait(lambda: exists(result + "/smoothed_cpu_usage_x100"), sleep_backoff=0.1)
         return result
 
 
