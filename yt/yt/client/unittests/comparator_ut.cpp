@@ -13,8 +13,9 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto IntValue1 = MakeUnversionedInt64Value(42);
-static const auto IntValue2 = MakeUnversionedInt64Value(-7);
+static const auto IntValue1 = MakeUnversionedInt64Value(-7);
+static const auto IntValue2 = MakeUnversionedInt64Value(18);
+static const auto IntValue3 = MakeUnversionedInt64Value(42);
 static const auto StrValue1 = MakeUnversionedStringValue("foo");
 static const auto StrValue2 = MakeUnversionedStringValue("bar");
 static const auto NullValue = MakeUnversionedNullValue();
@@ -79,6 +80,27 @@ protected:
             keys.push_back(TKey::FromRow(row));
         }
         return keys;
+    }
+
+    std::vector<TComparator> GenerateComparators(int minLength, int maxLength)
+    {
+        std::vector<TComparator> result;
+        std::vector<ESortOrder> stack;
+        auto recursiveFill = [&] (int index, auto recursiveFill) {
+            if (index >= minLength && index <= maxLength) {
+                result.emplace_back(stack);
+            }
+            if (index == maxLength) {
+                return;
+            }
+            for (const auto& value : TEnumTraits<ESortOrder>::GetDomainValues()) {
+                stack.push_back(value);
+                recursiveFill(index + 1, recursiveFill);
+                stack.pop_back();
+            }
+        };
+        recursiveFill(0, recursiveFill);
+        return result;
     }
 
 private:
@@ -147,40 +169,47 @@ TEST_F(TComparatorTest, StressNewAndLegacyTestEquivalence)
 
 TEST_F(TComparatorTest, KeyBoundComparisonWellFormedness)
 {
-    constexpr int KeyLength = 2;
-    const auto Comparator = MakeComparator(KeyLength);
-
-    std::vector<TOwningKeyBound> keyBounds;
-    InvokeForAllRows(NoSentinelValues, 0, KeyLength, [&] (const auto& row) {
-        for (bool isUpper : {false, true}) {
-            for (bool isInclusive : {false, true}) {
-                keyBounds.emplace_back(TOwningKeyBound::FromRow(row, isInclusive, isUpper));
+    auto testComparator = [&] (const TComparator& comparator) {
+        std::vector<TOwningKeyBound> keyBounds;
+        InvokeForAllRows(NoSentinelValues, 0, comparator.GetLength(), [&] (const auto& row) {
+            for (bool isUpper : {false, true}) {
+                for (bool isInclusive : {false, true}) {
+                    keyBounds.emplace_back(TOwningKeyBound::FromRow(row, isInclusive, isUpper));
+                }
             }
-        }
-    });
+        });
 
-    for (int lowerVsUpperResult : {-1, 0, 1}) {
-        for (const auto& keyBoundA : keyBounds) {
-            // Reflexivity.
-            EXPECT_EQ(0, Comparator.CompareKeyBounds(keyBoundA, keyBoundA, lowerVsUpperResult));
-            for (const auto& keyBoundB : keyBounds) {
-                // Antisymmetry.
-                EXPECT_EQ(
-                    Comparator.CompareKeyBounds(keyBoundA, keyBoundB, lowerVsUpperResult),
-                    -Comparator.CompareKeyBounds(keyBoundB, keyBoundA, lowerVsUpperResult));
-                for (const auto& keyBoundC : keyBounds) {
-                    // Transitivity.
-                    int compAB = Comparator.CompareKeyBounds(keyBoundA, keyBoundB, lowerVsUpperResult);
-                    int compBC = Comparator.CompareKeyBounds(keyBoundB, keyBoundC, lowerVsUpperResult);
-                    int compAC = Comparator.CompareKeyBounds(keyBoundA, keyBoundC, lowerVsUpperResult);
-                    if (compAB == -1 && compBC == -1) {
-                        EXPECT_EQ(compAC, -1);
-                    } else if (compAB <= 0 && compBC <= 0) {
-                        EXPECT_LE(compAC, 0);
+        for (int lowerVsUpperResult : {-1, 0, 1}) {
+            for (const auto& keyBoundA : keyBounds) {
+                // Reflexivity.
+                EXPECT_EQ(0, comparator.CompareKeyBounds(keyBoundA, keyBoundA, lowerVsUpperResult));
+                for (const auto& keyBoundB : keyBounds) {
+                    // Antisymmetry.
+                    EXPECT_EQ(
+                        comparator.CompareKeyBounds(keyBoundA, keyBoundB, lowerVsUpperResult),
+                        -comparator.CompareKeyBounds(keyBoundB, keyBoundA, lowerVsUpperResult));
+                    for (const auto& keyBoundC : keyBounds) {
+                        // Transitivity.
+                        int compAB = comparator.CompareKeyBounds(keyBoundA, keyBoundB, lowerVsUpperResult);
+                        int compBC = comparator.CompareKeyBounds(keyBoundB, keyBoundC, lowerVsUpperResult);
+                        int compAC = comparator.CompareKeyBounds(keyBoundA, keyBoundC, lowerVsUpperResult);
+                        if (compAB == -1 && compBC == -1) {
+                            EXPECT_EQ(compAC, -1);
+                        } else if (compAB <= 0 && compBC <= 0) {
+                            EXPECT_LE(compAC, 0);
+                        }
                     }
                 }
             }
         }
+    };
+
+    constexpr int MaxKeyLength = 2;
+
+    auto comparators = GenerateComparators(1, MaxKeyLength);
+
+    for (const auto& comparator : comparators) {
+        testComparator(comparator);
     }
 }
 
@@ -203,37 +232,60 @@ TEST_F(TComparatorTest, KeyBoundLowerVsUpperResult)
 
 TEST_F(TComparatorTest, KeyBoundMonotonicity)
 {
-    constexpr int KeyLength = 3;
-    const auto Comparator = MakeComparator(KeyLength);
+    auto testComparator = [&] (const TComparator& comparator) {;
+        // Generate all possible keys of length 3.
+        auto allKeys = GenerateKeys(NoSentinelValues, comparator.GetLength());
 
-    // Generate all possible keys of length 3.
-    auto allKeys = GenerateKeys(NoSentinelValues, KeyLength);
+        // And all possible upper key bounds of length up to 3.
+        std::vector<TOwningKeyBound> keyBounds;
+        InvokeForAllRows(NoSentinelValues, 0, comparator.GetLength(), [&] (const auto& row) {
+            for (bool isInclusive : {false, true}) {
+                auto upperBound = TOwningKeyBound::FromRow(row, isInclusive, /* isUpper */ true);
+                keyBounds.emplace_back(std::move(upperBound));
+            }
+        });
 
-    // And all possible upper key bounds of length up to 3.
-    std::vector<TOwningKeyBound> keyBounds;
-    InvokeForAllRows(NoSentinelValues, 0, KeyLength, [&] (const auto& row) {
-        for (bool isInclusive : {false, true}) {
-            auto upperBound = TOwningKeyBound::FromRow(row, isInclusive, /* isUpper */ true);
-            keyBounds.emplace_back(std::move(upperBound));
+        std::sort(keyBounds.begin(), keyBounds.end(), [&] (const auto& lhs, const auto& rhs) {
+            return comparator.CompareKeyBounds(lhs, rhs) < 0;
+        });
+
+        // Check that for any key K, predicate "key bound KB admits K" is monotonic
+        // while iterating with KB over #keyBounds (i.e. is false up to some moment, and
+        // is true after that).
+
+        for (const auto& key : allKeys) {
+            bool previousTestResult = false;
+            for (const auto& keyBound : keyBounds) {
+                auto testResult = comparator.TestKey(key, keyBound);
+                EXPECT_LE(previousTestResult, testResult);
+                previousTestResult = testResult;
+            }
         }
-    });
+    };
 
-    std::sort(keyBounds.begin(), keyBounds.end(), [&] (const auto& lhs, const auto& rhs) {
-        return Comparator.CompareKeyBounds(lhs, rhs) < 0;
-    });
-
-    // Check that for any key K, predicate "key bound KB admits K" is monotonic
-    // while iterating with KB over #keyBounds (i.e. is false up to some moment, and
-    // is true after that).
-
-    for (const auto& key : allKeys) {
-        bool previousTestResult = false;
-        for (const auto& keyBound : keyBounds) {
-            auto testResult = Comparator.TestKey(key, keyBound);
-            EXPECT_LE(previousTestResult, testResult);
-            previousTestResult = testResult;
-        }
+    constexpr int MaxKeyLength = 3;
+    for (const auto& comparator : GenerateComparators(1, MaxKeyLength)) {
+        testComparator(comparator);
     }
+}
+
+TEST_F(TComparatorTest, SortOrder)
+{
+    auto row1 = MakeRow({IntValue1});
+    auto key1 = TKey::FromRow(row1);
+    auto keyBoundLe2 = MakeKeyBound({IntValue2}, /* isInclusive */ true, /* isUpper */ true);
+    auto row3 = MakeRow({IntValue3});
+    auto key3 = TKey::FromRow(row3);
+
+    auto comparatorAscending = TComparator({ESortOrder::Ascending});
+    auto comparatorDescending = TComparator({ESortOrder::Descending});
+
+    EXPECT_LT(comparatorAscending.CompareKeys(key1, key3), 0);
+    EXPECT_GT(comparatorDescending.CompareKeys(key1, key3), 0);
+    EXPECT_TRUE(comparatorAscending.TestKey(key1, keyBoundLe2));
+    EXPECT_FALSE(comparatorAscending.TestKey(key3, keyBoundLe2));
+    EXPECT_FALSE(comparatorDescending.TestKey(key1, keyBoundLe2));
+    EXPECT_TRUE(comparatorDescending.TestKey(key3, keyBoundLe2));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -48,10 +48,14 @@ void TComparator::ValidateKeyBound(const TKeyBound& keyBound) const
         *this);
 }
 
-int TComparator::CompareValues(int /* index */, const TUnversionedValue& lhs, const TUnversionedValue& rhs) const
+int TComparator::CompareValues(int index, const TUnversionedValue& lhs, const TUnversionedValue& rhs) const
 {
     int valueComparisonResult = CompareRowValues(lhs, rhs);
-    // TODO(max42): if sort order == descending, valueComparisonResult = -valueComparisonResult.
+
+    if (SortOrders_[index] == ESortOrder::Descending) {
+        valueComparisonResult = -valueComparisonResult;
+    }
+
     return valueComparisonResult;
 }
 

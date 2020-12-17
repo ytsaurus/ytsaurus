@@ -1362,6 +1362,10 @@ void ValidateTableSchema(const TTableSchema& schema, bool isTableDynamic, bool a
             isTableDynamic,
             allowUnversionedUpdateColumns);
         totalTypeComplexity += column.LogicalType()->GetTypeComplexity();
+
+        if (column.SortOrder() == ESortOrder::Descending) {
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::InvalidSchemaValue, "Descending sort order is not available yet");
+        }
     }
     if (totalTypeComplexity >= MaxSchemaTotalTypeComplexity) {
         THROW_ERROR_EXCEPTION("Table schema is too complex, reduce number of columns or simplify their types");
