@@ -689,11 +689,6 @@ bool TSlotManager::IsOutOfMemory(const std::optional<TString>& poolTag) const
     return Impl_->IsOutOfMemory(poolTag);
 }
 
-void TSlotManager::SetTotalTabletSlotCount(int slotCount)
-{
-    return Impl_->SetTotalTabletSlotCount(slotCount);
-}
-
 int TSlotManager::GetTotalTabletSlotCount() const
 {
     return Impl_->GetTotalTabletSlotCount();

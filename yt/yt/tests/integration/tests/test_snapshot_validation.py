@@ -43,3 +43,42 @@ class TestSnapshotValidation(YTEnvSetup):
 
         ret = subprocess.run(command)
         assert ret.returncode == 0
+
+    @authors("akozhikhov")
+    def test_tablet_cell_snapshot_validation(self):
+        [cell_id] = sync_create_cells(1)
+
+        snapshot_path = "//sys/tablet_cells/{}/snapshots".format(cell_id)
+        assert not ls(snapshot_path)
+        build_snapshot(cell_id=cell_id)
+        snapshots = ls(snapshot_path)
+        assert snapshots
+
+        binary = find_executable("ytserver-node")
+
+        config_path = os.path.join(self.path_to_run, "configs", "node-0.yson")
+
+        config = None
+        with open(config_path, "r") as fh:
+            config = " ".join(fh.read().splitlines())
+            config = yson.loads(config)
+
+        config["data_node"]["store_locations"][0]["path"] = "."
+
+        with open(config_path, "w") as fh:
+            fh.write(yson.dumps(config, yson_format="pretty"))
+
+        snapshot = read_file("{}/{}".format(snapshot_path, snapshots[0]))
+        with open("snapshot_file", "w") as fh:
+            fh.write(snapshot)
+
+        command = [
+            binary,
+            "--validate-snapshot",
+            "./snapshot_file",
+            "--config",
+            config_path,
+            "--sleep-after-initialize",
+        ]
+        ret = subprocess.run(command)
+        assert ret.returncode == 0

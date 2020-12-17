@@ -208,7 +208,6 @@ void TBootstrap::Initialize()
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
-
         .ThrowOnError();
 }
 void TBootstrap::Run()

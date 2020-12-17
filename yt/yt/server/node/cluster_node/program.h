@@ -43,6 +43,10 @@ public:
             .AddLongOption("validate-snapshot")
             .StoreMappedResult(&ValidateSnapshot_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
+        Opts_
+            .AddLongOption("sleep-after-initialize", "sleep for 10s after calling TBootstrap::Initialize()")
+            .SetFlag(&SleepAfterInitialize_)
+            .NoArgument();
     }
 
 protected:
@@ -81,12 +85,16 @@ protected:
             return;
         }
 
-        if (ValidateSnapshot_) {
-            NBus::TTcpDispatcher::Get()->DisableNetworking();
-        }
-
         auto config = GetConfig();
         auto configNode = GetConfigNode();
+
+        if (ValidateSnapshot_) {
+            NBus::TTcpDispatcher::Get()->DisableNetworking();
+
+            config->ClusterConnection->EnableNetworking = false;
+
+            config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
+        }
 
         ConfigureSingletons(config);
         StartDiagnosticDump(config);
@@ -97,6 +105,10 @@ protected:
         auto* bootstrap = new NClusterNode::TBootstrap(std::move(config), std::move(configNode));
         bootstrap->Initialize();
 
+        if (SleepAfterInitialize_) {
+            NConcurrency::TDelayedExecutor::WaitForDuration(TDuration::Seconds(10));
+        }
+
         if (ValidateSnapshot_) {
             bootstrap->ValidateSnapshot(ValidateSnapshot_);
         } else {
@@ -106,6 +118,7 @@ protected:
 
 private:
     TString ValidateSnapshot_;
+    bool SleepAfterInitialize_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

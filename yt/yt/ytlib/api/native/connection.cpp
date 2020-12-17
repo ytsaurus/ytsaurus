@@ -40,6 +40,7 @@
 
 #include <yt/ytlib/transaction_client/config.h>
 
+#include <yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/client/transaction_client/remote_timestamp_provider.h>
 
 #include <yt/ytlib/node_tracker_client/node_addresses_provider.h>
@@ -123,21 +124,11 @@ public:
         MasterCellDirectorySynchronizer_ = New<NCellMasterClient::TCellDirectorySynchronizer>(
             Config_->MasterCellDirectorySynchronizer,
             MasterCellDirectory_);
-        MasterCellDirectorySynchronizer_->Start();
-
-        auto timestampProviderConfig = Config_->TimestampProvider;
-        if (!timestampProviderConfig) {
-            timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->PrimaryMaster);
+        if (Config_->EnableNetworking) {
+            MasterCellDirectorySynchronizer_->Start();
         }
 
-        TimestampProviderChannel_ = timestampProviderConfig->EnableTimestampProviderDiscovery ?
-            CreateNodeAddressesChannel(
-                timestampProviderConfig->TimestampProviderDiscoveryPeriod,
-                MakeWeak(MasterCellDirectory_),
-                ENodeRole::TimestampProvider,
-                BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
-            CreateTimestampProviderChannel(timestampProviderConfig, ChannelFactory_);
-        TimestampProvider_ = CreateBatchingRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
+        InitializeTimestampProvider();
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
@@ -534,6 +525,28 @@ private:
                         .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
             .EndMap();
+    }
+
+    void InitializeTimestampProvider()
+    {
+        if (!Config_->EnableNetworking) {
+            TimestampProvider_ = CreateNoopTimestampProvider();
+            return;
+        }
+
+        auto timestampProviderConfig = Config_->TimestampProvider;
+        if (!timestampProviderConfig) {
+            timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->PrimaryMaster);
+        }
+
+        TimestampProviderChannel_ = timestampProviderConfig->EnableTimestampProviderDiscovery ?
+            CreateNodeAddressesChannel(
+                timestampProviderConfig->TimestampProviderDiscoveryPeriod,
+                MakeWeak(MasterCellDirectory_),
+                ENodeRole::TimestampProvider,
+                BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
+            CreateTimestampProviderChannel(timestampProviderConfig, ChannelFactory_);
+        TimestampProvider_ = CreateBatchingRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
     }
 };
 

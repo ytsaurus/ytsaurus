@@ -141,6 +141,9 @@ public:
 
     NObjectClient::TReqExecuteBatchWithRetriesConfigPtr ChunkFetchRetries;
 
+    //! May be disabled for snapshot validation purposes.
+    bool EnableNetworking;
+
     TConnectionConfig();
 };
 
