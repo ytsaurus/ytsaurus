@@ -53,7 +53,8 @@ class TestAccessLog(YTEnvSetup):
             return True
 
         for log in entries:
-            assert any(_check_entry_is_in_log(log, line_json) for line_json in written_logs)
+            assert any(_check_entry_is_in_log(log, line_json) for line_json in
+                       written_logs), "Entry {} is not present in access log".format(log)
 
     @classmethod
     def modify_master_config(cls, config, index):
@@ -77,6 +78,7 @@ class TestAccessLog(YTEnvSetup):
         log_list = []
 
         create("map_node", "//tmp/access_log")
+        log_list.append({"path": "//tmp/access_log", "method": "Create", "type": "map_node"})
 
         create("table", "//tmp/access_log/a")
         log_list.append({"path": "//tmp/access_log/a", "method": "Create", "type": "table"})
@@ -95,6 +97,9 @@ class TestAccessLog(YTEnvSetup):
                 "destination_path": "//tmp/access_log/b",
             }
         )
+
+        ls("//tmp/access_log")
+        log_list.append({"path": "//tmp/access_log", "method": "List"})
 
         remove("//tmp/access_log/b")
         log_list.append({"path": "//tmp/access_log/b", "method": "Remove"})
@@ -136,6 +141,9 @@ class TestAccessLog(YTEnvSetup):
 
         get("//tmp/access_log/some_node/q")
         log_list.append({"path": "//tmp/access_log/b", "method": "Get"})
+
+        remove("//tmp/access_log/some_node", recursive=True)
+        log_list.append({"path": "//tmp/access_log/some_node", "method": "Remove"})
 
         self._validate_entries_are_in_log(log_list)
 

@@ -181,7 +181,8 @@ bool IsAccessLoggedType(const EObjectType type)
         EObjectType::File,
         EObjectType::Journal,
         EObjectType::Table,
-        EObjectType::Document
+        EObjectType::Document,
+        EObjectType::MapNode
     };
     return typesForAccessLog.contains(type);
 }
