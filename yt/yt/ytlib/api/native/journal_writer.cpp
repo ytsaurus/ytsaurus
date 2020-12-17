@@ -1080,7 +1080,11 @@ private:
                 req->mutable_info()->set_row_count(session->FlushedRowCount);
                 req->mutable_info()->set_uncompressed_data_size(session->FlushedDataSize);
                 req->mutable_info()->set_compressed_data_size(session->FlushedDataSize);
-
+                // COMPAT(babenko): YT-14089
+                req->mutable_misc()->set_sealed(true);
+                req->mutable_misc()->set_row_count(session->FlushedRowCount);
+                req->mutable_misc()->set_uncompressed_data_size(session->FlushedDataSize);
+                req->mutable_misc()->set_compressed_data_size(session->FlushedDataSize);
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     GetCumulativeError(batchRspOrError),
