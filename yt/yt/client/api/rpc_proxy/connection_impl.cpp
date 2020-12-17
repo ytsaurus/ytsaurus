@@ -344,22 +344,24 @@ std::vector<TString> TConnection::DiscoverProxiesByHttp(const TClientOptions& op
 
 void TConnection::OnProxyListUpdate()
 {
+    auto attributes = CreateEphemeralAttributes();
+    if (Config_->ClusterUrl) {
+        attributes->Set("cluster_url", Config_->ClusterUrl);
+    } else {
+        attributes->Set("rpc_proxy_addresses", Config_->ProxyAddresses);
+    }
+    attributes->Set("proxy_role", Config_->ProxyRole.value_or(DefaultProxyRole));
+
     auto backoff = Config_->ProxyListRetryPeriod;
     for (int attempt = 0;; ++attempt) {
         try {
-            auto attributes = CreateEphemeralAttributes();
             std::vector<TString> proxies;
             if (Config_->ClusterUrl) {
                 YT_LOG_DEBUG("Updating proxy list from HTTP");
-
-                attributes->Set("cluster_url", Config_->ClusterUrl);
-
                 YT_VERIFY(HttpCredentials_);
                 proxies = DiscoverProxiesByHttp(*HttpCredentials_);
             } else {
                 YT_LOG_DEBUG("Updating proxy list from RPC");
-
-                attributes->Set("rpc_proxy_addresses", Config_->ProxyAddresses);
 
                 if (!DiscoveryChannel_) {
                     auto address = Config_->ProxyAddresses[RandomNumber(Config_->ProxyAddresses.size())];
@@ -374,11 +376,8 @@ void TConnection::OnProxyListUpdate()
                 }
             }
 
-            attributes->Set("proxy_role", Config_->ProxyRole.value_or(DefaultProxyRole));
-
             if (proxies.empty()) {
-                THROW_ERROR_EXCEPTION("Proxy list is empty")
-                    << *attributes;
+                THROW_ERROR_EXCEPTION("Proxy list is empty");
             }
 
             ChannelPool_->SetPeers(proxies);
@@ -386,7 +385,7 @@ void TConnection::OnProxyListUpdate()
             break;
         } catch (const std::exception& ex) {
             if (attempt > Config_->MaxProxyListUpdateAttempts) {
-                ChannelPool_->SetPeerDiscoveryError(ex);
+                ChannelPool_->SetPeerDiscoveryError(TError(ex) << *attributes);
             }
 
             YT_LOG_WARNING(ex, "Error updating proxy list (Attempt: %v, Backoff: %v)",
